@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>初期セットアップ - AI Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <style>
+        .prose { font-size: 0.9rem; color: #d1d5db; line-height: 1.6; }
+        .prose h1, .prose h2, .prose h3 { color: #fff; font-weight: bold; margin-top: 1em; margin-bottom: 0.5em; }
+        .prose h1 { font-size: 1.5em; border-bottom: 1px solid #4b5563; }
+        .prose ul { list-style-type: disc; padding-left: 1.2em; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-2xl w-full bg-gray-800 rounded-xl shadow-2xl border border-gray-700 overflow-hidden">
+        <div class="bg-gray-900 p-4 border-b border-gray-700 flex justify-between items-center">
+            <h1 class="text-lg font-bold text-blue-400">初期セットアップウィザード</h1>
+            <div class="text-xs text-gray-500">Step <span id="step-num">1</span> of 2</div>
+        </div>
+
+        <form method="POST" id="setup-form" class="p-6">
+            <div id="step-1" class="space-y-6">
+                <div class="bg-orange-900/30 border border-orange-500/50 p-4 rounded-lg">
+                    <h3 class="text-orange-400 font-bold mb-2">アルファ版のご注意</h3>
+                    <p class="text-sm text-gray-300">本サービスは開発中のアルファ版です。データが予告なく削除される可能性があります。</p>
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex space-x-2 text-xs">
+                        <button type="button" onclick="loadDoc('terms')" class="text-blue-400 hover:text-white border-b border-blue-400">利用規約</button>
+                        <span class="text-gray-600">|</span>
+                        <button type="button" onclick="loadDoc('privacy')" class="text-blue-400 hover:text-white border-b border-blue-400">プライバシーポリシー</button>
+                    </div>
+                    <div class="bg-gray-900 p-4 rounded-lg border border-gray-700 h-64 overflow-y-auto prose prose-invert" id="doc-box">
+                        Loading...
+                    </div>
+                </div>
+                
+                <div class="flex items-start gap-3">
+                    <input type="checkbox" id="agree-check" class="mt-1 w-5 h-5 rounded bg-gray-700 border-gray-600">
+                    <label for="agree-check" class="text-sm text-gray-300 cursor-pointer">
+                        上記の内容を確認し、同意します。
+                    </label>
+                </div>
+
+                <div class="flex justify-end">
+                    <button type="button" onclick="goStep2()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg disabled:opacity-50" id="btn-step1" disabled>次へ</button>
+                </div>
+            </div>
+
+            <div id="step-2" class="hidden space-y-6">
+                <div><h3 class="text-lg font-bold mb-1">APIキーの設定</h3><p class="text-sm text-gray-400">ご自身のAPIキーを入力してください。</p></div>
+                <div class="space-y-4">
+                    <div><label class="block text-xs text-gray-500 mb-1">OpenAI API Key</label><input type="password" name="openai_key" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="sk-..."></div>
+                    <div><label class="block text-xs text-gray-500 mb-1">Gemini API Key</label><input type="password" name="gemini_key" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="AIza..."></div>
+                    <div><label class="block text-xs text-gray-500 mb-1">xAI API Key</label><input type="password" name="xai_key" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="xai-..."></div>
+                </div>
+                <div class="flex justify-between pt-4">
+                    <button type="button" onclick="goStep1()" class="text-gray-400 hover:text-white">戻る</button>
+                    <button type="submit" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded-lg">完了</button>
+                </div>
+            </div>
+        </form>
+    </div>
+    <script>
+        function loadDoc(type) {
+            fetch('/static/legal/'+type+'.md?t='+Date.now()).then(r=>r.text()).then(t=>{
+                document.getElementById('doc-box').innerHTML = DOMPurify.sanitize(marked.parse(t));
+            });
+        }
+        loadDoc('terms');
+
+        const check = document.getElementById('agree-check');
+        const btn1 = document.getElementById('btn-step1');
+        check.addEventListener('change', () => { btn1.disabled = !check.checked; });
+        function goStep2() { document.getElementById('step-1').classList.add('hidden'); document.getElementById('step-2').classList.remove('hidden'); document.getElementById('step-num').innerText='2'; }
+        function goStep1() { document.getElementById('step-2').classList.add('hidden'); document.getElementById('step-1').classList.remove('hidden'); document.getElementById('step-num').innerText='1'; }
+    </script>
+</body>
+</html>

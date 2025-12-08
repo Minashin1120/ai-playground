@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>更新履歴 - AI Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #111827; color: #f3f4f6; }
+        .markdown-body h1 { font-size: 1.5em; font-weight: bold; margin-bottom: 0.5em; color: #60a5fa; border-bottom: 1px solid #374151; padding-bottom: 0.2em; }
+        .markdown-body p { margin-bottom: 0.5em; color: #9ca3af; font-size: 0.9rem; }
+        .markdown-body ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1em; color: #d1d5db; }
+        .markdown-body strong { color: #fff; }
+    </style>
+</head>
+<body class="bg-gray-900 min-h-screen p-6 md:p-12">
+    <div class="max-w-4xl mx-auto">
+        <div class="flex justify-between items-center mb-10">
+            <h1 class="text-3xl font-bold text-white flex items-center">
+                <i class="fas fa-history text-orange-500 mr-3"></i> 更新履歴
+            </h1>
+            <a href="/" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg border border-gray-700 transition">
+                <i class="fas fa-arrow-left mr-2"></i> 戻る
+            </a>
+        </div>
+
+        <div class="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-gray-700 before:to-transparent">
+            {% for log in logs %}
+            <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                <!-- Icon -->
+                <div class="flex items-center justify-center w-10 h-10 rounded-full border-4 border-gray-900 bg-gray-800 group-hover:bg-blue-600 transition shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 shadow">
+                    <i class="fas fa-code-branch text-gray-400 group-hover:text-white text-xs"></i>
+                </div>
+                
+                <!-- Content -->
+                <div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg hover:border-blue-500/50 transition duration-300">
+                    <div class="markdown-body">
+                        {{ log.content | safe }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="text-center mt-12 text-gray-500 text-xs">
+            End of History
+        </div>
+    </div>
+</body>
+</html>

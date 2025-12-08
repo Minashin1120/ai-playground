@@ -1,0 +1,15 @@
+[Unit]
+Description=AI Chat Background Worker
+After=network.target redis-server.service
+
+[Service]
+User=ai-chat-minashin1120
+Group=ai-chat-minashin1120
+WorkingDirectory=/home/ai-chat-minashin1120/app
+Environment="PATH=/home/ai-chat-minashin1120/app/venv/bin"
+EnvironmentFile=/home/ai-chat-minashin1120/app/.env
+ExecStart=/home/ai-chat-minashin1120/app/venv/bin/python worker.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

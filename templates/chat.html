@@ -11,55 +11,59 @@
     <style>
         body { background-color: #111827; color: #f3f4f6; }
         .prose { font-size: 0.95rem; line-height: 1.7; color: #e5e7eb; max-width: none; }
-        .prose h1 { font-size: 1.8em !important; font-weight: 800 !important; margin: 1em 0 0.5em !important; border-bottom: 1px solid #374151; padding-bottom: 0.3em; color: #fff !important; }
-        .prose h2 { font-size: 1.5em !important; font-weight: 700 !important; margin: 1em 0 0.5em !important; color: #f3f4f6 !important; }
-        .prose h3 { font-size: 1.25em !important; font-weight: 600 !important; margin: 1em 0 0.5em !important; color: #e5e7eb !important; }
-        .prose p { margin-bottom: 0.8em !important; }
-        .prose ul { list-style-type: disc !important; padding-left: 1.5em !important; margin-bottom: 1em !important; }
-        .prose ol { list-style-type: decimal !important; padding-left: 1.5em !important; margin-bottom: 1em !important; }
-        .prose blockquote { border-left: 4px solid #4b5563; padding-left: 1rem; margin: 1em 0; color: #9ca3af; font-style: italic; background: #1f293750; padding: 0.5rem 1rem; }
-        .prose a { color: #60a5fa !important; text-decoration: underline; }
-        .prose strong { font-weight: bold !important; color: #fff !important; }
-        .prose table { width: 100%; border-collapse: collapse; margin: 1em 0; }
-        .prose th, .prose td { border: 1px solid #4b5563; padding: 0.4rem; }
-        .prose th { background: #1f2937; font-weight: bold; text-align: left; }
+        .prose h1 { font-size: 1.5em; border-bottom: 1px solid #374151; padding-bottom: 0.3em; margin-top: 1em; font-weight: bold; color: #fff; }
+        .prose h2 { font-size: 1.3em; margin-top: 1em; font-weight: bold; color: #f3f4f6; }
+        .prose p { margin-bottom: 0.8em; }
+        .prose ul { list-style-type: disc; padding-left: 1.5em; }
+        .prose pre { margin: 1em 0; padding: 1em; overflow-x: auto; background: #00000050; border-radius: 0.5rem; }
+        .prose code { background: #374151; padding: 0.2rem 0.4rem; border-radius: 0.3rem; font-family: monospace; font-size: 0.9em; }
+        .prose pre code { background: transparent; padding: 0; }
+        .prose a { color: #60a5fa; text-decoration: underline; }
+
         .code-wrapper { margin: 1em 0; border-radius: 0.5rem; border: 1px solid #374151; overflow: hidden; background: #0f1117; }
         .code-header { display: flex; justify-content: space-between; align-items: center; background: #1f2937; padding: 0.3rem 0.8rem; font-size: 0.75rem; color: #9ca3af; border-bottom: 1px solid #374151; }
-        .code-lang { font-weight: bold; text-transform: uppercase; }
-        .copy-btn { background: transparent; border: none; color: #9ca3af; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s; }
+        .copy-btn { cursor: pointer; display: flex; align-items: center; gap: 0.3rem; color: #9ca3af; }
         .copy-btn:hover { color: #fff; }
-        .prose pre { margin: 0 !important; padding: 1rem !important; overflow-x: auto; background: transparent !important; border-radius: 0 !important; border: none !important; }
-        .prose code { font-family: Consolas, Monaco, 'Andale Mono', monospace; font-size: 0.9em; color: #e5e7eb !important; background: transparent !important; padding: 0 !important; }
-        .prose :not(pre) > code { background: #374151 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.3rem !important; color: #e2e8f0 !important; }
+
         .thought-container { margin-bottom: 1rem; }
         .thought-box { border-left: 3px solid #a855f7; background: #1f2937; padding: 0.75rem; font-size: 0.85rem; color: #d8b4fe; border-radius: 0.25rem; white-space: pre-wrap; word-break: break-word; overflow-y: auto; max-height: 300px; font-family: monospace; }
-        .tool-status { border-left: 3px solid #10b981; background: #064e3b; padding: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; color: #a7f3d0; border-radius: 0.25rem; display: flex; align-items: center; gap: 0.5rem; }
+        
         .message-bubble { max-width: 90%; position: relative; }
         @media (min-width: 768px) { .message-bubble { max-width: 80%; } }
-        .msg-controls { opacity: 0; transition: opacity 0.2s; position: absolute; top: -12px; right: 0; display: flex; gap: 4px; }
+        
+        .msg-controls { opacity: 0; transition: opacity 0.2s; position: absolute; top: -18px; right: 0; display: flex; gap: 4px; }
         .message-group:hover .msg-controls { opacity: 1; }
         @media (hover: none) { .msg-controls { opacity: 1; } }
-        .ctrl-btn { background: #1f2937; color: #9ca3af; border: 1px solid #4b5563; border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 10px; transition: all 0.2s; }
+        .ctrl-btn { background: #1f2937; color: #9ca3af; border: 1px solid #4b5563; border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 10px; }
         .ctrl-btn:hover { background: #374151; color: #fff; }
-        .view-hidden { display: none !important; }
+
         #debug-console { position: fixed; bottom: 0; right: 0; width: 100%; height: 150px; background: rgba(0,0,0,0.95); color: #0f0; font-family: monospace; font-size: 11px; overflow-y: auto; z-index: 9999; padding: 10px; border-top: 1px solid #444; display: none; }
         
-        .alpha-text { color: #f97316; font-size: 0.65rem; font-weight: bold; letter-spacing: 0.05em; margin-left: 0.2rem; }
+        .alpha-text { color: #f97316; font-size: 0.65rem; font-weight: bold; margin-left: 0.2rem; }
         #alpha-bar { transition: all 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55); transform-origin: center center; }
         .pulse-target { animation: pulse-orange 1s infinite; }
-        @keyframes pulse-orange { 0% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(249, 115, 22, 0); } 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); } }
-        @media (max-width: 768px) { .sidebar { position: fixed; z-index: 50; height: 100%; transform: translateX(-100%); transition: transform 0.3s; } .sidebar.open { transform: translateX(0); } .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; } .overlay.active { display: block; } }
+        @keyframes pulse-orange { 0% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.7); } 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); } }
+
+        @media (max-width: 768px) {
+            .sidebar { position: fixed; z-index: 50; height: 100%; transform: translateX(-100%); transition: transform 0.3s; }
+            .sidebar.open { transform: translateX(0); }
+            .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; }
+            .overlay.active { display: block; }
+        }
     </style>
 </head>
 <body class="h-[100dvh] flex overflow-hidden text-sm md:text-base">
 
+    <!-- Alpha Bar -->
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-orange-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-orange-400">
         <i class="fas fa-exclamation-circle mr-1"></i> このアプリケーションはアルファバージョンです。
     </div>
 
+    <!-- Debug & Overlay -->
     <div id="debug-console"><div id="debug-content"></div><button onclick="document.getElementById('debug-console').style.display='none'" style="position:absolute;top:5px;right:5px;color:#f55">✕</button></div>
     <div id="overlay" class="overlay"></div>
 
+    <!-- Sidebar -->
     <div id="sidebar" class="sidebar w-64 bg-gray-800 border-r border-gray-700 flex flex-col shrink-0">
         <div class="p-3 border-b border-gray-700 flex flex-col gap-2">
             <div class="flex justify-between items-center">
@@ -78,7 +82,7 @@
         </div>
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         <div class="p-3 border-t border-gray-700 flex flex-col gap-2">
-            <div id="version-display" class="text-center text-[10px] text-gray-500 font-mono cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.2.2 <span class="text-orange-500 font-bold">ALPHA</span></div>
+            <div id="version-display" class="text-center text-[10px] text-gray-500 font-mono cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.2.4 <span class="text-orange-500 font-bold">ALPHA</span></div>
             <div class="flex justify-center gap-3 text-[10px] text-gray-500">
                 <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
                 <span class="text-gray-700">|</span>
@@ -88,6 +92,7 @@
         </div>
     </div>
 
+    <!-- Main Content -->
     <div class="flex-1 flex flex-col w-full relative min-w-0">
         <header class="bg-gray-800 border-b border-gray-700 p-3 shadow-md flex justify-between items-center shrink-0 md:hidden">
             <button id="menu-btn" class="text-gray-300 p-2 relative"><i class="fas fa-bars text-xl"></i></button>
@@ -130,241 +135,382 @@
                         <div id="reasoning-effort-container" class="hidden flex items-center gap-1"><span class="text-gray-400">Effort:</span><select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></div>
                     </div>
                 </div>
-                <div id="file-preview" class="hidden px-3 py-2 bg-gray-700/50 rounded text-xs text-blue-300 flex justify-between items-center"><span id="file-name" class="truncate"></span><button id="clear-file-btn" class="text-gray-400 hover:text-white ml-2">✕</button></div>
+                <!-- File Preview -->
+                <div id="file-preview" class="hidden px-3 py-2 bg-gray-700/50 rounded text-xs text-blue-300 flex justify-between items-center mb-2"><span id="file-name" class="truncate"></span><button id="clear-file-btn" class="text-gray-400 hover:text-white ml-2">✕</button></div>
+                <!-- Input Area -->
                 <div class="flex gap-2 items-end">
                     <input type="file" id="file-input" class="hidden" multiple>
-                    <button id="upload-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition flex-shrink-0"><i class="fas fa-paperclip"></i></button>
+                    <button id="upload-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition flex-shrink-0" title="Upload File"><i class="fas fa-paperclip"></i></button>
                     <textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="メッセージを入力..." style="min-height: 46px; max-height: 150px;"></textarea>
-                    <button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center flex-shrink-0"><i class="fas fa-paper-plane"></i></button>
+                    <button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center flex-shrink-0" title="Send"><i class="fas fa-paper-plane"></i></button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Modals -->
+    <!-- Modals (Settings, Lib, Legal, Alpha, Changelog) -->
     <div id="lib-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden flex-col backdrop-blur-sm transition-opacity opacity-0 pointer-events-none" style="display:none;"><div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button id="close-lib-btn" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div><div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0"><span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span><button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs" disabled>削除 <span id="lib-sel-badge"></span></button></div><div id="lib-grid" class="flex-1 overflow-y-auto p-4 grid grid-cols-3 gap-4"></div></div>
     
-    <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm" style="display:none;">
-        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh]">
-            <h2 class="text-xl font-bold text-white mb-4">設定</h2>
-            <div class="overflow-y-auto pr-2 space-y-4 flex-1">
-                <div class="bg-gray-900 p-4 rounded border border-gray-700">
-                    <h3 class="text-sm font-bold text-blue-400 mb-2">プロフィール</h3>
-                    <div class="space-y-3">
-                        <div><label class="text-xs text-gray-500 block">ユーザー名</label><input type="text" id="set-username" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
-                        <div><label class="text-xs text-gray-500 block">新パスワード (変更時のみ入力)</label><input type="password" id="set-password" placeholder="変更しない場合は空欄" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
-                    </div>
-                </div>
-                <div class="bg-gray-900 p-4 rounded border border-gray-700">
-                    <h3 class="text-sm font-bold text-green-400 mb-2">APIキー</h3>
-                    <div class="space-y-3">
-                        <div><label class="text-xs text-gray-500 block">OpenAI API Key (GPT)</label><input type="password" id="set-openai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
-                        <div><label class="text-xs text-gray-500 block">Gemini API Key</label><input type="password" id="set-gemini" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
-                        <div><label class="text-xs text-gray-500 block">xAI API Key (Grok)</label><input type="password" id="set-xai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
-                    </div>
-                </div>
-                <div>
-                    <label class="text-xs text-gray-500 block mb-1">システムプロンプト</label>
-                    <textarea id="sys-prompt-text" class="w-full h-32 bg-gray-900 border-gray-600 rounded p-3 text-sm text-white" {% if current_user.username != 'minashin1120' %}readonly placeholder="管理者のみ変更可能です"{% endif %}></textarea>
-                </div>
-            </div>
-            <div class="flex justify-end gap-3 mt-4 shrink-0">
-                <button id="close-settings-btn" class="px-4 py-2 text-gray-400 hover:text-white">キャンセル</button>
-                <button id="save-settings-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold">保存</button>
-            </div>
-        </div>
-    </div>
+    <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm" style="display:none;"><div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh]"><h2 class="text-xl font-bold text-white mb-4">設定</h2><div class="overflow-y-auto pr-2 space-y-4 flex-1"><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">プロフィール</h3><div class="space-y-3"><div><label class="text-xs text-gray-500 block">ユーザー名</label><input type="text" id="set-username" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">新パスワード</label><input type="password" id="set-password" placeholder="変更しない場合は空欄" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-green-400 mb-2">APIキー</h3><div class="space-y-3"><div><label class="text-xs text-gray-500 block">OpenAI API Key (GPT)</label><input type="password" id="set-openai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">Gemini API Key</label><input type="password" id="set-gemini" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">xAI API Key (Grok)</label><input type="password" id="set-xai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div></div></div><div><label class="text-xs text-gray-500 block mb-1">システムプロンプト</label><textarea id="sys-prompt-text" class="w-full h-32 bg-gray-900 border-gray-600 rounded p-3 text-sm text-white" {% if current_user.username != 'minashin1120' %}readonly placeholder="管理者のみ変更可能です"{% endif %}></textarea></div></div><div class="flex justify-end gap-3 mt-4 shrink-0"><button id="close-settings-btn" class="px-4 py-2 text-gray-400 hover:text-white">キャンセル</button><button id="save-settings-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold">保存</button></div></div></div>
 
-    <!-- Changelog Modal -->
-    <div id="changelog-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm" style="display:none;">
-        <div class="bg-gray-800 rounded-lg w-full max-w-xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[80vh]">
-            <h2 class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">更新履歴</h2>
-            <div class="overflow-y-auto pr-2 space-y-4 flex-1 text-sm text-gray-300">
-                <div>
-                    <h3 class="text-orange-400 font-bold">V222 - UX Update</h3>
-                    <ul class="list-disc list-inside ml-2 text-gray-400 text-xs">
-                        <li>画像貼り付け機能（クリップボードから直接アップロード）</li>
-                        <li>Command+Enter / Ctrl+Enter での送信に対応</li>
-                    </ul>
-                </div>
-                <div>
-                    <h3 class="text-orange-400 font-bold">V216 - Legal Doc Fix</h3>
-                    <ul class="list-disc list-inside ml-2 text-gray-400 text-xs">
-                        <li>規約表示の日本語化と修復</li>
-                        <li>UIの安定性向上</li>
-                    </ul>
-                </div>
-                <div>
-                    <h3 class="text-orange-400 font-bold">V214 - Japanese Localization</h3>
-                    <ul class="list-disc list-inside ml-2 text-gray-400 text-xs">
-                        <li>完全日本語化対応</li>
-                    </ul>
-                </div>
-            </div>
-            <div class="flex justify-end mt-4 shrink-0">
-                <button id="close-changelog-btn" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">閉じる</button>
-            </div>
-        </div>
-    </div>
+    <div id="changelog-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm" style="display:none;"><div class="bg-gray-800 rounded-lg w-full max-w-xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[80vh]"><h2 class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">更新履歴</h2><div class="overflow-y-auto pr-2 space-y-4 flex-1 text-sm text-gray-300"><div><h3 class="text-orange-400 font-bold">V224 - UX Real Fix</h3><ul class="list-disc list-inside ml-2 text-gray-400 text-xs"><li>画像ペースト機能の修正</li><li>ショートカット送信(Cmd/Ctrl+Enter)の修正</li></ul></div><div><h3 class="text-orange-400 font-bold">V216 - Legal Doc Fix</h3><ul class="list-disc list-inside ml-2 text-gray-400 text-xs"><li>規約表示の日本語化</li></ul></div></div><div class="flex justify-end mt-4 shrink-0"><button id="close-changelog-btn" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">閉じる</button></div></div></div>
 
-    <!-- Alpha Info Modal -->
-    <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-center justify-center backdrop-blur-sm" style="display:none;">
-        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4">
-            <h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2>
-            <div class="text-sm text-gray-300 space-y-3">
-                <p>このアプリケーションは開発中の<strong>アルファ版</strong>です。</p>
-                <ul class="list-disc list-inside space-y-1 text-gray-400">
-                    <li>予告なくデータが削除される可能性があります。</li>
-                    <li>予期せぬ動作やエラーが発生する場合があります。</li>
-                    <li>セキュリティ機能は提供されますが、機密情報の入力は推奨されません。</li>
-                </ul>
-                <p class="text-xs text-gray-500 mt-2">使用を継続することで、上記のリスクに同意したものとみなされます。</p>
-            </div>
-            <div class="flex justify-end mt-6">
-                <button id="close-alpha-info-btn" class="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded font-bold">理解しました</button>
-            </div>
-        </div>
-    </div>
+    <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-center justify-center backdrop-blur-sm" style="display:none;"><div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4"><h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2><div class="text-sm text-gray-300 space-y-3"><p>このアプリケーションは開発中の<strong>アルファ版</strong>です。</p><ul class="list-disc list-inside space-y-1 text-gray-400"><li>予告なくデータが削除される可能性があります。</li><li>予期せぬ動作やエラーが発生する場合があります。</li></ul></div><div class="flex justify-end mt-6"><button id="close-alpha-info-btn" class="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded font-bold">理解しました</button></div></div></div>
 
-    <!-- Legal Modal (Markdown Fetch) -->
-    <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm" style="display:none;">
-        <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh]">
-            <h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">利用規約</h2>
-            <div id="legal-content" class="overflow-y-auto pr-2 flex-1 text-sm text-gray-300 leading-relaxed space-y-4 prose prose-invert max-w-none">
-                <div class="flex justify-center p-4 text-gray-400"><i class="fas fa-circle-notch fa-spin mr-2"></i> Loading...</div>
-            </div>
-            <div class="flex justify-end mt-4 shrink-0">
-                <button onclick="document.getElementById('legal-modal').style.display='none'" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">閉じる</button>
-            </div>
-        </div>
-    </div>
+    <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm" style="display:none;"><div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh]"><h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">利用規約</h2><div id="legal-content" class="overflow-y-auto pr-2 flex-1 text-sm text-gray-300 leading-relaxed space-y-4 prose prose-invert max-w-none"><div class="flex justify-center p-4 text-gray-400"><i class="fas fa-circle-notch fa-spin mr-2"></i> Loading...</div></div><div class="flex justify-end mt-4 shrink-0"><button onclick="document.getElementById('legal-modal').style.display='none'" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">閉じる</button></div></div></div>
 
     <script>
+        // --- Utilities ---
         function escapeHtml(text) { return text ? text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") : text; }
-        function log(msg, type='info') { console.log(msg); }
-        function toggleDebug() { const c=document.getElementById('debug-console'); c.style.display=c.style.display==='none'?'block':'none'; }
+        function log(msg, type='info') { const c=document.getElementById('debug-content'); if(c){ c.innerHTML += '<p style="color:'+(type==='error'?'#f55':'#0f0')+'">['+new Date().toLocaleTimeString()+'] '+escapeHtml(msg)+'</p>'; document.getElementById('debug-console').scrollTop = document.getElementById('debug-console').scrollHeight; } console[type](msg); }
+        function toggleDebug() { const c=document.getElementById('debug-console'); c.style.display = c.style.display==='none'?'block':'none'; }
         
+        // Global for Copy
         window.copyCode = function(btn, enc) { navigator.clipboard.writeText(decodeURIComponent(enc)).then(()=>{ btn.innerHTML='<i class="fas fa-check text-green-400"></i>'; setTimeout(()=>btn.innerHTML='<i class="fas fa-copy"></i> Copy',2000); }); };
-        window.copyMessage = function(id, btn) { const text = messageStore[id]; if (!text) return; navigator.clipboard.writeText(text).then(() => { const original = btn.innerHTML; btn.innerHTML = '<i class="fas fa-check text-green-400"></i>'; setTimeout(() => btn.innerHTML = original, 2000); }); };
-        window.showAlphaInfo = function() { document.getElementById('alpha-info-modal').style.display = 'flex'; };
-
-        // V216: Fetch External Markdown
+        window.copyMessage = function(id, btn) { const text = messageStore[id]; if(!text)return; navigator.clipboard.writeText(text).then(()=>{ const o=btn.innerHTML; btn.innerHTML='<i class="fas fa-check text-green-400"></i>'; setTimeout(()=>btn.innerHTML=o,2000); }); };
+        
+        // Modal Helpers
+        window.showAlphaInfo = function() { document.getElementById('alpha-info-modal').style.display='flex'; };
         window.showLegal = async function(type) {
             document.getElementById('legal-title').innerText = type==='terms'?'利用規約':'プライバシーポリシー';
             const content = document.getElementById('legal-content');
             content.innerHTML = '<div class="flex justify-center p-4 text-gray-400"><i class="fas fa-circle-notch fa-spin mr-2"></i> Loading...</div>';
             document.getElementById('legal-modal').style.display = 'flex';
-            
             try {
-                // Cache busting
                 const res = await fetch('/static/legal/' + type + '.md?t=' + Date.now());
                 if(!res.ok) throw new Error("Load failed");
                 const text = await res.text();
-                if(typeof marked !== 'undefined') {
-                    content.innerHTML = DOMPurify.sanitize(marked.parse(text));
-                } else {
-                    content.innerText = text;
-                }
-            } catch(e) {
-                console.error(e);
-                content.innerHTML = '<div class="text-red-400 p-4">読み込みに失敗しました。</div>';
-            }
+                if(typeof marked !== 'undefined') { content.innerHTML = DOMPurify.sanitize(marked.parse(text)); } else { content.innerText = text; }
+            } catch(e) { content.innerHTML = '<div class="text-red-400 p-4">読み込みに失敗しました。</div>'; }
         };
-        
-        document.addEventListener('DOMContentLoaded', () => {
-            log("App Initialized (V222)");
-            const bar = document.getElementById('alpha-bar'); setTimeout(() => { if(bar) { const isMobile = window.innerWidth < 768; const targetId = isMobile ? 'menu-btn' : 'version-display'; const target = document.getElementById(targetId); if(target) { const barRect = bar.getBoundingClientRect(); const targetRect = target.getBoundingClientRect(); const tx = targetRect.left + (targetRect.width/2) - (barRect.left + barRect.width/2); const ty = targetRect.top + (targetRect.height/2) - (barRect.top + barRect.height/2); bar.style.transform = "translate(" + tx + "px, " + ty + "px) scale(0.1)"; bar.style.opacity = '0'; setTimeout(() => { target.classList.add('pulse-target'); setTimeout(() => target.classList.remove('pulse-target'), 2000); bar.remove(); }, 800); } else { bar.style.opacity = '0'; setTimeout(() => bar.remove(), 1000); } } }, 3000);
 
-            if (typeof marked !== 'undefined') { const renderer = new marked.Renderer(); renderer.html = function(html) { return DOMPurify.sanitize(html); }; renderer.code = function(code, infostring, escaped) { const lang = (infostring || '').match(/\S*/)[0]; const codeEncoded = encodeURIComponent(code); const displayCode = escaped ? code : escapeHtml(code); return '<div class="code-wrapper"><div class="code-header"><span class="code-lang">' + (escapeHtml(lang) || 'TEXT') + '</span><button class="copy-btn" onclick="copyCode(this, \'' + codeEncoded + '\')"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="language-' + escapeHtml(lang) + '">' + displayCode + '</code></pre></div>'; }; marked.use({ renderer: renderer, breaks: true, gfm: true }); }
+        document.addEventListener('DOMContentLoaded', () => {
+            log("App Initialized (V224 Real Fix)");
             
+            // --- Animation ---
+            const bar = document.getElementById('alpha-bar');
+            setTimeout(() => { if(bar) {
+                const isMobile = window.innerWidth < 768;
+                const targetId = isMobile ? 'menu-btn' : 'version-display';
+                const target = document.getElementById(targetId);
+                if(target) {
+                    const barRect = bar.getBoundingClientRect();
+                    const targetRect = target.getBoundingClientRect();
+                    const tx = targetRect.left + (targetRect.width/2) - (barRect.left + barRect.width/2);
+                    const ty = targetRect.top + (targetRect.height/2) - (barRect.top + barRect.height/2);
+                    bar.style.transform = "translate("+tx+"px, "+ty+"px) scale(0.1)";
+                    bar.style.opacity = '0';
+                    setTimeout(() => { target.classList.add('pulse-target'); setTimeout(()=>target.classList.remove('pulse-target'),2000); bar.remove(); }, 800);
+                } else { bar.style.opacity = '0'; setTimeout(()=>bar.remove(),1000); }
+            }}, 3000);
+
+            // --- Marked Init ---
+            if (typeof marked !== 'undefined') {
+                const renderer = new marked.Renderer();
+                renderer.html = function(html) { return DOMPurify.sanitize(html); };
+                renderer.code = function(code, infostring, escaped) {
+                    const lang = (infostring || '').match(/\S*/)[0];
+                    const codeEncoded = encodeURIComponent(code);
+                    const displayCode = escaped ? code : escapeHtml(code);
+                    return '<div class="code-wrapper"><div class="code-header"><span class="code-lang">' + (escapeHtml(lang) || 'TEXT') + '</span><button class="copy-btn" onclick="copyCode(this, \'' + codeEncoded + '\')"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="language-' + escapeHtml(lang) + '">' + displayCode + '</code></pre></div>';
+                };
+                marked.use({ renderer: renderer, breaks: true, gfm: true });
+            }
+
+            // --- Elements ---
             const get = (id) => document.getElementById(id);
             const chatContainer = get('chat-container');
-            let currentThreadId = null; let currentImageUrls = []; let abortController = null; let isUserScrolling = false; let searchTimeout; const messageStore = {}; window.messageStore = messageStore; const lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), filter: 'all' };
-
-            // V222: Unified File Handler
-            async function handleFiles(files) {
-                if(!files || files.length === 0) return;
-                get('file-preview').classList.remove('hidden'); 
-                get('file-name').innerText = "Uploading " + files.length + "..."; 
-                
-                // Clear old batch if desired, or append. Here assume append to current session.
-                // currentImageUrls = []; // Uncomment to reset per batch
-                
-                for (let i = 0; i < files.length; i++) { 
-                    const fd = new FormData(); fd.append('file', files[i]); 
-                    try { 
-                        const res = await fetch('/upload', {method:'POST', body:fd}); 
-                        const d = await res.json(); 
-                        if(d.filename) currentImageUrls.push(d.filename); 
-                    } catch(err) {} 
-                } 
-                get('file-name').innerText = currentImageUrls.length + " files ready"; 
-                // Clear input value so same file can be selected again
-                get('file-input').value = ''; 
-            }
+            const promptInput = get('prompt-input');
+            const sendBtn = get('send-btn');
             
-            async function handleFileUpload(e) { handleFiles(e.target.files); }
+            let currentThreadId = null;
+            let currentImageUrls = [];
+            let abortController = null;
+            let isUserScrolling = false;
+            let searchTimeout;
+            const messageStore = {};
+            window.messageStore = messageStore;
+            const lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), filter: 'all' };
 
-            function clearFile() { currentImageUrls = []; get('file-input').value = ''; get('file-preview').classList.add('hidden'); }
-
-            // Logic copied from V210/V216
-            function toggleOptions() { const model = get('model-select').value; const think = get('thinking-option'); const reason = get('reasoning-effort-container'); const search = get('search-container'); if(think) think.classList.add('hidden'); if(reason) reason.classList.add('hidden'); if(search) search.classList.remove('opacity-50', 'pointer-events-none'); if(model.includes('gemini') || model.includes('nano')) { if(think) think.classList.remove('hidden'); } else if(model.includes('gpt')) { if(reason) reason.classList.remove('hidden'); } checkSystemPromptAvailability(); }
-            function checkSystemPromptAvailability() { const model = get('model-select').value; const chk = get('enable-sys-prompt'); const lbl = get('sys-prompt-option'); if(!chk || !lbl) return; if(model.includes('nano')) { chk.checked=false; chk.disabled=true; lbl.classList.add('opacity-50'); } else { chk.disabled=false; lbl.classList.remove('opacity-50'); } }
-            function checkSearchAvailability() { const model = get('model-select').value; const reasonEffort = get('reasoning-effort'); const searchCont = get('search-container'); const searchChk = get('enable-search'); if(!searchCont || !searchChk) return; if (model.includes('gpt') && reasonEffort && reasonEffort.value === 'low') { searchCont.classList.add('opacity-50','pointer-events-none'); searchChk.checked=false; } else if(model.includes('gpt')) { searchCont.classList.remove('opacity-50','pointer-events-none'); } }
-            async function createNewThread(fromMessage=false) { try { const res = await fetch('/api/threads', {method:'POST'}); const data = await res.json(); currentThreadId = data.id; loadThreads(); get('welcome-screen').classList.remove('hidden'); get('chat-container').classList.add('view-hidden'); get('chat-container').innerHTML = ''; if(!fromMessage && window.innerWidth < 768) toggleSidebar(); } catch(e) {} }
-            async function loadThreads() { const q = get('search-box').value; const res = await fetch("/api/threads?q=" + encodeURIComponent(q)); const threads = await res.json(); const list = get('thread-list'); list.innerHTML = ''; threads.forEach(t => { const div = document.createElement('div'); div.className = "p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 border-b border-gray-700/30 " + (t.id===currentThreadId?'bg-gray-700 text-white':''); div.innerText = t.title || "No Title"; div.onclick = () => loadMessages(t.id); list.appendChild(div); }); if(!currentThreadId && threads.length === 0) { get('welcome-screen').classList.remove('hidden'); } }
-            async function loadMessages(tid) { currentThreadId = tid; loadThreads(); get('welcome-screen').classList.add('hidden'); get('chat-container').classList.remove('view-hidden'); get('chat-container').innerHTML = '<div class="flex justify-center mt-10"><i class="fas fa-circle-notch fa-spin text-blue-500 text-2xl"></i></div>'; const res = await fetch("/api/threads/" + tid); const msgs = await res.json(); get('chat-container').innerHTML = ''; if(msgs.length === 0) get('welcome-screen').classList.remove('hidden'); else msgs.forEach(m => renderMessage(m.id, m.role, m.content, m.image_url, m.model, m.thought_data)); if(window.innerWidth < 768) toggleSidebar(); }
-            async function sendMessage() { const text = get('prompt-input').value.trim(); if(!text && currentImageUrls.length === 0) return; if(!currentThreadId) await createNewThread(true); get('welcome-screen').classList.add('hidden'); get('chat-container').classList.remove('view-hidden'); const model = get('model-select').value; const sysPrompt = get('enable-sys-prompt').checked; renderMessage(0, 'user', text, JSON.stringify(currentImageUrls), null); get('prompt-input').value = ''; const aiDivId = 'ai-' + Date.now(); get('chat-container').insertAdjacentHTML('beforeend', '<div class="flex justify-start fade-in mb-4"><div id="' + aiDivId + '" class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md min-w-[50px] relative"><span class="animate-pulse">Thinking...</span></div></div>'); const aiDiv = document.getElementById(aiDivId); get('send-btn').disabled = true; get('stop-container').classList.remove('hidden'); abortController = new AbortController(); try { const res = await fetch('/chat_stream', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ thread_id: currentThreadId, message: text, model: model, image_urls: currentImageUrls, enable_search: get('enable-search').checked, enable_thinking: get('enable-thinking').checked, reasoning_effort: get('reasoning-effort').value, enable_system_prompt: sysPrompt }), signal: abortController.signal }); const reader = res.body.getReader(); const decoder = new TextDecoder(); let firstChunk = true; let accumulated = "", thoughtAccumulated = ""; while (true) { const { done, value } = await reader.read(); if (done) break; const chunkStr = decoder.decode(value, { stream: true }); const lines = chunkStr.split('\n'); for (const line of lines) { if (!line.trim()) continue; try { const json = JSON.parse(line); if(firstChunk) { aiDiv.innerHTML = ''; firstChunk = false; } if (json.type === 'content') { accumulated += json.data; let txt = aiDiv.querySelector('.prose'); if(!txt) { txt = document.createElement('div'); txt.className = 'prose prose-invert text-sm break-words'; aiDiv.appendChild(txt); } if(typeof marked !== 'undefined') { try { txt.innerHTML = DOMPurify.sanitize(marked.parse(accumulated)); } catch(e) { txt.innerHTML = escapeHtml(accumulated).replace(/\n/g, '<br>'); } } else txt.innerText = accumulated; } else if (json.type === 'thought') { thoughtAccumulated += json.data; let tBox = aiDiv.querySelector('.thought-box'); if(!tBox) { aiDiv.insertAdjacentHTML('afterbegin', '<div class="thought-container"><div class="thought-box"></div></div>'); tBox = aiDiv.querySelector('.thought-box'); } tBox.textContent = thoughtAccumulated; } else if (json.type === 'error') { aiDiv.innerHTML += '<div class="text-red-400">Error: ' + escapeHtml(json.data) + '</div>'; } else if (json.type === 'tool_status') { aiDiv.insertAdjacentHTML('beforeend', '<div class="tool-status">' + escapeHtml(json.data) + '</div>'); } } catch(e) {} } if(!isUserScrolling) get('chat-container').scrollTop = get('chat-container').scrollHeight; } if(aiDiv) { messageStore[aiDivId] = accumulated; aiDiv.insertAdjacentHTML('afterbegin', '<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage(\'' + aiDivId + '\', this)" title="Copy"><i class="fas fa-copy"></i></button></div>'); aiDiv.insertAdjacentHTML('beforeend', '<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">' + model + '</div>'); } loadThreads(); } catch(e) { if(e.name !== 'AbortError') aiDiv.innerHTML += '<div class="text-red-400">Net Error</div>'; } finally { clearFile(); get('send-btn').disabled = false; get('stop-container').classList.add('hidden'); abortController = null; } }
-            function renderMessage(id, role, text, imgUrl, modelName, thoughtData) { const isUser = role === 'user'; const bg = isUser ? 'bg-blue-600' : 'bg-gray-700'; const align = isUser ? 'justify-end' : 'justify-start'; messageStore[id] = text; const controlsHtml = '<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage(\'' + id + '\', this)" title="Copy"><i class="fas fa-copy"></i></button>' + (isUser ? '<button class="ctrl-btn edit-btn" data-id="' + id + '" title="Edit"><i class="fas fa-pen"></i></button>' : '') + '</div>'; let attach = ''; if(imgUrl) { try { let imgs = JSON.parse(imgUrl); if(!Array.isArray(imgs)) imgs = [imgUrl]; imgs = imgs.filter(u => u && u !== '[]' && u !== 'null'); if(imgs.length > 0) { attach = '<div class="flex flex-wrap gap-2 mt-2">'; imgs.forEach(u => { const url = '/static/uploads/' + u; if(u.endsWith('webp')||u.endsWith('png')||u.endsWith('jpg')) attach += '<img src="' + url + '" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer" onclick="window.open(\'' + url + '\')">'; else attach += '<div class="h-24 w-24 bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700" onclick="window.open(\'' + url + '\')"><i class="fas fa-file text-2xl text-gray-400 mb-1"></i><span class="text-[9px] truncate w-20 text-center px-1">' + u.split('/').pop() + '</span></div>'; }); attach += '</div>'; } } catch(e) {} } let thoughtHtml = ''; if(thoughtData) { let tText = ""; try { const tObj = JSON.parse(thoughtData); tText = tObj.text || tObj; } catch(e) { tText = thoughtData; } if(tText && typeof tText === 'string' && !tText.trim().startsWith('{')) { thoughtHtml = '<div class="thought-container"><div class="thought-box">' + escapeHtml(tText) + '</div></div>'; } } let parsedText = text; if (typeof marked !== 'undefined') { try { parsedText = DOMPurify.sanitize(marked.parse(text)); } catch(e) { parsedText = escapeHtml(text).replace(/\n/g, '<br>'); } } else { parsedText = escapeHtml(text).replace(/\n/g, '<br>'); } const html = '<div class="flex ' + align + ' mb-4 fade-in message-group relative group"><div class="message-bubble ' + bg + ' text-white p-4 rounded-2xl ' + (isUser?'rounded-tr-none':'rounded-tl-none') + ' shadow-md relative">' + controlsHtml + thoughtHtml + '<div class="prose prose-invert text-sm break-words">' + parsedText + '</div>' + attach + (modelName && !isUser ? '<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">' + modelName + '</div>' : '') + '</div></div>'; get('chat-container').insertAdjacentHTML('beforeend', html); get('chat-container').scrollTop = get('chat-container').scrollHeight; }
-
-            get('menu-btn')?.addEventListener('click', toggleSidebar); get('overlay')?.addEventListener('click', toggleSidebar); get('new-chat-btn')?.addEventListener('click', () => createNewThread(false)); get('mobile-new-chat-btn')?.addEventListener('click', () => createNewThread(false)); get('send-btn')?.addEventListener('click', sendMessage); get('stop-btn')?.addEventListener('click', stopGeneration); get('model-select')?.addEventListener('change', toggleOptions); get('reasoning-effort')?.addEventListener('change', checkSearchAvailability); get('upload-btn')?.addEventListener('click', () => get('file-input').click()); get('file-input')?.addEventListener('change', handleFileUpload); get('clear-file-btn')?.addEventListener('click', clearFile); get('search-box')?.addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(loadThreads, 300); });
-            if(chatContainer) { chatContainer.addEventListener('scroll', () => { const current = chatContainer.scrollTop; const max = chatContainer.scrollHeight - chatContainer.clientHeight; isUserScrolling = (max - current > 30); }); chatContainer.addEventListener('click', (e) => { const editBtn = e.target.closest('.edit-btn'); if (editBtn) { e.stopPropagation(); const id = editBtn.dataset.id; const text = messageStore[id]; if(!text) return; get('prompt-input').value = text; get('prompt-input').focus(); get('prompt-input').dispatchEvent(new Event('input', { bubbles: true })); if(confirm("Edit and regenerate?")) { fetch("/api/messages/" + id, {method:'DELETE'}).then(() => loadMessages(currentThreadId)).catch(e=>{}); } } }); }
-            get('lib-btn')?.addEventListener('click', ()=>{ get('lib-modal').style.display='flex'; loadLibraryFiles(); }); get('close-lib-btn')?.addEventListener('click', ()=>{ get('lib-modal').style.display='none'; }); get('lib-del-btn')?.addEventListener('click', deleteSelectedFiles);
-            get('settings-btn')?.addEventListener('click', ()=>{ get('settings-modal').style.display='flex'; fetch('/api/settings').then(r=>r.json()).then(d=>{ get('sys-prompt-text').value = d.system_prompt; get('set-username').value = d.username; get('set-openai').value = d.openai_key; get('set-gemini').value = d.gemini_key; get('set-xai').value = d.xai_key; }).catch(()=>{}); }); get('close-settings-btn')?.addEventListener('click', ()=>{ get('settings-modal').style.display='none'; }); get('save-settings-btn')?.addEventListener('click', async ()=>{ await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system_prompt:get('sys-prompt-text').value,new_username:get('set-username').value,new_password:get('set-password').value,openai_key:get('set-openai').value,gemini_key:get('set-gemini').value,xai_key:get('set-xai').value})}); get('settings-modal').style.display='none'; location.reload(); });
-            get('changelog-btn')?.addEventListener('click', ()=>{ get('changelog-modal').style.display='flex'; }); get('close-changelog-btn')?.addEventListener('click', ()=>{ get('changelog-modal').style.display='none'; });
-            get('close-alpha-info-btn')?.addEventListener('click', ()=>{ get('alpha-info-modal').style.display='none'; }); get('close-legal-btn')?.addEventListener('click', ()=>{ get('legal-modal').style.display='none'; });
-            
-            function clearFile() { currentImageUrls = []; get('file-input').value = ''; get('file-preview').classList.add('hidden'); }
-            async function loadLibraryFiles() { try { const res=await fetch('/api/files'); lib.files=await res.json(); lib.selected.clear(); renderLibrary(); get('lib-total-count').innerText=lib.files.length; } catch(e){} }
-            function renderLibrary() { get('lib-grid').innerHTML=''; const filtered=lib.files.filter(f=>lib.filter==='all'||f.type===lib.filter); filtered.forEach(f=>{ const div=document.createElement('div'); div.className="relative group bg-gray-800 border rounded cursor-pointer " + (lib.selected.has(f.filepath)?'border-blue-500 ring-1 ring-blue-500':'border-gray-700 hover:border-gray-500'); const content=f.type==='image'?'<img src="'+f.url+'" class="w-full h-32 object-cover bg-gray-900">':'<div class="w-full h-32 flex flex-col items-center justify-center bg-gray-900 text-gray-600 gap-2"><i class="fas fa-file text-3xl"></i><span class="text-xs uppercase">'+f.ext+'</span></div>'; const overlay = '<div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition"><a href="'+f.url+'" download="'+f.filename+'" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><a href="'+f.url+'" target="_blank" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a></div>'; div.innerHTML=content + overlay + '<div class="p-2"><div class="text-xs text-gray-300 truncate">'+f.filename+'</div></div>'; div.onclick=()=>{ if(lib.selected.has(f.filepath))lib.selected.delete(f.filepath);else lib.selected.add(f.filepath); renderLibrary(); get('lib-del-btn').disabled = lib.selected.size === 0; }; get('lib-grid').appendChild(div); }); }
-            async function deleteSelectedFiles() { if(!confirm('Delete?'))return; try{ await fetch('/api/files/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filenames:Array.from(lib.selected)})}); loadLibraryFiles(); }catch(e){} }
-            function toggleSidebar() { get('sidebar')?.classList.toggle('open'); get('overlay')?.classList.toggle('active'); }
-            function stopGeneration() { if(abortController) abortController.abort(); }
-            
-            // V222: Paste Handler
-            get('prompt-input').addEventListener('paste', (e) => {
+            // --- Paste Handler (V224 Fix) ---
+            promptInput.addEventListener('paste', function(e) {
+                console.log('Paste detected');
                 const items = (e.clipboardData || window.clipboardData).items;
                 const files = [];
                 for (let i = 0; i < items.length; i++) {
-                    if (items[i].kind === 'file' && items[i].type.includes('image')) {
-                        files.push(items[i].getAsFile());
+                    if (items[i].kind === 'file' && items[i].type.startsWith('image/')) {
+                        const file = items[i].getAsFile();
+                        files.push(file);
+                        console.log('Image found:', file.name);
                     }
                 }
-                if(files.length > 0) {
+                if (files.length > 0) {
                     e.preventDefault();
                     handleFiles(files);
                 }
             });
 
-            // V222: Shortcut Handler
-            get('prompt-input').addEventListener('keydown', (e) => {
-                // If IME composing, do nothing
+            // --- Shortcut Handler (V224 Fix) ---
+            promptInput.addEventListener('keydown', function(e) {
                 if (e.isComposing) return;
-                
                 // Cmd(Meta)+Enter OR Ctrl+Enter => Send
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                    console.log('Shortcut detected');
                     e.preventDefault();
-                    sendMessage();
+                    sendBtn.click(); // Trigger send button click
                     return;
                 }
-                
-                // Standard Enter without Shift => Send (Default behavior)
+                // Enter only (without Shift) => Send
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    sendMessage();
+                    sendBtn.click(); // Trigger send button click
                 }
             });
 
+            // --- File Handling ---
+            async function handleFiles(files) {
+                if(!files || files.length === 0) return;
+                get('file-preview').classList.remove('hidden');
+                get('file-name').innerText = "Uploading " + files.length + "...";
+                
+                for (let i = 0; i < files.length; i++) {
+                    const fd = new FormData(); fd.append('file', files[i]);
+                    try {
+                        const res = await fetch('/upload', {method:'POST', body:fd});
+                        const d = await res.json();
+                        if(d.filename) currentImageUrls.push(d.filename);
+                    } catch(err) { console.error(err); }
+                }
+                get('file-name').innerText = currentImageUrls.length + " files ready";
+                get('file-input').value = ''; 
+            }
+            
+            async function handleFileUpload(e) { handleFiles(e.target.files); }
+            function clearFile() { currentImageUrls = []; get('file-input').value = ''; get('file-preview').classList.add('hidden'); }
+
+            // --- Chat Logic ---
+            async function createNewThread(fromMessage=false) {
+                try {
+                    const res = await fetch('/api/threads', {method:'POST'});
+                    const data = await res.json();
+                    currentThreadId = data.id;
+                    loadThreads();
+                    get('welcome-screen').classList.remove('hidden'); get('chat-container').classList.add('view-hidden'); get('chat-container').innerHTML = '';
+                    if(!fromMessage && window.innerWidth < 768) toggleSidebar();
+                } catch(e) {}
+            }
+
+            async function loadThreads() {
+                const q = get('search-box').value;
+                const res = await fetch("/api/threads?q=" + encodeURIComponent(q));
+                const threads = await res.json();
+                const list = get('thread-list'); list.innerHTML = '';
+                threads.forEach(t => {
+                    const div = document.createElement('div');
+                    div.className = "p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 border-b border-gray-700/30 " + (t.id===currentThreadId?'bg-gray-700 text-white':'');
+                    div.innerText = t.title || "No Title";
+                    div.onclick = () => loadMessages(t.id);
+                    list.appendChild(div);
+                });
+                if(!currentThreadId && threads.length === 0) { get('welcome-screen').classList.remove('hidden'); }
+            }
+
+            async function loadMessages(tid) {
+                currentThreadId = tid; loadThreads();
+                get('welcome-screen').classList.add('hidden'); get('chat-container').classList.remove('view-hidden');
+                get('chat-container').innerHTML = '<div class="flex justify-center mt-10"><i class="fas fa-circle-notch fa-spin text-blue-500 text-2xl"></i></div>';
+                const res = await fetch("/api/threads/" + tid);
+                const msgs = await res.json();
+                get('chat-container').innerHTML = '';
+                if(msgs.length === 0) get('welcome-screen').classList.remove('hidden');
+                else msgs.forEach(m => renderMessage(m.id, m.role, m.content, m.image_url, m.model, m.thought_data));
+                if(window.innerWidth < 768) toggleSidebar();
+            }
+
+            async function sendMessage() {
+                const text = promptInput.value.trim();
+                if(!text && currentImageUrls.length === 0) return;
+                if(!currentThreadId) await createNewThread(true);
+                get('welcome-screen').classList.add('hidden'); get('chat-container').classList.remove('view-hidden');
+                
+                const model = get('model-select').value;
+                const sysPrompt = get('enable-sys-prompt').checked;
+                
+                renderMessage(0, 'user', text, JSON.stringify(currentImageUrls), null);
+                promptInput.value = '';
+                
+                const aiDivId = 'ai-' + Date.now();
+                get('chat-container').insertAdjacentHTML('beforeend', '<div class="flex justify-start fade-in mb-4"><div id="' + aiDivId + '" class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md min-w-[50px] relative"><span class="animate-pulse">Thinking...</span></div></div>');
+                const aiDiv = document.getElementById(aiDivId);
+                
+                sendBtn.disabled = true;
+                get('stop-container').classList.remove('hidden');
+                abortController = new AbortController();
+
+                try {
+                    const res = await fetch('/chat_stream', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            thread_id: currentThreadId,
+                            message: text,
+                            model: model,
+                            image_urls: currentImageUrls,
+                            enable_search: get('enable-search').checked,
+                            enable_thinking: get('enable-thinking').checked,
+                            reasoning_effort: get('reasoning-effort').value,
+                            enable_system_prompt: sysPrompt
+                        }),
+                        signal: abortController.signal
+                    });
+                    
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder();
+                    let firstChunk = true;
+                    let accumulated = "", thoughtAccumulated = "";
+
+                    while (true) {
+                        const { done, value } = await reader.read(); if (done) break;
+                        const chunkStr = decoder.decode(value, { stream: true });
+                        const lines = chunkStr.split('\n');
+                        for (const line of lines) {
+                            if (!line.trim()) continue;
+                            try {
+                                const json = JSON.parse(line);
+                                if(firstChunk) { aiDiv.innerHTML = ''; firstChunk = false; }
+                                
+                                if (json.type === 'content') {
+                                    accumulated += json.data;
+                                    let txt = aiDiv.querySelector('.prose');
+                                    if(!txt) { txt = document.createElement('div'); txt.className = 'prose prose-invert text-sm break-words'; aiDiv.appendChild(txt); }
+                                    if(typeof marked !== 'undefined') { try { txt.innerHTML = DOMPurify.sanitize(marked.parse(accumulated)); } catch(e) { txt.innerHTML = escapeHtml(accumulated).replace(/\n/g, '<br>'); } } else txt.innerText = accumulated;
+                                } else if (json.type === 'thought') {
+                                    thoughtAccumulated += json.data;
+                                    let tBox = aiDiv.querySelector('.thought-box');
+                                    if(!tBox) { aiDiv.insertAdjacentHTML('afterbegin', '<div class="thought-container"><div class="thought-box"></div></div>'); tBox = aiDiv.querySelector('.thought-box'); }
+                                    tBox.textContent = thoughtAccumulated;
+                                } else if (json.type === 'error') { aiDiv.innerHTML += '<div class="text-red-400">Error: ' + escapeHtml(json.data) + '</div>';
+                                } else if (json.type === 'tool_status') { aiDiv.insertAdjacentHTML('beforeend', '<div class="tool-status">' + escapeHtml(json.data) + '</div>'); }
+                            } catch(e) {}
+                        }
+                        if(!isUserScrolling) get('chat-container').scrollTop = get('chat-container').scrollHeight;
+                    }
+                    if(aiDiv) { messageStore[aiDivId] = accumulated; aiDiv.insertAdjacentHTML('afterbegin', '<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage(\'' + aiDivId + '\', this)" title="Copy"><i class="fas fa-copy"></i></button></div>'); aiDiv.insertAdjacentHTML('beforeend', '<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">' + model + '</div>'); }
+                    loadThreads();
+                } catch(e) { if(e.name !== 'AbortError') aiDiv.innerHTML += '<div class="text-red-400">Net Error</div>'; }
+                finally { clearFile(); sendBtn.disabled = false; get('stop-container').classList.add('hidden'); abortController = null; }
+            }
+
+            function renderMessage(id, role, text, imgUrl, modelName, thoughtData) {
+                const isUser = role === 'user';
+                const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
+                const align = isUser ? 'justify-end' : 'justify-start';
+                messageStore[id] = text;
+                const controlsHtml = '<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage(\'' + id + '\', this)" title="Copy"><i class="fas fa-copy"></i></button>' + (isUser ? '<button class="ctrl-btn edit-btn" data-id="' + id + '" title="Edit"><i class="fas fa-pen"></i></button>' : '') + '</div>';
+                
+                let attach = '';
+                if(imgUrl) {
+                    try {
+                        let imgs = JSON.parse(imgUrl);
+                        if(!Array.isArray(imgs)) imgs = [imgUrl];
+                        imgs = imgs.filter(u => u && u !== '[]' && u !== 'null');
+                        if(imgs.length > 0) {
+                            attach = '<div class="flex flex-wrap gap-2 mt-2">';
+                            imgs.forEach(u => {
+                                const ext = u.split('.').pop().toLowerCase();
+                                const isImg = ['jpg','png','webp','jpeg','gif'].includes(ext);
+                                const url = '/static/uploads/' + u;
+                                if(isImg) attach += '<img src="' + url + '" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer" onclick="window.open(\'' + url + '\')">';
+                                else {
+                                    let icon = 'fa-file'; if(ext==='pdf') icon='fa-file-pdf text-red-400';
+                                    attach += '<div class="h-24 w-24 bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700" onclick="window.open(\'' + url + '\')"><i class="fas ' + icon + ' text-2xl text-gray-400 mb-1"></i><span class="text-[9px] truncate w-20 text-center px-1">' + u.split('/').pop() + '</span></div>';
+                                }
+                            });
+                            attach += '</div>';
+                        }
+                    } catch(e) {}
+                }
+
+                let thoughtHtml = '';
+                if(thoughtData) {
+                    let tText = "";
+                    try { const tObj = JSON.parse(thoughtData); tText = tObj.text || tObj; } catch(e) { tText = thoughtData; }
+                    if(tText && typeof tText === 'string' && !tText.trim().startsWith('{')) {
+                        thoughtHtml = '<div class="thought-container"><div class="thought-box">' + escapeHtml(tText) + '</div></div>';
+                    }
+                }
+
+                let parsedText = text;
+                if (typeof marked !== 'undefined') { try { parsedText = DOMPurify.sanitize(marked.parse(text)); } catch(e) { parsedText = escapeHtml(text).replace(/\n/g, '<br>'); } } else { parsedText = escapeHtml(text).replace(/\n/g, '<br>'); }
+
+                const html = '<div class="flex ' + align + ' mb-4 fade-in message-group relative group">' +
+                    '<div class="message-bubble ' + bg + ' text-white p-4 rounded-2xl ' + (isUser?'rounded-tr-none':'rounded-tl-none') + ' shadow-md relative">' +
+                        controlsHtml + thoughtHtml +
+                        '<div class="prose prose-invert text-sm break-words">' + parsedText + '</div>' +
+                        attach +
+                        (modelName && !isUser ? '<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">' + modelName + '</div>' : '') +
+                    '</div>' +
+                '</div>';
+                get('chat-container').insertAdjacentHTML('beforeend', html);
+                get('chat-container').scrollTop = get('chat-container').scrollHeight;
+            }
+
+            // --- Toggle Functions ---
+            function toggleSidebar() { get('sidebar')?.classList.toggle('open'); get('overlay')?.classList.toggle('active'); }
+            function stopGeneration() { if(abortController) abortController.abort(); }
+            
+            function toggleOptions() {
+                const model = get('model-select').value;
+                const think = get('thinking-option');
+                const reason = get('reasoning-effort-container');
+                const search = get('search-container');
+                if(think) think.classList.add('hidden');
+                if(reason) reason.classList.add('hidden');
+                if(search) search.classList.remove('opacity-50', 'pointer-events-none');
+                if(model.includes('gemini') || model.includes('nano')) { if(think) think.classList.remove('hidden'); } else if(model.includes('gpt')) { if(reason) reason.classList.remove('hidden'); }
+                checkSystemPromptAvailability();
+            }
+            function checkSystemPromptAvailability() {
+                const model = get('model-select').value;
+                const chk = get('enable-sys-prompt'); const lbl = get('sys-prompt-option');
+                if(!chk || !lbl) return;
+                if(model.includes('nano')) { chk.checked=false; chk.disabled=true; lbl.classList.add('opacity-50'); } else { chk.disabled=false; lbl.classList.remove('opacity-50'); }
+            }
+            function checkSearchAvailability() {
+                const model = get('model-select').value;
+                const reasonEffort = get('reasoning-effort');
+                const searchCont = get('search-container');
+                const searchChk = get('enable-search');
+                if(!searchCont || !searchChk) return;
+                if (model.includes('gpt') && reasonEffort && reasonEffort.value === 'low') { searchCont.classList.add('opacity-50','pointer-events-none'); searchChk.checked=false; } else if(model.includes('gpt')) { searchCont.classList.remove('opacity-50','pointer-events-none'); }
+            }
+            
+            // --- Library & Settings ---
+            async function loadLibraryFiles() { try { const res=await fetch('/api/files'); lib.files=await res.json(); lib.selected.clear(); renderLibrary(); get('lib-total-count').innerText=lib.files.length; } catch(e){} }
+            function renderLibrary() { get('lib-grid').innerHTML=''; const filtered=lib.files.filter(f=>lib.filter==='all'||f.type===lib.filter); filtered.forEach(f=>{ const div=document.createElement('div'); div.className="relative group bg-gray-800 border rounded cursor-pointer " + (lib.selected.has(f.filepath)?'border-blue-500 ring-1 ring-blue-500':'border-gray-700 hover:border-gray-500'); const content=f.type==='image'?'<img src="'+f.url+'" class="w-full h-32 object-cover bg-gray-900">':'<div class="w-full h-32 flex flex-col items-center justify-center bg-gray-900 text-gray-600 gap-2"><i class="fas fa-file text-3xl"></i><span class="text-xs uppercase">'+f.ext+'</span></div>'; const overlay = '<div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition"><a href="'+f.url+'" download="'+f.filename+'" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><a href="'+f.url+'" target="_blank" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a></div>'; div.innerHTML=content + overlay + '<div class="p-2"><div class="text-xs text-gray-300 truncate">'+f.filename+'</div></div>'; div.onclick=()=>{ if(lib.selected.has(f.filepath))lib.selected.delete(f.filepath);else lib.selected.add(f.filepath); renderLibrary(); get('lib-del-btn').disabled = lib.selected.size === 0; }; get('lib-grid').appendChild(div); }); }
+            async function deleteSelectedFiles() { if(!confirm('Delete?'))return; try{ await fetch('/api/files/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filenames:Array.from(lib.selected)})}); loadLibraryFiles(); }catch(e){} }
+
+            // --- Event Bindings ---
+            get('menu-btn')?.addEventListener('click', toggleSidebar); get('overlay')?.addEventListener('click', toggleSidebar);
+            get('new-chat-btn')?.addEventListener('click', () => createNewThread(false)); get('mobile-new-chat-btn')?.addEventListener('click', () => createNewThread(false));
+            sendBtn?.addEventListener('click', sendMessage); get('stop-btn')?.addEventListener('click', stopGeneration);
+            get('model-select')?.addEventListener('change', toggleOptions); get('reasoning-effort')?.addEventListener('change', checkSearchAvailability);
+            get('upload-btn')?.addEventListener('click', () => get('file-input').click()); get('file-input')?.addEventListener('change', handleFileUpload); get('clear-file-btn')?.addEventListener('click', clearFile);
+            get('search-box')?.addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(loadThreads, 300); });
+            
+            get('lib-btn')?.addEventListener('click', ()=>{ get('lib-modal').style.display='flex'; loadLibraryFiles(); }); get('close-lib-btn')?.addEventListener('click', ()=>{ get('lib-modal').style.display='none'; }); get('lib-del-btn')?.addEventListener('click', deleteSelectedFiles);
+            get('settings-btn')?.addEventListener('click', ()=>{ get('settings-modal').style.display='flex'; fetch('/api/settings').then(r=>r.json()).then(d=>{ get('sys-prompt-text').value = d.system_prompt; get('set-username').value = d.username; get('set-openai').value = d.openai_key; get('set-gemini').value = d.gemini_key; get('set-xai').value = d.xai_key; }).catch(()=>{}); }); get('close-settings-btn')?.addEventListener('click', ()=>{ get('settings-modal').style.display='none'; }); get('save-settings-btn')?.addEventListener('click', async ()=>{ await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system_prompt:get('sys-prompt-text').value,new_username:get('set-username').value,new_password:get('set-password').value,openai_key:get('set-openai').value,gemini_key:get('set-gemini').value,xai_key:get('set-xai').value})}); get('settings-modal').style.display='none'; location.reload(); });
+            get('changelog-btn')?.addEventListener('click', ()=>{ get('changelog-modal').style.display='flex'; }); get('close-changelog-btn')?.addEventListener('click', ()=>{ get('changelog-modal').style.display='none'; });
+            get('close-alpha-info-btn')?.addEventListener('click', ()=>{ get('alpha-info-modal').style.display='none'; }); get('close-legal-btn')?.addEventListener('click', ()=>{ get('legal-modal').style.display='none'; });
+
+            if(chatContainer) {
+                chatContainer.addEventListener('scroll', () => { const current = chatContainer.scrollTop; const max = chatContainer.scrollHeight - chatContainer.clientHeight; isUserScrolling = (max - current > 30); });
+                chatContainer.addEventListener('click', (e) => { const editBtn = e.target.closest('.edit-btn'); if (editBtn) { e.stopPropagation(); const id = editBtn.dataset.id; const text = messageStore[id]; if(!text) return; get('prompt-input').value = text; get('prompt-input').focus(); get('prompt-input').dispatchEvent(new Event('input', { bubbles: true })); if(confirm("Edit and regenerate?")) { fetch("/api/messages/" + id, {method:'DELETE'}).then(() => loadMessages(currentThreadId)).catch(e=>{}); } } });
+            }
+
+            document.querySelectorAll('.welcome-btn').forEach(btn => { btn.addEventListener('click', (e) => { get('prompt-input').value = e.target.dataset.prompt; get('prompt-input').focus(); }); });
+
+            // Init
             loadThreads(); toggleOptions();
         });
     </script>

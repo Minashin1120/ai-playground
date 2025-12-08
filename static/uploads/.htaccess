@@ -1,0 +1,7 @@
+# AI Chat Security (V201)
+# Prevent script execution in upload directory
+<FilesMatch "\.(php|php5|php7|phtml|pl|py|cgi|sh)$">
+    Require all denied
+</FilesMatch>
+Options -ExecCGI
+SetHandler default-handler

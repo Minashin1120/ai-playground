@@ -70,7 +70,7 @@
                     {% endif %}
                     <button onclick="location.href='/changelog'" id="changelog-btn" class="text-gray-400 hover:text-orange-400 p-1.5 rounded hover:bg-gray-700 transition" title="履歴"><i class="fas fa-history text-xs"></i></button>
                     <button id="settings-btn" class="text-gray-400 hover:text-green-400 p-1.5 rounded hover:bg-gray-700 transition" title="設定"><i class="fas fa-cog text-xs"></i></button>
-                    <button id="lib-btn" class="text-gray-400 hover:text-blue-400 p-1.5 rounded hover:bg-gray-700 transition" title="ライブラリ"><i class="fas fa-folder text-xs"></i></button>
+                    <button id="lib-btn" onclick="document.getElementById('lib-modal').style.display='flex'; document.getElementById('lib-modal').classList.remove('hidden');"  class="text-gray-400 hover:text-blue-400 p-1.5 rounded hover:bg-gray-700 transition" title="ライブラリ"><i class="fas fa-folder text-xs"></i></button>
                     <button id="new-chat-btn" class="text-gray-400 hover:text-white p-1.5 rounded hover:bg-gray-700 transition" title="新規チャット"><i class="fas fa-plus text-xs"></i></button>
                 </div>
             </div>
@@ -78,7 +78,7 @@
         </div>
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         <div class="p-3 border-t border-gray-700 flex flex-col gap-2">
-            <div id="version-display" class="text-center text-[10px] text-gray-500 font-mono cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.2.6 <span class="text-orange-500 font-bold">ALPHA</span></div>
+            <div id="version-display" class="text-center text-[10px] text-gray-500 font-mono cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.6.7 <span class="text-orange-500 font-bold">ALPHA</span></div>
             <div class="flex justify-center gap-3 text-[10px] text-gray-500">
                 <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
                 <span class="text-gray-700">|</span>
@@ -141,8 +141,8 @@
         </div>
     </div>
 
-    <!-- Modals -->
-    <div id="lib-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden flex-col backdrop-blur-sm transition-opacity opacity-0 pointer-events-none" style="display:none;"><div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button id="close-lib-btn" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div><div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0"><span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span><button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs" disabled>削除 <span id="lib-sel-badge"></span></button></div><div id="lib-grid" class="flex-1 overflow-y-auto p-4 grid grid-cols-3 gap-4"></div></div>
+    <!-- Modals (FIXED) -->
+    <div id="lib-modal" class="fixed inset-0 bg-gray-900/95 z-50 flex flex-col backdrop-blur-sm" style="display:none;"><div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button id="close-lib-btn" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div><div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0"><span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span><button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs" disabled>削除 <span id="lib-sel-badge"></span></button></div><div id="lib-grid" class="flex-1 overflow-y-auto p-4 grid grid-cols-3 gap-4"></div></div>
     
     <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm" style="display:none;">
         <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh]">
@@ -284,7 +284,18 @@
             get('prompt-input').addEventListener('paste', async (e) => { const items = (e.clipboardData || window.clipboardData).items; const files = []; for (let i = 0; i < items.length; i++) { if (items[i].kind === 'file' && items[i].type.startsWith('image/')) { files.push(items[i].getAsFile()); } } if(files.length > 0) { e.preventDefault(); await handleFiles(files); } });
             get('prompt-input').addEventListener('keydown', (e) => { if (e.isComposing) return; if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); get('send-btn').click(); return; } if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); get('send-btn').click(); } });
 
-            get('lib-btn')?.addEventListener('click', ()=>{ get('lib-modal').style.display='flex'; loadLibraryFiles(); }); get('close-lib-btn')?.addEventListener('click', ()=>{ get('lib-modal').style.display='none'; }); get('lib-del-btn')?.addEventListener('click', deleteSelectedFiles);
+            // [Modified] Safety Logic for Library Modal
+            get('lib-btn')?.addEventListener('click', ()=>{ 
+                const m = get('lib-modal');
+                if(m) {
+                    m.style.display='flex';
+                    m.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
+                    loadLibraryFiles();
+                }
+            }); 
+            get('close-lib-btn')?.addEventListener('click', ()=>{ get('lib-modal').style.display='none'; }); 
+            get('lib-del-btn')?.addEventListener('click', deleteSelectedFiles);
+            
             get('settings-btn')?.addEventListener('click', ()=>{ get('settings-modal').style.display='flex'; fetch('/api/settings').then(r=>r.json()).then(d=>{ get('sys-prompt-text').value = d.system_prompt; get('set-username').value = d.username; get('set-openai').value = d.openai_key; get('set-gemini').value = d.gemini_key; get('set-xai').value = d.xai_key; }).catch(()=>{}); }); get('close-settings-btn')?.addEventListener('click', ()=>{ get('settings-modal').style.display='none'; }); get('save-settings-btn')?.addEventListener('click', async ()=>{ await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system_prompt:get('sys-prompt-text').value,new_username:get('set-username').value,new_password:get('set-password').value,openai_key:get('set-openai').value,gemini_key:get('set-gemini').value,xai_key:get('set-xai').value})}); get('settings-modal').style.display='none'; location.reload(); });
             get('changelog-btn')?.addEventListener('click', ()=>{ get('changelog-modal').style.display='flex'; }); get('close-changelog-btn')?.addEventListener('click', ()=>{ get('changelog-modal').style.display='none'; });
             get('close-alpha-info-btn')?.addEventListener('click', ()=>{ get('alpha-info-modal').style.display='none'; }); get('close-legal-btn')?.addEventListener('click', ()=>{ get('legal-modal').style.display='none'; });
@@ -293,7 +304,7 @@
             const delBtn = get('delete-account-btn');
             if(delBtn) {
                 delBtn.addEventListener('click', async () => {
-                    if(confirm("【警告】本当にアカウントを削除しますか？\\nこの操作は取り消せません。すべてのチャット履歴とファイルが削除されます。")) {
+                    if(confirm("【警告】本当にアカウントを削除しますか？\nこの操作は取り消せません。すべてのチャット履歴とファイルが削除されます。")) {
                         try {
                             const res = await fetch('/api/account/delete', {method: 'POST'});
                             if(res.ok) {

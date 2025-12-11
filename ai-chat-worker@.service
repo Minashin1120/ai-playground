@@ -1,0 +1,24 @@
+[Unit]
+Description=AI Chat Background Worker (Instance %i)
+After=network.target redis-server.service
+
+[Service]
+User=ai-chat-minashin1120
+Group=ai-chat-minashin1120
+WorkingDirectory=/home/ai-chat-minashin1120/app
+EnvironmentFile=/home/ai-chat-minashin1120/app/.env
+Environment="PATH=/home/ai-chat-minashin1120/app/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+
+# worker.py は前回の修正で SimpleWorker になっているのでそのまま使用
+ExecStart=/home/ai-chat-minashin1120/app/venv/bin/python worker.py
+
+Restart=always
+RestartSec=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ai-chat-worker-%i
+
+[Install]
+WantedBy=multi-user.target

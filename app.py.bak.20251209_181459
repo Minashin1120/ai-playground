@@ -113,18 +113,13 @@ def get_key_for_user(user, name):
             return sys_key
     return None
 
-# --- V227: Turnstile Verification Helper ---
 def verify_turnstile(token):
     secret = os.getenv('TURNSTILE_SECRET_KEY')
-    # If no secret is configured on server, assume verification is disabled (or strictly fail depending on policy)
-    # Here: If site_key exists but secret doesn't, it's a config error. 
-    # But if no keys at all, we skip verification.
     if not secret:
-        # If SITE_KEY is set, SECRET_KEY must be set. If not, fail secure.
         if os.getenv('TURNSTILE_SITE_KEY'):
             logger.error("Turnstile Site Key set but Secret Key missing.")
             return False
-        return True # Turnstile not configured, allow pass
+        return True
     
     if not token:
         return False
@@ -138,7 +133,6 @@ def verify_turnstile(token):
     except Exception as e:
         logger.error(f"Turnstile Verification Error: {e}")
         return False
-# -------------------------------------------
 
 def background_chat_task(job_id, thread_id, model_key, message_text, img_list, options, api_keys, user_id):
     with app.app_context():
@@ -172,19 +166,33 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                     if os.path.exists(path):
                         mime, _ = mimetypes.guess_type(path)
                         info['mime'] = mime
-                        if not mime: info['mime'] = 'application/octet-stream'
-                        is_pdf = fname.lower().endswith('.pdf'); is_img = fname.endswith(('.webp','.png','.jpg','.jpeg','.gif','.mp4'))
-                        if is_pdf: info['mime'] = 'application/pdf'
+                        if not mime:
+                            info['mime'] = 'application/octet-stream'
+                        
+                        is_pdf = fname.lower().endswith('.pdf')
+                        is_img = fname.endswith(('.webp','.png','.jpg','.jpeg','.gif','.mp4'))
+                        
+                        if is_pdf:
+                            info['mime'] = 'application/pdf'
+                        
                         if not is_img and not is_pdf:
                             try:
-                                with open(path, 'r', encoding='utf-8', errors='ignore') as f: info['text'] = f.read()
-                            except: pass
+                                with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                                    info['text'] = f.read()
+                            except:
+                                pass
+                        
                         if not info['text']:
-                            with open(path, 'rb') as f: info['bytes'] = f.read()
-                except: pass
+                            with open(path, 'rb') as f:
+                                info['bytes'] = f.read()
+                except:
+                    pass
                 loaded_files.append(info)
 
-            full_res = ""; thought_accumulated = ""; collected_signatures = {}; generated_images = []
+            full_res = ""
+            thought_accumulated = ""
+            collected_signatures = {}
+            generated_images = []
 
             if is_gemini:
                 real_model = model_key
@@ -200,40 +208,53 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                         elif "2.5" in model_key: config_params['thinking_config'] = types.ThinkingConfig(include_thoughts=True, thinking_budget=1024)
                     if options.get('enable_search'): config_params['tools'] = [types.Tool(google_search=types.GoogleSearch())]
                     if options.get('system_prompt'): config_params['system_instruction'] = options.get('system_prompt')
-                else: config_params['tools'] = None
+                else:
+                    config_params['tools'] = None
 
-                config = types.GenerateContentConfig(**config_params); contents = []
+                config = types.GenerateContentConfig(**config_params)
+                contents = []
                 
                 for m in history:
-                    role = 'model' if m.role == 'assistant' else 'user'; parts = []
-                    t_text = None; t_sig = None
+                    role = 'model' if m.role == 'assistant' else 'user'
+                    parts = []
+                    t_text = None
+                    t_sig = None
                     if m.role == 'assistant' and m.thought_data:
                         try:
                             td = json.loads(m.thought_data)
                             if isinstance(td, dict):
-                                t_text = td.get('text'); sigs = td.get('signatures')
-                                if isinstance(sigs, dict): t_sig = sigs.get('signature'); 
-                                if t_sig: t_sig = base64.b64decode(t_sig)
+                                t_text = td.get('text')
+                                sigs = td.get('signatures')
+                                if isinstance(sigs, dict):
+                                    t_sig = sigs.get('signature')
+                                    if t_sig:
+                                        t_sig = base64.b64decode(t_sig)
                         except: pass
                     
-                    if t_text and t_sig: parts.append(types.Part(text=m.content, thought=t_text, thought_signature=t_sig))
-                    else: parts.append(types.Part(text=m.content))
+                    if t_text and t_sig:
+                        parts.append(types.Part(text=m.content, thought=t_text, thought_signature=t_sig))
+                    else:
+                        parts.append(types.Part(text=m.content))
                     
                     if m.image_url:
                         try:
-                            h_imgs = json.loads(m.image_url); if not isinstance(h_imgs, list): h_imgs = [m.image_url]
+                            h_imgs = json.loads(m.image_url)
+                            if not isinstance(h_imgs, list): h_imgs = [m.image_url]
                             for h_img in h_imgs:
                                 h_path = os.path.join(app.config['UPLOAD_FOLDER'], h_img)
                                 if os.path.exists(h_path) and h_img.endswith(('.webp','.png','.jpg')):
-                                    with open(h_path, 'rb') as f: parts.append(types.Part.from_bytes(data=f.read(), mime_type='image/webp'))
+                                    with open(h_path, 'rb') as f:
+                                        parts.append(types.Part.from_bytes(data=f.read(), mime_type='image/webp'))
                         except: pass
                     contents.append(types.Content(role=role, parts=parts))
 
                 curr_parts = [types.Part(text=message_text)]
                 for fi in loaded_files:
-                    if fi['text']: curr_parts.append(types.Part(text=f"\n\nFile: {fi['name']}\nContent:\n{fi['text']}"))
+                    if fi['text']:
+                        curr_parts.append(types.Part(text=f"\n\nFile: {fi['name']}\nContent:\n{fi['text']}"))
                     elif fi['bytes']:
-                        m_type = fi['mime']; if not m_type or m_type == 'application/octet-stream': m_type = 'image/webp'
+                        m_type = fi['mime']
+                        if not m_type or m_type == 'application/octet-stream': m_type = 'image/webp'
                         curr_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=m_type))
                 contents.append(types.Content(role='user', parts=curr_parts))
 
@@ -242,46 +263,68 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                     if hasattr(chunk, 'candidates') and chunk.candidates:
                         for part in chunk.candidates[0].content.parts:
                             if hasattr(part, 'thought_signature') and part.thought_signature:
-                                try: collected_signatures['signature'] = base64.b64encode(part.thought_signature).decode('utf-8')
+                                try:
+                                    collected_signatures['signature'] = base64.b64encode(part.thought_signature).decode('utf-8')
                                 except: pass
+                            
                             tt_part = None
-                            if hasattr(part, 'thought') and part.thought: tt_part = part.thought if isinstance(part.thought, str) else part.text
-                            if tt_part: thought_accumulated += tt_part; publish_chunk("thought", tt_part)
-                            elif part.text: full_res += part.text; publish_chunk("content", part.text)
+                            if hasattr(part, 'thought') and part.thought:
+                                tt_part = part.thought if isinstance(part.thought, str) else part.text
+                            
+                            if tt_part:
+                                thought_accumulated += tt_part
+                                publish_chunk("thought", tt_part)
+                            elif part.text:
+                                full_res += part.text
+                                publish_chunk("content", part.text)
+                            
                             if hasattr(part, 'inline_data') and part.inline_data:
                                 try:
-                                    user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id)); 
-                                    if not os.path.exists(user_dir): os.makedirs(user_dir, exist_ok=True)
+                                    user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
+                                    if not os.path.exists(user_dir):
+                                        os.makedirs(user_dir, exist_ok=True)
                                     fn = f"gen_{int(time.time())}_{len(generated_images)}.png"
                                     Image.open(BytesIO(part.inline_data.data)).save(os.path.join(user_dir, fn))
-                                    db_path = f"{user_id}/{fn}"; generated_images.append(db_path)
+                                    db_path = f"{user_id}/{fn}"
+                                    generated_images.append(db_path)
                                     publish_chunk("content", f"\n\n![Img](/static/uploads/{db_path})\n")
                                 except: pass
+            
             else:
                 client = xai_client_std if is_grok else openai_client
                 msgs = []
-                if options.get('system_prompt'): msgs.append({"role": "system", "content": options.get('system_prompt')})
-                for m in history: msgs.append({"role": m.role, "content": m.content})
-                content_list = []; u_text = message_text
+                if options.get('system_prompt'):
+                    msgs.append({"role": "system", "content": options.get('system_prompt')})
+                for m in history:
+                    msgs.append({"role": m.role, "content": m.content})
+                
+                content_list = []
+                u_text = message_text
                 for fi in loaded_files:
-                    if fi['text']: u_text += f"\n\n[File]\n{fi['text']}"
+                    if fi['text']:
+                        u_text += f"\n\n[File]\n{fi['text']}"
                     elif fi['mime'] == 'application/pdf':
                          try:
-                             reader = pypdf.PdfReader(fi['path']); pt = ""
-                             for p in reader.pages: pt += p.extract_text() + "\n"
+                             reader = pypdf.PdfReader(fi['path'])
+                             pt = ""
+                             for p in reader.pages:
+                                 pt += p.extract_text() + "\n"
                              u_text += f"\n\n[PDF]\n{pt[:30000]}"
                          except: pass
+                
                 content_list.append({"type": "text", "text": u_text})
                 for fi in loaded_files:
                     if fi['bytes'] and fi['mime'].startswith('image/'):
                         b64 = base64.b64encode(fi['bytes']).decode('utf-8')
                         content_list.append({"type": "image_url", "image_url": {"url": f"data:{fi['mime']};base64,{b64}"}})
+                
                 msgs.append({"role": "user", "content": content_list})
 
                 kwargs = {"model": model_key, "messages": msgs, "stream": True}
                 if options.get('enable_search'):
                     publish_chunk("tool_status", "Searching...")
-                    if is_grok: kwargs["extra_body"] = {"search_parameters": {"mode": "on"}}
+                    if is_grok:
+                        kwargs["extra_body"] = {"search_parameters": {"mode": "on"}}
                 
                 stream = client.chat.completions.create(**kwargs)
                 for chunk in stream:
@@ -292,16 +335,29 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                         c = delta.get('content')
                         t = delta.get('reasoning_content')
                     
-                    if t: thought_accumulated += t; publish_chunk("thought", t)
-                    if c: full_res += c; publish_chunk("content", c)
+                    if t:
+                        thought_accumulated += t
+                        publish_chunk("thought", t)
+                    if c:
+                        full_res += c
+                        publish_chunk("content", c)
 
             if full_res or generated_images:
                 t_data = json.dumps({'text': thought_accumulated, 'signatures': collected_signatures}) if (thought_accumulated or collected_signatures) else None
                 msg_entry = Message(
-                    thread_id=thread_id, role='assistant', content=full_res, model=model_key,
-                    image_url=json.dumps(generated_images) if generated_images else None, thought_data=t_data
+                    thread_id=thread_id,
+                    role='assistant',
+                    content=full_res,
+                    model=model_key,
+                    image_url=json.dumps(generated_images) if generated_images else None,
+                    thought_data=t_data
                 )
-                db.session.add(msg_entry); t = Thread.query.get(thread_id); if t: t.updated_at = datetime.utcnow(); db.session.commit()
+                db.session.add(msg_entry)
+                t = Thread.query.get(thread_id)
+                if t:
+                    t.updated_at = datetime.utcnow()
+                db.session.commit()
+                
             publish_chunk("done", "OK")
 
         except Exception as e:
@@ -334,7 +390,6 @@ def login():
         return redirect(url_for('index'))
         
     if request.method == 'POST':
-        # V227: Verify Turnstile
         token = request.form.get('cf-turnstile-response')
         if not verify_turnstile(token):
             return render_template('login.html', site_key=site_key, error="認証チェックに失敗しました。再試行してください。")
@@ -359,7 +414,6 @@ def signup():
         return redirect(url_for('index'))
         
     if request.method == 'POST':
-        # V227: Verify Turnstile
         token = request.form.get('cf-turnstile-response')
         if not verify_turnstile(token):
              return render_template('signup.html', site_key=site_key, error="認証チェックに失敗しました。再試行してください。")
@@ -399,7 +453,7 @@ def setup():
 @app.route('/logout')
 def logout():
     logout_user()
-    resp = make_response(redirect(url_for('login')))
+    resp = make_response(redirect(url_for('index')))
     resp.headers['Cache-Control'] = 'no-cache, no-store'
     return resp
 
@@ -430,12 +484,15 @@ def handle_settings():
         if 'openai_key' in d: current_user.openai_api_key = d['openai_key']
         if 'gemini_key' in d: current_user.gemini_api_key = d['gemini_key']
         if 'xai_key' in d: current_user.xai_api_key = d['xai_key']
+        
         if 'new_password' in d and d['new_password']:
             current_user.set_password(d['new_password'])
+            
         if 'new_username' in d and d['new_username'] and d['new_username'] != current_user.username:
             if User.query.filter_by(username=d['new_username']).first():
                 return jsonify({'error': 'Username taken'}), 400
             current_user.username = d['new_username']
+
         db.session.commit()
         return jsonify({'status': 'ok'})
 
@@ -461,6 +518,7 @@ def handle_thread_item(tid):
     t = Thread.query.get_or_404(tid)
     if t.user_id != current_user.id:
         return jsonify({'error': '403'}), 403
+        
     if request.method == 'GET':
         ms = Message.query.filter_by(thread_id=tid).order_by(Message.timestamp).all()
         return jsonify([{
@@ -500,6 +558,7 @@ def get_files_lib():
         Thread.user_id == current_user.id, 
         Message.image_url != None
     ).order_by(Message.timestamp.desc()).all()
+    
     files = []
     seen = set()
     for m in msgs:
@@ -508,6 +567,7 @@ def get_files_lib():
                 img_list = json.loads(m.image_url)
                 if not isinstance(img_list, list): img_list = [m.image_url]
             except: img_list = [m.image_url]
+            
             for path_str in img_list:
                 if path_str and path_str not in seen:
                     full_path = os.path.join(app.config['UPLOAD_FOLDER'], path_str)
@@ -544,10 +604,12 @@ def delete_files_batch():
 def upload():
     files = request.files.getlist('file')
     if not files: return jsonify({'error': 'No file'}), 400
+    
     user_upload_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
     if not os.path.exists(user_upload_dir):
         os.makedirs(user_upload_dir, exist_ok=True)
         os.chmod(user_upload_dir, 0o777)
+
     results = []
     for f in files:
         if not f.filename: continue
@@ -555,9 +617,11 @@ def upload():
             orig_name = secure_filename(f.filename)
             ext = os.path.splitext(orig_name)[1].lower()
             if not ext: ext = ""
+            
             fname_base = f"{int(time.time())}_{os.urandom(4).hex()}"
             fname = f"{fname_base}{ext}"
             save_path = os.path.join(user_upload_dir, fname)
+            
             is_image = ext in ['.jpg', '.jpeg', '.png']
             if is_image:
                 try:
@@ -568,8 +632,10 @@ def upload():
                     f.save(save_path)
             else:
                 f.save(save_path)
+            
             results.append(f"{current_user.id}/{fname}")
         except Exception as e: logger.error(f"Upload Error: {e}")
+    
     resp = {'filenames': results}
     if results:
         resp['filename'] = results[0]

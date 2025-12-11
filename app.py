@@ -551,38 +551,57 @@ def delete_message(mid):
     db.session.commit()
     return jsonify({'status': 'ok'})
 
+
 @app.route('/api/files', methods=['GET'])
 @login_required
 def get_files_lib():
-    msgs = Message.query.join(Thread).filter(
-        Thread.user_id == current_user.id, 
-        Message.image_url != None
-    ).order_by(Message.timestamp.desc()).all()
-    
-    files = []
-    seen = set()
-    for m in msgs:
-        if m.image_url:
+    try:
+        # DBクエリ
+        msgs = Message.query.join(Thread).filter(
+            Thread.user_id == current_user.id, 
+            Message.image_url != None
+        ).order_by(Message.timestamp.desc()).all()
+        
+        files = []
+        seen = set()
+        
+        # アップロードフォルダの確認
+        upload_base = app.config.get('UPLOAD_FOLDER', 'static/uploads')
+        
+        for m in msgs:
+            if not m.image_url: continue
             try:
                 img_list = json.loads(m.image_url)
                 if not isinstance(img_list, list): img_list = [m.image_url]
-            except: img_list = [m.image_url]
+            except: 
+                # JSONパースエラー時は文字列として扱う
+                img_list = [m.image_url]
             
             for path_str in img_list:
                 if path_str and path_str not in seen:
-                    full_path = os.path.join(app.config['UPLOAD_FOLDER'], path_str)
-                    if os.path.exists(full_path):
-                        seen.add(path_str)
-                        ext = os.path.splitext(path_str)[1].lower().replace('.', '')
-                        ftype = 'image' if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp'] else 'file'
-                        files.append({
-                            'id': m.id,
-                            'filename': os.path.basename(path_str),
-                            'filepath': path_str,
-                            'url': url_for('static', filename='uploads/' + path_str),
-                            'type': ftype, 'ext': ext, 'date': m.timestamp.strftime('%Y-%m-%d %H:%M')
-                        })
-    return jsonify(files)
+                    try:
+                        # パス連結の安全性確保
+                        full_path = os.path.join(upload_base, path_str)
+                        if os.path.exists(full_path):
+                            seen.add(path_str)
+                            ext = os.path.splitext(path_str)[1].lower().replace('.', '')
+                            ftype = 'image' if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp'] else 'file'
+                            files.append({
+                                'id': m.id,
+                                'filename': os.path.basename(path_str),
+                                'filepath': path_str,
+                                'url': url_for('static', filename='uploads/' + path_str),
+                                'type': ftype, 
+                                'ext': ext, 
+                                'date': m.timestamp.strftime('%Y-%m-%d %H:%M')
+                            })
+                    except:
+                        continue
+        return jsonify(files)
+    except Exception as e:
+        # 万が一エラーが起きても、空リストを返してクライアントをフリーズさせない
+        print(f"API Files Error: {e}")
+        return jsonify([])
 
 @app.route('/api/files/delete', methods=['POST'])
 @login_required
@@ -641,5 +660,66 @@ def upload():
         resp['filename'] = results[0]
         resp['url'] = url_for('static', filename='uploads/' + results[0])
     return jsonify(resp)
+
+
+@app.route('/chat_stream', methods=['POST'])
+@login_required
+def chat_stream():
+    import uuid
+    import time
+    
+    data = request.json
+    thread_id = data.get('thread_id')
+    message = data.get('message')
+    model = data.get('model')
+    image_urls = data.get('image_urls', [])
+    
+    options = {
+        'enable_search': data.get('enable_search', False),
+        'enable_thinking': data.get('enable_thinking', False),
+        'reasoning_effort': data.get('reasoning_effort', 'medium'),
+        'system_prompt': current_user.system_prompt if data.get('enable_system_prompt') else None
+    }
+
+    api_keys = {
+        'openai': get_key_for_user(current_user, 'OPENAI_API_KEY'),
+        'gemini': get_key_for_user(current_user, 'GEMINI_API_KEY'),
+        'xai': get_key_for_user(current_user, 'XAI_API_KEY')
+    }
+
+    job_id = str(uuid.uuid4())
+    
+    # background_chat_taskをキューに追加
+    task_queue.enqueue(
+        background_chat_task,
+        job_id, thread_id, model, message, image_urls, options, api_keys, current_user.id,
+        job_timeout=600
+    )
+
+    # Redis PubSubを購読してクライアントにストリーミング
+    def generate():
+        pubsub = redis_conn.pubsub()
+        channel = f"ai_chat:channel:{job_id}"
+        pubsub.subscribe(channel)
+        start_time = time.time()
+        try:
+            for message in pubsub.listen():
+                if time.time() - start_time > 600:
+                    yield json.dumps({"type": "error", "data": "Timeout"}) + "\n"
+                    break
+                if message['type'] == 'message':
+                    data_str = message['data'].decode('utf-8')
+                    yield data_str + "\n"
+                    try:
+                        # 終了シグナル判定
+                        if json.loads(data_str).get('type') in ['done', 'error']:
+                            break
+                    except: pass
+        finally:
+            pubsub.unsubscribe()
+            pubsub.close()
+
+    return Response(stream_with_context(generate()), mimetype='application/json')
+
 
 if __name__ == '__main__': app.run(debug=True)

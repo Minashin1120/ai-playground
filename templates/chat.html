@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V2.7.0)</title>
+    <title>AI Playground (V2.7.2)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -13,7 +13,7 @@
         .prose { font-size: 0.95rem; line-height: 1.7; color: #e5e7eb; max-width: none; }
         .prose pre { background: #0f1117 !important; padding: 1em; overflow-x: auto; border-radius: 0.5em; border: 1px solid #374151; }
         .prose code { color: #e5e7eb !important; background: transparent !important; }
-        .thought-box { border-left: 3px solid #a855f7; background: #1f2937; padding: 0.75rem; font-size: 0.85rem; color: #d8b4fe; border-radius: 0.25rem; white-space: pre-wrap; word-break: break-word; overflow-y: auto; max-height: 300px; font-family: monospace; }
+        .thought-box { border-left: 3px solid #a855f7; background: #1f2937; padding: 0.75rem; font-size: 0.85rem; color: #d8b4fe; border-radius: 0.25rem; white-space: pre-wrap; word-break: break-word; overflow-y: auto; max-height: 300px; font-family: monospace; margin-bottom: 1em; }
         .message-bubble { max-width: 90%; position: relative; }
         @media (min-width: 768px) { .message-bubble { max-width: 80%; } }
         .ctrl-btn { background: #1f2937; color: #9ca3af; border: 1px solid #4b5563; border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 10px; }
@@ -55,7 +55,7 @@
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
         <div class="p-3 border-t border-gray-700 text-center text-xs text-gray-500">
-            <div>v2.7.0 <span class="text-orange-500 font-bold">BETA</span></div>
+            <div>v2.7.2 <span class="text-orange-500 font-bold">BETA</span></div>
             <a href="/logout" class="block mt-2 hover:text-white">ログアウト</a>
         </div>
     </div>
@@ -89,14 +89,34 @@
                 </div>
 
                 <div class="flex flex-wrap justify-between items-center text-xs text-gray-400 gap-2">
-                    <select id="model-select" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 outline-none text-white max-w-[150px] truncate">
-                        <optgroup label="Gemini"><option value="gemini-3.0-pro-preview">Gemini 3.0 Pro</option><option value="gemini-2.5-flash">Gemini 2.5 Flash</option></optgroup>
-                        <optgroup label="GPT"><option value="gpt-5.1">GPT-5.1</option><option value="gpt-5-mini">GPT-5 mini</option></optgroup>
-                        <optgroup label="xAI Grok"><option value="grok-4-1-fast-reasoning">Grok 4.1 Fast</option><option value="grok-4-1-fast-non-reasoning">Grok 4.1 Std</option></optgroup>
+                    <!-- 完全なモデルリスト -->
+                    <select id="model-select" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 outline-none text-white max-w-[200px] truncate">
+                        <optgroup label="Gemini">
+                            <option value="gemini-3.0-pro-preview">Gemini 3.0 Pro</option>
+                            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                        </optgroup>
+                        <optgroup label="GPT">
+                            <option value="gpt-5.1">GPT-5.1</option>
+                            <option value="gpt-5-mini">GPT-5 mini</option>
+                        </optgroup>
+                        <optgroup label="xAI Grok">
+                            <option value="grok-4-1-fast-reasoning">Grok 4.1 Fast (Reasoning)</option>
+                            <option value="grok-4-1-fast-non-reasoning">Grok 4.1 Fast (Non-Reasoning)</option>
+                            <option value="grok-4-fast-reasoning">Grok 4 Fast (Reasoning)</option>
+                            <option value="grok-4-fast-non-reasoning">Grok 4 Fast (Non-Reasoning)</option>
+                        </optgroup>
+                        <optgroup label="Image">
+                            <option value="nano-banana">Nano Banana</option>
+                            <option value="nano-banana-pro">Nano Banana Pro</option>
+                        </optgroup>
                     </select>
-                    <div class="flex gap-3 items-center">
-                        <label class="flex items-center space-x-1 cursor-pointer"><input type="checkbox" id="enable-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label>
-                        <label id="sys-prompt-option" class="flex items-center space-x-1 cursor-pointer"><input type="checkbox" id="enable-sys-prompt" class="accent-green-500 w-3 h-3"><span class="text-green-300">SysPrompt</span></label>
+
+                    <div class="flex gap-3 items-center flex-wrap">
+                        <label class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label>
+                        <label id="sys-prompt-option" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-sys-prompt" class="accent-green-500 w-3 h-3"><span class="text-green-300">SysPrompt</span></label>
+                        <!-- Thinking & Effort (復元) -->
+                        <label id="thinking-option" class="flex items-center space-x-1 cursor-pointer hidden select-none"><input type="checkbox" id="enable-thinking" class="accent-purple-500 w-3 h-3"><span class="text-purple-300">Thinking</span></label>
+                        <div id="reasoning-effort-container" class="hidden flex items-center gap-1"><span class="text-gray-400">Effort:</span><select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></div>
                     </div>
                 </div>
                 
@@ -113,7 +133,7 @@
         </div>
     </div>
 
-    <!-- Gem Modal -->
+    <!-- Modals -->
     <div id="gem-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-lg p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh]">
             <h2 class="text-xl font-bold text-white mb-4"><i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem</h2>
@@ -132,7 +152,6 @@
         </div>
     </div>
 
-    <!-- Library Modal -->
     <div id="lib-modal" class="fixed inset-0 bg-gray-900/95 z-50 flex flex-col backdrop-blur-sm" style="display:none;">
         <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button onclick="document.getElementById('lib-modal').style.display='none'" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div>
         <div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0"><span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span><button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs" disabled>削除</button></div>
@@ -150,8 +169,15 @@
         const get = (id) => document.getElementById(id);
         let currentThreadId = null, activeGem = null, currentImageUrls = [], abortController = null;
 
+        function escapeHtml(text) {
+            if (!text) return text;
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             loadThreads(); loadGems();
+            toggleOptions(); // 初期設定の反映
+
             get('new-chat-btn').onclick = () => startNewChat();
             get('mobile-new-chat-btn').onclick = () => startNewChat();
             get('send-btn').onclick = sendMessage;
@@ -166,7 +192,32 @@
             get('file-input').onchange = (e) => handleFiles(e.target.files);
             get('menu-btn').onclick = () => { get('sidebar').classList.toggle('open'); get('overlay').classList.toggle('active'); };
             get('overlay').onclick = () => { get('sidebar').classList.remove('open'); get('overlay').classList.remove('active'); };
+            
+            // モデル変更時にオプションを切り替え
+            get('model-select').addEventListener('change', toggleOptions);
         });
+
+        // オプション表示切り替えロジックの復元
+        function toggleOptions() {
+            const model = get('model-select').value;
+            const think = get('thinking-option');
+            const reason = get('reasoning-effort-container');
+            const search = get('search-container');
+
+            // 一旦すべて隠す
+            if(think) think.classList.add('hidden');
+            if(reason) reason.classList.add('hidden');
+            
+            // モデル名に応じた表示制御
+            if(model.includes('gemini') || model.includes('nano')) {
+                // GeminiとNano系でThinkingを表示
+                if(think) think.classList.remove('hidden');
+            } else if(model.includes('gpt')) {
+                // GPT系でEffortを表示
+                if(reason) reason.classList.remove('hidden');
+            }
+            // Grok系はSearchのみ（デフォルトで表示）
+        }
 
         async function loadGems() {
             try {
@@ -176,7 +227,7 @@
                 gems.forEach(g => {
                     const div = document.createElement('div');
                     div.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group';
-                    div.innerHTML = \`<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">\${g.name}</span></div><button class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2" onclick="deleteGem(event, \${g.id})">×</button>\`;
+                    div.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${g.name}</span></div><button class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2" onclick="deleteGem(event, ${g.id})">×</button>`;
                     div.onclick = (e) => { if(e.target.tagName!=='BUTTON') activateGem(g); };
                     list.appendChild(div);
                 });
@@ -240,33 +291,77 @@
             get('welcome-screen').classList.add('hidden');
             renderMessage({role: 'user', content: text, image_url: JSON.stringify(currentImageUrls)});
             get('prompt-input').value = '';
-            const payload = { thread_id: currentThreadId, message: text, model: get('model-select').value, image_urls: currentImageUrls, enable_search: get('enable-search').checked, enable_system_prompt: get('enable-sys-prompt').checked };
+            const payload = { thread_id: currentThreadId, message: text, model: get('model-select').value, image_urls: currentImageUrls, enable_search: get('enable-search').checked, enable_thinking: get('enable-thinking').checked, reasoning_effort: get('reasoning-effort').value, enable_system_prompt: get('enable-sys-prompt').checked };
             if (activeGem) { payload.system_prompt = activeGem.instruction; payload.enable_system_prompt = true; }
             currentImageUrls = []; get('file-preview').classList.add('hidden'); get('send-btn').disabled = true;
+            
             const aiDivId = 'ai-' + Date.now();
-            get('chat-container').insertAdjacentHTML('beforeend', \`<div id="\${aiDivId}" class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none mb-4"><span class="animate-pulse">Thinking...</span></div>\`);
+            get('chat-container').insertAdjacentHTML('beforeend', `<div id="${aiDivId}" class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none mb-4"><span class="animate-pulse">Thinking...</span></div>`);
+            
             try {
                 const res = await fetch('/chat_stream', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
                 const reader = res.body.getReader();
                 const decoder = new TextDecoder();
                 const aiDiv = document.getElementById(aiDivId);
                 aiDiv.innerHTML = '';
-                let acc = '';
+                
+                let buffer = "";
+                let accumulatedText = "";
+                let thoughtText = "";
+                
                 while(true) {
                     const {done, value} = await reader.read();
                     if(done) break;
-                    acc += decoder.decode(value, {stream: true});
-                    aiDiv.innerHTML = marked.parse(acc);
+                    
+                    buffer += decoder.decode(value, {stream: true});
+                    let lines = buffer.split("\n");
+                    buffer = lines.pop();
+                    
+                    for(let line of lines) {
+                        if(!line.trim()) continue;
+                        try {
+                            const json = JSON.parse(line);
+                            if (json.type === 'content') {
+                                accumulatedText += json.data;
+                                let html = marked.parse(accumulatedText);
+                                if (thoughtText) {
+                                    html = `<div class="thought-box">${escapeHtml(thoughtText)}</div>` + html;
+                                }
+                                aiDiv.innerHTML = html;
+                            } else if (json.type === 'thought') {
+                                thoughtText += json.data;
+                                let html = marked.parse(accumulatedText);
+                                html = `<div class="thought-box">${escapeHtml(thoughtText)}</div>` + html;
+                                aiDiv.innerHTML = html;
+                            } else if (json.type === 'error') {
+                                aiDiv.innerHTML += `<div class="text-red-400">Error: ${escapeHtml(json.data)}</div>`;
+                            }
+                        } catch(e) {}
+                    }
+                    get('chat-container').scrollTop = get('chat-container').scrollHeight;
                 }
                 loadThreads();
-            } catch(e) { document.getElementById(aiDivId).innerHTML = '<span class="text-red-400">Error</span>'; } finally { get('send-btn').disabled = false; }
+            } catch(e) { 
+                document.getElementById(aiDivId).innerHTML = '<span class="text-red-400">Connection Error</span>'; 
+            } finally { 
+                get('send-btn').disabled = false; 
+            }
         }
         function renderMessage(m) {
             const isUser = m.role === 'user';
             const div = document.createElement('div');
-            div.className = \`flex \${isUser?'justify-end':'justify-start'} mb-4\`;
-            let content = m.content ? marked.parse(m.content) : '';
-            div.innerHTML = \`<div class="message-bubble \${isUser?'bg-blue-600 rounded-tr-none':'bg-gray-700 rounded-tl-none'} text-white p-4 rounded-2xl shadow-md prose prose-invert">\${content}</div>\`;
+            div.className = `flex ${isUser?'justify-end':'justify-start'} mb-4`;
+            
+            let contentHtml = "";
+            if (m.thought_data && !isUser) {
+                try {
+                    const tData = JSON.parse(m.thought_data);
+                    const tText = tData.text || "";
+                    if (tText) contentHtml += `<div class="thought-box">${escapeHtml(tText)}</div>`;
+                } catch(e) {}
+            }
+            contentHtml += m.content ? marked.parse(m.content) : '';
+            div.innerHTML = `<div class="message-bubble ${isUser?'bg-blue-600 rounded-tr-none':'bg-gray-700 rounded-tl-none'} text-white p-4 rounded-2xl shadow-md prose prose-invert">${contentHtml}</div>`;
             get('chat-container').appendChild(div);
             get('chat-container').scrollTop = get('chat-container').scrollHeight;
         }
@@ -274,7 +369,7 @@
             if(!files.length) return;
             get('file-preview').classList.remove('hidden'); get('file-name').innerText = "Uploading...";
             for(let f of files) { const fd = new FormData(); fd.append('file', f); const r = await fetch('/upload', {method:'POST', body:fd}); const d = await r.json(); if(d.filename) currentImageUrls.push(d.filename); }
-            get('file-name').innerText = \`\${currentImageUrls.length} files\`; get('file-input').value = '';
+            get('file-name').innerText = `${currentImageUrls.length} files`; get('file-input').value = '';
         }
         get('clear-file-btn').onclick = () => { currentImageUrls=[]; get('file-preview').classList.add('hidden'); };
         async function loadLibraryFiles() {
@@ -283,7 +378,7 @@
             files.forEach(f => {
                 const el = document.createElement('div');
                 el.className = "bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600";
-                el.innerHTML = f.type==='image' ? \`<img src="\${f.url}" class="h-full w-full object-cover">\` : \`<span class="text-xs">\${f.filename}</span>\`;
+                el.innerHTML = f.type==='image' ? `<img src="${f.url}" class="h-full w-full object-cover">` : `<span class="text-xs">${f.filename}</span>`;
                 grid.appendChild(el);
             });
         }

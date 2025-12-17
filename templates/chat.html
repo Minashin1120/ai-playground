@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V2.7.5)</title>
+    <title>AI Playground (V2.7.6)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -15,22 +15,9 @@
         .prose code { color: #e5e7eb !important; background: transparent !important; font-family: Consolas, Monaco, monospace; }
         .prose :not(pre) > code { background: #374151 !important; padding: 0.2rem 0.4rem; border-radius: 0.3rem; }
         
-        /* Thinking Box Style (Fixed Overflow) */
         .thought-container { margin-bottom: 1rem; border-radius: 0.375rem; overflow: hidden; border: 1px solid #4b5563; max-width: 100%; }
         .thought-header { background: #374151; padding: 0.5rem; font-size: 0.75rem; color: #9ca3af; display: flex; align-items: center; gap: 0.5rem; font-weight: bold; }
-        .thought-content { 
-            background: #1f2937; 
-            padding: 0.75rem; 
-            font-size: 0.85rem; 
-            color: #d8b4fe; 
-            white-space: pre-wrap;       /* 改行を維持 */
-            word-break: break-word;      /* 長い単語を折り返す */
-            overflow-wrap: break-word;   /* 最新の折り返し仕様 */
-            font-family: monospace; 
-            max-height: 300px; 
-            overflow-y: auto;            /* 縦スクロール */
-            overflow-x: hidden;          /* 横スクロール防止（折り返すため） */
-        }
+        .thought-content { background: #1f2937; padding: 0.75rem; font-size: 0.85rem; color: #d8b4fe; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; font-family: monospace; max-height: 300px; overflow-y: auto; overflow-x: hidden; }
         
         .message-bubble { max-width: 90%; position: relative; word-wrap: break-word; }
         @media (min-width: 768px) { .message-bubble { max-width: 80%; } }
@@ -42,6 +29,11 @@
         .ctrl-btn { background: #1f2937; color: #9ca3af; border: 1px solid #4b5563; border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 10px; transition: all 0.2s; }
         .ctrl-btn:hover { background: #374151; color: #fff; }
         
+        /* Debug Console */
+        #debug-console { position: fixed; bottom: 0; right: 0; width: 100%; height: 150px; background: rgba(0,0,0,0.95); color: #0f0; font-family: monospace; font-size: 11px; overflow-y: auto; z-index: 9999; padding: 10px; border-top: 1px solid #444; display: none; }
+        
+        .welcome-btn { width: 100%; text-align: left; }
+
         @media (max-width: 768px) { 
             .sidebar { position: fixed; z-index: 50; height: 100%; transform: translateX(-100%); transition: transform 0.3s; } 
             .sidebar.open { transform: translateX(0); } 
@@ -53,12 +45,18 @@
 </head>
 <body class="h-[100dvh] flex overflow-hidden text-sm md:text-base">
 
+    <!-- Debug Console -->
+    <div id="debug-console"><div id="debug-content"></div><button onclick="document.getElementById('debug-console').style.display='none'" style="position:absolute;top:5px;right:5px;color:#f55">✕</button></div>
+
     <!-- Sidebar -->
     <div id="sidebar" class="sidebar w-64 bg-gray-800 border-r border-gray-700 flex flex-col shrink-0">
         <div class="p-3 border-b border-gray-700 flex flex-col gap-2">
             <div class="flex justify-between items-center">
                 <h2 class="font-bold text-base flex-shrink-0 text-gray-200">AI Chat</h2>
                 <div class="flex items-center gap-1">
+                    {% if current_user.username == 'minashin1120' %}
+                    <button onclick="toggleDebug()" class="text-gray-400 hover:text-yellow-400 p-1.5 rounded" title="Debug"><i class="fas fa-wrench text-xs"></i></button>
+                    {% endif %}
                     <button onclick="location.href='/changelog'" class="text-gray-400 hover:text-white p-1.5 rounded" title="履歴"><i class="fas fa-history text-xs"></i></button>
                     <button id="settings-btn" class="text-gray-400 hover:text-green-400 p-1.5 rounded" title="設定"><i class="fas fa-cog text-xs"></i></button>
                     <button id="lib-btn" class="text-gray-400 hover:text-blue-400 p-1.5 rounded" title="ライブラリ"><i class="fas fa-folder text-xs"></i></button>
@@ -82,9 +80,15 @@
         <div class="px-2 mb-1"><span class="text-xs font-bold text-gray-400 uppercase tracking-wider">History</span></div>
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
-        <div class="p-3 border-t border-gray-700 text-center text-xs text-gray-500">
-            <div>v2.7.5 <span class="text-orange-500 font-bold">RELEASE</span></div>
-            <a href="/logout" class="block mt-2 hover:text-white">ログアウト</a>
+        <!-- Footer with Legal Links -->
+        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500">
+            <div>v2.7.6 <span class="text-orange-500 font-bold">RELEASE</span></div>
+            <div class="flex justify-center gap-3">
+                <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
+                <span class="text-gray-700">|</span>
+                <button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button>
+            </div>
+            <a href="/logout" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded">ログアウト</a>
         </div>
     </div>
     
@@ -94,14 +98,23 @@
         <header class="bg-gray-800 border-b border-gray-700 p-3 shadow-md flex justify-between items-center shrink-0 md:hidden">
             <button id="menu-btn" class="text-gray-300 p-2"><i class="fas fa-bars text-xl"></i></button>
             <span class="font-bold text-sm" id="header-title">AI Playground</span>
-            <button id="mobile-new-chat-btn" class="text-blue-400 font-bold text-xl p-2">+</button>
+            <div class="flex items-center">
+                {% if current_user.username == 'minashin1120' %}
+                <button onclick="toggleDebug()" class="text-gray-400 hover:text-yellow-400 p-2 mr-1"><i class="fas fa-wrench"></i></button>
+                {% endif %}
+                <button id="mobile-new-chat-btn" class="text-blue-400 font-bold text-xl p-2">+</button>
+            </div>
         </header>
 
         <div class="flex-1 overflow-hidden relative">
             <div id="chat-container" class="absolute inset-0 overflow-y-auto p-4 space-y-6 scroll-smooth"></div>
+            <!-- Welcome Screen with Quick Start Buttons -->
             <div id="welcome-screen" class="absolute inset-0 flex flex-col items-center justify-center text-gray-500 space-y-4 bg-[#111827] z-10">
                 <h2 class="text-2xl font-bold text-white flex items-center gap-2"><i class="fas fa-gem text-blue-500"></i> AI Gems & Chat</h2>
-                <p class="text-sm">Gemsを作成して、専門家AIとチャットしましょう。</p>
+                <div class="grid grid-cols-1 gap-2 w-full max-w-md px-4">
+                    <button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition" onclick="quickStart('gemini-3.0-pro-preview')">🧠 Gemini 3.0 Pro</button>
+                    <button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition" onclick="quickStart('grok-4-fast-reasoning')">🚀 Grok 4 Fast</button>
+                </div>
             </div>
         </div>
 
@@ -191,6 +204,19 @@
         </div>
     </div>
 
+    <!-- Legal Modal (Restored) -->
+    <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm">
+        <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh]">
+            <h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">利用規約</h2>
+            <div id="legal-content" class="overflow-y-auto pr-2 flex-1 text-sm text-gray-300 leading-relaxed space-y-4 prose prose-invert max-w-none">
+                <div class="flex justify-center p-4 text-gray-400"><i class="fas fa-circle-notch fa-spin mr-2"></i> Loading...</div>
+            </div>
+            <div class="flex justify-end mt-4 shrink-0">
+                <button onclick="document.getElementById('legal-modal').style.display='none'" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">閉じる</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const get = (id) => document.getElementById(id);
         let currentThreadId = null, activeGem = null, currentImageUrls = [], abortController = null;
@@ -199,6 +225,15 @@
         function escapeHtml(text) {
             if (!text) return text;
             return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+        function log(msg) { 
+            console.log(msg); 
+            const d = get('debug-content');
+            if(d) d.innerHTML += '<div>'+escapeHtml(msg)+'</div>';
+        }
+        function toggleDebug() { 
+            const c=get('debug-console'); 
+            c.style.display = c.style.display==='none' ? 'block' : 'none'; 
         }
         
         window.copyMessage = function(id, btn) { 
@@ -209,6 +244,30 @@
                 btn.innerHTML = '<i class="fas fa-check text-green-400"></i>'; 
                 setTimeout(() => btn.innerHTML = original, 2000); 
             }); 
+        };
+
+        // Legal Modal Logic
+        window.showLegal = async function(type) {
+            get('legal-title').innerText = type==='terms'?'利用規約':'プライバシーポリシー';
+            const content = get('legal-content');
+            content.innerHTML = '<div class="flex justify-center p-4 text-gray-400"><i class="fas fa-circle-notch fa-spin mr-2"></i> Loading...</div>';
+            get('legal-modal').style.display = 'flex';
+            try {
+                const res = await fetch('/static/legal/' + type + '.md?t=' + Date.now());
+                if(!res.ok) throw new Error("Load failed");
+                const text = await res.text();
+                content.innerHTML = DOMPurify.sanitize(marked.parse(text));
+            } catch(e) {
+                content.innerHTML = '<div class="text-red-400 p-4">読み込みに失敗しました。</div>';
+            }
+        };
+
+        // Quick Start
+        window.quickStart = function(modelVal) {
+            get('model-select').value = modelVal;
+            toggleOptions();
+            get('welcome-screen').classList.add('hidden');
+            get('prompt-input').focus();
         };
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -223,7 +282,6 @@
             get('add-gem-btn').onclick = () => get('gem-modal').style.display='flex';
             get('save-gem-btn').onclick = createGem;
             
-            // Paste Image Handler (Restored)
             get('prompt-input').addEventListener('paste', async (e) => {
                 const items = (e.clipboardData || window.clipboardData).items;
                 const files = [];
@@ -232,18 +290,13 @@
                         files.push(items[i].getAsFile());
                     }
                 }
-                if (files.length > 0) {
-                    e.preventDefault();
-                    await handleFiles(files);
-                }
+                if (files.length > 0) { e.preventDefault(); await handleFiles(files); }
             });
 
-            // Keydown (Ctrl+Enter)
             get('prompt-input').onkeydown = (e) => {
                 if (e.isComposing) return;
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); get('send-btn').click(); }
             };
-            
             get('lib-btn').onclick = () => { get('lib-modal').style.display='flex'; loadLibraryFiles(); };
             get('upload-btn').onclick = () => get('file-input').click();
             get('file-input').onchange = (e) => handleFiles(e.target.files);
@@ -251,9 +304,8 @@
             get('overlay').onclick = () => { get('sidebar').classList.remove('open'); get('overlay').classList.remove('active'); };
             
             get('model-select').addEventListener('change', toggleOptions);
-            get('reasoning-effort')?.addEventListener('change', checkSearchAvailability); // Effort Change Listener
+            get('reasoning-effort')?.addEventListener('change', checkSearchAvailability);
             
-            // Edit Button Handler (Restored)
             get('chat-container').addEventListener('click', (e) => {
                 const editBtn = e.target.closest('.edit-btn');
                 if (editBtn) {
@@ -270,7 +322,6 @@
             });
         });
 
-        // Search & Effort Logic (Restored)
         function checkSearchAvailability() {
             const model = get('model-select').value;
             const reasonEffort = get('reasoning-effort');
@@ -284,6 +335,23 @@
                 searchChk.checked = false;
             } else if(model.includes('gpt')) {
                 searchCont.classList.remove('opacity-50','pointer-events-none');
+            }
+        }
+
+        // Logic restored: Disable System Prompt for Image Models
+        function checkSystemPromptAvailability() {
+            const model = get('model-select').value;
+            const chk = get('enable-sys-prompt');
+            const lbl = get('sys-prompt-option');
+            if(!chk || !lbl) return;
+            
+            if(model.includes('nano')) { 
+                chk.checked=false; 
+                chk.disabled=true; 
+                lbl.classList.add('opacity-50'); 
+            } else { 
+                chk.disabled=false; 
+                lbl.classList.remove('opacity-50'); 
             }
         }
 
@@ -306,6 +374,7 @@
                 if(reason) reason.classList.remove('hidden');
             }
             checkSearchAvailability();
+            checkSystemPromptAvailability(); // Called here
         }
 
         async function loadGems() {
@@ -505,7 +574,6 @@
                 } catch(e){}
             }
 
-            // Edit Button HTML added
             const editBtnHtml = isUser ? `<button class="ctrl-btn edit-btn" data-id="${id}" title="Edit"><i class="fas fa-pen"></i></button>` : '';
             const controlsHtml = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${editBtnHtml}</div>`;
             const parsedText = text ? DOMPurify.sanitize(marked.parse(text)) : '';

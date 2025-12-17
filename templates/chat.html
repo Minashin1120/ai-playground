@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V2.7.6)</title>
+    <title>AI Playground (V2.7.7)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -11,10 +11,24 @@
     <style>
         body { background-color: #111827; color: #f3f4f6; }
         .prose { font-size: 0.95rem; line-height: 1.7; color: #e5e7eb; max-width: none; }
-        .prose pre { background: #0f1117 !important; padding: 1em; overflow-x: auto; border-radius: 0.5em; border: 1px solid #374151; margin: 1em 0; }
-        .prose code { color: #e5e7eb !important; background: transparent !important; font-family: Consolas, Monaco, monospace; }
-        .prose :not(pre) > code { background: #374151 !important; padding: 0.2rem 0.4rem; border-radius: 0.3rem; }
+        .prose h1 { font-size: 1.5em; font-weight: 800; margin: 1em 0 0.5em; border-bottom: 1px solid #374151; color: #fff; }
+        .prose h2 { font-size: 1.3em; font-weight: 700; margin: 1em 0 0.5em; color: #f3f4f6; }
+        .prose p { margin-bottom: 0.8em; }
+        .prose ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1em; }
+        .prose ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 1em; }
+        .prose a { color: #60a5fa; text-decoration: underline; }
         
+        /* Code Block Styling (Restored) */
+        .code-wrapper { margin: 1em 0; border-radius: 0.5rem; border: 1px solid #374151; overflow: hidden; background: #0f1117; }
+        .code-header { display: flex; justify-content: space-between; align-items: center; background: #1f2937; padding: 0.3rem 0.8rem; font-size: 0.75rem; color: #9ca3af; border-bottom: 1px solid #374151; }
+        .code-lang { font-weight: bold; text-transform: uppercase; }
+        .copy-btn { background: transparent; border: none; color: #9ca3af; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s; }
+        .copy-btn:hover { color: #fff; }
+        .prose pre { margin: 0 !important; padding: 1rem !important; overflow-x: auto; background: transparent !important; border-radius: 0 !important; border: none !important; }
+        .prose code { font-family: Consolas, Monaco, 'Andale Mono', monospace; font-size: 0.9em; color: #e5e7eb !important; background: transparent !important; padding: 0 !important; }
+        .prose :not(pre) > code { background: #374151 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.3rem !important; color: #e2e8f0 !important; }
+
+        /* Thinking Box (Fixed) */
         .thought-container { margin-bottom: 1rem; border-radius: 0.375rem; overflow: hidden; border: 1px solid #4b5563; max-width: 100%; }
         .thought-header { background: #374151; padding: 0.5rem; font-size: 0.75rem; color: #9ca3af; display: flex; align-items: center; gap: 0.5rem; font-weight: bold; }
         .thought-content { background: #1f2937; padding: 0.75rem; font-size: 0.85rem; color: #d8b4fe; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; font-family: monospace; max-height: 300px; overflow-y: auto; overflow-x: hidden; }
@@ -29,9 +43,7 @@
         .ctrl-btn { background: #1f2937; color: #9ca3af; border: 1px solid #4b5563; border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 10px; transition: all 0.2s; }
         .ctrl-btn:hover { background: #374151; color: #fff; }
         
-        /* Debug Console */
         #debug-console { position: fixed; bottom: 0; right: 0; width: 100%; height: 150px; background: rgba(0,0,0,0.95); color: #0f0; font-family: monospace; font-size: 11px; overflow-y: auto; z-index: 9999; padding: 10px; border-top: 1px solid #444; display: none; }
-        
         .welcome-btn { width: 100%; text-align: left; }
 
         @media (max-width: 768px) { 
@@ -45,10 +57,8 @@
 </head>
 <body class="h-[100dvh] flex overflow-hidden text-sm md:text-base">
 
-    <!-- Debug Console -->
     <div id="debug-console"><div id="debug-content"></div><button onclick="document.getElementById('debug-console').style.display='none'" style="position:absolute;top:5px;right:5px;color:#f55">✕</button></div>
 
-    <!-- Sidebar -->
     <div id="sidebar" class="sidebar w-64 bg-gray-800 border-r border-gray-700 flex flex-col shrink-0">
         <div class="p-3 border-b border-gray-700 flex flex-col gap-2">
             <div class="flex justify-between items-center">
@@ -66,7 +76,6 @@
             <div class="relative"><input type="text" id="search-box" placeholder="検索..." class="w-full bg-gray-700 rounded px-3 py-1 text-sm"><i class="fas fa-search absolute right-3 top-1.5 text-gray-500 text-xs"></i></div>
         </div>
 
-        <!-- Gems Section -->
         <div class="px-2 py-2">
             <div class="flex justify-between items-center px-2 mb-1">
                 <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Gems</span>
@@ -80,9 +89,8 @@
         <div class="px-2 mb-1"><span class="text-xs font-bold text-gray-400 uppercase tracking-wider">History</span></div>
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
-        <!-- Footer with Legal Links -->
         <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500">
-            <div>v2.7.6 <span class="text-orange-500 font-bold">RELEASE</span></div>
+            <div>v2.7.7 <span class="text-orange-500 font-bold">PERFECT</span></div>
             <div class="flex justify-center gap-3">
                 <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
                 <span class="text-gray-700">|</span>
@@ -108,7 +116,6 @@
 
         <div class="flex-1 overflow-hidden relative">
             <div id="chat-container" class="absolute inset-0 overflow-y-auto p-4 space-y-6 scroll-smooth"></div>
-            <!-- Welcome Screen with Quick Start Buttons -->
             <div id="welcome-screen" class="absolute inset-0 flex flex-col items-center justify-center text-gray-500 space-y-4 bg-[#111827] z-10">
                 <h2 class="text-2xl font-bold text-white flex items-center gap-2"><i class="fas fa-gem text-blue-500"></i> AI Gems & Chat</h2>
                 <div class="grid grid-cols-1 gap-2 w-full max-w-md px-4">
@@ -172,7 +179,7 @@
         </div>
     </div>
 
-    <!-- Modals -->
+    <!-- Gem Modal -->
     <div id="gem-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-lg p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh]">
             <h2 class="text-xl font-bold text-white mb-4"><i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem</h2>
@@ -191,20 +198,52 @@
         </div>
     </div>
 
+    <!-- Settings Modal (Restored Content) -->
+    <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm">
+        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh]">
+            <h2 class="text-xl font-bold text-white mb-4">設定</h2>
+            <div class="overflow-y-auto pr-2 space-y-4 flex-1">
+                <div class="bg-gray-900 p-4 rounded border border-gray-700">
+                    <h3 class="text-sm font-bold text-blue-400 mb-2">プロフィール</h3>
+                    <div class="space-y-3">
+                        <div><label class="text-xs text-gray-500 block">ユーザー名</label><input type="text" id="set-username" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
+                        <div><label class="text-xs text-gray-500 block">新パスワード (変更時のみ)</label><input type="password" id="set-password" placeholder="変更しない場合は空欄" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
+                    </div>
+                </div>
+                <div class="bg-gray-900 p-4 rounded border border-gray-700">
+                    <h3 class="text-sm font-bold text-green-400 mb-2">APIキー</h3>
+                    <div class="space-y-3">
+                        <div><label class="text-xs text-gray-500 block">OpenAI API Key</label><input type="password" id="set-openai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
+                        <div><label class="text-xs text-gray-500 block">Gemini API Key</label><input type="password" id="set-gemini" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
+                        <div><label class="text-xs text-gray-500 block">xAI API Key</label><input type="password" id="set-xai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500 block mb-1">デフォルト システムプロンプト</label>
+                    <textarea id="sys-prompt-text" class="w-full h-32 bg-gray-900 border-gray-600 rounded p-3 text-sm text-white" placeholder="AIの振る舞いを設定できます"></textarea>
+                </div>
+                <!-- Danger Zone -->
+                <div class="bg-red-900/20 p-4 rounded border border-red-800 mt-4">
+                    <h3 class="text-sm font-bold text-red-500 mb-2">危険な領域</h3>
+                    <p class="text-xs text-gray-400 mb-3">アカウントを削除すると、チャット履歴やアップロードしたファイルを含むすべてのデータが復元不可能になります。</p>
+                    <button id="delete-account-btn" class="w-full bg-red-800/50 hover:bg-red-700 text-red-200 border border-red-600 py-2 rounded text-sm transition">アカウントを削除</button>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-4">
+                <button id="close-settings-btn" class="px-4 py-2 text-gray-400 hover:text-white">キャンセル</button>
+                <button id="save-settings-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Library Modal -->
     <div id="lib-modal" class="fixed inset-0 bg-gray-900/95 z-50 flex flex-col backdrop-blur-sm" style="display:none;">
         <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button onclick="document.getElementById('lib-modal').style.display='none'" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div>
         <div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0"><span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span><button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs" disabled>削除</button></div>
         <div id="lib-grid" class="flex-1 overflow-y-auto p-4 grid grid-cols-3 gap-4"></div>
     </div>
-    
-    <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700">
-             <h2 class="text-xl font-bold text-white mb-4">設定</h2>
-             <div class="flex justify-end"><button onclick="document.getElementById('settings-modal').style.display='none'" class="text-gray-400">閉じる</button></div>
-        </div>
-    </div>
 
-    <!-- Legal Modal (Restored) -->
+    <!-- Legal Modal -->
     <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh]">
             <h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">利用規約</h2>
@@ -219,7 +258,7 @@
 
     <script>
         const get = (id) => document.getElementById(id);
-        let currentThreadId = null, activeGem = null, currentImageUrls = [], abortController = null;
+        let currentThreadId = null, activeGem = null, currentImageUrls = [], abortController = null, isUserScrolling = false;
         const messageStore = {};
 
         function escapeHtml(text) {
@@ -236,6 +275,13 @@
             c.style.display = c.style.display==='none' ? 'block' : 'none'; 
         }
         
+        // Copy Button Logic
+        window.copyCode = function(btn, enc) { 
+            navigator.clipboard.writeText(decodeURIComponent(enc)).then(()=>{ 
+                btn.innerHTML='<i class="fas fa-check text-green-400"></i>'; 
+                setTimeout(()=>btn.innerHTML='<i class="fas fa-copy"></i> Copy',2000); 
+            }); 
+        };
         window.copyMessage = function(id, btn) { 
             const text = messageStore[id]; 
             if (!text) return; 
@@ -246,7 +292,6 @@
             }); 
         };
 
-        // Legal Modal Logic
         window.showLegal = async function(type) {
             get('legal-title').innerText = type==='terms'?'利用規約':'プライバシーポリシー';
             const content = get('legal-content');
@@ -262,7 +307,6 @@
             }
         };
 
-        // Quick Start
         window.quickStart = function(modelVal) {
             get('model-select').value = modelVal;
             toggleOptions();
@@ -271,6 +315,15 @@
         };
 
         document.addEventListener('DOMContentLoaded', () => {
+            // Markdown Configuration (Restored)
+            const renderer = new marked.Renderer();
+            renderer.code = function(code, infostring, escaped) {
+                const lang = (infostring || '').match(/\S*/)[0];
+                const codeEncoded = encodeURIComponent(code);
+                return `<div class="code-wrapper"><div class="code-header"><span class="code-lang">${escapeHtml(lang)||'TEXT'}</span><button class="copy-btn" onclick="copyCode(this, '${codeEncoded}')"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="language-${escapeHtml(lang)}">${escaped?code:escapeHtml(code)}</code></pre></div>`;
+            };
+            marked.use({ renderer: renderer, breaks: true, gfm: true });
+
             loadThreads(); loadGems();
             toggleOptions();
 
@@ -282,6 +335,14 @@
             get('add-gem-btn').onclick = () => get('gem-modal').style.display='flex';
             get('save-gem-btn').onclick = createGem;
             
+            // Smart Scroll Logic
+            const chatContainer = get('chat-container');
+            chatContainer.addEventListener('scroll', () => {
+                const current = chatContainer.scrollTop;
+                const max = chatContainer.scrollHeight - chatContainer.clientHeight;
+                isUserScrolling = (max - current > 50);
+            });
+
             get('prompt-input').addEventListener('paste', async (e) => {
                 const items = (e.clipboardData || window.clipboardData).items;
                 const files = [];
@@ -320,6 +381,45 @@
                     }
                 }
             });
+
+            // Settings Modal Logic (Restored)
+            get('settings-btn').onclick = () => {
+                get('settings-modal').style.display='flex';
+                fetch('/api/settings').then(r=>r.json()).then(d=>{
+                    get('sys-prompt-text').value = d.system_prompt;
+                    get('set-username').value = d.username;
+                    get('set-openai').value = d.openai_key;
+                    get('set-gemini').value = d.gemini_key;
+                    get('set-xai').value = d.xai_key;
+                });
+            };
+            get('close-settings-btn').onclick = () => get('settings-modal').style.display='none';
+            get('save-settings-btn').onclick = async () => {
+                await fetch('/api/settings', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({
+                        system_prompt:get('sys-prompt-text').value,
+                        new_username:get('set-username').value,
+                        new_password:get('set-password').value,
+                        openai_key:get('set-openai').value,
+                        gemini_key:get('set-gemini').value,
+                        xai_key:get('set-xai').value
+                    })
+                });
+                get('settings-modal').style.display='none';
+                location.reload();
+            };
+            // Delete Account
+            get('delete-account-btn').onclick = async () => {
+                if(confirm("【警告】本当にアカウントを削除しますか？\nこの操作は取り消せません。")) {
+                    try {
+                        const res = await fetch('/api/account/delete', {method: 'POST'});
+                        if(res.ok) window.location.href = "/login";
+                        else alert("削除失敗");
+                    } catch(e) { alert("エラー"); }
+                }
+            };
         });
 
         function checkSearchAvailability() {
@@ -327,9 +427,7 @@
             const reasonEffort = get('reasoning-effort');
             const searchCont = get('search-container');
             const searchChk = get('enable-search');
-            
             if(!searchCont || !searchChk) return;
-            
             if (model.includes('gpt') && reasonEffort && reasonEffort.value === 'low') {
                 searchCont.classList.add('opacity-50','pointer-events-none');
                 searchChk.checked = false;
@@ -338,13 +436,11 @@
             }
         }
 
-        // Logic restored: Disable System Prompt for Image Models
         function checkSystemPromptAvailability() {
             const model = get('model-select').value;
             const chk = get('enable-sys-prompt');
             const lbl = get('sys-prompt-option');
             if(!chk || !lbl) return;
-            
             if(model.includes('nano')) { 
                 chk.checked=false; 
                 chk.disabled=true; 
@@ -374,7 +470,7 @@
                 if(reason) reason.classList.remove('hidden');
             }
             checkSearchAvailability();
-            checkSystemPromptAvailability(); // Called here
+            checkSystemPromptAvailability();
         }
 
         async function loadGems() {
@@ -521,7 +617,7 @@
                             }
                         } catch(e) {}
                     }
-                    get('chat-container').scrollTop = get('chat-container').scrollHeight;
+                    if(!isUserScrolling) get('chat-container').scrollTop = get('chat-container').scrollHeight;
                 }
                 messageStore[aiDivId] = accumulatedText;
                 loadThreads();

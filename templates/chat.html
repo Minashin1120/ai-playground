@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V2.7.2)</title>
+    <title>AI Playground (V2.7.5)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -11,15 +11,43 @@
     <style>
         body { background-color: #111827; color: #f3f4f6; }
         .prose { font-size: 0.95rem; line-height: 1.7; color: #e5e7eb; max-width: none; }
-        .prose pre { background: #0f1117 !important; padding: 1em; overflow-x: auto; border-radius: 0.5em; border: 1px solid #374151; }
-        .prose code { color: #e5e7eb !important; background: transparent !important; }
-        .thought-box { border-left: 3px solid #a855f7; background: #1f2937; padding: 0.75rem; font-size: 0.85rem; color: #d8b4fe; border-radius: 0.25rem; white-space: pre-wrap; word-break: break-word; overflow-y: auto; max-height: 300px; font-family: monospace; margin-bottom: 1em; }
-        .message-bubble { max-width: 90%; position: relative; }
+        .prose pre { background: #0f1117 !important; padding: 1em; overflow-x: auto; border-radius: 0.5em; border: 1px solid #374151; margin: 1em 0; }
+        .prose code { color: #e5e7eb !important; background: transparent !important; font-family: Consolas, Monaco, monospace; }
+        .prose :not(pre) > code { background: #374151 !important; padding: 0.2rem 0.4rem; border-radius: 0.3rem; }
+        
+        /* Thinking Box Style (Fixed Overflow) */
+        .thought-container { margin-bottom: 1rem; border-radius: 0.375rem; overflow: hidden; border: 1px solid #4b5563; max-width: 100%; }
+        .thought-header { background: #374151; padding: 0.5rem; font-size: 0.75rem; color: #9ca3af; display: flex; align-items: center; gap: 0.5rem; font-weight: bold; }
+        .thought-content { 
+            background: #1f2937; 
+            padding: 0.75rem; 
+            font-size: 0.85rem; 
+            color: #d8b4fe; 
+            white-space: pre-wrap;       /* 改行を維持 */
+            word-break: break-word;      /* 長い単語を折り返す */
+            overflow-wrap: break-word;   /* 最新の折り返し仕様 */
+            font-family: monospace; 
+            max-height: 300px; 
+            overflow-y: auto;            /* 縦スクロール */
+            overflow-x: hidden;          /* 横スクロール防止（折り返すため） */
+        }
+        
+        .message-bubble { max-width: 90%; position: relative; word-wrap: break-word; }
         @media (min-width: 768px) { .message-bubble { max-width: 80%; } }
-        .ctrl-btn { background: #1f2937; color: #9ca3af; border: 1px solid #4b5563; border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 10px; }
+        
         .msg-controls { opacity: 0; transition: opacity 0.2s; position: absolute; top: -12px; right: 0; display: flex; gap: 4px; }
         .message-group:hover .msg-controls { opacity: 1; }
-        @media (max-width: 768px) { .sidebar { position: fixed; z-index: 50; height: 100%; transform: translateX(-100%); transition: transform 0.3s; } .sidebar.open { transform: translateX(0); } .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; } .overlay.active { display: block; } }
+        @media (hover: none) { .msg-controls { opacity: 1; } }
+        
+        .ctrl-btn { background: #1f2937; color: #9ca3af; border: 1px solid #4b5563; border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 10px; transition: all 0.2s; }
+        .ctrl-btn:hover { background: #374151; color: #fff; }
+        
+        @media (max-width: 768px) { 
+            .sidebar { position: fixed; z-index: 50; height: 100%; transform: translateX(-100%); transition: transform 0.3s; } 
+            .sidebar.open { transform: translateX(0); } 
+            .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; } 
+            .overlay.active { display: block; } 
+        }
         .gem-item.active { background-color: #374151; border-left: 3px solid #3b82f6; }
     </style>
 </head>
@@ -55,7 +83,7 @@
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
         <div class="p-3 border-t border-gray-700 text-center text-xs text-gray-500">
-            <div>v2.7.2 <span class="text-orange-500 font-bold">BETA</span></div>
+            <div>v2.7.5 <span class="text-orange-500 font-bold">RELEASE</span></div>
             <a href="/logout" class="block mt-2 hover:text-white">ログアウト</a>
         </div>
     </div>
@@ -89,7 +117,6 @@
                 </div>
 
                 <div class="flex flex-wrap justify-between items-center text-xs text-gray-400 gap-2">
-                    <!-- 完全なモデルリスト -->
                     <select id="model-select" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 outline-none text-white max-w-[200px] truncate">
                         <optgroup label="Gemini">
                             <option value="gemini-3.0-pro-preview">Gemini 3.0 Pro</option>
@@ -112,9 +139,8 @@
                     </select>
 
                     <div class="flex gap-3 items-center flex-wrap">
-                        <label class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label>
+                        <label id="search-container" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label>
                         <label id="sys-prompt-option" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-sys-prompt" class="accent-green-500 w-3 h-3"><span class="text-green-300">SysPrompt</span></label>
-                        <!-- Thinking & Effort (復元) -->
                         <label id="thinking-option" class="flex items-center space-x-1 cursor-pointer hidden select-none"><input type="checkbox" id="enable-thinking" class="accent-purple-500 w-3 h-3"><span class="text-purple-300">Thinking</span></label>
                         <div id="reasoning-effort-container" class="hidden flex items-center gap-1"><span class="text-gray-400">Effort:</span><select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></div>
                     </div>
@@ -168,55 +194,118 @@
     <script>
         const get = (id) => document.getElementById(id);
         let currentThreadId = null, activeGem = null, currentImageUrls = [], abortController = null;
+        const messageStore = {};
 
         function escapeHtml(text) {
             if (!text) return text;
             return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
         }
+        
+        window.copyMessage = function(id, btn) { 
+            const text = messageStore[id]; 
+            if (!text) return; 
+            navigator.clipboard.writeText(text).then(() => { 
+                const original = btn.innerHTML; 
+                btn.innerHTML = '<i class="fas fa-check text-green-400"></i>'; 
+                setTimeout(() => btn.innerHTML = original, 2000); 
+            }); 
+        };
 
         document.addEventListener('DOMContentLoaded', () => {
             loadThreads(); loadGems();
-            toggleOptions(); // 初期設定の反映
+            toggleOptions();
 
             get('new-chat-btn').onclick = () => startNewChat();
             get('mobile-new-chat-btn').onclick = () => startNewChat();
             get('send-btn').onclick = sendMessage;
+            get('stop-btn').onclick = () => { if(abortController) abortController.abort(); };
+            
             get('add-gem-btn').onclick = () => get('gem-modal').style.display='flex';
             get('save-gem-btn').onclick = createGem;
+            
+            // Paste Image Handler (Restored)
+            get('prompt-input').addEventListener('paste', async (e) => {
+                const items = (e.clipboardData || window.clipboardData).items;
+                const files = [];
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].kind === 'file' && items[i].type.startsWith('image/')) {
+                        files.push(items[i].getAsFile());
+                    }
+                }
+                if (files.length > 0) {
+                    e.preventDefault();
+                    await handleFiles(files);
+                }
+            });
+
+            // Keydown (Ctrl+Enter)
             get('prompt-input').onkeydown = (e) => {
                 if (e.isComposing) return;
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); get('send-btn').click(); }
             };
+            
             get('lib-btn').onclick = () => { get('lib-modal').style.display='flex'; loadLibraryFiles(); };
             get('upload-btn').onclick = () => get('file-input').click();
             get('file-input').onchange = (e) => handleFiles(e.target.files);
             get('menu-btn').onclick = () => { get('sidebar').classList.toggle('open'); get('overlay').classList.toggle('active'); };
             get('overlay').onclick = () => { get('sidebar').classList.remove('open'); get('overlay').classList.remove('active'); };
             
-            // モデル変更時にオプションを切り替え
             get('model-select').addEventListener('change', toggleOptions);
+            get('reasoning-effort')?.addEventListener('change', checkSearchAvailability); // Effort Change Listener
+            
+            // Edit Button Handler (Restored)
+            get('chat-container').addEventListener('click', (e) => {
+                const editBtn = e.target.closest('.edit-btn');
+                if (editBtn) {
+                    e.stopPropagation();
+                    const id = editBtn.dataset.id;
+                    const text = messageStore[id];
+                    if(!text) return;
+                    get('prompt-input').value = text;
+                    get('prompt-input').focus();
+                    if(confirm("メッセージを編集して再生成しますか？")) {
+                        fetch("/api/messages/" + id, {method:'DELETE'}).then(() => loadMessages(currentThreadId)).catch(e=>{});
+                    }
+                }
+            });
         });
 
-        // オプション表示切り替えロジックの復元
+        // Search & Effort Logic (Restored)
+        function checkSearchAvailability() {
+            const model = get('model-select').value;
+            const reasonEffort = get('reasoning-effort');
+            const searchCont = get('search-container');
+            const searchChk = get('enable-search');
+            
+            if(!searchCont || !searchChk) return;
+            
+            if (model.includes('gpt') && reasonEffort && reasonEffort.value === 'low') {
+                searchCont.classList.add('opacity-50','pointer-events-none');
+                searchChk.checked = false;
+            } else if(model.includes('gpt')) {
+                searchCont.classList.remove('opacity-50','pointer-events-none');
+            }
+        }
+
         function toggleOptions() {
             const model = get('model-select').value;
-            const think = get('thinking-option');
+            const thinkContainer = get('thinking-option');
+            const thinkChk = get('enable-thinking');
             const reason = get('reasoning-effort-container');
-            const search = get('search-container');
-
-            // 一旦すべて隠す
-            if(think) think.classList.add('hidden');
-            if(reason) reason.classList.add('hidden');
             
-            // モデル名に応じた表示制御
+            if(thinkContainer) thinkContainer.classList.add('hidden');
+            if(reason) reason.classList.add('hidden');
+            if(thinkChk) thinkChk.disabled = false;
+            
             if(model.includes('gemini') || model.includes('nano')) {
-                // GeminiとNano系でThinkingを表示
-                if(think) think.classList.remove('hidden');
+                if(thinkContainer) thinkContainer.classList.remove('hidden');
+                if(model.includes('gemini-3.0-pro')) {
+                    if(thinkChk) { thinkChk.checked = true; thinkChk.disabled = true; }
+                }
             } else if(model.includes('gpt')) {
-                // GPT系でEffortを表示
                 if(reason) reason.classList.remove('hidden');
             }
-            // Grok系はSearchのみ（デフォルトで表示）
+            checkSearchAvailability();
         }
 
         async function loadGems() {
@@ -281,33 +370,48 @@
             get('chat-container').innerHTML = '<div class="text-center mt-10"><i class="fas fa-spinner fa-spin text-blue-500"></i></div>';
             const res = await fetch('/api/threads/' + tid);
             const msgs = await res.json(); get('chat-container').innerHTML = '';
-            msgs.forEach(m => renderMessage(m));
+            if(msgs.length > 0) {
+                msgs.forEach(m => renderMessage(m.id, m.role, m.content, m.image_url, m.model, m.thought_data));
+            } else {
+                get('welcome-screen').classList.remove('hidden');
+            }
             if(window.innerWidth < 768) get('overlay').click();
         }
+
         async function sendMessage() {
             const text = get('prompt-input').value.trim();
             if(!text && currentImageUrls.length === 0) return;
             if(!currentThreadId) { const res = await fetch('/api/threads', {method: 'POST'}); const d = await res.json(); currentThreadId = d.id; }
+            
             get('welcome-screen').classList.add('hidden');
-            renderMessage({role: 'user', content: text, image_url: JSON.stringify(currentImageUrls)});
+            renderMessage(0, 'user', text, JSON.stringify(currentImageUrls), null, null);
             get('prompt-input').value = '';
+            
             const payload = { thread_id: currentThreadId, message: text, model: get('model-select').value, image_urls: currentImageUrls, enable_search: get('enable-search').checked, enable_thinking: get('enable-thinking').checked, reasoning_effort: get('reasoning-effort').value, enable_system_prompt: get('enable-sys-prompt').checked };
             if (activeGem) { payload.system_prompt = activeGem.instruction; payload.enable_system_prompt = true; }
-            currentImageUrls = []; get('file-preview').classList.add('hidden'); get('send-btn').disabled = true;
+            
+            currentImageUrls = []; get('file-preview').classList.add('hidden'); 
+            get('send-btn').disabled = true;
+            get('stop-container').classList.remove('hidden');
             
             const aiDivId = 'ai-' + Date.now();
-            get('chat-container').insertAdjacentHTML('beforeend', `<div id="${aiDivId}" class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none mb-4"><span class="animate-pulse">Thinking...</span></div>`);
+            get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aiDivId}" class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative"><span class="animate-pulse">Thinking...</span></div></div>`);
+            const aiDiv = document.getElementById(aiDivId);
+            
+            abortController = new AbortController();
             
             try {
-                const res = await fetch('/chat_stream', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+                const res = await fetch('/chat_stream', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload), signal: abortController.signal});
                 const reader = res.body.getReader();
                 const decoder = new TextDecoder();
-                const aiDiv = document.getElementById(aiDivId);
-                aiDiv.innerHTML = '';
                 
                 let buffer = "";
                 let accumulatedText = "";
                 let thoughtText = "";
+                let firstChunk = true;
+                
+                let thoughtContentEl = null;
+                let contentEl = null;
                 
                 while(true) {
                     const {done, value} = await reader.read();
@@ -321,18 +425,28 @@
                         if(!line.trim()) continue;
                         try {
                             const json = JSON.parse(line);
-                            if (json.type === 'content') {
-                                accumulatedText += json.data;
-                                let html = marked.parse(accumulatedText);
-                                if (thoughtText) {
-                                    html = `<div class="thought-box">${escapeHtml(thoughtText)}</div>` + html;
-                                }
-                                aiDiv.innerHTML = html;
-                            } else if (json.type === 'thought') {
+                            if(firstChunk) { aiDiv.innerHTML = ''; firstChunk = false; }
+                            
+                            if (json.type === 'thought') {
                                 thoughtText += json.data;
-                                let html = marked.parse(accumulatedText);
-                                html = `<div class="thought-box">${escapeHtml(thoughtText)}</div>` + html;
-                                aiDiv.innerHTML = html;
+                                if(!thoughtContentEl) {
+                                    const tContainer = document.createElement('div');
+                                    tContainer.className = 'thought-container';
+                                    tContainer.innerHTML = '<div class="thought-header"><i class="fas fa-brain"></i> Thinking Process</div><div class="thought-content"></div>';
+                                    aiDiv.prepend(tContainer);
+                                    thoughtContentEl = tContainer.querySelector('.thought-content');
+                                }
+                                thoughtContentEl.textContent = thoughtText;
+                                
+                            } else if (json.type === 'content') {
+                                accumulatedText += json.data;
+                                if(!contentEl) {
+                                    contentEl = document.createElement('div');
+                                    contentEl.className = 'prose prose-invert text-sm break-words';
+                                    aiDiv.appendChild(contentEl);
+                                }
+                                contentEl.innerHTML = DOMPurify.sanitize(marked.parse(accumulatedText));
+                                
                             } else if (json.type === 'error') {
                                 aiDiv.innerHTML += `<div class="text-red-400">Error: ${escapeHtml(json.data)}</div>`;
                             }
@@ -340,31 +454,77 @@
                     }
                     get('chat-container').scrollTop = get('chat-container').scrollHeight;
                 }
+                messageStore[aiDivId] = accumulatedText;
                 loadThreads();
             } catch(e) { 
-                document.getElementById(aiDivId).innerHTML = '<span class="text-red-400">Connection Error</span>'; 
+                if(e.name !== 'AbortError') aiDiv.innerHTML += '<div class="text-red-400">Connection Error</div>'; 
             } finally { 
                 get('send-btn').disabled = false; 
+                get('stop-container').classList.add('hidden');
+                abortController = null;
             }
         }
-        function renderMessage(m) {
-            const isUser = m.role === 'user';
-            const div = document.createElement('div');
-            div.className = `flex ${isUser?'justify-end':'justify-start'} mb-4`;
+
+        function renderMessage(id, role, text, imgUrl, modelName, thoughtData) {
+            const isUser = role === 'user';
+            const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
+            const align = isUser ? 'justify-end' : 'justify-start';
+            messageStore[id] = text;
             
-            let contentHtml = "";
-            if (m.thought_data && !isUser) {
+            let thoughtHtml = '';
+            if(thoughtData && !isUser) {
                 try {
-                    const tData = JSON.parse(m.thought_data);
-                    const tText = tData.text || "";
-                    if (tText) contentHtml += `<div class="thought-box">${escapeHtml(tText)}</div>`;
+                    const tObj = JSON.parse(thoughtData);
+                    const tText = tObj.text || "";
+                    if(tText) {
+                        thoughtHtml = `
+                        <div class="thought-container">
+                            <div class="thought-header"><i class="fas fa-brain"></i> Thinking Process</div>
+                            <div class="thought-content">${escapeHtml(tText)}</div>
+                        </div>`;
+                    }
                 } catch(e) {}
             }
-            contentHtml += m.content ? marked.parse(m.content) : '';
-            div.innerHTML = `<div class="message-bubble ${isUser?'bg-blue-600 rounded-tr-none':'bg-gray-700 rounded-tl-none'} text-white p-4 rounded-2xl shadow-md prose prose-invert">${contentHtml}</div>`;
-            get('chat-container').appendChild(div);
+            
+            let attach = '';
+            if(imgUrl) {
+                try {
+                    let imgs = JSON.parse(imgUrl);
+                    if(!Array.isArray(imgs)) imgs = [imgUrl];
+                    if(imgs.length > 0) {
+                        attach = '<div class="flex flex-wrap gap-2 mt-2">';
+                        imgs.forEach(u => {
+                            const url = '/static/uploads/' + u;
+                            if(u.endsWith('webp')||u.endsWith('png')||u.endsWith('jpg')) 
+                                attach += `<img src="${url}" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer" onclick="window.open('${url}')">`;
+                            else 
+                                attach += `<div class="h-24 w-24 bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center"><i class="fas fa-file"></i></div>`;
+                        });
+                        attach += '</div>';
+                    }
+                } catch(e){}
+            }
+
+            // Edit Button HTML added
+            const editBtnHtml = isUser ? `<button class="ctrl-btn edit-btn" data-id="${id}" title="Edit"><i class="fas fa-pen"></i></button>` : '';
+            const controlsHtml = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${editBtnHtml}</div>`;
+            const parsedText = text ? DOMPurify.sanitize(marked.parse(text)) : '';
+            
+            const html = `
+            <div class="flex ${align} mb-4 fade-in message-group relative group">
+                <div class="message-bubble ${bg} text-white p-4 rounded-2xl ${isUser?'rounded-tr-none':'rounded-tl-none'} shadow-md relative">
+                    ${controlsHtml}
+                    ${thoughtHtml}
+                    <div class="prose prose-invert text-sm break-words">${parsedText}</div>
+                    ${attach}
+                    ${modelName && !isUser ? `<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">${modelName}</div>` : ''}
+                </div>
+            </div>`;
+            
+            get('chat-container').insertAdjacentHTML('beforeend', html);
             get('chat-container').scrollTop = get('chat-container').scrollHeight;
         }
+        
         async function handleFiles(files) {
             if(!files.length) return;
             get('file-preview').classList.remove('hidden'); get('file-name').innerText = "Uploading...";

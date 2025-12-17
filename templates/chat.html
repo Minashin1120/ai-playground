@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V2.7.8)</title>
+    <title>AI Playground (V2.7.9)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -11,21 +11,15 @@
     <style>
         body { background-color: #111827; color: #f3f4f6; }
         .prose { font-size: 0.95rem; line-height: 1.7; color: #e5e7eb; max-width: none; }
-        .prose h1 { font-size: 1.5em; font-weight: 800; margin: 1em 0 0.5em; border-bottom: 1px solid #374151; color: #fff; }
-        .prose h2 { font-size: 1.3em; font-weight: 700; margin: 1em 0 0.5em; color: #f3f4f6; }
-        .prose p { margin-bottom: 0.8em; }
-        .prose ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1em; }
-        .prose ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 1em; }
-        .prose a { color: #60a5fa; text-decoration: underline; }
+        .prose pre { background: #0f1117 !important; padding: 1em; overflow-x: auto; border-radius: 0.5em; border: 1px solid #374151; margin: 1em 0; }
+        .prose code { color: #e5e7eb !important; background: transparent !important; font-family: Consolas, Monaco, monospace; }
+        .prose :not(pre) > code { background: #374151 !important; padding: 0.2rem 0.4rem; border-radius: 0.3rem; }
         
         .code-wrapper { margin: 1em 0; border-radius: 0.5rem; border: 1px solid #374151; overflow: hidden; background: #0f1117; }
         .code-header { display: flex; justify-content: space-between; align-items: center; background: #1f2937; padding: 0.3rem 0.8rem; font-size: 0.75rem; color: #9ca3af; border-bottom: 1px solid #374151; }
         .code-lang { font-weight: bold; text-transform: uppercase; }
         .copy-btn { background: transparent; border: none; color: #9ca3af; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s; }
         .copy-btn:hover { color: #fff; }
-        .prose pre { margin: 0 !important; padding: 1rem !important; overflow-x: auto; background: transparent !important; border-radius: 0 !important; border: none !important; }
-        .prose code { font-family: Consolas, Monaco, 'Andale Mono', monospace; font-size: 0.9em; color: #e5e7eb !important; background: transparent !important; padding: 0 !important; }
-        .prose :not(pre) > code { background: #374151 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.3rem !important; color: #e2e8f0 !important; }
 
         .thought-container { margin-bottom: 1rem; border-radius: 0.375rem; overflow: hidden; border: 1px solid #4b5563; max-width: 100%; }
         .thought-header { background: #374151; padding: 0.5rem; font-size: 0.75rem; color: #9ca3af; display: flex; align-items: center; gap: 0.5rem; font-weight: bold; }
@@ -44,7 +38,6 @@
         #debug-console { position: fixed; bottom: 0; right: 0; width: 100%; height: 150px; background: rgba(0,0,0,0.95); color: #0f0; font-family: monospace; font-size: 11px; overflow-y: auto; z-index: 9999; padding: 10px; border-top: 1px solid #444; display: none; }
         .welcome-btn { width: 100%; text-align: left; }
 
-        /* Alpha Bar Animation */
         .alpha-text { color: #f97316; font-size: 0.65rem; font-weight: bold; letter-spacing: 0.05em; margin-left: 0.2rem; }
         #alpha-bar { transition: all 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55); transform-origin: center center; }
         .pulse-target { animation: pulse-orange 1s infinite; }
@@ -61,13 +54,14 @@
 </head>
 <body class="h-[100dvh] flex overflow-hidden text-sm md:text-base">
 
-    <!-- Alpha Bar (Restored) -->
+    <!-- Alpha Bar -->
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-orange-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-orange-400">
         <i class="fas fa-exclamation-circle mr-1"></i> このアプリケーションはアルファバージョンです。
     </div>
 
     <div id="debug-console"><div id="debug-content"></div><button onclick="document.getElementById('debug-console').style.display='none'" style="position:absolute;top:5px;right:5px;color:#f55">✕</button></div>
 
+    <!-- Sidebar -->
     <div id="sidebar" class="sidebar w-64 bg-gray-800 border-r border-gray-700 flex flex-col shrink-0">
         <div class="p-3 border-b border-gray-700 flex flex-col gap-2">
             <div class="flex justify-between items-center">
@@ -85,6 +79,7 @@
             <div class="relative"><input type="text" id="search-box" placeholder="検索..." class="w-full bg-gray-700 rounded px-3 py-1 text-sm"><i class="fas fa-search absolute right-3 top-1.5 text-gray-500 text-xs"></i></div>
         </div>
 
+        <!-- Gems -->
         <div class="px-2 py-2">
             <div class="flex justify-between items-center px-2 mb-1">
                 <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Gems</span>
@@ -99,7 +94,7 @@
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
         <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500">
-            <div id="version-display" class="cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.7.8 <span class="text-orange-500 font-bold">ULTIMATE</span></div>
+            <div id="version-display" class="cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.7.9 <span class="text-orange-500 font-bold">COMPLETE</span></div>
             <div class="flex justify-center gap-3">
                 <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
                 <span class="text-gray-700">|</span>
@@ -188,7 +183,7 @@
         </div>
     </div>
 
-    <!-- Gem Modal -->
+    <!-- Modals -->
     <div id="gem-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-lg p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh]">
             <h2 class="text-xl font-bold text-white mb-4"><i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem</h2>
@@ -207,7 +202,12 @@
         </div>
     </div>
 
-    <!-- Settings Modal -->
+    <div id="lib-modal" class="fixed inset-0 bg-gray-900/95 z-50 flex flex-col backdrop-blur-sm" style="display:none;">
+        <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button onclick="document.getElementById('lib-modal').style.display='none'" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div>
+        <div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0"><span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span><button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs" disabled>削除</button></div>
+        <div id="lib-grid" class="flex-1 overflow-y-auto p-4 grid grid-cols-3 gap-4"></div>
+    </div>
+    
     <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh]">
             <h2 class="text-xl font-bold text-white mb-4">設定</h2>
@@ -231,7 +231,6 @@
                     <label class="text-xs text-gray-500 block mb-1">デフォルト システムプロンプト</label>
                     <textarea id="sys-prompt-text" class="w-full h-32 bg-gray-900 border-gray-600 rounded p-3 text-sm text-white" placeholder="AIの振る舞いを設定できます"></textarea>
                 </div>
-                <!-- Danger Zone -->
                 <div class="bg-red-900/20 p-4 rounded border border-red-800 mt-4">
                     <h3 class="text-sm font-bold text-red-500 mb-2">危険な領域</h3>
                     <p class="text-xs text-gray-400 mb-3">アカウントを削除すると、チャット履歴やアップロードしたファイルを含むすべてのデータが復元不可能になります。</p>
@@ -243,13 +242,6 @@
                 <button id="save-settings-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold">保存</button>
             </div>
         </div>
-    </div>
-
-    <!-- Library Modal -->
-    <div id="lib-modal" class="fixed inset-0 bg-gray-900/95 z-50 flex flex-col backdrop-blur-sm" style="display:none;">
-        <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button onclick="document.getElementById('lib-modal').style.display='none'" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div>
-        <div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0"><span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span><button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs" disabled>削除</button></div>
-        <div id="lib-grid" class="flex-1 overflow-y-auto p-4 grid grid-cols-3 gap-4"></div>
     </div>
 
     <!-- Legal Modal -->
@@ -265,7 +257,6 @@
         </div>
     </div>
 
-    <!-- Alpha Info Modal (Hidden by default, triggered by version click) -->
     <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4">
             <h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2>
@@ -285,8 +276,9 @@
     <script>
         const get = (id) => document.getElementById(id);
         let currentThreadId = null, activeGem = null, currentImageUrls = [], abortController = null, isUserScrolling = false;
-        let searchTimeout; // For debounce
+        let searchTimeout;
         const messageStore = {};
+        const lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), filter: 'all' };
 
         function escapeHtml(text) {
             if (!text) return text;
@@ -345,7 +337,6 @@
         };
 
         document.addEventListener('DOMContentLoaded', () => {
-            // Alpha Bar Animation (Restored)
             const bar = document.getElementById('alpha-bar');
             setTimeout(() => {
                 if(bar) {
@@ -369,7 +360,6 @@
                 }
             }, 3000);
 
-            // Markdown
             const renderer = new marked.Renderer();
             renderer.code = function(code, infostring, escaped) {
                 const lang = (infostring || '').match(/\S*/)[0];
@@ -411,7 +401,14 @@
                 if (e.isComposing) return;
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); get('send-btn').click(); }
             };
-            get('lib-btn').onclick = () => { get('lib-modal').style.display='flex'; loadLibraryFiles(); };
+            
+            // Library Button Logic
+            get('lib-btn').onclick = () => { 
+                get('lib-modal').style.display='flex'; 
+                loadLibraryFiles(); 
+            };
+            get('lib-del-btn').onclick = deleteSelectedFiles; // Restore Delete Action
+
             get('upload-btn').onclick = () => get('file-input').click();
             get('file-input').onchange = (e) => handleFiles(e.target.files);
             get('menu-btn').onclick = () => { get('sidebar').classList.toggle('open'); get('overlay').classList.toggle('active'); };
@@ -429,19 +426,18 @@
                     if(!text) return;
                     get('prompt-input').value = text;
                     get('prompt-input').focus();
+                    get('prompt-input').dispatchEvent(new Event('input', { bubbles: true })); // Event Trigger Restored
                     if(confirm("メッセージを編集して再生成しますか？")) {
                         fetch("/api/messages/" + id, {method:'DELETE'}).then(() => loadMessages(currentThreadId)).catch(e=>{});
                     }
                 }
             });
 
-            // Search Box Logic (Restored)
             get('search-box').addEventListener('input', () => {
                 clearTimeout(searchTimeout);
                 searchTimeout = setTimeout(loadThreads, 300);
             });
 
-            // Settings
             get('settings-btn').onclick = () => {
                 get('settings-modal').style.display='flex';
                 fetch('/api/settings').then(r=>r.json()).then(d=>{
@@ -577,7 +573,6 @@
             currentThreadId = null; clearActiveGem(); get('chat-container').innerHTML = ''; get('welcome-screen').classList.remove('hidden'); loadThreads();
             if(window.innerWidth < 768) get('overlay').click();
         }
-        // Search Logic Restored (params)
         async function loadThreads() {
             const q = get('search-box').value;
             const res = await fetch("/api/threads?q=" + encodeURIComponent(q));
@@ -756,21 +751,56 @@
             get('file-name').innerText = `${currentImageUrls.length} files`; get('file-input').value = '';
         }
         get('clear-file-btn').onclick = () => { currentImageUrls=[]; get('file-preview').classList.add('hidden'); };
+        
+        // Library Logic (Restored Click Handler)
         async function loadLibraryFiles() {
             const r = await fetch('/api/files'); const files = await r.json();
             const grid = get('lib-grid'); grid.innerHTML = ''; get('lib-total-count').innerText = files.length + " files";
+            lib.selected.clear();
+            get('lib-del-btn').disabled = true;
+            get('lib-del-btn').innerText = "削除";
+
             files.forEach(f => {
                 const el = document.createElement('div');
-                el.className = "bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600";
-                el.innerHTML = f.type==='image' ? `<img src="${f.url}" class="h-full w-full object-cover">` : `<span class="text-xs">${f.filename}</span>`;
+                el.className = "relative group bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400";
+                
+                const content = f.type==='image' 
+                    ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` 
+                    : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`;
+                
+                el.innerHTML = content;
+                
+                // Click Handler for Selection
+                el.onclick = () => {
+                    if (lib.selected.has(f.filepath)) {
+                        lib.selected.delete(f.filepath);
+                        el.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500');
+                        el.classList.add('border-gray-600');
+                    } else {
+                        lib.selected.add(f.filepath);
+                        el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500');
+                        el.classList.remove('border-gray-600');
+                    }
+                    get('lib-del-btn').disabled = lib.selected.size === 0;
+                    get('lib-del-btn').innerText = `削除 (${lib.selected.size})`;
+                };
                 grid.appendChild(el);
             });
-            // Fixed: Logic to update delete button status
-            get('lib-del-btn').disabled = lib.selected.size === 0;
         }
-        const lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), filter: 'all' };
-        // Restored lib selection logic override
-        window.loadLibraryFiles = loadLibraryFiles; // Expose for testing if needed
+        
+        // Library Delete Logic
+        async function deleteSelectedFiles() { 
+            if(!confirm('選択したファイルを削除しますか？')) return; 
+            try{ 
+                await fetch('/api/files/delete', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({filenames:Array.from(lib.selected)})
+                }); 
+                loadLibraryFiles(); 
+            } catch(e){ alert("削除エラー"); } 
+        }
+
     </script>
 </body>
 </html>

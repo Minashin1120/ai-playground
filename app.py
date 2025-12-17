@@ -460,5 +460,16 @@ def chat_stream():
 with app.app_context():
     db.create_all()
 
+
+@app.route('/api/threads/<int:tid>/title', methods=['PUT'])
+@login_required
+def update_title(tid):
+    t = Thread.query.get_or_404(tid)
+    if t.user_id != current_user.id: return jsonify({'error': '403'}), 403
+    t.title = request.json.get('title', 'Untitled')
+    db.session.commit()
+    return jsonify({'status': 'ok'})
+
+
 if __name__ == '__main__':
     app.run(debug=True)

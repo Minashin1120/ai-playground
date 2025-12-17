@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V2.7.7)</title>
+    <title>AI Playground (V2.7.8)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -18,7 +18,6 @@
         .prose ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 1em; }
         .prose a { color: #60a5fa; text-decoration: underline; }
         
-        /* Code Block Styling (Restored) */
         .code-wrapper { margin: 1em 0; border-radius: 0.5rem; border: 1px solid #374151; overflow: hidden; background: #0f1117; }
         .code-header { display: flex; justify-content: space-between; align-items: center; background: #1f2937; padding: 0.3rem 0.8rem; font-size: 0.75rem; color: #9ca3af; border-bottom: 1px solid #374151; }
         .code-lang { font-weight: bold; text-transform: uppercase; }
@@ -28,7 +27,6 @@
         .prose code { font-family: Consolas, Monaco, 'Andale Mono', monospace; font-size: 0.9em; color: #e5e7eb !important; background: transparent !important; padding: 0 !important; }
         .prose :not(pre) > code { background: #374151 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.3rem !important; color: #e2e8f0 !important; }
 
-        /* Thinking Box (Fixed) */
         .thought-container { margin-bottom: 1rem; border-radius: 0.375rem; overflow: hidden; border: 1px solid #4b5563; max-width: 100%; }
         .thought-header { background: #374151; padding: 0.5rem; font-size: 0.75rem; color: #9ca3af; display: flex; align-items: center; gap: 0.5rem; font-weight: bold; }
         .thought-content { background: #1f2937; padding: 0.75rem; font-size: 0.85rem; color: #d8b4fe; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; font-family: monospace; max-height: 300px; overflow-y: auto; overflow-x: hidden; }
@@ -46,6 +44,12 @@
         #debug-console { position: fixed; bottom: 0; right: 0; width: 100%; height: 150px; background: rgba(0,0,0,0.95); color: #0f0; font-family: monospace; font-size: 11px; overflow-y: auto; z-index: 9999; padding: 10px; border-top: 1px solid #444; display: none; }
         .welcome-btn { width: 100%; text-align: left; }
 
+        /* Alpha Bar Animation */
+        .alpha-text { color: #f97316; font-size: 0.65rem; font-weight: bold; letter-spacing: 0.05em; margin-left: 0.2rem; }
+        #alpha-bar { transition: all 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55); transform-origin: center center; }
+        .pulse-target { animation: pulse-orange 1s infinite; }
+        @keyframes pulse-orange { 0% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(249, 115, 22, 0); } 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); } }
+
         @media (max-width: 768px) { 
             .sidebar { position: fixed; z-index: 50; height: 100%; transform: translateX(-100%); transition: transform 0.3s; } 
             .sidebar.open { transform: translateX(0); } 
@@ -56,6 +60,11 @@
     </style>
 </head>
 <body class="h-[100dvh] flex overflow-hidden text-sm md:text-base">
+
+    <!-- Alpha Bar (Restored) -->
+    <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-orange-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-orange-400">
+        <i class="fas fa-exclamation-circle mr-1"></i> このアプリケーションはアルファバージョンです。
+    </div>
 
     <div id="debug-console"><div id="debug-content"></div><button onclick="document.getElementById('debug-console').style.display='none'" style="position:absolute;top:5px;right:5px;color:#f55">✕</button></div>
 
@@ -90,7 +99,7 @@
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
         <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500">
-            <div>v2.7.7 <span class="text-orange-500 font-bold">PERFECT</span></div>
+            <div id="version-display" class="cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.7.8 <span class="text-orange-500 font-bold">ULTIMATE</span></div>
             <div class="flex justify-center gap-3">
                 <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
                 <span class="text-gray-700">|</span>
@@ -198,7 +207,7 @@
         </div>
     </div>
 
-    <!-- Settings Modal (Restored Content) -->
+    <!-- Settings Modal -->
     <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh]">
             <h2 class="text-xl font-bold text-white mb-4">設定</h2>
@@ -256,9 +265,27 @@
         </div>
     </div>
 
+    <!-- Alpha Info Modal (Hidden by default, triggered by version click) -->
+    <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-center justify-center backdrop-blur-sm">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4">
+            <h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2>
+            <div class="text-sm text-gray-300 space-y-3">
+                <p>このアプリケーションは開発中の<strong>アルファ版</strong>です。</p>
+                <ul class="list-disc list-inside space-y-1 text-gray-400">
+                    <li>予告なくデータが削除される可能性があります。</li>
+                    <li>予期せぬ動作やエラーが発生する場合があります。</li>
+                </ul>
+            </div>
+            <div class="flex justify-end mt-6">
+                <button onclick="document.getElementById('alpha-info-modal').style.display='none'" class="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded font-bold">理解しました</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const get = (id) => document.getElementById(id);
         let currentThreadId = null, activeGem = null, currentImageUrls = [], abortController = null, isUserScrolling = false;
+        let searchTimeout; // For debounce
         const messageStore = {};
 
         function escapeHtml(text) {
@@ -275,7 +302,6 @@
             c.style.display = c.style.display==='none' ? 'block' : 'none'; 
         }
         
-        // Copy Button Logic
         window.copyCode = function(btn, enc) { 
             navigator.clipboard.writeText(decodeURIComponent(enc)).then(()=>{ 
                 btn.innerHTML='<i class="fas fa-check text-green-400"></i>'; 
@@ -306,6 +332,10 @@
                 content.innerHTML = '<div class="text-red-400 p-4">読み込みに失敗しました。</div>';
             }
         };
+        
+        window.showAlphaInfo = function() {
+            get('alpha-info-modal').style.display = 'flex';
+        };
 
         window.quickStart = function(modelVal) {
             get('model-select').value = modelVal;
@@ -315,7 +345,31 @@
         };
 
         document.addEventListener('DOMContentLoaded', () => {
-            // Markdown Configuration (Restored)
+            // Alpha Bar Animation (Restored)
+            const bar = document.getElementById('alpha-bar');
+            setTimeout(() => {
+                if(bar) {
+                    const target = document.getElementById('version-display');
+                    if(target) {
+                        const barRect = bar.getBoundingClientRect();
+                        const targetRect = target.getBoundingClientRect();
+                        const tx = targetRect.left + (targetRect.width/2) - (barRect.left + barRect.width/2);
+                        const ty = targetRect.top + (targetRect.height/2) - (barRect.top + barRect.height/2);
+                        bar.style.transform = `translate(${tx}px, ${ty}px) scale(0.1)`;
+                        bar.style.opacity = '0';
+                        setTimeout(() => {
+                            target.classList.add('pulse-target');
+                            setTimeout(() => target.classList.remove('pulse-target'), 2000);
+                            bar.remove();
+                        }, 800);
+                    } else {
+                        bar.style.opacity = '0';
+                        setTimeout(() => bar.remove(), 1000);
+                    }
+                }
+            }, 3000);
+
+            // Markdown
             const renderer = new marked.Renderer();
             renderer.code = function(code, infostring, escaped) {
                 const lang = (infostring || '').match(/\S*/)[0];
@@ -335,7 +389,6 @@
             get('add-gem-btn').onclick = () => get('gem-modal').style.display='flex';
             get('save-gem-btn').onclick = createGem;
             
-            // Smart Scroll Logic
             const chatContainer = get('chat-container');
             chatContainer.addEventListener('scroll', () => {
                 const current = chatContainer.scrollTop;
@@ -382,7 +435,13 @@
                 }
             });
 
-            // Settings Modal Logic (Restored)
+            // Search Box Logic (Restored)
+            get('search-box').addEventListener('input', () => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(loadThreads, 300);
+            });
+
+            // Settings
             get('settings-btn').onclick = () => {
                 get('settings-modal').style.display='flex';
                 fetch('/api/settings').then(r=>r.json()).then(d=>{
@@ -410,7 +469,6 @@
                 get('settings-modal').style.display='none';
                 location.reload();
             };
-            // Delete Account
             get('delete-account-btn').onclick = async () => {
                 if(confirm("【警告】本当にアカウントを削除しますか？\nこの操作は取り消せません。")) {
                     try {
@@ -519,8 +577,10 @@
             currentThreadId = null; clearActiveGem(); get('chat-container').innerHTML = ''; get('welcome-screen').classList.remove('hidden'); loadThreads();
             if(window.innerWidth < 768) get('overlay').click();
         }
+        // Search Logic Restored (params)
         async function loadThreads() {
-            const res = await fetch('/api/threads');
+            const q = get('search-box').value;
+            const res = await fetch("/api/threads?q=" + encodeURIComponent(q));
             const threads = await res.json();
             const list = get('thread-list'); list.innerHTML = '';
             threads.forEach(t => {
@@ -705,7 +765,12 @@
                 el.innerHTML = f.type==='image' ? `<img src="${f.url}" class="h-full w-full object-cover">` : `<span class="text-xs">${f.filename}</span>`;
                 grid.appendChild(el);
             });
+            // Fixed: Logic to update delete button status
+            get('lib-del-btn').disabled = lib.selected.size === 0;
         }
+        const lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), filter: 'all' };
+        // Restored lib selection logic override
+        window.loadLibraryFiles = loadLibraryFiles; // Expose for testing if needed
     </script>
 </body>
 </html>

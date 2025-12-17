@@ -217,6 +217,8 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                 msgs.append({"role": "user", "content": content_list})
                 
                 kwargs = {"model": model_key, "messages": msgs, "stream": True}
+                if options.get('reasoning_effort') and not is_grok: # Grok doesn't use this param yet
+                    kwargs['reasoning_effort'] = options.get('reasoning_effort')
                 if is_grok and options.get('enable_search'): kwargs["extra_body"] = {"search_parameters": {"mode": "on"}}
                 
                 stream = client.chat.completions.create(**kwargs)

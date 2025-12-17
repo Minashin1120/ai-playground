@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V2.7.9)</title>
+    <title>AI Playground (V2.8.0)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -54,7 +54,6 @@
 </head>
 <body class="h-[100dvh] flex overflow-hidden text-sm md:text-base">
 
-    <!-- Alpha Bar -->
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-orange-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-orange-400">
         <i class="fas fa-exclamation-circle mr-1"></i> このアプリケーションはアルファバージョンです。
     </div>
@@ -79,7 +78,6 @@
             <div class="relative"><input type="text" id="search-box" placeholder="検索..." class="w-full bg-gray-700 rounded px-3 py-1 text-sm"><i class="fas fa-search absolute right-3 top-1.5 text-gray-500 text-xs"></i></div>
         </div>
 
-        <!-- Gems -->
         <div class="px-2 py-2">
             <div class="flex justify-between items-center px-2 mb-1">
                 <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Gems</span>
@@ -94,7 +92,7 @@
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
         <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500">
-            <div id="version-display" class="cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.7.9 <span class="text-orange-500 font-bold">COMPLETE</span></div>
+            <div id="version-display" class="cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.8.0 <span class="text-orange-500 font-bold">STABLE</span></div>
             <div class="flex justify-center gap-3">
                 <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
                 <span class="text-gray-700">|</span>
@@ -257,6 +255,7 @@
         </div>
     </div>
 
+    <!-- Alpha Info Modal -->
     <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4">
             <h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2>
@@ -397,17 +396,22 @@
                 if (files.length > 0) { e.preventDefault(); await handleFiles(files); }
             });
 
-            get('prompt-input').onkeydown = (e) => {
+            // Textarea Auto-Resize (Fixed V2.8.0)
+            const ta = get('prompt-input');
+            ta.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+            });
+            ta.onkeydown = (e) => {
                 if (e.isComposing) return;
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); get('send-btn').click(); }
             };
             
-            // Library Button Logic
             get('lib-btn').onclick = () => { 
                 get('lib-modal').style.display='flex'; 
                 loadLibraryFiles(); 
             };
-            get('lib-del-btn').onclick = deleteSelectedFiles; // Restore Delete Action
+            get('lib-del-btn').onclick = deleteSelectedFiles;
 
             get('upload-btn').onclick = () => get('file-input').click();
             get('file-input').onchange = (e) => handleFiles(e.target.files);
@@ -426,7 +430,7 @@
                     if(!text) return;
                     get('prompt-input').value = text;
                     get('prompt-input').focus();
-                    get('prompt-input').dispatchEvent(new Event('input', { bubbles: true })); // Event Trigger Restored
+                    get('prompt-input').dispatchEvent(new Event('input', { bubbles: true }));
                     if(confirm("メッセージを編集して再生成しますか？")) {
                         fetch("/api/messages/" + id, {method:'DELETE'}).then(() => loadMessages(currentThreadId)).catch(e=>{});
                     }
@@ -580,10 +584,18 @@
             const list = get('thread-list'); list.innerHTML = '';
             threads.forEach(t => {
                 const d = document.createElement('div');
-                d.className = 'p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 border-b border-gray-700/30 truncate';
-                d.innerText = t.title || "No Title"; d.onclick = () => loadMessages(t.id);
+                d.className = 'p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 border-b border-gray-700/30 truncate flex justify-between items-center group';
+                // Fixed: Added Delete Button
+                d.innerHTML = `<span class="truncate flex-1" onclick="loadMessages(${t.id})">${t.title||"No Title"}</span><button class="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2" onclick="deleteThread(event, ${t.id})"><i class="fas fa-trash text-xs"></i></button>`;
                 list.appendChild(d);
             });
+        }
+        async function deleteThread(e, id) {
+            e.stopPropagation();
+            if(!confirm("スレッドを削除しますか？")) return;
+            await fetch('/api/threads/'+id, {method:'DELETE'});
+            if(currentThreadId === id) startNewChat();
+            else loadThreads();
         }
         async function loadMessages(tid) {
             currentThreadId = tid; clearActiveGem(); get('welcome-screen').classList.add('hidden');
@@ -606,6 +618,8 @@
             get('welcome-screen').classList.add('hidden');
             renderMessage(0, 'user', text, JSON.stringify(currentImageUrls), null, null);
             get('prompt-input').value = '';
+            // Reset height
+            get('prompt-input').style.height = 'auto';
             
             const payload = { thread_id: currentThreadId, message: text, model: get('model-select').value, image_urls: currentImageUrls, enable_search: get('enable-search').checked, enable_thinking: get('enable-thinking').checked, reasoning_effort: get('reasoning-effort').value, enable_system_prompt: get('enable-sys-prompt').checked };
             if (activeGem) { payload.system_prompt = activeGem.instruction; payload.enable_system_prompt = true; }
@@ -657,6 +671,8 @@
                                     thoughtContentEl = tContainer.querySelector('.thought-content');
                                 }
                                 thoughtContentEl.textContent = thoughtText;
+                                // Auto-scroll thinking box (Fixed V2.8.0)
+                                thoughtContentEl.scrollTop = thoughtContentEl.scrollHeight;
                                 
                             } else if (json.type === 'content') {
                                 accumulatedText += json.data;
@@ -752,7 +768,6 @@
         }
         get('clear-file-btn').onclick = () => { currentImageUrls=[]; get('file-preview').classList.add('hidden'); };
         
-        // Library Logic (Restored Click Handler)
         async function loadLibraryFiles() {
             const r = await fetch('/api/files'); const files = await r.json();
             const grid = get('lib-grid'); grid.innerHTML = ''; get('lib-total-count').innerText = files.length + " files";
@@ -770,7 +785,6 @@
                 
                 el.innerHTML = content;
                 
-                // Click Handler for Selection
                 el.onclick = () => {
                     if (lib.selected.has(f.filepath)) {
                         lib.selected.delete(f.filepath);
@@ -788,7 +802,6 @@
             });
         }
         
-        // Library Delete Logic
         async function deleteSelectedFiles() { 
             if(!confirm('選択したファイルを削除しますか？')) return; 
             try{ 

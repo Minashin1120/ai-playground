@@ -24,7 +24,6 @@ from google import genai
 from google.genai import types
 import pypdf
 
-# Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,6 @@ app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static/up
 app.config['CHANGELOG_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static/changelogs')
 app.config['MAX_CONTENT_LENGTH'] = 128 * 1024 * 1024
 
-# Redis Setup
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 redis_conn = redis.from_url(REDIS_URL)
 task_queue = Queue('ai_chat_queue', connection=redis_conn)
@@ -58,7 +56,6 @@ def add_security_headers(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
     return response
 
-# --- Models ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True)
@@ -124,7 +121,7 @@ def verify_turnstile(token):
         return res.json().get('success', False)
     except: return False
 
-# --- Worker Task (Inline to ensure consistency) ---
+# --- Worker Logic (Fixed V2.8.1) ---
 def background_chat_task(job_id, thread_id, model_key, message_text, img_list, options, api_keys, user_id):
     with app.app_context():
         channel = f"ai_chat:channel:{job_id}"
@@ -149,11 +146,22 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                     if os.path.exists(info['path']):
                         info['mime'] = mimetypes.guess_type(info['path'])[0] or 'application/octet-stream'
                         if fname.lower().endswith('.pdf'): info['mime'] = 'application/pdf'
+                        
+                        # Try extracting text from PDF (Fixed)
+                        if fname.lower().endswith('.pdf'):
+                            try:
+                                reader = pypdf.PdfReader(info['path'])
+                                extracted = ""
+                                for page in reader.pages: extracted += page.extract_text() + "\n"
+                                info['text'] = extracted[:50000] # Limit char count
+                            except: pass
+                        
                         is_img = fname.endswith(('.webp','.png','.jpg','.jpeg','.gif','.mp4'))
-                        if not is_img and not fname.lower().endswith('.pdf'):
+                        if not is_img and not info['text']:
                             try:
                                 with open(info['path'], 'r', encoding='utf-8', errors='ignore') as f: info['text'] = f.read()
                             except: pass
+                        
                         if not info['text']:
                             with open(info['path'], 'rb') as f: info['bytes'] = f.read()
                         loaded_files.append(info)
@@ -196,6 +204,21 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                 for chunk in stream:
                     if hasattr(chunk, 'candidates') and chunk.candidates:
                         for part in chunk.candidates[0].content.parts:
+                            # Image Generation Handling (Fixed)
+                            if hasattr(part, 'inline_data') and part.inline_data:
+                                try:
+                                    user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
+                                    if not os.path.exists(user_dir): os.makedirs(user_dir, exist_ok=True)
+                                    fn = f"gen_{int(time.time())}_{len(generated_images)}.png"
+                                    Image.open(BytesIO(part.inline_data.data)).save(os.path.join(user_dir, fn))
+                                    db_path = f"{user_id}/{fn}"
+                                    generated_images.append(db_path)
+                                    # Insert image markdown into stream
+                                    img_md = f"\n\n![Generated Image](/static/uploads/{db_path})\n"
+                                    full_res += img_md
+                                    publish_chunk("content", img_md)
+                                except: pass
+
                             tt = part.thought if hasattr(part, 'thought') and part.thought else None
                             if tt: 
                                 thought_accumulated += (tt if isinstance(tt, str) else "")
@@ -211,15 +234,15 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                 
                 content_list = [{"type": "text", "text": message_text}]
                 for fi in loaded_files:
-                    if fi['text']: content_list[0]['text'] += f"\n\n[File]\n{fi['text']}"
+                    # PDF or Text file handling for GPT/Grok (Fixed)
+                    if fi['text']: content_list[0]['text'] += f"\n\n[File: {fi['name']}]\n{fi['text']}"
                     elif fi['mime'].startswith('image/'):
                         content_list.append({"type": "image_url", "image_url": {"url": f"data:{fi['mime']};base64,{base64.b64encode(fi['bytes']).decode('utf-8')}"}})
                 msgs.append({"role": "user", "content": content_list})
                 
                 kwargs = {"model": model_key, "messages": msgs, "stream": True}
-                if options.get('reasoning_effort') and not is_grok: # Grok doesn't use this param yet
-                    kwargs['reasoning_effort'] = options.get('reasoning_effort')
                 if is_grok and options.get('enable_search'): kwargs["extra_body"] = {"search_parameters": {"mode": "on"}}
+                if options.get('reasoning_effort') and not is_grok: kwargs['reasoning_effort'] = options.get('reasoning_effort')
                 
                 stream = client.chat.completions.create(**kwargs)
                 for chunk in stream:
@@ -240,8 +263,6 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
             logger.error(f"Worker Error: {e}")
             publish_chunk("error", str(e))
 
-
-# --- Routes ---
 @app.route('/')
 def index():
     if current_user.is_authenticated:
@@ -330,7 +351,6 @@ def handle_settings():
     db.session.commit()
     return jsonify({'status': 'ok'})
 
-# Gems API
 @app.route('/api/gems', methods=['GET', 'POST'])
 @login_required
 def handle_gems():
@@ -377,6 +397,15 @@ def handle_thread_item(tid):
     db.session.delete(t)
     db.session.commit()
     return jsonify({'status': 'deleted'})
+
+@app.route('/api/threads/<int:tid>/title', methods=['PUT'])
+@login_required
+def update_title(tid):
+    t = Thread.query.get_or_404(tid)
+    if t.user_id != current_user.id: return jsonify({'error': '403'}), 403
+    t.title = request.json.get('title', 'Untitled')
+    db.session.commit()
+    return jsonify({'status': 'ok'})
 
 @app.route('/api/messages/<int:mid>', methods=['DELETE'])
 @login_required
@@ -461,17 +490,6 @@ def chat_stream():
 
 with app.app_context():
     db.create_all()
-
-
-@app.route('/api/threads/<int:tid>/title', methods=['PUT'])
-@login_required
-def update_title(tid):
-    t = Thread.query.get_or_404(tid)
-    if t.user_id != current_user.id: return jsonify({'error': '403'}), 403
-    t.title = request.json.get('title', 'Untitled')
-    db.session.commit()
-    return jsonify({'status': 'ok'})
-
 
 if __name__ == '__main__':
     app.run(debug=True)

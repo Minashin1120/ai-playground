@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V2.9.0)</title>
+    <title>AI Playground (V2.9.1)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
-    <!-- Highlight.js for Syntax Highlighting -->
+    <!-- Highlight.js -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body { background-color: #111827; color: #f3f4f6; }
@@ -22,19 +21,31 @@
         .prose ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 1em; }
         .prose a { color: #60a5fa; text-decoration: underline; }
         
+        /* Code Block Styling */
         .code-wrapper { margin: 1em 0; border-radius: 0.5rem; border: 1px solid #374151; overflow: hidden; background: #282c34; }
-        .code-header { display: flex; justify-content: space-between; align-items: center; background: #21252b; padding: 0.3rem 0.8rem; font-size: 0.75rem; color: #9ca3af; border-bottom: 1px solid #374151; }
+        .code-header { display: flex; justify-content: space-between; align-items: center; background: #21252b; padding: 0.3rem 0.8rem; font-size: 0.75rem; color: #9ca3af; border-bottom: 1px solid #181a1f; }
         .code-lang { font-weight: bold; text-transform: uppercase; }
         .copy-btn { background: transparent; border: none; color: #9ca3af; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s; }
         .copy-btn:hover { color: #fff; }
-        /* Override Highlight.js padding/bg to fit wrapper */
         .prose pre { margin: 0 !important; padding: 0 !important; overflow-x: auto; background: transparent !important; border: none !important; border-radius: 0 !important; }
-        .prose code { font-family: Consolas, Monaco, 'Andale Mono', monospace; font-size: 0.9em; background: transparent !important; padding: 1em !important; display: block; }
+        .prose code { font-family: Consolas, Monaco, 'Andale Mono', monospace; font-size: 0.9em; background: transparent !important; padding: 1em !important; display: block; line-height: 1.5; }
         .prose :not(pre) > code { background: #374151 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.3rem !important; color: #e2e8f0 !important; display: inline; }
 
+        /* Collapsible Thinking Box */
         .thought-container { margin-bottom: 1rem; border-radius: 0.375rem; overflow: hidden; border: 1px solid #4b5563; max-width: 100%; }
-        .thought-header { background: #374151; padding: 0.5rem; font-size: 0.75rem; color: #9ca3af; display: flex; align-items: center; gap: 0.5rem; font-weight: bold; }
-        .thought-content { background: #1f2937; padding: 0.75rem; font-size: 0.85rem; color: #d8b4fe; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; font-family: monospace; max-height: 300px; overflow-y: auto; overflow-x: hidden; }
+        .thought-header { 
+            background: #374151; padding: 0.5rem; font-size: 0.75rem; color: #9ca3af; 
+            display: flex; align-items: center; gap: 0.5rem; font-weight: bold; cursor: pointer; user-select: none;
+            transition: background 0.2s;
+        }
+        .thought-header:hover { background: #4b5563; color: #fff; }
+        .thought-content { 
+            background: #1f2937; padding: 0.75rem; font-size: 0.85rem; color: #d8b4fe; 
+            white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; 
+            font-family: monospace; max-height: 300px; overflow-y: auto; overflow-x: hidden;
+            display: block; /* Default open */
+        }
+        .thought-content.collapsed { display: none; }
         
         .message-bubble { max-width: 90%; position: relative; word-wrap: break-word; }
         @media (min-width: 768px) { .message-bubble { max-width: 80%; } }
@@ -71,7 +82,6 @@
 
     <div id="debug-console"><div id="debug-content"></div><button onclick="document.getElementById('debug-console').style.display='none'" style="position:absolute;top:5px;right:5px;color:#f55">✕</button></div>
 
-    <!-- Sidebar -->
     <div id="sidebar" class="sidebar w-64 bg-gray-800 border-r border-gray-700 flex flex-col shrink-0">
         <div class="p-3 border-b border-gray-700 flex flex-col gap-2">
             <div class="flex justify-between items-center">
@@ -103,7 +113,7 @@
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
         <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500">
-            <div id="version-display" class="cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.9.0 <span class="text-orange-500 font-bold">FINAL</span></div>
+            <div id="version-display" class="cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.9.1 <span class="text-orange-500 font-bold">FINAL</span></div>
             <div class="flex justify-center gap-3">
                 <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
                 <span class="text-gray-700">|</span>
@@ -192,7 +202,7 @@
         </div>
     </div>
 
-    <!-- Modals -->
+    <!-- Modals (Gem, Lib, Settings, Legal, Alpha) -->
     <div id="gem-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-lg p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh]">
             <h2 class="text-xl font-bold text-white mb-4"><i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem</h2>
@@ -253,7 +263,6 @@
         </div>
     </div>
 
-    <!-- Legal Modal -->
     <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh]">
             <h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">利用規約</h2>
@@ -266,7 +275,6 @@
         </div>
     </div>
 
-    <!-- Alpha Info Modal -->
     <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4">
             <h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2>
@@ -294,15 +302,16 @@
             if (!text) return text;
             return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
         }
-        function log(msg) { 
-            console.log(msg); 
-            const d = get('debug-content');
-            if(d) d.innerHTML += '<div>'+escapeHtml(msg)+'</div>';
-        }
-        function toggleDebug() { 
-            const c=get('debug-console'); 
-            c.style.display = c.style.display==='none' ? 'block' : 'none'; 
-        }
+        
+        // Collapsible Thinking Logic
+        window.toggleThinking = function(header) {
+            const content = header.nextElementSibling;
+            if (content) {
+                content.classList.toggle('collapsed');
+                const icon = header.querySelector('i');
+                icon.className = content.classList.contains('collapsed') ? 'fas fa-chevron-right' : 'fas fa-brain';
+            }
+        };
         
         window.copyCode = function(btn, enc) { 
             navigator.clipboard.writeText(decodeURIComponent(enc)).then(()=>{ 
@@ -326,20 +335,16 @@
             content.innerHTML = '<div class="flex justify-center p-4 text-gray-400"><i class="fas fa-circle-notch fa-spin mr-2"></i> Loading...</div>';
             get('legal-modal').style.display = 'flex';
             try {
-                // Ensure browser doesn't cache old 404s
                 const res = await fetch('/static/legal/' + type + '.md?t=' + Date.now());
                 if(!res.ok) throw new Error("Load failed");
                 const text = await res.text();
                 content.innerHTML = DOMPurify.sanitize(marked.parse(text));
             } catch(e) {
-                content.innerHTML = '<div class="text-red-400 p-4">読み込みに失敗しました。ファイルが存在しない可能性があります。</div>';
+                content.innerHTML = '<div class="text-red-400 p-4">読み込みに失敗しました。</div>';
             }
         };
         
-        window.showAlphaInfo = function() {
-            get('alpha-info-modal').style.display = 'flex';
-        };
-
+        window.showAlphaInfo = function() { get('alpha-info-modal').style.display = 'flex'; };
         window.quickStart = function(modelVal) {
             get('model-select').value = modelVal;
             toggleOptions();
@@ -371,7 +376,6 @@
                 }
             }, 3000);
 
-            // Highlight.js + Marked
             const renderer = new marked.Renderer();
             renderer.code = function(code, infostring, escaped) {
                 const lang = (infostring || '').match(/\S*/)[0];
@@ -389,7 +393,6 @@
             get('mobile-new-chat-btn').onclick = () => startNewChat();
             get('send-btn').onclick = sendMessage;
             get('stop-btn').onclick = () => { if(abortController) abortController.abort(); };
-            
             get('add-gem-btn').onclick = () => get('gem-modal').style.display='flex';
             get('save-gem-btn').onclick = createGem;
             
@@ -411,30 +414,22 @@
                 if (files.length > 0) { e.preventDefault(); await handleFiles(files); }
             });
 
-            // Textarea Auto-Resize
             const ta = get('prompt-input');
-            ta.addEventListener('input', function() {
-                this.style.height = 'auto';
-                this.style.height = (this.scrollHeight) + 'px';
-            });
+            ta.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px'; });
             ta.onkeydown = (e) => {
                 if (e.isComposing) return;
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); get('send-btn').click(); }
             };
             
-            get('lib-btn').onclick = () => { 
-                get('lib-modal').style.display='flex'; 
-                loadLibraryFiles(); 
-            };
+            get('lib-btn').onclick = () => { get('lib-modal').style.display='flex'; loadLibraryFiles(); };
             get('lib-del-btn').onclick = deleteSelectedFiles;
-
             get('upload-btn').onclick = () => get('file-input').click();
             get('file-input').onchange = (e) => handleFiles(e.target.files);
             get('menu-btn').onclick = () => { get('sidebar').classList.toggle('open'); get('overlay').classList.toggle('active'); };
             get('overlay').onclick = () => { get('sidebar').classList.remove('open'); get('overlay').classList.remove('active'); };
-            
             get('model-select').addEventListener('change', toggleOptions);
             get('reasoning-effort')?.addEventListener('change', checkSearchAvailability);
+            get('search-box').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(loadThreads, 300); });
             
             get('chat-container').addEventListener('click', (e) => {
                 const editBtn = e.target.closest('.edit-btn');
@@ -446,15 +441,8 @@
                     get('prompt-input').value = text;
                     get('prompt-input').focus();
                     get('prompt-input').dispatchEvent(new Event('input', { bubbles: true }));
-                    if(confirm("メッセージを編集して再生成しますか？")) {
-                        fetch("/api/messages/" + id, {method:'DELETE'}).then(() => loadMessages(currentThreadId)).catch(e=>{});
-                    }
+                    if(confirm("再生成しますか？")) fetch("/api/messages/" + id, {method:'DELETE'}).then(() => loadMessages(currentThreadId)).catch(e=>{});
                 }
-            });
-
-            get('search-box').addEventListener('input', () => {
-                clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(loadThreads, 300);
             });
 
             get('settings-btn').onclick = () => {
@@ -469,30 +457,11 @@
             };
             get('close-settings-btn').onclick = () => get('settings-modal').style.display='none';
             get('save-settings-btn').onclick = async () => {
-                await fetch('/api/settings', {
-                    method:'POST',
-                    headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({
-                        system_prompt:get('sys-prompt-text').value,
-                        new_username:get('set-username').value,
-                        new_password:get('set-password').value,
-                        openai_key:get('set-openai').value,
-                        gemini_key:get('set-gemini').value,
-                        xai_key:get('set-xai').value
-                    })
-                });
+                await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({system_prompt:get('sys-prompt-text').value, new_username:get('set-username').value, new_password:get('set-password').value, openai_key:get('set-openai').value, gemini_key:get('set-gemini').value, xai_key:get('set-xai').value})});
                 get('settings-modal').style.display='none';
                 location.reload();
             };
-            get('delete-account-btn').onclick = async () => {
-                if(confirm("【警告】本当にアカウントを削除しますか？\nこの操作は取り消せません。")) {
-                    try {
-                        const res = await fetch('/api/account/delete', {method: 'POST'});
-                        if(res.ok) window.location.href = "/login";
-                        else alert("削除失敗");
-                    } catch(e) { alert("エラー"); }
-                }
-            };
+            get('delete-account-btn').onclick = async () => { if(confirm("【警告】削除しますか？")) try { const res = await fetch('/api/account/delete', {method: 'POST'}); if(res.ok) window.location.href = "/login"; } catch(e){} };
         });
 
         function checkSearchAvailability() {
@@ -514,14 +483,7 @@
             const chk = get('enable-sys-prompt');
             const lbl = get('sys-prompt-option');
             if(!chk || !lbl) return;
-            if(model.includes('nano')) { 
-                chk.checked=false; 
-                chk.disabled=true; 
-                lbl.classList.add('opacity-50'); 
-            } else { 
-                chk.disabled=false; 
-                lbl.classList.remove('opacity-50'); 
-            }
+            if(model.includes('nano')) { chk.checked=false; chk.disabled=true; lbl.classList.add('opacity-50'); } else { chk.disabled=false; lbl.classList.remove('opacity-50'); }
         }
 
         function toggleOptions() {
@@ -529,19 +491,14 @@
             const thinkContainer = get('thinking-option');
             const thinkChk = get('enable-thinking');
             const reason = get('reasoning-effort-container');
-            
             if(thinkContainer) thinkContainer.classList.add('hidden');
             if(reason) reason.classList.add('hidden');
             if(thinkChk) thinkChk.disabled = false;
             
             if(model.includes('gemini') || model.includes('nano')) {
                 if(thinkContainer) thinkContainer.classList.remove('hidden');
-                if(model.includes('gemini-3.0-pro')) {
-                    if(thinkChk) { thinkChk.checked = true; thinkChk.disabled = true; }
-                }
-            } else if(model.includes('gpt')) {
-                if(reason) reason.classList.remove('hidden');
-            }
+                if(model.includes('gemini-3.0-pro')) { if(thinkChk) { thinkChk.checked = true; thinkChk.disabled = true; } }
+            } else if(model.includes('gpt')) { if(reason) reason.classList.remove('hidden'); }
             checkSearchAvailability();
             checkSystemPromptAvailability();
         }
@@ -600,37 +557,28 @@
             threads.forEach(t => {
                 const d = document.createElement('div');
                 d.className = 'p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 border-b border-gray-700/30 truncate flex justify-between items-center group';
-                // Thread Item with Rename and Delete
-                d.innerHTML = `
-                    <span class="truncate flex-1" onclick="loadMessages(${t.id})">${t.title||"No Title"}</span>
-                    <div class="flex gap-1 opacity-0 group-hover:opacity-100">
-                        <button class="text-gray-500 hover:text-white px-1" onclick="renameThread(event, ${t.id})"><i class="fas fa-pen text-xs"></i></button>
-                        <button class="text-gray-500 hover:text-red-400 px-1" onclick="deleteThread(event, ${t.id})"><i class="fas fa-trash text-xs"></i></button>
-                    </div>
-                `;
+                // Added Rename Button
+                d.innerHTML = `<span class="truncate flex-1" onclick="loadMessages(${t.id})">${t.title||"No Title"}</span>
+                               <div class="flex gap-1 opacity-0 group-hover:opacity-100">
+                                   <button class="text-gray-500 hover:text-white px-1" onclick="renameThread(event, ${t.id})"><i class="fas fa-pen text-xs"></i></button>
+                                   <button class="text-gray-500 hover:text-red-400 px-1" onclick="deleteThread(event, ${t.id})"><i class="fas fa-trash text-xs"></i></button>
+                               </div>`;
                 list.appendChild(d);
             });
         }
-        
         async function renameThread(e, id) {
             e.stopPropagation();
             const newTitle = prompt("新しいタイトルを入力:");
             if(newTitle) {
-                await fetch('/api/threads/'+id+'/title', {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({title: newTitle})
-                });
+                await fetch('/api/threads/'+id+'/title', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: newTitle}) });
                 loadThreads();
             }
         }
-
         async function deleteThread(e, id) {
             e.stopPropagation();
-            if(!confirm("スレッドを削除しますか？")) return;
+            if(!confirm("削除しますか？")) return;
             await fetch('/api/threads/'+id, {method:'DELETE'});
-            if(currentThreadId === id) startNewChat();
-            else loadThreads();
+            if(currentThreadId === id) startNewChat(); else loadThreads();
         }
         async function loadMessages(tid) {
             currentThreadId = tid; clearActiveGem(); get('welcome-screen').classList.add('hidden');
@@ -700,7 +648,7 @@
                                 if(!thoughtContentEl) {
                                     const tContainer = document.createElement('div');
                                     tContainer.className = 'thought-container';
-                                    tContainer.innerHTML = '<div class="thought-header"><i class="fas fa-brain"></i> Thinking Process</div><div class="thought-content"></div>';
+                                    tContainer.innerHTML = '<div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain"></i> Thinking Process</div><div class="thought-content"></div>';
                                     aiDiv.prepend(tContainer);
                                     thoughtContentEl = tContainer.querySelector('.thought-content');
                                 }
@@ -715,10 +663,7 @@
                                     aiDiv.appendChild(contentEl);
                                 }
                                 contentEl.innerHTML = DOMPurify.sanitize(marked.parse(accumulatedText));
-                                // Re-apply highlighting to new content
-                                contentEl.querySelectorAll('pre code').forEach((block) => {
-                                    hljs.highlightElement(block);
-                                });
+                                contentEl.querySelectorAll('pre code').forEach((block) => { hljs.highlightElement(block); });
                                 
                             } else if (json.type === 'error') {
                                 aiDiv.innerHTML += `<div class="text-red-400">Error: ${escapeHtml(json.data)}</div>`;
@@ -752,7 +697,7 @@
                     if(tText) {
                         thoughtHtml = `
                         <div class="thought-container">
-                            <div class="thought-header"><i class="fas fa-brain"></i> Thinking Process</div>
+                            <div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain"></i> Thinking Process</div>
                             <div class="thought-content">${escapeHtml(tText)}</div>
                         </div>`;
                     }
@@ -794,10 +739,7 @@
             </div>`;
             
             get('chat-container').insertAdjacentHTML('beforeend', html);
-            // Highlight code blocks after render
-            document.querySelectorAll('pre code').forEach((block) => {
-                hljs.highlightElement(block);
-            });
+            document.querySelectorAll('pre code').forEach((block) => { hljs.highlightElement(block); });
             get('chat-container').scrollTop = get('chat-container').scrollHeight;
         }
         

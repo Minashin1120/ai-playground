@@ -3,23 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V2.8.2)</title>
+    <title>AI Playground (V2.9.0)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <!-- Highlight.js for Syntax Highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body { background-color: #111827; color: #f3f4f6; }
         .prose { font-size: 0.95rem; line-height: 1.7; color: #e5e7eb; max-width: none; }
-        .prose pre { background: #0f1117 !important; padding: 1em; overflow-x: auto; border-radius: 0.5em; border: 1px solid #374151; margin: 1em 0; }
-        .prose code { color: #e5e7eb !important; background: transparent !important; font-family: Consolas, Monaco, monospace; }
-        .prose :not(pre) > code { background: #374151 !important; padding: 0.2rem 0.4rem; border-radius: 0.3rem; }
+        .prose h1 { font-size: 1.5em; font-weight: 800; margin: 1em 0 0.5em; border-bottom: 1px solid #374151; color: #fff; }
+        .prose h2 { font-size: 1.3em; font-weight: 700; margin: 1em 0 0.5em; color: #f3f4f6; }
+        .prose p { margin-bottom: 0.8em; }
+        .prose ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1em; }
+        .prose ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 1em; }
+        .prose a { color: #60a5fa; text-decoration: underline; }
         
-        .code-wrapper { margin: 1em 0; border-radius: 0.5rem; border: 1px solid #374151; overflow: hidden; background: #0f1117; }
-        .code-header { display: flex; justify-content: space-between; align-items: center; background: #1f2937; padding: 0.3rem 0.8rem; font-size: 0.75rem; color: #9ca3af; border-bottom: 1px solid #374151; }
+        .code-wrapper { margin: 1em 0; border-radius: 0.5rem; border: 1px solid #374151; overflow: hidden; background: #282c34; }
+        .code-header { display: flex; justify-content: space-between; align-items: center; background: #21252b; padding: 0.3rem 0.8rem; font-size: 0.75rem; color: #9ca3af; border-bottom: 1px solid #374151; }
         .code-lang { font-weight: bold; text-transform: uppercase; }
         .copy-btn { background: transparent; border: none; color: #9ca3af; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s; }
         .copy-btn:hover { color: #fff; }
+        /* Override Highlight.js padding/bg to fit wrapper */
+        .prose pre { margin: 0 !important; padding: 0 !important; overflow-x: auto; background: transparent !important; border: none !important; border-radius: 0 !important; }
+        .prose code { font-family: Consolas, Monaco, 'Andale Mono', monospace; font-size: 0.9em; background: transparent !important; padding: 1em !important; display: block; }
+        .prose :not(pre) > code { background: #374151 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.3rem !important; color: #e2e8f0 !important; display: inline; }
 
         .thought-container { margin-bottom: 1rem; border-radius: 0.375rem; overflow: hidden; border: 1px solid #4b5563; max-width: 100%; }
         .thought-header { background: #374151; padding: 0.5rem; font-size: 0.75rem; color: #9ca3af; display: flex; align-items: center; gap: 0.5rem; font-weight: bold; }
@@ -92,7 +103,7 @@
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
         <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500">
-            <div id="version-display" class="cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.8.2 <span class="text-orange-500 font-bold">RELEASE</span></div>
+            <div id="version-display" class="cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.9.0 <span class="text-orange-500 font-bold">FINAL</span></div>
             <div class="flex justify-center gap-3">
                 <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
                 <span class="text-gray-700">|</span>
@@ -242,6 +253,7 @@
         </div>
     </div>
 
+    <!-- Legal Modal -->
     <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh]">
             <h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">利用規約</h2>
@@ -254,6 +266,7 @@
         </div>
     </div>
 
+    <!-- Alpha Info Modal -->
     <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4">
             <h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2>
@@ -313,12 +326,13 @@
             content.innerHTML = '<div class="flex justify-center p-4 text-gray-400"><i class="fas fa-circle-notch fa-spin mr-2"></i> Loading...</div>';
             get('legal-modal').style.display = 'flex';
             try {
+                // Ensure browser doesn't cache old 404s
                 const res = await fetch('/static/legal/' + type + '.md?t=' + Date.now());
                 if(!res.ok) throw new Error("Load failed");
                 const text = await res.text();
                 content.innerHTML = DOMPurify.sanitize(marked.parse(text));
             } catch(e) {
-                content.innerHTML = '<div class="text-red-400 p-4">読み込みに失敗しました。</div>';
+                content.innerHTML = '<div class="text-red-400 p-4">読み込みに失敗しました。ファイルが存在しない可能性があります。</div>';
             }
         };
         
@@ -357,11 +371,14 @@
                 }
             }, 3000);
 
+            // Highlight.js + Marked
             const renderer = new marked.Renderer();
             renderer.code = function(code, infostring, escaped) {
                 const lang = (infostring || '').match(/\S*/)[0];
+                const validLang = hljs.getLanguage(lang) ? lang : 'plaintext';
+                const highlighted = hljs.highlight(code, { language: validLang }).value;
                 const codeEncoded = encodeURIComponent(code);
-                return `<div class="code-wrapper"><div class="code-header"><span class="code-lang">${escapeHtml(lang)||'TEXT'}</span><button class="copy-btn" onclick="copyCode(this, '${codeEncoded}')"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="language-${escapeHtml(lang)}">${escaped?code:escapeHtml(code)}</code></pre></div>`;
+                return `<div class="code-wrapper"><div class="code-header"><span class="code-lang">${escapeHtml(lang)||'TEXT'}</span><button class="copy-btn" onclick="copyCode(this, '${codeEncoded}')"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="hljs language-${escapeHtml(lang)}">${highlighted}</code></pre></div>`;
             };
             marked.use({ renderer: renderer, breaks: true, gfm: true });
 
@@ -394,7 +411,13 @@
                 if (files.length > 0) { e.preventDefault(); await handleFiles(files); }
             });
 
-            get('prompt-input').onkeydown = (e) => {
+            // Textarea Auto-Resize
+            const ta = get('prompt-input');
+            ta.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+            });
+            ta.onkeydown = (e) => {
                 if (e.isComposing) return;
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); get('send-btn').click(); }
             };
@@ -570,15 +593,44 @@
             if(window.innerWidth < 768) get('overlay').click();
         }
         async function loadThreads() {
-            const res = await fetch('/api/threads');
+            const q = get('search-box').value;
+            const res = await fetch("/api/threads?q=" + encodeURIComponent(q));
             const threads = await res.json();
             const list = get('thread-list'); list.innerHTML = '';
             threads.forEach(t => {
                 const d = document.createElement('div');
-                d.className = 'p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 border-b border-gray-700/30 truncate';
-                d.innerText = t.title || "No Title"; d.onclick = () => loadMessages(t.id);
+                d.className = 'p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 border-b border-gray-700/30 truncate flex justify-between items-center group';
+                // Thread Item with Rename and Delete
+                d.innerHTML = `
+                    <span class="truncate flex-1" onclick="loadMessages(${t.id})">${t.title||"No Title"}</span>
+                    <div class="flex gap-1 opacity-0 group-hover:opacity-100">
+                        <button class="text-gray-500 hover:text-white px-1" onclick="renameThread(event, ${t.id})"><i class="fas fa-pen text-xs"></i></button>
+                        <button class="text-gray-500 hover:text-red-400 px-1" onclick="deleteThread(event, ${t.id})"><i class="fas fa-trash text-xs"></i></button>
+                    </div>
+                `;
                 list.appendChild(d);
             });
+        }
+        
+        async function renameThread(e, id) {
+            e.stopPropagation();
+            const newTitle = prompt("新しいタイトルを入力:");
+            if(newTitle) {
+                await fetch('/api/threads/'+id+'/title', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({title: newTitle})
+                });
+                loadThreads();
+            }
+        }
+
+        async function deleteThread(e, id) {
+            e.stopPropagation();
+            if(!confirm("スレッドを削除しますか？")) return;
+            await fetch('/api/threads/'+id, {method:'DELETE'});
+            if(currentThreadId === id) startNewChat();
+            else loadThreads();
         }
         async function loadMessages(tid) {
             currentThreadId = tid; clearActiveGem(); get('welcome-screen').classList.add('hidden');
@@ -601,6 +653,7 @@
             get('welcome-screen').classList.add('hidden');
             renderMessage(0, 'user', text, JSON.stringify(currentImageUrls), null, null);
             get('prompt-input').value = '';
+            get('prompt-input').style.height = 'auto';
             
             const payload = { thread_id: currentThreadId, message: text, model: get('model-select').value, image_urls: currentImageUrls, enable_search: get('enable-search').checked, enable_thinking: get('enable-thinking').checked, reasoning_effort: get('reasoning-effort').value, enable_system_prompt: get('enable-sys-prompt').checked };
             if (activeGem) { payload.system_prompt = activeGem.instruction; payload.enable_system_prompt = true; }
@@ -652,6 +705,7 @@
                                     thoughtContentEl = tContainer.querySelector('.thought-content');
                                 }
                                 thoughtContentEl.textContent = thoughtText;
+                                thoughtContentEl.scrollTop = thoughtContentEl.scrollHeight;
                                 
                             } else if (json.type === 'content') {
                                 accumulatedText += json.data;
@@ -661,6 +715,10 @@
                                     aiDiv.appendChild(contentEl);
                                 }
                                 contentEl.innerHTML = DOMPurify.sanitize(marked.parse(accumulatedText));
+                                // Re-apply highlighting to new content
+                                contentEl.querySelectorAll('pre code').forEach((block) => {
+                                    hljs.highlightElement(block);
+                                });
                                 
                             } else if (json.type === 'error') {
                                 aiDiv.innerHTML += `<div class="text-red-400">Error: ${escapeHtml(json.data)}</div>`;
@@ -736,6 +794,10 @@
             </div>`;
             
             get('chat-container').insertAdjacentHTML('beforeend', html);
+            // Highlight code blocks after render
+            document.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
             get('chat-container').scrollTop = get('chat-container').scrollHeight;
         }
         
@@ -745,15 +807,8 @@
             for(let f of files) { const fd = new FormData(); fd.append('file', f); const r = await fetch('/upload', {method:'POST', body:fd}); const d = await r.json(); if(d.filename) currentImageUrls.push(d.filename); }
             get('file-name').innerText = `${currentImageUrls.length} files`; get('file-input').value = '';
         }
+        get('clear-file-btn').onclick = () => { currentImageUrls=[]; get('file-input').value = ''; get('file-preview').classList.add('hidden'); };
         
-        // Fixed: Reset file input value
-        get('clear-file-btn').onclick = () => { 
-            currentImageUrls=[]; 
-            get('file-input').value = ''; 
-            get('file-preview').classList.add('hidden'); 
-        };
-        
-        // Fixed: Library Overlay Logic
         async function loadLibraryFiles() {
             const r = await fetch('/api/files'); const files = await r.json();
             const grid = get('lib-grid'); grid.innerHTML = ''; get('lib-total-count').innerText = files.length + " files";
@@ -769,7 +824,6 @@
                     ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` 
                     : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`;
                 
-                // Overlay for Download/Open
                 const overlay = `
                 <div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10">
                     <a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a>

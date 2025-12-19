@@ -61,6 +61,15 @@
     </style>
 </head>
 <body class="h-[100dvh] flex overflow-hidden text-sm md:text-base">
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div id="flash-msg" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] bg-blue-600 text-white px-6 py-3 rounded shadow-lg transition-opacity duration-500">
+          {{ messages[0] }}
+        </div>
+        <script>setTimeout(()=>{const m=document.getElementById('flash-msg');if(m){m.style.opacity='0';setTimeout(()=>m.remove(),500)}},3000);</script>
+      {% endif %}
+    {% endwith %}
+    
 
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-orange-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-orange-400">
         <i class="fas fa-exclamation-circle mr-1"></i> このアプリケーションはアルファバージョンです。

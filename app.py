@@ -25,6 +25,7 @@ from openai import OpenAI
 from google import genai
 from google.genai import types
 import pypdf
+from cryptography.fernet import Fernet
 
 # OpenTelemetry
 from opentelemetry import trace
@@ -56,6 +57,30 @@ db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+# --- Encryption Helpers ---
+KEY_FILE = os.path.join(os.path.dirname(__file__), 'secret.key')
+cipher = None
+try:
+    if os.path.exists(KEY_FILE):
+        with open(KEY_FILE, 'rb') as kf: cipher = Fernet(kf.read().strip())
+    else:
+        # Fallback generation if file missing (should be handled by setup script)
+        key = Fernet.generate_key()
+        with open(KEY_FILE, 'wb') as kf: kf.write(key)
+        cipher = Fernet(key)
+except Exception as e:
+    logger.error(f"Encryption setup failed: {e}")
+
+def encrypt_val(val):
+    if not val or not cipher: return val
+    try: return cipher.encrypt(val.encode()).decode()
+    except: return val
+
+def decrypt_val(val):
+    if not val or not cipher: return val
+    try: return cipher.decrypt(val.encode()).decode()
+    except: return val # Return original if not encrypted (Backward Compatibility)
 
 @app.after_request
 def add_security_headers(response):
@@ -115,7 +140,12 @@ def load_user(uid):
 def get_key_for_user(user, name):
     user_key_field = name.lower()
     user_key = getattr(user, user_key_field, None)
-    if user_key and user_key.strip(): return user_key.strip()
+    
+    # Try decrypted user key
+    if user_key and user_key.strip():
+        decrypted = decrypt_val(user_key.strip())
+        if decrypted: return decrypted
+
     if user.username == 'minashin1120':
         sys_key = os.getenv(name)
         if sys_key and "placeholder" not in sys_key: return sys_key
@@ -352,9 +382,10 @@ def signup():
 def setup():
     if current_user.is_setup_completed: return redirect(url_for('index'))
     if request.method == 'POST':
-        current_user.openai_api_key = request.form.get('openai_key')
-        current_user.gemini_api_key = request.form.get('gemini_key')
-        current_user.xai_api_key = request.form.get('xai_key')
+        # Encrypt on setup
+        current_user.openai_api_key = encrypt_val(request.form.get('openai_key'))
+        current_user.gemini_api_key = encrypt_val(request.form.get('gemini_key'))
+        current_user.xai_api_key = encrypt_val(request.form.get('xai_key'))
         current_user.is_setup_completed = True
         db.session.commit()
         return redirect(url_for('index'))
@@ -380,16 +411,20 @@ def delete_account():
 @login_required
 def handle_settings():
     if request.method == 'GET':
-        return jsonify({'system_prompt': current_user.system_prompt or "", 'username': current_user.username, 'openai_key': current_user.openai_api_key or "", 'gemini_key': current_user.gemini_api_key or "", 'xai_key': current_user.xai_api_key or ""})
+        return jsonify({'system_prompt': current_user.system_prompt or "", 'username': current_user.username, 
+                        'openai_key': decrypt_val(current_user.openai_api_key) or "", 
+                        'gemini_key': decrypt_val(current_user.gemini_api_key) or "", 
+                        'xai_key': decrypt_val(current_user.xai_api_key) or ""})
     d = request.json
     if 'system_prompt' in d: current_user.system_prompt = d['system_prompt']
-    if 'openai_key' in d: current_user.openai_api_key = d['openai_key']
-    if 'gemini_key' in d: current_user.gemini_api_key = d['gemini_key']
-    if 'xai_key' in d: current_user.xai_api_key = d['xai_key']
+    if 'openai_key' in d: current_user.openai_api_key = encrypt_val(d['openai_key'])
+    if 'gemini_key' in d: current_user.gemini_api_key = encrypt_val(d['gemini_key'])
+    if 'xai_key' in d: current_user.xai_api_key = encrypt_val(d['xai_key'])
     if d.get('new_password'): current_user.set_password(d['new_password'])
     if d.get('new_username') and d['new_username'] != current_user.username:
         if not User.query.filter_by(username=d['new_username']).first(): current_user.username = d['new_username']
     db.session.commit()
+    flash("設定を保存しました")
     return jsonify({'status': 'ok'})
 
 @app.route('/api/gems', methods=['GET', 'POST'])
@@ -495,7 +530,16 @@ def upload():
     files = request.files.getlist('file')
     if not files: return jsonify({'error': 'No file'}), 400
     ud = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
-    os.makedirs(ud, exist_ok=True)
+    
+    # Fix 2.9.9: Ensure Permissions
+    if not os.path.exists(ud):
+        os.makedirs(ud, exist_ok=True)
+        os.chmod(ud, 0o777)
+    else:
+        # Re-apply just in case
+        try: os.chmod(ud, 0o777)
+        except: pass
+
     res = []
     for f in files:
         if f.filename:
@@ -505,7 +549,6 @@ def upload():
             fname = f"{fname_base}{ext}"
             save_path = os.path.join(ud, fname)
             
-            # V2.9.8 Fix: Only compress if NOT already webp (client-side compressed)
             is_image = ext in ['.jpg', '.jpeg', '.png']
             if is_image and not orig_name.endswith('.webp'):
                 try:
@@ -539,7 +582,12 @@ def chat_stream():
         'safety_setting': data.get('safety_setting', 'default')
     }
     
-    api_keys = {'openai': get_key_for_user(current_user, 'OPENAI_API_KEY'), 'gemini': get_key_for_user(current_user, 'GEMINI_API_KEY'), 'xai': get_key_for_user(current_user, 'XAI_API_KEY')}
+    # V2.9.9: Decrypt keys for worker
+    api_keys = {
+        'openai': get_key_for_user(current_user, 'OPENAI_API_KEY'),
+        'gemini': get_key_for_user(current_user, 'GEMINI_API_KEY'),
+        'xai': get_key_for_user(current_user, 'XAI_API_KEY')
+    }
     task_queue.enqueue(background_chat_task, job_id, data.get('thread_id'), data.get('model'), data.get('message'), data.get('image_urls', []), options, api_keys, current_user.id, job_timeout=600)
     
     def generate():

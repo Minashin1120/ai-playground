@@ -1,4 +1,3 @@
-# Secrets
 .env
 secret.key
 venv/
@@ -6,15 +5,9 @@ __pycache__/
 *.py[cod]
 *.bak*
 *.sh
-
-# Data & Static
 instance/
 static/uploads/*
 !static/uploads/.htaccess
 !static/uploads/legal/
 !static/uploads/changelogs/
 !static/github_promo.png
-
-# OS & Logs
-*.log
-.DS_Store

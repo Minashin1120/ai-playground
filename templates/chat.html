@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V2.8.0)</title>
+    <title>AI Playground (V2.8.2)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -92,7 +92,7 @@
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
         <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500">
-            <div id="version-display" class="cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.8.0 <span class="text-orange-500 font-bold">STABLE</span></div>
+            <div id="version-display" class="cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.8.2 <span class="text-orange-500 font-bold">RELEASE</span></div>
             <div class="flex justify-center gap-3">
                 <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
                 <span class="text-gray-700">|</span>
@@ -242,7 +242,6 @@
         </div>
     </div>
 
-    <!-- Legal Modal -->
     <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh]">
             <h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">利用規約</h2>
@@ -255,7 +254,6 @@
         </div>
     </div>
 
-    <!-- Alpha Info Modal -->
     <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4">
             <h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2>
@@ -396,13 +394,7 @@
                 if (files.length > 0) { e.preventDefault(); await handleFiles(files); }
             });
 
-            // Textarea Auto-Resize (Fixed V2.8.0)
-            const ta = get('prompt-input');
-            ta.addEventListener('input', function() {
-                this.style.height = 'auto';
-                this.style.height = (this.scrollHeight) + 'px';
-            });
-            ta.onkeydown = (e) => {
+            get('prompt-input').onkeydown = (e) => {
                 if (e.isComposing) return;
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); get('send-btn').click(); }
             };
@@ -578,24 +570,15 @@
             if(window.innerWidth < 768) get('overlay').click();
         }
         async function loadThreads() {
-            const q = get('search-box').value;
-            const res = await fetch("/api/threads?q=" + encodeURIComponent(q));
+            const res = await fetch('/api/threads');
             const threads = await res.json();
             const list = get('thread-list'); list.innerHTML = '';
             threads.forEach(t => {
                 const d = document.createElement('div');
-                d.className = 'p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 border-b border-gray-700/30 truncate flex justify-between items-center group';
-                // Fixed: Added Delete Button
-                d.innerHTML = `<span class="truncate flex-1" onclick="loadMessages(${t.id})">${t.title||"No Title"}</span><button class="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2" onclick="deleteThread(event, ${t.id})"><i class="fas fa-trash text-xs"></i></button>`;
+                d.className = 'p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 border-b border-gray-700/30 truncate';
+                d.innerText = t.title || "No Title"; d.onclick = () => loadMessages(t.id);
                 list.appendChild(d);
             });
-        }
-        async function deleteThread(e, id) {
-            e.stopPropagation();
-            if(!confirm("スレッドを削除しますか？")) return;
-            await fetch('/api/threads/'+id, {method:'DELETE'});
-            if(currentThreadId === id) startNewChat();
-            else loadThreads();
         }
         async function loadMessages(tid) {
             currentThreadId = tid; clearActiveGem(); get('welcome-screen').classList.add('hidden');
@@ -618,8 +601,6 @@
             get('welcome-screen').classList.add('hidden');
             renderMessage(0, 'user', text, JSON.stringify(currentImageUrls), null, null);
             get('prompt-input').value = '';
-            // Reset height
-            get('prompt-input').style.height = 'auto';
             
             const payload = { thread_id: currentThreadId, message: text, model: get('model-select').value, image_urls: currentImageUrls, enable_search: get('enable-search').checked, enable_thinking: get('enable-thinking').checked, reasoning_effort: get('reasoning-effort').value, enable_system_prompt: get('enable-sys-prompt').checked };
             if (activeGem) { payload.system_prompt = activeGem.instruction; payload.enable_system_prompt = true; }
@@ -671,8 +652,6 @@
                                     thoughtContentEl = tContainer.querySelector('.thought-content');
                                 }
                                 thoughtContentEl.textContent = thoughtText;
-                                // Auto-scroll thinking box (Fixed V2.8.0)
-                                thoughtContentEl.scrollTop = thoughtContentEl.scrollHeight;
                                 
                             } else if (json.type === 'content') {
                                 accumulatedText += json.data;
@@ -766,8 +745,15 @@
             for(let f of files) { const fd = new FormData(); fd.append('file', f); const r = await fetch('/upload', {method:'POST', body:fd}); const d = await r.json(); if(d.filename) currentImageUrls.push(d.filename); }
             get('file-name').innerText = `${currentImageUrls.length} files`; get('file-input').value = '';
         }
-        get('clear-file-btn').onclick = () => { currentImageUrls=[]; get('file-preview').classList.add('hidden'); };
         
+        // Fixed: Reset file input value
+        get('clear-file-btn').onclick = () => { 
+            currentImageUrls=[]; 
+            get('file-input').value = ''; 
+            get('file-preview').classList.add('hidden'); 
+        };
+        
+        // Fixed: Library Overlay Logic
         async function loadLibraryFiles() {
             const r = await fetch('/api/files'); const files = await r.json();
             const grid = get('lib-grid'); grid.innerHTML = ''; get('lib-total-count').innerText = files.length + " files";
@@ -783,7 +769,14 @@
                     ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` 
                     : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`;
                 
-                el.innerHTML = content;
+                // Overlay for Download/Open
+                const overlay = `
+                <div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10">
+                    <a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a>
+                    <a href="${f.url}" target="_blank" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a>
+                </div>`;
+                
+                el.innerHTML = content + overlay;
                 
                 el.onclick = () => {
                     if (lib.selected.has(f.filepath)) {

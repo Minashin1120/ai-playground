@@ -3,48 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V2.9.4)</title>
+    <title>AI Playground (V2.9.8)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <!-- Highlight.js -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <!-- Image Compression -->
+    <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body { background-color: #111827; color: #f3f4f6; }
         .prose { font-size: 0.95rem; line-height: 1.7; color: #e5e7eb; max-width: none; }
-        .prose h1 { font-size: 1.5em; font-weight: 800; margin: 1em 0 0.5em; border-bottom: 1px solid #374151; color: #fff; }
-        .prose h2 { font-size: 1.3em; font-weight: 700; margin: 1em 0 0.5em; color: #f3f4f6; }
+        .prose pre { background: #0f1117 !important; padding: 0 !important; overflow-x: auto; border: none !important; border-radius: 0 !important; }
+        .prose code { font-family: Consolas, Monaco, 'Andale Mono', monospace; font-size: 0.9em; background: transparent !important; padding: 1em !important; display: block; line-height: 1.5; }
+        .prose :not(pre) > code { background: #374151 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.3rem !important; color: #e2e8f0 !important; display: inline; }
         .prose p { margin-bottom: 0.8em; }
         .prose ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1em; }
         .prose ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 1em; }
         .prose a { color: #60a5fa; text-decoration: underline; }
         
-        /* Code Block Styling */
         .code-wrapper { margin: 1em 0; border-radius: 0.5rem; border: 1px solid #374151; overflow: hidden; background: #282c34; }
         .code-header { display: flex; justify-content: space-between; align-items: center; background: #21252b; padding: 0.3rem 0.8rem; font-size: 0.75rem; color: #9ca3af; border-bottom: 1px solid #181a1f; }
-        .code-lang { font-weight: bold; text-transform: uppercase; }
         .copy-btn { background: transparent; border: none; color: #9ca3af; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s; }
         .copy-btn:hover { color: #fff; }
-        .prose pre { margin: 0 !important; padding: 0 !important; overflow-x: auto; background: transparent !important; border: none !important; border-radius: 0 !important; }
-        .prose code { font-family: Consolas, Monaco, 'Andale Mono', monospace; font-size: 0.9em; background: transparent !important; padding: 1em !important; display: block; line-height: 1.5; }
-        .prose :not(pre) > code { background: #374151 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.3rem !important; color: #e2e8f0 !important; display: inline; }
 
-        /* Collapsible Thinking Box */
         .thought-container { margin-bottom: 1rem; border-radius: 0.375rem; overflow: hidden; border: 1px solid #4b5563; max-width: 100%; }
-        .thought-header { 
-            background: #374151; padding: 0.5rem; font-size: 0.75rem; color: #9ca3af; 
-            display: flex; align-items: center; gap: 0.5rem; font-weight: bold; cursor: pointer; user-select: none;
-            transition: background 0.2s;
-        }
+        .thought-header { background: #374151; padding: 0.5rem; font-size: 0.75rem; color: #9ca3af; display: flex; align-items: center; gap: 0.5rem; font-weight: bold; cursor: pointer; transition: background 0.2s; }
         .thought-header:hover { background: #4b5563; color: #fff; }
-        .thought-content { 
-            background: #1f2937; padding: 0.75rem; font-size: 0.85rem; color: #d8b4fe; 
-            white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; 
-            font-family: monospace; max-height: 300px; overflow-y: auto; overflow-x: hidden;
-            display: block; 
-        }
+        .thought-content { background: #1f2937; padding: 0.75rem; font-size: 0.85rem; color: #d8b4fe; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; font-family: monospace; max-height: 300px; overflow-y: auto; display: block; }
         .thought-content.collapsed { display: none; }
         
         .message-bubble { max-width: 90%; position: relative; word-wrap: break-word; }
@@ -52,8 +40,6 @@
         
         .msg-controls { opacity: 0; transition: opacity 0.2s; position: absolute; top: -12px; right: 0; display: flex; gap: 4px; }
         .message-group:hover .msg-controls { opacity: 1; }
-        @media (hover: none) { .msg-controls { opacity: 1; } }
-        
         .ctrl-btn { background: #1f2937; color: #9ca3af; border: 1px solid #4b5563; border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 10px; transition: all 0.2s; }
         .ctrl-btn:hover { background: #374151; color: #fff; }
         
@@ -108,12 +94,10 @@
         </div>
         
         <div class="border-t border-gray-700 my-1"></div>
-
-        <div class="px-2 mb-1"><span class="text-xs font-bold text-gray-400 uppercase tracking-wider">History</span></div>
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
         <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500">
-            <div id="version-display" class="cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.9.4 <span class="text-orange-500 font-bold">ROBUST</span></div>
+            <div id="version-display" class="cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.9.8 <span class="text-orange-500 font-bold">INTEGRATED</span></div>
             <div class="flex justify-center gap-3">
                 <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
                 <span class="text-gray-700">|</span>
@@ -186,6 +170,18 @@
                         <label id="sys-prompt-option" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-sys-prompt" class="accent-green-500 w-3 h-3"><span class="text-green-300">SysPrompt</span></label>
                         <label id="thinking-option" class="flex items-center space-x-1 cursor-pointer hidden select-none"><input type="checkbox" id="enable-thinking" class="accent-purple-500 w-3 h-3"><span class="text-purple-300">Thinking</span></label>
                         <div id="reasoning-effort-container" class="hidden flex items-center gap-1"><span class="text-gray-400">Effort:</span><select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></div>
+                        <!-- Safety & Compression -->
+                        <div class="flex items-center gap-1 border-l border-gray-600 pl-2 ml-2">
+                            <span class="text-gray-400">Safety:</span>
+                            <select id="safety-setting" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none">
+                                <option value="default">Default</option>
+                                <option value="none" class="text-red-300">None</option>
+                            </select>
+                        </div>
+                        <label class="flex items-center gap-1 cursor-pointer select-none ml-2" title="Client-side Compression">
+                            <input type="checkbox" id="enable-compression" class="accent-blue-500 w-3 h-3" checked>
+                            <span class="text-gray-400 text-[10px]">Compress</span>
+                        </label>
                     </div>
                 </div>
                 
@@ -621,15 +617,20 @@
             get('prompt-input').value = '';
             get('prompt-input').style.height = 'auto';
             
-            const payload = { thread_id: currentThreadId, message: text, model: get('model-select').value, image_urls: currentImageUrls, enable_search: get('enable-search').checked, enable_thinking: get('enable-thinking').checked, reasoning_effort: get('reasoning-effort').value, enable_system_prompt: get('enable-sys-prompt').checked };
+            const payload = { 
+                thread_id: currentThreadId, 
+                message: text, 
+                model: get('model-select').value, 
+                image_urls: currentImageUrls, 
+                enable_search: get('enable-search').checked, 
+                enable_thinking: get('enable-thinking').checked, 
+                reasoning_effort: get('reasoning-effort').value, 
+                enable_system_prompt: get('enable-sys-prompt').checked,
+                safety_setting: get('safety-setting').value
+            };
             if (activeGem) { payload.system_prompt = activeGem.instruction; payload.enable_system_prompt = true; }
             
-            // Fix: Store image urls for history render before clearing
-            const sentImageUrls = [...currentImageUrls]; 
-            currentImageUrls = []; 
-            get('file-input').value = ''; // Reset input
-            get('file-preview').classList.add('hidden'); 
-            
+            currentImageUrls = []; get('file-preview').classList.add('hidden'); 
             get('send-btn').disabled = true;
             get('stop-container').classList.remove('hidden');
             
@@ -724,7 +725,7 @@
                     const tObj = JSON.parse(thoughtData);
                     tText = tObj.text || tObj;
                 } catch(e) {
-                    tText = thoughtData; // Fallback to raw string
+                    tText = thoughtData; 
                 }
                 
                 if(tText && typeof tText === 'string') {
@@ -741,17 +742,18 @@
                 try {
                     let imgs = JSON.parse(imgUrl);
                     if(!Array.isArray(imgs)) imgs = [imgUrl];
-                    // Fix: Filter null/empty values
                     imgs = imgs.filter(u => u && u !== '[]' && u !== 'null');
                     
                     if(imgs.length > 0) {
                         attach = '<div class="flex flex-wrap gap-2 mt-2">';
                         imgs.forEach(u => {
                             const url = '/static/uploads/' + u;
+                            const filename = u.split('/').pop();
+                            
                             if(u.endsWith('webp')||u.endsWith('png')||u.endsWith('jpg')) 
-                                attach += `<img src="${url}" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer" onclick="window.open('${url}')">`;
+                                attach += `<img src="${url}" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer" onclick="window.open('${url}')" title="${filename}">`;
                             else 
-                                attach += `<div class="h-24 w-24 bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center"><i class="fas fa-file"></i></div>`;
+                                attach += `<div class="h-24 w-24 bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center cursor-pointer" onclick="window.open('${url}')" title="${filename}"><i class="fas fa-file text-2xl text-gray-400 mb-1"></i><span class="text-[9px] truncate w-20 text-center">${filename}</span></div>`;
                         });
                         attach += '</div>';
                     }
@@ -780,9 +782,31 @@
         
         async function handleFiles(files) {
             if(!files.length) return;
-            get('file-preview').classList.remove('hidden'); get('file-name').innerText = "Uploading...";
-            for(let f of files) { const fd = new FormData(); fd.append('file', f); const r = await fetch('/upload', {method:'POST', body:fd}); const d = await r.json(); if(d.filename) currentImageUrls.push(d.filename); }
-            get('file-name').innerText = `${currentImageUrls.length} files`; get('file-input').value = '';
+            get('file-preview').classList.remove('hidden'); 
+            get('file-name').innerText = "Processing...";
+            
+            const compress = get('enable-compression').checked;
+            
+            for(let f of files) { 
+                let fileToUpload = f;
+                if (compress && f.type.startsWith('image/')) {
+                    try {
+                        const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true };
+                        get('file-name').innerText = "Compressing " + f.name + "...";
+                        fileToUpload = await imageCompression(f, options);
+                    } catch (error) { console.error("Compression failed:", error); }
+                }
+                
+                const fd = new FormData(); 
+                fd.append('file', fileToUpload); 
+                
+                get('file-name').innerText = "Uploading " + f.name + "...";
+                const r = await fetch('/upload', {method:'POST', body:fd}); 
+                const d = await r.json(); 
+                if(d.filename) currentImageUrls.push(d.filename); 
+            }
+            get('file-name').innerText = `${currentImageUrls.length} files ready`; 
+            get('file-input').value = '';
         }
         get('clear-file-btn').onclick = () => { currentImageUrls=[]; get('file-input').value = ''; get('file-preview').classList.add('hidden'); };
         

@@ -8,21 +8,29 @@ import redis
 import shutil
 import glob
 import requests
+import tiktoken 
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 from rq import Queue
 from datetime import datetime
 from io import BytesIO
 from PIL import Image
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, make_response
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, make_response, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from sqlalchemy import or_
+from sqlalchemy import or_, exc
 from dotenv import load_dotenv
 from openai import OpenAI
 from google import genai
 from google.genai import types
 import pypdf
+
+# OpenTelemetry
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+trace.set_tracer_provider(TracerProvider())
+tracer = trace.get_tracer(__name__)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -51,11 +59,12 @@ login_manager.login_view = 'login'
 
 @app.after_request
 def add_security_headers(response):
-    csp = "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;"
+    csp = "default-src * 'unsafe-inline' 'unsafe-eval' data: blob: https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;"
     response.headers['Content-Security-Policy'] = csp
     response.headers['Access-Control-Allow-Origin'] = '*'
     return response
 
+# --- Models ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True)
@@ -121,160 +130,179 @@ def verify_turnstile(token):
         return res.json().get('success', False)
     except: return False
 
+def count_tokens(text, model="gpt-4"):
+    try:
+        encoding = tiktoken.encoding_for_model(model)
+        return len(encoding.encode(text))
+    except: return len(text) // 4
+
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(1), retry=retry_if_exception_type(exc.SQLAlchemyError))
+def safe_db_commit():
+    db.session.commit()
+
+# --- Worker Logic ---
 def background_chat_task(job_id, thread_id, model_key, message_text, img_list, options, api_keys, user_id):
     with app.app_context():
         channel = f"ai_chat:channel:{job_id}"
         r = redis.from_url(REDIS_URL)
         def publish_chunk(dt, d): r.publish(channel, json.dumps({"type": dt, "data": d}))
         
-        try:
-            all_msgs = Message.query.filter_by(thread_id=thread_id).order_by(Message.timestamp).all()
-            history = all_msgs[:-1] if len(all_msgs) > 0 else []
-            is_gemini, is_grok = 'gemini' in model_key or 'nano' in model_key, 'grok' in model_key
-            req_key = api_keys.get('gemini') if is_gemini else (api_keys.get('xai') if is_grok else api_keys.get('openai'))
-            if not req_key: publish_chunk("error", "API Key missing."); return
+        with tracer.start_as_current_span("generate_response"):
+            try:
+                all_msgs = Message.query.filter_by(thread_id=thread_id).order_by(Message.timestamp).all()
+                history = all_msgs[:-1] if len(all_msgs) > 0 else []
+                is_gemini, is_grok = 'gemini' in model_key or 'nano' in model_key, 'grok' in model_key
+                req_key = api_keys.get('gemini') if is_gemini else (api_keys.get('xai') if is_grok else api_keys.get('openai'))
+                if not req_key: publish_chunk("error", "API Key missing."); return
 
-            gemini_client = genai.Client(api_key=req_key, http_options={'api_version': 'v1alpha'}) if is_gemini else None
-            openai_client = OpenAI(api_key=req_key) if not is_gemini and not is_grok else None
-            xai_client_std = OpenAI(api_key=req_key, base_url="https://api.x.ai/v1") if is_grok else None
+                gemini_client = genai.Client(api_key=req_key, http_options={'api_version': 'v1alpha'}) if is_gemini else None
+                openai_client = OpenAI(api_key=req_key) if not is_gemini and not is_grok else None
+                xai_client_std = OpenAI(api_key=req_key, base_url="https://api.x.ai/v1") if is_grok else None
 
-            loaded_files = []
-            for fname in img_list:
-                info = {'name': fname, 'text': None, 'bytes': None, 'mime': None, 'path': os.path.join(app.config['UPLOAD_FOLDER'], fname)}
-                try:
-                    if os.path.exists(info['path']):
-                        info['mime'] = mimetypes.guess_type(info['path'])[0] or 'application/octet-stream'
-                        if fname.lower().endswith('.pdf'): info['mime'] = 'application/pdf'
-                        
-                        if fname.lower().endswith('.pdf'):
-                            try:
-                                reader = pypdf.PdfReader(info['path'])
-                                extracted = ""
-                                for page in reader.pages: extracted += page.extract_text() + "\n"
-                                info['text'] = extracted[:50000]
-                            except: pass
-                        
-                        is_img = fname.endswith(('.webp','.png','.jpg','.jpeg','.gif','.mp4'))
-                        if not is_img and not info['text']:
-                            try:
-                                with open(info['path'], 'r', encoding='utf-8', errors='ignore') as f: info['text'] = f.read()
-                            except: pass
-                        
-                        if not info['text']:
-                            with open(info['path'], 'rb') as f: info['bytes'] = f.read()
-                        loaded_files.append(info)
-                except: pass
-
-            full_res, thought_accumulated, generated_images = "", "", []
-            collected_signatures = {}
-
-            if is_gemini:
-                real_model = "gemini-3-pro-preview" if "3.0" in model_key else ("gemini-2.5-flash" if "2.5" in model_key else model_key)
-                if "nano-banana-pro" in model_key: real_model = "gemini-3-pro-image-preview"
-                elif "nano-banana" in model_key: real_model = "gemini-2.5-flash-image"
-                
-                config_params = {'temperature': 0.7}
-                if "nano" not in model_key:
-                    if options.get('enable_thinking'):
-                        config_params['thinking_config'] = types.ThinkingConfig(include_thoughts=True, thinking_budget=1024)
-                    if options.get('enable_search'): config_params['tools'] = [types.Tool(google_search=types.GoogleSearch())]
-                    if options.get('system_prompt'): config_params['system_instruction'] = options.get('system_prompt')
-                else: config_params['tools'] = None
-
-                contents = []
-                for m in history:
-                    parts = [types.Part(text=m.content)]
-                    if m.image_url:
-                        try:
-                            for h_img in json.loads(m.image_url):
-                                h_path = os.path.join(app.config['UPLOAD_FOLDER'], h_img)
-                                if os.path.exists(h_path): 
-                                    # Fix: Detect MIME type for history files
-                                    mime_type = mimetypes.guess_type(h_path)[0] or 'image/webp'
-                                    with open(h_path, 'rb') as f: parts.append(types.Part.from_bytes(data=f.read(), mime_type=mime_type))
-                        except: pass
-                    contents.append(types.Content(role='model' if m.role == 'assistant' else 'user', parts=parts))
-                
-                curr_parts = [types.Part(text=message_text)]
-                for fi in loaded_files:
-                    if fi['text']: curr_parts.append(types.Part(text=f"\n\nFile: {fi['name']}\n{fi['text']}"))
-                    elif fi['bytes']: curr_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime'] if fi['mime']!='application/octet-stream' else 'image/webp'))
-                contents.append(types.Content(role='user', parts=curr_parts))
-                
-                stream = gemini_client.models.generate_content_stream(model=real_model, contents=contents, config=types.GenerateContentConfig(**config_params))
-                for chunk in stream:
-                    if hasattr(chunk, 'candidates') and chunk.candidates:
-                        for part in chunk.candidates[0].content.parts:
-                            if hasattr(part, 'inline_data') and part.inline_data:
+                loaded_files = []
+                for fname in img_list:
+                    info = {'name': fname, 'text': None, 'bytes': None, 'mime': None, 'path': os.path.join(app.config['UPLOAD_FOLDER'], fname)}
+                    try:
+                        if os.path.exists(info['path']):
+                            info['mime'] = mimetypes.guess_type(info['path'])[0] or 'application/octet-stream'
+                            if fname.lower().endswith('.pdf'): info['mime'] = 'application/pdf'
+                            
+                            if fname.lower().endswith('.pdf'):
                                 try:
-                                    user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
-                                    if not os.path.exists(user_dir): os.makedirs(user_dir, exist_ok=True)
-                                    fn = f"gen_{int(time.time())}_{len(generated_images)}.png"
-                                    Image.open(BytesIO(part.inline_data.data)).save(os.path.join(user_dir, fn))
-                                    db_path = f"{user_id}/{fn}"
-                                    generated_images.append(db_path)
-                                    img_md = f"\n\n![Generated Image](/static/uploads/{db_path})\n"
-                                    full_res += img_md
-                                    publish_chunk("content", img_md)
+                                    reader = pypdf.PdfReader(info['path'])
+                                    extracted = ""
+                                    for page in reader.pages: extracted += page.extract_text() + "\n"
+                                    info['text'] = extracted[:50000]
                                 except: pass
                             
-                            if hasattr(part, 'thought_signature') and part.thought_signature:
+                            is_img = fname.endswith(('.webp','.png','.jpg','.jpeg','.gif','.mp4'))
+                            if not is_img and not info['text']:
                                 try:
-                                    collected_signatures['signature'] = base64.b64encode(part.thought_signature).decode('utf-8')
+                                    with open(info['path'], 'r', encoding='utf-8', errors='ignore') as f: info['text'] = f.read()
                                 except: pass
+                            
+                            if not info['text']:
+                                with open(info['path'], 'rb') as f: info['bytes'] = f.read()
+                            loaded_files.append(info)
+                    except: pass
 
-                            tt = part.thought if hasattr(part, 'thought') and part.thought else None
-                            if tt: 
-                                thought_accumulated += (tt if isinstance(tt, str) else "")
-                                publish_chunk("thought", tt if isinstance(tt, str) else "")
-                            if part.text: 
-                                full_res += part.text
-                                publish_chunk("content", part.text)
-            else:
-                client = xai_client_std if is_grok else openai_client
-                msgs = []
-                if options.get('system_prompt'): msgs.append({"role": "system", "content": options.get('system_prompt')})
-                for m in history: msgs.append({"role": m.role, "content": m.content})
+                full_res, thought_accumulated, generated_images = "", "", []
+                collected_signatures = {}
                 
-                content_list = [{"type": "text", "text": message_text}]
-                for fi in loaded_files:
-                    if fi['text']: content_list[0]['text'] += f"\n\n[File: {fi['name']}]\n{fi['text']}"
-                    elif fi['mime'].startswith('image/'):
-                        content_list.append({"type": "image_url", "image_url": {"url": f"data:{fi['mime']};base64,{base64.b64encode(fi['bytes']).decode('utf-8')}"}})
-                msgs.append({"role": "user", "content": content_list})
-                
-                kwargs = {"model": model_key, "messages": msgs, "stream": True}
-                if is_grok and options.get('enable_search'): kwargs["extra_body"] = {"search_parameters": {"mode": "on"}}
-                if options.get('reasoning_effort') and not is_grok: kwargs['reasoning_effort'] = options.get('reasoning_effort')
-                
-                stream = client.chat.completions.create(**kwargs)
-                for chunk in stream:
-                    delta = chunk.choices[0].delta
-                    if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
-                        thought_accumulated += delta.reasoning_content
-                        publish_chunk("thought", delta.reasoning_content)
-                    if delta.content:
-                        full_res += delta.content
-                        publish_chunk("content", delta.content)
+                if is_gemini:
+                    real_model = "gemini-3-pro-preview" if "3.0" in model_key else ("gemini-2.5-flash" if "2.5" in model_key else model_key)
+                    if "nano-banana-pro" in model_key: real_model = "gemini-3-pro-image-preview"
+                    elif "nano-banana" in model_key: real_model = "gemini-2.5-flash-image"
+                    
+                    config_params = {'temperature': 0.7}
+                    if "nano" not in model_key:
+                        if options.get('enable_thinking'):
+                            config_params['thinking_config'] = types.ThinkingConfig(include_thoughts=True, thinking_budget=1024)
+                        if options.get('enable_search'): config_params['tools'] = [types.Tool(google_search=types.GoogleSearch())]
+                        if options.get('system_prompt'): config_params['system_instruction'] = options.get('system_prompt')
+                        
+                        if options.get('safety_setting') == 'none':
+                            config_params['safety_settings'] = [
+                                types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
+                                types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
+                                types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
+                                types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE")
+                            ]
+                    else: config_params['tools'] = None
 
-            t_data_obj = {'text': thought_accumulated}
-            if collected_signatures: t_data_obj['signatures'] = collected_signatures
-            
-            msg_entry = Message(
-                thread_id=thread_id, 
-                role='assistant', 
-                content=full_res, 
-                model=model_key, 
-                image_url=json.dumps(generated_images) if generated_images else None, 
-                thought_data=json.dumps(t_data_obj) if thought_accumulated else None
-            )
-            db.session.add(msg_entry)
-            Thread.query.get(thread_id).updated_at = datetime.utcnow()
-            db.session.commit()
-            publish_chunk("done", "OK")
-        except Exception as e:
-            logger.error(f"Worker Error: {e}")
-            publish_chunk("error", str(e))
+                    contents = []
+                    for m in history:
+                        parts = [types.Part(text=m.content)]
+                        if m.image_url:
+                            try:
+                                for h_img in json.loads(m.image_url):
+                                    h_path = os.path.join(app.config['UPLOAD_FOLDER'], h_img)
+                                    if os.path.exists(h_path): 
+                                        mime_type = mimetypes.guess_type(h_path)[0] or 'image/webp'
+                                        with open(h_path, 'rb') as f: parts.append(types.Part.from_bytes(data=f.read(), mime_type=mime_type))
+                            except: pass
+                        contents.append(types.Content(role='model' if m.role == 'assistant' else 'user', parts=parts))
+                    
+                    curr_parts = [types.Part(text=message_text)]
+                    for fi in loaded_files:
+                        if fi['text']: curr_parts.append(types.Part(text=f"\n\nFile: {fi['name']}\n{fi['text']}"))
+                        elif fi['bytes']: curr_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime'] if fi['mime']!='application/octet-stream' else 'image/webp'))
+                    contents.append(types.Content(role='user', parts=curr_parts))
+                    
+                    stream = gemini_client.models.generate_content_stream(model=real_model, contents=contents, config=types.GenerateContentConfig(**config_params))
+                    for chunk in stream:
+                        if hasattr(chunk, 'candidates') and chunk.candidates:
+                            for part in chunk.candidates[0].content.parts:
+                                if hasattr(part, 'inline_data') and part.inline_data:
+                                    try:
+                                        user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
+                                        if not os.path.exists(user_dir): os.makedirs(user_dir, exist_ok=True)
+                                        fn = f"gen_{int(time.time())}_{len(generated_images)}.png"
+                                        Image.open(BytesIO(part.inline_data.data)).save(os.path.join(user_dir, fn))
+                                        db_path = f"{user_id}/{fn}"
+                                        generated_images.append(db_path)
+                                        img_md = f"\n\n![Generated Image](/static/uploads/{db_path})\n"
+                                        full_res += img_md
+                                        publish_chunk("content", img_md)
+                                    except: pass
+                                
+                                if hasattr(part, 'thought_signature') and part.thought_signature:
+                                    try: collected_signatures['signature'] = base64.b64encode(part.thought_signature).decode('utf-8')
+                                    except: pass
+
+                                tt = part.thought if hasattr(part, 'thought') and part.thought else None
+                                if tt: 
+                                    thought_accumulated += (tt if isinstance(tt, str) else "")
+                                    publish_chunk("thought", tt if isinstance(tt, str) else "")
+                                if part.text: 
+                                    full_res += part.text
+                                    publish_chunk("content", part.text)
+                else:
+                    client = xai_client_std if is_grok else openai_client
+                    msgs = []
+                    if options.get('system_prompt'): msgs.append({"role": "system", "content": options.get('system_prompt')})
+                    for m in history: msgs.append({"role": m.role, "content": m.content})
+                    
+                    content_list = [{"type": "text", "text": message_text}]
+                    for fi in loaded_files:
+                        if fi['text']: content_list[0]['text'] += f"\n\n[File: {fi['name']}]\n{fi['text']}"
+                        elif fi['mime'].startswith('image/'):
+                            content_list.append({"type": "image_url", "image_url": {"url": f"data:{fi['mime']};base64,{base64.b64encode(fi['bytes']).decode('utf-8')}"}})
+                    msgs.append({"role": "user", "content": content_list})
+                    
+                    kwargs = {"model": model_key, "messages": msgs, "stream": True}
+                    if is_grok and options.get('enable_search'): kwargs["extra_body"] = {"search_parameters": {"mode": "on"}}
+                    if options.get('reasoning_effort') and not is_grok: kwargs['reasoning_effort'] = options.get('reasoning_effort')
+                    
+                    stream = client.chat.completions.create(**kwargs)
+                    for chunk in stream:
+                        delta = chunk.choices[0].delta
+                        if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                            thought_accumulated += delta.reasoning_content
+                            publish_chunk("thought", delta.reasoning_content)
+                        if delta.content:
+                            full_res += delta.content
+                            publish_chunk("content", delta.content)
+
+                t_data_obj = {'text': thought_accumulated}
+                if collected_signatures: t_data_obj['signatures'] = collected_signatures
+                
+                msg_entry = Message(
+                    thread_id=thread_id, 
+                    role='assistant', 
+                    content=full_res, 
+                    model=model_key, 
+                    image_url=json.dumps(generated_images) if generated_images else None, 
+                    thought_data=json.dumps(t_data_obj) if thought_accumulated else None,
+                    tokens=count_tokens(full_res)
+                )
+                db.session.add(msg_entry)
+                Thread.query.get(thread_id).updated_at = datetime.utcnow()
+                safe_db_commit()
+                publish_chunk("done", "OK")
+            except Exception as e:
+                logger.error(f"Worker Error: {e}")
+                publish_chunk("error", str(e))
 
 @app.route('/')
 def index():
@@ -477,8 +505,9 @@ def upload():
             fname = f"{fname_base}{ext}"
             save_path = os.path.join(ud, fname)
             
+            # V2.9.8 Fix: Only compress if NOT already webp (client-side compressed)
             is_image = ext in ['.jpg', '.jpeg', '.png']
-            if is_image:
+            if is_image and not orig_name.endswith('.webp'):
                 try:
                     Image.open(f).convert('RGB').save(os.path.join(ud, f"{fname_base}.webp"), 'WEBP', quality=80)
                     fname = f"{fname_base}.webp"
@@ -501,7 +530,15 @@ def chat_stream():
     job_id = str(uuid.uuid4())
     sys_prompt = data.get('system_prompt') 
     if not sys_prompt and data.get('enable_system_prompt'): sys_prompt = current_user.system_prompt
-    options = {'enable_search': data.get('enable_search', False), 'enable_thinking': data.get('enable_thinking', False), 'reasoning_effort': data.get('reasoning_effort', 'medium'), 'system_prompt': sys_prompt}
+    
+    options = {
+        'enable_search': data.get('enable_search', False), 
+        'enable_thinking': data.get('enable_thinking', False), 
+        'reasoning_effort': data.get('reasoning_effort', 'medium'), 
+        'system_prompt': sys_prompt,
+        'safety_setting': data.get('safety_setting', 'default')
+    }
+    
     api_keys = {'openai': get_key_for_user(current_user, 'OPENAI_API_KEY'), 'gemini': get_key_for_user(current_user, 'GEMINI_API_KEY'), 'xai': get_key_for_user(current_user, 'XAI_API_KEY')}
     task_queue.enqueue(background_chat_task, job_id, data.get('thread_id'), data.get('model'), data.get('message'), data.get('image_urls', []), options, api_keys, current_user.id, job_timeout=600)
     

@@ -121,7 +121,6 @@ def verify_turnstile(token):
         return res.json().get('success', False)
     except: return False
 
-# --- Worker Logic (Fixed V2.8.1) ---
 def background_chat_task(job_id, thread_id, model_key, message_text, img_list, options, api_keys, user_id):
     with app.app_context():
         channel = f"ai_chat:channel:{job_id}"
@@ -147,13 +146,12 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                         info['mime'] = mimetypes.guess_type(info['path'])[0] or 'application/octet-stream'
                         if fname.lower().endswith('.pdf'): info['mime'] = 'application/pdf'
                         
-                        # Try extracting text from PDF (Fixed)
                         if fname.lower().endswith('.pdf'):
                             try:
                                 reader = pypdf.PdfReader(info['path'])
                                 extracted = ""
                                 for page in reader.pages: extracted += page.extract_text() + "\n"
-                                info['text'] = extracted[:50000] # Limit char count
+                                info['text'] = extracted[:50000]
                             except: pass
                         
                         is_img = fname.endswith(('.webp','.png','.jpg','.jpeg','.gif','.mp4'))
@@ -168,7 +166,8 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                 except: pass
 
             full_res, thought_accumulated, generated_images = "", "", []
-            
+            collected_signatures = {} # V2.9.2: Added back
+
             if is_gemini:
                 real_model = "gemini-3-pro-preview" if "3.0" in model_key else ("gemini-2.5-flash" if "2.5" in model_key else model_key)
                 if "nano-banana-pro" in model_key: real_model = "gemini-3-pro-image-preview"
@@ -204,7 +203,6 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                 for chunk in stream:
                     if hasattr(chunk, 'candidates') and chunk.candidates:
                         for part in chunk.candidates[0].content.parts:
-                            # Image Generation Handling (Fixed)
                             if hasattr(part, 'inline_data') and part.inline_data:
                                 try:
                                     user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
@@ -213,10 +211,15 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                                     Image.open(BytesIO(part.inline_data.data)).save(os.path.join(user_dir, fn))
                                     db_path = f"{user_id}/{fn}"
                                     generated_images.append(db_path)
-                                    # Insert image markdown into stream
                                     img_md = f"\n\n![Generated Image](/static/uploads/{db_path})\n"
                                     full_res += img_md
                                     publish_chunk("content", img_md)
+                                except: pass
+                            
+                            # V2.9.2: Capture Signature
+                            if hasattr(part, 'thought_signature') and part.thought_signature:
+                                try:
+                                    collected_signatures['signature'] = base64.b64encode(part.thought_signature).decode('utf-8')
                                 except: pass
 
                             tt = part.thought if hasattr(part, 'thought') and part.thought else None
@@ -234,7 +237,6 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                 
                 content_list = [{"type": "text", "text": message_text}]
                 for fi in loaded_files:
-                    # PDF or Text file handling for GPT/Grok (Fixed)
                     if fi['text']: content_list[0]['text'] += f"\n\n[File: {fi['name']}]\n{fi['text']}"
                     elif fi['mime'].startswith('image/'):
                         content_list.append({"type": "image_url", "image_url": {"url": f"data:{fi['mime']};base64,{base64.b64encode(fi['bytes']).decode('utf-8')}"}})
@@ -254,7 +256,18 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                         full_res += delta.content
                         publish_chunk("content", delta.content)
 
-            msg_entry = Message(thread_id=thread_id, role='assistant', content=full_res, model=model_key, image_url=json.dumps(generated_images) if generated_images else None, thought_data=json.dumps({'text': thought_accumulated}) if thought_accumulated else None)
+            # V2.9.2: Save signatures in thought_data
+            t_data_obj = {'text': thought_accumulated}
+            if collected_signatures: t_data_obj['signatures'] = collected_signatures
+            
+            msg_entry = Message(
+                thread_id=thread_id, 
+                role='assistant', 
+                content=full_res, 
+                model=model_key, 
+                image_url=json.dumps(generated_images) if generated_images else None, 
+                thought_data=json.dumps(t_data_obj) if thought_accumulated else None
+            )
             db.session.add(msg_entry)
             Thread.query.get(thread_id).updated_at = datetime.utcnow()
             db.session.commit()

@@ -673,6 +673,10 @@
                     if(!isUserScrolling) get('chat-container').scrollTop = get('chat-container').scrollHeight;
                 }
                 messageStore[aiDivId] = accumulatedText;
+                // V2.9.2: Append Model Name
+                const modelName = get('model-select').value;
+                aiDiv.insertAdjacentHTML('beforeend', `<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">${modelName}</div>`);
+    
                 loadThreads();
             } catch(e) { 
                 if(e.name !== 'AbortError') aiDiv.innerHTML += '<div class="text-red-400">Connection Error</div>'; 

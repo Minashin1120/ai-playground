@@ -245,7 +245,25 @@
                     </div>
                 </div>
                 <div class="bg-gray-900 p-4 rounded border border-gray-700">
-                    <h3 class="text-sm font-bold text-green-400 mb-2">APIキー</h3>
+                    <h3 class="text-sm font-bold text-purple-400 mb-2">セキュリティ</h3>
+                <div class="space-y-4 mb-6 bg-gray-900/50 p-3 rounded border border-gray-700">
+                    <div>
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="set-e2ee" class="rounded bg-gray-800 border-gray-600 text-purple-500">
+                            <span class="text-xs font-bold text-gray-300">チャット内容の暗号化 (E2EE)</span>
+                            <span class="bg-orange-500/20 text-orange-500 text-[9px] px-1 rounded font-bold border border-orange-500/30">ALPHA</span><span class="bg-blue-500/20 text-blue-400 text-[9px] px-1 rounded font-bold border border-blue-500/30 ml-1">NEW</span>
+                        </label>
+                        <p class="text-[9px] text-gray-500 mt-1 ml-6">履歴をAES暗号化して保存します。</p>
+                    </div>
+                    <div>
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="set-secure-files" class="rounded bg-gray-800 border-gray-600 text-purple-500">
+                            <span class="text-xs font-bold text-gray-300">ファイルの隔離 (File Isolation)</span>
+                            <span class="bg-orange-500/20 text-orange-500 text-[9px] px-1 rounded font-bold border border-orange-500/30">ALPHA</span><span class="bg-blue-500/20 text-blue-400 text-[9px] px-1 rounded font-bold border border-blue-500/30 ml-1">NEW</span>
+                        </label>
+                        <p class="text-[9px] text-gray-500 mt-1 ml-6">URL直叩きを防止し、認証済みユーザーのみに制限します。</p>
+                    </div>
+                </div><h3 class="text-sm font-bold text-green-400 mb-2">APIキー</h3>
                     <div class="space-y-3">
                         <div><label class="text-xs text-gray-500 block">OpenAI API Key</label><input type="password" id="set-openai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
                         <div><label class="text-xs text-gray-500 block">Gemini API Key</label><input type="password" id="set-gemini" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
@@ -469,12 +487,12 @@
                     get('set-username').value = d.username;
                     get('set-openai').value = d.openai_key;
                     get('set-gemini').value = d.gemini_key;
-                    get('set-xai').value = d.xai_key;
+                    get('set-xai').value = d.xai_key; get('set-e2ee').checked = d.use_e2ee; get('set-secure-files').checked = d.use_secure_files;
                 });
             };
             get('close-settings-btn').onclick = () => get('settings-modal').style.display='none';
             get('save-settings-btn').onclick = async () => {
-                await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({system_prompt:get('sys-prompt-text').value, new_username:get('set-username').value, new_password:get('set-password').value, openai_key:get('set-openai').value, gemini_key:get('set-gemini').value, xai_key:get('set-xai').value})});
+                await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({system_prompt:get('sys-prompt-text').value, new_username:get('set-username').value, new_password:get('set-password').value, openai_key:get('set-openai').value, gemini_key:get('set-gemini').value, xai_key:get('set-xai').value, use_e2ee:get('set-e2ee').checked, use_secure_files:get('set-secure-files').checked})});
                 get('settings-modal').style.display='none';
                 location.reload();
             };

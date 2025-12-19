@@ -53,7 +53,28 @@
 
             <div id="step-2" class="hidden space-y-6">
                 <div><h3 class="text-lg font-bold mb-1">APIキーの設定</h3><p class="text-sm text-gray-400">ご自身のAPIキーを入力してください。</p></div>
-                <div class="space-y-4">
+                <div class="bg-gray-900/50 p-4 rounded border border-gray-700 mb-6">
+                    <h4 class="text-xs font-bold text-blue-400 mb-3 flex items-center"><i class="fas fa-shield-alt mr-2"></i> セキュリティ設定</h4>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="flex items-center space-x-2 cursor-pointer">
+                                <input type="checkbox" name="use_e2ee" class="rounded bg-gray-800 border-gray-600 text-green-500">
+                                <span class="text-sm font-bold">チャット内容の暗号化 (E2EE)</span>
+                                <span class="bg-orange-500/20 text-orange-500 text-[9px] px-1 rounded font-bold border border-orange-500/30">ALPHA</span><span class="bg-blue-500/20 text-blue-400 text-[9px] px-1 rounded font-bold border border-blue-500/30 ml-1">NEW</span>
+                            </label>
+                            <p class="text-[10px] text-gray-500 mt-1 ml-6">データベース内の履歴を暗号化。管理者も閲覧不可になりますが、本文検索が制限されます。</p>
+                        </div>
+                        <div>
+                            <label class="flex items-center space-x-2 cursor-pointer">
+                                <input type="checkbox" name="use_secure_files" class="rounded bg-gray-800 border-gray-600 text-green-500">
+                                <span class="text-sm font-bold">ファイルの隔離 (File Isolation)</span>
+                                <span class="bg-orange-500/20 text-orange-500 text-[9px] px-1 rounded font-bold border border-orange-500/30">ALPHA</span><span class="bg-blue-500/20 text-blue-400 text-[9px] px-1 rounded font-bold border border-blue-500/30 ml-1">NEW</span>
+                            </label>
+                            <p class="text-[10px] text-gray-500 mt-1 ml-6">ファイルを非公開領域へ保存。URLの直接アクセスを防止し、認証を必須にします。</p>
+                        </div>
+                    </div>
+                </div>
+<div class="space-y-4">
                     <div><label class="block text-xs text-gray-500 mb-1">OpenAI API Key</label><input type="password" name="openai_key" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="sk-..."></div>
                     <div><label class="block text-xs text-gray-500 mb-1">Gemini API Key</label><input type="password" name="gemini_key" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="AIza..."></div>
                     <div><label class="block text-xs text-gray-500 mb-1">xAI API Key</label><input type="password" name="xai_key" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="xai-..."></div>

@@ -220,7 +220,7 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                 collected_signatures = {}
                 
                 if is_gemini:
-                    real_model = "gemini-3-pro-preview" if "3.0" in model_key else ("gemini-2.5-flash" if "2.5" in model_key else model_key)
+                    real_model = "gemini-3-flash-preview" if "3-flash" in model_key else ("gemini-3-pro-preview" if "3.0" in model_key else ("gemini-2.5-flash" if "2.5" in model_key else model_key))
                     if "nano-banana-pro" in model_key: real_model = "gemini-3-pro-image-preview"
                     elif "nano-banana" in model_key: real_model = "gemini-2.5-flash-image"
                     

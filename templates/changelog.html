@@ -6,6 +6,7 @@
     <title>更新履歴 - AI Chat</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body { background-color: #111827; color: #f3f4f6; }
@@ -13,6 +14,7 @@
         .markdown-body p { margin-bottom: 0.5em; color: #9ca3af; font-size: 0.9rem; }
         .markdown-body ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1em; color: #d1d5db; }
         .markdown-body strong { color: #fff; }
+        .raw-content { display: none; } /* 生テキストは隠す */
     </style>
 </head>
 <body class="bg-gray-900 min-h-screen p-6 md:p-12">
@@ -36,9 +38,9 @@
                 
                 <!-- Content -->
                 <div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg hover:border-blue-500/50 transition duration-300">
-                    <div class="markdown-body">
-                        {{ log.content | safe }}
-                    </div>
+                    <!-- Raw content hidden, processed by JS -->
+                    <div class="raw-content">{{ log.content }}</div>
+                    <div class="markdown-body"></div>
                 </div>
             </div>
             {% endfor %}
@@ -48,5 +50,16 @@
             End of History
         </div>
     </div>
+    <script>
+        // クライアントサイドでMarkdownをレンダリング
+        document.addEventListener('DOMContentLoaded', () => {
+            const entries = document.querySelectorAll('.group');
+            entries.forEach(entry => {
+                const raw = entry.querySelector('.raw-content').innerText;
+                const target = entry.querySelector('.markdown-body');
+                target.innerHTML = DOMPurify.sanitize(marked.parse(raw));
+            });
+        });
+    </script>
 </body>
 </html>

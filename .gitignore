@@ -1,46 +1,18 @@
-# Secrets (最重要)
+# Secrets
 .env
-.env.*
-*.key
-*.pem
-
-# Python
+secret.key
+venv/
 __pycache__/
 *.py[cod]
-*$py.class
-venv/
-env/
-.venv/
-*.egg-info/
+*.bak*
 
-# User Data & Uploads
-static/uploads/*
-!static/uploads/.gitkeep
-!static/uploads/.htaccess
-!static/legal/
-
-# Database
-*.db
-*.sqlite3
+# Data & Static
 instance/
+static/uploads/*
+!static/uploads/.htaccess
+!static/uploads/legal/
+!static/uploads/changelogs/
 
-# Logs
+# OS & Logs
 *.log
-access.log
-error.log
-
-# Garbage & Backups (今回追加)
-backups/
-backups_*/
-*.bak
-*.bak_*
-*.broken.*
-*.syntax_error.*
-migrate_files_*.py
-templates/*.broken_*
-templates/*.bak*
-*.swp
-
-# OS
 .DS_Store
-Thumbs.db

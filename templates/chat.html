@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V2.9.1)</title>
+    <title>AI Playground (V2.9.3)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
-    <!-- Highlight.js -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -21,7 +20,6 @@
         .prose ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 1em; }
         .prose a { color: #60a5fa; text-decoration: underline; }
         
-        /* Code Block Styling */
         .code-wrapper { margin: 1em 0; border-radius: 0.5rem; border: 1px solid #374151; overflow: hidden; background: #282c34; }
         .code-header { display: flex; justify-content: space-between; align-items: center; background: #21252b; padding: 0.3rem 0.8rem; font-size: 0.75rem; color: #9ca3af; border-bottom: 1px solid #181a1f; }
         .code-lang { font-weight: bold; text-transform: uppercase; }
@@ -31,7 +29,6 @@
         .prose code { font-family: Consolas, Monaco, 'Andale Mono', monospace; font-size: 0.9em; background: transparent !important; padding: 1em !important; display: block; line-height: 1.5; }
         .prose :not(pre) > code { background: #374151 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.3rem !important; color: #e2e8f0 !important; display: inline; }
 
-        /* Collapsible Thinking Box */
         .thought-container { margin-bottom: 1rem; border-radius: 0.375rem; overflow: hidden; border: 1px solid #4b5563; max-width: 100%; }
         .thought-header { 
             background: #374151; padding: 0.5rem; font-size: 0.75rem; color: #9ca3af; 
@@ -43,7 +40,7 @@
             background: #1f2937; padding: 0.75rem; font-size: 0.85rem; color: #d8b4fe; 
             white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; 
             font-family: monospace; max-height: 300px; overflow-y: auto; overflow-x: hidden;
-            display: block; /* Default open */
+            display: block; 
         }
         .thought-content.collapsed { display: none; }
         
@@ -113,7 +110,7 @@
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
         <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500">
-            <div id="version-display" class="cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.9.1 <span class="text-orange-500 font-bold">FINAL</span></div>
+            <div id="version-display" class="cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.9.3 <span class="text-orange-500 font-bold">POLISHED</span></div>
             <div class="flex justify-center gap-3">
                 <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
                 <span class="text-gray-700">|</span>
@@ -202,7 +199,7 @@
         </div>
     </div>
 
-    <!-- Modals (Gem, Lib, Settings, Legal, Alpha) -->
+    <!-- Modals -->
     <div id="gem-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-lg p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh]">
             <h2 class="text-xl font-bold text-white mb-4"><i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem</h2>
@@ -263,6 +260,7 @@
         </div>
     </div>
 
+    <!-- Legal Modal -->
     <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh]">
             <h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">利用規約</h2>
@@ -275,6 +273,7 @@
         </div>
     </div>
 
+    <!-- Alpha Info Modal -->
     <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4">
             <h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2>
@@ -302,8 +301,16 @@
             if (!text) return text;
             return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
         }
+        function log(msg) { 
+            console.log(msg); 
+            const d = get('debug-content');
+            if(d) d.innerHTML += '<div>'+escapeHtml(msg)+'</div>';
+        }
+        function toggleDebug() { 
+            const c=get('debug-console'); 
+            c.style.display = c.style.display==='none' ? 'block' : 'none'; 
+        }
         
-        // Collapsible Thinking Logic
         window.toggleThinking = function(header) {
             const content = header.nextElementSibling;
             if (content) {
@@ -384,6 +391,9 @@
                 const codeEncoded = encodeURIComponent(code);
                 return `<div class="code-wrapper"><div class="code-header"><span class="code-lang">${escapeHtml(lang)||'TEXT'}</span><button class="copy-btn" onclick="copyCode(this, '${codeEncoded}')"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="hljs language-${escapeHtml(lang)}">${highlighted}</code></pre></div>`;
             };
+            renderer.link = function(href, title, text) {
+                return `<a href="${href}" title="${title || ''}" target="_blank">${text}</a>`;
+            };
             marked.use({ renderer: renderer, breaks: true, gfm: true });
 
             loadThreads(); loadGems();
@@ -393,6 +403,7 @@
             get('mobile-new-chat-btn').onclick = () => startNewChat();
             get('send-btn').onclick = sendMessage;
             get('stop-btn').onclick = () => { if(abortController) abortController.abort(); };
+            
             get('add-gem-btn').onclick = () => get('gem-modal').style.display='flex';
             get('save-gem-btn').onclick = createGem;
             
@@ -491,6 +502,7 @@
             const thinkContainer = get('thinking-option');
             const thinkChk = get('enable-thinking');
             const reason = get('reasoning-effort-container');
+            
             if(thinkContainer) thinkContainer.classList.add('hidden');
             if(reason) reason.classList.add('hidden');
             if(thinkChk) thinkChk.disabled = false;
@@ -546,7 +558,13 @@
             get('sys-prompt-option').style.opacity = '1';
         }
         function startNewChat() {
-            currentThreadId = null; clearActiveGem(); get('chat-container').innerHTML = ''; get('welcome-screen').classList.remove('hidden'); loadThreads();
+            if(abortController) abortController.abort(); // Fix: Safety Abort
+            currentThreadId = null; 
+            clearActiveGem(); 
+            get('chat-container').innerHTML = ''; 
+            get('welcome-screen').classList.remove('hidden'); 
+            get('clear-file-btn').click(); // Fix: Reset files
+            loadThreads();
             if(window.innerWidth < 768) get('overlay').click();
         }
         async function loadThreads() {
@@ -581,6 +599,7 @@
             if(currentThreadId === id) startNewChat(); else loadThreads();
         }
         async function loadMessages(tid) {
+            if(abortController) abortController.abort(); // Fix: Safety Abort
             currentThreadId = tid; clearActiveGem(); get('welcome-screen').classList.add('hidden');
             get('chat-container').innerHTML = '<div class="text-center mt-10"><i class="fas fa-spinner fa-spin text-blue-500"></i></div>';
             const res = await fetch('/api/threads/' + tid);
@@ -673,10 +692,11 @@
                     if(!isUserScrolling) get('chat-container').scrollTop = get('chat-container').scrollHeight;
                 }
                 messageStore[aiDivId] = accumulatedText;
-                // V2.9.2: Append Model Name
+                
+                // V2.9.2 Append Model Name
                 const modelName = get('model-select').value;
                 aiDiv.insertAdjacentHTML('beforeend', `<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">${modelName}</div>`);
-    
+                
                 loadThreads();
             } catch(e) { 
                 if(e.name !== 'AbortError') aiDiv.innerHTML += '<div class="text-red-400">Connection Error</div>'; 
@@ -753,8 +773,15 @@
             for(let f of files) { const fd = new FormData(); fd.append('file', f); const r = await fetch('/upload', {method:'POST', body:fd}); const d = await r.json(); if(d.filename) currentImageUrls.push(d.filename); }
             get('file-name').innerText = `${currentImageUrls.length} files`; get('file-input').value = '';
         }
-        get('clear-file-btn').onclick = () => { currentImageUrls=[]; get('file-input').value = ''; get('file-preview').classList.add('hidden'); };
         
+        // Fixed: Reset file input value
+        get('clear-file-btn').onclick = () => { 
+            currentImageUrls=[]; 
+            get('file-input').value = ''; 
+            get('file-preview').classList.add('hidden'); 
+        };
+        
+        // Fixed: Library Overlay Logic
         async function loadLibraryFiles() {
             const r = await fetch('/api/files'); const files = await r.json();
             const grid = get('lib-grid'); grid.innerHTML = ''; get('lib-total-count').innerText = files.length + " files";

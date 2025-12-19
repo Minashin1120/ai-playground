@@ -189,7 +189,9 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                             for h_img in json.loads(m.image_url):
                                 h_path = os.path.join(app.config['UPLOAD_FOLDER'], h_img)
                                 if os.path.exists(h_path): 
-                                    with open(h_path, 'rb') as f: parts.append(types.Part.from_bytes(data=f.read(), mime_type='image/webp'))
+                                    # Fix: Detect MIME type for history files
+                                    mime_type = mimetypes.guess_type(h_path)[0] or 'image/webp'
+                                    with open(h_path, 'rb') as f: parts.append(types.Part.from_bytes(data=f.read(), mime_type=mime_type))
                         except: pass
                     contents.append(types.Content(role='model' if m.role == 'assistant' else 'user', parts=parts))
                 
@@ -459,7 +461,6 @@ def delete_files_batch():
             except: pass
     return jsonify({'status': 'ok'})
 
-# Upload with WebP Conversion Restored (V2.9.5)
 @app.route('/upload', methods=['POST'])
 @login_required
 def upload():
@@ -479,12 +480,10 @@ def upload():
             is_image = ext in ['.jpg', '.jpeg', '.png']
             if is_image:
                 try:
-                    # WebP Conversion Logic
                     Image.open(f).convert('RGB').save(os.path.join(ud, f"{fname_base}.webp"), 'WEBP', quality=80)
                     fname = f"{fname_base}.webp"
                     res.append(f"{current_user.id}/{fname}")
                 except:
-                    # Fallback to original
                     f.seek(0)
                     f.save(save_path)
                     res.append(f"{current_user.id}/{fname}")

@@ -166,7 +166,7 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                 except: pass
 
             full_res, thought_accumulated, generated_images = "", "", []
-            collected_signatures = {} # V2.9.2: Added back
+            collected_signatures = {}
 
             if is_gemini:
                 real_model = "gemini-3-pro-preview" if "3.0" in model_key else ("gemini-2.5-flash" if "2.5" in model_key else model_key)
@@ -216,7 +216,6 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                                     publish_chunk("content", img_md)
                                 except: pass
                             
-                            # V2.9.2: Capture Signature
                             if hasattr(part, 'thought_signature') and part.thought_signature:
                                 try:
                                     collected_signatures['signature'] = base64.b64encode(part.thought_signature).decode('utf-8')
@@ -256,7 +255,6 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                         full_res += delta.content
                         publish_chunk("content", delta.content)
 
-            # V2.9.2: Save signatures in thought_data
             t_data_obj = {'text': thought_accumulated}
             if collected_signatures: t_data_obj['signatures'] = collected_signatures
             
@@ -461,6 +459,7 @@ def delete_files_batch():
             except: pass
     return jsonify({'status': 'ok'})
 
+# Upload with WebP Conversion Restored (V2.9.5)
 @app.route('/upload', methods=['POST'])
 @login_required
 def upload():
@@ -471,9 +470,28 @@ def upload():
     res = []
     for f in files:
         if f.filename:
-            fn = f"{int(time.time())}_{os.urandom(4).hex()}{os.path.splitext(secure_filename(f.filename))[1]}"
-            f.save(os.path.join(ud, fn))
-            res.append(f"{current_user.id}/{fn}")
+            orig_name = secure_filename(f.filename)
+            ext = os.path.splitext(orig_name)[1].lower()
+            fname_base = f"{int(time.time())}_{os.urandom(4).hex()}"
+            fname = f"{fname_base}{ext}"
+            save_path = os.path.join(ud, fname)
+            
+            is_image = ext in ['.jpg', '.jpeg', '.png']
+            if is_image:
+                try:
+                    # WebP Conversion Logic
+                    Image.open(f).convert('RGB').save(os.path.join(ud, f"{fname_base}.webp"), 'WEBP', quality=80)
+                    fname = f"{fname_base}.webp"
+                    res.append(f"{current_user.id}/{fname}")
+                except:
+                    # Fallback to original
+                    f.seek(0)
+                    f.save(save_path)
+                    res.append(f"{current_user.id}/{fname}")
+            else:
+                f.save(save_path)
+                res.append(f"{current_user.id}/{fname}")
+                
     return jsonify({'filename': res[0] if res else '', 'filenames': res})
 
 @app.route('/chat_stream', methods=['POST'])

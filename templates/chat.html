@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V2.9.8)</title>
+    <title>AI Playground (V3.4.0)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -72,7 +72,7 @@
     
 
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-orange-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-orange-400">
-        <i class="fas fa-exclamation-circle mr-1"></i> このアプリケーションはアルファバージョンです。
+        <i class="fas fa-check-circle mr-1"></i> System restored to V3.4.0 (Stable)
     </div>
 
     <div id="debug-console"><div id="debug-content"></div><button onclick="document.getElementById('debug-console').style.display='none'" style="position:absolute;top:5px;right:5px;color:#f55">✕</button></div>
@@ -86,7 +86,7 @@
                     <button onclick="toggleDebug()" class="text-gray-400 hover:text-yellow-400 p-1.5 rounded" title="Debug"><i class="fas fa-wrench text-xs"></i></button>
                     {% endif %}
                     <button onclick="location.href='/changelog'" class="text-gray-400 hover:text-white p-1.5 rounded" title="履歴"><i class="fas fa-history text-xs"></i></button>
-                    <a href="https://github.com/minashin1120/ai-chat" target="_blank" class="text-gray-400 hover:text-white p-1.5 rounded" title="GitHub Repository"><i class="fab fa-github text-xs"></i></a><button id="settings-btn" class="text-gray-400 hover:text-green-400 p-1.5 rounded" title="設定"><i class="fas fa-cog text-xs"></i></button>
+                    <button id="settings-btn" class="text-gray-400 hover:text-green-400 p-1.5 rounded" title="設定"><i class="fas fa-cog text-xs"></i></button>
                     <button id="lib-btn" class="text-gray-400 hover:text-blue-400 p-1.5 rounded" title="ライブラリ"><i class="fas fa-folder text-xs"></i></button>
                     <button id="new-chat-btn" class="text-gray-400 hover:text-white p-1.5 rounded bg-blue-600 hover:bg-blue-500" title="新規チャット"><i class="fas fa-plus text-xs"></i></button>
                 </div>
@@ -106,7 +106,7 @@
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
         <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500">
-            <div id="version-display" class="cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v2.9.8 <span class="text-orange-500 font-bold">INTEGRATED</span></div>
+            <div id="version-display" class="cursor-pointer hover:text-orange-400 transition" onclick="showAlphaInfo()">v3.4.0 <span class="text-orange-500 font-bold">REBUILD</span></div>
             <div class="flex justify-center gap-3">
                 <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
                 <span class="text-gray-700">|</span>
@@ -155,7 +155,6 @@
                 <div class="flex flex-wrap justify-between items-center text-xs text-gray-400 gap-2">
                     <select id="model-select" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 outline-none text-white max-w-[200px] truncate">
                         <optgroup label="Gemini">
-                            <option value="gemini-3-flash-preview" selected>Gemini 3 Flash (New)</option>
                             <option value="gemini-3.0-pro-preview">Gemini 3.0 Pro</option>
                             <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                         </optgroup>
@@ -245,25 +244,7 @@
                     </div>
                 </div>
                 <div class="bg-gray-900 p-4 rounded border border-gray-700">
-                    <h3 class="text-sm font-bold text-purple-400 mb-2">セキュリティ</h3>
-                <div class="space-y-4 mb-6 bg-gray-900/50 p-3 rounded border border-gray-700">
-                    <div>
-                        <label class="flex items-center space-x-2 cursor-pointer">
-                            <input type="checkbox" id="set-e2ee" class="rounded bg-gray-800 border-gray-600 text-purple-500">
-                            <span class="text-xs font-bold text-gray-300">チャット内容の暗号化 (E2EE)</span>
-                            <span class="bg-orange-500/20 text-orange-500 text-[9px] px-1 rounded font-bold border border-orange-500/30">ALPHA</span><span class="bg-blue-500/20 text-blue-400 text-[9px] px-1 rounded font-bold border border-blue-500/30 ml-1">NEW</span>
-                        </label>
-                        <p class="text-[9px] text-gray-500 mt-1 ml-6">履歴をAES暗号化して保存します。</p>
-                    </div>
-                    <div>
-                        <label class="flex items-center space-x-2 cursor-pointer">
-                            <input type="checkbox" id="set-secure-files" class="rounded bg-gray-800 border-gray-600 text-purple-500">
-                            <span class="text-xs font-bold text-gray-300">ファイルの隔離 (File Isolation)</span>
-                            <span class="bg-orange-500/20 text-orange-500 text-[9px] px-1 rounded font-bold border border-orange-500/30">ALPHA</span><span class="bg-blue-500/20 text-blue-400 text-[9px] px-1 rounded font-bold border border-blue-500/30 ml-1">NEW</span>
-                        </label>
-                        <p class="text-[9px] text-gray-500 mt-1 ml-6">URL直叩きを防止し、認証済みユーザーのみに制限します。</p>
-                    </div>
-                </div><h3 class="text-sm font-bold text-green-400 mb-2">APIキー</h3>
+                    <h3 class="text-sm font-bold text-green-400 mb-2">APIキー</h3>
                     <div class="space-y-3">
                         <div><label class="text-xs text-gray-500 block">OpenAI API Key</label><input type="password" id="set-openai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
                         <div><label class="text-xs text-gray-500 block">Gemini API Key</label><input type="password" id="set-gemini" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
@@ -487,12 +468,12 @@
                     get('set-username').value = d.username;
                     get('set-openai').value = d.openai_key;
                     get('set-gemini').value = d.gemini_key;
-                    get('set-xai').value = d.xai_key; get('set-e2ee').checked = d.use_e2ee; get('set-secure-files').checked = d.use_secure_files;
+                    get('set-xai').value = d.xai_key;
                 });
             };
             get('close-settings-btn').onclick = () => get('settings-modal').style.display='none';
             get('save-settings-btn').onclick = async () => {
-                await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({system_prompt:get('sys-prompt-text').value, new_username:get('set-username').value, new_password:get('set-password').value, openai_key:get('set-openai').value, gemini_key:get('set-gemini').value, xai_key:get('set-xai').value, use_e2ee:get('set-e2ee').checked, use_secure_files:get('set-secure-files').checked})});
+                await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({system_prompt:get('sys-prompt-text').value, new_username:get('set-username').value, new_password:get('set-password').value, openai_key:get('set-openai').value, gemini_key:get('set-gemini').value, xai_key:get('set-xai').value})});
                 get('settings-modal').style.display='none';
                 location.reload();
             };
@@ -532,7 +513,7 @@
             
             if(model.includes('gemini') || model.includes('nano')) {
                 if(thinkContainer) thinkContainer.classList.remove('hidden');
-                if(model.includes('gemini-3.0-pro') || model.includes('gemini-3-flash')) { if(thinkChk) { thinkChk.checked = true; thinkChk.disabled = true; } }
+                if(model.includes('gemini-3.0-pro')) { if(thinkChk) { thinkChk.checked = true; thinkChk.disabled = true; } }
             } else if(model.includes('gpt')) { if(reason) reason.classList.remove('hidden'); }
             checkSearchAvailability();
             checkSystemPromptAvailability();
@@ -821,12 +802,14 @@
                     try {
                         const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true };
                         get('file-name').innerText = "Compressing " + f.name + "...";
-                        fileToUpload = await imageCompression(f, options);
+                        // FIX: Restore file name after compression
+                        const compressedBlob = await imageCompression(f, options);
+                        fileToUpload = new File([compressedBlob], f.name, { type: compressedBlob.type, lastModified: Date.now() });
                     } catch (error) { console.error("Compression failed:", error); }
                 }
                 
                 const fd = new FormData(); 
-                fd.append('file', fileToUpload, f.name); 
+                fd.append('file', fileToUpload); 
                 
                 get('file-name').innerText = "Uploading " + f.name + "...";
                 const r = await fetch('/upload', {method:'POST', body:fd}); 

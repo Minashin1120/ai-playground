@@ -7,7 +7,8 @@ from app import app
 listen = ['ai_chat_queue']
 
 if __name__ == '__main__':
-    REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+    # Redis DB changed to 10
+    REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/10')
     conn = redis.from_url(REDIS_URL)
 
     try:

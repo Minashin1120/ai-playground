@@ -7,110 +7,60 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         .prose { font-size: 0.9rem; color: #d1d5db; line-height: 1.6; }
         .prose h1, .prose h2, .prose h3 { color: #fff; font-weight: bold; margin-top: 1em; margin-bottom: 0.5em; }
         .prose h1 { font-size: 1.5em; border-bottom: 1px solid #4b5563; }
-        .github-gradient { background: linear-gradient(135deg, #24292e 0%, #040d21 100%); }
+        .prose ul { list-style-type: disc; padding-left: 1.2em; }
     </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
     <div class="max-w-2xl w-full bg-gray-800 rounded-xl shadow-2xl border border-gray-700 overflow-hidden">
         <div class="bg-gray-900 p-4 border-b border-gray-700 flex justify-between items-center">
             <h1 class="text-lg font-bold text-blue-400">初期セットアップウィザード</h1>
-            <div class="text-xs text-gray-500">Step <span id="step-num">1</span> of 3</div>
+            <div class="text-xs text-gray-500">Step <span id="step-num">1</span> of 2</div>
         </div>
 
         <form method="POST" id="setup-form" class="p-6">
-            <!-- Step 1: 規約同意 -->
             <div id="step-1" class="space-y-6">
                 <div class="bg-orange-900/30 border border-orange-500/50 p-4 rounded-lg">
                     <h3 class="text-orange-400 font-bold mb-2">アルファ版のご注意</h3>
                     <p class="text-sm text-gray-300">本サービスは開発中のアルファ版です。データが予告なく削除される可能性があります。</p>
                 </div>
+
                 <div class="space-y-2">
                     <div class="flex space-x-2 text-xs">
                         <button type="button" onclick="loadDoc('terms')" class="text-blue-400 hover:text-white border-b border-blue-400">利用規約</button>
                         <span class="text-gray-600">|</span>
                         <button type="button" onclick="loadDoc('privacy')" class="text-blue-400 hover:text-white border-b border-blue-400">プライバシーポリシー</button>
                     </div>
-                    <div class="bg-gray-900 p-4 rounded-lg border border-gray-700 h-64 overflow-y-auto prose prose-invert" id="doc-box">Loading...</div>
+                    <div class="bg-gray-900 p-4 rounded-lg border border-gray-700 h-64 overflow-y-auto prose prose-invert" id="doc-box">
+                        Loading...
+                    </div>
                 </div>
+                
                 <div class="flex items-start gap-3">
                     <input type="checkbox" id="agree-check" class="mt-1 w-5 h-5 rounded bg-gray-700 border-gray-600">
-                    <label for="agree-check" class="text-sm text-gray-300 cursor-pointer">規約に同意します。</label>
+                    <label for="agree-check" class="text-sm text-gray-300 cursor-pointer">
+                        上記の内容を確認し、同意します。
+                    </label>
                 </div>
+
                 <div class="flex justify-end">
-                    <button type="button" onclick="goStep(2)" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg disabled:opacity-50" id="btn-step1" disabled>次へ</button>
+                    <button type="button" onclick="goStep2()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg disabled:opacity-50" id="btn-step1" disabled>次へ</button>
                 </div>
             </div>
 
-            <!-- Step 2: GitHub 公開の告知 (New Page) -->
-            <div id="step-2" class="hidden space-y-6 text-center">
-                <div class="github-gradient p-8 rounded-2xl border border-gray-600 shadow-inner">
-                    <i class="fab fa-github text-7xl mb-4 text-white"></i>
-                    <h2 class="text-3xl font-extrabold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
-                        Open Source on GitHub
-                    </h2>
-                    <p class="text-gray-300 text-lg mb-6">
-                        AI Chat Playground のソースコードが公開されました！
-                    </p>
-                    
-                    <!-- 指定された場所に画像を配置 -->
-                    <div class="my-6 bg-gray-800 rounded-lg border border-gray-700 overflow-hidden shadow-2xl">
-                        <img src="/static/github_promo.png" alt="GitHub Promo" class="w-full h-auto min-h-[200px] object-cover" onerror="this.src='https://via.placeholder.com/600x300/111827/4b5563?text=GitHub+Promo+Image+Placeholder';">
-                    </div>
-
-                    <div class="flex flex-col items-center gap-3">
-                        <p class="text-sm text-gray-400">
-                            最新のアップデート情報の確認や、開発への貢献が可能です。
-                        </p>
-                        <a href="https://github.com/minashin1120/ai-chat" target="_blank" class="inline-flex items-center px-6 py-3 bg-white text-black font-bold rounded-full hover:bg-gray-200 transition">
-                            <i class="fab fa-github mr-2"></i> リポジトリを見る
-                        </a>
-                    </div>
-                </div>
-                
-                <div class="flex justify-between pt-4">
-                    <button type="button" onclick="goStep(1)" class="text-gray-400 hover:text-white">戻る</button>
-                    <button type="button" onclick="goStep(3)" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg">次へ進む</button>
-                </div>
-            </div>
-
-            <!-- Step 3: セキュリティ & APIキー -->
-            <div id="step-3" class="hidden space-y-6">
-                <div><h3 class="text-lg font-bold mb-1">最終設定</h3><p class="text-sm text-gray-400">セキュリティとAPIキーを設定してください。</p></div>
-                
-                <!-- セキュリティ設定 -->
-                <div class="bg-gray-900/50 p-4 rounded border border-gray-700">
-                    <h4 class="text-xs font-bold text-blue-400 mb-3 flex items-center"><i class="fas fa-shield-alt mr-2"></i> セキュリティ設定</h4>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="flex items-center space-x-2 cursor-pointer">
-                                <input type="checkbox" name="use_e2ee" class="rounded bg-gray-800 border-gray-600 text-green-500">
-                                <span class="text-sm font-bold">チャット内容の暗号化 (E2EE) <span class="bg-orange-500/20 text-orange-500 text-[9px] px-1 rounded font-bold border border-orange-500/30 ml-1">ALPHA</span></span>
-                            </label>
-                        </div>
-                        <div>
-                            <label class="flex items-center space-x-2 cursor-pointer">
-                                <input type="checkbox" name="use_secure_files" class="rounded bg-gray-800 border-gray-600 text-green-500">
-                                <span class="text-sm font-bold">ファイルの隔離 (File Isolation) <span class="bg-orange-500/20 text-orange-500 text-[9px] px-1 rounded font-bold border border-orange-500/30 ml-1">ALPHA</span></span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- API Keys -->
+            <div id="step-2" class="hidden space-y-6">
+                <div><h3 class="text-lg font-bold mb-1">APIキーの設定</h3><p class="text-sm text-gray-400">ご自身のAPIキーを入力してください。</p></div>
                 <div class="space-y-4">
                     <div><label class="block text-xs text-gray-500 mb-1">OpenAI API Key</label><input type="password" name="openai_key" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="sk-..."></div>
                     <div><label class="block text-xs text-gray-500 mb-1">Gemini API Key</label><input type="password" name="gemini_key" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="AIza..."></div>
                     <div><label class="block text-xs text-gray-500 mb-1">xAI API Key</label><input type="password" name="xai_key" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="xai-..."></div>
                 </div>
-
                 <div class="flex justify-between pt-4">
-                    <button type="button" onclick="goStep(2)" class="text-gray-400 hover:text-white">戻る</button>
-                    <button type="submit" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded-lg shadow-lg shadow-green-500/20">完了</button>
+                    <button type="button" onclick="goStep1()" class="text-gray-400 hover:text-white">戻る</button>
+                    <button type="submit" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded-lg">完了</button>
                 </div>
             </div>
         </form>
@@ -126,12 +76,8 @@
         const check = document.getElementById('agree-check');
         const btn1 = document.getElementById('btn-step1');
         check.addEventListener('change', () => { btn1.disabled = !check.checked; });
-
-        function goStep(n) {
-            [1, 2, 3].forEach(i => document.getElementById('step-'+i).classList.add('hidden'));
-            document.getElementById('step-'+n).classList.remove('hidden');
-            document.getElementById('step-num').innerText = n;
-        }
+        function goStep2() { document.getElementById('step-1').classList.add('hidden'); document.getElementById('step-2').classList.remove('hidden'); document.getElementById('step-num').innerText='2'; }
+        function goStep1() { document.getElementById('step-2').classList.add('hidden'); document.getElementById('step-1').classList.remove('hidden'); document.getElementById('step-num').innerText='1'; }
     </script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V3.5.0)</title>
+    <title>AI Playground (V3.5.1)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -88,7 +88,7 @@
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
         <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500">
-            <div>v3.5.0 <span class="text-green-500 font-bold">RELEASE</span></div>
+            <div>v3.5.1 <span class="text-green-500 font-bold">FULL</span></div>
             <div class="flex justify-center gap-3">
                 <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
                 <span class="text-gray-700">|</span>
@@ -143,12 +143,17 @@
                         </optgroup>
                         <optgroup label="GPT">
                             <option value="gpt-5.1">GPT-5.1</option>
+                            <option value="gpt-5-mini">GPT-5 mini</option>
                         </optgroup>
                         <optgroup label="xAI Grok">
-                            <option value="grok-4-1-fast-reasoning">Grok 4.1 Fast</option>
+                            <option value="grok-4-1-fast-reasoning">Grok 4.1 Fast (Reasoning)</option>
+                            <option value="grok-4-1-fast-non-reasoning">Grok 4.1 Fast (Non-Reasoning)</option>
+                            <option value="grok-4-fast-reasoning">Grok 4 Fast (Reasoning)</option>
+                            <option value="grok-4-fast-non-reasoning">Grok 4 Fast (Non-Reasoning)</option>
                         </optgroup>
                         <optgroup label="Image">
                             <option value="nano-banana">Nano Banana</option>
+                            <option value="nano-banana-pro">Nano Banana Pro</option>
                         </optgroup>
                     </select>
 
@@ -274,7 +279,6 @@
         </div>
     </div>
     
-    <!-- Library & Legal Modals omitted for brevity, logic exists -->
     <div id="lib-modal" class="fixed inset-0 bg-gray-900/95 z-50 flex flex-col backdrop-blur-sm" style="display:none;">
         <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button onclick="document.getElementById('lib-modal').style.display='none'" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div>
         <div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0"><span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span><button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs" disabled>削除</button></div>
@@ -292,9 +296,6 @@
     <script>
         const get = (id) => document.getElementById(id);
         let currentThreadId = null, activeGem = null, currentImageUrls = [], abortController = null, isUserScrolling = false;
-        
-        // --- Main Logic (Simplified for Update) ---
-        // (Existing logic + New Features)
         
         function switchTab(tab) {
             get('tab-general').classList.add('hidden');
@@ -330,7 +331,6 @@
         }
         get('model-select').addEventListener('change', toggleOptions);
 
-        // --- Settings Save Logic ---
         get('settings-btn').onclick = () => {
             get('settings-modal').style.display='flex';
             fetch('/api/settings').then(r=>r.json()).then(d=>{
@@ -355,14 +355,12 @@
             
             await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
             
-            // Maintenance check
             const maint = get('set-maintenance');
             if(maint) await fetch('/api/maintenance', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:maint.checked})});
             
             location.reload();
         };
 
-        // --- Rest of standard logic (sendMessage, etc) similar to V3.4 but with new parameters ---
         async function sendMessage() {
             const text = get('prompt-input').value.trim();
             if(!text && currentImageUrls.length === 0) return;
@@ -379,7 +377,7 @@
                 image_urls: currentImageUrls, 
                 enable_search: get('enable-search').checked, 
                 enable_thinking: get('enable-thinking').checked, 
-                thinking_level: get('thinking-level').value, // New
+                thinking_level: get('thinking-level').value,
                 reasoning_effort: get('reasoning-effort').value, 
                 enable_system_prompt: get('enable-sys-prompt').checked,
                 safety_setting: get('safety-setting').value
@@ -394,8 +392,6 @@
             
             abortController = new AbortController();
             
-            // ... (Stream Handling Logic - Same as before but renders response) ...
-            // Omitted full stream code for brevity, assumes standard fetch loop
             try {
                 const res = await fetch('/chat_stream', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload), signal: abortController.signal});
                 const reader = res.body.getReader();
@@ -445,7 +441,6 @@
             finally { get('send-btn').disabled = false; get('stop-container').classList.add('hidden'); abortController = null; loadThreads(); }
         }
 
-        // --- Init ---
         document.addEventListener('DOMContentLoaded', () => {
             const renderer = new marked.Renderer();
             renderer.code = function(code, lang) { return `<div class="code-wrapper"><pre><code class="hljs">${code}</code></pre></div>`; };
@@ -458,7 +453,6 @@
             get('file-input').onchange = (e) => handleFiles(e.target.files);
             get('stop-btn').onclick = () => { if(abortController) abortController.abort(); };
             
-            // Image Compression & Upload Logic (Same as V3.4)
             window.handleFiles = async (files) => {
                 if(!files.length) return;
                 get('file-preview').classList.remove('hidden'); get('file-name').innerText = "Uploading...";
@@ -477,9 +471,6 @@
                 }
                 get('file-name').innerText = `${currentImageUrls.length} files ready`;
             };
-            
-            // Helper functions for rendering, gems, etc omitted to fit size. 
-            // They are identical to V3.4 except for image path (/files/...)
         });
         
         function renderMessage(id, role, text, imgUrl) {
@@ -493,7 +484,6 @@
                     if(imgs.length) {
                         attach = '<div class="flex flex-wrap gap-2 mt-2">';
                         imgs.forEach(u => {
-                            // NEW: Use /files/ route instead of /static/uploads/
                             const url = '/files/' + u; 
                             attach += `<img src="${url}" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer" onclick="window.open('${url}')">`;
                         });

@@ -8,18 +8,19 @@ import redis
 import shutil
 import glob
 import requests
-import tiktoken 
+import tiktoken
+import subprocess
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 from rq import Queue
 from datetime import datetime
 from io import BytesIO
 from PIL import Image
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, make_response, flash
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, make_response, flash, send_from_directory, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from sqlalchemy import or_, exc
+from sqlalchemy import or_, exc, text
 from dotenv import load_dotenv
 from openai import OpenAI
 from google import genai
@@ -45,11 +46,13 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
-app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static/uploads')
+# New Isolated Upload Folder
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'instance/uploads')
 app.config['CHANGELOG_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static/changelogs')
 app.config['MAX_CONTENT_LENGTH'] = 128 * 1024 * 1024
+app.config['MAINTENANCE_MODE'] = os.path.exists(os.path.join(os.path.dirname(__file__), 'maintenance.lock'))
 
-# Redis DB changed to 10
+# Redis DB 10
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/10')
 redis_conn = redis.from_url(REDIS_URL)
 task_queue = Queue('ai_chat_queue', connection=redis_conn)
@@ -59,7 +62,7 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# --- Encryption Helpers ---
+# --- Encryption ---
 KEY_FILE = os.path.join(os.path.dirname(__file__), 'secret.key')
 cipher = None
 try:
@@ -82,11 +85,16 @@ def decrypt_val(val):
     try: return cipher.decrypt(val.encode()).decode()
     except: return val
 
+@app.before_request
+def check_maintenance():
+    if app.config['MAINTENANCE_MODE'] and request.endpoint not in ['static', 'login', 'logout']:
+        if not current_user.is_authenticated or current_user.username != 'minashin1120':
+            return render_template('maintenance.html'), 503
+
 @app.after_request
 def add_security_headers(response):
     csp = "default-src * 'unsafe-inline' 'unsafe-eval' data: blob: https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;"
     response.headers['Content-Security-Policy'] = csp
-    response.headers['Access-Control-Allow-Origin'] = '*'
     return response
 
 # --- Models ---
@@ -94,11 +102,14 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True)
     password_hash = db.Column(db.String(255))
-    system_prompt = db.Column(db.Text, default="")
-    openai_api_key = db.Column(db.Text, nullable=True)
-    gemini_api_key = db.Column(db.Text, nullable=True)
-    xai_api_key = db.Column(db.Text, nullable=True)
+    system_prompt = db.Column(db.Text, default="") # Can be encrypted
+    openai_api_key = db.Column(db.Text, nullable=True) # Encrypted
+    gemini_api_key = db.Column(db.Text, nullable=True) # Encrypted
+    xai_api_key = db.Column(db.Text, nullable=True) # Encrypted
     is_setup_completed = db.Column(db.Boolean, default=False)
+    # Settings
+    enable_e2ee = db.Column(db.Boolean, default=False)
+    
     threads = db.relationship('Thread', backref='user', lazy=True, cascade="all, delete-orphan")
     gems = db.relationship('Gem', backref='user', lazy=True, cascade="all, delete-orphan")
 
@@ -118,12 +129,13 @@ class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     thread_id = db.Column(db.Integer, db.ForeignKey('thread.id'), nullable=False)
     role = db.Column(db.String(20))
-    content = db.Column(db.Text)
+    content = db.Column(db.Text) # Can be encrypted
     model = db.Column(db.String(50))
     image_url = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     tokens = db.Column(db.Integer, default=0)
-    thought_data = db.Column(db.Text)
+    thought_data = db.Column(db.Text) # Can be encrypted
+    is_encrypted = db.Column(db.Boolean, default=False)
 
 class Gem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -163,171 +175,207 @@ def count_tokens(text, model="gpt-4"):
         return len(encoding.encode(text))
     except: return len(text) // 4
 
-@retry(stop=stop_after_attempt(3), wait=wait_fixed(1), retry=retry_if_exception_type(exc.SQLAlchemyError))
-def safe_db_commit():
-    db.session.commit()
-
-# --- Worker Logic ---
-def background_chat_task(job_id, thread_id, model_key, message_text, img_list, options, api_keys, user_id):
+# --- Worker Task ---
+def background_chat_task(job_id, thread_id, model_key, message_text, img_list, options, api_keys, user_id, user_config):
     with app.app_context():
         channel = f"ai_chat:channel:{job_id}"
         r = redis.from_url(REDIS_URL)
         def publish_chunk(dt, d): r.publish(channel, json.dumps({"type": dt, "data": d}))
         
-        with tracer.start_as_current_span("generate_response"):
-            try:
-                all_msgs = Message.query.filter_by(thread_id=thread_id).order_by(Message.timestamp).all()
-                history = all_msgs[:-1] if len(all_msgs) > 0 else []
-                is_gemini, is_grok = 'gemini' in model_key or 'nano' in model_key, 'grok' in model_key
-                req_key = api_keys.get('gemini') if is_gemini else (api_keys.get('xai') if is_grok else api_keys.get('openai'))
-                if not req_key: publish_chunk("error", "API Key missing."); return
+        try:
+            # History Fetching
+            all_msgs = Message.query.filter_by(thread_id=thread_id).order_by(Message.timestamp).all()
+            history = []
+            for m in all_msgs[:-1]: # Exclude current user message (not saved yet in this flow logic assumption, but actually saved in controller)
+                # Decrypt if needed
+                cnt = decrypt_val(m.content) if m.is_encrypted else m.content
+                history.append({'role': m.role, 'content': cnt, 'image_url': m.image_url})
 
-                gemini_client = genai.Client(api_key=req_key, http_options={'api_version': 'v1alpha'}) if is_gemini else None
-                openai_client = OpenAI(api_key=req_key) if not is_gemini and not is_grok else None
-                xai_client_std = OpenAI(api_key=req_key, base_url="https://api.x.ai/v1") if is_grok else None
+            is_gemini = 'gemini' in model_key or 'nano' in model_key
+            is_grok = 'grok' in model_key
+            
+            req_key = api_keys.get('gemini') if is_gemini else (api_keys.get('xai') if is_grok else api_keys.get('openai'))
+            if not req_key: publish_chunk("error", "API Key missing."); return
 
-                loaded_files = []
-                for fname in img_list:
-                    info = {'name': fname, 'text': None, 'bytes': None, 'mime': None, 'path': os.path.join(app.config['UPLOAD_FOLDER'], fname)}
-                    try:
-                        if os.path.exists(info['path']):
-                            info['mime'] = mimetypes.guess_type(info['path'])[0] or 'application/octet-stream'
-                            if fname.lower().endswith('.pdf'): info['mime'] = 'application/pdf'
-                            if fname.lower().endswith('.pdf'):
+            gemini_client = genai.Client(api_key=req_key, http_options={'api_version': 'v1alpha'}) if is_gemini else None
+            openai_client = OpenAI(api_key=req_key) if not is_gemini and not is_grok else None
+            xai_client_std = OpenAI(api_key=req_key, base_url="https://api.x.ai/v1") if is_grok else None
+
+            # File Loading
+            loaded_files = []
+            for fname in img_list:
+                # Resolve path from isolated storage
+                info = {'name': fname, 'text': None, 'bytes': None, 'mime': None, 'path': os.path.join(app.config['UPLOAD_FOLDER'], fname)}
+                try:
+                    if os.path.exists(info['path']):
+                        info['mime'] = mimetypes.guess_type(info['path'])[0] or 'application/octet-stream'
+                        if fname.lower().endswith('.pdf'):
+                            info['mime'] = 'application/pdf'
+                            try:
+                                reader = pypdf.PdfReader(info['path'])
+                                extracted = ""
+                                for page in reader.pages: extracted += page.extract_text() + "\n"
+                                info['text'] = extracted[:50000]
+                            except: pass
+                        
+                        is_img = fname.endswith(('.webp','.png','.jpg','.jpeg','.gif','.mp4'))
+                        if not is_img and not info['text']:
+                            try:
+                                with open(info['path'], 'r', encoding='utf-8', errors='ignore') as f: info['text'] = f.read()
+                            except: pass
+                        
+                        if not info['text']:
+                            with open(info['path'], 'rb') as f: info['bytes'] = f.read()
+                        loaded_files.append(info)
+                except: pass
+
+            full_res, thought_accumulated, generated_images = "", "", []
+            collected_signatures = {}
+
+            if is_gemini:
+                # Gemini Model Logic
+                real_model = model_key
+                if "3.0" in model_key and "pro" in model_key: real_model = "gemini-3.0-pro-preview" # Force ID
+                elif "3.0" in model_key and "flash" in model_key: real_model = "gemini-3.0-flash-preview" # New Feature
+                elif "2.5" in model_key: real_model = "gemini-2.5-flash"
+                elif "nano-banana-pro" in model_key: real_model = "gemini-3-pro-image-preview"
+                elif "nano-banana" in model_key: real_model = "gemini-2.5-flash-image"
+
+                config_params = {'temperature': 0.7}
+                
+                # Thinking Level Logic
+                if "nano" not in model_key:
+                    if options.get('enable_thinking'):
+                        budget = 1024 # Default Low
+                        lvl = options.get('thinking_level', 'low')
+                        if lvl == 'medium': budget = 4096
+                        elif lvl == 'high': budget = 8192
+                        elif lvl == 'minimal': budget = 1024
+                        
+                        # Gemini 3.0 supports ThinkingConfig
+                        config_params['thinking_config'] = types.ThinkingConfig(include_thoughts=True, thinking_budget=budget)
+                    
+                    if options.get('enable_search'): config_params['tools'] = [types.Tool(google_search=types.GoogleSearch())]
+                    if options.get('system_prompt'): config_params['system_instruction'] = options.get('system_prompt')
+                    if options.get('safety_setting') == 'none':
+                        config_params['safety_settings'] = [
+                            types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
+                            types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
+                            types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
+                            types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE")
+                        ]
+
+                contents = []
+                for m in history:
+                    parts = [types.Part(text=m['content'])]
+                    if m['image_url']:
+                        try:
+                            for h_img in json.loads(m['image_url']):
+                                h_path = os.path.join(app.config['UPLOAD_FOLDER'], h_img)
+                                if os.path.exists(h_path): 
+                                    mime_type = mimetypes.guess_type(h_path)[0] or 'image/webp'
+                                    with open(h_path, 'rb') as f: parts.append(types.Part.from_bytes(data=f.read(), mime_type=mime_type))
+                        except: pass
+                    contents.append(types.Content(role='model' if m['role'] == 'assistant' else 'user', parts=parts))
+
+                curr_parts = [types.Part(text=message_text)]
+                for fi in loaded_files:
+                    if fi['text']: curr_parts.append(types.Part(text=f"\n\nFile: {fi['name']}\n{fi['text']}"))
+                    elif fi['bytes']: curr_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime'] if fi['mime']!='application/octet-stream' else 'image/webp'))
+                contents.append(types.Content(role='user', parts=curr_parts))
+
+                stream = gemini_client.models.generate_content_stream(model=real_model, contents=contents, config=types.GenerateContentConfig(**config_params))
+                
+                for chunk in stream:
+                    if hasattr(chunk, 'candidates') and chunk.candidates:
+                        for part in chunk.candidates[0].content.parts:
+                            # Image Generation Handling
+                            if hasattr(part, 'inline_data') and part.inline_data:
                                 try:
-                                    reader = pypdf.PdfReader(info['path'])
-                                    extracted = ""
-                                    for page in reader.pages: extracted += page.extract_text() + "\n"
-                                    info['text'] = extracted[:50000]
+                                    user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
+                                    if not os.path.exists(user_dir): os.makedirs(user_dir, exist_ok=True)
+                                    fn = f"gen_{int(time.time())}_{len(generated_images)}.png"
+                                    Image.open(BytesIO(part.inline_data.data)).save(os.path.join(user_dir, fn))
+                                    db_path = f"{user_id}/{fn}"
+                                    generated_images.append(db_path)
+                                    # Use /files/ route
+                                    img_md = f"\n\n![Generated Image](/files/{db_path})\n"
+                                    full_res += img_md
+                                    publish_chunk("content", img_md)
                                 except: pass
                             
-                            is_img = fname.endswith(('.webp','.png','.jpg','.jpeg','.gif','.mp4'))
-                            if not is_img and not info['text']:
-                                try:
-                                    with open(info['path'], 'r', encoding='utf-8', errors='ignore') as f: info['text'] = f.read()
+                            if hasattr(part, 'thought_signature') and part.thought_signature:
+                                try: collected_signatures['signature'] = base64.b64encode(part.thought_signature).decode('utf-8')
                                 except: pass
-                            if not info['text']:
-                                with open(info['path'], 'rb') as f: info['bytes'] = f.read()
-                            loaded_files.append(info)
-                    except: pass
 
-                full_res, thought_accumulated, generated_images = "", "", []
-                collected_signatures = {}
+                            tt = part.thought if hasattr(part, 'thought') and part.thought else None
+                            if tt: 
+                                thought_accumulated += (tt if isinstance(tt, str) else "")
+                                publish_chunk("thought", tt if isinstance(tt, str) else "")
+                            if part.text: 
+                                full_res += part.text
+                                publish_chunk("content", part.text)
+            else:
+                # GPT / Grok
+                client = xai_client_std if is_grok else openai_client
+                msgs = []
+                if options.get('system_prompt'): msgs.append({"role": "system", "content": options.get('system_prompt')})
+                for m in history: msgs.append({"role": m['role'], "content": m['content']})
                 
-                if is_gemini:
-                    real_model = "gemini-3-pro-preview" if "3.0" in model_key else ("gemini-2.5-flash" if "2.5" in model_key else model_key)
-                    if "nano-banana-pro" in model_key: real_model = "gemini-3-pro-image-preview"
-                    elif "nano-banana" in model_key: real_model = "gemini-2.5-flash-image"
-                    
-                    config_params = {'temperature': 0.7}
-                    if "nano" not in model_key:
-                        if options.get('enable_thinking'):
-                            config_params['thinking_config'] = types.ThinkingConfig(include_thoughts=True, thinking_budget=1024)
-                        if options.get('enable_search'): config_params['tools'] = [types.Tool(google_search=types.GoogleSearch())]
-                        if options.get('system_prompt'): config_params['system_instruction'] = options.get('system_prompt')
-                        
-                        if options.get('safety_setting') == 'none':
-                            config_params['safety_settings'] = [
-                                types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
-                                types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
-                                types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
-                                types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE")
-                            ]
-                    else: config_params['tools'] = None
-
-                    contents = []
-                    for m in history:
-                        parts = [types.Part(text=m.content)]
-                        if m.image_url:
-                            try:
-                                for h_img in json.loads(m.image_url):
-                                    h_path = os.path.join(app.config['UPLOAD_FOLDER'], h_img)
-                                    if os.path.exists(h_path): 
-                                        mime_type = mimetypes.guess_type(h_path)[0] or 'image/webp'
-                                        with open(h_path, 'rb') as f: parts.append(types.Part.from_bytes(data=f.read(), mime_type=mime_type))
-                            except: pass
-                        contents.append(types.Content(role='model' if m.role == 'assistant' else 'user', parts=parts))
-                    
-                    curr_parts = [types.Part(text=message_text)]
-                    for fi in loaded_files:
-                        if fi['text']: curr_parts.append(types.Part(text=f"\n\nFile: {fi['name']}\n{fi['text']}"))
-                        elif fi['bytes']: curr_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime'] if fi['mime']!='application/octet-stream' else 'image/webp'))
-                    contents.append(types.Content(role='user', parts=curr_parts))
-                    
-                    stream = gemini_client.models.generate_content_stream(model=real_model, contents=contents, config=types.GenerateContentConfig(**config_params))
-                    for chunk in stream:
-                        if hasattr(chunk, 'candidates') and chunk.candidates:
-                            for part in chunk.candidates[0].content.parts:
-                                if hasattr(part, 'inline_data') and part.inline_data:
-                                    try:
-                                        user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
-                                        if not os.path.exists(user_dir): os.makedirs(user_dir, exist_ok=True)
-                                        fn = f"gen_{int(time.time())}_{len(generated_images)}.png"
-                                        Image.open(BytesIO(part.inline_data.data)).save(os.path.join(user_dir, fn))
-                                        db_path = f"{user_id}/{fn}"
-                                        generated_images.append(db_path)
-                                        img_md = f"\n\n![Generated Image](/static/uploads/{db_path})\n"
-                                        full_res += img_md
-                                        publish_chunk("content", img_md)
-                                    except: pass
-                                
-                                if hasattr(part, 'thought_signature') and part.thought_signature:
-                                    try: collected_signatures['signature'] = base64.b64encode(part.thought_signature).decode('utf-8')
-                                    except: pass
-
-                                tt = part.thought if hasattr(part, 'thought') and part.thought else None
-                                if tt: 
-                                    thought_accumulated += (tt if isinstance(tt, str) else "")
-                                    publish_chunk("thought", tt if isinstance(tt, str) else "")
-                                if part.text: 
-                                    full_res += part.text
-                                    publish_chunk("content", part.text)
-                else:
-                    client = xai_client_std if is_grok else openai_client
-                    msgs = []
-                    if options.get('system_prompt'): msgs.append({"role": "system", "content": options.get('system_prompt')})
-                    for m in history: msgs.append({"role": m.role, "content": m.content})
-                    
-                    content_list = [{"type": "text", "text": message_text}]
-                    for fi in loaded_files:
-                        if fi['text']: content_list[0]['text'] += f"\n\n[File: {fi['name']}]\n{fi['text']}"
-                        elif fi['mime'].startswith('image/'):
-                            content_list.append({"type": "image_url", "image_url": {"url": f"data:{fi['mime']};base64,{base64.b64encode(fi['bytes']).decode('utf-8')}"}})
-                    msgs.append({"role": "user", "content": content_list})
-                    
-                    kwargs = {"model": model_key, "messages": msgs, "stream": True}
-                    if is_grok and options.get('enable_search'): kwargs["extra_body"] = {"search_parameters": {"mode": "on"}}
-                    if options.get('reasoning_effort') and not is_grok: kwargs['reasoning_effort'] = options.get('reasoning_effort')
-                    
-                    stream = client.chat.completions.create(**kwargs)
-                    for chunk in stream:
-                        delta = chunk.choices[0].delta
-                        if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
-                            thought_accumulated += delta.reasoning_content
-                            publish_chunk("thought", delta.reasoning_content)
-                        if delta.content:
-                            full_res += delta.content
-                            publish_chunk("content", delta.content)
-
-                t_data_obj = {'text': thought_accumulated}
-                if collected_signatures: t_data_obj['signatures'] = collected_signatures
+                content_list = [{"type": "text", "text": message_text}]
+                for fi in loaded_files:
+                    if fi['text']: content_list[0]['text'] += f"\n\n[File: {fi['name']}]\n{fi['text']}"
+                    elif fi['mime'].startswith('image/'):
+                        content_list.append({"type": "image_url", "image_url": {"url": f"data:{fi['mime']};base64,{base64.b64encode(fi['bytes']).decode('utf-8')}"}})
+                msgs.append({"role": "user", "content": content_list})
                 
-                msg_entry = Message(
-                    thread_id=thread_id, 
-                    role='assistant', 
-                    content=full_res, 
-                    model=model_key, 
-                    image_url=json.dumps(generated_images) if generated_images else None, 
-                    thought_data=json.dumps(t_data_obj) if thought_accumulated else None,
-                    tokens=count_tokens(full_res)
-                )
-                db.session.add(msg_entry)
-                Thread.query.get(thread_id).updated_at = datetime.utcnow()
-                safe_db_commit()
-                publish_chunk("done", "OK")
-            except Exception as e:
-                logger.error(f"Worker Error: {e}")
-                publish_chunk("error", str(e))
+                kwargs = {"model": model_key, "messages": msgs, "stream": True}
+                if is_grok and options.get('enable_search'): kwargs["extra_body"] = {"search_parameters": {"mode": "on"}}
+                if options.get('reasoning_effort') and not is_grok: kwargs['reasoning_effort'] = options.get('reasoning_effort')
+                
+                stream = client.chat.completions.create(**kwargs)
+                for chunk in stream:
+                    delta = chunk.choices[0].delta
+                    if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                        thought_accumulated += delta.reasoning_content
+                        publish_chunk("thought", delta.reasoning_content)
+                    if delta.content:
+                        full_res += delta.content
+                        publish_chunk("content", delta.content)
+
+            # Saving Result
+            t_data_obj = {'text': thought_accumulated}
+            if collected_signatures: t_data_obj['signatures'] = collected_signatures
+            
+            # E2EE: Encrypt if enabled
+            final_content = full_res
+            final_thought = json.dumps(t_data_obj) if thought_accumulated else None
+            is_enc = user_config.get('enable_e2ee', False)
+            
+            if is_enc:
+                final_content = encrypt_val(final_content)
+                if final_thought: final_thought = encrypt_val(final_thought)
+
+            msg_entry = Message(
+                thread_id=thread_id, 
+                role='assistant', 
+                content=final_content, 
+                model=model_key, 
+                image_url=json.dumps(generated_images) if generated_images else None, 
+                thought_data=final_thought,
+                tokens=count_tokens(full_res),
+                is_encrypted=is_enc
+            )
+            db.session.add(msg_entry)
+            Thread.query.get(thread_id).updated_at = datetime.utcnow()
+            db.session.commit()
+            publish_chunk("done", "OK")
+
+        except Exception as e:
+            logger.error(f"Worker Error: {e}")
+            publish_chunk("error", str(e))
+
+# --- Routes ---
 
 @app.route('/')
 def index():
@@ -335,6 +383,15 @@ def index():
         if not current_user.is_setup_completed: return redirect(url_for('setup'))
         return render_template('chat.html')
     return render_template('landing.html')
+
+@app.route('/files/<path:filename>')
+@login_required
+def serve_file(filename):
+    # Secured File Access
+    parts = filename.split('/')
+    if len(parts) > 1 and str(parts[0]) != str(current_user.id):
+        abort(403) # Prevent accessing other users' files
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/changelog')
 def changelog():
@@ -377,7 +434,6 @@ def signup():
 def setup():
     if current_user.is_setup_completed: return redirect(url_for('index'))
     if request.method == 'POST':
-        # Encrypt on setup
         current_user.openai_api_key = encrypt_val(request.form.get('openai_key'))
         current_user.gemini_api_key = encrypt_val(request.form.get('gemini_key'))
         current_user.xai_api_key = encrypt_val(request.form.get('xai_key'))
@@ -406,10 +462,14 @@ def delete_account():
 @login_required
 def handle_settings():
     if request.method == 'GET':
-        return jsonify({'system_prompt': current_user.system_prompt or "", 'username': current_user.username, 
-                        'openai_key': decrypt_val(current_user.openai_api_key) or "", 
-                        'gemini_key': decrypt_val(current_user.gemini_api_key) or "", 
-                        'xai_key': decrypt_val(current_user.xai_api_key) or ""})
+        return jsonify({
+            'system_prompt': current_user.system_prompt or "",
+            'username': current_user.username, 
+            'openai_key': decrypt_val(current_user.openai_api_key) or "", 
+            'gemini_key': decrypt_val(current_user.gemini_api_key) or "", 
+            'xai_key': decrypt_val(current_user.xai_api_key) or "",
+            'enable_e2ee': current_user.enable_e2ee
+        })
     d = request.json
     if 'system_prompt' in d: current_user.system_prompt = d['system_prompt']
     if 'openai_key' in d: current_user.openai_api_key = encrypt_val(d['openai_key'])
@@ -418,6 +478,22 @@ def handle_settings():
     if d.get('new_password'): current_user.set_password(d['new_password'])
     if d.get('new_username') and d['new_username'] != current_user.username:
         if not User.query.filter_by(username=d['new_username']).first(): current_user.username = d['new_username']
+    
+    # E2EE Toggle & Migration
+    if 'enable_e2ee' in d and d['enable_e2ee'] != current_user.enable_e2ee:
+        current_user.enable_e2ee = d['enable_e2ee']
+        # Migrate existing messages
+        msgs = Message.query.join(Thread).filter(Thread.user_id == current_user.id).all()
+        for m in msgs:
+            if current_user.enable_e2ee and not m.is_encrypted:
+                m.content = encrypt_val(m.content)
+                if m.thought_data: m.thought_data = encrypt_val(m.thought_data)
+                m.is_encrypted = True
+            elif not current_user.enable_e2ee and m.is_encrypted:
+                m.content = decrypt_val(m.content)
+                if m.thought_data: m.thought_data = decrypt_val(m.thought_data)
+                m.is_encrypted = False
+
     db.session.commit()
     flash("設定を保存しました")
     return jsonify({'status': 'ok'})
@@ -447,9 +523,16 @@ def delete_gem(gid):
 @login_required
 def handle_threads():
     if request.method == 'GET':
+        # Search is limited when E2EE is on
         q = request.args.get('q', '').strip()
         query = Thread.query.filter_by(user_id=current_user.id)
-        if q: query = query.join(Message).filter(or_(Thread.title.contains(q), Message.content.contains(q))).distinct()
+        if q: 
+            # If E2EE enabled, search only titles. Else search content too.
+            if current_user.enable_e2ee:
+                 query = query.filter(Thread.title.contains(q))
+            else:
+                 query = query.join(Message).filter(or_(Thread.title.contains(q), Message.content.contains(q))).distinct()
+        
         ts = query.order_by(Thread.updated_at.desc()).limit(50).all()
         return jsonify([{'id': t.id, 'title': t.title} for t in ts])
     t = Thread(user_id=current_user.id)
@@ -464,7 +547,12 @@ def handle_thread_item(tid):
     if t.user_id != current_user.id: return jsonify({'error': '403'}), 403
     if request.method == 'GET':
         ms = Message.query.filter_by(thread_id=tid).order_by(Message.timestamp).all()
-        return jsonify([{'id': m.id, 'role': m.role, 'content': m.content, 'image_url': m.image_url, 'model': m.model, 'thought_data': m.thought_data} for m in ms])
+        res = []
+        for m in ms:
+            cnt = decrypt_val(m.content) if m.is_encrypted else m.content
+            tht = decrypt_val(m.thought_data) if (m.is_encrypted and m.thought_data) else m.thought_data
+            res.append({'id': m.id, 'role': m.role, 'content': cnt, 'image_url': m.image_url, 'model': m.model, 'thought_data': tht})
+        return jsonify(res)
     db.session.delete(t)
     db.session.commit()
     return jsonify({'status': 'deleted'})
@@ -506,7 +594,8 @@ def get_files_lib():
                     if os.path.exists(fp):
                         seen.add(p)
                         ext = os.path.splitext(p)[1].lower().replace('.', '')
-                        files.append({'filename': os.path.basename(p), 'filepath': p, 'url': url_for('static', filename='uploads/'+p), 'type': 'image' if ext in ['png','jpg','webp'] else 'file', 'ext': ext})
+                        # Use /files/ route
+                        files.append({'filename': os.path.basename(p), 'filepath': p, 'url': url_for('serve_file', filename=p), 'type': 'image' if ext in ['png','jpg','webp'] else 'file', 'ext': ext})
         return jsonify(files)
     except: return jsonify([])
 
@@ -558,6 +647,29 @@ def upload():
                 
     return jsonify({'filename': res[0] if res else '', 'filenames': res})
 
+@app.route('/api/debug/log', methods=['GET'])
+@login_required
+def debug_log():
+    if current_user.username != 'minashin1120': return abort(403)
+    def generate():
+        process = subprocess.Popen(['sudo', 'journalctl', '-u', 'ai-chat', '-n', '50', '--no-pager'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        stdout, _ = process.communicate()
+        yield stdout
+    return Response(generate(), mimetype='text/plain')
+
+@app.route('/api/maintenance', methods=['POST'])
+@login_required
+def toggle_maintenance():
+    if current_user.username != 'minashin1120': return abort(403)
+    lock_file = os.path.join(os.path.dirname(__file__), 'maintenance.lock')
+    if request.json.get('enabled'):
+        with open(lock_file, 'w') as f: f.write('locked')
+        app.config['MAINTENANCE_MODE'] = True
+    else:
+        if os.path.exists(lock_file): os.remove(lock_file)
+        app.config['MAINTENANCE_MODE'] = False
+    return jsonify({'status': 'ok', 'mode': app.config['MAINTENANCE_MODE']})
+
 @app.route('/chat_stream', methods=['POST'])
 @login_required
 def chat_stream():
@@ -570,6 +682,7 @@ def chat_stream():
     options = {
         'enable_search': data.get('enable_search', False), 
         'enable_thinking': data.get('enable_thinking', False), 
+        'thinking_level': data.get('thinking_level', 'low'),
         'reasoning_effort': data.get('reasoning_effort', 'medium'), 
         'system_prompt': sys_prompt,
         'safety_setting': data.get('safety_setting', 'default')
@@ -580,7 +693,29 @@ def chat_stream():
         'gemini': get_key_for_user(current_user, 'GEMINI_API_KEY'),
         'xai': get_key_for_user(current_user, 'XAI_API_KEY')
     }
-    task_queue.enqueue(background_chat_task, job_id, data.get('thread_id'), data.get('model'), data.get('message'), data.get('image_urls', []), options, api_keys, current_user.id, job_timeout=600)
+    
+    # E2EE config passed to worker
+    user_config = {'enable_e2ee': current_user.enable_e2ee}
+
+    # Encrypt user message immediately if E2EE is on
+    u_msg = data.get('message')
+    if current_user.enable_e2ee:
+        u_msg_enc = encrypt_val(u_msg)
+        # Store user message
+        msg_entry = Message(
+            thread_id=data.get('thread_id'), role='user', content=u_msg_enc, 
+            image_url=json.dumps(data.get('image_urls', [])), is_encrypted=True
+        )
+    else:
+        msg_entry = Message(
+            thread_id=data.get('thread_id'), role='user', content=u_msg, 
+            image_url=json.dumps(data.get('image_urls', [])), is_encrypted=False
+        )
+    
+    db.session.add(msg_entry)
+    db.session.commit()
+
+    task_queue.enqueue(background_chat_task, job_id, data.get('thread_id'), data.get('model'), u_msg, data.get('image_urls', []), options, api_keys, current_user.id, user_config, job_timeout=600)
     
     def generate():
         pubsub = redis_conn.pubsub()
@@ -597,6 +732,15 @@ def chat_stream():
 
 with app.app_context():
     db.create_all()
+    # Add new columns if missing (Simple Migration for E2EE)
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE user ADD COLUMN enable_e2ee BOOLEAN DEFAULT 0"))
+    except: pass
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE message ADD COLUMN is_encrypted BOOLEAN DEFAULT 0"))
+    except: pass
 
 if __name__ == '__main__':
     app.run(debug=True)

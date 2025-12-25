@@ -174,6 +174,11 @@ def count_tokens(text, model="gpt-4"):
         return len(encoding.encode(text))
     except: return len(text) // 4
 
+# --- Robust DB Commit ---
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(1), retry=retry_if_exception_type(exc.SQLAlchemyError))
+def safe_db_commit():
+    db.session.commit()
+
 # --- Worker Task ---
 def background_chat_task(job_id, thread_id, model_key, message_text, img_list, options, api_keys, user_id, user_config):
     with app.app_context():
@@ -182,7 +187,6 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
         def publish_chunk(dt, d): r.publish(channel, json.dumps({"type": dt, "data": d}))
         
         try:
-            # 1. History Construction with Signatures
             all_msgs = Message.query.filter_by(thread_id=thread_id).order_by(Message.timestamp).all()
             history = []
             
@@ -206,7 +210,6 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
             openai_client = OpenAI(api_key=req_key) if not is_gemini and not is_grok else None
             xai_client_std = OpenAI(api_key=req_key, base_url="https://api.x.ai/v1") if is_grok else None
 
-            # File Loading
             loaded_files = []
             for fname in img_list:
                 info = {'name': fname, 'text': None, 'bytes': None, 'mime': None, 'path': os.path.join(app.config['UPLOAD_FOLDER'], fname)}
@@ -238,7 +241,6 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
 
             if is_gemini:
                 real_model = model_key
-                # FIX: Logic Update for correct IDs
                 if "gemini-3-flash" in model_key: real_model = "gemini-3-flash-preview"
                 elif "3.0" in model_key and "pro" in model_key: real_model = "gemini-3.0-pro-preview"
                 elif "2.5" in model_key: real_model = "gemini-2.5-flash"
@@ -266,7 +268,6 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                             types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE")
                         ]
 
-                # --- Construct History with Signatures ---
                 contents = []
                 for m in history:
                     parts = []
@@ -385,14 +386,14 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
             )
             db.session.add(msg_entry)
             Thread.query.get(thread_id).updated_at = datetime.utcnow()
-            db.session.commit()
+            # FIX: Use safe_db_commit
+            safe_db_commit()
             publish_chunk("done", "OK")
 
         except Exception as e:
             logger.error(f"Worker Error: {e}")
             publish_chunk("error", str(e))
 
-# ... [Routes unchanged] ...
 @app.route('/')
 def index():
     if current_user.is_authenticated:
@@ -439,7 +440,7 @@ def signup():
         new_user = User(username=request.form.get('username'), is_setup_completed=False)
         new_user.set_password(request.form.get('password'))
         db.session.add(new_user)
-        db.session.commit()
+        safe_db_commit()
         login_user(new_user)
         return redirect(url_for('setup'))
     return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'))
@@ -453,7 +454,7 @@ def setup():
         current_user.gemini_api_key = encrypt_val(request.form.get('gemini_key'))
         current_user.xai_api_key = encrypt_val(request.form.get('xai_key'))
         current_user.is_setup_completed = True
-        db.session.commit()
+        safe_db_commit()
         return redirect(url_for('index'))
     return render_template('setup.html')
 
@@ -468,7 +469,7 @@ def delete_account():
     try:
         shutil.rmtree(os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id)), ignore_errors=True)
         db.session.delete(current_user)
-        db.session.commit()
+        safe_db_commit()
         logout_user()
         return jsonify({'status': 'ok'})
     except Exception as e: return jsonify({'error': str(e)}), 500
@@ -507,7 +508,7 @@ def handle_settings():
                 if m.thought_data: m.thought_data = decrypt_val(m.thought_data)
                 m.is_encrypted = False
 
-    db.session.commit()
+    safe_db_commit()
     flash("設定を保存しました")
     return jsonify({'status': 'ok'})
 
@@ -520,7 +521,7 @@ def handle_gems():
     d = request.json
     gem = Gem(user_id=current_user.id, name=d.get('name', 'My Gem'), description=d.get('description', ''), instruction=d.get('instruction', ''))
     db.session.add(gem)
-    db.session.commit()
+    safe_db_commit()
     return jsonify({'id': gem.id, 'name': gem.name})
 
 @app.route('/api/gems/<int:gid>', methods=['DELETE'])
@@ -529,7 +530,7 @@ def delete_gem(gid):
     gem = Gem.query.get_or_404(gid)
     if gem.user_id != current_user.id: return jsonify({'error': '403'}), 403
     db.session.delete(gem)
-    db.session.commit()
+    safe_db_commit()
     return jsonify({'status': 'deleted'})
 
 @app.route('/api/threads', methods=['GET', 'POST'])
@@ -547,7 +548,7 @@ def handle_threads():
         return jsonify([{'id': t.id, 'title': t.title} for t in ts])
     t = Thread(user_id=current_user.id)
     db.session.add(t)
-    db.session.commit()
+    safe_db_commit()
     return jsonify({'id': t.id, 'title': t.title})
 
 @app.route('/api/threads/<int:tid>', methods=['GET', 'DELETE'])
@@ -564,7 +565,7 @@ def handle_thread_item(tid):
             res.append({'id': m.id, 'role': m.role, 'content': cnt, 'image_url': m.image_url, 'model': m.model, 'thought_data': tht})
         return jsonify(res)
     db.session.delete(t)
-    db.session.commit()
+    safe_db_commit()
     return jsonify({'status': 'deleted'})
 
 @app.route('/api/threads/<int:tid>/title', methods=['PUT'])
@@ -573,7 +574,7 @@ def update_title(tid):
     t = Thread.query.get_or_404(tid)
     if t.user_id != current_user.id: return jsonify({'error': '403'}), 403
     t.title = request.json.get('title', 'Untitled')
-    db.session.commit()
+    safe_db_commit()
     return jsonify({'status': 'ok'})
 
 @app.route('/api/messages/<int:mid>', methods=['DELETE'])
@@ -582,7 +583,7 @@ def delete_message(mid):
     msg = Message.query.get_or_404(mid)
     if msg.thread.user_id != current_user.id: return jsonify({'error': '403'}), 403
     Message.query.filter(Message.thread_id == msg.thread_id, Message.timestamp >= msg.timestamp).delete()
-    db.session.commit()
+    safe_db_commit()
     return jsonify({'status': 'ok'})
 
 @app.route('/api/files', methods=['GET'])
@@ -719,7 +720,7 @@ def chat_stream():
         )
     
     db.session.add(msg_entry)
-    db.session.commit()
+    safe_db_commit()
 
     task_queue.enqueue(background_chat_task, job_id, data.get('thread_id'), data.get('model'), u_msg, data.get('image_urls', []), options, api_keys, current_user.id, user_config, job_timeout=600)
     

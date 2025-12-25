@@ -386,7 +386,6 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
             )
             db.session.add(msg_entry)
             Thread.query.get(thread_id).updated_at = datetime.utcnow()
-            # FIX: Use safe_db_commit
             safe_db_commit()
             publish_chunk("done", "OK")
 
@@ -414,7 +413,9 @@ def changelog():
     log_dir = app.config['CHANGELOG_FOLDER']
     logs = []
     if os.path.exists(log_dir):
-        files = sorted(glob.glob(os.path.join(log_dir, '*.md')), reverse=True)
+        # FIX: Sort by modification time (Newest First)
+        files = glob.glob(os.path.join(log_dir, '*.md'))
+        files.sort(key=os.path.getmtime, reverse=True)
         for f in files:
             with open(f, 'r', encoding='utf-8') as file: logs.append({'content': file.read()})
     return render_template('changelog.html', logs=logs)

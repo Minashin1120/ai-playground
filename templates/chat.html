@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V3.5.6)</title>
+    <title>AI Playground (V3.5.7)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -25,11 +25,10 @@
         .copy-btn { background: transparent; border: none; color: #9ca3af; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s; }
         .copy-btn:hover { color: #fff; }
 
-        /* Thinking Process Box */
         .thought-container { margin-bottom: 1rem; border: 1px solid #4b5563; border-radius: 0.5rem; background-color: #1f2937; overflow: hidden; }
         .thought-header { background: #374151; padding: 0.5rem 0.75rem; font-size: 0.75rem; color: #9ca3af; display: flex; align-items: center; gap: 0.5rem; font-weight: bold; cursor: pointer; transition: background-color 0.2s; user-select: none; }
         .thought-header:hover { background: #4b5563; color: #fff; }
-        .thought-content { padding: 0.75rem; font-size: 0.85rem; color: #d8b4fe; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; max-height: 400px; overflow-y: auto; display: block; background-color: #111827; border-top: 1px solid #374151; }
+        .thought-content { padding: 0.75rem; font-size: 0.85rem; color: #d1d5db; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; max-height: 400px; overflow-y: auto; display: block; background-color: #111827; border-top: 1px solid #374151; }
         .thought-content.collapsed { display: none; }
         
         .message-bubble { max-width: 90%; position: relative; word-wrap: break-word; }
@@ -44,7 +43,6 @@
         .welcome-btn { width: 100%; text-align: left; }
         .gem-item.active { background-color: #374151; border-left: 3px solid #3b82f6; }
 
-        /* Alpha Bar Animation */
         #alpha-bar { transition: all 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55); transform-origin: center center; }
         .pulse-target { animation: pulse-green 1s infinite; }
         @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
@@ -68,7 +66,7 @@
     {% endwith %}
     
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-green-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-green-400">
-        <i class="fas fa-check-circle mr-1"></i> System Updated to V3.5.6 (Stable)
+        <i class="fas fa-check-circle mr-1"></i> System V3.5.7 (Final Polish)
     </div>
 
     <div id="debug-console">
@@ -109,7 +107,7 @@
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
         <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500">
-            <div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v3.5.6 <span class="text-green-500 font-bold">MERGED</span></div>
+            <div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v3.5.7 <span class="text-green-500 font-bold">FINAL</span></div>
             <div class="flex justify-center gap-3">
                 <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
                 <span class="text-gray-700">|</span>
@@ -214,7 +212,6 @@
                     <textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea>
                     <button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0"><i class="fas fa-paper-plane"></i></button>
                 </div>
-                <div class="text-[10px] text-gray-500 text-right hidden md:block">Send: <span class="text-gray-300 font-mono">Ctrl + Enter</span></div>
             </div>
         </div>
     </div>
@@ -334,12 +331,11 @@
         const messageStore = {};
         const lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set() };
         
-        // --- Helper Functions ---
         function escapeHtml(text) {
             if (!text) return text;
             return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
         }
-        function log(msg) { console.log(msg); } // Simplified log
+        function log(msg) { console.log(msg); }
         
         function switchTab(tab) {
             get('tab-general').classList.add('hidden');
@@ -401,8 +397,6 @@
         
         window.showAlphaInfo = function() { get('alpha-info-modal').style.display = 'flex'; };
 
-        // --- Logic & Events ---
-        
         function checkSearchAvailability() {
             const model = get('model-select').value;
             const reasonEffort = get('reasoning-effort');
@@ -450,7 +444,6 @@
         if(get('reasoning-effort')) get('reasoning-effort').addEventListener('change', checkSearchAvailability);
 
         document.addEventListener('DOMContentLoaded', () => {
-            // Alpha Animation Logic
             const bar = document.getElementById('alpha-bar');
             setTimeout(() => {
                 if(bar) {
@@ -482,9 +475,6 @@
                 const codeEncoded = encodeURIComponent(code);
                 return `<div class="code-wrapper"><div class="code-header"><span class="code-lang">${escapeHtml(lang)||'TEXT'}</span><button class="copy-btn" onclick="copyCode(this, '${codeEncoded}')"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="hljs language-${escapeHtml(lang)}">${highlighted}</code></pre></div>`;
             };
-            renderer.link = function(href, title, text) {
-                return `<a href="${href}" title="${title || ''}" target="_blank">${text}</a>`;
-            };
             marked.use({ renderer: renderer, breaks: true, gfm: true });
 
             loadThreads(); loadGems(); toggleOptions();
@@ -493,12 +483,10 @@
             get('send-btn').onclick = sendMessage;
             get('stop-btn').onclick = () => { if(abortController) abortController.abort(); };
             
-            // File Handling
             get('upload-btn').onclick = () => get('file-input').click();
             get('file-input').onchange = (e) => handleFiles(e.target.files);
             get('clear-file-btn').onclick = () => { currentImageUrls=[]; get('file-input').value = ''; get('file-preview').classList.add('hidden'); };
             
-            // Paste Handling
             get('prompt-input').addEventListener('paste', async (e) => {
                 const items = (e.clipboardData || window.clipboardData).items;
                 const files = [];
@@ -510,7 +498,6 @@
                 if (files.length > 0) { e.preventDefault(); await handleFiles(files); }
             });
 
-            // Auto Resize & Shortcut
             const ta = get('prompt-input');
             ta.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px'; });
             ta.onkeydown = (e) => {
@@ -518,14 +505,12 @@
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); get('send-btn').click(); }
             };
             
-            // Scroll Sync
             get('chat-container').addEventListener('scroll', () => {
                 const current = get('chat-container').scrollTop;
                 const max = get('chat-container').scrollHeight - get('chat-container').clientHeight;
                 isUserScrolling = (max - current > 50);
             });
 
-            // Edit Button Handler
             get('chat-container').addEventListener('click', (e) => {
                 const editBtn = e.target.closest('.edit-btn');
                 if (editBtn) {
@@ -535,12 +520,11 @@
                     if(!text) return;
                     get('prompt-input').value = text;
                     get('prompt-input').focus();
-                    get('prompt-input').dispatchEvent(new Event('input', { bubbles: true })); // Trigger Resize
+                    get('prompt-input').dispatchEvent(new Event('input', { bubbles: true }));
                     if(confirm("再生成しますか？")) fetch("/api/messages/" + id, {method:'DELETE'}).then(() => loadMessages(currentThreadId)).catch(e=>{});
                 }
             });
             
-            // Settings
             get('settings-btn').onclick = () => {
                 get('settings-modal').style.display='flex';
                 fetch('/api/settings').then(r=>r.json()).then(d=>{
@@ -570,23 +554,18 @@
             };
             get('delete-account-btn').onclick = async () => { if(confirm("【警告】削除しますか？")) try { const res = await fetch('/api/account/delete', {method: 'POST'}); if(res.ok) window.location.href = "/login"; } catch(e){} };
 
-            // Library
             get('lib-btn').onclick = () => { get('lib-modal').style.display='flex'; loadLibraryFiles(); };
             get('lib-del-btn').onclick = deleteSelectedFiles;
             
-            // Gems
             get('add-gem-btn').onclick = () => get('gem-modal').style.display='flex';
             get('save-gem-btn').onclick = createGem;
             
-            // Sidebar Mobile
             get('menu-btn').onclick = () => { get('sidebar').classList.toggle('open'); get('overlay').classList.toggle('active'); };
             get('overlay').onclick = () => { get('sidebar').classList.remove('open'); get('overlay').classList.remove('active'); };
             
-            // Search
             get('search-box').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(loadThreads, 300); });
         });
 
-        // --- Core Functions ---
         async function handleFiles(files) {
             if(!files.length) return;
             get('file-preview').classList.remove('hidden'); 
@@ -615,7 +594,8 @@
             get('file-input').value = '';
         }
 
-        function renderMessage(id, role, text, imgUrl, thoughtData) {
+        // Updated renderMessage to display Model Name
+        function renderMessage(id, role, text, imgUrl, thoughtData, modelName) {
             const isUser = role === 'user';
             const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
             const align = isUser ? 'justify-end' : 'justify-start';
@@ -647,7 +627,7 @@
                     if(imgs.length) {
                         attach = '<div class="flex flex-wrap gap-2 mt-2">';
                         imgs.forEach(u => {
-                            const url = '/files/' + u; // V3.5 Path
+                            const url = '/files/' + u; 
                             attach += `<img src="${url}" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer" onclick="window.open('${url}')">`;
                         });
                         attach += '</div>';
@@ -658,6 +638,9 @@
             const editBtnHtml = isUser ? `<button class="ctrl-btn edit-btn" data-id="${id}" title="Edit"><i class="fas fa-pen"></i></button>` : '';
             const controlsHtml = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${editBtnHtml}</div>`;
             
+            // Restored Model Name Display
+            const modelHtml = (modelName && !isUser) ? `<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">${modelName}</div>` : '';
+
             const html = `
             <div class="flex ${align} mb-4 fade-in relative message-group">
                 <div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">
@@ -665,6 +648,7 @@
                     ${thoughtHtml}
                     <div class="prose prose-invert text-sm break-words">${DOMPurify.sanitize(marked.parse(text||''))}</div>
                     ${attach}
+                    ${modelHtml}
                 </div>
             </div>`;
             
@@ -679,9 +663,9 @@
             if(!currentThreadId) { const res = await fetch('/api/threads', {method: 'POST'}); const d = await res.json(); currentThreadId = d.id; }
             
             get('welcome-screen').classList.add('hidden');
-            renderMessage(0, 'user', text, JSON.stringify(currentImageUrls));
+            renderMessage(0, 'user', text, JSON.stringify(currentImageUrls), null, null);
             get('prompt-input').value = '';
-            get('prompt-input').style.height = 'auto'; // Reset Height
+            get('prompt-input').style.height = 'auto'; 
             
             const payload = { 
                 thread_id: currentThreadId, 
@@ -787,7 +771,8 @@
             const msgs = await res.json(); 
             get('chat-container').innerHTML = '';
             if(msgs.length > 0) {
-                msgs.forEach(m => renderMessage(m.id, m.role, m.content, m.image_url, m.thought_data));
+                // Pass m.model to restore model name display
+                msgs.forEach(m => renderMessage(m.id, m.role, m.content, m.image_url, m.thought_data, m.model));
             } else {
                 get('welcome-screen').classList.remove('hidden');
             }

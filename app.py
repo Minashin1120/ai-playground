@@ -46,7 +46,6 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
-# New Isolated Upload Folder
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'instance/uploads')
 app.config['CHANGELOG_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static/changelogs')
 app.config['MAX_CONTENT_LENGTH'] = 128 * 1024 * 1024
@@ -102,12 +101,11 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True)
     password_hash = db.Column(db.String(255))
-    system_prompt = db.Column(db.Text, default="") # Can be encrypted
-    openai_api_key = db.Column(db.Text, nullable=True) # Encrypted
-    gemini_api_key = db.Column(db.Text, nullable=True) # Encrypted
-    xai_api_key = db.Column(db.Text, nullable=True) # Encrypted
+    system_prompt = db.Column(db.Text, default="")
+    openai_api_key = db.Column(db.Text, nullable=True)
+    gemini_api_key = db.Column(db.Text, nullable=True)
+    xai_api_key = db.Column(db.Text, nullable=True)
     is_setup_completed = db.Column(db.Boolean, default=False)
-    # Settings
     enable_e2ee = db.Column(db.Boolean, default=False)
     
     threads = db.relationship('Thread', backref='user', lazy=True, cascade="all, delete-orphan")
@@ -129,13 +127,14 @@ class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     thread_id = db.Column(db.Integer, db.ForeignKey('thread.id'), nullable=False)
     role = db.Column(db.String(20))
-    content = db.Column(db.Text) # Can be encrypted
+    content = db.Column(db.Text)
     model = db.Column(db.String(50))
     image_url = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     tokens = db.Column(db.Integer, default=0)
-    thought_data = db.Column(db.Text) # Can be encrypted
+    thought_data = db.Column(db.Text)
     is_encrypted = db.Column(db.Boolean, default=False)
+    thought_signature = db.Column(db.Text, nullable=True)
 
 class Gem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -183,13 +182,19 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
         def publish_chunk(dt, d): r.publish(channel, json.dumps({"type": dt, "data": d}))
         
         try:
-            # History Fetching
+            # 1. History Construction with Signatures
             all_msgs = Message.query.filter_by(thread_id=thread_id).order_by(Message.timestamp).all()
             history = []
-            for m in all_msgs[:-1]: # Exclude current user message (not saved yet in this flow logic assumption, but actually saved in controller)
-                # Decrypt if needed
+            
+            for m in all_msgs[:-1]:
                 cnt = decrypt_val(m.content) if m.is_encrypted else m.content
-                history.append({'role': m.role, 'content': cnt, 'image_url': m.image_url})
+                sig = m.thought_signature
+                history.append({
+                    'role': m.role, 
+                    'content': cnt, 
+                    'image_url': m.image_url,
+                    'signature': sig
+                })
 
             is_gemini = 'gemini' in model_key or 'nano' in model_key
             is_grok = 'grok' in model_key
@@ -204,7 +209,6 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
             # File Loading
             loaded_files = []
             for fname in img_list:
-                # Resolve path from isolated storage
                 info = {'name': fname, 'text': None, 'bytes': None, 'mime': None, 'path': os.path.join(app.config['UPLOAD_FOLDER'], fname)}
                 try:
                     if os.path.exists(info['path']):
@@ -230,29 +234,26 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                 except: pass
 
             full_res, thought_accumulated, generated_images = "", "", []
-            collected_signatures = {}
+            final_signature = None
 
             if is_gemini:
-                # Gemini Model Logic
                 real_model = model_key
-                if "3.0" in model_key and "pro" in model_key: real_model = "gemini-3.0-pro-preview" # Force ID
-                elif "3.0" in model_key and "flash" in model_key: real_model = "gemini-3.0-flash-preview" # New Feature
+                # FIX: Logic Update for correct IDs
+                if "gemini-3-flash" in model_key: real_model = "gemini-3-flash-preview"
+                elif "3.0" in model_key and "pro" in model_key: real_model = "gemini-3.0-pro-preview"
                 elif "2.5" in model_key: real_model = "gemini-2.5-flash"
-                elif "nano-banana-pro" in model_key: real_model = "gemini-3-pro-image-preview"
+                elif "nano-banana-pro" in model_key: real_model = "gemini-3.0-pro-image-preview"
                 elif "nano-banana" in model_key: real_model = "gemini-2.5-flash-image"
 
                 config_params = {'temperature': 0.7}
                 
-                # Thinking Level Logic
                 if "nano" not in model_key:
                     if options.get('enable_thinking'):
-                        budget = 1024 # Default Low
+                        budget = 1024
                         lvl = options.get('thinking_level', 'low')
                         if lvl == 'medium': budget = 4096
                         elif lvl == 'high': budget = 8192
                         elif lvl == 'minimal': budget = 1024
-                        
-                        # Gemini 3.0 supports ThinkingConfig
                         config_params['thinking_config'] = types.ThinkingConfig(include_thoughts=True, thinking_budget=budget)
                     
                     if options.get('enable_search'): config_params['tools'] = [types.Tool(google_search=types.GoogleSearch())]
@@ -265,18 +266,39 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                             types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE")
                         ]
 
+                # --- Construct History with Signatures ---
                 contents = []
                 for m in history:
-                    parts = [types.Part(text=m['content'])]
+                    parts = []
+                    sig_bytes = None
+                    if m.get('signature'):
+                        try:
+                            sig_bytes = base64.b64decode(m['signature'])
+                        except: pass
+
+                    if m['content']:
+                        parts.append(types.Part(text=m['content']))
+
                     if m['image_url']:
                         try:
                             for h_img in json.loads(m['image_url']):
                                 h_path = os.path.join(app.config['UPLOAD_FOLDER'], h_img)
                                 if os.path.exists(h_path): 
                                     mime_type = mimetypes.guess_type(h_path)[0] or 'image/webp'
-                                    with open(h_path, 'rb') as f: parts.append(types.Part.from_bytes(data=f.read(), mime_type=mime_type))
+                                    with open(h_path, 'rb') as f: 
+                                        p = types.Part.from_bytes(data=f.read(), mime_type=mime_type)
+                                        if sig_bytes and m['role'] == 'assistant':
+                                            p.thought_signature = sig_bytes
+                                        parts.append(p)
                         except: pass
-                    contents.append(types.Content(role='model' if m['role'] == 'assistant' else 'user', parts=parts))
+                    
+                    if not parts and sig_bytes and m['role'] == 'assistant':
+                         p = types.Part(text="")
+                         p.thought_signature = sig_bytes
+                         parts.append(p)
+
+                    if parts:
+                        contents.append(types.Content(role='model' if m['role'] == 'assistant' else 'user', parts=parts))
 
                 curr_parts = [types.Part(text=message_text)]
                 for fi in loaded_files:
@@ -288,35 +310,34 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                 
                 for chunk in stream:
                     if hasattr(chunk, 'candidates') and chunk.candidates:
-                        for part in chunk.candidates[0].content.parts:
-                            # Image Generation Handling
-                            if hasattr(part, 'inline_data') and part.inline_data:
-                                try:
-                                    user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
-                                    if not os.path.exists(user_dir): os.makedirs(user_dir, exist_ok=True)
-                                    fn = f"gen_{int(time.time())}_{len(generated_images)}.png"
-                                    Image.open(BytesIO(part.inline_data.data)).save(os.path.join(user_dir, fn))
-                                    db_path = f"{user_id}/{fn}"
-                                    generated_images.append(db_path)
-                                    # Use /files/ route
-                                    img_md = f"\n\n![Generated Image](/files/{db_path})\n"
-                                    full_res += img_md
-                                    publish_chunk("content", img_md)
-                                except: pass
-                            
-                            if hasattr(part, 'thought_signature') and part.thought_signature:
-                                try: collected_signatures['signature'] = base64.b64encode(part.thought_signature).decode('utf-8')
-                                except: pass
+                        for candidate in chunk.candidates:
+                            if hasattr(candidate.content, 'parts'):
+                                for part in candidate.content.parts:
+                                    if hasattr(part, 'thought_signature') and part.thought_signature:
+                                        final_signature = base64.b64encode(part.thought_signature).decode('utf-8')
 
-                            tt = part.thought if hasattr(part, 'thought') and part.thought else None
-                            if tt: 
-                                thought_accumulated += (tt if isinstance(tt, str) else "")
-                                publish_chunk("thought", tt if isinstance(tt, str) else "")
-                            if part.text: 
-                                full_res += part.text
-                                publish_chunk("content", part.text)
+                                    if hasattr(part, 'inline_data') and part.inline_data:
+                                        try:
+                                            user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
+                                            if not os.path.exists(user_dir): os.makedirs(user_dir, exist_ok=True)
+                                            fn = f"gen_{int(time.time())}_{len(generated_images)}.png"
+                                            Image.open(BytesIO(part.inline_data.data)).save(os.path.join(user_dir, fn))
+                                            db_path = f"{user_id}/{fn}"
+                                            generated_images.append(db_path)
+                                            img_md = f"\n\n![Generated Image](/files/{db_path})\n"
+                                            full_res += img_md
+                                            publish_chunk("content", img_md)
+                                        except: pass
+                                    
+                                    tt = part.thought if hasattr(part, 'thought') and part.thought else None
+                                    if tt: 
+                                        thought_accumulated += (tt if isinstance(tt, str) else "")
+                                        publish_chunk("thought", tt if isinstance(tt, str) else "")
+                                    
+                                    if part.text: 
+                                        full_res += part.text
+                                        publish_chunk("content", part.text)
             else:
-                # GPT / Grok
                 client = xai_client_std if is_grok else openai_client
                 msgs = []
                 if options.get('system_prompt'): msgs.append({"role": "system", "content": options.get('system_prompt')})
@@ -343,13 +364,8 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                         full_res += delta.content
                         publish_chunk("content", delta.content)
 
-            # Saving Result
-            t_data_obj = {'text': thought_accumulated}
-            if collected_signatures: t_data_obj['signatures'] = collected_signatures
-            
-            # E2EE: Encrypt if enabled
             final_content = full_res
-            final_thought = json.dumps(t_data_obj) if thought_accumulated else None
+            final_thought = json.dumps({'text': thought_accumulated}) if thought_accumulated else None
             is_enc = user_config.get('enable_e2ee', False)
             
             if is_enc:
@@ -364,7 +380,8 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                 image_url=json.dumps(generated_images) if generated_images else None, 
                 thought_data=final_thought,
                 tokens=count_tokens(full_res),
-                is_encrypted=is_enc
+                is_encrypted=is_enc,
+                thought_signature=final_signature
             )
             db.session.add(msg_entry)
             Thread.query.get(thread_id).updated_at = datetime.utcnow()
@@ -375,8 +392,7 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
             logger.error(f"Worker Error: {e}")
             publish_chunk("error", str(e))
 
-# --- Routes ---
-
+# ... [Routes unchanged] ...
 @app.route('/')
 def index():
     if current_user.is_authenticated:
@@ -387,10 +403,9 @@ def index():
 @app.route('/files/<path:filename>')
 @login_required
 def serve_file(filename):
-    # Secured File Access
     parts = filename.split('/')
     if len(parts) > 1 and str(parts[0]) != str(current_user.id):
-        abort(403) # Prevent accessing other users' files
+        abort(403)
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/changelog')
@@ -479,10 +494,8 @@ def handle_settings():
     if d.get('new_username') and d['new_username'] != current_user.username:
         if not User.query.filter_by(username=d['new_username']).first(): current_user.username = d['new_username']
     
-    # E2EE Toggle & Migration
     if 'enable_e2ee' in d and d['enable_e2ee'] != current_user.enable_e2ee:
         current_user.enable_e2ee = d['enable_e2ee']
-        # Migrate existing messages
         msgs = Message.query.join(Thread).filter(Thread.user_id == current_user.id).all()
         for m in msgs:
             if current_user.enable_e2ee and not m.is_encrypted:
@@ -523,16 +536,13 @@ def delete_gem(gid):
 @login_required
 def handle_threads():
     if request.method == 'GET':
-        # Search is limited when E2EE is on
         q = request.args.get('q', '').strip()
         query = Thread.query.filter_by(user_id=current_user.id)
         if q: 
-            # If E2EE enabled, search only titles. Else search content too.
             if current_user.enable_e2ee:
                  query = query.filter(Thread.title.contains(q))
             else:
                  query = query.join(Message).filter(or_(Thread.title.contains(q), Message.content.contains(q))).distinct()
-        
         ts = query.order_by(Thread.updated_at.desc()).limit(50).all()
         return jsonify([{'id': t.id, 'title': t.title} for t in ts])
     t = Thread(user_id=current_user.id)
@@ -594,7 +604,6 @@ def get_files_lib():
                     if os.path.exists(fp):
                         seen.add(p)
                         ext = os.path.splitext(p)[1].lower().replace('.', '')
-                        # Use /files/ route
                         files.append({'filename': os.path.basename(p), 'filepath': p, 'url': url_for('serve_file', filename=p), 'type': 'image' if ext in ['png','jpg','webp'] else 'file', 'ext': ext})
         return jsonify(files)
     except: return jsonify([])
@@ -694,14 +703,11 @@ def chat_stream():
         'xai': get_key_for_user(current_user, 'XAI_API_KEY')
     }
     
-    # E2EE config passed to worker
     user_config = {'enable_e2ee': current_user.enable_e2ee}
 
-    # Encrypt user message immediately if E2EE is on
     u_msg = data.get('message')
     if current_user.enable_e2ee:
         u_msg_enc = encrypt_val(u_msg)
-        # Store user message
         msg_entry = Message(
             thread_id=data.get('thread_id'), role='user', content=u_msg_enc, 
             image_url=json.dumps(data.get('image_urls', [])), is_encrypted=True
@@ -732,14 +738,9 @@ def chat_stream():
 
 with app.app_context():
     db.create_all()
-    # Add new columns if missing (Simple Migration for E2EE)
     try:
         with db.engine.connect() as conn:
-            conn.execute(text("ALTER TABLE user ADD COLUMN enable_e2ee BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
-        with db.engine.connect() as conn:
-            conn.execute(text("ALTER TABLE message ADD COLUMN is_encrypted BOOLEAN DEFAULT 0"))
+            conn.execute(text("ALTER TABLE message ADD COLUMN thought_signature TEXT"))
     except: pass
 
 if __name__ == '__main__':

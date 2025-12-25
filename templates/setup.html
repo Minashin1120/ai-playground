@@ -7,16 +7,20 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        /* Smooth Entry Animation */
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .animate-enter { animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         
-        /* Image Hover */
         .promo-img { transition: transform 0.5s ease, box-shadow 0.5s ease; }
         .promo-img:hover { transform: scale(1.02) translateY(-5px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); }
         
         .btn-glow { transition: all 0.3s; }
         .btn-glow:hover { box-shadow: 0 0 15px rgba(37, 99, 235, 0.5); transform: translateY(-1px); }
+
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1f2937; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #6b7280; }
     </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
@@ -27,42 +31,76 @@
         </div>
 
         <form method="POST" id="setup-form" class="p-6">
-            <!-- Step 1: Welcome & GitHub -->
+            <!-- Step 1: Welcome -->
             <div id="step-1" class="space-y-6 text-center">
                 <div class="mb-6 relative group">
                     <div class="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
                     <img src="/static/github_promo.png" alt="AI Playground Promo" class="promo-img relative w-full rounded-lg border border-gray-700 shadow-xl">
                 </div>
-                
-                <h2 class="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
-                    AI Chat Playground
-                </h2>
-                <p class="text-gray-400 leading-relaxed">
-                    最新のAIモデルを自由に試せる、<br>あなただけのプライベートなチャット環境へようこそ。
-                </p>
-                
+                <h2 class="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">AI Chat Playground</h2>
+                <p class="text-gray-400 leading-relaxed">最新のAIモデルを自由に試せる、<br>あなただけのプライベートなチャット環境へようこそ。</p>
                 <div class="flex justify-center gap-4 pt-4">
-                    <a href="https://github.com/Minashin1120/ai-playground" target="_blank" class="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition flex items-center gap-2 border border-gray-600 hover:border-gray-500">
-                        <i class="fab fa-github"></i> Repository
-                    </a>
-                    <button type="button" onclick="nextStep(2)" class="px-8 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg btn-glow flex items-center gap-2">
-                        始める <i class="fas fa-arrow-right"></i>
-                    </button>
+                    <a href="https://github.com/Minashin1120/ai-playground" target="_blank" class="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition flex items-center gap-2 border border-gray-600 hover:border-gray-500"><i class="fab fa-github"></i> Repository</a>
+                    <button type="button" onclick="nextStep(2)" class="px-8 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg btn-glow flex items-center gap-2">始める <i class="fas fa-arrow-right"></i></button>
                 </div>
             </div>
 
             <!-- Step 2: Legal -->
             <div id="step-2" class="hidden space-y-6 animate-enter">
-                <h3 class="text-orange-400 font-bold mb-2 flex items-center"><i class="fas fa-file-contract mr-2"></i>利用規約の確認</h3>
-                <div class="bg-gray-900/50 p-6 rounded-lg border border-gray-700 h-64 overflow-y-auto text-sm text-gray-300 leading-relaxed custom-scrollbar">
-                    <p class="mb-4"><strong class="text-white">1. アルファ版のご注意</strong><br>本サービスは開発中のアルファ版です。データが予告なく削除される可能性があります。</p>
-                    <p class="mb-4"><strong class="text-white">2. APIキーの管理</strong><br>APIキーは暗号化されて保存されますが、あくまで自己責任で管理してください。</p>
-                    <p><strong class="text-white">3. 免責事項</strong><br>本サービスを利用して発生した損害について、運営者は一切の責任を負いません。</p>
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-orange-400 font-bold flex items-center"><i class="fas fa-file-contract mr-2"></i>規約の確認</h3>
+                    <div class="flex space-x-2 text-xs">
+                        <button type="button" onclick="showText('terms')" id="btn-terms" class="px-3 py-1 bg-blue-600 text-white rounded transition">利用規約</button>
+                        <button type="button" onclick="showText('privacy')" id="btn-privacy" class="px-3 py-1 bg-gray-700 text-gray-300 hover:text-white rounded transition">プライバシーポリシー</button>
+                    </div>
                 </div>
-                <div class="flex items-center gap-3 p-2 rounded hover:bg-gray-700/30 transition cursor-pointer" onclick="document.getElementById('agree-check').click()">
-                    <input type="checkbox" id="agree-check" class="w-5 h-5 bg-gray-700 border-gray-600 rounded accent-blue-500 cursor-pointer">
-                    <label for="agree-check" class="cursor-pointer select-none text-gray-300">上記の利用規約の内容を理解し、同意します</label>
+                
+                <div class="bg-gray-900/50 p-6 rounded-lg border border-gray-700 h-64 overflow-y-auto text-sm text-gray-300 leading-relaxed custom-scrollbar relative">
+                    <!-- Terms Text -->
+                    <div id="text-terms">
+                        <h4 class="text-white font-bold mb-2 text-base border-b border-gray-600 pb-1">利用規約</h4>
+                        <p class="mb-2">この利用規約（以下「本規約」といいます）は、AI Chat Playground（以下「本サービス」といいます）の利用条件を定めるものです。</p>
+                        
+                        <h5 class="text-white font-bold mt-4 mb-1">第1条（適用）</h5>
+                        <p class="mb-2">本規約は、ユーザーと本サービス運営者との間の、本サービスの利用に関わる一切の関係に適用されます。</p>
+                        
+                        <h5 class="text-white font-bold mt-4 mb-1">第2条（免責）</h5>
+                        <ul class="list-disc pl-5 mb-2 space-y-1">
+                            <li>本サービスは「アルファ版」として提供されており、予告なく機能変更やデータ削除が行われる可能性があります。</li>
+                            <li>AIが生成する情報の正確性について、運営者は一切の責任を負いません。生成されたコードや情報の利用は自己責任で行ってください。</li>
+                        </ul>
+
+                        <h5 class="text-white font-bold mt-4 mb-1">第3条（API利用）</h5>
+                        <p class="mb-2">本サービスはBYOK（Bring Your Own Key）方式を採用しています。API利用料はユーザーご自身の負担となります。また、APIキーは暗号化されて保存されますが、その管理はユーザーの責任において行ってください。</p>
+                        
+                        <p class="mt-4 text-xs text-gray-500">以上</p>
+                    </div>
+
+                    <!-- Privacy Text -->
+                    <div id="text-privacy" class="hidden">
+                        <h4 class="text-white font-bold mb-2 text-base border-b border-gray-600 pb-1">プライバシーポリシー</h4>
+                        
+                        <h5 class="text-white font-bold mt-4 mb-1">1. 収集する情報</h5>
+                        <ul class="list-disc pl-5 mb-2 space-y-1">
+                            <li><strong>アカウント情報:</strong> ユーザー名、パスワード（ハッシュ化して保存）。</li>
+                            <li><strong>利用データ:</strong> チャット履歴、アップロードされたファイル、システムプロンプト設定。</li>
+                            <li><strong>APIキー:</strong> OpenAI, Gemini, xAI等のAPIキー（AES強力暗号化により保存）。</li>
+                        </ul>
+
+                        <h5 class="text-white font-bold mt-4 mb-1">2. APIキーの取り扱い</h5>
+                        <p class="mb-2">お預かりしたAPIキーは、ユーザーがAIモデルへリクエストを送信する際の中継処理にのみ使用されます。運営者がこれらのキーを他の目的で使用したり、第三者に提供したりすることはありません。</p>
+
+                        <h5 class="text-white font-bold mt-4 mb-1">3. データの削除</h5>
+                        <p class="mb-2">ユーザーは設定画面からいつでも自身のアカウントおよび全データを完全に削除することができます。削除操作を行うと、サーバー上から関連データは物理的に消去されます。</p>
+                    </div>
                 </div>
+
+                <!-- Checkbox (Fixed) -->
+                <label class="flex items-start gap-3 p-3 rounded hover:bg-gray-700/30 transition cursor-pointer border border-transparent hover:border-gray-600">
+                    <input type="checkbox" id="agree-check" class="mt-0.5 w-5 h-5 bg-gray-700 border-gray-600 rounded accent-blue-500 cursor-pointer shrink-0">
+                    <span class="text-sm text-gray-300 select-none">利用規約およびプライバシーポリシーの内容を全て確認し、これらに同意します。</span>
+                </label>
+
                 <div class="flex justify-between pt-4 border-t border-gray-700">
                     <button type="button" onclick="nextStep(1)" class="text-gray-400 hover:text-white transition">戻る</button>
                     <button type="button" onclick="nextStep(3)" id="btn-step2" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-8 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed btn-glow transition" disabled>次へ</button>
@@ -102,8 +140,7 @@
                 const el = document.getElementById('step-'+i);
                 if(i === n) {
                     el.classList.remove('hidden');
-                    // Trigger reflow to restart animation
-                    void el.offsetWidth;
+                    void el.offsetWidth; // Trigger reflow
                     el.classList.add('animate-enter');
                 } else {
                     el.classList.add('hidden');
@@ -112,6 +149,30 @@
             });
             document.getElementById('step-num').innerText = n;
         }
+
+        function showText(type) {
+            const terms = document.getElementById('text-terms');
+            const privacy = document.getElementById('text-privacy');
+            const btnTerms = document.getElementById('btn-terms');
+            const btnPrivacy = document.getElementById('btn-privacy');
+
+            if (type === 'terms') {
+                terms.classList.remove('hidden');
+                privacy.classList.add('hidden');
+                btnTerms.classList.replace('bg-gray-700', 'bg-blue-600');
+                btnTerms.classList.replace('text-gray-300', 'text-white');
+                btnPrivacy.classList.replace('bg-blue-600', 'bg-gray-700');
+                btnPrivacy.classList.replace('text-white', 'text-gray-300');
+            } else {
+                privacy.classList.remove('hidden');
+                terms.classList.add('hidden');
+                btnPrivacy.classList.replace('bg-gray-700', 'bg-blue-600');
+                btnPrivacy.classList.replace('text-gray-300', 'text-white');
+                btnTerms.classList.replace('bg-blue-600', 'bg-gray-700');
+                btnTerms.classList.replace('text-white', 'text-gray-300');
+            }
+        }
+
         document.getElementById('agree-check').addEventListener('change', function() {
             document.getElementById('btn-step2').disabled = !this.checked;
         });

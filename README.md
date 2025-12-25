@@ -1,64 +1,87 @@
-# AI Chat Playground (Alpha)
+# AI Chat Playground (V3.7)
 
-![Alpha Version](https://img.shields.io/badge/Status-Alpha-orange)
+![Status](https://img.shields.io/badge/Status-Stable-green)
+![Version](https://img.shields.io/badge/Version-3.7.1-blue)
+![License](https://img.shields.io/badge/License-MIT-orange)
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
-![Flask](https://img.shields.io/badge/Framework-Flask-green)
+![Framework](https://img.shields.io/badge/Framework-Flask%203.x-lightgrey)
 
-A multi-model AI chat application supporting Google Gemini, OpenAI GPT, and xAI Grok.
-Designed for personal use with BYOK (Bring Your Own Key) architecture.
+A robust, multi-model AI chat platform supporting **Google Gemini 3.0**, **OpenAI GPT-5**, and **xAI Grok**.
+Designed for privacy, flexibility, and power users, utilizing a **BYOK (Bring Your Own Key)** architecture.
 
-## Features
+## 🚀 Key Features
 
-*   **Multi-Model Support**: Switch seamlessly between Gemini 3.0 Pro, GPT-5, and Grok.
-*   **Multi-Modal**: Upload images and PDFs for analysis.
-*   **User Isolation**: Individual file storage and settings for multiple users.
-*   **Thinking Process**: Visualizes the AI's "Thought" process (for supported models).
-*   **File Library**: Manage uploaded files with download/view capabilities.
-*   **Markdown Support**: Full Markdown rendering with syntax highlighting and copy buttons.
+### 🧠 Cutting-Edge AI Models
+*   **Multi-Model Support:** Seamlessly switch between Gemini 3.0 Pro/Flash, GPT-5.1, and Grok 4.1.
+*   **Thinking Process Visualization:** View the internal "Chain of Thought" for supported models (Gemini Thinking, etc.) in a dedicated UI box.
+*   **Thinking Level Control:** Adjust the depth of reasoning (Low, Medium, High) directly from the UI.
 
-## Setup
+### 🛡️ Privacy & Security (V3.x)
+*   **BYOK Architecture:** Your API keys are encrypted (AES-256) and stored securely.
+*   **E2EE (End-to-End Encryption):** Optional database-level encryption for chat history. Even the admin cannot read your messages when enabled.
+*   **File Isolation:** Uploaded files are stored in a protected `instance` directory, accessible only via authenticated routes.
 
-This application is built with Flask and uses MariaDB.
+### 💻 Developer & Power User UX
+*   **Web Debug Console:** Monitor server logs directly from the browser (Admin only).
+*   **File Library:** Manage, view, and delete your uploaded images and PDFs.
+*   **Markdown & Syntax Highlighting:** Full support for code blocks with copy functionality.
+*   **Keyboard Shortcuts:** `Ctrl + Enter` to send, `Ctrl + V` to paste images.
+
+## 🛠️ Tech Stack
+
+*   **Backend:** Python 3.11, Flask, Gunicorn
+*   **Database:** MariaDB (MySQL) with SQLAlchemy
+*   **Queue System:** Redis, RQ (Redis Queue)
+*   **Frontend:** HTML5, Tailwind CSS, JavaScript (Vanilla)
+*   **Infrastructure:** Systemd managed services
+
+## ⚙️ Setup & Installation
 
 ### Prerequisites
-
 *   Python 3.11+
 *   MariaDB / MySQL
-*   `ffmpeg` (for media processing)
+*   Redis Server
+*   `ffmpeg` (Optional, for media processing)
 
 ### Installation
 
-1.  Clone the repository:
+1.  **Clone the Repository**
     ```bash
-    git clone https://github.com/YourUsername/ai-chat-app.git
-    cd ai-chat-app
+    git clone https://github.com/Minashin1120/ai-playground.git
+    cd ai-playground
     ```
 
-2.  Install dependencies:
+2.  **Set up Virtual Environment**
     ```bash
+    python3 -m venv venv
+    source venv/bin/activate
     pip install -r requirements.txt
     ```
 
-3.  Configure environment variables:
-    Create a `.env` file:
+3.  **Configure Environment Variables**
+    Create a `.env` file in the root directory:
     ```ini
-    FLASK_SECRET_KEY=your_random_secret_key
-    DATABASE_URL=mysql+pymysql://user:pass@localhost/dbname
-    TURNSTILE_SITE_KEY=your_cloudflare_key (Optional)
-    TURNSTILE_SECRET_KEY=your_cloudflare_secret (Optional)
+    FLASK_SECRET_KEY=your_secure_random_key
+    DATABASE_URL=mysql+pymysql://user:password@localhost/dbname
+    REDIS_URL=redis://localhost:6379/10
+    
+    # Cloudflare Turnstile (Optional)
+    TURNSTILE_SITE_KEY=your_site_key
+    TURNSTILE_SECRET_KEY=your_secret_key
     ```
 
-4.  Run the application:
+4.  **Run the Application**
     ```bash
-    gunicorn -w 1 -b 0.0.0.0:3111 app:app
+    # Run using Gunicorn (Production)
+    gunicorn --preload --timeout 300 -w 1 -b 0.0.0.0:3111 app:app
+    
+    # Start the Worker
+    python worker.py
     ```
 
-## Usage
-
-1.  **Register/Login**: Create an account.
-2.  **Settings**: Go to settings (gear icon) and enter your API Keys (OpenAI, Gemini, xAI).
-3.  **Chat**: Select a model and start chatting.
-
-## License
+## 📜 License
 
 This project is licensed under the MIT License.
+
+---
+**Maintained by:** [Minashin1120](https://github.com/Minashin1120)

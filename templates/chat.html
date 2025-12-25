@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V3.6.1)</title>
+    <title>AI Playground (V3.7.0)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -20,6 +20,7 @@
         .prose p { margin-bottom: 0.8em; }
         .prose a { color: #60a5fa; text-decoration: underline; }
         
+        /* UI Components */
         .code-wrapper { margin: 1em 0; border-radius: 0.5rem; border: 1px solid #374151; overflow: hidden; background: #282c34; }
         .code-header { display: flex; justify-content: space-between; align-items: center; background: #21252b; padding: 0.3rem 0.8rem; font-size: 0.75rem; color: #9ca3af; border-bottom: 1px solid #181a1f; }
         .copy-btn { background: transparent; border: none; color: #9ca3af; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s; }
@@ -33,6 +34,16 @@
         
         .message-bubble { max-width: 90%; position: relative; word-wrap: break-word; }
         @media (min-width: 768px) { .message-bubble { max-width: 80%; } }
+        
+        /* Animations */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        
+        @keyframes modalPop { 0% { opacity: 0; transform: scale(0.95); } 100% { opacity: 1; transform: scale(1); } }
+        .modal-animate { animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        .btn-hover { transition: all 0.2s; }
+        .btn-hover:hover { transform: translateY(-1px); filter: brightness(1.1); }
         
         .msg-controls { opacity: 0; transition: opacity 0.2s; position: absolute; top: -12px; right: 0; display: flex; gap: 4px; }
         .message-group:hover .msg-controls { opacity: 1; }
@@ -58,7 +69,7 @@
 <body class="h-[100dvh] flex overflow-hidden text-sm md:text-base">
     {% with messages = get_flashed_messages() %}
       {% if messages %}
-        <div id="flash-msg" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] bg-blue-600 text-white px-6 py-3 rounded shadow-lg transition-opacity duration-500">
+        <div id="flash-msg" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] bg-blue-600 text-white px-6 py-3 rounded shadow-lg transition-opacity duration-500 fade-in">
           {{ messages[0] }}
         </div>
         <script>setTimeout(()=>{const m=document.getElementById('flash-msg');if(m){m.style.opacity='0';setTimeout(()=>m.remove(),500)}},3000);</script>
@@ -66,7 +77,7 @@
     {% endwith %}
     
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-green-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-green-400">
-        <i class="fas fa-check-circle mr-1"></i> System V3.6.1 (Stable Release)
+        <i class="fas fa-check-circle mr-1"></i> System V3.7.0 (UI Enhanced)
     </div>
 
     <div id="debug-console">
@@ -82,23 +93,23 @@
             <div class="flex justify-between items-center">
                 <h2 class="font-bold text-base flex-shrink-0 text-gray-200">AI Chat</h2>
                 <div class="flex items-center gap-1">
-                    <a href="https://github.com/Minashin1120/ai-playground" target="_blank" class="text-gray-400 hover:text-white p-1.5" title="GitHub"><i class="fab fa-github"></i></a>
+                    <a href="https://github.com/Minashin1120/ai-playground" target="_blank" class="text-gray-400 hover:text-white p-1.5 btn-hover" title="GitHub"><i class="fab fa-github"></i></a>
                     {% if current_user.username == 'minashin1120' %}
-                    <button onclick="toggleDebug()" class="text-gray-400 hover:text-yellow-400 p-1.5 rounded" title="Debug"><i class="fas fa-wrench text-xs"></i></button>
+                    <button onclick="toggleDebug()" class="text-gray-400 hover:text-yellow-400 p-1.5 rounded btn-hover" title="Debug"><i class="fas fa-wrench text-xs"></i></button>
                     {% endif %}
-                    <button onclick="location.href='/changelog'" class="text-gray-400 hover:text-white p-1.5 rounded" title="履歴"><i class="fas fa-history text-xs"></i></button>
-                    <button id="settings-btn" class="text-gray-400 hover:text-green-400 p-1.5 rounded" title="設定"><i class="fas fa-cog text-xs"></i></button>
-                    <button id="lib-btn" class="text-gray-400 hover:text-blue-400 p-1.5 rounded" title="ライブラリ"><i class="fas fa-folder text-xs"></i></button>
-                    <button id="new-chat-btn" class="text-gray-400 hover:text-white p-1.5 rounded bg-blue-600 hover:bg-blue-500" title="新規チャット"><i class="fas fa-plus text-xs"></i></button>
+                    <button onclick="location.href='/changelog'" class="text-gray-400 hover:text-white p-1.5 rounded btn-hover" title="履歴"><i class="fas fa-history text-xs"></i></button>
+                    <button id="settings-btn" class="text-gray-400 hover:text-green-400 p-1.5 rounded btn-hover" title="設定"><i class="fas fa-cog text-xs"></i></button>
+                    <button id="lib-btn" class="text-gray-400 hover:text-blue-400 p-1.5 rounded btn-hover" title="ライブラリ"><i class="fas fa-folder text-xs"></i></button>
+                    <button id="new-chat-btn" class="text-gray-400 hover:text-white p-1.5 rounded bg-blue-600 hover:bg-blue-500 btn-hover" title="新規チャット"><i class="fas fa-plus text-xs"></i></button>
                 </div>
             </div>
-            <div class="relative"><input type="text" id="search-box" placeholder="検索..." class="w-full bg-gray-700 rounded px-3 py-1 text-sm"><i class="fas fa-search absolute right-3 top-1.5 text-gray-500 text-xs"></i></div>
+            <div class="relative"><input type="text" id="search-box" placeholder="検索..." class="w-full bg-gray-700 rounded px-3 py-1 text-sm focus:ring-1 focus:ring-blue-500 outline-none transition"><i class="fas fa-search absolute right-3 top-1.5 text-gray-500 text-xs"></i></div>
         </div>
 
         <div class="px-2 py-2">
             <div class="flex justify-between items-center px-2 mb-1">
                 <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Gems</span>
-                <button id="add-gem-btn" class="text-xs text-blue-400 hover:text-blue-300"><i class="fas fa-plus"></i> New</button>
+                <button id="add-gem-btn" class="text-xs text-blue-400 hover:text-blue-300 btn-hover"><i class="fas fa-plus"></i> New</button>
             </div>
             <div id="gem-list" class="space-y-1 overflow-y-auto max-h-40"></div>
         </div>
@@ -107,13 +118,13 @@
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
         <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500">
-            <div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v3.6.1 <span class="text-green-500 font-bold">STABLE</span></div>
+            <div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v3.7.0 <span class="text-green-500 font-bold">ANIMATED</span></div>
             <div class="flex justify-center gap-3">
                 <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
                 <span class="text-gray-700">|</span>
                 <button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button>
             </div>
-            <a href="/logout" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded">ログアウト</a>
+            <a href="/logout" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a>
         </div>
     </div>
     
@@ -130,28 +141,28 @@
 
         <div class="flex-1 overflow-hidden relative">
             <div id="chat-container" class="absolute inset-0 overflow-y-auto p-4 space-y-6 scroll-smooth"></div>
-            <div id="welcome-screen" class="absolute inset-0 flex flex-col items-center justify-center text-gray-500 space-y-4 bg-[#111827] z-10">
+            <div id="welcome-screen" class="absolute inset-0 flex flex-col items-center justify-center text-gray-500 space-y-4 bg-[#111827] z-10 fade-in">
                 <h2 class="text-2xl font-bold text-white flex items-center gap-2"><i class="fas fa-gem text-blue-500"></i> AI Gems & Chat</h2>
                 <div class="grid grid-cols-1 gap-2 w-full max-w-md px-4">
-                    <button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition" onclick="quickStart('gemini-3-flash-preview')">⚡ Gemini 3.0 Flash</button>
-                    <button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition" onclick="quickStart('gemini-3.0-pro-preview')">🧠 Gemini 3.0 Pro</button>
+                    <button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover" onclick="quickStart('gemini-3-flash-preview')">⚡ Gemini 3.0 Flash</button>
+                    <button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover" onclick="quickStart('gemini-3.0-pro-preview')">🧠 Gemini 3.0 Pro</button>
                 </div>
             </div>
         </div>
 
         <div class="bg-gray-800 border-t border-gray-700 p-3 shrink-0 z-10">
             <div class="max-w-3xl mx-auto space-y-2 relative">
-                <div id="gem-active-indicator" class="hidden absolute -top-10 left-0 bg-blue-900/80 text-blue-200 text-xs px-3 py-1 rounded-t-lg border-t border-l border-r border-blue-700 flex items-center gap-2">
+                <div id="gem-active-indicator" class="hidden absolute -top-10 left-0 bg-blue-900/80 text-blue-200 text-xs px-3 py-1 rounded-t-lg border-t border-l border-r border-blue-700 flex items-center gap-2 fade-in">
                     <i class="fas fa-gem"></i> Using Gem: <span id="active-gem-name" class="font-bold"></span>
                     <button onclick="clearActiveGem()" class="ml-2 hover:text-white">×</button>
                 </div>
                 
-                <div id="stop-container" class="absolute -top-12 left-1/2 transform -translate-x-1/2 hidden">
-                    <button id="stop-btn" class="bg-red-500/90 hover:bg-red-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm backdrop-blur-sm"><i class="fas fa-stop"></i> 停止</button>
+                <div id="stop-container" class="absolute -top-12 left-1/2 transform -translate-x-1/2 hidden fade-in">
+                    <button id="stop-btn" class="bg-red-500/90 hover:bg-red-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm backdrop-blur-sm btn-hover"><i class="fas fa-stop"></i> 停止</button>
                 </div>
 
                 <div class="flex flex-wrap justify-between items-center text-xs text-gray-400 gap-2">
-                    <select id="model-select" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 outline-none text-white max-w-[200px] truncate">
+                    <select id="model-select" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 outline-none text-white max-w-[200px] truncate transition focus:border-blue-500">
                         <optgroup label="Gemini 3.0">
                             <option value="gemini-3-flash-preview">Gemini 3.0 Flash</option>
                             <option value="gemini-3.0-pro-preview">Gemini 3.0 Pro</option>
@@ -208,9 +219,9 @@
                 
                 <div class="flex gap-2 items-end">
                     <input type="file" id="file-input" class="hidden" multiple>
-                    <button id="upload-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0"><i class="fas fa-paperclip"></i></button>
+                    <button id="upload-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover"><i class="fas fa-paperclip"></i></button>
                     <textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea>
-                    <button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0"><i class="fas fa-paper-plane"></i></button>
+                    <button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button>
                 </div>
             </div>
         </div>
@@ -218,7 +229,7 @@
 
     <!-- Modals -->
     <div id="gem-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-800 rounded-lg w-full max-w-lg p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh]">
+        <div class="bg-gray-800 rounded-lg w-full max-w-lg p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh] modal-animate">
             <h2 class="text-xl font-bold text-white mb-4">Create New Gem</h2>
             <div class="space-y-4 flex-1 overflow-y-auto">
                 <div><label class="text-xs text-gray-500 block mb-1">Gem Name</label><input type="text" id="gem-name" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm"></div>
@@ -226,21 +237,21 @@
             </div>
             <div class="flex justify-end gap-3 mt-4">
                 <button onclick="document.getElementById('gem-modal').style.display='none'" class="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
-                <button id="save-gem-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold">Create</button>
+                <button id="save-gem-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-hover">Create</button>
             </div>
         </div>
     </div>
 
     <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh]">
-            <h2 class="text-xl font-bold text-white mb-4">設定</h2>
+        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh] modal-animate">
+            <h2 class="text-xl font-bold text-white mb-4 flex items-center"><i class="fas fa-cog mr-2 text-gray-400"></i>設定</h2>
             
-            <div class="flex border-b border-gray-700 mb-4">
-                <button class="px-4 py-2 text-blue-400 border-b-2 border-blue-400 font-bold" onclick="switchTab('general')">一般</button>
-                <button class="px-4 py-2 text-gray-400 hover:text-white" onclick="switchTab('security')">セキュリティ <span class="text-[10px] bg-blue-600 text-white px-1 rounded ml-1">NEW</span></button>
+            <div class="flex border-b border-gray-700 mb-4 gap-4">
+                <button id="btn-tab-general" class="px-4 py-2 text-blue-400 border-b-2 border-blue-400 font-bold transition-all duration-200" onclick="switchTab('general')">一般</button>
+                <button id="btn-tab-security" class="px-4 py-2 text-gray-400 hover:text-white border-b-2 border-transparent transition-all duration-200" onclick="switchTab('security')">セキュリティ <span class="text-[10px] bg-blue-600 text-white px-1 rounded ml-1">NEW</span></button>
             </div>
 
-            <div class="overflow-y-auto pr-2 space-y-4 flex-1" id="tab-general">
+            <div class="overflow-y-auto pr-2 space-y-4 flex-1 animate-fadeIn" id="tab-general">
                 <div class="bg-gray-900 p-4 rounded border border-gray-700">
                     <h3 class="text-sm font-bold text-blue-400 mb-2">APIキー</h3>
                     <div class="space-y-3">
@@ -252,7 +263,7 @@
                 <div><label class="text-xs text-gray-500 block mb-1">デフォルト システムプロンプト</label><textarea id="sys-prompt-text" class="w-full h-32 bg-gray-900 border-gray-600 rounded p-3 text-sm text-white"></textarea></div>
             </div>
 
-            <div class="overflow-y-auto pr-2 space-y-4 flex-1 hidden" id="tab-security">
+            <div class="overflow-y-auto pr-2 space-y-4 flex-1 hidden animate-fadeIn" id="tab-security">
                 <div class="bg-gray-900 p-4 rounded border border-gray-700">
                     <h3 class="text-sm font-bold text-green-400 mb-2">暗号化 & プライバシー</h3>
                     <div class="flex items-center justify-between">
@@ -283,33 +294,33 @@
 
                 <div class="bg-red-900/20 p-4 rounded border border-red-800 mt-4">
                     <h3 class="text-sm font-bold text-red-500 mb-2">アカウント削除</h3>
-                    <button id="delete-account-btn" class="w-full bg-red-800/50 hover:bg-red-700 text-red-200 border border-red-600 py-2 rounded text-sm transition">アカウントを完全に削除</button>
+                    <button id="delete-account-btn" class="w-full bg-red-800/50 hover:bg-red-700 text-red-200 border border-red-600 py-2 rounded text-sm transition btn-hover">アカウントを完全に削除</button>
                 </div>
             </div>
 
             <div class="flex justify-end gap-3 mt-4">
-                <button id="close-settings-btn" class="px-4 py-2 text-gray-400 hover:text-white">キャンセル</button>
-                <button id="save-settings-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold">保存</button>
+                <button id="close-settings-btn" class="px-4 py-2 text-gray-400 hover:text-white transition">キャンセル</button>
+                <button id="save-settings-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-hover">保存</button>
             </div>
         </div>
     </div>
     
     <div id="lib-modal" class="fixed inset-0 bg-gray-900/95 z-50 flex flex-col backdrop-blur-sm" style="display:none;">
-        <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button onclick="document.getElementById('lib-modal').style.display='none'" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div>
-        <div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0"><span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span><button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs" disabled>削除</button></div>
+        <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0 modal-animate"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button onclick="document.getElementById('lib-modal').style.display='none'" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div>
+        <div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0"><span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span><button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs btn-hover" disabled>削除</button></div>
         <div id="lib-grid" class="flex-1 overflow-y-auto p-4 grid grid-cols-3 gap-4"></div>
     </div>
 
     <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh]">
+        <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh] modal-animate">
             <h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">利用規約</h2>
             <div id="legal-content" class="overflow-y-auto pr-2 flex-1 text-sm text-gray-300 leading-relaxed space-y-4 prose prose-invert max-w-none"></div>
-            <div class="flex justify-end mt-4 shrink-0"><button onclick="document.getElementById('legal-modal').style.display='none'" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">閉じる</button></div>
+            <div class="flex justify-end mt-4 shrink-0"><button onclick="document.getElementById('legal-modal').style.display='none'" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition">閉じる</button></div>
         </div>
     </div>
     
     <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4 modal-animate">
             <h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2>
             <div class="text-sm text-gray-300 space-y-3">
                 <p>このアプリケーションは開発中の<strong>アルファ版</strong>です。</p>
@@ -319,7 +330,7 @@
                 </ul>
             </div>
             <div class="flex justify-end mt-6">
-                <button onclick="document.getElementById('alpha-info-modal').style.display='none'" class="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded font-bold">理解しました</button>
+                <button onclick="document.getElementById('alpha-info-modal').style.display='none'" class="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded font-bold btn-hover">理解しました</button>
             </div>
         </div>
     </div>
@@ -337,10 +348,30 @@
         }
         function log(msg) { console.log(msg); }
         
+        // FIX: Enhanced Tab Switching with Visual Feedback
         function switchTab(tab) {
             get('tab-general').classList.add('hidden');
             get('tab-security').classList.add('hidden');
-            get('tab-'+tab).classList.remove('hidden');
+            get('tab-' + tab).classList.remove('hidden');
+            
+            const btnGen = get('btn-tab-general');
+            const btnSec = get('btn-tab-security');
+            const activeClasses = ['text-blue-400', 'border-blue-400', 'font-bold', 'border-b-2'];
+            const inactiveClasses = ['text-gray-400', 'hover:text-white', 'border-transparent', 'border-b-2'];
+            
+            if (tab === 'general') {
+                btnGen.classList.add(...activeClasses);
+                btnGen.classList.remove('text-gray-400', 'hover:text-white', 'border-transparent');
+                
+                btnSec.classList.remove('text-blue-400', 'border-blue-400', 'font-bold');
+                btnSec.classList.add('text-gray-400', 'hover:text-white', 'border-transparent', 'border-b-2');
+            } else {
+                btnSec.classList.add(...activeClasses);
+                btnSec.classList.remove('text-gray-400', 'hover:text-white', 'border-transparent');
+                
+                btnGen.classList.remove('text-blue-400', 'border-blue-400', 'font-bold');
+                btnGen.classList.add('text-gray-400', 'hover:text-white', 'border-transparent', 'border-b-2');
+            }
         }
 
         async function refreshLogs() {
@@ -635,7 +666,6 @@
                             const filename = u.split('/').pop();
                             const ext = filename.split('.').pop().toLowerCase();
                             
-                            // FIX: Correct logic to display icon for non-image files
                             if (['jpg','jpeg','png','webp','gif'].includes(ext)) {
                                 attach += `<img src="${url}" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer" onclick="window.open('${url}')" title="${filename}">`;
                             } else {

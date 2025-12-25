@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V3.5.5)</title>
+    <title>AI Playground (V3.5.6)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -25,11 +25,11 @@
         .copy-btn { background: transparent; border: none; color: #9ca3af; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s; }
         .copy-btn:hover { color: #fff; }
 
-        /* Thinking Process Box Styling */
+        /* Thinking Process Box */
         .thought-container { margin-bottom: 1rem; border: 1px solid #4b5563; border-radius: 0.5rem; background-color: #1f2937; overflow: hidden; }
         .thought-header { background: #374151; padding: 0.5rem 0.75rem; font-size: 0.75rem; color: #9ca3af; display: flex; align-items: center; gap: 0.5rem; font-weight: bold; cursor: pointer; transition: background-color 0.2s; user-select: none; }
         .thought-header:hover { background: #4b5563; color: #fff; }
-        .thought-content { padding: 0.75rem; font-size: 0.85rem; color: #d1d5db; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; max-height: 400px; overflow-y: auto; display: block; background-color: #111827; border-top: 1px solid #374151; }
+        .thought-content { padding: 0.75rem; font-size: 0.85rem; color: #d8b4fe; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; max-height: 400px; overflow-y: auto; display: block; background-color: #111827; border-top: 1px solid #374151; }
         .thought-content.collapsed { display: none; }
         
         .message-bubble { max-width: 90%; position: relative; word-wrap: break-word; }
@@ -43,6 +43,18 @@
         #debug-console { position: fixed; bottom: 0; right: 0; width: 100%; height: 200px; background: rgba(0,0,0,0.95); color: #0f0; font-family: monospace; font-size: 11px; overflow-y: auto; z-index: 9999; padding: 10px; border-top: 1px solid #444; display: none; }
         .welcome-btn { width: 100%; text-align: left; }
         .gem-item.active { background-color: #374151; border-left: 3px solid #3b82f6; }
+
+        /* Alpha Bar Animation */
+        #alpha-bar { transition: all 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55); transform-origin: center center; }
+        .pulse-target { animation: pulse-green 1s infinite; }
+        @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
+
+        @media (max-width: 768px) { 
+            .sidebar { position: fixed; z-index: 50; height: 100%; transform: translateX(-100%); transition: transform 0.3s; } 
+            .sidebar.open { transform: translateX(0); } 
+            .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; } 
+            .overlay.active { display: block; } 
+        }
     </style>
 </head>
 <body class="h-[100dvh] flex overflow-hidden text-sm md:text-base">
@@ -55,13 +67,14 @@
       {% endif %}
     {% endwith %}
     
+    <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-green-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-green-400">
+        <i class="fas fa-check-circle mr-1"></i> System Updated to V3.5.6 (Stable)
+    </div>
+
     <div id="debug-console">
         <div class="flex justify-between border-b border-gray-700 mb-2 pb-1">
             <span>System Logs</span>
-            <div>
-                <button onclick="refreshLogs()" class="text-blue-400 mr-2">Refresh</button>
-                <button onclick="document.getElementById('debug-console').style.display='none'" class="text-red-400">Close</button>
-            </div>
+            <div><button onclick="refreshLogs()" class="text-blue-400 mr-2">Refresh</button><button onclick="document.getElementById('debug-console').style.display='none'" class="text-red-400">Close</button></div>
         </div>
         <div id="debug-content" class="whitespace-pre-wrap"></div>
     </div>
@@ -96,7 +109,7 @@
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
         <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500">
-            <div>v3.5.5 <span class="text-green-500 font-bold">FULL RESTORE</span></div>
+            <div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v3.5.6 <span class="text-green-500 font-bold">MERGED</span></div>
             <div class="flex justify-center gap-3">
                 <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
                 <span class="text-gray-700">|</span>
@@ -201,6 +214,7 @@
                     <textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea>
                     <button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0"><i class="fas fa-paper-plane"></i></button>
                 </div>
+                <div class="text-[10px] text-gray-500 text-right hidden md:block">Send: <span class="text-gray-300 font-mono">Ctrl + Enter</span></div>
             </div>
         </div>
     </div>
@@ -296,6 +310,22 @@
             <div class="flex justify-end mt-4 shrink-0"><button onclick="document.getElementById('legal-modal').style.display='none'" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">閉じる</button></div>
         </div>
     </div>
+    
+    <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-center justify-center backdrop-blur-sm">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4">
+            <h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2>
+            <div class="text-sm text-gray-300 space-y-3">
+                <p>このアプリケーションは開発中の<strong>アルファ版</strong>です。</p>
+                <ul class="list-disc list-inside space-y-1 text-gray-400">
+                    <li>予告なくデータが削除される可能性があります。</li>
+                    <li>予期せぬ動作やエラーが発生する場合があります。</li>
+                </ul>
+            </div>
+            <div class="flex justify-end mt-6">
+                <button onclick="document.getElementById('alpha-info-modal').style.display='none'" class="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded font-bold">理解しました</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         const get = (id) => document.getElementById(id);
@@ -303,6 +333,13 @@
         let searchTimeout;
         const messageStore = {};
         const lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set() };
+        
+        // --- Helper Functions ---
+        function escapeHtml(text) {
+            if (!text) return text;
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+        function log(msg) { console.log(msg); } // Simplified log
         
         function switchTab(tab) {
             get('tab-general').classList.add('hidden');
@@ -346,6 +383,47 @@
                 setTimeout(() => btn.innerHTML = original, 2000); 
             }); 
         };
+        
+        window.showLegal = async function(type) {
+            get('legal-title').innerText = type==='terms'?'利用規約':'プライバシーポリシー';
+            const content = get('legal-content');
+            content.innerHTML = '<div class="flex justify-center p-4 text-gray-400"><i class="fas fa-circle-notch fa-spin mr-2"></i> Loading...</div>';
+            get('legal-modal').style.display = 'flex';
+            try {
+                const res = await fetch('/static/legal/' + type + '.md?t=' + Date.now());
+                if(!res.ok) throw new Error("Load failed");
+                const text = await res.text();
+                content.innerHTML = DOMPurify.sanitize(marked.parse(text));
+            } catch(e) {
+                content.innerHTML = '<div class="text-red-400 p-4">読み込みに失敗しました。</div>';
+            }
+        };
+        
+        window.showAlphaInfo = function() { get('alpha-info-modal').style.display = 'flex'; };
+
+        // --- Logic & Events ---
+        
+        function checkSearchAvailability() {
+            const model = get('model-select').value;
+            const reasonEffort = get('reasoning-effort');
+            const searchCont = get('search-container');
+            const searchChk = get('enable-search');
+            if(!searchCont || !searchChk) return;
+            if (model.includes('gpt') && reasonEffort && reasonEffort.value === 'low') {
+                searchCont.classList.add('opacity-50','pointer-events-none');
+                searchChk.checked = false;
+            } else if(model.includes('gpt')) {
+                searchCont.classList.remove('opacity-50','pointer-events-none');
+            }
+        }
+
+        function checkSystemPromptAvailability() {
+            const model = get('model-select').value;
+            const chk = get('enable-sys-prompt');
+            const lbl = get('sys-prompt-option');
+            if(!chk || !lbl) return;
+            if(model.includes('nano')) { chk.checked=false; chk.disabled=true; lbl.classList.add('opacity-50'); } else { chk.disabled=false; lbl.classList.remove('opacity-50'); }
+        }
 
         function toggleOptions() {
             const model = get('model-select').value;
@@ -359,48 +437,241 @@
             
             if(model.includes('gemini')) {
                 thinkOpts.classList.remove('hidden');
-                // Force Thinking ON for 3.0 Pro AND 3.0 Flash
                 if(model.includes('gemini-3.0-pro') || model.includes('gemini-3-flash')) {
-                    if(thinkChk) {
-                        thinkChk.checked = true;
-                        thinkChk.disabled = true;
-                    }
+                    if(thinkChk) { thinkChk.checked = true; thinkChk.disabled = true; }
                 }
             } else if(model.includes('gpt')) {
                 reasonOpts.classList.remove('hidden');
             }
+            checkSearchAvailability();
+            checkSystemPromptAvailability();
         }
         get('model-select').addEventListener('change', toggleOptions);
+        if(get('reasoning-effort')) get('reasoning-effort').addEventListener('change', checkSearchAvailability);
 
-        get('settings-btn').onclick = () => {
-            get('settings-modal').style.display='flex';
-            fetch('/api/settings').then(r=>r.json()).then(d=>{
-                get('sys-prompt-text').value = d.system_prompt;
-                get('set-openai').value = d.openai_key;
-                get('set-gemini').value = d.gemini_key;
-                get('set-xai').value = d.xai_key;
-                get('set-e2ee').checked = d.enable_e2ee;
-            });
-        };
-        
-        get('save-settings-btn').onclick = async () => {
-            const body = {
-                system_prompt:get('sys-prompt-text').value, 
-                openai_key:get('set-openai').value, 
-                gemini_key:get('set-gemini').value, 
-                xai_key:get('set-xai').value,
-                enable_e2ee: get('set-e2ee').checked
+        document.addEventListener('DOMContentLoaded', () => {
+            // Alpha Animation Logic
+            const bar = document.getElementById('alpha-bar');
+            setTimeout(() => {
+                if(bar) {
+                    const target = document.getElementById('version-display');
+                    if(target) {
+                        const barRect = bar.getBoundingClientRect();
+                        const targetRect = target.getBoundingClientRect();
+                        const tx = targetRect.left + (targetRect.width/2) - (barRect.left + barRect.width/2);
+                        const ty = targetRect.top + (targetRect.height/2) - (barRect.top + barRect.height/2);
+                        bar.style.transform = `translate(${tx}px, ${ty}px) scale(0.1)`;
+                        bar.style.opacity = '0';
+                        setTimeout(() => {
+                            target.classList.add('pulse-target');
+                            setTimeout(() => target.classList.remove('pulse-target'), 2000);
+                            bar.remove();
+                        }, 800);
+                    } else {
+                        bar.style.opacity = '0';
+                        setTimeout(() => bar.remove(), 1000);
+                    }
+                }
+            }, 3000);
+
+            const renderer = new marked.Renderer();
+            renderer.code = function(code, infostring, escaped) {
+                const lang = (infostring || '').match(/\S*/)[0];
+                const validLang = hljs.getLanguage(lang) ? lang : 'plaintext';
+                const highlighted = hljs.highlight(code, { language: validLang }).value;
+                const codeEncoded = encodeURIComponent(code);
+                return `<div class="code-wrapper"><div class="code-header"><span class="code-lang">${escapeHtml(lang)||'TEXT'}</span><button class="copy-btn" onclick="copyCode(this, '${codeEncoded}')"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="hljs language-${escapeHtml(lang)}">${highlighted}</code></pre></div>`;
             };
-            get('save-settings-btn').disabled = true;
-            get('save-settings-btn').innerText = "保存中...";
+            renderer.link = function(href, title, text) {
+                return `<a href="${href}" title="${title || ''}" target="_blank">${text}</a>`;
+            };
+            marked.use({ renderer: renderer, breaks: true, gfm: true });
+
+            loadThreads(); loadGems(); toggleOptions();
+            get('new-chat-btn').onclick = () => startNewChat();
+            get('mobile-new-chat-btn').onclick = () => startNewChat();
+            get('send-btn').onclick = sendMessage;
+            get('stop-btn').onclick = () => { if(abortController) abortController.abort(); };
             
-            await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+            // File Handling
+            get('upload-btn').onclick = () => get('file-input').click();
+            get('file-input').onchange = (e) => handleFiles(e.target.files);
+            get('clear-file-btn').onclick = () => { currentImageUrls=[]; get('file-input').value = ''; get('file-preview').classList.add('hidden'); };
             
-            const maint = get('set-maintenance');
-            if(maint) await fetch('/api/maintenance', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:maint.checked})});
+            // Paste Handling
+            get('prompt-input').addEventListener('paste', async (e) => {
+                const items = (e.clipboardData || window.clipboardData).items;
+                const files = [];
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].kind === 'file' && items[i].type.startsWith('image/')) {
+                        files.push(items[i].getAsFile());
+                    }
+                }
+                if (files.length > 0) { e.preventDefault(); await handleFiles(files); }
+            });
+
+            // Auto Resize & Shortcut
+            const ta = get('prompt-input');
+            ta.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px'; });
+            ta.onkeydown = (e) => {
+                if (e.isComposing) return;
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); get('send-btn').click(); }
+            };
             
-            location.reload();
-        };
+            // Scroll Sync
+            get('chat-container').addEventListener('scroll', () => {
+                const current = get('chat-container').scrollTop;
+                const max = get('chat-container').scrollHeight - get('chat-container').clientHeight;
+                isUserScrolling = (max - current > 50);
+            });
+
+            // Edit Button Handler
+            get('chat-container').addEventListener('click', (e) => {
+                const editBtn = e.target.closest('.edit-btn');
+                if (editBtn) {
+                    e.stopPropagation();
+                    const id = editBtn.dataset.id;
+                    const text = messageStore[id];
+                    if(!text) return;
+                    get('prompt-input').value = text;
+                    get('prompt-input').focus();
+                    get('prompt-input').dispatchEvent(new Event('input', { bubbles: true })); // Trigger Resize
+                    if(confirm("再生成しますか？")) fetch("/api/messages/" + id, {method:'DELETE'}).then(() => loadMessages(currentThreadId)).catch(e=>{});
+                }
+            });
+            
+            // Settings
+            get('settings-btn').onclick = () => {
+                get('settings-modal').style.display='flex';
+                fetch('/api/settings').then(r=>r.json()).then(d=>{
+                    get('sys-prompt-text').value = d.system_prompt;
+                    get('set-username').value = d.username;
+                    get('set-openai').value = d.openai_key;
+                    get('set-gemini').value = d.gemini_key;
+                    get('set-xai').value = d.xai_key;
+                    get('set-e2ee').checked = d.enable_e2ee;
+                });
+            };
+            get('close-settings-btn').onclick = () => get('settings-modal').style.display='none';
+            get('save-settings-btn').onclick = async () => {
+                const body = {
+                    system_prompt:get('sys-prompt-text').value, 
+                    openai_key:get('set-openai').value, 
+                    gemini_key:get('set-gemini').value, 
+                    xai_key:get('set-xai').value,
+                    enable_e2ee: get('set-e2ee').checked
+                };
+                get('save-settings-btn').disabled = true;
+                get('save-settings-btn').innerText = "保存中...";
+                await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+                const maint = get('set-maintenance');
+                if(maint) await fetch('/api/maintenance', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:maint.checked})});
+                location.reload();
+            };
+            get('delete-account-btn').onclick = async () => { if(confirm("【警告】削除しますか？")) try { const res = await fetch('/api/account/delete', {method: 'POST'}); if(res.ok) window.location.href = "/login"; } catch(e){} };
+
+            // Library
+            get('lib-btn').onclick = () => { get('lib-modal').style.display='flex'; loadLibraryFiles(); };
+            get('lib-del-btn').onclick = deleteSelectedFiles;
+            
+            // Gems
+            get('add-gem-btn').onclick = () => get('gem-modal').style.display='flex';
+            get('save-gem-btn').onclick = createGem;
+            
+            // Sidebar Mobile
+            get('menu-btn').onclick = () => { get('sidebar').classList.toggle('open'); get('overlay').classList.toggle('active'); };
+            get('overlay').onclick = () => { get('sidebar').classList.remove('open'); get('overlay').classList.remove('active'); };
+            
+            // Search
+            get('search-box').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(loadThreads, 300); });
+        });
+
+        // --- Core Functions ---
+        async function handleFiles(files) {
+            if(!files.length) return;
+            get('file-preview').classList.remove('hidden'); 
+            get('file-name').innerText = "Processing...";
+            
+            for(let f of files) { 
+                let fileToUpload = f;
+                if (get('enable-compression').checked && f.type.startsWith('image/')) {
+                    try {
+                        const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true };
+                        get('file-name').innerText = "Compressing " + f.name + "...";
+                        const compressedBlob = await imageCompression(f, options);
+                        fileToUpload = new File([compressedBlob], f.name, { type: compressedBlob.type, lastModified: Date.now() });
+                    } catch (error) { console.error("Compression failed:", error); }
+                }
+                
+                const fd = new FormData(); 
+                fd.append('file', fileToUpload); 
+                
+                get('file-name').innerText = "Uploading " + f.name + "...";
+                const r = await fetch('/upload', {method:'POST', body:fd}); 
+                const d = await r.json(); 
+                if(d.filename) currentImageUrls.push(d.filename); 
+            }
+            get('file-name').innerText = `${currentImageUrls.length} files ready`; 
+            get('file-input').value = '';
+        }
+
+        function renderMessage(id, role, text, imgUrl, thoughtData) {
+            const isUser = role === 'user';
+            const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
+            const align = isUser ? 'justify-end' : 'justify-start';
+            messageStore[id] = text;
+            
+            let thoughtHtml = '';
+            if (thoughtData && !isUser) {
+                let tText = "";
+                try {
+                    const tObj = typeof thoughtData === 'string' ? JSON.parse(thoughtData) : thoughtData;
+                    tText = tObj.text || "";
+                } catch(e) { tText = thoughtData; }
+                
+                if (tText) {
+                    thoughtHtml = `
+                    <div class="thought-container">
+                        <div class="thought-header" onclick="toggleThinking(this)">
+                            <i class="fas fa-brain text-purple-400"></i> Thinking Process
+                        </div>
+                        <div class="thought-content">${escapeHtml(tText)}</div>
+                    </div>`;
+                }
+            }
+
+            let attach = '';
+            if(imgUrl) {
+                try {
+                    const imgs = JSON.parse(imgUrl);
+                    if(imgs.length) {
+                        attach = '<div class="flex flex-wrap gap-2 mt-2">';
+                        imgs.forEach(u => {
+                            const url = '/files/' + u; // V3.5 Path
+                            attach += `<img src="${url}" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer" onclick="window.open('${url}')">`;
+                        });
+                        attach += '</div>';
+                    }
+                } catch(e){}
+            }
+            
+            const editBtnHtml = isUser ? `<button class="ctrl-btn edit-btn" data-id="${id}" title="Edit"><i class="fas fa-pen"></i></button>` : '';
+            const controlsHtml = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${editBtnHtml}</div>`;
+            
+            const html = `
+            <div class="flex ${align} mb-4 fade-in relative message-group">
+                <div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">
+                    ${controlsHtml}
+                    ${thoughtHtml}
+                    <div class="prose prose-invert text-sm break-words">${DOMPurify.sanitize(marked.parse(text||''))}</div>
+                    ${attach}
+                </div>
+            </div>`;
+            
+            get('chat-container').insertAdjacentHTML('beforeend', html);
+            document.querySelectorAll('pre code').forEach((block) => { hljs.highlightElement(block); });
+            if(!isUserScrolling) get('chat-container').scrollTop = get('chat-container').scrollHeight;
+        }
 
         async function sendMessage() {
             const text = get('prompt-input').value.trim();
@@ -408,8 +679,9 @@
             if(!currentThreadId) { const res = await fetch('/api/threads', {method: 'POST'}); const d = await res.json(); currentThreadId = d.id; }
             
             get('welcome-screen').classList.add('hidden');
-            renderMessage(0, 'user', text, JSON.stringify(currentImageUrls), null, null);
+            renderMessage(0, 'user', text, JSON.stringify(currentImageUrls));
             get('prompt-input').value = '';
+            get('prompt-input').style.height = 'auto'; // Reset Height
             
             const payload = { 
                 thread_id: currentThreadId, 
@@ -493,142 +765,6 @@
             finally { get('send-btn').disabled = false; get('stop-container').classList.add('hidden'); abortController = null; }
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            const renderer = new marked.Renderer();
-            renderer.code = function(code, infostring, escaped) {
-                const lang = (infostring || '').match(/\S*/)[0];
-                const validLang = hljs.getLanguage(lang) ? lang : 'plaintext';
-                const highlighted = hljs.highlight(code, { language: validLang }).value;
-                const codeEncoded = encodeURIComponent(code);
-                return `<div class="code-wrapper"><div class="code-header"><span class="code-lang">${escapeHtml(lang)||'TEXT'}</span><button class="copy-btn" onclick="copyCode(this, '${codeEncoded}')"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="hljs language-${escapeHtml(lang)}">${highlighted}</code></pre></div>`;
-            };
-            marked.use({ renderer: renderer, breaks: true, gfm: true });
-
-            loadThreads(); loadGems(); toggleOptions();
-            get('new-chat-btn').onclick = () => location.reload();
-            get('send-btn').onclick = sendMessage;
-            get('upload-btn').onclick = () => get('file-input').click();
-            get('file-input').onchange = (e) => handleFiles(e.target.files);
-            get('stop-btn').onclick = () => { if(abortController) abortController.abort(); };
-            
-            get('chat-container').addEventListener('scroll', () => {
-                const current = get('chat-container').scrollTop;
-                const max = get('chat-container').scrollHeight - get('chat-container').clientHeight;
-                isUserScrolling = (max - current > 50);
-            });
-
-            // Edit button handler
-            get('chat-container').addEventListener('click', (e) => {
-                const editBtn = e.target.closest('.edit-btn');
-                if (editBtn) {
-                    e.stopPropagation();
-                    const id = editBtn.dataset.id;
-                    const text = messageStore[id];
-                    if(!text) return;
-                    get('prompt-input').value = text;
-                    get('prompt-input').focus();
-                    if(confirm("再生成しますか？")) fetch("/api/messages/" + id, {method:'DELETE'}).then(() => loadMessages(currentThreadId)).catch(e=>{});
-                }
-            });
-
-            window.handleFiles = async (files) => {
-                if(!files.length) return;
-                get('file-preview').classList.remove('hidden'); get('file-name').innerText = "Uploading...";
-                for(let f of files) {
-                    let fileToUpload = f;
-                    if (get('enable-compression').checked && f.type.startsWith('image/')) {
-                         try { 
-                             const blob = await imageCompression(f, { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }); 
-                             fileToUpload = new File([blob], f.name, { type: blob.type, lastModified: Date.now() });
-                         } catch(e){}
-                    }
-                    const fd = new FormData(); fd.append('file', fileToUpload);
-                    const r = await fetch('/upload', {method:'POST', body:fd});
-                    const d = await r.json();
-                    if(d.filename) currentImageUrls.push(d.filename);
-                }
-                get('file-name').innerText = `${currentImageUrls.length} files ready`;
-            };
-            
-            // Library Button
-            get('lib-btn').onclick = () => { get('lib-modal').style.display='flex'; loadLibraryFiles(); };
-            get('lib-del-btn').onclick = deleteSelectedFiles;
-            
-            // Gem Button
-            get('add-gem-btn').onclick = () => get('gem-modal').style.display='flex';
-            get('save-gem-btn').onclick = createGem;
-            
-            // Mobile Menu
-            get('menu-btn').onclick = () => { get('sidebar').classList.toggle('open'); get('overlay').classList.toggle('active'); };
-            get('overlay').onclick = () => { get('sidebar').classList.remove('open'); get('overlay').classList.remove('active'); };
-            
-            // Search
-            get('search-box').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(loadThreads, 300); });
-        });
-        
-        function escapeHtml(text) {
-            if (!text) return text;
-            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-        }
-
-        function renderMessage(id, role, text, imgUrl, thoughtData) {
-            const isUser = role === 'user';
-            const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
-            const align = isUser ? 'justify-end' : 'justify-start';
-            messageStore[id] = text;
-            
-            let thoughtHtml = '';
-            if (thoughtData && !isUser) {
-                let tText = "";
-                try {
-                    const tObj = typeof thoughtData === 'string' ? JSON.parse(thoughtData) : thoughtData;
-                    tText = tObj.text || "";
-                } catch(e) { tText = thoughtData; }
-                
-                if (tText) {
-                    thoughtHtml = `
-                    <div class="thought-container">
-                        <div class="thought-header" onclick="toggleThinking(this)">
-                            <i class="fas fa-brain text-purple-400"></i> Thinking Process
-                        </div>
-                        <div class="thought-content">${escapeHtml(tText)}</div>
-                    </div>`;
-                }
-            }
-
-            let attach = '';
-            if(imgUrl) {
-                try {
-                    const imgs = JSON.parse(imgUrl);
-                    if(imgs.length) {
-                        attach = '<div class="flex flex-wrap gap-2 mt-2">';
-                        imgs.forEach(u => {
-                            const url = '/files/' + u; 
-                            attach += `<img src="${url}" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer" onclick="window.open('${url}')">`;
-                        });
-                        attach += '</div>';
-                    }
-                } catch(e){}
-            }
-            
-            const editBtnHtml = isUser ? `<button class="ctrl-btn edit-btn" data-id="${id}" title="Edit"><i class="fas fa-pen"></i></button>` : '';
-            const controlsHtml = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${editBtnHtml}</div>`;
-            
-            const html = `
-            <div class="flex ${align} mb-4 fade-in relative message-group">
-                <div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">
-                    ${controlsHtml}
-                    ${thoughtHtml}
-                    <div class="prose prose-invert text-sm break-words">${DOMPurify.sanitize(marked.parse(text||''))}</div>
-                    ${attach}
-                </div>
-            </div>`;
-            
-            get('chat-container').insertAdjacentHTML('beforeend', html);
-            document.querySelectorAll('pre code').forEach((block) => { hljs.highlightElement(block); });
-            if(!isUserScrolling) get('chat-container').scrollTop = get('chat-container').scrollHeight;
-        }
-
         async function loadThreads() {
             const res = await fetch("/api/threads?q=" + encodeURIComponent(get('search-box').value));
             const threads = await res.json();
@@ -645,10 +781,17 @@
             });
         }
         async function loadMessages(tid) {
-            currentThreadId = tid; get('chat-container').innerHTML = '';
+            currentThreadId = tid; clearActiveGem(); get('welcome-screen').classList.add('hidden');
+            get('chat-container').innerHTML = '<div class="text-center mt-10"><i class="fas fa-spinner fa-spin text-blue-500"></i></div>';
             const res = await fetch('/api/threads/' + tid);
-            const msgs = await res.json();
-            msgs.forEach(m => renderMessage(m.id, m.role, m.content, m.image_url, m.thought_data));
+            const msgs = await res.json(); 
+            get('chat-container').innerHTML = '';
+            if(msgs.length > 0) {
+                msgs.forEach(m => renderMessage(m.id, m.role, m.content, m.image_url, m.thought_data));
+            } else {
+                get('welcome-screen').classList.remove('hidden');
+            }
+            if(window.innerWidth < 768) get('overlay').click();
         }
         async function loadGems() {
              const res = await fetch('/api/gems'); const gems = await res.json();
@@ -657,19 +800,30 @@
                  const d = document.createElement('div'); 
                  d.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group';
                  d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${g.name}</span></div><button class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2" onclick="deleteGem(event, ${g.id})">×</button>`;
-                 d.onclick = (e) => { if(e.target.tagName!=='BUTTON') { activeGem=g; get('active-gem-name').innerText=g.name; get('gem-active-indicator').classList.remove('hidden'); } };
+                 d.onclick = (e) => { if(e.target.tagName!=='BUTTON') activateGem(g); };
                  list.appendChild(d);
              });
         }
-        function clearActiveGem() { activeGem=null; get('gem-active-indicator').classList.add('hidden'); }
-        window.quickStart = (m) => { get('model-select').value=m; toggleOptions(); get('welcome-screen').classList.add('hidden'); };
-        window.showLegal = async (t) => {
-            get('legal-modal').style.display='flex';
-            const res = await fetch('/static/legal/'+t+'.md');
-            get('legal-content').innerHTML = DOMPurify.sanitize(marked.parse(await res.text()));
+        function activateGem(gem) {
+            activeGem = gem;
+            get('active-gem-name').innerText = gem.name;
+            get('gem-active-indicator').classList.remove('hidden');
+            currentThreadId = null; get('chat-container').innerHTML = ''; get('welcome-screen').classList.add('hidden');
+            get('sys-prompt-option').style.opacity = '0.5';
+            if(window.innerWidth < 768) get('overlay').click();
         }
+        function clearActiveGem() { 
+            activeGem=null; get('gem-active-indicator').classList.add('hidden'); get('sys-prompt-option').style.opacity = '1';
+        }
+        function startNewChat() {
+            if(abortController) abortController.abort();
+            currentThreadId = null; clearActiveGem(); get('chat-container').innerHTML = ''; 
+            get('welcome-screen').classList.remove('hidden'); get('clear-file-btn').click();
+            loadThreads();
+            if(window.innerWidth < 768) get('overlay').click();
+        }
+        window.quickStart = (m) => { get('model-select').value=m; toggleOptions(); get('welcome-screen').classList.add('hidden'); };
         
-        // --- Restored Functions ---
         async function createGem() {
             const name = get('gem-name').value;
             const instruction = get('gem-instruction').value;
@@ -697,59 +851,31 @@
             e.stopPropagation();
             if(!confirm("削除しますか？")) return;
             await fetch('/api/threads/'+id, {method:'DELETE'});
-            if(currentThreadId === id) location.reload(); else loadThreads();
+            if(currentThreadId === id) startNewChat(); else loadThreads();
         }
-        
         async function loadLibraryFiles() {
             const r = await fetch('/api/files'); const files = await r.json();
             const grid = get('lib-grid'); grid.innerHTML = ''; get('lib-total-count').innerText = files.length + " files";
             lib.selected.clear();
             get('lib-del-btn').disabled = true;
             get('lib-del-btn').innerText = "削除";
-
             files.forEach(f => {
                 const el = document.createElement('div');
                 el.className = "relative group bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400";
-                
-                const content = f.type==='image' 
-                    ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` 
-                    : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`;
-                
-                const overlay = `
-                <div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10">
-                    <a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a>
-                    <a href="${f.url}" target="_blank" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a>
-                </div>`;
-                
+                const content = f.type==='image' ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`;
+                const overlay = `<div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><a href="${f.url}" target="_blank" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a></div>`;
                 el.innerHTML = content + overlay;
-                
                 el.onclick = () => {
-                    if (lib.selected.has(f.filepath)) {
-                        lib.selected.delete(f.filepath);
-                        el.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500');
-                        el.classList.add('border-gray-600');
-                    } else {
-                        lib.selected.add(f.filepath);
-                        el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500');
-                        el.classList.remove('border-gray-600');
-                    }
-                    get('lib-del-btn').disabled = lib.selected.size === 0;
-                    get('lib-del-btn').innerText = `削除 (${lib.selected.size})`;
+                    if (lib.selected.has(f.filepath)) { lib.selected.delete(f.filepath); el.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.add('border-gray-600'); } 
+                    else { lib.selected.add(f.filepath); el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.remove('border-gray-600'); }
+                    get('lib-del-btn').disabled = lib.selected.size === 0; get('lib-del-btn').innerText = `削除 (${lib.selected.size})`;
                 };
                 grid.appendChild(el);
             });
         }
-        
         async function deleteSelectedFiles() { 
-            if(!confirm('選択したファイルを削除しますか？')) return; 
-            try{ 
-                await fetch('/api/files/delete', {
-                    method:'POST',
-                    headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({filenames:Array.from(lib.selected)})
-                }); 
-                loadLibraryFiles(); 
-            } catch(e){ alert("削除エラー"); } 
+            if(!confirm('削除しますか？')) return; 
+            try{ await fetch('/api/files/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({filenames:Array.from(lib.selected)})}); loadLibraryFiles(); } catch(e){ alert("削除エラー"); } 
         }
     </script>
 </body>

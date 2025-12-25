@@ -21,6 +21,9 @@
         .custom-scrollbar::-webkit-scrollbar-track { background: #1f2937; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        
+        /* Checkbox Label Cursor */
+        .checkbox-label { cursor: pointer; user-select: none; }
     </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
@@ -45,61 +48,57 @@
                 </div>
             </div>
 
-            <!-- Step 2: Legal -->
+            <!-- Step 2: Legal (Terms & Privacy Combined) -->
             <div id="step-2" class="hidden space-y-6 animate-enter">
-                <div class="flex items-center justify-between mb-2">
-                    <h3 class="text-orange-400 font-bold flex items-center"><i class="fas fa-file-contract mr-2"></i>規約の確認</h3>
-                    <div class="flex space-x-2 text-xs">
-                        <button type="button" onclick="showText('terms')" id="btn-terms" class="px-3 py-1 bg-blue-600 text-white rounded transition">利用規約</button>
-                        <button type="button" onclick="showText('privacy')" id="btn-privacy" class="px-3 py-1 bg-gray-700 text-gray-300 hover:text-white rounded transition">プライバシーポリシー</button>
-                    </div>
-                </div>
+                <h3 class="text-orange-400 font-bold mb-2 flex items-center"><i class="fas fa-file-contract mr-2"></i>利用規約・プライバシーポリシー</h3>
                 
-                <div class="bg-gray-900/50 p-6 rounded-lg border border-gray-700 h-64 overflow-y-auto text-sm text-gray-300 leading-relaxed custom-scrollbar relative">
-                    <!-- Terms Text -->
-                    <div id="text-terms">
-                        <h4 class="text-white font-bold mb-2 text-base border-b border-gray-600 pb-1">利用規約</h4>
-                        <p class="mb-2">この利用規約（以下「本規約」といいます）は、AI Chat Playground（以下「本サービス」といいます）の利用条件を定めるものです。</p>
-                        
-                        <h5 class="text-white font-bold mt-4 mb-1">第1条（適用）</h5>
-                        <p class="mb-2">本規約は、ユーザーと本サービス運営者との間の、本サービスの利用に関わる一切の関係に適用されます。</p>
-                        
-                        <h5 class="text-white font-bold mt-4 mb-1">第2条（免責）</h5>
-                        <ul class="list-disc pl-5 mb-2 space-y-1">
-                            <li>本サービスは「アルファ版」として提供されており、予告なく機能変更やデータ削除が行われる可能性があります。</li>
-                            <li>AIが生成する情報の正確性について、運営者は一切の責任を負いません。生成されたコードや情報の利用は自己責任で行ってください。</li>
-                        </ul>
+                <!-- Scrollable Container with Both Documents -->
+                <div class="bg-gray-900/50 p-6 rounded-lg border border-gray-700 h-80 overflow-y-auto text-sm text-gray-300 leading-relaxed custom-scrollbar">
+                    
+                    <!-- Terms of Service -->
+                    <h4 class="text-white font-bold mb-4 text-lg border-b border-gray-600 pb-2 sticky top-0 bg-gray-900/90 backdrop-blur-sm py-1">利用規約</h4>
+                    <p class="mb-4">この利用規約（以下「本規約」といいます）は、AI Chat Playground（以下「本サービス」といいます）の利用条件を定めるものです。</p>
+                    
+                    <h5 class="text-white font-bold mt-4 mb-1">第1条（適用）</h5>
+                    <p class="mb-2">本規約は、ユーザーと本サービス運営者との間の、本サービスの利用に関わる一切の関係に適用されます。</p>
+                    
+                    <h5 class="text-white font-bold mt-4 mb-1">第2条（免責）</h5>
+                    <ul class="list-disc pl-5 mb-2 space-y-1">
+                        <li>本サービスは「アルファ版」として提供されており、予告なく機能変更やデータ削除が行われる可能性があります。</li>
+                        <li>AIが生成する情報の正確性について、運営者は一切の責任を負いません。生成されたコードや情報の利用は自己責任で行ってください。</li>
+                    </ul>
 
-                        <h5 class="text-white font-bold mt-4 mb-1">第3条（API利用）</h5>
-                        <p class="mb-2">本サービスはBYOK（Bring Your Own Key）方式を採用しています。API利用料はユーザーご自身の負担となります。また、APIキーは暗号化されて保存されますが、その管理はユーザーの責任において行ってください。</p>
-                        
-                        <p class="mt-4 text-xs text-gray-500">以上</p>
-                    </div>
+                    <h5 class="text-white font-bold mt-4 mb-1">第3条（API利用）</h5>
+                    <p class="mb-6">本サービスはBYOK（Bring Your Own Key）方式を採用しています。API利用料はユーザーご自身の負担となります。また、APIキーは暗号化されて保存されますが、その管理はユーザーの責任において行ってください。</p>
+                    
+                    <hr class="border-gray-600 my-8">
 
-                    <!-- Privacy Text -->
-                    <div id="text-privacy" class="hidden">
-                        <h4 class="text-white font-bold mb-2 text-base border-b border-gray-600 pb-1">プライバシーポリシー</h4>
-                        
-                        <h5 class="text-white font-bold mt-4 mb-1">1. 収集する情報</h5>
-                        <ul class="list-disc pl-5 mb-2 space-y-1">
-                            <li><strong>アカウント情報:</strong> ユーザー名、パスワード（ハッシュ化して保存）。</li>
-                            <li><strong>利用データ:</strong> チャット履歴、アップロードされたファイル、システムプロンプト設定。</li>
-                            <li><strong>APIキー:</strong> OpenAI, Gemini, xAI等のAPIキー（AES強力暗号化により保存）。</li>
-                        </ul>
+                    <!-- Privacy Policy -->
+                    <h4 class="text-white font-bold mb-4 text-lg border-b border-gray-600 pb-2 sticky top-0 bg-gray-900/90 backdrop-blur-sm py-1">プライバシーポリシー</h4>
+                    
+                    <h5 class="text-white font-bold mt-4 mb-1">1. 収集する情報</h5>
+                    <ul class="list-disc pl-5 mb-2 space-y-1">
+                        <li><strong>アカウント情報:</strong> ユーザー名、パスワード（ハッシュ化して保存）。</li>
+                        <li><strong>利用データ:</strong> チャット履歴、アップロードされたファイル、システムプロンプト設定。</li>
+                        <li><strong>APIキー:</strong> OpenAI, Gemini, xAI等のAPIキー（AES強力暗号化により保存）。</li>
+                    </ul>
 
-                        <h5 class="text-white font-bold mt-4 mb-1">2. APIキーの取り扱い</h5>
-                        <p class="mb-2">お預かりしたAPIキーは、ユーザーがAIモデルへリクエストを送信する際の中継処理にのみ使用されます。運営者がこれらのキーを他の目的で使用したり、第三者に提供したりすることはありません。</p>
+                    <h5 class="text-white font-bold mt-4 mb-1">2. APIキーの取り扱い</h5>
+                    <p class="mb-2">お預かりしたAPIキーは、ユーザーがAIモデルへリクエストを送信する際の中継処理にのみ使用されます。運営者がこれらのキーを他の目的で使用したり、第三者に提供したりすることはありません。</p>
 
-                        <h5 class="text-white font-bold mt-4 mb-1">3. データの削除</h5>
-                        <p class="mb-2">ユーザーは設定画面からいつでも自身のアカウントおよび全データを完全に削除することができます。削除操作を行うと、サーバー上から関連データは物理的に消去されます。</p>
-                    </div>
+                    <h5 class="text-white font-bold mt-4 mb-1">3. データの削除</h5>
+                    <p class="mb-2">ユーザーは設定画面からいつでも自身のアカウントおよび全データを完全に削除することができます。削除操作を行うと、サーバー上から関連データは物理的に消去されます。</p>
+                    
+                    <p class="mt-8 text-center text-xs text-gray-500">- End of Documents -</p>
                 </div>
 
-                <!-- Checkbox (Fixed) -->
-                <label class="flex items-start gap-3 p-3 rounded hover:bg-gray-700/30 transition cursor-pointer border border-transparent hover:border-gray-600">
-                    <input type="checkbox" id="agree-check" class="mt-0.5 w-5 h-5 bg-gray-700 border-gray-600 rounded accent-blue-500 cursor-pointer shrink-0">
-                    <span class="text-sm text-gray-300 select-none">利用規約およびプライバシーポリシーの内容を全て確認し、これらに同意します。</span>
-                </label>
+                <!-- Checkbox (Using label for=id to ensure clickability) -->
+                <div class="flex items-start gap-3 p-2 rounded hover:bg-gray-800 transition cursor-pointer" onclick="document.getElementById('agree-check').click()">
+                    <input type="checkbox" id="agree-check" class="mt-1 w-5 h-5 bg-gray-700 border-gray-600 rounded accent-blue-500 cursor-pointer shrink-0" onclick="event.stopPropagation()">
+                    <label for="agree-check" class="text-sm text-gray-300 checkbox-label hover:text-white transition" onclick="event.stopPropagation()">
+                        上記「利用規約」および「プライバシーポリシー」の全文を確認し、これらに同意します。
+                    </label>
+                </div>
 
                 <div class="flex justify-between pt-4 border-t border-gray-700">
                     <button type="button" onclick="nextStep(1)" class="text-gray-400 hover:text-white transition">戻る</button>
@@ -140,7 +139,7 @@
                 const el = document.getElementById('step-'+i);
                 if(i === n) {
                     el.classList.remove('hidden');
-                    void el.offsetWidth; // Trigger reflow
+                    void el.offsetWidth;
                     el.classList.add('animate-enter');
                 } else {
                     el.classList.add('hidden');
@@ -150,32 +149,10 @@
             document.getElementById('step-num').innerText = n;
         }
 
-        function showText(type) {
-            const terms = document.getElementById('text-terms');
-            const privacy = document.getElementById('text-privacy');
-            const btnTerms = document.getElementById('btn-terms');
-            const btnPrivacy = document.getElementById('btn-privacy');
-
-            if (type === 'terms') {
-                terms.classList.remove('hidden');
-                privacy.classList.add('hidden');
-                btnTerms.classList.replace('bg-gray-700', 'bg-blue-600');
-                btnTerms.classList.replace('text-gray-300', 'text-white');
-                btnPrivacy.classList.replace('bg-blue-600', 'bg-gray-700');
-                btnPrivacy.classList.replace('text-white', 'text-gray-300');
-            } else {
-                privacy.classList.remove('hidden');
-                terms.classList.add('hidden');
-                btnPrivacy.classList.replace('bg-gray-700', 'bg-blue-600');
-                btnPrivacy.classList.replace('text-gray-300', 'text-white');
-                btnTerms.classList.replace('bg-blue-600', 'bg-gray-700');
-                btnTerms.classList.replace('text-white', 'text-gray-300');
-            }
-        }
-
-        document.getElementById('agree-check').addEventListener('change', function() {
-            document.getElementById('btn-step2').disabled = !this.checked;
-        });
+        // Toggle button logic
+        const check = document.getElementById('agree-check');
+        const btn = document.getElementById('btn-step2');
+        check.addEventListener('change', () => { btn.disabled = !check.checked; });
     </script>
 </body>
 </html>

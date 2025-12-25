@@ -360,11 +360,17 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                     if not chunk.choices: continue
                     delta = chunk.choices[0].delta
                     
-                    # FIX: Robust Reasoning Content Extraction
-                    # Try attribute access first, then model_extra (for Pydantic models in newer SDKs)
+                    # FIX: Deep fix for Reasoning Content Extraction
+                    # Check multiple fields including 'thinking', 'reasoning' for Grok/Others
                     r_content = getattr(delta, 'reasoning_content', None)
+                    
+                    # Fallback to model_extra for undocumented fields
                     if r_content is None and hasattr(delta, 'model_extra') and delta.model_extra:
-                        r_content = delta.model_extra.get('reasoning_content')
+                        r_content = (
+                            delta.model_extra.get('reasoning_content') or 
+                            delta.model_extra.get('thinking') or 
+                            delta.model_extra.get('reasoning')
+                        )
                     
                     if r_content:
                         thought_accumulated += r_content

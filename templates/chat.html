@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V3.6.0)</title>
+    <title>AI Playground (V3.6.1)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -66,7 +66,7 @@
     {% endwith %}
     
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-green-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-green-400">
-        <i class="fas fa-check-circle mr-1"></i> V3.6.0 Complete System
+        <i class="fas fa-check-circle mr-1"></i> System V3.6.1 (Stable Release)
     </div>
 
     <div id="debug-console">
@@ -107,7 +107,7 @@
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
         
         <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500">
-            <div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v3.6.0 <span class="text-green-500 font-bold">LTS</span></div>
+            <div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v3.6.1 <span class="text-green-500 font-bold">STABLE</span></div>
             <div class="flex justify-center gap-3">
                 <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
                 <span class="text-gray-700">|</span>
@@ -476,7 +476,6 @@
                 return `<div class="code-wrapper"><div class="code-header"><span class="code-lang">${escapeHtml(lang)||'TEXT'}</span><button class="copy-btn" onclick="copyCode(this, '${codeEncoded}')"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="hljs language-${escapeHtml(lang)}">${highlighted}</code></pre></div>`;
             };
             
-            // Link Renderer
             renderer.link = function(href, title, text) {
                 return `<a href="${href}" title="${title || ''}" target="_blank">${text}</a>`;
             };
@@ -634,8 +633,17 @@
                         imgs.forEach(u => {
                             const url = '/files/' + u; 
                             const filename = u.split('/').pop();
-                            // FIX: Added title="${filename}" for tooltips (V2.9.9 Feature)
-                            attach += `<img src="${url}" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer" onclick="window.open('${url}')" title="${filename}">`;
+                            const ext = filename.split('.').pop().toLowerCase();
+                            
+                            // FIX: Correct logic to display icon for non-image files
+                            if (['jpg','jpeg','png','webp','gif'].includes(ext)) {
+                                attach += `<img src="${url}" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer" onclick="window.open('${url}')" title="${filename}">`;
+                            } else {
+                                attach += `<div class="h-24 w-24 bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700 transition" onclick="window.open('${url}')" title="${filename}">
+                                    <i class="fas fa-file text-2xl text-gray-400 mb-1"></i>
+                                    <span class="text-[9px] truncate w-20 text-center text-gray-300">${filename}</span>
+                                </div>`;
+                            }
                         });
                         attach += '</div>';
                     }

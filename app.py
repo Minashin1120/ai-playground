@@ -357,10 +357,19 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                 
                 stream = client.chat.completions.create(**kwargs)
                 for chunk in stream:
+                    if not chunk.choices: continue
                     delta = chunk.choices[0].delta
-                    if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
-                        thought_accumulated += delta.reasoning_content
-                        publish_chunk("thought", delta.reasoning_content)
+                    
+                    # FIX: Robust Reasoning Content Extraction
+                    # Try attribute access first, then model_extra (for Pydantic models in newer SDKs)
+                    r_content = getattr(delta, 'reasoning_content', None)
+                    if r_content is None and hasattr(delta, 'model_extra') and delta.model_extra:
+                        r_content = delta.model_extra.get('reasoning_content')
+                    
+                    if r_content:
+                        thought_accumulated += r_content
+                        publish_chunk("thought", r_content)
+                    
                     if delta.content:
                         full_res += delta.content
                         publish_chunk("content", delta.content)
@@ -413,7 +422,6 @@ def changelog():
     log_dir = app.config['CHANGELOG_FOLDER']
     logs = []
     if os.path.exists(log_dir):
-        # FIX: Sort by modification time (Newest First)
         files = glob.glob(os.path.join(log_dir, '*.md'))
         files.sort(key=os.path.getmtime, reverse=True)
         for f in files:

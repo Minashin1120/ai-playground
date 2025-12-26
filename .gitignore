@@ -1,11 +1,20 @@
+# Secrets & Config
 .env
 secret.key
 venv/
 __pycache__/
 *.py[cod]
-*.bak*
+maintenance.lock
+db_fix.py
+
+# Logs & System
+*.log
+.DS_Store
 *.sh
-instance/
+*.bak*
+
+# User Data (Uploaded Files)
+instance/uploads/*
 static/uploads/*
 !static/uploads/.htaccess
 !static/uploads/legal/

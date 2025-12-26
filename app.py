@@ -469,7 +469,10 @@ def changelog():
     if os.path.exists(log_dir):
         files = glob.glob(os.path.join(log_dir, '*.md'))
         files.sort(key=os.path.getmtime, reverse=True)
-        for f in files: with open(f, 'r', encoding='utf-8') as file: logs.append({'content': file.read()})
+        for f in files:
+            # FIX: Correct multiline syntax
+            with open(f, 'r', encoding='utf-8') as file:
+                logs.append({'content': file.read()})
     return render_template('changelog.html', logs=logs)
 
 @app.route('/login', methods=['GET', 'POST'])

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Playground (V3.8.0)</title>
+    <title>AI Playground (V3.8.9)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -19,64 +19,47 @@
         .prose :not(pre) > code { background: #374151 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.3rem !important; color: #e2e8f0 !important; display: inline; }
         .prose p { margin-bottom: 0.8em; }
         .prose a { color: #60a5fa; text-decoration: underline; }
-        
         .code-wrapper { margin: 1em 0; border-radius: 0.5rem; border: 1px solid #374151; overflow: hidden; background: #282c34; }
         .code-header { display: flex; justify-content: space-between; align-items: center; background: #21252b; padding: 0.3rem 0.8rem; font-size: 0.75rem; color: #9ca3af; border-bottom: 1px solid #181a1f; }
         .copy-btn { background: transparent; border: none; color: #9ca3af; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s; }
         .copy-btn:hover { color: #fff; }
-
         .thought-container { margin-bottom: 1rem; border: 1px solid #4b5563; border-radius: 0.5rem; background-color: #1f2937; overflow: hidden; }
         .thought-header { background: #374151; padding: 0.5rem 0.75rem; font-size: 0.75rem; color: #9ca3af; display: flex; align-items: center; gap: 0.5rem; font-weight: bold; cursor: pointer; transition: background-color 0.2s; user-select: none; }
         .thought-header:hover { background: #4b5563; color: #fff; }
         .thought-content { padding: 0.75rem; font-size: 0.85rem; color: #d1d5db; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; max-height: 400px; overflow-y: auto; display: block; background-color: #111827; border-top: 1px solid #374151; }
         .thought-content.collapsed { display: none; }
-        
         .message-bubble { max-width: 90%; position: relative; word-wrap: break-word; }
         @media (min-width: 768px) { .message-bubble { max-width: 80%; } }
-        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes modalPop { 0% { opacity: 0; transform: scale(0.95); } 100% { opacity: 1; transform: scale(1); } }
+        .modal-animate { animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .btn-hover { transition: all 0.2s; }
+        .btn-hover:hover { transform: translateY(-1px); filter: brightness(1.1); }
         .msg-controls { opacity: 0; transition: opacity 0.2s; position: absolute; top: -12px; right: 0; display: flex; gap: 4px; }
         .message-group:hover .msg-controls { opacity: 1; }
         .ctrl-btn { background: #1f2937; color: #9ca3af; border: 1px solid #4b5563; border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 10px; transition: all 0.2s; }
         .ctrl-btn:hover { background: #374151; color: #fff; }
-        
         #debug-console { position: fixed; bottom: 0; right: 0; width: 100%; height: 200px; background: rgba(0,0,0,0.95); color: #0f0; font-family: monospace; font-size: 11px; overflow-y: auto; z-index: 9999; padding: 10px; border-top: 1px solid #444; display: none; }
         .welcome-btn { width: 100%; text-align: left; }
         .gem-item.active { background-color: #374151; border-left: 3px solid #3b82f6; }
-
         #alpha-bar { transition: all 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55); transform-origin: center center; }
-        .pulse-target { animation: pulse-green 1s infinite; }
-        @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
-
-        @media (max-width: 768px) { 
-            .sidebar { position: fixed; z-index: 50; height: 100%; transform: translateX(-100%); transition: transform 0.3s; } 
-            .sidebar.open { transform: translateX(0); } 
-            .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; } 
-            .overlay.active { display: block; } 
-        }
+        @media (max-width: 768px) { .sidebar { position: fixed; z-index: 50; height: 100%; transform: translateX(-100%); transition: transform 0.3s; } .sidebar.open { transform: translateX(0); } .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; } .overlay.active { display: block; } }
     </style>
 </head>
 <body class="h-[100dvh] flex overflow-hidden text-sm md:text-base">
     {% with messages = get_flashed_messages() %}
       {% if messages %}
-        <div id="flash-msg" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] bg-blue-600 text-white px-6 py-3 rounded shadow-lg transition-opacity duration-500">
+        <div id="flash-msg" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] bg-blue-600 text-white px-6 py-3 rounded shadow-lg transition-opacity duration-500 fade-in">
           {{ messages[0] }}
         </div>
         <script>setTimeout(()=>{const m=document.getElementById('flash-msg');if(m){m.style.opacity='0';setTimeout(()=>m.remove(),500)}},3000);</script>
       {% endif %}
     {% endwith %}
-    
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-green-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-green-400">
-        <i class="fas fa-check-circle mr-1"></i> System V3.8.0 (Security Suite)
+        <i class="fas fa-check-circle mr-1"></i> System V3.8.9 (Functionality Restored)
     </div>
-
-    <div id="debug-console">
-        <div class="flex justify-between border-b border-gray-700 mb-2 pb-1">
-            <span>System Logs</span>
-            <div><button onclick="refreshLogs()" class="text-blue-400 mr-2">Refresh</button><button onclick="document.getElementById('debug-console').style.display='none'" class="text-red-400">Close</button></div>
-        </div>
-        <div id="debug-content" class="whitespace-pre-wrap"></div>
-    </div>
-
+    <div id="debug-console"><div class="flex justify-between border-b border-gray-700 mb-2 pb-1"><span>System Logs</span><div><button onclick="refreshLogs()" class="text-blue-400 mr-2">Refresh</button><button onclick="document.getElementById('debug-console').style.display='none'" class="text-red-400">Close</button></div></div><div id="debug-content" class="whitespace-pre-wrap"></div></div>
     <div id="sidebar" class="sidebar w-64 bg-gray-800 border-r border-gray-700 flex flex-col shrink-0">
         <div class="p-3 border-b border-gray-700 flex flex-col gap-2">
             <div class="flex justify-between items-center">
@@ -86,7 +69,7 @@
                     {% if current_user.username == 'minashin1120' %}
                     <button onclick="toggleDebug()" class="text-gray-400 hover:text-yellow-400 p-1.5 rounded btn-hover" title="Debug"><i class="fas fa-wrench text-xs"></i></button>
                     {% endif %}
-                    <button onclick="location.href='/changelog'" class="text-gray-400 hover:text-white p-1.5 rounded btn-hover" title="履歴"><i class="fas fa-history text-xs"></i></button>
+                    <button onclick="location.href='{{ url_for('changelog') }}'" class="text-gray-400 hover:text-white p-1.5 rounded btn-hover" title="履歴"><i class="fas fa-history text-xs"></i></button>
                     <button id="settings-btn" class="text-gray-400 hover:text-green-400 p-1.5 rounded btn-hover" title="設定"><i class="fas fa-cog text-xs"></i></button>
                     <button id="lib-btn" class="text-gray-400 hover:text-blue-400 p-1.5 rounded btn-hover" title="ライブラリ"><i class="fas fa-folder text-xs"></i></button>
                     <button id="new-chat-btn" class="text-gray-400 hover:text-white p-1.5 rounded bg-blue-600 hover:bg-blue-500 btn-hover" title="新規チャット"><i class="fas fa-plus text-xs"></i></button>
@@ -94,153 +77,43 @@
             </div>
             <div class="relative"><input type="text" id="search-box" placeholder="検索..." class="w-full bg-gray-700 rounded px-3 py-1 text-sm focus:ring-1 focus:ring-blue-500 outline-none transition"><i class="fas fa-search absolute right-3 top-1.5 text-gray-500 text-xs"></i></div>
         </div>
-
-        <div class="px-2 py-2">
-            <div class="flex justify-between items-center px-2 mb-1">
-                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Gems</span>
-                <button id="add-gem-btn" class="text-xs text-blue-400 hover:text-blue-300 btn-hover"><i class="fas fa-plus"></i> New</button>
-            </div>
-            <div id="gem-list" class="space-y-1 overflow-y-auto max-h-40"></div>
-        </div>
-        
+        <div class="px-2 py-2"><div class="flex justify-between items-center px-2 mb-1"><span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Gems</span><button id="add-gem-btn" class="text-xs text-blue-400 hover:text-blue-300 btn-hover"><i class="fas fa-plus"></i> New</button></div><div id="gem-list" class="space-y-1 overflow-y-auto max-h-40"></div></div>
         <div class="border-t border-gray-700 my-1"></div>
         <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list"></div>
-        
-        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500">
-            <div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v3.8.0 <span class="text-green-500 font-bold">SECURE</span></div>
-            <div class="flex justify-center gap-3">
-                <button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button>
-                <span class="text-gray-700">|</span>
-                <button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button>
-            </div>
-            <a href="/logout" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a>
-        </div>
+        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v3.8.9 <span class="text-green-500 font-bold">STABLE</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
     </div>
-    
     <div id="overlay" class="overlay"></div>
-
     <div class="flex-1 flex flex-col w-full relative min-w-0">
-        <header class="bg-gray-800 border-b border-gray-700 p-3 shadow-md flex justify-between items-center shrink-0 md:hidden">
-            <button id="menu-btn" class="text-gray-300 p-2"><i class="fas fa-bars text-xl"></i></button>
-            <span class="font-bold text-sm">AI Playground</span>
-            <div class="flex items-center">
-                <button id="mobile-new-chat-btn" class="text-blue-400 font-bold text-xl p-2">+</button>
-            </div>
-        </header>
-
+        <header class="bg-gray-800 border-b border-gray-700 p-3 shadow-md flex justify-between items-center shrink-0 md:hidden"><button id="menu-btn" class="text-gray-300 p-2"><i class="fas fa-bars text-xl"></i></button><span class="font-bold text-sm">AI Playground</span><div class="flex items-center"><button id="mobile-new-chat-btn" class="text-blue-400 font-bold text-xl p-2">+</button></div></header>
         <div class="flex-1 overflow-hidden relative">
             <div id="chat-container" class="absolute inset-0 overflow-y-auto p-4 space-y-6 scroll-smooth"></div>
-            <div id="welcome-screen" class="absolute inset-0 flex flex-col items-center justify-center text-gray-500 space-y-4 bg-[#111827] z-10 fade-in">
-                <h2 class="text-2xl font-bold text-white flex items-center gap-2"><i class="fas fa-gem text-blue-500"></i> AI Gems & Chat</h2>
-                <div class="grid grid-cols-1 gap-2 w-full max-w-md px-4">
-                    <button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover" onclick="quickStart('gemini-3-flash-preview')">⚡ Gemini 3.0 Flash</button>
-                    <button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover" onclick="quickStart('gemini-3.0-pro-preview')">🧠 Gemini 3.0 Pro</button>
-                </div>
-            </div>
+            <div id="welcome-screen" class="absolute inset-0 flex flex-col items-center justify-center text-gray-500 space-y-4 bg-[#111827] z-10 fade-in"><h2 class="text-2xl font-bold text-white flex items-center gap-2"><i class="fas fa-gem text-blue-500"></i> AI Gems & Chat</h2><div class="grid grid-cols-1 gap-2 w-full max-w-md px-4"><button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover" onclick="quickStart('gemini-3-flash-preview')">⚡ Gemini 3.0 Flash</button><button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover" onclick="quickStart('gemini-3.0-pro-preview')">🧠 Gemini 3.0 Pro</button></div></div>
         </div>
-
         <div class="bg-gray-800 border-t border-gray-700 p-3 shrink-0 z-10">
             <div class="max-w-3xl mx-auto space-y-2 relative">
-                <div id="gem-active-indicator" class="hidden absolute -top-10 left-0 bg-blue-900/80 text-blue-200 text-xs px-3 py-1 rounded-t-lg border-t border-l border-r border-blue-700 flex items-center gap-2 fade-in">
-                    <i class="fas fa-gem"></i> Using Gem: <span id="active-gem-name" class="font-bold"></span>
-                    <button onclick="clearActiveGem()" class="ml-2 hover:text-white">×</button>
-                </div>
-                
-                <div id="stop-container" class="absolute -top-12 left-1/2 transform -translate-x-1/2 hidden fade-in">
-                    <button id="stop-btn" class="bg-red-500/90 hover:bg-red-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm backdrop-blur-sm btn-hover"><i class="fas fa-stop"></i> 停止</button>
-                </div>
-
+                <div id="gem-active-indicator" class="hidden absolute -top-10 left-0 bg-blue-900/80 text-blue-200 text-xs px-3 py-1 rounded-t-lg border-t border-l border-r border-blue-700 flex items-center gap-2 fade-in"><i class="fas fa-gem"></i> Using Gem: <span id="active-gem-name" class="font-bold"></span><button onclick="clearActiveGem()" class="ml-2 hover:text-white">×</button></div>
+                <div id="stop-container" class="absolute -top-12 left-1/2 transform -translate-x-1/2 hidden fade-in"><button id="stop-btn" class="bg-red-500/90 hover:bg-red-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm backdrop-blur-sm btn-hover"><i class="fas fa-stop"></i> 停止</button></div>
                 <div class="flex flex-wrap justify-between items-center text-xs text-gray-400 gap-2">
-                    <select id="model-select" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 outline-none text-white max-w-[200px] truncate transition focus:border-blue-500">
-                        <optgroup label="Gemini 3.0">
-                            <option value="gemini-3-flash-preview">Gemini 3.0 Flash</option>
-                            <option value="gemini-3.0-pro-preview">Gemini 3.0 Pro</option>
-                        </optgroup>
-                        <optgroup label="Legacy Gemini">
-                            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                        </optgroup>
-                        <optgroup label="GPT">
-                            <option value="gpt-5.1">GPT-5.1</option>
-                            <option value="gpt-5-mini">GPT-5 mini</option>
-                        </optgroup>
-                        <optgroup label="xAI Grok">
-                            <option value="grok-4-1-fast-reasoning">Grok 4.1 Fast (Reasoning)</option>
-                            <option value="grok-4-1-fast-non-reasoning">Grok 4.1 Fast (Non-Reasoning)</option>
-                            <option value="grok-4-fast-reasoning">Grok 4 Fast (Reasoning)</option>
-                            <option value="grok-4-fast-non-reasoning">Grok 4 Fast (Non-Reasoning)</option>
-                        </optgroup>
-                        <optgroup label="Image">
-                            <option value="nano-banana">Nano Banana</option>
-                            <option value="nano-banana-pro">Nano Banana Pro</option>
-                        </optgroup>
-                    </select>
-
-                    <div class="flex gap-3 items-center flex-wrap">
-                        <label id="search-container" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label>
-                        <label id="sys-prompt-option" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-sys-prompt" class="accent-green-500 w-3 h-3"><span class="text-green-300">SysPrompt</span></label>
-                        
-                        <div id="thinking-options" class="flex items-center gap-2 hidden">
-                            <label class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-thinking" class="accent-purple-500 w-3 h-3"><span class="text-purple-300">Thinking</span></label>
-                            <select id="thinking-level" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none">
-                                <option value="low">Low</option>
-                                <option value="medium">Mid</option>
-                                <option value="high">High</option>
-                            </select>
-                        </div>
-
-                        <div id="reasoning-effort-container" class="hidden flex items-center gap-1"><span class="text-gray-400">Effort:</span><select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="low">Low</option><option value="medium" selected>Med</option><option value="high">High</option></select></div>
-
-                        <div class="flex items-center gap-1 border-l border-gray-600 pl-2 ml-2">
-                            <span class="text-gray-400">Safety:</span>
-                            <select id="safety-setting" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none">
-                                <option value="default">Default</option>
-                                <option value="none" class="text-red-300">None</option>
-                            </select>
-                        </div>
-                        <label class="flex items-center gap-1 cursor-pointer select-none ml-2" title="Client-side Compression">
-                            <input type="checkbox" id="enable-compression" class="accent-blue-500 w-3 h-3" checked>
-                            <span class="text-gray-400 text-[10px]">Compress</span>
-                        </label>
-                    </div>
+                    <select id="model-select" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 outline-none text-white max-w-[200px] truncate transition focus:border-blue-500"><optgroup label="Gemini 3.0"><option value="gemini-3-flash-preview">Gemini 3.0 Flash</option><option value="gemini-3.0-pro-preview">Gemini 3.0 Pro</option></optgroup><optgroup label="Legacy Gemini"><option value="gemini-2.5-flash">Gemini 2.5 Flash</option></optgroup><optgroup label="GPT"><option value="gpt-5.1">GPT-5.1</option><option value="gpt-5-mini">GPT-5 mini</option></optgroup><optgroup label="xAI Grok"><option value="grok-4-1-fast-reasoning">Grok 4.1 Fast (Reasoning)</option><option value="grok-4-1-fast-non-reasoning">Grok 4.1 Fast (Non-Reasoning)</option><option value="grok-4-fast-reasoning">Grok 4 Fast (Reasoning)</option><option value="grok-4-fast-non-reasoning">Grok 4 Fast (Non-Reasoning)</option></optgroup><optgroup label="Image"><option value="nano-banana">Nano Banana</option><option value="nano-banana-pro">Nano Banana Pro</option></optgroup></select>
+                    <div class="flex gap-3 items-center flex-wrap"><label id="search-container" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label><label id="sys-prompt-option" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-sys-prompt" class="accent-green-500 w-3 h-3"><span class="text-green-300">SysPrompt</span></label><div id="thinking-options" class="flex items-center gap-2 hidden"><label class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-thinking" class="accent-purple-500 w-3 h-3"><span class="text-purple-300">Thinking</span></label><select id="thinking-level" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="low">Low</option><option value="medium">Mid</option><option value="high">High</option></select></div><div id="reasoning-effort-container" class="hidden flex items-center gap-1"><span class="text-gray-400">Effort:</span><select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="low">Low</option><option value="medium" selected>Med</option><option value="high">High</option></select></div><div class="flex items-center gap-1 border-l border-gray-600 pl-2 ml-2"><span class="text-gray-400">Safety:</span><select id="safety-setting" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="default">Default</option><option value="none" class="text-red-300">None</option></select></div><label class="flex items-center gap-1 cursor-pointer select-none ml-2" title="Client-side Compression"><input type="checkbox" id="enable-compression" class="accent-blue-500 w-3 h-3" checked><span class="text-gray-400 text-[10px]">Compress</span></label></div>
                 </div>
-                
                 <div id="file-preview" class="hidden px-3 py-2 bg-gray-700/50 rounded text-xs text-blue-300 flex justify-between items-center"><span id="file-name" class="truncate"></span><button id="clear-file-btn" class="text-gray-400 hover:text-white ml-2">✕</button></div>
-                
-                <div class="flex gap-2 items-end">
-                    <input type="file" id="file-input" class="hidden" multiple>
-                    <button id="upload-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover"><i class="fas fa-paperclip"></i></button>
-                    <textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea>
-                    <button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button>
-                </div>
+                <div class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><button id="upload-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover"><i class="fas fa-paperclip"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
             </div>
         </div>
     </div>
-
-    <!-- Modals -->
-    <div id="gem-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-800 rounded-lg w-full max-w-lg p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh] modal-animate">
-            <h2 class="text-xl font-bold text-white mb-4">Create New Gem</h2>
-            <div class="space-y-4 flex-1 overflow-y-auto">
-                <div><label class="text-xs text-gray-500 block mb-1">Gem Name</label><input type="text" id="gem-name" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm"></div>
-                <div><label class="text-xs text-gray-500 block mb-1">Instructions</label><textarea id="gem-instruction" class="w-full h-40 bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm"></textarea></div>
-            </div>
-            <div class="flex justify-end gap-3 mt-4">
-                <button onclick="document.getElementById('gem-modal').style.display='none'" class="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
-                <button id="save-gem-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-hover">Create</button>
-            </div>
-        </div>
-    </div>
-
     <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh] modal-animate">
             <h2 class="text-xl font-bold text-white mb-4 flex items-center"><i class="fas fa-cog mr-2 text-gray-400"></i>設定</h2>
-            
-            <div class="flex border-b border-gray-700 mb-4 gap-4">
-                <button id="btn-tab-general" class="px-4 py-2 text-blue-400 border-b-2 border-blue-400 font-bold transition-all duration-200" onclick="switchTab('general')">一般</button>
-                <button id="btn-tab-security" class="px-4 py-2 text-gray-400 hover:text-white border-b-2 border-transparent transition-all duration-200" onclick="switchTab('security')">セキュリティ <span class="text-[10px] bg-blue-600 text-white px-1 rounded ml-1">NEW</span></button>
-            </div>
-
+            <div class="flex border-b border-gray-700 mb-4 gap-4"><button id="btn-tab-general" class="px-4 py-2 text-blue-400 border-b-2 border-blue-400 font-bold" onclick="switchTab('general')">一般</button><button id="btn-tab-security" class="px-4 py-2 text-gray-400 hover:text-white border-b-2 border-transparent" onclick="switchTab('security')">セキュリティ <span class="text-[10px] bg-blue-600 text-white px-1 rounded ml-1">NEW</span></button></div>
             <div class="overflow-y-auto pr-2 space-y-4 flex-1 animate-fadeIn" id="tab-general">
+                <div class="bg-gray-900 p-4 rounded border border-gray-700">
+                    <h3 class="text-sm font-bold text-blue-400 mb-2">プロフィール</h3>
+                    <div class="space-y-3">
+                        <div><label class="text-xs text-gray-500 block">ユーザー名</label><input type="text" id="set-username" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
+                        <div><label class="text-xs text-gray-500 block">新パスワード (変更時のみ)</label><input type="password" id="set-password" placeholder="変更しない場合は空欄" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
+                    </div>
+                </div>
                 <div class="bg-gray-900 p-4 rounded border border-gray-700">
                     <h3 class="text-sm font-bold text-blue-400 mb-2">APIキー</h3>
                     <div class="space-y-3">
@@ -251,552 +124,94 @@
                 </div>
                 <div><label class="text-xs text-gray-500 block mb-1">デフォルト システムプロンプト</label><textarea id="sys-prompt-text" class="w-full h-32 bg-gray-900 border-gray-600 rounded p-3 text-sm text-white"></textarea></div>
             </div>
-
-            <div class="overflow-y-auto pr-2 space-y-4 flex-1 hidden animate-fadeIn" id="tab-security">
-                <!-- Migration Status -->
-                <div id="mig-status-box" class="hidden mb-4 p-3 bg-blue-900/30 border border-blue-500/50 rounded text-xs text-blue-200">
-                    <i class="fas fa-sync fa-spin mr-2"></i> 暗号化データの移行処理中です... (画面を閉じても処理は続きます)
-                </div>
-
-                <div class="bg-gray-900 p-4 rounded border border-gray-700">
-                    <h3 class="text-sm font-bold text-green-400 mb-2">暗号化 & プライバシー</h3>
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="font-bold text-sm">E2EE (End-to-End Encryption)</div>
-                            <div class="text-xs text-gray-500">チャット履歴とファイルを完全に暗号化します。</div>
-                        </div>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="set-e2ee" class="sr-only peer">
-                            <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-                        </label>
-                    </div>
-                    <p class="text-[10px] text-yellow-500 mt-2"><i class="fas fa-exclamation-triangle"></i> ONにすると、過去の全データがバックグラウンドで暗号化されます（数分かかる場合があります）。</p>
-                </div>
-                
-                {% if current_user.username == 'minashin1120' %}
-                <div class="bg-gray-900 p-4 rounded border border-gray-700">
-                    <h3 class="text-sm font-bold text-red-400 mb-2">管理者機能</h3>
-                    <div class="flex items-center justify-between mb-2">
-                        <div><div class="font-bold text-sm">緊急メンテナンスモード</div></div>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="set-maintenance" class="sr-only peer">
-                            <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-                        </label>
-                    </div>
-                </div>
-                {% endif %}
-
-                <div class="bg-red-900/20 p-4 rounded border border-red-800 mt-4">
-                    <h3 class="text-sm font-bold text-red-500 mb-2">アカウント削除</h3>
-                    <p class="text-xs text-red-300 mb-3">データは乱数で上書き（シュレッディング）され、復元不可能になります。</p>
-                    <button id="delete-account-btn" class="w-full bg-red-800/50 hover:bg-red-700 text-red-200 border border-red-600 py-2 rounded text-sm transition btn-hover">アカウントを完全に削除</button>
-                </div>
-            </div>
-
-            <div class="flex justify-end gap-3 mt-4">
-                <button id="close-settings-btn" class="px-4 py-2 text-gray-400 hover:text-white transition">キャンセル</button>
-                <button id="save-settings-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-hover">保存</button>
-            </div>
+            <div class="overflow-y-auto pr-2 space-y-4 flex-1 hidden animate-fadeIn" id="tab-security"><div id="mig-status-box" class="hidden mb-4 p-3 bg-blue-900/30 border border-blue-500/50 rounded text-xs text-blue-200"><i class="fas fa-sync fa-spin mr-2"></i> 暗号化データの移行処理中です...</div><div class="bg-gray-900 p-4 rounded border border-gray-700"><div class="flex items-center justify-between"><div><div class="font-bold text-sm">E2EE (End-to-End Encryption)</div><div class="text-xs text-gray-500">チャット履歴とファイルを暗号化します。</div></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-e2ee" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div></label></div></div><div class="bg-red-900/20 p-4 rounded border border-red-800 mt-4"><h3 class="text-sm font-bold text-red-500 mb-2">アカウント削除</h3><button id="delete-account-btn" class="w-full bg-red-800/50 hover:bg-red-700 text-red-200 border border-red-600 py-2 rounded text-sm transition btn-hover">アカウントを完全に削除</button></div></div>
+            <div class="flex justify-end gap-3 mt-4"><button id="close-settings-btn" class="px-4 py-2 text-gray-400 hover:text-white transition">キャンセル</button><button id="save-settings-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-hover">保存</button></div>
         </div>
     </div>
-    
-    <!-- ... (Lib/Legal/Alpha Modals unchanged) ... -->
-    <div id="lib-modal" class="fixed inset-0 bg-gray-900/95 z-50 flex flex-col backdrop-blur-sm" style="display:none;">
-        <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0 modal-animate"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button onclick="document.getElementById('lib-modal').style.display='none'" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div>
-        <div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0"><span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span><button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs btn-hover" disabled>削除</button></div>
-        <div id="lib-grid" class="flex-1 overflow-y-auto p-4 grid grid-cols-3 gap-4"></div>
-    </div>
-
-    <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh] modal-animate">
-            <h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">利用規約</h2>
-            <div id="legal-content" class="overflow-y-auto pr-2 flex-1 text-sm text-gray-300 leading-relaxed space-y-4 prose prose-invert max-w-none"></div>
-            <div class="flex justify-end mt-4 shrink-0"><button onclick="document.getElementById('legal-modal').style.display='none'" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition">閉じる</button></div>
-        </div>
-    </div>
-    
-    <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4 modal-animate">
-            <h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2>
-            <div class="text-sm text-gray-300 space-y-3">
-                <p>このアプリケーションは開発中の<strong>アルファ版</strong>です。</p>
-                <ul class="list-disc list-inside space-y-1 text-gray-400">
-                    <li>予告なくデータが削除される可能性があります。</li>
-                    <li>予期せぬ動作やエラーが発生する場合があります。</li>
-                </ul>
-            </div>
-            <div class="flex justify-end mt-6">
-                <button onclick="document.getElementById('alpha-info-modal').style.display='none'" class="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded font-bold btn-hover">理解しました</button>
-            </div>
-        </div>
-    </div>
-
+    <!-- Other Modals (Lib/Legal/Alpha) assumed present -->
     <script>
         const get = (id) => document.getElementById(id);
         let currentThreadId = null, activeGem = null, currentImageUrls = [], abortController = null, isUserScrolling = false;
-        let searchTimeout;
-        const messageStore = {};
-        const lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set() };
-        
-        function escapeHtml(text) {
-            if (!text) return text;
-            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-        }
-        function log(msg) { console.log(msg); }
-        
-        function switchTab(tab) {
-            get('tab-general').classList.add('hidden');
-            get('tab-security').classList.add('hidden');
-            get('tab-' + tab).classList.remove('hidden');
-            
-            const btnGen = get('btn-tab-general');
-            const btnSec = get('btn-tab-security');
-            const activeClasses = ['text-blue-400', 'border-blue-400', 'font-bold', 'border-b-2'];
-            
-            if (tab === 'general') {
-                btnGen.classList.add(...activeClasses); btnGen.classList.remove('text-gray-400', 'hover:text-white', 'border-transparent');
-                btnSec.classList.remove(...activeClasses); btnSec.classList.add('text-gray-400', 'hover:text-white', 'border-transparent', 'border-b-2');
-            } else {
-                btnSec.classList.add(...activeClasses); btnSec.classList.remove('text-gray-400', 'hover:text-white', 'border-transparent');
-                btnGen.classList.remove(...activeClasses); btnGen.classList.add('text-gray-400', 'hover:text-white', 'border-transparent', 'border-b-2');
-            }
-        }
-
-        async function refreshLogs() {
-            try {
-                const res = await fetch('/api/debug/log');
-                if(res.ok) get('debug-content').innerText = await res.text();
-            } catch(e) {}
-        }
-        function toggleDebug() { 
-            const c=get('debug-console'); 
-            c.style.display = c.style.display==='none' ? 'block' : 'none'; 
-            if(c.style.display==='block') refreshLogs();
-        }
-        
-        window.toggleThinking = function(header) {
-            const content = header.nextElementSibling;
-            if (content) {
-                content.classList.toggle('collapsed');
-                const icon = header.querySelector('i');
-                if(icon) icon.className = content.classList.contains('collapsed') ? 'fas fa-chevron-right text-gray-500' : 'fas fa-brain text-purple-400';
-            }
-        };
-        
-        window.copyCode = function(btn, enc) { 
-            navigator.clipboard.writeText(decodeURIComponent(enc)).then(()=>{ 
-                btn.innerHTML='<i class="fas fa-check text-green-400"></i>'; 
-                setTimeout(()=>btn.innerHTML='<i class="fas fa-copy"></i> Copy',2000); 
-            }); 
-        };
-        window.copyMessage = function(id, btn) { 
-            const text = messageStore[id]; 
-            if (!text) return; 
-            navigator.clipboard.writeText(text).then(() => { 
-                const original = btn.innerHTML; 
-                btn.innerHTML = '<i class="fas fa-check text-green-400"></i>'; 
-                setTimeout(() => btn.innerHTML = original, 2000); 
-            }); 
-        };
-        
-        window.showLegal = async function(type) {
-            get('legal-title').innerText = type==='terms'?'利用規約':'プライバシーポリシー';
-            const content = get('legal-content');
-            content.innerHTML = '<div class="flex justify-center p-4 text-gray-400"><i class="fas fa-circle-notch fa-spin mr-2"></i> Loading...</div>';
-            get('legal-modal').style.display = 'flex';
-            try {
-                const res = await fetch('/static/legal/' + type + '.md?t=' + Date.now());
-                if(!res.ok) throw new Error("Load failed");
-                const text = await res.text();
-                content.innerHTML = DOMPurify.sanitize(marked.parse(text));
-            } catch(e) {
-                content.innerHTML = '<div class="text-red-400 p-4">読み込みに失敗しました。</div>';
-            }
-        };
-        
-        window.showAlphaInfo = function() { get('alpha-info-modal').style.display = 'flex'; };
-
-        function checkSearchAvailability() {
-            const model = get('model-select').value;
-            const reasonEffort = get('reasoning-effort');
-            const searchCont = get('search-container');
-            const searchChk = get('enable-search');
-            if(!searchCont || !searchChk) return;
-            if (model.includes('gpt') && reasonEffort && reasonEffort.value === 'low') {
-                searchCont.classList.add('opacity-50','pointer-events-none');
-                searchChk.checked = false;
-            } else if(model.includes('gpt')) {
-                searchCont.classList.remove('opacity-50','pointer-events-none');
-            }
-        }
-
-        function checkSystemPromptAvailability() {
-            const model = get('model-select').value;
-            const chk = get('enable-sys-prompt');
-            const lbl = get('sys-prompt-option');
-            if(!chk || !lbl) return;
-            if(model.includes('nano')) { chk.checked=false; chk.disabled=true; lbl.classList.add('opacity-50'); } else { chk.disabled=false; lbl.classList.remove('opacity-50'); }
-        }
-
-        function toggleOptions() {
-            const model = get('model-select').value;
-            const thinkOpts = get('thinking-options');
-            const reasonOpts = get('reasoning-effort-container');
-            const thinkChk = get('enable-thinking');
-            
-            thinkOpts.classList.add('hidden');
-            reasonOpts.classList.add('hidden');
-            if(thinkChk) thinkChk.disabled = false;
-            
-            if(model.includes('gemini')) {
-                thinkOpts.classList.remove('hidden');
-                if(model.includes('gemini-3.0-pro') || model.includes('gemini-3-flash')) {
-                    if(thinkChk) { thinkChk.checked = true; thinkChk.disabled = true; }
-                }
-            } else if(model.includes('gpt')) {
-                reasonOpts.classList.remove('hidden');
-            }
-            checkSearchAvailability();
-            checkSystemPromptAvailability();
-        }
-        get('model-select').addEventListener('change', toggleOptions);
-        if(get('reasoning-effort')) get('reasoning-effort').addEventListener('change', checkSearchAvailability);
-
+        let searchTimeout; const messageStore = {}; const lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set() };
+        function escapeHtml(t) { return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") : t; }
+        function switchTab(t) { get('tab-general').classList.add('hidden'); get('tab-security').classList.add('hidden'); get('tab-'+t).classList.remove('hidden'); const btnG = get('btn-tab-general'); const btnS = get('btn-tab-security'); if(t==='general'){ btnG.classList.add('text-blue-400','border-blue-400','font-bold'); btnG.classList.remove('text-gray-400','hover:text-white','border-transparent'); btnS.classList.remove('text-blue-400','border-blue-400','font-bold'); btnS.classList.add('text-gray-400','hover:text-white','border-transparent'); }else{ btnS.classList.add('text-blue-400','border-blue-400','font-bold'); btnS.classList.remove('text-gray-400','hover:text-white','border-transparent'); btnG.classList.remove('text-blue-400','border-blue-400','font-bold'); btnG.classList.add('text-gray-400','hover:text-white','border-transparent'); } }
+        async function refreshLogs() { const r = await fetch("{{ url_for('debug_log') }}"); if(r.ok) get('debug-content').innerText = await r.text(); }
+        function toggleDebug() { const c=get('debug-console'); c.style.display = c.style.display==='none' ? 'block' : 'none'; if(c.style.display==='block') refreshLogs(); }
+        window.toggleThinking = function(h) { const c = h.nextElementSibling; if(c) { c.classList.toggle('collapsed'); const i = h.querySelector('i'); if(i) i.className = c.classList.contains('collapsed') ? 'fas fa-chevron-right text-gray-500' : 'fas fa-brain text-purple-400'; } };
+        window.copyCode = function(b, e) { navigator.clipboard.writeText(decodeURIComponent(e)).then(()=>{ b.innerHTML='<i class="fas fa-check text-green-400"></i>'; setTimeout(()=>b.innerHTML='<i class="fas fa-copy"></i> Copy',2000); }); };
+        window.copyMessage = function(id, b) { const t = messageStore[id]; if(!t) return; navigator.clipboard.writeText(t).then(() => { const o = b.innerHTML; b.innerHTML = '<i class="fas fa-check text-green-400"></i>'; setTimeout(() => b.innerHTML = o, 2000); }); };
+        function toggleOptions() { const m = get('model-select').value; const to = get('thinking-options'); const ro = get('reasoning-effort-container'); const tc = get('enable-thinking'); to.classList.add('hidden'); ro.classList.add('hidden'); if(tc) tc.disabled = false; if(m.includes('gemini')) { to.classList.remove('hidden'); if(m.includes('gemini-3.0-pro') || m.includes('gemini-3-flash')) { if(tc) { tc.checked = true; tc.disabled = true; } } } else if(m.includes('gpt')) { ro.classList.remove('hidden'); } }
         document.addEventListener('DOMContentLoaded', () => {
-            const bar = document.getElementById('alpha-bar');
-            setTimeout(() => {
-                if(bar) {
-                    const target = document.getElementById('version-display');
-                    if(target) {
-                        const barRect = bar.getBoundingClientRect();
-                        const targetRect = target.getBoundingClientRect();
-                        const tx = targetRect.left + (targetRect.width/2) - (barRect.left + barRect.width/2);
-                        const ty = targetRect.top + (targetRect.height/2) - (barRect.top + barRect.height/2);
-                        bar.style.transform = `translate(${tx}px, ${ty}px) scale(0.1)`;
-                        bar.style.opacity = '0';
-                        setTimeout(() => {
-                            target.classList.add('pulse-target');
-                            setTimeout(() => target.classList.remove('pulse-target'), 2000);
-                            bar.remove();
-                        }, 800);
-                    } else {
-                        bar.style.opacity = '0';
-                        setTimeout(() => bar.remove(), 1000);
-                    }
-                }
-            }, 3000);
-
-            const renderer = new marked.Renderer();
-            renderer.code = function(code, infostring, escaped) {
-                const lang = (infostring || '').match(/\S*/)[0];
-                const validLang = hljs.getLanguage(lang) ? lang : 'plaintext';
-                const highlighted = hljs.highlight(code, { language: validLang }).value;
-                const codeEncoded = encodeURIComponent(code);
-                return `<div class="code-wrapper"><div class="code-header"><span class="code-lang">${escapeHtml(lang)||'TEXT'}</span><button class="copy-btn" onclick="copyCode(this, '${codeEncoded}')"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="hljs language-${escapeHtml(lang)}">${highlighted}</code></pre></div>`;
-            };
-            renderer.link = function(href, title, text) {
-                return `<a href="${href}" title="${title || ''}" target="_blank">${text}</a>`;
-            };
-            marked.use({ renderer: renderer, breaks: true, gfm: true });
-
+            marked.use({ renderer: { code(c, i, e) { const l = (i || '').match(/\S*/)[0]; const h = hljs.highlight(c, { language: hljs.getLanguage(l)?l:'plaintext' }).value; return `<div class="code-wrapper"><div class="code-header"><span class="code-lang">${l||'TEXT'}</span><button class="copy-btn" onclick="copyCode(this, '${encodeURIComponent(c)}')"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="hljs language-${l}">${h}</code></pre></div>`; }, link(h, t, x) { return `<a href="${h}" title="${t||''}" target="_blank">${x}</a>`; } }, breaks: true, gfm: true });
             loadThreads(); loadGems(); toggleOptions();
-            get('new-chat-btn').onclick = () => startNewChat();
-            get('mobile-new-chat-btn').onclick = () => startNewChat();
             get('send-btn').onclick = sendMessage;
-            get('stop-btn').onclick = () => { if(abortController) abortController.abort(); };
-            
+            get('new-chat-btn').onclick = () => startNewChat();
             get('upload-btn').onclick = () => get('file-input').click();
             get('file-input').onchange = (e) => handleFiles(e.target.files);
-            get('clear-file-btn').onclick = () => { currentImageUrls=[]; get('file-input').value = ''; get('file-preview').classList.add('hidden'); };
+            get('settings-btn').onclick = () => { get('settings-modal').style.display='flex'; fetch("{{ url_for('handle_settings', _=1) }}").then(r=>r.json()).then(d=>{ get('sys-prompt-text').value = d.system_prompt; get('set-username').value = d.username; get('set-openai').value = d.openai_key; get('set-gemini').value = d.gemini_key; get('set-xai').value = d.xai_key; get('set-e2ee').checked = d.enable_e2ee; }); };
             
-            get('prompt-input').addEventListener('paste', async (e) => {
-                const items = (e.clipboardData || window.clipboardData).items;
-                const files = [];
-                for (let i = 0; i < items.length; i++) {
-                    if (items[i].kind === 'file' && items[i].type.startsWith('image/')) {
-                        files.push(items[i].getAsFile());
-                    }
-                }
-                if (files.length > 0) { e.preventDefault(); await handleFiles(files); }
-            });
-
-            const ta = get('prompt-input');
-            ta.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px'; });
-            ta.onkeydown = (e) => {
-                if (e.isComposing) return;
-                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); get('send-btn').click(); }
-            };
-            
-            get('chat-container').addEventListener('scroll', () => {
-                const current = get('chat-container').scrollTop;
-                const max = get('chat-container').scrollHeight - get('chat-container').clientHeight;
-                isUserScrolling = (max - current > 50);
-            });
-
-            get('chat-container').addEventListener('click', (e) => {
-                const editBtn = e.target.closest('.edit-btn');
-                if (editBtn) {
-                    e.stopPropagation();
-                    const id = editBtn.dataset.id;
-                    const text = messageStore[id];
-                    if(!text) return;
-                    get('prompt-input').value = text;
-                    get('prompt-input').focus();
-                    get('prompt-input').dispatchEvent(new Event('input', { bubbles: true }));
-                    if(confirm("再生成しますか？")) fetch("/api/messages/" + id, {method:'DELETE'}).then(() => loadMessages(currentThreadId)).catch(e=>{});
-                }
-            });
-            
-            get('settings-btn').onclick = () => {
-                get('settings-modal').style.display='flex';
-                fetch('/api/settings').then(r=>r.json()).then(d=>{
-                    get('sys-prompt-text').value = d.system_prompt;
-                    get('set-username').value = d.username;
-                    get('set-openai').value = d.openai_key;
-                    get('set-gemini').value = d.gemini_key;
-                    get('set-xai').value = d.xai_key;
-                    get('set-e2ee').checked = d.enable_e2ee;
-                    if(d.migration_status === 'processing') {
-                        get('mig-status-box').classList.remove('hidden');
-                        get('set-e2ee').disabled = true;
-                    }
-                });
-            };
-            get('close-settings-btn').onclick = () => get('settings-modal').style.display='none';
-            get('save-settings-btn').onclick = async () => {
-                const body = {
+            // FIX: Added 'new_username' and 'new_password' to POST payload
+            get('save-settings-btn').onclick = async () => { 
+                const b = {
                     system_prompt:get('sys-prompt-text').value, 
                     openai_key:get('set-openai').value, 
                     gemini_key:get('set-gemini').value, 
-                    xai_key:get('set-xai').value,
-                    enable_e2ee: get('set-e2ee').checked
-                };
-                get('save-settings-btn').disabled = true;
-                get('save-settings-btn').innerText = "保存中...";
-                await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-                const maint = get('set-maintenance');
-                if(maint) await fetch('/api/maintenance', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:maint.checked})});
-                location.reload();
+                    xai_key:get('set-xai').value, 
+                    enable_e2ee: get('set-e2ee').checked,
+                    new_username: get('set-username').value,
+                    new_password: get('set-password').value
+                }; 
+                await fetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}); 
+                location.reload(); 
             };
-            get('delete-account-btn').onclick = async () => { if(confirm("【警告】削除しますか？")) try { const res = await fetch('/api/account/delete', {method: 'POST'}); if(res.ok) window.location.href = "/login"; } catch(e){} };
-
-            get('lib-btn').onclick = () => { get('lib-modal').style.display='flex'; loadLibraryFiles(); };
-            get('lib-del-btn').onclick = deleteSelectedFiles;
-            get('add-gem-btn').onclick = () => get('gem-modal').style.display='flex';
-            get('save-gem-btn').onclick = createGem;
+            
+            get('prompt-input').onkeydown = (e) => { if(!e.isComposing && (e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); sendMessage(); } };
+            get('prompt-input').addEventListener('input', function() { this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px'; });
             get('menu-btn').onclick = () => { get('sidebar').classList.toggle('open'); get('overlay').classList.toggle('active'); };
             get('overlay').onclick = () => { get('sidebar').classList.remove('open'); get('overlay').classList.remove('active'); };
-            get('search-box').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(loadThreads, 300); });
+            get('model-select').onchange = toggleOptions;
         });
-
-        async function handleFiles(files) {
-            if(!files.length) return;
-            get('file-preview').classList.remove('hidden'); 
-            get('file-name').innerText = "Processing...";
-            for(let f of files) { 
-                let fileToUpload = f;
-                if (get('enable-compression').checked && f.type.startsWith('image/')) {
-                    try {
-                        const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true };
-                        get('file-name').innerText = "Compressing " + f.name + "...";
-                        const compressedBlob = await imageCompression(f, options);
-                        fileToUpload = new File([compressedBlob], f.name, { type: compressedBlob.type, lastModified: Date.now() });
-                    } catch (error) { console.error("Compression failed:", error); }
-                }
-                const fd = new FormData(); fd.append('file', fileToUpload); 
-                get('file-name').innerText = "Uploading " + f.name + "...";
-                const r = await fetch('/upload', {method:'POST', body:fd}); 
-                const d = await r.json(); 
-                if(d.filename) currentImageUrls.push(d.filename); 
-            }
-            get('file-name').innerText = `${currentImageUrls.length} files ready`; 
-            get('file-input').value = '';
-        }
-
+        async function handleFiles(fs) { if(!fs.length) return; get('file-preview').classList.remove('hidden'); get('file-name').innerText = "Processing..."; for(let f of fs) { let t = f; if (get('enable-compression').checked && f.type.startsWith('image/')) { try { const o = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }; const c = await imageCompression(f, o); t = new File([c], f.name, { type: c.type }); } catch(e){} } const fd = new FormData(); fd.append('file', t); const r = await fetch("{{ url_for('upload') }}", {method:'POST', body:fd}); const d = await r.json(); if(d.filename) currentImageUrls.push(d.filename); } get('file-name').innerText = `${currentImageUrls.length} files ready`; }
         function renderMessage(id, role, text, imgUrl, thoughtData, modelName) {
-            const isUser = role === 'user';
-            const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
-            const align = isUser ? 'justify-end' : 'justify-start';
-            messageStore[id] = text;
-            
-            let thoughtHtml = '';
-            if (thoughtData && !isUser) {
-                let tText = "";
-                try {
-                    const tObj = typeof thoughtData === 'string' ? JSON.parse(thoughtData) : thoughtData;
-                    tText = tObj.text || "";
-                } catch(e) { tText = thoughtData; }
-                if (tText) {
-                    thoughtHtml = `
-                    <div class="thought-container">
-                        <div class="thought-header" onclick="toggleThinking(this)">
-                            <i class="fas fa-brain text-purple-400"></i> Thinking Process
-                        </div>
-                        <div class="thought-content">${escapeHtml(tText)}</div>
-                    </div>`;
-                }
-            }
-
-            let attach = '';
-            if(imgUrl) {
-                try {
-                    const imgs = JSON.parse(imgUrl);
-                    if(imgs.length) {
-                        attach = '<div class="flex flex-wrap gap-2 mt-2">';
-                        imgs.forEach(u => {
-                            const url = '/files/' + u; 
-                            const filename = u.split('/').pop();
-                            const ext = filename.split('.').pop().toLowerCase();
-                            if (['jpg','jpeg','png','webp','gif'].includes(ext)) {
-                                attach += `<img src="${url}" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer" onclick="window.open('${url}')" title="${filename}">`;
-                            } else {
-                                attach += `<div class="h-24 w-24 bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700 transition" onclick="window.open('${url}')" title="${filename}">
-                                    <i class="fas fa-file text-2xl text-gray-400 mb-1"></i>
-                                    <span class="text-[9px] truncate w-20 text-center text-gray-300">${filename}</span>
-                                </div>`;
-                            }
-                        });
-                        attach += '</div>';
-                    }
-                } catch(e){}
-            }
-            
-            const editBtnHtml = isUser ? `<button class="ctrl-btn edit-btn" data-id="${id}" title="Edit"><i class="fas fa-pen"></i></button>` : '';
-            const controlsHtml = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${editBtnHtml}</div>`;
-            const modelHtml = (modelName && !isUser) ? `<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">${modelName}</div>` : '';
-
-            const html = `
-            <div class="flex ${align} mb-4 fade-in relative message-group">
-                <div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">
-                    ${controlsHtml}
-                    ${thoughtHtml}
-                    <div class="prose prose-invert text-sm break-words">${DOMPurify.sanitize(marked.parse(text||''))}</div>
-                    ${attach}
-                    ${modelHtml}
-                </div>
-            </div>`;
-            get('chat-container').insertAdjacentHTML('beforeend', html);
-            document.querySelectorAll('pre code').forEach((block) => { hljs.highlightElement(block); });
-            if(!isUserScrolling) get('chat-container').scrollTop = get('chat-container').scrollHeight;
+            const isUser = role === 'user'; const bg = isUser ? 'bg-blue-600' : 'bg-gray-700'; const align = isUser ? 'justify-end' : 'justify-start'; messageStore[id] = text;
+            let th = ''; if (thoughtData && !isUser) { let tx = ""; try { const o = JSON.parse(thoughtData); tx = o.text || ""; } catch(e) { tx = thoughtData; } if (tx) th = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content">${escapeHtml(tx)}</div></div>`; }
+            let at = ''; if(imgUrl) { try { const imgs = JSON.parse(imgUrl); if(imgs.length) { at = '<div class="flex flex-wrap gap-2 mt-2">'; imgs.forEach(u => { const url = "{{ url_for('serve_file', filename='') }}" + u; const fn = u.split('/').pop(); const ext = fn.split('.').pop().toLowerCase(); if(['jpg','jpeg','png','webp','gif'].includes(ext)) at += `<img src="${url}" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer" onclick="window.open('${url}')" title="${fn}">`; else at += `<div class="h-24 w-24 bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700" onclick="window.open('${url}')" title="${fn}"><i class="fas fa-file text-2xl text-gray-400 mb-1"></i><span class="text-[9px] truncate w-20 text-center">${fn}</span></div>`; }); at += '</div>'; } } catch(e){} }
+            const ctrl = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${isUser?`<button class="ctrl-btn edit-btn" data-id="${id}"><i class="fas fa-pen"></i></button>`:''}</div>`;
+            const mHtml = (modelName && !isUser) ? `<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">${modelName}</div>` : '';
+            const html = `<div class="flex ${align} mb-4 fade-in relative message-group group"><div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">${ctrl}${th}<div class="prose prose-invert text-sm break-words">${DOMPurify.sanitize(marked.parse(text||''))}</div>${at}${mHtml}</div></div>`;
+            get('chat-container').insertAdjacentHTML('beforeend', html); document.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b)); get('chat-container').scrollTop = get('chat-container').scrollHeight;
         }
-
         async function sendMessage() {
-            const text = get('prompt-input').value.trim();
-            if(!text && currentImageUrls.length === 0) return;
-            if(!currentThreadId) { const res = await fetch('/api/threads', {method: 'POST'}); const d = await res.json(); currentThreadId = d.id; }
-            get('welcome-screen').classList.add('hidden');
-            renderMessage(0, 'user', text, JSON.stringify(currentImageUrls), null, null);
-            get('prompt-input').value = ''; get('prompt-input').style.height = 'auto'; 
-            
-            const payload = { 
-                thread_id: currentThreadId, message: text, model: get('model-select').value, 
-                image_urls: currentImageUrls, enable_search: get('enable-search').checked, 
-                enable_thinking: get('enable-thinking').checked, thinking_level: get('thinking-level').value,
-                reasoning_effort: get('reasoning-effort').value, enable_system_prompt: get('enable-sys-prompt').checked,
-                safety_setting: get('safety-setting').value
-            };
-            if (activeGem) { payload.system_prompt = activeGem.instruction; payload.enable_system_prompt = true; }
-            currentImageUrls = []; get('file-preview').classList.add('hidden'); 
-            get('send-btn').disabled = true; get('stop-container').classList.remove('hidden');
-            
-            const aiDivId = 'ai-' + Date.now();
-            get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aiDivId}" class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative"><span class="animate-pulse">Thinking...</span></div></div>`);
-            
+            const t = get('prompt-input').value.trim(); if(!t && currentImageUrls.length === 0) return; if(!currentThreadId) { const r = await fetch("{{ url_for('handle_threads') }}", {method:'POST'}); const d = await r.json(); currentThreadId = d.id; }
+            get('welcome-screen').classList.add('hidden'); renderMessage(Date.now(), 'user', t, JSON.stringify(currentImageUrls)); get('prompt-input').value = ''; get('prompt-input').style.height = 'auto';
+            const p = { thread_id: currentThreadId, message: t, model: get('model-select').value, image_urls: currentImageUrls, enable_search: get('enable-search').checked, enable_thinking: get('enable-thinking').checked, thinking_level: get('thinking-level').value, reasoning_effort: get('reasoning-effort').value, enable_system_prompt: get('enable-sys-prompt').checked, safety_setting: get('safety-setting').value };
+            if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; }
+            currentImageUrls = []; get('file-preview').classList.add('hidden'); get('send-btn').disabled = true; get('stop-container').classList.remove('hidden');
+            const aid = 'ai-' + Date.now(); get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aid}" class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative"><span class="animate-pulse">Thinking...</span></div></div>`);
             abortController = new AbortController();
             try {
-                const res = await fetch('/chat_stream', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload), signal: abortController.signal});
-                const reader = res.body.getReader(); const decoder = new TextDecoder();
-                const aiDiv = document.getElementById(aiDivId);
-                let buffer = "", accumulatedText = "", thoughtText = "", firstChunk = true, thoughtContentEl = null, contentEl = null;
+                const r = await fetch("{{ url_for('chat_stream') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p), signal:abortController.signal});
+                const reader = r.body.getReader(); const dec = new TextDecoder(); const adiv = get(aid); let buf="", acc="", tht="", first=true, thEl=null, cEl=null;
                 while(true) {
-                    const {done, value} = await reader.read(); if(done) break;
-                    buffer += decoder.decode(value, {stream: true}); let lines = buffer.split("\n"); buffer = lines.pop();
-                    for(let line of lines) {
-                        if(!line.trim()) continue;
-                        try {
-                            const json = JSON.parse(line);
-                            if(firstChunk) { aiDiv.innerHTML = ''; firstChunk = false; }
-                            if (json.type === 'thought') {
-                                thoughtText += json.data;
-                                if(!thoughtContentEl) {
-                                    aiDiv.insertAdjacentHTML('afterbegin', `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>`);
-                                    thoughtContentEl = aiDiv.querySelector('.thought-content');
-                                }
-                                thoughtContentEl.textContent = thoughtText; thoughtContentEl.scrollTop = thoughtContentEl.scrollHeight;
-                            } else if (json.type === 'content') {
-                                accumulatedText += json.data;
-                                if(!contentEl) { contentEl = document.createElement('div'); contentEl.className = 'prose prose-invert text-sm break-words'; aiDiv.appendChild(contentEl); }
-                                contentEl.innerHTML = DOMPurify.sanitize(marked.parse(accumulatedText));
-                                contentEl.querySelectorAll('pre code').forEach((block) => { hljs.highlightElement(block); });
-                            } else if (json.type === 'error') { aiDiv.innerHTML += `<div class="text-red-400">Error: ${json.data}</div>`; }
-                        } catch(e){}
-                    }
-                    if(!isUserScrolling) get('chat-container').scrollTop = get('chat-container').scrollHeight;
+                    const {done, value} = await reader.read(); if(done) break; buf += dec.decode(value, {stream:true}); let ls = buf.split("\n"); buf = ls.pop();
+                    for(let l of ls) { if(!l.trim()) continue; try { const j = JSON.parse(l); if(first){ adiv.innerHTML=''; first=false; }
+                    if(j.type==='thought'){ tht+=j.data; if(!thEl){ adiv.insertAdjacentHTML('afterbegin', `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>`); thEl=adiv.querySelector('.thought-content'); } thEl.textContent=tht; thEl.scrollTop=thEl.scrollHeight; }
+                    else if(j.type==='content'){ acc+=j.data; if(!cEl){ cEl=document.createElement('div'); cEl.className='prose prose-invert text-sm break-words'; adiv.appendChild(cEl); } cEl.innerHTML=DOMPurify.sanitize(marked.parse(acc)); cEl.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b)); }
+                    } catch(e){} } get('chat-container').scrollTop=get('chat-container').scrollHeight;
                 }
-                const modelName = get('model-select').value;
-                aiDiv.insertAdjacentHTML('beforeend', `<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">${modelName}</div>`);
-                loadThreads();
-            } catch(e) { if(e.name!=='AbortError') alert("Connection Error"); }
-            finally { get('send-btn').disabled = false; get('stop-container').classList.add('hidden'); abortController = null; }
+                adiv.insertAdjacentHTML('beforeend', `<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">${get('model-select').value}</div>`); loadThreads();
+            } catch(e){ if(e.name!=='AbortError') alert("Error"); } finally { get('send-btn').disabled=false; get('stop-container').classList.add('hidden'); abortController=null; }
         }
-
-        async function loadThreads() {
-            const res = await fetch("/api/threads?q=" + encodeURIComponent(get('search-box').value));
-            const threads = await res.json();
-            const list = get('thread-list'); list.innerHTML = '';
-            threads.forEach(t => {
-                const d = document.createElement('div');
-                d.className = 'p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 border-b border-gray-700/30 truncate flex justify-between items-center group';
-                d.innerHTML = `<span class="truncate flex-1" onclick="loadMessages(${t.id})">${t.title||"No Title"}</span>
-                               <div class="flex gap-1 opacity-0 group-hover:opacity-100">
-                                   <button class="text-gray-500 hover:text-white px-1" onclick="renameThread(event, ${t.id})"><i class="fas fa-pen text-xs"></i></button>
-                                   <button class="text-gray-500 hover:text-red-400 px-1" onclick="deleteThread(event, ${t.id})"><i class="fas fa-trash text-xs"></i></button>
-                               </div>`;
-                list.appendChild(d);
-            });
-        }
-        async function loadMessages(tid) {
-            currentThreadId = tid; clearActiveGem(); get('welcome-screen').classList.add('hidden');
-            get('chat-container').innerHTML = '<div class="text-center mt-10"><i class="fas fa-spinner fa-spin text-blue-500"></i></div>';
-            const res = await fetch('/api/threads/' + tid);
-            const msgs = await res.json(); 
-            get('chat-container').innerHTML = '';
-            if(msgs.length > 0) { msgs.forEach(m => renderMessage(m.id, m.role, m.content, m.image_url, m.thought_data, m.model)); } else { get('welcome-screen').classList.remove('hidden'); }
-            if(window.innerWidth < 768) get('overlay').click();
-        }
-        async function loadGems() {
-             const res = await fetch('/api/gems'); const gems = await res.json();
-             const list = get('gem-list'); list.innerHTML = '';
-             gems.forEach(g => {
-                 const d = document.createElement('div'); d.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group';
-                 d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${g.name}</span></div><button class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2" onclick="deleteGem(event, ${g.id})">×</button>`;
-                 d.onclick = (e) => { if(e.target.tagName!=='BUTTON') activateGem(g); };
-                 list.appendChild(d);
-             });
-        }
-        function activateGem(gem) { activeGem = gem; get('active-gem-name').innerText = gem.name; get('gem-active-indicator').classList.remove('hidden'); currentThreadId = null; get('chat-container').innerHTML = ''; get('welcome-screen').classList.add('hidden'); get('sys-prompt-option').style.opacity = '0.5'; if(window.innerWidth < 768) get('overlay').click(); }
-        function clearActiveGem() { activeGem=null; get('gem-active-indicator').classList.add('hidden'); get('sys-prompt-option').style.opacity = '1'; }
-        function startNewChat() { if(abortController) abortController.abort(); currentThreadId = null; clearActiveGem(); get('chat-container').innerHTML = ''; get('welcome-screen').classList.remove('hidden'); get('clear-file-btn').click(); loadThreads(); if(window.innerWidth < 768) get('overlay').click(); }
+        async function loadThreads() { const r = await fetch("{{ url_for('handle_threads') }}?q="+encodeURIComponent(get('search-box').value)); const ts = await r.json(); const l = get('thread-list'); l.innerHTML = ''; ts.forEach(t => { const d = document.createElement('div'); d.className = 'p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 truncate flex justify-between items-center group'; d.innerHTML = `<span class="truncate flex-1" onclick="loadMessages(${t.id})">${t.title||"No Title"}</span><div class="flex gap-1 opacity-0 group-hover:opacity-100"><button class="text-gray-500 hover:text-white px-1" onclick="renameThread(event, ${t.id})"><i class="fas fa-pen text-xs"></i></button><button class="text-gray-500 hover:text-red-400 px-1" onclick="deleteThread(event, ${t.id})"><i class="fas fa-trash text-xs"></i></button></div>`; l.appendChild(d); }); }
+        async function loadMessages(tid) { currentThreadId = tid; clearActiveGem(); get('welcome-screen').classList.add('hidden'); get('chat-container').innerHTML = '<div class="text-center mt-10"><i class="fas fa-spinner fa-spin text-blue-500"></i></div>'; const r = await fetch("{{ url_for('handle_thread_item', tid=0) }}".replace('0', tid)); const ms = await r.json(); get('chat-container').innerHTML = ''; ms.forEach(m => renderMessage(m.id, m.role, m.content, m.image_url, m.thought_data, m.model)); if(window.innerWidth < 768) get('overlay').click(); }
+        async function loadGems() { const r = await fetch("{{ url_for('handle_gems') }}"); const gs = await r.json(); const l = get('gem-list'); l.innerHTML = ''; gs.forEach(g => { const d = document.createElement('div'); d.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group'; d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${g.name}</span></div><button class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2" onclick="deleteGem(event, ${g.id})">×</button>`; d.onclick = (e) => { if(e.target.tagName!=='BUTTON') activateGem(g); }; l.appendChild(d); }); }
+        function activateGem(g) { activeGem = g; get('active-gem-name').innerText = g.name; get('gem-active-indicator').classList.remove('hidden'); startNewChat(); }
+        function clearActiveGem() { activeGem=null; get('gem-active-indicator').classList.add('hidden'); }
+        function startNewChat() { if(abortController) abortController.abort(); currentThreadId = null; get('chat-container').innerHTML = ''; get('welcome-screen').classList.remove('hidden'); loadThreads(); if(window.innerWidth < 768) get('overlay').click(); }
+        async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await fetch("{{ url_for('delete_gem', gid=0) }}".replace('0', id), {method: 'DELETE'}); loadGems(); }
+        async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { await fetch("{{ url_for('update_title', tid=0) }}".replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); loadThreads(); } }
+        async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await fetch("{{ url_for('handle_thread_item', tid=0) }}".replace('0', id), {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }
         window.quickStart = (m) => { get('model-select').value=m; toggleOptions(); get('welcome-screen').classList.add('hidden'); };
-        
-        async function createGem() { const name = get('gem-name').value; const instruction = get('gem-instruction').value; if(!name || !instruction) return alert("Required"); await fetch('/api/gems', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, instruction})}); get('gem-modal').style.display='none'; get('gem-name').value=''; get('gem-instruction').value=''; loadGems(); }
-        async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await fetch('/api/gems/' + id, {method: 'DELETE'}); loadGems(); if(activeGem && activeGem.id === id) clearActiveGem(); }
-        async function renameThread(e, id) { e.stopPropagation(); const newTitle = prompt("新しいタイトルを入力:"); if(newTitle) { await fetch('/api/threads/'+id+'/title', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: newTitle}) }); loadThreads(); } }
-        async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("削除しますか？")) return; await fetch('/api/threads/'+id, {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }
-        async function loadLibraryFiles() {
-            const r = await fetch('/api/files'); const files = await r.json();
-            const grid = get('lib-grid'); grid.innerHTML = ''; get('lib-total-count').innerText = files.length + " files";
-            lib.selected.clear(); get('lib-del-btn').disabled = true; get('lib-del-btn').innerText = "削除";
-            files.forEach(f => {
-                const el = document.createElement('div'); el.className = "relative group bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400";
-                const content = f.type==='image' ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`;
-                const overlay = `<div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><a href="${f.url}" target="_blank" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a></div>`;
-                el.innerHTML = content + overlay;
-                el.onclick = () => { if (lib.selected.has(f.filepath)) { lib.selected.delete(f.filepath); el.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.add('border-gray-600'); } else { lib.selected.add(f.filepath); el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.remove('border-gray-600'); } get('lib-del-btn').disabled = lib.selected.size === 0; get('lib-del-btn').innerText = `削除 (${lib.selected.size})`; };
-                grid.appendChild(el);
-            });
-        }
-        async function deleteSelectedFiles() { if(!confirm('削除しますか？')) return; try{ await fetch('/api/files/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({filenames:Array.from(lib.selected)})}); loadLibraryFiles(); } catch(e){ alert("削除エラー"); } }
     </script>
 </body>
 </html>

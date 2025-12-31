@@ -186,28 +186,23 @@ def migrate_e2ee_task(user_id, enable):
     with app.app_context():
         redis_conn.set(f"migration_status:{user_id}", "processing")
         try:
-            # 1. System Prompt
             user = User.query.get(user_id)
             if enable and user.system_prompt and not user.enable_e2ee:
                 user.system_prompt = encrypt_val(user.system_prompt)
             elif not enable and user.system_prompt and user.enable_e2ee:
                 user.system_prompt = decrypt_val(user.system_prompt)
 
-            # 2. Messages
             msgs = Message.query.join(Thread).filter(Thread.user_id == user_id).all()
             for m in msgs:
                 if enable and not m.is_encrypted:
                     m.content = encrypt_val(m.content)
-                    if m.thought_data:
-                        m.thought_data = encrypt_val(m.thought_data)
+                    if m.thought_data: m.thought_data = encrypt_val(m.thought_data)
                     m.is_encrypted = True
                 elif not enable and m.is_encrypted:
                     m.content = decrypt_val(m.content)
-                    if m.thought_data:
-                        m.thought_data = decrypt_val(m.thought_data)
+                    if m.thought_data: m.thought_data = decrypt_val(m.thought_data)
                     m.is_encrypted = False
             
-            # 3. Files
             user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
             if os.path.exists(user_dir):
                 for f in os.listdir(user_dir):
@@ -244,7 +239,8 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
             history = []
             for m in all_msgs[:-1]:
                 cnt = decrypt_val(m.content) if m.is_encrypted else m.content
-                history.append({'role': m.role, 'content': cnt, 'image_url': m.image_url, 'signature': m.thought_signature})
+                sig = m.thought_signature
+                history.append({'role': m.role, 'content': cnt, 'image_url': m.image_url, 'signature': sig})
 
             is_gem = 'gemini' in model_key or 'nano' in model_key
             is_grok = 'grok' in model_key
@@ -798,65 +794,22 @@ def toggle_maintenance():
         app.config['MAINTENANCE_MODE'] = False
     return jsonify({'status': 'ok', 'mode': app.config['MAINTENANCE_MODE']})
 
-@app.route('/chat_stream', methods=['POST'])
-@login_required
-def chat_stream():
-    import uuid
-    data = request.json
-    job_id = str(uuid.uuid4())
-    sys_prompt = data.get('system_prompt') 
-    if not sys_prompt and data.get('enable_system_prompt'): sys_prompt = current_user.system_prompt
-    
-    options = {
-        'enable_search': data.get('enable_search', False), 
-        'enable_thinking': data.get('enable_thinking', False), 
-        'thinking_level': data.get('thinking_level', 'low'),
-        'reasoning_effort': data.get('reasoning_effort', 'medium'), 
-        'system_prompt': sys_prompt,
-        'safety_setting': data.get('safety_setting', 'default')
-    }
-    
-    api_keys = {
-        'openai': get_key_for_user(current_user, 'OPENAI_API_KEY'),
-        'gemini': get_key_for_user(current_user, 'GEMINI_API_KEY'),
-        'xai': get_key_for_user(current_user, 'XAI_API_KEY')
-    }
-    
-    user_config = {'enable_e2ee': current_user.enable_e2ee}
-
-    u_msg = data.get('message')
-    if current_user.enable_e2ee:
-        u_msg_enc = encrypt_val(u_msg)
-        msg_entry = Message(
-            thread_id=data.get('thread_id'), role='user', content=u_msg_enc, 
-            image_url=json.dumps(data.get('image_urls', [])), is_encrypted=True
-        )
-    else:
-        msg_entry = Message(
-            thread_id=data.get('thread_id'), role='user', content=u_msg, 
-            image_url=json.dumps(data.get('image_urls', [])), is_encrypted=False
-        )
-    
-    db.session.add(msg_entry)
-    safe_db_commit()
-
-    task_queue.enqueue(background_chat_task, job_id, data.get('thread_id'), data.get('model'), u_msg, data.get('image_urls', []), options, api_keys, current_user.id, user_config, job_timeout=600)
-    
-    def generate():
-        pubsub = redis_conn.pubsub()
-        pubsub.subscribe(f"ai_chat:channel:{job_id}")
-        st = time.time()
-        try:
-            for m in pubsub.listen():
-                if time.time() - st > 600: yield json.dumps({"type": "error", "data": "Timeout"}) + "\n"; break
-                if m['type'] == 'message':
-                    yield m['data'].decode('utf-8') + "\n"
-                    if json.loads(m['data'].decode('utf-8')).get('type') in ['done', 'error']: break
-        finally: pubsub.close()
-    return Response(stream_with_context(generate()), mimetype='application/json')
-
+# FIX: Added Schema Check at Startup
 with app.app_context():
     db.create_all()
+    # Ensure columns exist (Safety for existing DBs)
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE message ADD COLUMN thought_signature TEXT"))
+    except: pass
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE user ADD COLUMN enable_e2ee BOOLEAN DEFAULT 0"))
+    except: pass
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE message ADD COLUMN is_encrypted BOOLEAN DEFAULT 0"))
+    except: pass
 
 if __name__ == '__main__':
     app.run(debug=True)

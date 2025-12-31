@@ -118,11 +118,8 @@ class User(UserMixin, db.Model):
     enable_e2ee = db.Column(db.Boolean, default=False)
     threads = db.relationship('Thread', backref='user', lazy=True, cascade="all, delete-orphan")
     gems = db.relationship('Gem', backref='user', lazy=True, cascade="all, delete-orphan")
-    
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+    def set_password(self, password): self.password_hash = generate_password_hash(password)
+    def check_password(self, password): return check_password_hash(self.password_hash, password)
 
 class Thread(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -134,7 +131,7 @@ class Thread(db.Model):
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     thread_id = db.Column(db.Integer, db.ForeignKey('thread.id'), nullable=False)
-    role = db.Column(db.String(20))
+    role = db.Column(db.String(200))
     content = db.Column(db.Text)
     model = db.Column(db.String(50))
     image_url = db.Column(db.Text)
@@ -346,8 +343,7 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                     
                     if not parts and s_bytes and m['role'] == 'assistant':
                          p = types.Part(text="")
-                         p.thought_signature = s_bytes
-                         parts.append(p)
+                         p.thought_signature = s_bytes; parts.append(p)
 
                     if parts:
                         contents.append(types.Content(role='model' if m['role'] == 'assistant' else 'user', parts=parts))
@@ -480,12 +476,16 @@ def serve_file(filename):
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     enc_path = file_path + '.enc'
     
+    # FIX: Explicit Mimetype detection
+    mtype = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
+
     if os.path.exists(file_path):
-        return send_file(file_path)
+        return send_file(file_path, mimetype=mtype)
     elif os.path.exists(enc_path):
         with open(enc_path, 'rb') as f:
             data = decrypt_bytes(f.read())
-        return send_file(BytesIO(data), download_name=os.path.basename(filename), as_attachment=False)
+        # Pass BytesIO and mimetype
+        return send_file(BytesIO(data), download_name=os.path.basename(filename), as_attachment=False, mimetype=mtype)
     else:
         abort(404)
 

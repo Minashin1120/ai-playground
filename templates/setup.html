@@ -7,122 +7,49 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .animate-enter { animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-        
-        .promo-img { transition: transform 0.5s ease, box-shadow 0.5s ease; }
-        .promo-img:hover { transform: scale(1.02) translateY(-5px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); }
-        
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .btn-glow { transition: all 0.3s; }
         .btn-glow:hover { box-shadow: 0 0 15px rgba(37, 99, 235, 0.5); transform: translateY(-1px); }
-
-        /* Custom Scrollbar */
-        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #1f2937; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #6b7280; }
-        
-        /* Checkbox Label Cursor */
-        .checkbox-label { cursor: pointer; user-select: none; }
     </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
     <div class="max-w-2xl w-full bg-gray-800 rounded-xl shadow-2xl border border-gray-700 overflow-hidden animate-enter">
         <div class="bg-gray-900 p-4 border-b border-gray-700 flex justify-between items-center">
             <h1 class="text-lg font-bold text-blue-400"><i class="fas fa-magic mr-2"></i>初期セットアップ</h1>
-            <div class="text-xs text-gray-500 font-mono">Step <span id="step-num" class="text-white font-bold">1</span> / 3</div>
+            <div class="text-xs text-gray-500 font-mono">Step <span id="step-num" class="text-white font-bold">1</span> / 2</div>
         </div>
-
         <form method="POST" id="setup-form" class="p-6">
             <!-- Step 1: Welcome -->
             <div id="step-1" class="space-y-6 text-center">
-                <div class="mb-6 relative group">
-                    <div class="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
-                    <img src="/static/github_promo.png" alt="AI Playground Promo" class="promo-img relative w-full rounded-lg border border-gray-700 shadow-xl">
-                </div>
                 <h2 class="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">AI Chat Playground</h2>
                 <p class="text-gray-400 leading-relaxed">最新のAIモデルを自由に試せる、<br>あなただけのプライベートなチャット環境へようこそ。</p>
-                <div class="flex justify-center gap-4 pt-4">
-                    <a href="https://github.com/Minashin1120/ai-playground" target="_blank" class="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition flex items-center gap-2 border border-gray-600 hover:border-gray-500"><i class="fab fa-github"></i> Repository</a>
+                <div class="flex justify-center pt-4">
                     <button type="button" onclick="nextStep(2)" class="px-8 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg btn-glow flex items-center gap-2">始める <i class="fas fa-arrow-right"></i></button>
                 </div>
             </div>
-
-            <!-- Step 2: Legal -->
+            <!-- Step 2: Keys -->
             <div id="step-2" class="hidden space-y-6 animate-enter">
-                <h3 class="text-orange-400 font-bold mb-2 flex items-center"><i class="fas fa-file-contract mr-2"></i>利用規約・プライバシーポリシー</h3>
-                
-                <div class="bg-gray-900/50 p-6 rounded-lg border border-gray-700 h-80 overflow-y-auto text-sm text-gray-300 leading-relaxed custom-scrollbar">
-                    
-                    <h4 class="text-white font-bold mb-4 text-lg border-b border-gray-600 pb-2 sticky top-0 bg-gray-900/90 backdrop-blur-sm py-1">利用規約</h4>
-                    <p class="mb-4">この利用規約（以下「本規約」といいます）は、AI Chat Playground（以下「本サービス」といいます）の利用条件を定めるものです。</p>
-                    <h5 class="text-white font-bold mt-4 mb-1">第1条（適用）</h5>
-                    <p class="mb-2">本規約は、ユーザーと本サービス運営者との間の、本サービスの利用に関わる一切の関係に適用されます。</p>
-                    <h5 class="text-white font-bold mt-4 mb-1">第2条（免責）</h5>
-                    <ul class="list-disc pl-5 mb-2 space-y-1">
-                        <li>本サービスは「アルファ版」として提供されており、予告なく機能変更やデータ削除が行われる可能性があります。</li>
-                        <li>AIが生成する情報の正確性について、運営者は一切の責任を負いません。</li>
-                    </ul>
-                    <h5 class="text-white font-bold mt-4 mb-1">第3条（API利用）</h5>
-                    <p class="mb-6">本サービスはBYOK（Bring Your Own Key）方式を採用しています。API利用料はユーザーご自身の負担となります。また、APIキーは暗号化されて保存されますが、その管理はユーザーの責任において行ってください。</p>
-                    
-                    <hr class="border-gray-600 my-8">
-
-                    <h4 class="text-white font-bold mb-4 text-lg border-b border-gray-600 pb-2 sticky top-0 bg-gray-900/90 backdrop-blur-sm py-1">プライバシーポリシー</h4>
-                    <h5 class="text-white font-bold mt-4 mb-1">1. 収集する情報</h5>
-                    <ul class="list-disc pl-5 mb-2 space-y-1">
-                        <li><strong>アカウント情報:</strong> ユーザー名、パスワード（ハッシュ化して保存）。</li>
-                        <li><strong>利用データ:</strong> チャット履歴、アップロードされたファイル、システムプロンプト設定。</li>
-                        <li><strong>APIキー:</strong> OpenAI, Gemini, xAI等のAPIキー（AES強力暗号化により保存）。</li>
-                    </ul>
-                    <h5 class="text-white font-bold mt-4 mb-1">2. APIキーの取り扱い</h5>
-                    <p class="mb-2">お預かりしたAPIキーは、ユーザーがAIモデルへリクエストを送信する際の中継処理にのみ使用されます。運営者がこれらのキーを他の目的で使用したり、第三者に提供したりすることはありません。</p>
-                    <h5 class="text-white font-bold mt-4 mb-1">3. データの削除</h5>
-                    <p class="mb-2">ユーザーは設定画面からいつでも自身のアカウントおよび全データを完全に削除することができます。削除操作を行うと、サーバー上から関連データは物理的に消去されます。</p>
-                    
-                    <p class="mt-8 text-center text-xs text-gray-500">- End of Documents -</p>
-                </div>
-
-                <div class="flex items-start gap-3 p-2 rounded hover:bg-gray-800 transition cursor-pointer" onclick="document.getElementById('agree-check').click()">
-                    <input type="checkbox" id="agree-check" class="mt-1 w-5 h-5 bg-gray-700 border-gray-600 rounded accent-blue-500 cursor-pointer shrink-0" onclick="event.stopPropagation()">
-                    <label for="agree-check" class="text-sm text-gray-300 checkbox-label hover:text-white transition" onclick="event.stopPropagation()">
-                        上記「利用規約」および「プライバシーポリシー」の全文を確認し、これらに同意します。
-                    </label>
-                </div>
-
-                <div class="flex justify-between pt-4 border-t border-gray-700">
-                    <button type="button" onclick="nextStep(1)" class="text-gray-400 hover:text-white transition">戻る</button>
-                    <button type="button" onclick="nextStep(3)" id="btn-step2" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-8 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed btn-glow transition" disabled>次へ</button>
-                </div>
-            </div>
-
-            <!-- Step 3: Keys -->
-            <div id="step-3" class="hidden space-y-6 animate-enter">
                 <div class="text-center mb-6">
                     <h3 class="text-xl font-bold mb-1 text-green-400"><i class="fas fa-key mr-2"></i>APIキーの設定</h3>
                     <p class="text-sm text-gray-400">使用するAIモデルのAPIキーを入力してください。</p>
                 </div>
                 <div class="space-y-4">
                     <div class="relative group">
-                        <label class="block text-xs text-gray-500 mb-1 group-focus-within:text-blue-400 transition">OpenAI API Key</label>
-                        <input type="password" name="openai_key" class="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition" placeholder="sk-...">
+                        <label class="block text-xs text-gray-500 mb-1">OpenAI API Key</label>
+                        <input type="password" name="openai_key" class="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white text-sm outline-none" placeholder="sk-...">
                     </div>
                     <div class="relative group">
-                        <label class="block text-xs text-gray-500 mb-1 group-focus-within:text-blue-400 transition">Gemini API Key</label>
-                        <input type="password" name="gemini_key" class="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition" placeholder="AIza...">
+                        <label class="block text-xs text-gray-500 mb-1">Gemini API Key</label>
+                        <input type="password" name="gemini_key" class="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white text-sm outline-none" placeholder="AIza...">
                     </div>
                     <div class="relative group">
-                        <label class="block text-xs text-gray-500 mb-1 group-focus-within:text-blue-400 transition">xAI API Key</label>
-                        <input type="password" name="xai_key" class="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition" placeholder="xai-...">
+                        <label class="block text-xs text-gray-500 mb-1">xAI API Key</label>
+                        <input type="password" name="xai_key" class="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white text-sm outline-none" placeholder="xai-...">
                     </div>
-                    
-                    <!-- E2EE Setting -->
                     <div class="border-t border-gray-700 pt-4 mt-4">
                         <div class="flex items-center justify-between bg-gray-800 p-3 rounded border border-gray-700">
-                            <div>
-                                <div class="text-sm font-bold text-green-400">暗号化を有効にする (E2EE)</div>
-                                <div class="text-[10px] text-gray-500">チャット履歴とファイルを暗号化して保存します。</div>
-                            </div>
+                            <div><div class="text-sm font-bold text-green-400">E2EE (暗号化)</div><div class="text-[10px] text-gray-500">チャット履歴とファイルを暗号化して保存します。</div></div>
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" name="enable_e2ee" class="sr-only peer">
                                 <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600"></div>
@@ -131,7 +58,7 @@
                     </div>
                 </div>
                 <div class="flex justify-between pt-6 border-t border-gray-700">
-                    <button type="button" onclick="nextStep(2)" class="text-gray-400 hover:text-white transition">戻る</button>
+                    <button type="button" onclick="nextStep(1)" class="text-gray-400 hover:text-white transition">戻る</button>
                     <button type="submit" class="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold py-3 px-8 rounded-lg shadow-lg btn-glow transform hover:scale-105 transition">セットアップ完了</button>
                 </div>
             </div>
@@ -139,22 +66,13 @@
     </div>
     <script>
         function nextStep(n) {
-            [1,2,3].forEach(i => {
+            [1,2].forEach(i => {
                 const el = document.getElementById('step-'+i);
-                if(i === n) {
-                    el.classList.remove('hidden');
-                    void el.offsetWidth;
-                    el.classList.add('animate-enter');
-                } else {
-                    el.classList.add('hidden');
-                    el.classList.remove('animate-enter');
-                }
+                if(i === n) { el.classList.remove('hidden'); el.classList.add('animate-enter'); } 
+                else { el.classList.add('hidden'); el.classList.remove('animate-enter'); }
             });
             document.getElementById('step-num').innerText = n;
         }
-        document.getElementById('agree-check').addEventListener('change', function() {
-            document.getElementById('btn-step2').disabled = !this.checked;
-        });
     </script>
 </body>
 </html>

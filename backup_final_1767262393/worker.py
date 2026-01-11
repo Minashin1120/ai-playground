@@ -14,12 +14,13 @@ class SafeWorker(SimpleWorker):
 if __name__ == '__main__':
     REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/10')
     conn = redis.from_url(REDIS_URL)
+
     try:
         with app.app_context():
             db.engine.dispose()
         queues = [Queue(name, connection=conn) for name in listen]
         worker = SafeWorker(queues, connection=conn)
-        print("SafeWorker starting...")
+        print("SafeWorker starting (DB Connection Reset enabled)...")
         worker.work()
     except Exception as e:
         print(f"Worker Error: {e}")

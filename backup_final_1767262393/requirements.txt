@@ -18,7 +18,7 @@ Flask==3.1.2
 Flask-Login==0.6.3
 Flask-SQLAlchemy==3.1.1
 frozenlist==1.8.0
-# FIXED: Updated google-auth for google-genai compatibility
+# FIXED: Updated google-auth to satisfy google-genai requirements
 google-auth==2.45.0
 google-genai==1.56.0
 greenlet==3.2.4

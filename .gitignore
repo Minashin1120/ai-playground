@@ -1,5 +1,6 @@
 .env
 secret.key
+virtualenv/
 venv/
 __pycache__/
 *.py[cod]
@@ -13,8 +14,3 @@ static/uploads/*
 !static/uploads/legal/
 !static/uploads/changelogs/
 !static/github_promo.png
-
-# Backups
-backup_*/
-backups_*/
-*.bak_*

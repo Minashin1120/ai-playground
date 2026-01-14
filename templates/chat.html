@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>AI Playground (V4.1.0)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
@@ -138,7 +139,7 @@
         <header class="bg-gray-800 border-b border-gray-700 p-3 shadow-md flex justify-between items-center shrink-0 md:hidden"><button id="menu-btn" class="text-gray-300 p-2"><i class="fas fa-bars text-xl"></i></button><span class="font-bold text-sm">AI Playground</span><div class="flex items-center"><button id="mobile-new-chat-btn" class="text-blue-400 font-bold text-xl p-2">+</button></div></header>
         <div class="flex-1 overflow-hidden relative">
             <div id="chat-container" class="absolute inset-0 overflow-y-auto p-4 space-y-6 scroll-smooth"></div>
-            <div id="welcome-screen" class="absolute inset-0 flex flex-col items-center justify-center text-gray-500 space-y-4 bg-[#111827] z-10 fade-in"><h2 class="text-2xl font-bold text-white flex items-center gap-2"><i class="fas fa-gem text-blue-500"></i> AI Gems & Chat</h2><div class="grid grid-cols-1 gap-2 w-full max-w-md px-4"><button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover" onclick="quickStart('gemini-3-flash-preview')">⚡ Gemini 3.0 Flash</button><button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover" onclick="quickStart('gemini-3.0-pro-preview')">🧠 Gemini 3.0 Pro</button></div></div>
+            <div id="welcome-screen" class="absolute inset-0 flex flex-col items-center justify-center text-gray-500 space-y-4 bg-[#111827] z-10 fade-in"><h2 class="text-2xl font-bold text-white flex items-center gap-2"><i class="fas fa-gem text-blue-500"></i> AI Gems & Chat</h2><div class="grid grid-cols-1 gap-2 w-full max-w-md px-4"><button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover" onclick="quickStart('gemini-3-flash-preview')">⚡ Gemini 3.0 Flash</button><button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover" onclick="quickStart('gemini-3-pro-preview')">🧠 Gemini 3.0 Pro</button></div></div>
         </div>
         <div class="bg-gray-800 border-t border-gray-700 p-3 shrink-0 z-10">
             <div class="max-w-3xl mx-auto space-y-2 relative">
@@ -158,7 +159,7 @@
                     <select id="model-select" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 outline-none text-white max-w-[200px] truncate transition focus:border-blue-500">
                         <optgroup label="Gemini 3.0">
                             <option value="gemini-3-flash-preview">Gemini 3.0 Flash</option>
-                            <option value="gemini-3.0-pro-preview">Gemini 3.0 Pro</option>
+                            <option value="gemini-3-pro-preview">Gemini 3.0 Pro</option>
                         </optgroup>
                         <optgroup label="Legacy Gemini">
                             <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
@@ -176,10 +177,10 @@
                         </optgroup>
                     </select>
                     <div class="flex gap-3 items-center flex-wrap">
-                        <label id="search-container" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label>
+                        <label id="search-container" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label><label id="python-container" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-python" class="accent-yellow-500 w-3 h-3"><span class="text-yellow-200">Python</span></label>
                         <label id="sys-prompt-option" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-sys-prompt" class="accent-green-500 w-3 h-3"><span class="text-green-300">SysPrompt</span></label>
                         <div id="thinking-options" class="flex items-center gap-2 hidden"><label class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-thinking" class="accent-purple-500 w-3 h-3"><span class="text-purple-300">Thinking</span></label><select id="thinking-level" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="minimal">Min</option><option value="low">Low</option><option value="medium">Mid</option><option value="high" selected>High</option></select></div>
-                        <div id="reasoning-effort-container" class="hidden flex items-center gap-1"><span class="text-gray-400">Effort:</span><select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="low">Low</option><option value="medium" selected>Med</option><option value="high">High</option></select></div>
+                        <div id="reasoning-effort-container" class="hidden flex items-center gap-1"><span class="text-gray-400">Effort:</span><select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="none">None</option><option value="low">Low</option><option value="medium" selected>Med</option><option value="high">High</option><option value="xhigh">XHigh</option></select></div>
                         <div class="flex items-center gap-1 border-l border-gray-600 pl-2 ml-2"><span class="text-gray-400">Safety:</span><select id="safety-setting" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="default">Default</option><option value="none" class="text-red-300">None</option></select></div>
                         <label class="flex items-center gap-1 cursor-pointer select-none ml-2" title="Client-side Compression"><input type="checkbox" id="enable-compression" class="accent-blue-500 w-3 h-3" checked><span class="text-gray-400 text-[10px]">Compress</span></label>
                     </div>
@@ -220,6 +221,15 @@
 
     <script>
         const get = (id) => document.getElementById(id);
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+        const apiFetch = (url, opts = {}) => {
+            const method = (opts.method || 'GET').toUpperCase();
+            const headers = Object.assign({}, opts.headers || {});
+            if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+                headers['X-CSRF-Token'] = csrfToken;
+            }
+            return fetch(url, Object.assign({}, opts, { headers }));
+        };
         let currentThreadId = {{ initial_thread_id|default('null') }};
         let activeGem = null, currentImageUrls = [], abortController = null, userAutoScroll = true, searchTimeout; 
         let currentJobId = null; 
@@ -227,11 +237,47 @@
         let threadPage = 1, threadLoading = false, hasMoreThreads = true;
         let currentQuote = "";
         
+        // Tree State
+        let allMessages = [];
+        let currentLeafId = null;
+        let currentParentId = null;
+        
         function escapeHtml(t) { return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") : t; }
         function switchTab(t) { get('tab-general').classList.add('hidden'); get('tab-security').classList.add('hidden'); get('tab-'+t).classList.remove('hidden'); const btnG = get('btn-tab-general'); const btnS = get('btn-tab-security'); if(t==='general'){ btnG.classList.add('text-blue-400','border-blue-400','font-bold'); btnG.classList.remove('text-gray-400','hover:text-white','border-transparent'); btnS.classList.remove('text-blue-400','border-blue-400','font-bold'); btnS.classList.add('text-gray-400','hover:text-white','border-transparent'); } else { btnS.classList.add('text-blue-400','border-blue-400','font-bold'); btnS.classList.remove('text-gray-400','hover:text-white','border-transparent'); btnG.classList.remove('text-blue-400','border-blue-400','font-bold'); btnG.classList.add('text-gray-400','hover:text-white','border-transparent'); } }
         get('chat-container').addEventListener('scroll', function() { userAutoScroll = (this.scrollHeight - this.scrollTop - this.clientHeight) < 50; });
         function scrollToBottom() { if(userAutoScroll) { const c = get('chat-container'); c.scrollTop = c.scrollHeight; } }
         
+        // Robust Copy Function with Fallback
+        async function copyToClipboard(text, successCallback, errorCallback) {
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(text);
+                    if(successCallback) successCallback();
+                } else {
+                    throw new Error("Clipboard API unavailable");
+                }
+            } catch (err) {
+                try {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = text;
+                    textArea.style.position = "fixed";
+                    textArea.style.left = "-9999px";
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    const successful = document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    if (successful) {
+                        if(successCallback) successCallback();
+                    } else {
+                        if(errorCallback) errorCallback(err);
+                    }
+                } catch (e) {
+                    if(errorCallback) errorCallback(e);
+                }
+            }
+        }
+
         // Quote Reply Logic
         document.addEventListener('mouseup', () => {
             const sel = window.getSelection();
@@ -285,7 +331,7 @@
                         if(['minimal', 'medium'].includes(opt.value)) { opt.disabled = !isFlash; }
                     });
                     if(!isFlash && ['minimal', 'medium'].includes(thinkLvl.value)) { thinkLvl.value = 'high'; }
-                    if(model.includes('gemini-3.0-pro') || model.includes('gemini-3-flash')) { if(thinkChk) { thinkChk.checked = true; thinkChk.disabled = true; } } 
+                    if(model.includes('gemini-3-pro') || model.includes('gemini-3-flash')) { if(thinkChk) { thinkChk.checked = true; thinkChk.disabled = true; } } 
                 } 
                 else if(model.includes('gpt')) { 
                     reasonOpts.classList.remove('hidden'); 
@@ -298,7 +344,7 @@
                 if(model.includes('nano') || model.includes('gpt-image')) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); } else { sysChk.disabled = false; sysLbl.classList.remove('opacity-50'); } 
             }
             get('model-select').addEventListener('change', toggleOptions); toggleOptions();
-            marked.use({ renderer: { code(c, i, e) { const l = (i || '').match(/\S*/)[0]; const h = hljs.highlight(c, { language: hljs.getLanguage(l)?l:'plaintext' }).value; const enc = encodeURIComponent(c).replace(/'/g, "%27"); return `<div class="code-wrapper"><div class="code-header"><span class="code-lang">${l||'TEXT'}</span><button class="copy-btn" onclick="copyCode(this, '${enc}')"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="hljs language-${l}">${h}</code></pre></div>`; }, link(h, t, x) { return `<a href="${h}" title="${t||''}" target="_blank">${x}</a>`; } }, breaks: true, gfm: true });
+            marked.use({ renderer: { code(c, i, e) { const l = (i || '').match(/\S*/)[0]; const h = hljs.highlight(c, { language: hljs.getLanguage(l)?l:'plaintext' }).value; const enc = encodeURIComponent(c).replace(/'/g, "%27"); return `<div class="code-wrapper"><div class="code-header"><span class="code-lang">${l||'TEXT'}</span><button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="hljs language-${l}">${h}</code></pre></div>`; }, link(h, t, x) { return `<a href="${h}" title="${t||''}" target="_blank">${x}</a>`; } }, breaks: true, gfm: true });
             
             // Infinite Scroll Observer
             const observer = new IntersectionObserver((entries) => {
@@ -308,67 +354,228 @@
             
             loadThreads(); loadGems(); 
             get('send-btn').onclick = sendMessage; get('new-chat-btn').onclick = () => startNewChat(); get('upload-btn').onclick = () => get('file-input').click(); get('file-input').onchange = (e) => handleFiles(e.target.files); 
-            get('stop-btn').onclick = async () => { if(abortController) abortController.abort(); if(currentJobId) await fetch("/api/stop_chat", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({job_id: currentJobId})}); get('send-btn').disabled=false; get('stop-container').classList.add('hidden'); };
-            get('settings-btn').onclick = () => { get('settings-modal').style.display='flex'; fetch("{{ url_for('handle_settings', _=1) }}").then(r=>r.json()).then(d=>{ get('sys-prompt-text').value = d.system_prompt; get('set-openai').value = d.openai_key; get('set-gemini').value = d.gemini_key; get('set-xai').value = d.xai_key; get('set-e2ee').checked = d.enable_e2ee; if(get('set-username')) get('set-username').value = d.username; }); }; get('close-settings-btn').onclick = () => get('settings-modal').style.display='none'; get('save-settings-btn').onclick = async () => { const uEl = get('set-username'); const pEl = get('set-password'); const b = { system_prompt:get('sys-prompt-text').value, openai_key:get('set-openai').value, gemini_key:get('set-gemini').value, xai_key:get('set-xai').value, enable_e2ee: get('set-e2ee').checked, new_username: uEl ? uEl.value : null, new_password: pEl ? pEl.value : null }; await fetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}); location.reload(); };
-            get('delete-account-btn').onclick = async () => { if(confirm("本当にアカウントを削除しますか？\nこの操作は取り消せません。")) { await fetch("{{ url_for('delete_account') }}", {method:'POST'}); location.href = "/"; } };
+            get('stop-btn').onclick = async () => { if(abortController) abortController.abort(); if(currentJobId) await apiFetch("/api/stop_chat", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({job_id: currentJobId})}); get('send-btn').disabled=false; get('stop-container').classList.add('hidden'); };
+            get('settings-btn').onclick = () => { get('settings-modal').style.display='flex'; apiFetch("{{ url_for('handle_settings', _=1) }}").then(r=>r.json()).then(d=>{ get('sys-prompt-text').value = d.system_prompt; get('set-openai').value = d.openai_key; get('set-gemini').value = d.gemini_key; get('set-xai').value = d.xai_key; get('set-e2ee').checked = d.enable_e2ee; if(get('set-username')) get('set-username').value = d.username; }); }; get('close-settings-btn').onclick = () => get('settings-modal').style.display='none'; get('save-settings-btn').onclick = async () => { const uEl = get('set-username'); const pEl = get('set-password'); const b = { system_prompt:get('sys-prompt-text').value, openai_key:get('set-openai').value, gemini_key:get('set-gemini').value, xai_key:get('set-xai').value, enable_e2ee: get('set-e2ee').checked, new_username: uEl ? uEl.value : null, new_password: pEl ? pEl.value : null }; await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}); location.reload(); };
+            get('delete-account-btn').onclick = async () => { if(confirm("本当にアカウントを削除しますか？\nこの操作は取り消せません。")) { await apiFetch("{{ url_for('delete_account') }}", {method:'POST'}); location.href = "/"; } };
             get('prompt-input').onkeydown = (e) => { if(!e.isComposing && (e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); sendMessage(); } }; get('prompt-input').addEventListener('input', function() { this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px'; });
             get('menu-btn').onclick = () => { get('sidebar').classList.toggle('open'); get('overlay').classList.toggle('active'); }; get('overlay').onclick = () => { get('sidebar').classList.remove('open'); get('overlay').classList.remove('active'); };
             get('search-box').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => { threadPage=1; get('thread-list').innerHTML='<div id="scroll-sentinel"></div>'; loadThreads(); }, 300); }); get('mobile-new-chat-btn').onclick = () => startNewChat();
             get('prompt-input').addEventListener('paste', async (e) => { const items = (e.clipboardData || window.clipboardData).items; const files = []; for (let i = 0; i < items.length; i++) { if (items[i].kind === 'file') { files.push(items[i].getAsFile()); } } if (files.length > 0) { e.preventDefault(); await handleFiles(files); } });
             get('lib-btn').onclick = () => { get('lib-modal').style.display='flex'; loadLibraryFiles(); }; get('lib-del-btn').onclick = deleteSelectedFiles;
             get('add-gem-btn').onclick = () => { get('gem-modal').style.display='flex'; get('gem-name').value=''; get('gem-desc').value=''; get('gem-inst').value=''; };
-            get('save-gem-btn').onclick = async () => { const name = get('gem-name').value; const desc = get('gem-desc').value; const inst = get('gem-inst').value; if(name && inst) { await fetch("{{ url_for('handle_gems') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, description:desc, instruction:inst})}); get('gem-modal').style.display='none'; loadGems(); } else alert("Name and Instruction are required."); };
-            document.addEventListener('click', function(e) { if (e.target.closest('.edit-btn')) { const btn = e.target.closest('.edit-btn'); const id = btn.getAttribute('data-id'); const text = messageStore[id]; if (text) { const input = get('prompt-input'); input.value = text; input.focus(); input.style.height = 'auto'; input.style.height = input.scrollHeight + 'px'; } } });
+            get('save-gem-btn').onclick = async () => { const name = get('gem-name').value; const desc = get('gem-desc').value; const inst = get('gem-inst').value; if(name && inst) { await apiFetch("{{ url_for('handle_gems') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, description:desc, instruction:inst})}); get('gem-modal').style.display='none'; loadGems(); } else alert("Name and Instruction are required."); };
+            document.addEventListener('click', function(e) { 
+                if (e.target.closest('.edit-btn')) { 
+                    const btn = e.target.closest('.edit-btn'); 
+                    const id = btn.getAttribute('data-id'); 
+                    const text = messageStore[id]; 
+                    if (text) { 
+                        const input = get('prompt-input'); 
+                        input.value = text; 
+                        input.focus(); 
+                        input.style.height = 'auto'; 
+                        input.style.height = input.scrollHeight + 'px'; 
+                        
+                        // Set parent_id to the parent of the message being edited
+                        const msg = allMessages.find(m => m.id == id);
+                        if (msg) {
+                            currentParentId = msg.parent_id;
+                        }
+                    } 
+                } 
+                if (e.target.closest('.copy-btn')) {
+                    const btn = e.target.closest('.copy-btn');
+                    const code = btn.getAttribute('data-code');
+                    if (code) window.copyCode(btn, code);
+                }
+            });
 
             // Initial Load Logic for Permalink
             if(currentThreadId) { loadMessages(currentThreadId); }
         });
         
-        async function handleFiles(fs) { if(!fs.length) return; get('file-preview').classList.remove('hidden'); get('file-name').innerText = "Processing..."; for(let f of fs) { let t = f; if (get('enable-compression').checked && f.type.startsWith('image/')) { try { const o = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }; const c = await imageCompression(f, o); t = new File([c], f.name, { type: c.type }); } catch(e){} } const fd = new FormData(); fd.append('file', t); const r = await fetch("{{ url_for('upload') }}", {method:'POST', body:fd}); const d = await r.json(); if(d.filename) currentImageUrls.push(d.filename); } get('file-name').innerText = `${currentImageUrls.length} files ready`; }
+        async function handleFiles(fs) { if(!fs.length) return; get('file-preview').classList.remove('hidden'); get('file-name').innerText = "Processing..."; for(let f of fs) { let t = f; if (get('enable-compression').checked && f.type.startsWith('image/')) { try { const o = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }; const c = await imageCompression(f, o); t = new File([c], f.name, { type: c.type }); } catch(e){} } const fd = new FormData(); fd.append('file', t); const r = await apiFetch("{{ url_for('upload') }}", {method:'POST', body:fd}); const d = await r.json(); if(d.filename) currentImageUrls.push(d.filename); } get('file-name').innerText = `${currentImageUrls.length} files ready`; }
         get('clear-file-btn').onclick = () => { currentImageUrls = []; get('file-preview').classList.add('hidden'); get('file-input').value = ''; };
         
-        function renderMessage(id, role, text, imgUrl, thoughtData, modelName) { const isUser = role === 'user'; const bg = isUser ? 'bg-blue-600' : 'bg-gray-700'; const align = isUser ? 'justify-end' : 'justify-start'; messageStore[id] = text; let th = ''; if (thoughtData && !isUser) { let tx = ""; try { const o = JSON.parse(thoughtData); tx = o.text || ""; } catch(e) { tx = thoughtData; } if (tx) th = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content">${escapeHtml(tx)}</div></div>`; } let at = ''; if(imgUrl) { try { const imgs = JSON.parse(imgUrl); if(imgs.length) { at = '<div class="flex flex-wrap gap-2 mt-2">'; imgs.forEach(u => { const url = "{{ url_for('serve_file', filename='') }}" + u; const fn = u.split('/').pop(); const ext = fn.split('.').pop().toLowerCase(); if(['jpg','jpeg','png','webp','gif'].includes(ext)) at += `<img src="${url}" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer" onclick="window.open('${url}')" title="${fn}">`; else at += `<div class="h-24 w-24 bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700" onclick="window.open('${url}')" title="${fn}"><i class="fas fa-file text-2xl text-gray-400 mb-1"></i><span class="text-[9px] truncate w-20 text-center">${fn}</span></div>`; }); at += '</div>'; } } catch(e){} } 
-        const ctrl = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${isUser?`<button class="ctrl-btn edit-btn" data-id="${id}"><i class="fas fa-pen"></i></button><button class="ctrl-btn" onclick="deleteMessage(${id})"><i class="fas fa-trash"></i></button>`:''}</div>`; 
-        const mHtml = (modelName && !isUser) ? `<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">${modelName}</div>` : ''; const html = `<div class="flex ${align} mb-4 fade-in relative message-group group" id="msg-${id}"><div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">${ctrl}${th}<div class="prose prose-invert text-sm break-words">${DOMPurify.sanitize(marked.parse(text||''))}</div>${at}${mHtml}</div></div>`; get('chat-container').insertAdjacentHTML('beforeend', html); document.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b)); scrollToBottom(); }
-        
-        async function sendMessage() { const t = get('prompt-input').value.trim(); if(!t && currentImageUrls.length === 0) return; if(!currentThreadId) { const r = await fetch("{{ url_for('handle_threads') }}", {method:'POST'}); const d = await r.json(); currentThreadId = d.id; history.pushState({}, '', '/c/' + d.id); } get('welcome-screen').classList.add('hidden'); renderMessage(Date.now(), 'user', t, JSON.stringify(currentImageUrls)); get('prompt-input').value = ''; get('prompt-input').style.height = 'auto'; const p = { thread_id: currentThreadId, message: t, model: get('model-select').value, image_urls: currentImageUrls, enable_search: get('enable-search').checked, enable_thinking: get('enable-thinking').checked, thinking_level: get('thinking-level').value, reasoning_effort: get('reasoning-effort').value, enable_system_prompt: get('enable-sys-prompt').checked, safety_setting: get('safety-setting').value, quote_text: currentQuote }; if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; } currentImageUrls = []; get('file-preview').classList.add('hidden'); get('send-btn').disabled = true; get('stop-container').classList.remove('hidden'); userAutoScroll = true; const aid = 'ai-' + Date.now(); clearQuote(); 
-        
-        let initialHtml = '<div class="content-area"><span class="animate-pulse">Thinking...</span></div>';
-        get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aid}" class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${initialHtml}</div></div>`); scrollToBottom(); abortController = new AbortController(); try { const r = await fetch("{{ url_for('chat_stream') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p), signal:abortController.signal}); const reader = r.body.getReader(); const dec = new TextDecoder(); const adiv = get(aid); let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null; 
-        
-        while(true) { const {done, value} = await reader.read(); if(done) break; buf += dec.decode(value, {stream:true}); let ls = buf.split("\n"); buf = ls.pop(); for(let l of ls) { if(!l.trim()) continue; try { const j = JSON.parse(l); 
-        
-        if (j.type === 'job_id') { currentJobId = j.data; continue; }
-        
-        if (j.type === 'search_status' && !searchBox) { 
-             adiv.insertAdjacentHTML('afterbegin', `<div class="search-box visible animate-pulse mb-2"><i class="fas fa-globe"></i> Searching web...</div>`);
-             searchBox = adiv.querySelector('.search-box');
-        }
-        
-        if(first){ 
-             const ca = adiv.querySelector('.content-area');
-             if(ca) ca.innerHTML = '';
-             first=false; 
-        }
-        
-        if(j.type==='thought'){ tht+=j.data; if(!thEl){ const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>`; if(searchBox) searchBox.insertAdjacentHTML('afterend', tHtml); else adiv.insertAdjacentHTML('afterbegin', tHtml); thEl=adiv.querySelector('.thought-content'); } thEl.textContent=tht; if(userAutoScroll) thEl.scrollTop=thEl.scrollHeight; } else if(j.type==='content'){ acc+=j.data; if(!cEl){ cEl = adiv.querySelector('.content-area') || document.createElement('div'); cEl.className='prose prose-invert text-sm break-words'; if(!adiv.contains(cEl)) adiv.appendChild(cEl); } cEl.innerHTML=DOMPurify.sanitize(marked.parse(acc)); cEl.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b)); } else if(j.type==='error'){ adiv.insertAdjacentHTML('beforeend', `<div class="text-red-400 text-xs mt-2 border border-red-500 p-2 rounded">Error: ${j.data}</div>`); } } catch(e){} } scrollToBottom(); } 
-        
-        if(searchBox) { searchBox.classList.remove('animate-pulse'); searchBox.innerHTML = `<i class="fas fa-check text-green-400"></i> Search Completed`; }
-        if(adiv) { adiv.insertAdjacentHTML('beforeend', `<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">${get('model-select').value}</div>`); const msgId = aid.replace('ai-', ''); messageStore[msgId] = acc; const ctrl = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${msgId}', this)"><i class="fas fa-copy"></i></button></div>`; adiv.parentElement.classList.add('group'); adiv.insertAdjacentHTML('afterbegin', ctrl); } 
-        
-        // Auto Title
-        if (document.querySelectorAll('.message-group').length <= 2) {
-             fetch("/api/generate_title", {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({thread_id: currentThreadId})}).then(r=>r.json()).then(d=>{ if(d.title) { document.title = d.title + " - AI Chat"; loadThreads(); } });
-        } else loadThreads(false); 
+        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null) { 
+            const isUser = role === 'user'; 
+            const bg = isUser ? 'bg-blue-600' : 'bg-gray-700'; 
+            const align = isUser ? 'justify-end' : 'justify-start'; 
+            messageStore[id] = text; 
+            
+            let th = ''; 
+            if (thoughtData && !isUser) { 
+                let tx = ""; 
+                try { const o = JSON.parse(thoughtData); tx = o.text || ""; } catch(e) { tx = thoughtData; } 
+                if (tx) th = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content">${escapeHtml(tx)}</div></div>`; 
+            } 
+            
+            let at = ''; 
+            if(imgUrl) { 
+                try { 
+                    const imgs = JSON.parse(imgUrl); 
+                    if(imgs.length) { 
+                        at = '<div class="flex flex-wrap gap-2 mt-2">'; 
+                        imgs.forEach(u => { 
+                            const url = "{{ url_for('serve_file', filename='') }}" + u; 
+                            const fn = u.split('/').pop(); 
+                            const ext = fn.split('.').pop().toLowerCase(); 
+                            if(['jpg','jpeg','png','webp','gif'].includes(ext)) at += `<img src="${url}" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer" onclick="window.open('${url}')" title="${fn}">`; 
+                            else at += `<div class="h-24 w-24 bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700" onclick="window.open('${url}')" title="${fn}"><i class="fas fa-file text-2xl text-gray-400 mb-1"></i><span class="text-[9px] truncate w-20 text-center">${fn}</span></div>`; 
+                        }); 
+                        at += '</div>'; 
+                    } 
+                } catch(e){} 
+            } 
+            
+            const ctrl = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${isUser?`<button class="ctrl-btn edit-btn" data-id="${id}"><i class="fas fa-pen"></i></button><button class="ctrl-btn" onclick="deleteMessage(${id})"><i class="fas fa-trash"></i></button>`:''}</div>`; 
+            const mHtml = (modelName && !isUser) ? `<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">${modelName}</div>` : ''; 
+            
+            let contentHtml;
+            if (isUser) {
+                // User message: RAW TEXT DISPLAY (Preserve whitespace, no markdown)
+                contentHtml = `<div class="whitespace-pre-wrap font-sans text-sm break-words">${escapeHtml(text||'')}</div>`;
+            } else {
+                // AI message: Markdown Rendered
+                contentHtml = `<div class="prose prose-invert text-sm break-words">${DOMPurify.sanitize(marked.parse(text||''))}</div>`;
+            }
 
-        } catch(e){ if(e.name!=='AbortError') alert("Connection Error: " + e.message); } finally { get('send-btn').disabled=false; get('stop-container').classList.add('hidden'); abortController=null; currentJobId=null; } }
+            // Version Switcher UI
+            let versionSwitcher = '';
+            if (versionInfo) {
+                const prevId = versionInfo.siblings[versionInfo.current - 2];
+                const nextId = versionInfo.siblings[versionInfo.current];
+                versionSwitcher = `
+                    <div class="flex items-center gap-2 text-[10px] text-gray-400 mt-1 select-none">
+                        <button class="hover:text-white disabled:opacity-30" onclick="switchVersion(${prevId})" ${!prevId ? 'disabled' : ''}><i class="fas fa-chevron-left"></i></button>
+                        <span>${versionInfo.current} / ${versionInfo.total}</span>
+                        <button class="hover:text-white disabled:opacity-30" onclick="switchVersion(${nextId})" ${!nextId ? 'disabled' : ''}><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                `;
+            }
+            
+            const html = `<div class="flex ${align} mb-4 fade-in relative message-group group" id="msg-${id}"><div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">${ctrl}${th}${contentHtml}${at}${versionSwitcher}${mHtml}</div></div>`; 
+            get('chat-container').insertAdjacentHTML('beforeend', html); 
+            if(!isUser) document.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b)); 
+            scrollToBottom(); 
+        }
+        
+        async function sendMessage() { 
+            const t = get('prompt-input').value; // RAW INPUT (No trim)
+            if(!t.trim() && currentImageUrls.length === 0) return; // Check trim only for empty check
+            if(!currentThreadId) { 
+                const r = await apiFetch("{{ url_for('handle_threads') }}", {method:'POST'}); 
+                const d = await r.json(); 
+                currentThreadId = d.id; 
+                history.pushState({}, '', '/c/' + d.id); 
+            } 
+            get('welcome-screen').classList.add('hidden'); 
+            
+            // For immediate feedback, we render the user message.
+            // But we'll do a full re-render (loadMessages) after the AI responds to ensure tree consistency.
+            renderMessage(Date.now(), 'user', t, JSON.stringify(currentImageUrls)); 
+            get('prompt-input').value = ''; get('prompt-input').style.height = 'auto'; 
+            
+            const p = { 
+                thread_id: currentThreadId, 
+                message: t, 
+                model: get('model-select').value, 
+                image_urls: currentImageUrls, 
+                enable_search: get('enable-search').checked, 
+                enable_python: get('enable-python').checked, 
+                enable_thinking: get('enable-thinking').checked, 
+                thinking_level: get('thinking-level').value, 
+                reasoning_effort: get('reasoning-effort').value, 
+                enable_system_prompt: get('enable-sys-prompt').checked, 
+                safety_setting: get('safety-setting').value, 
+                quote_text: currentQuote,
+                parent_id: currentParentId
+            }; 
+            if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; } 
+            currentImageUrls = []; get('file-preview').classList.add('hidden'); get('send-btn').disabled = true; get('stop-container').classList.remove('hidden'); userAutoScroll = true; const aid = 'ai-' + Date.now(); clearQuote(); 
+        
+            let initialHtml = '<div class="content-area"><span class="animate-pulse">Thinking...</span></div>';
+            get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aid}" class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${initialHtml}</div></div>`); 
+            scrollToBottom(); 
+            
+            abortController = new AbortController(); 
+            try { 
+                const r = await apiFetch("{{ url_for('chat_stream') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p), signal:abortController.signal}); 
+                const reader = r.body.getReader(); 
+                const dec = new TextDecoder(); 
+                const adiv = get(aid); 
+                let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null; 
+            
+                while(true) { 
+                    const {done, value} = await reader.read(); 
+                    if(done) break; 
+                    buf += dec.decode(value, {stream:true}); 
+                    let ls = buf.split("\n"); 
+                    buf = ls.pop(); 
+                    for(let l of ls) { 
+                        if(!l.trim()) continue; 
+                        try { 
+                            const j = JSON.parse(l); 
+                            if (j.type === 'job_id') { currentJobId = j.content; continue; }
+                            if (j.type === 'search_status') {
+                                if (j.content === 'searching' && !searchBox) {
+                                     adiv.insertAdjacentHTML('afterbegin', `<div class="search-box visible animate-pulse mb-2"><i class="fas fa-globe"></i> Searching web...</div>`);
+                                     searchBox = adiv.querySelector('.search-box');
+                                } else if (j.content === 'done' && searchBox) {
+                                     searchBox.classList.remove('animate-pulse');
+                                     searchBox.innerHTML = '<i class="fas fa-check-circle text-green-400"></i> Search complete';
+                                     setTimeout(() => { if(searchBox) searchBox.remove(); searchBox=null; }, 2000);
+                                }
+                                continue;
+                            }
+                            if(first){ 
+                                 const ca = adiv.querySelector('.content-area');
+                                 if(ca) ca.innerHTML = '';
+                                 first=false; 
+                            }
+                            if(j.type==='thought'){ 
+                                tht+=j.content; 
+                                if(!thEl){ 
+                                    const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>`; 
+                                    if(searchBox) searchBox.insertAdjacentHTML('afterend', tHtml); 
+                                    else adiv.insertAdjacentHTML('afterbegin', tHtml); 
+                                    thEl=adiv.querySelector('.thought-content'); 
+                                } 
+                                thEl.textContent=tht; 
+                                if(userAutoScroll) thEl.scrollTop=thEl.scrollHeight; 
+                            } else if(j.type==='content'){ 
+                                acc+=j.content; 
+                                if(!cEl){ 
+                                    cEl = adiv.querySelector('.content-area') || document.createElement('div'); 
+                                    cEl.className='prose prose-invert text-sm break-words'; 
+                                    if(!adiv.contains(cEl)) adiv.appendChild(cEl); 
+                                } 
+                                cEl.innerHTML=DOMPurify.sanitize(marked.parse(acc)); 
+                                cEl.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b)); 
+                            } else if(j.type==='error'){ 
+                                adiv.insertAdjacentHTML('beforeend', `<div class="text-red-400 text-xs mt-2 border border-red-500 p-2 rounded">Error: ${j.content}</div>`); 
+                            } 
+                        } catch(e){} 
+                    } 
+                    scrollToBottom(); 
+                } 
+
+                // Full reload to establish new tree structure
+                await loadMessages(currentThreadId);
+                
+                if (document.querySelectorAll('.message-group').length <= 2) {
+                     apiFetch("/api/generate_title", {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({thread_id: currentThreadId})}).then(r=>r.json()).then(d=>{ if(d.title) { document.title = d.title + " - AI Chat"; loadThreads(); } });
+                } else loadThreads(false); 
+
+            } catch(e){ if(e.name!=='AbortError') alert("Connection Error: " + e.message); } finally { get('send-btn').disabled=false; get('stop-container').classList.add('hidden'); abortController=null; currentJobId=null; } 
+        }
 
         async function loadThreads(append=false) { 
             if(threadLoading) return; 
             threadLoading = true;
             if(!append) { threadPage = 1; hasMoreThreads = true; get('thread-list').innerHTML = '<div id="scroll-sentinel"></div>'; }
             
-            const r = await fetch(`{{ url_for('handle_threads') }}?q=${encodeURIComponent(get('search-box').value)}&page=${threadPage}`); 
+            const r = await apiFetch(`{{ url_for('handle_threads') }}?q=${encodeURIComponent(get('search-box').value)}&page=${threadPage}`); 
             const d = await r.json(); 
             const l = get('thread-list');
             const sentinel = get('scroll-sentinel');
@@ -385,23 +592,132 @@
             threadLoading = false;
         }
 
-        async function loadMessages(tid) { currentThreadId = tid; history.pushState({}, '', '/c/' + tid); clearActiveGem(); get('welcome-screen').classList.add('hidden'); get('chat-container').innerHTML = '<div class="text-center mt-10"><i class="fas fa-spinner fa-spin text-blue-500"></i></div>'; const r = await fetch("{{ url_for('handle_thread_item', tid=0) }}".replace('0', tid)); const ms = await r.json(); get('chat-container').innerHTML = ''; ms.forEach(m => renderMessage(m.id, m.role, m.content, m.image_url, m.thought_data, m.model)); if(window.innerWidth < 768) get('overlay').click(); scrollToBottom(); }
-        async function loadGems() { const r = await fetch("{{ url_for('handle_gems') }}"); const gs = await r.json(); const l = get('gem-list'); l.innerHTML = ''; gs.forEach(g => { const d = document.createElement('div'); d.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group'; d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${g.name}</span></div><button class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2" onclick="deleteGem(event, ${g.id})">×</button>`; d.onclick = (e) => { if(e.target.tagName!=='BUTTON') activateGem(g); }; l.appendChild(d); }); }
-        async function createGem(name, inst) { await fetch("{{ url_for('handle_gems') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, instruction:inst})}); loadGems(); }
+        async function loadMessages(tid) { 
+            currentThreadId = tid; 
+            history.pushState({}, '', '/c/' + tid); 
+            clearActiveGem(); 
+            get('welcome-screen').classList.add('hidden'); 
+            get('chat-container').innerHTML = '<div class="text-center mt-10"><i class="fas fa-spinner fa-spin text-blue-500"></i></div>'; 
+            const r = await apiFetch("{{ url_for('handle_thread_item', tid=0) }}".replace('0', tid)); 
+            allMessages = await r.json(); 
+            
+            // Set default leaf (latest message)
+            if (allMessages.length > 0) {
+                currentLeafId = allMessages[allMessages.length - 1].id;
+            } else {
+                currentLeafId = null;
+            }
+            
+            renderThreadTree();
+            if(window.innerWidth < 768) get('overlay').click(); 
+        }
+
+        function renderThreadTree() {
+            get('chat-container').innerHTML = '';
+            if (allMessages.length === 0) {
+                currentParentId = null;
+                return;
+            }
+
+            // Build map and find children
+            const msgMap = {};
+            allMessages.forEach(m => {
+                msgMap[m.id] = m;
+                m.childrenIds = [];
+            });
+            allMessages.forEach(m => {
+                if (m.parent_id && msgMap[m.parent_id]) {
+                    msgMap[m.parent_id].childrenIds.push(m.id);
+                }
+            });
+
+            // If currentLeafId is not set or not in messages, pick the latest
+            if (!currentLeafId || !msgMap[currentLeafId]) {
+                currentLeafId = allMessages.length > 0 ? allMessages[allMessages.length - 1].id : null;
+            }
+
+            // Trace path from leaf to root
+            const path = [];
+            let curr = msgMap[currentLeafId];
+            while (curr) {
+                path.unshift(curr);
+                curr = msgMap[curr.parent_id];
+            }
+
+            // Render path
+            path.forEach(m => {
+                const parent = m.parent_id ? msgMap[m.parent_id] : null;
+                const siblings = parent ? parent.childrenIds : allMessages.filter(x => !x.parent_id).map(x => x.id);
+                const versionInfo = siblings.length > 1 ? {
+                    current: siblings.indexOf(m.id) + 1,
+                    total: siblings.length,
+                    siblings: siblings
+                } : null;
+                
+                renderMessage(m.id, m.role, m.content, m.image_url, m.thought_data, m.model, versionInfo);
+            });
+            
+            currentParentId = currentLeafId;
+            scrollToBottom();
+        }
+
+        function switchVersion(targetId) {
+            currentLeafId = targetId;
+            // When switching, we might want to find the "latest" leaf of the new branch
+            const msgMap = {};
+            allMessages.forEach(m => {
+                msgMap[m.id] = m;
+                m.childrenIds = [];
+            });
+            allMessages.forEach(m => {
+                if (m.parent_id && msgMap[m.parent_id]) {
+                    msgMap[m.parent_id].childrenIds.push(m.id);
+                }
+            });
+
+            let currId = targetId;
+            if (!msgMap[currId]) {
+                currentLeafId = allMessages.length > 0 ? allMessages[allMessages.length - 1].id : null;
+                renderThreadTree();
+                return;
+            }
+            while (msgMap[currId] && msgMap[currId].childrenIds.length > 0) {
+                // Pick the first child (or latest? let's pick latest child by ID)
+                const children = msgMap[currId].childrenIds;
+                currId = Math.max(...children);
+            }
+            currentLeafId = currId;
+            renderThreadTree();
+        }
+        async function loadGems() { const r = await apiFetch("{{ url_for('handle_gems') }}"); const gs = await r.json(); const l = get('gem-list'); l.innerHTML = ''; gs.forEach(g => { const d = document.createElement('div'); d.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group'; d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${g.name}</span></div><button class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2" onclick="deleteGem(event, ${g.id})">×</button>`; d.onclick = (e) => { if(e.target.tagName!=='BUTTON') activateGem(g); }; l.appendChild(d); }); }
+        async function createGem(name, inst) { await apiFetch("{{ url_for('handle_gems') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, instruction:inst})}); loadGems(); }
         function activateGem(g) { activeGem = g; get('active-gem-name').innerText = g.name; get('gem-active-indicator').classList.remove('hidden'); startNewChat(); }
         function clearActiveGem() { activeGem=null; get('gem-active-indicator').classList.add('hidden'); get('sys-prompt-option').style.opacity = '1'; }
         function startNewChat() { if(abortController) abortController.abort(); currentThreadId = null; history.pushState({}, '', '/'); get('chat-container').innerHTML = ''; get('welcome-screen').classList.remove('hidden'); loadThreads(); if(window.innerWidth < 768) get('overlay').click(); }
-        async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await fetch("{{ url_for('delete_gem', gid=0) }}".replace('0', id), {method: 'DELETE'}); loadGems(); }
-        async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { await fetch("{{ url_for('update_title', tid=0) }}".replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); loadThreads(); } }
-        async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await fetch("{{ url_for('handle_thread_item', tid=0) }}".replace('0', id), {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }
-        async function deleteMessage(id) { if(!confirm("Delete this message and subsequent history?")) return; await fetch("{{ url_for('delete_message', mid=0) }}".replace('0', id), {method:'DELETE'}); loadMessages(currentThreadId); }
-        async function loadLibraryFiles() { const r = await fetch("{{ url_for('get_files_lib') }}"); const files = await r.json(); const grid = get('lib-grid'); grid.innerHTML = ''; get('lib-total-count').innerText = files.length + " files"; lib.selected.clear(); get('lib-del-btn').disabled = true; get('lib-del-btn').innerText = "削除"; files.forEach(f => { const el = document.createElement('div'); el.className = "relative group bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400"; const content = f.type==='image' ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`; const overlay = `<div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><a href="${f.url}" target="_blank" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a></div>`; el.innerHTML = content + overlay; el.onclick = () => { if (lib.selected.has(f.filepath)) { lib.selected.delete(f.filepath); el.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.add('border-gray-600'); } else { lib.selected.add(f.filepath); el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.remove('border-gray-600'); } get('lib-del-btn').disabled = lib.selected.size === 0; get('lib-del-btn').innerText = `削除 (${lib.selected.size})`; }; grid.appendChild(el); }); }
-        async function deleteSelectedFiles() { if(!confirm('削除しますか？')) return; try{ await fetch("{{ url_for('delete_files_batch') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({filenames:Array.from(lib.selected)})}); loadLibraryFiles(); } catch(e){ alert("削除エラー"); } }
+        async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('delete_gem', gid=0) }}".replace('0', id), {method: 'DELETE'}); loadGems(); }
+        async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { await apiFetch("{{ url_for('update_title', tid=0) }}".replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); loadThreads(); } }
+        async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('handle_thread_item', tid=0) }}".replace('0', id), {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }
+        async function deleteMessage(id) { if(!confirm("Delete this message and subsequent history?")) return; await apiFetch("{{ url_for('delete_message', mid=0) }}".replace('0', id), {method:'DELETE'}); loadMessages(currentThreadId); }
+        async function loadLibraryFiles() { const r = await apiFetch("{{ url_for('get_files_lib') }}"); const files = await r.json(); const grid = get('lib-grid'); grid.innerHTML = ''; get('lib-total-count').innerText = files.length + " files"; lib.selected.clear(); get('lib-del-btn').disabled = true; get('lib-del-btn').innerText = "削除"; files.forEach(f => { const el = document.createElement('div'); el.className = "relative group bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400"; const content = f.type==='image' ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`; const overlay = `<div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><a href="${f.url}" target="_blank" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a></div>`; el.innerHTML = content + overlay; el.onclick = () => { if (lib.selected.has(f.filepath)) { lib.selected.delete(f.filepath); el.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.add('border-gray-600'); } else { lib.selected.add(f.filepath); el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.remove('border-gray-600'); } get('lib-del-btn').disabled = lib.selected.size === 0; get('lib-del-btn').innerText = `削除 (${lib.selected.size})`; }; grid.appendChild(el); }); }
+        async function deleteSelectedFiles() { if(!confirm('削除しますか？')) return; try{ await apiFetch("{{ url_for('delete_files_batch') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({filenames:Array.from(lib.selected)})}); loadLibraryFiles(); } catch(e){ alert("削除エラー"); } }
         window.quickStart = (m) => { get('model-select').value=m; toggleOptions(); get('welcome-screen').classList.add('hidden'); };
-        window.showLegal = async (t) => { get('legal-modal').style.display='flex'; const res = await fetch("/static/legal/" + t + ".md?t=" + Date.now()); if(!res.ok) return; const text = await res.text(); get('legal-content').innerHTML = DOMPurify.sanitize(marked.parse(text)); }
-        window.copyCode = (btn, code) => { navigator.clipboard.writeText(decodeURIComponent(code)).then(() => { btn.innerHTML = '<i class="fas fa-check"></i> Copied'; setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i> Copy', 2000); }); };
-        window.copyMessage = (id, btn) => { const txt = messageStore[id] || ""; navigator.clipboard.writeText(txt).then(() => { btn.innerHTML = '<i class="fas fa-check"></i>'; setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i>', 2000); }); };
+        window.showLegal = async (t) => { get('legal-modal').style.display='flex'; const res = await apiFetch("/static/legal/" + t + ".md?t=" + Date.now()); if(!res.ok) return; const text = await res.text(); get('legal-content').innerHTML = DOMPurify.sanitize(marked.parse(text)); }
+        window.copyCode = (btn, code) => { 
+            const text = decodeURIComponent(code);
+            copyToClipboard(text, 
+                () => { btn.innerHTML = '<i class="fas fa-check"></i> Copied'; setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i> Copy', 2000); },
+                (err) => { console.error(err); btn.innerHTML = '<i class="fas fa-times"></i>'; setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i> Copy', 2000); }
+            );
+        };
+        window.copyMessage = (id, btn) => { 
+            const txt = messageStore[id] || ""; 
+            copyToClipboard(txt, 
+                () => { btn.innerHTML = '<i class="fas fa-check"></i>'; setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i>', 2000); },
+                (err) => { console.error(err); btn.innerHTML = '<i class="fas fa-times"></i>'; setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i>', 2000); }
+            );
+        };
         window.toggleThinking = (el) => { const c = el.nextElementSibling; if(c.classList.contains('collapsed')) { c.classList.remove('collapsed'); c.style.display='block'; } else { c.classList.add('collapsed'); c.style.display='none'; } };
+
     </script>
 </body>
 </html>

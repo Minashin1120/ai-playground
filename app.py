@@ -5,6 +5,7 @@ import time
 import logging
 import base64
 import mimetypes
+import secrets
 import redis
 import shutil
 import glob
@@ -17,7 +18,7 @@ from rq import Queue
 from datetime import datetime
 from io import BytesIO
 from PIL import Image
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, make_response, flash, send_file, abort
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, make_response, flash, send_file, abort, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -35,7 +36,7 @@ from opentelemetry.sdk.trace import TracerProvider
 try:
     from xai_sdk import Client as XAIClient
     from xai_sdk.chat import user as x_user, assistant as x_assistant, system as x_system, image as x_image
-    from xai_sdk.tools import web_search
+    from xai_sdk.search import SearchParameters, web_source, x_source
     XAI_SDK_AVAILABLE = True
 except ImportError:
     XAIClient = None
@@ -54,13 +55,15 @@ def log_force(msg):
         pass
 
 load_dotenv()
+if not os.getenv('FLASK_SECRET_KEY'):
+    raise RuntimeError("FLASK_SECRET_KEY is required")
 
 app = Flask(__name__)
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400
-app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev')
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True, 'pool_recycle': 280}
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'instance/uploads')
@@ -109,7 +112,8 @@ def decrypt_bytes(data):
 def secure_delete(path):
     if os.path.exists(path):
         try:
-            with open(path, "wb") as f: f.write(os.urandom(os.path.getsize(path)))
+            size = os.path.getsize(path)
+            with open(path, "wb") as f: f.write(os.urandom(size))
             os.remove(path)
         except: pass
 
@@ -147,6 +151,8 @@ class Message(db.Model):
     thought_data = db.Column(db.Text)
     is_encrypted = db.Column(db.Boolean, default=False)
     thought_signature = db.Column(db.Text, nullable=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey('message.id'), nullable=True)
+    children = db.relationship('Message', backref=db.backref('parent', remote_side=[id]), lazy=True)
 
 class Gem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -159,12 +165,31 @@ class Gem(db.Model):
 @login_manager.user_loader
 def load_user(uid): return User.query.get(int(uid))
 
+def get_csrf_token():
+    token = session.get('csrf_token')
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session['csrf_token'] = token
+    return token
+
+@app.context_processor
+def inject_csrf():
+    return {'csrf_token': get_csrf_token()}
+
+def validate_csrf():
+    token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token')
+    return token and token == session.get('csrf_token')
+
 @app.before_request
 def check_maintenance():
     if app.config.get('MAINTENANCE_MODE'):
         if request.endpoint in ['static', 'login', 'logout', 'toggle_maintenance']: return
         if current_user.is_authenticated and current_user.username == 'minashin1120': return
         return render_template('maintenance.html'), 503
+    if request.method in ['POST', 'PUT', 'DELETE', 'PATCH']:
+        if request.endpoint not in ['static']:
+            if not validate_csrf():
+                return jsonify({'error': 'CSRF token missing/invalid'}), 403
 
 def verify_turnstile(token):
     secret = os.getenv('TURNSTILE_SECRET_KEY')
@@ -179,7 +204,12 @@ def count_tokens(text, model="gpt-4"):
     except: return len(text or "") // 4
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), retry=retry_if_exception_type(exc.SQLAlchemyError))
-def safe_db_commit(): db.session.commit()
+def safe_db_commit():
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
 
 # --- Background Tasks ---
 
@@ -227,12 +257,41 @@ def migrate_e2ee_task(user_id, target_enable):
             logger.error(f"Migration failed: {e}")
             r.set(f"migration_status:{user_id}", "error")
 
-def background_chat_task(job_id, thread_id, model_key, message_text, img_list, options, api_keys, user_id, user_config):
+def safe_execute_python(code):
+    """Executes Python code in a restricted environment using unshare."""
+    import subprocess
+    import tempfile
+    import os
+    import shutil
+
+    py_path = shutil.which("python3")
+    if not py_path:
+        return "Error: python3 not found."
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as tmp:
+        tmp.write(code)
+        tmp_path = tmp.name
+
+    try:
+        # Isolate network, mount, and PID. Use rootless mode (-r)
+        cmd = ["unshare", "-n", "-r", py_path, tmp_path]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        out = result.stdout + result.stderr
+        return out if out.strip() else "Success (No output)"
+    except subprocess.TimeoutExpired:
+        return "Error: Execution timed out (30s limit)"
+    except Exception as e:
+        return f"Error: {str(e)}"
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+def background_chat_task(job_id, thread_id, model_key, message_id, options, user_id, user_config):
     with app.app_context():
         db.engine.dispose()
         channel = f"ai_chat:channel:{job_id}"
         r = redis.from_url(REDIS_URL)
-        def pub(dt, d): r.publish(channel, json.dumps({"type": dt, "data": d}))
+        def pub(dt, d): r.publish(channel, json.dumps({"type": dt, "content": d}))
         
         def check_stop():
             if r.get(f"stop_job:{job_id}"):
@@ -243,6 +302,29 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
         try:
             log_force(f"Task Start: model={model_key}, user={user_id}")
             user = User.query.get(user_id)
+            msg = Message.query.get(message_id)
+            if not msg or msg.thread_id != thread_id or msg.thread.user_id != user_id:
+                pub("error", "Invalid message")
+                return
+            message_text = decrypt_val(msg.content) if msg.is_encrypted else msg.content
+            img_list = []
+            if msg.image_url:
+                try:
+                    img_list = json.loads(msg.image_url)
+                    if not isinstance(img_list, list):
+                        img_list = [img_list]
+                except: pass
+            sys_prompt = options.get('system_prompt')
+            if not sys_prompt:
+                try:
+                    sv = r.get(f"sys:{job_id}")
+                    if sv: sys_prompt = sv.decode('utf-8')
+                except: pass
+                finally:
+                    try: r.delete(f"sys:{job_id}")
+                    except: pass
+            if sys_prompt:
+                options['system_prompt'] = sys_prompt
             final_sys_prompt = options.get('system_prompt')
             if not final_sys_prompt and options.get('enable_system_prompt'):
                 if user.system_prompt:
@@ -250,28 +332,56 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                     if user.enable_e2ee: sp = decrypt_val(sp)
                     final_sys_prompt = sp
             if final_sys_prompt: options['system_prompt'] = final_sys_prompt
-            quote_text = options.get('quote_text')
+            quote_text = None
+            try:
+                qv = r.get(f"quote:{job_id}")
+                if qv: quote_text = qv.decode('utf-8')
+            except: pass
+            finally:
+                try: r.delete(f"quote:{job_id}")
+                except: pass
 
-            all_msgs = Message.query.filter_by(thread_id=thread_id).order_by(Message.timestamp).all()
+            # Reconstruct history by traversing UP the tree (parent_id)
+            # The current message (msg) is the User's new prompt. We need its ancestors.
+            
             history = []
             total_history_tokens = 0
             MAX_CONTEXT_TOKENS = 60000
             
-            # Pruning: Iterate backwards to keep most recent
-            for m in reversed(all_msgs[:-1]):
-                cnt = decrypt_val(m.content) if m.is_encrypted else m.content
+            current_node = msg.parent # Start from the parent of the current message
+            while current_node:
+                cnt = decrypt_val(current_node.content) if current_node.is_encrypted else current_node.content
                 t_len = count_tokens(cnt)
-                if total_history_tokens + t_len > MAX_CONTEXT_TOKENS:
+                
+                if total_history_tokens + t_len <= MAX_CONTEXT_TOKENS:
+                    history.insert(0, {
+                        'role': current_node.role, 
+                        'content': cnt, 
+                        'image_url': current_node.image_url, 
+                        'signature': current_node.thought_signature
+                    })
+                    total_history_tokens += t_len
+                else:
                     break
-                total_history_tokens += t_len
-                sig = m.thought_signature
-                # Insert at beginning to maintain order
-                history.insert(0, {'role': m.role, 'content': cnt, 'image_url': m.image_url, 'signature': sig})
+                
+                current_node = current_node.parent
 
             model_key = model_key.strip()
             is_gem = 'gemini' in model_key or 'nano' in model_key
-            is_grok = 'grok' in model_key
+            is_grok = 'grok' in model_key.lower() and 'gpt' not in model_key.lower()
             
+            def get_k(db_val, env_key):
+                k = decrypt_val(db_val)
+                if k and str(k).strip(): return k
+                if user and user.username == 'minashin1120': return os.getenv(env_key)
+                return None
+
+            api_keys = {
+                'openai': get_k(user.openai_api_key, 'OPENAI_API_KEY'),
+                'gemini': get_k(user.gemini_api_key, 'GEMINI_API_KEY'),
+                'xai': get_k(user.xai_api_key, 'XAI_API_KEY')
+            }
+
             key = None
             if is_gem: key = api_keys.get('gemini')
             elif is_grok: key = api_keys.get('xai')
@@ -282,7 +392,7 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                 return
 
             g_client = None; o_client = None; x_client = None
-            if is_gem: g_client = genai.Client(api_key=key, http_options={'api_version': 'v1alpha'})
+            if is_gem: g_client = genai.Client(api_key=key, http_options={'api_version': 'v1beta'})
             elif is_grok and XAI_SDK_AVAILABLE: x_client = XAIClient(api_key=key)
             else: o_client = OpenAI(api_key=key, base_url="https://api.x.ai/v1" if is_grok else None)
 
@@ -323,7 +433,7 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                         if options.get('system_prompt'):
                             img_prompt = f"{options.get('system_prompt')}\n\n{final_message_text}"
 
-                        img_model = "gemini-2.5-flash-image" if "2.5" in model_key else "gemini-3.0-pro-image-preview"
+                        img_model = "gemini-2.5-flash-image" if "2.5" in model_key else "gemini-3-pro-image-preview"
                         
                         resp = g_client.models.generate_content(
                             model=img_model,
@@ -365,8 +475,10 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                 else:
                     # Text/Chat generation mode
                     rm = model_key
-                    if "gemini-3-flash" in model_key: rm = "gemini-3-flash-preview"
-                    elif "gemini-3.0-pro" in model_key: rm = "gemini-3.0-pro-preview"
+                    if "gemini-3-flash" in model_key or "gemini-3.0-flash" in model_key:
+                        rm = "gemini-3-flash-preview"
+                    elif "gemini-3-pro" in model_key or "gemini-3.0-pro" in model_key:
+                        rm = "gemini-3-pro-preview"
                     elif "gemini-2.5" in model_key: rm = "gemini-2.5-flash"
 
                     conf = {'temperature': 0.7}
@@ -377,6 +489,9 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
 
                     if options.get('enable_search'):
                         conf['tools'] = [types.Tool(google_search=types.GoogleSearch())]
+                    if options.get('enable_python'):
+                        if 'tools' not in conf: conf['tools'] = []
+                        conf['tools'].append(types.Tool(code_execution=types.CodeExecution()))
                     if options.get('system_prompt'):
                         conf['system_instruction'] = options.get('system_prompt')
                     
@@ -429,22 +544,44 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                                     if hasattr(part, 'thought') and part.thought:
                                         thought_accumulated += part.text
                                         pub("thought", part.text)
-                                    elif part.text:
+                                    if hasattr(part, 'executable_code') and part.executable_code:
+                                        c_txt = f"\n```python\n{part.executable_code.code}\n```\n"
+                                        full_res += c_txt
+                                        pub("content", c_txt)
+                                    if hasattr(part, 'code_execution_result') and part.code_execution_result:
+                                        r_txt = f"\n**Output:**\n```\n{part.code_execution_result.output}\n```\n"
+                                        full_res += r_txt
+                                        pub("content", r_txt)
+                                    if hasattr(part, 'text') and part.text:
                                         full_res += part.text
                                         pub("content", part.text)
 
             # --- 2. xAI Grok (Native SDK) ---
             elif is_grok and x_client:
-                log_force("Routing: Grok Branch")
-                tools = []
-                if options.get('enable_search'): tools.append(web_search())
-                if tools: chat_session = x_client.chat.create(model=model_key, tools=tools)
-                else: chat_session = x_client.chat.create(model=model_key)
+                log_force("Routing: Grok Branch (Native SDK)")
+                search_params = None
+                if options.get('enable_search'):
+                    try:
+                        search_params = SearchParameters(
+                            sources=[web_source(), x_source()],
+                            mode="on",
+                            return_citations=True
+                        )
+                        log_force("Enabled Grok Search (Web + X)")
+                    except Exception as e:
+                        log_force(f"Grok Search Config Error: {e}")
+
+                create_kwargs = {"model": model_key}
+                if search_params: create_kwargs["search_parameters"] = search_params
+                create_kwargs["use_encrypted_content"] = True # Request encrypted reasoning if available
+                
+                chat_session = x_client.chat.create(**create_kwargs)
+
                 if options.get('system_prompt'): chat_session.append(x_system(options.get('system_prompt')))
                 
                 for m in history:
                     if m['role'] == 'user':
-                        chat_session.append(x_user(m['content']))
+                        content_parts = [m['content']]
                         if m['image_url']:
                             try:
                                 for h_img in json.loads(m['image_url']):
@@ -458,27 +595,37 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                                     if d2:
                                         mime = mimetypes.guess_type(bp2)[0] or 'image/webp'
                                         d_uri = f"data:{mime};base64,{base64.b64encode(d2).decode('utf-8')}"
-                                        chat_session.append(x_image(d_uri))
+                                        content_parts.append(x_image(d_uri))
                             except: pass
+                        chat_session.append(x_user(*content_parts))
                     else: chat_session.append(x_assistant(m['content']))
                 
+                curr_user_content = [final_message_text]
                 for fi in loaded_files:
-                    if fi.get('text'): chat_session.append(x_user(f"\n\n[File: {fi['name']}]\n{fi['text']}"))
+                    if fi.get('text'): 
+                        curr_user_content[0] += f"\n\n[File: {fi['name']}]\n{fi['text']}"
                     elif fi.get('bytes') and fi.get('mime', '').startswith('image/'):
                         d_uri = f"data:{fi['mime']};base64,{base64.b64encode(fi['bytes']).decode('utf-8')}"
-                        chat_session.append(x_image(d_uri))
+                        curr_user_content.append(x_image(d_uri))
                 
-                chat_session.append(x_user(final_message_text))
+                chat_session.append(x_user(*curr_user_content))
                 
                 stream = chat_session.stream()
                 for _, chunk in stream:
                     if check_stop(): break
-                    if chunk.reasoning_content:
-                        thought_accumulated += chunk.reasoning_content
-                        pub("thought", chunk.reasoning_content)
-                    if chunk.content:
-                        full_res += chunk.content
-                        pub("content", chunk.content)
+                    r_content = getattr(chunk, 'reasoning_content', None)
+                    if r_content:
+                        thought_accumulated += r_content
+                        pub("thought", r_content)
+                    
+                    # Also log encrypted content presence for debugging
+                    if getattr(chunk, 'encrypted_content', None):
+                         log_force("Received encrypted reasoning content")
+
+                    c_content = getattr(chunk, 'content', None)
+                    if c_content:
+                        full_res += c_content
+                        pub("content", c_content)
 
             # --- 3. OpenAI Responses API (or Grok Fallback) ---
             else:
@@ -496,14 +643,23 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                     input_data.append({"role": m['role'], "content": content_block})
 
                 curr_content = []
-                if quote_text: curr_content.append({"type": "text", "text": f"User Quote:\n{quote_text}\n---"})
-                curr_content.append({"type": "text", "text": message_text})
+                text_type = "text" if is_grok else "input_text"
+                image_type = "image_url" if is_grok else "input_image"
+                if quote_text: curr_content.append({"type": text_type, "text": f"User Quote:\n{quote_text}\n---"})
+                curr_content.append({"type": text_type, "text": message_text})
                 
                 for fi in loaded_files:
-                    if fi['text']: curr_content[0]['text'] += f"\n\n[File: {fi['name']}]\n{fi['text']}"
+                    if fi['text']:
+                        for part in reversed(curr_content):
+                            if part.get('type') == text_type:
+                                part['text'] += f"\n\n[File: {fi['name']}]\n{fi['text']}"
+                                break
                     elif fi.get('bytes') and fi['mime'].startswith('image/'):
-                         b64 = base64.b64encode(fi['bytes']).decode('utf-8')
-                         curr_content.append({"type": "image_url", "image_url": {"url": f"data:{fi['mime']};base64,{b64}"}})
+                        b64 = base64.b64encode(fi['bytes']).decode('utf-8')
+                        if is_grok:
+                            curr_content.append({"type": image_type, "image_url": {"url": f"data:{fi['mime']};base64,{b64}"}})
+                        else:
+                            curr_content.append({"type": image_type, "image_url": f"data:{fi['mime']};base64,{b64}"})
                 
                 input_data.append({"role": "user", "content": curr_content})
                 
@@ -529,42 +685,186 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                         kwargs['tools'] = [{"type": "web_search"}] 
                         log_force("Enabled Web Search Tool (Responses API)")
 
+                    if options.get('enable_python'):
+                        if 'tools' not in kwargs: kwargs['tools'] = []
+                        kwargs['tools'].append({
+                            "type": "function",
+                            "name": "execute_python",
+                            "description": "Execute Python code for calculations or data analysis. Isolated environment, no internet access.",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "code": {"type": "string", "description": "Python code to run."}
+                                },
+                                "required": ["code"]
+                            }
+                        })
+                        log_force("Enabled Python execution tool (Responses API)")
+
                     is_reasoning_model = any(x in model_key.lower() for x in ['o1', 'o3', 'gpt-5.2', 'reasoning'])
-                    if options.get('reasoning_effort') and is_reasoning_model:
-                        kwargs['reasoning_effort'] = options.get('reasoning_effort')
+                    if is_reasoning_model and options.get('enable_thinking'):
+                        effort = options.get('reasoning_effort')
+                        if not effort:
+                            lvl = (options.get('thinking_level') or "medium").lower()
+                            effort = "low" if lvl == "low" else "high" if lvl == "high" else "medium"
+                        kwargs['reasoning'] = {"effort": effort}
+                        if "gpt-5.2" in model_key.lower():
+                            kwargs['reasoning']["summary"] = "auto"
+                        log_force(f"Reasoning config: {kwargs['reasoning']}")
 
                     log_force(f"Responses API Params: {kwargs.keys()}")
                     stream = client.responses.create(**kwargs)
                     search_reported = False
+                    saw_reasoning_summary_delta = False
 
                     for chunk in stream:
                         if check_stop(): break
-                        
-                        if hasattr(chunk, 'output_text_delta') and chunk.output_text_delta:
-                            if search_reported:
-                                pub("search_status", "done")
-                                search_reported = False
-                            full_res += chunk.output_text_delta
-                            pub("content", chunk.output_text_delta)
-                        
-                        if hasattr(chunk, 'citations') and chunk.citations:
-                            citations_text = "\n\n**Sources:**\n"
-                            for c in chunk.citations:
-                                title = getattr(c, 'title', 'Source')
-                                url = getattr(c, 'url', '#')
-                                citations_text += f"- [{title}]({url})\n"
-                            full_res += citations_text
-                            pub("content", citations_text)
-                        
-                        reasoning_delta = getattr(chunk, 'output_reasoning_text_delta', None)
-                        if reasoning_delta:
-                            thought_accumulated += reasoning_delta
-                            pub("thought", reasoning_delta)
+                        # log_force(f"Responses Chunk: {chunk}") # Temporarily disabled to avoid log flooding
+                        if isinstance(chunk, dict):
+                            event_type = chunk.get('type')
+                        else:
+                            event_type = getattr(chunk, 'type', None)
 
-                        if not search_reported and hasattr(chunk, 'output_item') and chunk.output_item:
-                             if chunk.output_item.type == "tool_call" or "search" in str(chunk.output_item).lower():
-                                 pub("search_status", "searching")
-                                 search_reported = True
+                        if event_type == "response.output_text.delta":
+                            text_delta = chunk.get('delta') if isinstance(chunk, dict) else getattr(chunk, 'delta', None)
+                            if text_delta:
+                                if search_reported:
+                                    pub("search_status", "done")
+                                    search_reported = False
+                                full_res += text_delta
+                                pub("content", text_delta)
+                        elif event_type in ("response.reasoning_text.delta", "response.reasoning_summary_text.delta"):
+                            reasoning_delta = chunk.get('delta') if isinstance(chunk, dict) else getattr(chunk, 'delta', None)
+                            if reasoning_delta:
+                                log_force(f"Reasoning Delta: {reasoning_delta[:50]}...")
+                                if event_type == "response.reasoning_summary_text.delta":
+                                    saw_reasoning_summary_delta = True
+                                thought_accumulated += reasoning_delta
+                                pub("thought", reasoning_delta)
+                        elif event_type in ("response.reasoning_text.done", "response.reasoning_summary_text.done"):
+                            reasoning_text = chunk.get('text') if isinstance(chunk, dict) else getattr(chunk, 'text', None)
+                            if reasoning_text:
+                                if event_type == "response.reasoning_summary_text.done":
+                                    saw_reasoning_summary_delta = True
+                                thought_accumulated += reasoning_text
+                                pub("thought", reasoning_text)
+                        elif event_type in ("response.reasoning_summary_part.added", "response.reasoning_summary_part.done"):
+                            part = chunk.get('part') if isinstance(chunk, dict) else getattr(chunk, 'part', None)
+                            if isinstance(part, dict):
+                                part_type = part.get('type')
+                                part_text = part.get('text')
+                            else:
+                                part_type = getattr(part, 'type', None) if part else None
+                                part_text = getattr(part, 'text', None) if part else None
+                            if part_type == "summary_text" and part_text:
+                                if not saw_reasoning_summary_delta:
+                                    thought_accumulated += part_text
+                                    pub("thought", part_text)
+                        elif event_type == "response.output_item.added":
+                            item = chunk.get('item') if isinstance(chunk, dict) else getattr(chunk, 'item', None)
+                            if item:
+                                if isinstance(item, dict):
+                                    i_type = item.get('type')
+                                    i_name = item.get('name')
+                                else:
+                                    i_type = getattr(item, 'type', None)
+                                    i_name = getattr(item, 'name', None)
+                                
+                                if i_type in ("function_call", "tool_call") or (i_name and "search" in i_name.lower()):
+                                    if not search_reported:
+                                        pub("search_status", "searching")
+                                        search_reported = True
+
+                        elif event_type == "response.output_item.done":
+                            item = chunk.get('item') if isinstance(chunk, dict) else getattr(chunk, 'item', None)
+                            if isinstance(item, dict):
+                                item_type = item.get('type')
+                                summary_parts = item.get('summary')
+                                tool_call_id = item.get('id')
+                                call_name = item.get('name')
+                                call_args = item.get('arguments')
+                            else:
+                                item_type = getattr(item, 'type', None)
+                                summary_parts = getattr(item, 'summary', None)
+                                tool_call_id = getattr(item, 'id', None)
+                                call_name = getattr(item, 'name', None)
+                                call_args = getattr(item, 'arguments', None)
+
+                            if item_type == "function_call" and call_name == "execute_python":
+                                try:
+                                    args_json = json.loads(call_args)
+                                    code = args_json.get('code', '')
+                                    if code:
+                                        pub("content", f"\n```python\n{code}\n```\n")
+                                        result = safe_execute_python(code)
+                                        pub("content", f"\n**Output:**\n```\n{result}\n```\n")
+                                        full_res += f"\n```python\n{code}\n```\n\n**Output:**\n```\n{result}\n```\n"
+                                        
+                                        # Send tool output back for continuation
+                                        cont_kwargs = kwargs.copy()
+                                        cont_kwargs['input'] = input_data + [{"role": "assistant", "content": [{"type": "text", "text": full_res}]}]
+                                        # (Simple continuation: just append to full_res and the model will continue if it has more to say)
+                                        # Actually Responses API continuation is slightly different but we can just use the tool output.
+                                except Exception as e:
+                                    pub("error", f"Python Tool Error: {e}")
+
+                            if item_type == "reasoning" and summary_parts:
+                                for part in summary_parts:
+                                    if isinstance(part, dict):
+                                        part_type = part.get('type')
+                                        part_text = part.get('text')
+                                    else:
+                                        part_type = getattr(part, 'type', None)
+                                        part_text = getattr(part, 'text', None)
+                                    if part_type == "summary_text" and part_text:
+                                        saw_reasoning_summary_delta = True
+                                        thought_accumulated += part_text
+                                        pub("thought", part_text)
+                        else:
+                            if hasattr(chunk, 'output_text_delta') and chunk.output_text_delta:
+                                if search_reported:
+                                    pub("search_status", "done")
+                                    search_reported = False
+                                full_res += chunk.output_text_delta
+                                pub("content", chunk.output_text_delta)
+
+                            if hasattr(chunk, 'citations') and chunk.citations:
+                                citations_text = "\n\n**Sources:**\n"
+                                for c in chunk.citations:
+                                    title = getattr(c, 'title', 'Source')
+                                    url = getattr(c, 'url', '#')
+                                    citations_text += f"- [{title}]({url})\n"
+                                full_res += citations_text
+                                pub("content", citations_text)
+
+                            reasoning_delta = getattr(chunk, 'output_reasoning_text_delta', None)
+                            if reasoning_delta:
+                                thought_accumulated += reasoning_delta
+                                pub("thought", reasoning_delta)
+                        if event_type == "response.completed":
+                            resp = chunk.get('response') if isinstance(chunk, dict) else getattr(chunk, 'response', None)
+                            if isinstance(resp, dict):
+                                output_items = resp.get('output')
+                            else:
+                                output_items = getattr(resp, 'output', None) if resp else None
+                            if output_items and not saw_reasoning_summary_delta:
+                                for item in output_items:
+                                    if isinstance(item, dict):
+                                        item_type = item.get('type')
+                                        summary_parts = item.get('summary')
+                                    else:
+                                        item_type = getattr(item, 'type', None)
+                                        summary_parts = getattr(item, 'summary', None)
+                                    if item_type == "reasoning":
+                                        if summary_parts:
+                                            for part in summary_parts:
+                                                if isinstance(part, dict):
+                                                    text = part.get('text')
+                                                else:
+                                                    text = getattr(part, 'text', None)
+                                                if text:
+                                                    thought_accumulated += text
+                                                    pub("thought", text)
 
             final_content = full_res
             final_thought = json.dumps({'text': thought_accumulated}) if thought_accumulated else None
@@ -577,7 +877,8 @@ def background_chat_task(job_id, thread_id, model_key, message_text, img_list, o
                 thread_id=thread_id, role='assistant', content=final_content, 
                 model=model_key, image_url=json.dumps(generated_images) if generated_images else None, 
                 thought_data=final_thought, tokens=count_tokens(full_res), 
-                is_encrypted=is_enc, thought_signature=final_signature
+                is_encrypted=is_enc, thought_signature=final_signature,
+                parent_id=message_id
             )
             db.session.add(msg_entry)
             Thread.query.get(thread_id).updated_at = datetime.utcnow()
@@ -676,34 +977,65 @@ def logout():
 @login_required
 def chat_stream():
     data = request.json
-    def get_k(db_val, env_key):
-        k = decrypt_val(db_val)
-        if k and str(k).strip(): return k
-        if current_user.username == 'minashin1120': return os.getenv(env_key)
-        return None
-    api_keys = {
-        'openai': get_k(current_user.openai_api_key, 'OPENAI_API_KEY'),
-        'gemini': get_k(current_user.gemini_api_key, 'GEMINI_API_KEY'),
-        'xai': get_k(current_user.xai_api_key, 'XAI_API_KEY')
-    }
     user_config = {'enable_e2ee': current_user.enable_e2ee}
     job_id = f"job_{int(time.time())}_{current_user.id}"
+
+    thread_id = data.get('thread_id')
+    if not thread_id:
+        return jsonify({'error': 'thread_id required'}), 400
+    t = Thread.query.get(thread_id)
+    if not t or t.user_id != current_user.id:
+        return jsonify({'error': 'Invalid thread'}), 403
     
+    user_msg = None
     try:
         msg_content = data.get('message')
         if user_config['enable_e2ee']: msg_content = encrypt_val(msg_content)
+        
+        parent_id = data.get('parent_id')
+        if not parent_id:
+            # Default to the last message in the thread
+            last_msg = Message.query.filter_by(thread_id=thread_id).order_by(Message.id.desc()).first()
+            if last_msg:
+                parent_id = last_msg.id
+
         user_msg = Message(
-            thread_id=data.get('thread_id'),
+            thread_id=thread_id,
             role='user',
             content=msg_content,
             image_url=json.dumps(data.get('image_urls', [])) if data.get('image_urls') else None,
-            is_encrypted=user_config['enable_e2ee']
+            is_encrypted=user_config['enable_e2ee'],
+            parent_id=parent_id
         )
         db.session.add(user_msg)
         safe_db_commit()
-    except Exception as e: logger.error(f"Failed to save user msg: {e}")
+    except Exception as e:
+        logger.error(f"Failed to save user msg: {e}")
+        return jsonify({'error': 'Failed to save message'}), 500
 
-    task_queue.enqueue(background_chat_task, job_id, data.get('thread_id'), data.get('model'), data.get('message'), data.get('image_urls', []), data, api_keys, current_user.id, user_config, job_timeout=600)
+    quote_text = data.get('quote_text')
+    if quote_text:
+        try:
+            redis_conn.setex(f"quote:{job_id}", 600, quote_text)
+        except: pass
+
+    sys_prompt = data.get('system_prompt')
+    if sys_prompt:
+        try:
+            redis_conn.setex(f"sys:{job_id}", 600, sys_prompt)
+        except: pass
+
+    options = {
+        'system_prompt': None,
+        'enable_search': data.get('enable_search'),
+        'enable_thinking': data.get('enable_thinking'),
+        'thinking_level': data.get('thinking_level'),
+        'reasoning_effort': data.get('reasoning_effort'),
+        'enable_system_prompt': data.get('enable_system_prompt'),
+        'safety_setting': data.get('safety_setting'),
+    }
+
+    task_queue.enqueue(background_chat_task, job_id, thread_id, data.get('model'), user_msg.id, options, current_user.id, user_config, job_timeout=600)
     
     def generate():
         pubsub = redis_conn.pubsub()
@@ -770,9 +1102,9 @@ def generate_title_api():
         # Try Gemini (flash)
         elif g_key and title == "New Chat":
             try:
-                g_client = genai.Client(api_key=g_key, http_options={'api_version': 'v1alpha'})
+                g_client = genai.Client(api_key=g_key, http_options={'api_version': 'v1beta'})
                 resp = g_client.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model="gemini-3-flash-preview",
                     contents=[types.Part(text=f"Generate a short title (max 6 words) for this chat. JSON: {{'title': '...'}}\n\nChat: {content[:500]}")],
                     config=types.GenerateContentConfig(response_mime_type="application/json")
                 )
@@ -784,13 +1116,11 @@ def generate_title_api():
             try:
                 x_client = XAIClient(api_key=x_key)
                 chat = x_client.chat.create(model="grok-4-1-fast-non-reasoning")
-                chat.append(x_system("Generate a short title (max 6 words). Output only the title text."))
+                chat.append(x_system("Generate a short, descriptive title (max 6 words) for this chat conversation. Output only the title text without any quotes or JSON."))
                 chat.append(x_user(content[:500]))
-                # Note: xAI SDK structure might vary, basic call assumed
-                resp = chat.stream() # Assuming stream for consistency, or non-stream if available
-                # Fallback to simple first chunk or wait
-                # For simplicity in this script, we skip deep xAI title impl to avoid complex async
-                pass 
+                resp = chat.sample()
+                if resp and resp.message and resp.message.content:
+                    title = resp.message.content.strip()
             except: pass
             
         thread.title = title
@@ -802,9 +1132,11 @@ def generate_title_api():
 @app.route('/files/<path:filename>')
 @login_required
 def serve_file(filename):
-    parts = filename.split('/')
-    if len(parts) > 1 and str(parts[0]) != str(current_user.id): abort(403)
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    norm = os.path.normpath(filename)
+    if norm.startswith("..") or os.path.isabs(norm): abort(403)
+    if not norm.startswith(f"{current_user.id}/"): abort(403)
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], norm)
+    if not os.path.realpath(file_path).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])): abort(403)
     enc_path = file_path + '.enc'
     mtype = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
     if os.path.exists(file_path): return send_file(file_path, mimetype=mtype)
@@ -848,7 +1180,15 @@ def handle_thread_item(tid):
         for m in ms:
             cnt = decrypt_val(m.content) if m.is_encrypted else m.content
             tht = decrypt_val(m.thought_data) if (m.is_encrypted and m.thought_data) else m.thought_data
-            res.append({'id': m.id, 'role': m.role, 'content': cnt, 'image_url': m.image_url, 'model': m.model, 'thought_data': tht})
+            res.append({
+                'id': m.id, 
+                'role': m.role, 
+                'content': cnt, 
+                'image_url': m.image_url, 
+                'model': m.model, 
+                'thought_data': tht,
+                'parent_id': m.parent_id
+            })
         return jsonify(res)
     
     for m in t.messages:
@@ -857,7 +1197,11 @@ def handle_thread_item(tid):
                 paths = json.loads(m.image_url)
                 if not isinstance(paths, list): paths = [paths]
                 for p in paths:
-                    fp = os.path.join(app.config['UPLOAD_FOLDER'], p)
+                    norm = os.path.normpath(p)
+                    if norm.startswith("..") or os.path.isabs(norm): continue
+                    if not norm.startswith(f"{current_user.id}/"): continue
+                    fp = os.path.join(app.config['UPLOAD_FOLDER'], norm)
+                    if not os.path.realpath(fp).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])): continue
                     secure_delete(fp)
                     secure_delete(fp + '.enc')
             except: pass
@@ -888,7 +1232,11 @@ def delete_message(mid):
                 paths = json.loads(m.image_url)
                 if not isinstance(paths, list): paths = [paths]
                 for p in paths:
-                    fp = os.path.join(app.config['UPLOAD_FOLDER'], p)
+                    norm = os.path.normpath(p)
+                    if norm.startswith("..") or os.path.isabs(norm): continue
+                    if not norm.startswith(f"{current_user.id}/"): continue
+                    fp = os.path.join(app.config['UPLOAD_FOLDER'], norm)
+                    if not os.path.realpath(fp).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])): continue
                     secure_delete(fp)
                     secure_delete(fp + '.enc')
             except: pass
@@ -924,8 +1272,11 @@ def get_files_lib():
 @login_required
 def delete_files_batch():
     for f in request.json.get('filenames', []):
-        if f.startswith(f"{current_user.id}/"):
-            fp = os.path.join(app.config['UPLOAD_FOLDER'], f)
+        norm = os.path.normpath(f)
+        if norm.startswith("..") or os.path.isabs(norm): continue
+        if norm.startswith(f"{current_user.id}/"):
+            fp = os.path.join(app.config['UPLOAD_FOLDER'], norm)
+            if not os.path.realpath(fp).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])): continue
             secure_delete(fp)
             secure_delete(fp + '.enc')
     return jsonify({'status': 'ok'})
@@ -1035,9 +1386,9 @@ def upload():
     ud = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
     if not os.path.exists(ud):
         os.makedirs(ud, exist_ok=True)
-        os.chmod(ud, 0o777)
+        os.chmod(ud, 0o700)
     else:
-        try: os.chmod(ud, 0o777)
+        try: os.chmod(ud, 0o700)
         except: pass
     res = []
     for f in files:

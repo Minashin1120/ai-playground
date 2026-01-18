@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>2FA Verification - AI Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import { create, get } from 'https://esm.sh/@github/webauthn-json@2.1.1';
+        window.webauthnJSON = { create, get };
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>body { background-color: #111827; color: #f3f4f6; }</style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+    <div class="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-md border border-gray-700">
+        <h2 class="text-2xl font-bold mb-6 text-center text-white">2段階認証</h2>
+        
+        {% if error %}
+        <div class="bg-red-900/50 border border-red-500 text-red-200 px-4 py-2 rounded mb-4 text-sm">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <div class="mb-6">
+            <div class="flex border-b border-gray-600 mb-4">
+                <button onclick="switchTab('totp')" id="tab-totp" class="flex-1 py-2 text-blue-400 border-b-2 border-blue-400 font-bold">App Code</button>
+                <button onclick="switchTab('webauthn')" id="tab-webauthn" class="flex-1 py-2 text-gray-400 hover:text-white">Security Key</button>
+            </div>
+
+            <!-- TOTP Form -->
+            <form id="form-totp" method="POST" action="{{ url_for('verify_2fa') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="mb-4">
+                    <label class="block text-gray-400 text-sm font-bold mb-2">認証コード (6桁)</label>
+                    <input type="text" name="totp_code" class="w-full bg-gray-700 text-white border border-gray-600 rounded py-2 px-3 focus:outline-none focus:border-blue-500 font-mono text-center text-xl tracking-widest" placeholder="000000" maxlength="6" autofocus required autocomplete="one-time-code">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded transition">
+                    認証する
+                </button>
+            </form>
+
+            <!-- WebAuthn -->
+            <div id="form-webauthn" class="hidden text-center py-4">
+                <div class="mb-4 text-gray-300">
+                    <i class="fas fa-key text-4xl mb-2 text-green-400"></i>
+                    <p>セキュリティキーまたはTouch IDを使用</p>
+                </div>
+                <button onclick="startWebAuthn()" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded transition flex items-center justify-center gap-2">
+                    <i class="fas fa-fingerprint"></i> 認証を開始
+                </button>
+            </div>
+        </div>
+
+        <div class="text-center mt-4">
+            <a href="{{ url_for('logout') }}" class="text-sm text-gray-500 hover:text-gray-300">キャンセルしてログアウト</a>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(t) {
+            document.getElementById('form-totp').classList.add('hidden');
+            document.getElementById('form-webauthn').classList.add('hidden');
+            document.getElementById('form-'+t).classList.remove('hidden');
+            
+            document.getElementById('tab-totp').className = "flex-1 py-2 text-gray-400 hover:text-white cursor-pointer border-b-2 border-transparent";
+            document.getElementById('tab-webauthn').className = "flex-1 py-2 text-gray-400 hover:text-white cursor-pointer border-b-2 border-transparent";
+            
+            document.getElementById('tab-'+t).className = "flex-1 py-2 text-blue-400 font-bold border-b-2 border-blue-400 cursor-default";
+        }
+
+        async function startWebAuthn() {
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+                
+                // 1. Get Options
+                const optsRes = await fetch('/verify-2fa/webauthn/options', {
+                    method: 'POST',
+                    headers: {'X-CSRF-Token': csrfToken}
+                });
+                if(!optsRes.ok) throw new Error("Failed to get options");
+                const options = await optsRes.json();
+                
+                // 2. Browser Verification
+                const credential = await window.webauthnJSON.get({ publicKey: options });
+                
+                // 3. Verify on Server
+                const verifyRes = await fetch('/verify-2fa/webauthn/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    },
+                    body: JSON.stringify(credential)
+                });
+                
+                const result = await verifyRes.json();
+                if(result.status === 'ok') {
+                    window.location.href = "{{ url_for('index') }}";
+                } else {
+                    alert("Verification failed: " + (result.error || "Unknown error"));
+                }
+            } catch(e) {
+                console.error(e);
+                alert("Auth Error: " + e.message);
+            }
+        }
+    </script>
+</body>
+</html>

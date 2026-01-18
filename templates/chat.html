@@ -4,75 +4,186 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.1.0)</title>
+    <title>AI Playground (V4.7.0)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+    <script type="module">
+        import { create, get } from 'https://esm.sh/@github/webauthn-json@2.1.1';
+        window.webauthnJSON = { create, get };
+    </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { background-color: #111827; color: #f3f4f6; }
+        :root {
+            --bg-1: #0b1020;
+            --bg-2: #101b33;
+            --bg-3: #0b1222;
+            --panel: #111827;
+            --panel-2: #0f172a;
+            --line: #1f2a44;
+            --text: #e5e7eb;
+            --muted: #9ca3af;
+            --accent: #3b82f6;
+            --accent-2: #22c55e;
+            --danger: #ef4444;
+            --shadow: 0 18px 45px rgba(0,0,0,0.35);
+        }
+        body {
+            background: radial-gradient(1200px 700px at 20% -10%, rgba(59,130,246,0.18), transparent 60%),
+                        radial-gradient(900px 600px at 90% 10%, rgba(34,197,94,0.12), transparent 55%),
+                        linear-gradient(180deg, var(--bg-1), var(--bg-2));
+            color: var(--text);
+            font-family: "Sora", system-ui, -apple-system, Segoe UI, sans-serif;
+        }
         
         /* Typography & Code Blocks */
         .prose { font-size: 0.95rem; line-height: 1.7; color: #e5e7eb; max-width: none; }
         .prose pre { background: #0f1117 !important; padding: 0 !important; overflow-x: auto; border: none !important; border-radius: 0 !important; margin: 0.5em 0; }
-        .prose code { font-family: Consolas, Monaco, 'Andale Mono', monospace; font-size: 0.9em; background: transparent !important; padding: 1em !important; display: block; line-height: 1.5; }
-        .prose :not(pre) > code { background: #374151 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.3rem !important; color: #e2e8f0 !important; display: inline; }
+        .prose code { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.9em; background: transparent !important; padding: 1em !important; display: block; line-height: 1.5; }
+        .prose :not(pre) > code { background: #1f2a44 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.35rem !important; color: #e2e8f0 !important; display: inline; }
         .prose a { color: #60a5fa; text-decoration: underline; }
+        .prose img { max-width: 320px; width: 100%; height: auto; border-radius: 0.5rem; border: 1px solid #374151; background: #0f1117; display: block; cursor: zoom-in; }
+        .prose img.chat-image { max-width: 320px; width: 100%; height: auto; object-fit: contain; }
         
         /* Code Wrapper & Copy Button */
-        .code-wrapper { margin: 1em 0; border-radius: 0.5rem; border: 1px solid #374151; overflow: hidden; background: #282c34; }
+        .code-wrapper { margin: 1em 0; border-radius: 0.6rem; border: 1px solid var(--line); overflow: hidden; background: #0f172a; box-shadow: var(--shadow); }
         .code-header { display: flex; justify-content: space-between; align-items: center; background: #21252b; padding: 0.3rem 0.8rem; font-size: 0.75rem; color: #9ca3af; border-bottom: 1px solid #181a1f; }
         .copy-btn { background: transparent; border: none; color: #9ca3af; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s; }
         .copy-btn:hover { color: #fff; }
 
         /* Thinking UI */
-        .thought-container { margin-bottom: 1rem; border: 1px solid #4b5563; border-radius: 0.5rem; background-color: #1f2937; overflow: hidden; }
+        .thought-container { margin-bottom: 1rem; border: 1px solid var(--line); border-radius: 0.6rem; background-color: #0f172a; overflow: hidden; box-shadow: var(--shadow); }
         .thought-header { background: #374151; padding: 0.5rem 0.75rem; font-size: 0.75rem; color: #9ca3af; display: flex; align-items: center; gap: 0.5rem; font-weight: bold; cursor: pointer; transition: background-color 0.2s; user-select: none; }
         .thought-header:hover { background: #4b5563; color: #fff; }
-        .thought-content { padding: 0.75rem; font-size: 0.85rem; color: #d1d5db; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; max-height: 400px; overflow-y: auto; display: block; background-color: #111827; border-top: 1px solid #374151; }
-        .thought-content.collapsed { display: none; }
+        .thought-content { padding: 0.75rem; font-size: 0.85rem; color: #d1d5db; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; max-height: 400px; overflow-y: auto; display: block; background-color: #111827; border-top: 1px solid #374151; transition: max-height 0.35s ease, opacity 0.25s ease, padding 0.25s ease; }
+        .thought-content.collapsed { max-height: 0; opacity: 0; padding: 0; overflow: hidden; }
         
         /* Search UI */
-        .search-box { margin-bottom: 0.5rem; padding: 0.5rem 0.75rem; background: #1e293b; border: 1px solid #334155; border-radius: 0.5rem; display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: #94a3b8; display: none; }
+        .search-box { margin-bottom: 0.5rem; padding: 0.5rem 0.75rem; background: #0b1220; border: 1px solid var(--line); border-radius: 0.6rem; display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: #94a3b8; display: none; }
         .search-box.visible { display: flex; }
         .search-box.searching { border-color: #3b82f6; color: #60a5fa; }
         .search-box i { width: 16px; text-align: center; }
+
+        /* Python Execution UI */
+        .python-box { margin: 0.5rem 0 1rem; border: 1px solid var(--line); border-radius: 0.6rem; background: #0b1220; overflow: hidden; box-shadow: var(--shadow); }
+        .python-header { background: #111827; padding: 0.4rem 0.75rem; font-size: 0.75rem; color: #a3e635; display: flex; align-items: center; gap: 0.5rem; font-weight: bold; border-bottom: 1px solid #1f2937; }
+        .python-body { padding: 0.6rem 0.75rem; font-size: 0.85rem; color: #e5e7eb; }
+        .python-body pre { background: #0f1117; padding: 0.6rem; border-radius: 0.4rem; overflow-x: auto; border: 1px solid #1f2937; }
+        .python-label { font-size: 0.7rem; color: #9ca3af; margin: 0.4rem 0 0.2rem; text-transform: uppercase; letter-spacing: 0.04em; }
         
         /* Quote UI */
-        #quote-popover { position: absolute; background: #1f2937; color: white; border: 1px solid #4b5563; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; display: none; z-index: 100; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        #quote-popover { position: absolute; background: #0f172a; color: white; border: 1px solid var(--line); padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; display: none; z-index: 100; box-shadow: var(--shadow); }
         #quote-popover:hover { background: #374151; }
-        #quote-bar { display: none; background: #1f2937; border-top: 1px solid #374151; padding: 8px 12px; border-radius: 8px 8px 0 0; font-size: 12px; color: #d1d5db; position: relative; margin-bottom: -1px; }
+        #quote-bar { display: none; background: #0f172a; border-top: 1px solid var(--line); padding: 8px 12px; border-radius: 10px 10px 0 0; font-size: 12px; color: #d1d5db; position: relative; margin-bottom: -1px; }
         #quote-bar.visible { display: flex; align-items: center; justify-content: space-between; }
         .quote-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90%; opacity: 0.8; font-style: italic; border-left: 3px solid #3b82f6; padding-left: 8px; }
         
         /* Messages */
-        .message-bubble { max-width: 90%; position: relative; word-wrap: break-word; }
+        .message-bubble { max-width: 90%; position: relative; word-wrap: break-word; border: 1px solid rgba(255,255,255,0.04); box-shadow: var(--shadow); backdrop-filter: blur(6px); }
         @media (min-width: 768px) { .message-bubble { max-width: 80%; } }
         
-        .msg-controls { opacity: 0; transition: opacity 0.2s; position: absolute; top: -12px; right: 0; display: flex; gap: 4px; }
+        .msg-controls { opacity: 0; transition: opacity 0.2s; position: absolute; top: -12px; right: 0; display: flex; gap: 6px; }
         .message-group:hover .msg-controls { opacity: 1; }
-        .ctrl-btn { background: #1f2937; color: #9ca3af; border: 1px solid #4b5563; border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 10px; transition: all 0.2s; }
+        .ctrl-btn { background: #0f172a; color: #9ca3af; border: 1px solid var(--line); border-radius: 6px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 10px; transition: all 0.2s; }
         .ctrl-btn:hover { background: #374151; color: #fff; }
         
         #debug-console { position: fixed; bottom: 0; right: 0; width: 100%; height: 200px; background: rgba(0,0,0,0.95); color: #0f0; font-family: monospace; font-size: 11px; overflow-y: auto; z-index: 9999; padding: 10px; border-top: 1px solid #444; display: none; }
-        .welcome-btn { width: 100%; text-align: left; }
+        .welcome-btn { width: 100%; text-align: left; border: 1px solid var(--line); background: #0f172a; }
         .gem-item.active { background-color: #374151; border-left: 3px solid #3b82f6; }
 
         /* Alpha Bar Animation */
         #alpha-bar { transition: all 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55); transform-origin: center center; }
         .pulse-target { animation: pulse-green 1s infinite; }
         @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.2s ease-out forwards; }
         @keyframes modalPop { 0% { opacity: 0; transform: scale(0.95); } 100% { opacity: 1; transform: scale(1); } }
-        .modal-animate { animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .modal-animate { animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .btn-hover { transition: all 0.2s; }
         .btn-hover:hover { transform: translateY(-1px); filter: brightness(1.1); }
+        .edit-bar-animate { animation: fadeIn 0.2s ease-out forwards; }
+        #send-btn.fly { animation: sendBtnPop 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
+        #send-btn.fly i { animation: planeFly 0.6s ease-in-out; transform-origin: center; display: inline-block; }
+        @keyframes planeFly { 
+            0% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; } 
+            40% { transform: translate(14px, -12px) rotate(18deg) scale(1.05); opacity: 1; } 
+            70% { transform: translate(22px, -18px) rotate(25deg) scale(0.95); opacity: 0.8; } 
+            100% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; } 
+        }
+        @keyframes sendBtnPop { 
+            0% { transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(59, 130, 246, 0); } 
+            40% { transform: translateY(-2px) scale(1.04); box-shadow: 0 8px 18px rgba(59, 130, 246, 0.25); } 
+            100% { transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(59, 130, 246, 0); } 
+        }
+
+        /* Toasts */
+        #toast-stack { position: fixed; top: 16px; right: 16px; z-index: 120; display: flex; flex-direction: column; gap: 8px; }
+        .toast { background: #0f172a; color: #e5e7eb; border: 1px solid var(--line); border-radius: 0.6rem; padding: 10px 12px; font-size: 12px; display: flex; gap: 8px; align-items: center; box-shadow: var(--shadow); }
+        .toast.error { border-color: #ef4444; color: #fecaca; }
+        .toast button { color: inherit; opacity: 0.7; }
+        .toast button:hover { opacity: 1; }
+        #offline-banner { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #0f172a; color: #fef3c7; border: 1px solid rgba(251,191,36,0.5); padding: 8px 14px; border-radius: 999px; font-size: 12px; display: none; align-items: center; gap: 8px; z-index: 130; box-shadow: var(--shadow); }
+        #offline-banner.visible { display: flex; }
+        #image-viewer { position: fixed; inset: 0; background: rgba(2,6,23,0.92); display: none; align-items: center; justify-content: center; z-index: 140; }
+        #image-viewer.visible { display: flex; }
+        #image-viewer img { max-width: min(92vw, 1200px); max-height: 88vh; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: var(--shadow); cursor: zoom-out; background: #0b1220; }
+        #image-viewer .close-btn { position: absolute; top: 14px; right: 14px; width: 36px; height: 36px; border-radius: 999px; background: rgba(15,23,42,0.8); border: 1px solid var(--line); color: #e5e7eb; display: grid; place-items: center; }
+
+        @media (prefers-reduced-motion: reduce) {
+            * { animation: none !important; transition: none !important; }
+        }
         
         #scroll-sentinel { height: 10px; }
+
+        /* Layout polish */
+        #sidebar { background: linear-gradient(180deg, rgba(15,23,42,0.95), rgba(9,14,26,0.95)); border-right: 1px solid var(--line); }
+        #chat-container { background: radial-gradient(800px 400px at 50% 0%, rgba(59,130,246,0.08), transparent 60%); }
+        #settings-modal > div, #model-modal > div, #gem-modal > div { border: 1px solid var(--line); box-shadow: var(--shadow); }
+        #prompt-input { background: #0f172a; border: 1px solid var(--line); }
+        #prompt-input:focus { box-shadow: 0 0 0 2px rgba(59,130,246,0.25); }
+        #send-btn { box-shadow: 0 10px 24px rgba(59,130,246,0.25); border: 1px solid rgba(59,130,246,0.35); }
+        #upload-btn, #mic-btn { border: 1px solid var(--line); }
+        #edit-bar { border: 1px solid var(--line); background: rgba(15,23,42,0.8); }
+        .message-bubble.bg-blue-600 { background: linear-gradient(180deg, #3b82f6, #2563eb); }
+        .message-bubble.bg-gray-700 { background: linear-gradient(180deg, #1f2937, #111827); }
+        #sidebar .bg-gray-700 { background: rgba(15,23,42,0.85) !important; border: 1px solid var(--line); }
+        #sidebar button, #sidebar a { transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease; }
+        #sidebar button:hover, #sidebar a:hover { transform: translateY(-1px); }
+        #thread-list > div { border: 1px solid transparent; }
+        #thread-list > div:hover { border-color: rgba(59,130,246,0.25); background: rgba(15,23,42,0.8); }
+        #gem-list .gem-item { border: 1px solid var(--line); background: rgba(15,23,42,0.7); }
+        #gem-list .gem-item:hover { background: rgba(59,130,246,0.08); }
+        #model-selector-btn { border: 1px solid var(--line); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02); }
+        #file-preview { border: 1px solid var(--line); background: rgba(15,23,42,0.7); }
+        #settings-modal input, #settings-modal textarea, #settings-modal select { background: #0b1220; border: 1px solid var(--line); }
+        #settings-modal input:focus, #settings-modal textarea:focus, #settings-modal select:focus { box-shadow: 0 0 0 2px rgba(59,130,246,0.2); outline: none; }
+        #model-modal input, #gem-modal input, #gem-modal textarea { background: #0b1220; border: 1px solid var(--line); }
+        .fade-in { animation: fadeIn 0.25s ease-out forwards; }
+        .modal-animate { animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .message-group { animation: fadeIn 0.25s ease-out forwards; }
+        .message-bubble { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .message-bubble:hover { transform: translateY(-1px); }
+        #thread-list > div { transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease; }
+        #gem-list .gem-item { transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease; }
+        .model-tag-btn { transition: transform 0.15s ease, background 0.2s ease, border-color 0.2s ease; }
+        .model-tag-btn:hover { transform: translateY(-1px); }
+        ::-webkit-scrollbar { height: 10px; width: 10px; }
+        ::-webkit-scrollbar-track { background: rgba(15,23,42,0.6); }
+        ::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.3); border-radius: 999px; border: 2px solid rgba(15,23,42,0.6); }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(59,130,246,0.45); }
+
+        /* Button & checkbox polish */
+        .btn-hover { border: 1px solid rgba(255,255,255,0.08); background-image: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.08)); }
+        .btn-hover:hover { box-shadow: 0 8px 20px rgba(0,0,0,0.25); }
+        button:focus-visible { outline: 2px solid rgba(59,130,246,0.6); outline-offset: 2px; }
+        input[type="checkbox"] { appearance: none; width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.18); background: #0b1220; display: inline-grid; place-content: center; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04); }
+        input[type="checkbox"]::after { content: ""; width: 8px; height: 8px; transform: scale(0); transition: transform 120ms ease-in-out; background: linear-gradient(180deg, #60a5fa, #3b82f6); border-radius: 2px; }
+        input[type="checkbox"]:checked { border-color: rgba(59,130,246,0.6); box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+        input[type="checkbox"]:checked::after { transform: scale(1); }
 
         /* Mobile */
         @media (max-width: 768px) { 
@@ -88,12 +199,20 @@
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages() %}
       {% if messages %}
-        <div id="flash-msg" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] bg-blue-600 text-white px-6 py-3 rounded shadow-lg transition-opacity duration-500 fade-in">
-          {{ messages[0] }}
+        <div id="flash-msg" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] bg-blue-600 text-white px-6 py-3 rounded shadow-lg flex items-center gap-3 fade-in">
+          <span>{{ messages[0] }}</span>
+          <button onclick="this.parentElement.remove()" class="text-white/80 hover:text-white"><i class="fas fa-times"></i></button>
         </div>
-        <script>setTimeout(()=>{const m=document.getElementById('flash-msg');if(m){m.style.opacity='0';setTimeout(()=>m.remove(),500)}},3000);</script>
       {% endif %}
     {% endwith %}
+    <div id="offline-banner"><i class="fas fa-wifi"></i> オフラインです（ネットワークが切断されています）</div>
+    <div id="image-viewer">
+        <button class="close-btn" onclick="closeImageViewer()" aria-label="close"><i class="fas fa-times"></i></button>
+        <img id="image-viewer-img" alt="image preview">
+    </div>
+
+    <!-- Toast Stack -->
+    <div id="toast-stack"></div>
     
     <!-- Alpha Bar -->
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-green-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-green-400">
@@ -137,6 +256,12 @@
     <!-- Main Content -->
     <div class="flex-1 flex flex-col w-full relative min-w-0">
         <header class="bg-gray-800 border-b border-gray-700 p-3 shadow-md flex justify-between items-center shrink-0 md:hidden"><button id="menu-btn" class="text-gray-300 p-2"><i class="fas fa-bars text-xl"></i></button><span class="font-bold text-sm">AI Playground</span><div class="flex items-center"><button id="mobile-new-chat-btn" class="text-blue-400 font-bold text-xl p-2">+</button></div></header>
+        {% if easy_login_used %}
+        <div class="bg-red-900/30 border-b border-red-700 text-red-200 text-xs px-4 py-2 flex items-center gap-2">
+            <i class="fas fa-exclamation-triangle"></i>
+            簡易ログインでログインしました。安全のため、再ログイン時は通常のパスワードと2FAをご利用ください。
+        </div>
+        {% endif %}
         <div class="flex-1 overflow-hidden relative">
             <div id="chat-container" class="absolute inset-0 overflow-y-auto p-4 space-y-6 scroll-smooth"></div>
             <div id="welcome-screen" class="absolute inset-0 flex flex-col items-center justify-center text-gray-500 space-y-4 bg-[#111827] z-10 fade-in"><h2 class="text-2xl font-bold text-white flex items-center gap-2"><i class="fas fa-gem text-blue-500"></i> AI Gems & Chat</h2><div class="grid grid-cols-1 gap-2 w-full max-w-md px-4"><button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover" onclick="quickStart('gemini-3-flash-preview')">⚡ Gemini 3.0 Flash</button><button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover" onclick="quickStart('gemini-3-pro-preview')">🧠 Gemini 3.0 Pro</button></div></div>
@@ -155,42 +280,86 @@
                     <button onclick="clearQuote()" class="text-gray-400 hover:text-white ml-2"><i class="fas fa-times"></i></button>
                 </div>
 
+                <!-- Edit Bar -->
+                <div id="edit-bar" class="hidden edit-bar-animate bg-gray-900/60 border border-gray-700 rounded px-3 py-2 text-xs text-gray-300 items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-pen text-blue-300"></i>
+                        <span>編集中: このメッセージを編集しています</span>
+                    </div>
+                    <button id="cancel-edit-btn" class="text-gray-400 hover:text-white">キャンセル</button>
+                </div>
+
                 <div class="flex flex-wrap justify-between items-center text-xs text-gray-400 gap-2">
-                    <select id="model-select" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 outline-none text-white max-w-[200px] truncate transition focus:border-blue-500">
-                        <optgroup label="Gemini 3.0">
-                            <option value="gemini-3-flash-preview">Gemini 3.0 Flash</option>
-                            <option value="gemini-3-pro-preview">Gemini 3.0 Pro</option>
-                        </optgroup>
-                        <optgroup label="Legacy Gemini">
-                            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                        </optgroup>
-                        <optgroup label="GPT">
-                            <option value="gpt-5.2">GPT-5.2 (Responses API)</option>
-                            <option value="gpt-5.1">GPT-5.1</option>
-                            <option value="gpt-5-mini">GPT-5 mini</option>
-                        </optgroup>
-                        <optgroup label="xAI Grok">
-                            <option value="grok-4-1-fast-reasoning">Grok 4.1 Fast (Reasoning)</option>
-                            <option value="grok-4-1-fast-non-reasoning">Grok 4.1 Fast (Non-Reasoning)</option>
-                            <option value="grok-4-fast-reasoning">Grok 4 Fast (Reasoning)</option>
-                            <option value="grok-4-fast-non-reasoning">Grok 4 Fast (Non-Reasoning)</option>
-                        </optgroup>
-                    </select>
+                    <input type="hidden" id="model-select" value="gemini-3-flash-preview">
+                    <button id="model-selector-btn" onclick="openModelModal()" class="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-white text-xs hover:bg-gray-600 transition flex items-center gap-2 max-w-[200px] truncate">
+                        <i class="fas fa-robot text-blue-400"></i>
+                        <span id="model-selector-text">Gemini 3.0 Flash</span>
+                        <i class="fas fa-chevron-down text-[10px] text-gray-400 ml-auto"></i>
+                    </button>
                     <div class="flex gap-3 items-center flex-wrap">
-                        <label id="search-container" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label><label id="python-container" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-python" class="accent-yellow-500 w-3 h-3"><span class="text-yellow-200">Python</span></label>
+                        <label id="search-container" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label><label id="python-container" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-python" class="accent-yellow-500 w-3 h-3" checked><span class="text-yellow-200">Python</span></label>
                         <label id="sys-prompt-option" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-sys-prompt" class="accent-green-500 w-3 h-3"><span class="text-green-300">SysPrompt</span></label>
-                        <div id="thinking-options" class="flex items-center gap-2 hidden"><label class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-thinking" class="accent-purple-500 w-3 h-3"><span class="text-purple-300">Thinking</span></label><select id="thinking-level" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="minimal">Min</option><option value="low">Low</option><option value="medium">Mid</option><option value="high" selected>High</option></select></div>
+                        <div id="thinking-options" class="flex items-center gap-2 hidden">
+                            <label class="flex items-center space-x-1 cursor-pointer select-none">
+                                <input type="checkbox" id="enable-thinking" class="accent-purple-500 w-3 h-3">
+                                <span class="text-purple-300">Thinking</span>
+                            </label>
+                            <select id="thinking-level" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none">
+                                <option value="minimal">Min</option>
+                                <option value="low">Low</option>
+                                <option value="medium">Mid</option>
+                                <option value="high" selected>High</option>
+                            </select>
+                            <label class="text-[10px] text-purple-300/80">Budget</label>
+                            <input id="thinking-budget" type="number" min="0" max="32768" step="256" value="4096" class="w-20 bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-[10px] text-white outline-none" title="Gemini 2.5のみ有効（tokens）">
+                        </div>
                         <div id="reasoning-effort-container" class="hidden flex items-center gap-1"><span class="text-gray-400">Effort:</span><select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="none">None</option><option value="low">Low</option><option value="medium" selected>Med</option><option value="high">High</option><option value="xhigh">XHigh</option></select></div>
                         <div class="flex items-center gap-1 border-l border-gray-600 pl-2 ml-2"><span class="text-gray-400">Safety:</span><select id="safety-setting" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="default">Default</option><option value="none" class="text-red-300">None</option></select></div>
                         <label class="flex items-center gap-1 cursor-pointer select-none ml-2" title="Client-side Compression"><input type="checkbox" id="enable-compression" class="accent-blue-500 w-3 h-3" checked><span class="text-gray-400 text-[10px]">Compress</span></label>
                     </div>
                 </div>
                 <div id="file-preview" class="hidden px-3 py-2 bg-gray-700/50 rounded text-xs text-blue-300 flex justify-between items-center"><span id="file-name" class="truncate"></span><button id="clear-file-btn" class="text-gray-400 hover:text-white ml-2">✕</button></div>
-                <div class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><button id="upload-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover"><i class="fas fa-paperclip"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
+                <div id="auto-search-banner" class="hidden mb-2 px-3 py-2 bg-yellow-900/30 border border-yellow-600/60 text-yellow-200 text-xs rounded flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2"><i class="fas fa-bolt"></i><span id="auto-search-msg">Xリンクを検出しました。検索を自動でONにします。</span></div>
+                    <div class="flex gap-2 shrink-0">
+                        <button id="auto-search-on-btn" class="px-2 py-1 bg-yellow-600 hover:bg-yellow-500 text-black rounded text-[11px] font-bold btn-hover">検索ONで続行</button>
+                        <button id="auto-search-off-btn" class="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-[11px] btn-hover">検索OFFで回答</button>
+                    </div>
+                </div>
+                <div class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><button id="upload-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="mic-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
             </div>
         </div>
     </div>
     
+    <!-- Model Selector Modal -->
+    <div id="model-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm">
+        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-0 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh] modal-animate overflow-hidden">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-900/50">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-robot text-blue-400"></i> Select Model</h2>
+                <button onclick="document.getElementById('model-modal').style.display='none'" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-2 border-b border-gray-700 bg-gray-900/30">
+                <div class="relative">
+                    <i class="fas fa-search absolute left-3 top-2.5 text-gray-500 text-xs"></i>
+                    <input type="text" id="model-search" placeholder="Search models..." class="w-full bg-gray-800 border border-gray-700 rounded pl-9 pr-3 py-2 text-sm text-white focus:border-blue-500 outline-none transition placeholder-gray-600">
+                </div>
+                <div id="model-tag-bar" class="flex flex-wrap gap-2 mt-2 px-1">
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">All</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">OpenAI</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Gemini</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">xAI</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Image</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Audio</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Reasoning</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Fast</button>
+                </div>
+            </div>
+            <div id="model-list-container" class="overflow-y-auto p-4 flex-1 space-y-6">
+                <!-- Models rendered by JS -->
+            </div>
+        </div>
+    </div>
+
     <!-- Gem Modal -->
     <div id="gem-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-gray-800 rounded-lg w-full max-w-lg p-6 shadow-2xl border border-gray-700 m-4 flex flex-col modal-animate">
@@ -208,7 +377,73 @@
     </div>
 
     <!-- Settings Modal -->
-    <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm"><div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh] modal-animate"><h2 class="text-xl font-bold text-white mb-4 flex items-center"><i class="fas fa-cog mr-2 text-gray-400"></i>設定</h2><div class="flex border-b border-gray-700 mb-4 gap-4"><button id="btn-tab-general" class="px-4 py-2 text-blue-400 border-b-2 border-blue-400 font-bold" onclick="switchTab('general')">一般</button><button id="btn-tab-security" class="px-4 py-2 text-gray-400 hover:text-white border-b-2 border-transparent" onclick="switchTab('security')">セキュリティ <span class="text-[10px] bg-blue-600 text-white px-1 rounded ml-1">NEW</span></button></div><div class="overflow-y-auto pr-2 space-y-4 flex-1 animate-fadeIn" id="tab-general"><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">APIキー</h3><div class="space-y-3"><div><label class="text-xs text-gray-500 block">OpenAI API Key</label><input type="password" id="set-openai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">Gemini API Key</label><input type="password" id="set-gemini" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">xAI API Key</label><input type="password" id="set-xai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div></div></div><div><label class="text-xs text-gray-500 block mb-1">デフォルト システムプロンプト</label><textarea id="sys-prompt-text" class="w-full h-32 bg-gray-900 border-gray-600 rounded p-3 text-sm text-white"></textarea></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">アカウント設定</h3><div class="space-y-3"><div><label class="text-xs text-gray-500 block">ユーザー名変更</label><input type="text" id="set-username" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄"></div><div><label class="text-xs text-gray-500 block">パスワード変更</label><input type="password" id="set-password" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄"></div></div></div></div><div class="overflow-y-auto pr-2 space-y-4 flex-1 hidden animate-fadeIn" id="tab-security"><div id="mig-status-box" class="hidden mb-4 p-3 bg-blue-900/30 border border-blue-500/50 rounded text-xs text-blue-200"><i class="fas fa-sync fa-spin mr-2"></i> 暗号化データの移行処理中です...</div><div class="bg-gray-900 p-4 rounded border border-gray-700"><div class="flex items-center justify-between"><div><div class="font-bold text-sm">E2EE (End-to-End Encryption)</div><div class="text-xs text-gray-500">チャット履歴とファイルを暗号化します。</div></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-e2ee" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div></label></div></div><div class="bg-red-900/20 p-4 rounded border border-red-800 mt-4"><h3 class="text-sm font-bold text-red-500 mb-2">アカウント削除</h3><button id="delete-account-btn" class="w-full bg-red-800/50 hover:bg-red-700 text-red-200 border border-red-600 py-2 rounded text-sm transition btn-hover">アカウントを完全に削除</button></div></div><div class="flex justify-end gap-3 mt-4"><button id="close-settings-btn" class="px-4 py-2 text-gray-400 hover:text-white transition">キャンセル</button><button id="save-settings-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-hover">保存</button></div></div></div>
+    <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm"><div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh] modal-animate"><h2 class="text-xl font-bold text-white mb-4 flex items-center"><i class="fas fa-cog mr-2 text-gray-400"></i>設定</h2>
+    <div class="flex border-b border-gray-700 mb-4 gap-4 overflow-x-auto">
+        <button id="btn-tab-general" class="px-4 py-2 text-blue-400 border-b-2 border-blue-400 font-bold whitespace-nowrap" onclick="switchTab('general')">一般</button>
+        <button id="btn-tab-security" class="px-4 py-2 text-gray-400 hover:text-white border-b-2 border-transparent whitespace-nowrap" onclick="switchTab('security')">セキュリティ</button>
+        <button id="btn-tab-2fa" class="px-4 py-2 text-gray-400 hover:text-white border-b-2 border-transparent whitespace-nowrap" onclick="switchTab('2fa')">2要素認証 <span class="text-[10px] bg-green-600 text-white px-1 rounded ml-1">NEW</span></button>
+        <button id="btn-tab-feedback" class="px-4 py-2 text-gray-400 hover:text-white border-b-2 border-transparent whitespace-nowrap" onclick="switchTab('feedback')">フィードバック</button>
+    </div>
+    
+    <div class="overflow-y-auto pr-2 space-y-4 flex-1 animate-fadeIn" id="tab-general"><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">APIキー</h3><div class="space-y-3"><div><label class="text-xs text-gray-500 block">OpenAI API Key</label><input type="password" id="set-openai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">Gemini API Key</label><input type="password" id="set-gemini" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">xAI API Key</label><input type="password" id="set-xai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">Google API Key (TTS)</label><input type="password" id="set-google-key" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">Google Cloud Project ID (TTS)</label><input type="text" id="set-google-project" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">音声設定</h3><div class="space-y-2"><label class="text-xs text-gray-500 block">STTモデル</label><select id="set-stt-model" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"><option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe</option><option value="gpt-4o-transcribe">gpt-4o-transcribe</option><option value="gpt-4o-transcribe-diarize">gpt-4o-transcribe-diarize</option><option value="whisper-1">whisper-1 (latest)</option></select><div class="text-[10px] text-gray-500">マイク入力の文字起こしモデルを選択します。</div></div></div><div><label class="text-xs text-gray-500 block mb-1">デフォルト システムプロンプト</label><textarea id="sys-prompt-text" class="w-full h-32 bg-gray-900 border-gray-600 rounded p-3 text-sm text-white"></textarea></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">送信設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-enter-to-send" class="accent-blue-500 w-3 h-3"><span>Enterで送信（改行はShift+Enter）</span></label></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">検索設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-auto-search-links" class="accent-yellow-500 w-3 h-3"><span>Xリンク検出時に自動で検索をONにする</span></label><div class="text-[10px] text-gray-500 mt-1">OFFにすると、リンク検出時の自動検索は行われません。</div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">簡易ログイン</h3><div class="space-y-3 text-xs text-gray-300"><div class="text-[10px] text-red-300">警告: 有効期間中は一時パスワードでログインでき、2FAはスキップされます。ログイン後は自動で無効化されます。</div><div class="flex items-center gap-2"><input type="number" id="easy-login-mins" value="5" min="1" max="120" class="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><span>分間有効</span><button id="easy-login-generate" class="ml-auto bg-orange-600 hover:bg-orange-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">一時パスワード発行</button></div><div id="easy-login-result" class="hidden bg-gray-800 border border-orange-500/40 rounded p-2 text-[11px] text-orange-200"><div>一時パスワード: <span id="easy-login-code" class="font-mono select-all"></span></div><div>有効期限: <span id="easy-login-exp" class="font-mono"></span></div></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">キャッシュ設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-use-sw-cache" class="accent-blue-500 w-3 h-3"><span>高速キャッシュ（Service Worker）を有効化</span></label><div class="text-[10px] text-gray-500 mt-1">ページ読み込み時に更新確認を行い、差分があればキャッシュを更新します。</div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">アカウント設定</h3><div class="space-y-3"><div><label class="text-xs text-gray-500 block">ユーザー名変更</label><input type="text" id="set-username" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄"></div><div><label class="text-xs text-gray-500 block">パスワード変更</label><input type="password" id="set-password" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄"></div></div></div></div><div class="overflow-y-auto pr-2 space-y-4 flex-1 hidden animate-fadeIn" id="tab-security"><div id="mig-status-box" class="hidden mb-4 p-3 bg-blue-900/30 border border-blue-500/50 rounded text-xs text-blue-200"><i class="fas fa-sync fa-spin mr-2"></i> 暗号化データの移行処理中です...<div id="mig-progress-text" class="mt-1 text-[10px] text-blue-200/80"></div><div class="w-full bg-blue-950/40 h-2 rounded mt-2 overflow-hidden"><div id="mig-progress-bar" class="h-2 bg-blue-400/80" style="width:0%"></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><div class="flex items-center justify-between"><div><div class="font-bold text-sm">E2EE (End-to-End Encryption)</div><div class="text-xs text-gray-500">チャット履歴とファイルを暗号化します。</div></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-e2ee" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div></label></div></div><div class="bg-red-900/20 p-4 rounded border border-red-800 mt-4"><h3 class="text-sm font-bold text-red-500 mb-2">アカウント削除</h3><button id="delete-account-btn" class="w-full bg-red-800/50 hover:bg-red-700 text-red-200 border border-red-600 py-2 rounded text-sm transition btn-hover">アカウントを完全に削除</button></div></div>
+
+    <!-- 2FA Tab -->
+    <div class="overflow-y-auto pr-2 space-y-4 flex-1 hidden animate-fadeIn" id="tab-2fa">
+        <div id="2fa-status-panel" class="bg-gray-900 p-4 rounded border border-gray-700">
+            <h3 class="text-sm font-bold text-blue-400 mb-2">Status</h3>
+            <div class="flex items-center justify-between mb-4">
+                <span class="text-sm text-gray-300">Two-Factor Authentication</span>
+                <span id="2fa-badge" class="px-2 py-0.5 rounded text-xs font-bold bg-gray-700 text-gray-400">DISABLED</span>
+            </div>
+            <button id="disable-2fa-btn" class="hidden w-full bg-red-600 hover:bg-red-500 text-white py-2 rounded text-sm font-bold mb-2">Disable 2FA</button>
+        </div>
+
+        <div id="2fa-setup-panel" class="space-y-4">
+            <!-- TOTP -->
+            <div class="bg-gray-900 p-4 rounded border border-gray-700">
+                <h3 class="text-sm font-bold text-purple-400 mb-2"><i class="fas fa-mobile-alt mr-2"></i> Authenticator App (TOTP)</h3>
+                <p class="text-xs text-gray-400 mb-3">Google Authenticator, Authy, etc.</p>
+                <button onclick="setupTOTP()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded text-xs font-bold w-full">Setup TOTP</button>
+                <div id="totp-setup-area" class="hidden mt-4 p-4 bg-gray-800 rounded text-center">
+                    <img id="totp-qr" class="mx-auto mb-2 border-4 border-white rounded" width="150" height="150">
+                    <p class="text-xs text-gray-400 font-mono mb-2 select-all" id="totp-secret-disp"></p>
+                    <div class="flex gap-2">
+                        <input type="text" id="totp-verify-code" placeholder="000000" class="flex-1 bg-gray-700 border border-gray-600 rounded px-2 text-sm text-center">
+                        <button onclick="enableTOTP()" class="bg-blue-600 text-white px-3 rounded text-xs">Verify</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WebAuthn -->
+            <div class="bg-gray-900 p-4 rounded border border-gray-700">
+                <h3 class="text-sm font-bold text-green-400 mb-2"><i class="fas fa-key mr-2"></i> Security Key / Passkey</h3>
+                <p class="text-xs text-gray-400 mb-3">YubiKey, Touch ID, Windows Hello.</p>
+                <button onclick="registerWebAuthn()" class="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded text-xs font-bold w-full">Register Key</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feedback Tab -->
+    <div class="overflow-y-auto pr-2 space-y-4 flex-1 hidden animate-fadeIn" id="tab-feedback">
+        <div class="bg-gray-900 p-4 rounded border border-gray-700">
+            <h3 class="text-sm font-bold text-blue-400 mb-2"><i class="fas fa-bug mr-2"></i>フィードバック送信</h3>
+            <div class="space-y-3">
+                <input type="text" id="fb-title" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="タイトル (任意)">
+                <textarea id="fb-message" class="w-full h-28 bg-gray-800 border border-gray-600 rounded px-2 py-2 text-sm text-white" placeholder="バグ報告・要望などを入力してください"></textarea>
+                <button id="fb-submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white rounded py-2 text-sm font-bold btn-hover">送信</button>
+            </div>
+        </div>
+        <div class="bg-gray-900 p-4 rounded border border-gray-700">
+            <h3 class="text-sm font-bold text-green-400 mb-2">あなたのフィードバック</h3>
+            <div id="fb-list" class="space-y-3 text-xs text-gray-300"></div>
+        </div>
+        <div id="fb-admin-panel" class="bg-gray-900 p-4 rounded border border-gray-700 hidden">
+            <h3 class="text-sm font-bold text-yellow-400 mb-2">管理者: すべてのフィードバック</h3>
+            <div id="fb-admin-list" class="space-y-3 text-xs text-gray-300"></div>
+        </div>
+    </div>
+
+<div class="flex justify-end gap-3 mt-4"><button id="close-settings-btn" class="px-4 py-2 text-gray-400 hover:text-white transition">キャンセル</button><button id="save-settings-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-hover">保存</button></div></div></div>
     
     <!-- Library Modal -->
     <div id="lib-modal" class="fixed inset-0 bg-gray-900/95 z-50 flex flex-col backdrop-blur-sm" style="display:none;"><div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0 modal-animate"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button onclick="document.getElementById('lib-modal').style.display='none'" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div><div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0"><span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span><button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs btn-hover" disabled>削除</button></div><div id="lib-grid" class="flex-1 overflow-y-auto p-4 grid grid-cols-3 gap-4"></div></div>
@@ -233,9 +468,15 @@
         let currentThreadId = {{ initial_thread_id|default('null') }};
         let activeGem = null, currentImageUrls = [], abortController = null, userAutoScroll = true, searchTimeout; 
         let currentJobId = null; 
+        let editingMessageId = null; // Track message being edited
         const messageStore = {}, lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set() };
         let threadPage = 1, threadLoading = false, hasMoreThreads = true;
+        let threadObserver = null;
         let currentQuote = "";
+        let enterToSend = {{ 'true' if current_user.is_authenticated and current_user.enter_to_send else 'false' }};
+        let autoSearchOnLinks = {{ 'true' if current_user.is_authenticated and current_user.auto_search_on_links else 'false' }};
+        let useSwCache = {{ 'true' if current_user.is_authenticated and current_user.use_sw_cache else 'false' }};
+        const appVersion = "{{ app_version }}";
         
         // Tree State
         let allMessages = [];
@@ -243,7 +484,150 @@
         let currentParentId = null;
         
         function escapeHtml(t) { return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") : t; }
-        function switchTab(t) { get('tab-general').classList.add('hidden'); get('tab-security').classList.add('hidden'); get('tab-'+t).classList.remove('hidden'); const btnG = get('btn-tab-general'); const btnS = get('btn-tab-security'); if(t==='general'){ btnG.classList.add('text-blue-400','border-blue-400','font-bold'); btnG.classList.remove('text-gray-400','hover:text-white','border-transparent'); btnS.classList.remove('text-blue-400','border-blue-400','font-bold'); btnS.classList.add('text-gray-400','hover:text-white','border-transparent'); } else { btnS.classList.add('text-blue-400','border-blue-400','font-bold'); btnS.classList.remove('text-gray-400','hover:text-white','border-transparent'); btnG.classList.remove('text-blue-400','border-blue-400','font-bold'); btnG.classList.add('text-gray-400','hover:text-white','border-transparent'); } }
+        function updatePromptPlaceholder() {
+            const input = get('prompt-input');
+            if (!input) return;
+            if (editingMessageId) {
+                input.placeholder = "編集中... (Enter送信は設定に従います)";
+            } else if (enterToSend) {
+                input.placeholder = "Enter で送信 (Shift+Enter で改行)";
+            } else {
+                input.placeholder = "Ctrl + Enter で送信...";
+            }
+        }
+        function setEditUi(active) {
+            const bar = get('edit-bar');
+            if (!bar) return;
+            if (active) {
+                bar.classList.remove('hidden');
+                bar.classList.add('flex');
+            } else {
+                bar.classList.add('hidden');
+                bar.classList.remove('flex');
+            }
+            updatePromptPlaceholder();
+        }
+        function cancelEdit() {
+            editingMessageId = null;
+            currentParentId = currentLeafId || null;
+            const input = get('prompt-input');
+            if (input) {
+                input.value = '';
+                input.style.height = 'auto';
+            }
+            clearQuote();
+            setEditUi(false);
+        }
+        function beginEditMessage(id, autoSend = false) {
+            const text = messageStore[id];
+            if (!text) return;
+            const input = get('prompt-input');
+            input.value = text;
+            input.focus();
+            input.style.height = 'auto';
+            input.style.height = input.scrollHeight + 'px';
+            const msg = allMessages.find(m => m.id == id);
+            if (msg) {
+                currentParentId = msg.parent_id;
+                editingMessageId = id;
+                setEditUi(true);
+                if (msg.quote_text) {
+                    currentQuote = msg.quote_text;
+                    get('quote-text-display').innerText = currentQuote;
+                    get('quote-bar').classList.add('visible');
+                } else {
+                    clearQuote();
+                }
+            }
+            if (autoSend) sendMessage();
+        }
+        function playSendAnimation() {
+            const btn = get('send-btn');
+            if (!btn) return;
+            btn.classList.remove('fly');
+            void btn.offsetWidth;
+            btn.classList.add('fly');
+        }
+        async function purgeCaches() {
+            if ('caches' in window) {
+                const keys = await caches.keys();
+                await Promise.all(keys.map(k => caches.delete(k)));
+            }
+            if (navigator.serviceWorker) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(regs.map(r => r.unregister()));
+            }
+        }
+        async function applyCacheMode(enable) {
+            if (!('serviceWorker' in navigator)) return;
+            if (enable) {
+                try {
+                    await navigator.serviceWorker.register(`/static/sw.js?v=${encodeURIComponent(appVersion)}`);
+                } catch (e) {}
+            } else {
+                await purgeCaches();
+            }
+        }
+        async function checkVersion() {
+            try {
+                const res = await fetch("/api/version", { cache: "no-store" });
+                if (!res.ok) return;
+                const data = await res.json();
+                const latest = data.version || "";
+                const stored = localStorage.getItem("app_version") || "";
+                if (latest && stored && latest !== stored) {
+                    await purgeCaches();
+                    localStorage.setItem("app_version", latest);
+                    location.reload();
+                    return;
+                }
+                if (latest && !stored) localStorage.setItem("app_version", latest);
+            } catch (e) {}
+        }
+        function updateOfflineBanner() {
+            const b = get('offline-banner');
+            if (!b) return;
+            if (navigator.onLine) b.classList.remove('visible');
+            else b.classList.add('visible');
+        }
+        function openImageViewer(url) {
+            const viewer = get('image-viewer');
+            const img = get('image-viewer-img');
+            if (!viewer || !img) return;
+            img.src = url;
+            viewer.classList.add('visible');
+        }
+        function closeImageViewer() {
+            const viewer = get('image-viewer');
+            const img = get('image-viewer-img');
+            if (!viewer || !img) return;
+            img.src = '';
+            viewer.classList.remove('visible');
+        }
+        function showToast(msg, type = "error", sticky = false) {
+            const stack = get('toast-stack');
+            if (!stack) return;
+            const el = document.createElement('div');
+            el.className = `toast ${type}`;
+            el.innerHTML = `<i class="fas ${type==='error' ? 'fa-triangle-exclamation' : 'fa-circle-info'}"></i><span class="flex-1">${escapeHtml(msg)}</span><button aria-label="close"><i class="fas fa-times"></i></button>`;
+            el.querySelector('button').onclick = () => el.remove();
+            stack.appendChild(el);
+            if (!sticky) setTimeout(() => el.remove(), 12000);
+        }
+        function switchTab(t) { 
+            ['general', 'security', '2fa', 'feedback'].forEach(x => {
+                get('tab-'+x).classList.add('hidden');
+                const btn = get('btn-tab-'+x);
+                if(x === t) {
+                    get('tab-'+x).classList.remove('hidden');
+                    btn.classList.add('text-blue-400','border-blue-400','font-bold');
+                    btn.classList.remove('text-gray-400','hover:text-white','border-transparent');
+                } else {
+                    btn.classList.remove('text-blue-400','border-blue-400','font-bold');
+                    btn.classList.add('text-gray-400','hover:text-white','border-transparent');
+                }
+            });
+        }
         get('chat-container').addEventListener('scroll', function() { userAutoScroll = (this.scrollHeight - this.scrollTop - this.clientHeight) < 50; });
         function scrollToBottom() { if(userAutoScroll) { const c = get('chat-container'); c.scrollTop = c.scrollHeight; } }
         
@@ -279,10 +663,12 @@
         }
 
         // Quote Reply Logic
-        document.addEventListener('mouseup', () => {
+        function handleQuotePopover() {
             const sel = window.getSelection();
             const btn = get('quote-popover');
-            if (sel.toString().trim().length > 0 && get('chat-container').contains(sel.anchorNode)) {
+            if (!sel || sel.rangeCount === 0) { btn.style.display = 'none'; return; }
+            const text = sel.toString().trim();
+            if (text.length > 0 && get('chat-container').contains(sel.anchorNode)) {
                 const range = sel.getRangeAt(0);
                 const rect = range.getBoundingClientRect();
                 btn.style.display = 'block';
@@ -290,6 +676,14 @@
                 btn.style.left = rect.left + 'px';
             } else {
                 btn.style.display = 'none';
+            }
+        }
+        document.addEventListener('mouseup', handleQuotePopover);
+        document.addEventListener('touchend', () => setTimeout(handleQuotePopover, 0), { passive: true });
+        document.addEventListener('selectionchange', () => {
+            // Avoid excessive updates during selection drag
+            if (window.getSelection && window.getSelection().type === 'Range') {
+                handleQuotePopover();
             }
         });
         
@@ -309,6 +703,208 @@
             get('quote-text-display').innerText = "";
         };
 
+        const MODELS = [
+            {
+                category: "Gemini 3.0",
+                icon: "fas fa-star text-yellow-400",
+                description: "Google's latest multimodal models",
+                items: [
+                    { id: "gemini-3-flash-preview", name: "Gemini 3.0 Flash", desc: "Fastest and most cost-efficient.", price: "In $0.50/1M, Out $3.00/1M" },
+                    { id: "gemini-3-pro-preview", name: "Gemini 3.0 Pro", desc: "Best performing model for complex tasks.", price: "In $2.00/1M, Out $12.00/1M (≤200k)" }
+                ]
+            },
+            {
+                category: "Legacy Gemini",
+                icon: "fas fa-history text-gray-400",
+                description: "Previous generation models",
+                items: [
+                    { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", desc: "Balanced performance.", price: "In $0.30/1M, Out $2.50/1M" }
+                ]
+            },
+            {
+                category: "Banana Image Gen",
+                icon: "fas fa-image text-pink-400",
+                description: "Specialized image generation models",
+                items: [
+                    { id: "gemini-2.5-flash-image", name: "Nano Banana", desc: "Fast image generation.", price: "In $0.30/1M, Out $0.039/image" },
+                    { id: "gemini-3-pro-image-preview", name: "Nano Banana Pro", desc: "High quality image generation.", price: "In $2.00/1M, Out $0.134 (1K/2K) or $0.24 (4K)" }
+                ]
+            },
+            {
+                category: "OpenAI Image Gen",
+                icon: "fas fa-paint-brush text-purple-400",
+                description: "DALL-E based generation",
+                items: [
+                    { id: "gpt-image-1.5", name: "GPT Image 1.5", desc: "Latest image model.", price: "Text In $5/1M, Text Out $10/1M; Image Out $32/1M" },
+                    { id: "gpt-image-1", name: "GPT Image 1", desc: "Standard quality.", price: "Text In $5/1M; Image Out $40/1M" },
+                    { id: "gpt-image-1-mini", name: "GPT Image 1 Mini", desc: "Faster, lower resolution.", price: "Text In $2/1M; Image Out $8/1M" }
+                ]
+            },
+            {
+                category: "GPT",
+                icon: "fas fa-brain text-green-400",
+                description: "OpenAI's flagship models",
+                items: [
+                    { id: "gpt-5.2", name: "GPT-5.2 (Responses API)", desc: "Most capable reasoning model.", price: "In $1.75/1M, Out $14/1M" },
+                    { id: "gpt-5.1", name: "GPT-5.1", desc: "High intelligence.", price: "In $1.25/1M, Out $10/1M" },
+                    { id: "gpt-5-mini", name: "GPT-5 mini", desc: "Small and efficient.", price: "In $0.25/1M, Out $2/1M" }
+                ]
+            },
+            {
+                category: "Audio Generation",
+                icon: "fas fa-microphone text-red-400",
+                description: "Text-to-Speech models",
+                items: [
+                    { id: "gpt-4o-mini-tts", name: "GPT-4o Mini TTS", desc: "OpenAI TTS.", price: "Text In $0.60/1M, Audio Out $12/1M" },
+                    { id: "gemini-2.5-flash-preview-tts", name: "Gemini 2.5 Flash TTS", desc: "Google TTS (Preview).", price: "Text In $0.50/1M, Audio Out $10/1M" },
+                    { id: "gemini-2.5-pro-preview-tts", name: "Gemini 2.5 Pro TTS", desc: "Google TTS Pro (Preview).", price: "Text In $1.00/1M, Audio Out $20/1M" },
+                    { id: "google-tts-studio", name: "Google TTS (Studio)", desc: "High fidelity studio voices.", price: "$160 per 1M chars" },
+                    { id: "google-tts-neural", name: "Google TTS (Neural2)", desc: "Standard neural voices.", price: "$16 per 1M chars" }
+                ]
+            },
+            {
+                category: "xAI Grok",
+                icon: "fas fa-rocket text-white",
+                description: "Models by xAI",
+                items: [
+                    { id: "grok-4-1-fast-reasoning", name: "Grok 4.1 Fast (Reasoning)", desc: "Fast with reasoning capabilities." },
+                    { id: "grok-4-1-fast-non-reasoning", name: "Grok 4.1 Fast (Non-Reasoning)", desc: "Fast standard model." },
+                    { id: "grok-4-fast-reasoning", name: "Grok 4 Fast (Reasoning)", desc: "Previous gen reasoning." },
+                    { id: "grok-4-fast-non-reasoning", name: "Grok 4 Fast (Non-Reasoning)", desc: "Previous gen standard." }
+                ]
+            }
+        ];
+
+        let activeModelTag = 'all';
+        const MODEL_TAGS = ['all','openai','gemini','xai','image','audio','reasoning','fast'];
+
+        function getModelTags(m, group) {
+            const tags = [];
+            const id = (m.id || '').toLowerCase();
+            const name = (m.name || '').toLowerCase();
+            const desc = (m.desc || '').toLowerCase();
+            const cat = (group.category || '').toLowerCase();
+            if (cat.includes('gemini') || cat.includes('banana')) tags.push('gemini');
+            if (cat.includes('gpt') || cat.includes('openai')) tags.push('openai');
+            if (cat.includes('xai') || cat.includes('grok')) tags.push('xai');
+            if (cat.includes('image') || id.includes('image')) tags.push('image');
+            if (cat.includes('audio') || id.includes('tts') || name.includes('tts')) tags.push('audio');
+            if (id.includes('reasoning') || name.includes('reasoning')) tags.push('reasoning');
+            if (id.includes('fast') || name.includes('fast') || desc.includes('fast')) tags.push('fast');
+            return tags;
+        }
+
+        function updateModelTagUi() {
+            const bar = get('model-tag-bar');
+            if (!bar) return;
+            const btns = bar.querySelectorAll('.model-tag-btn');
+            btns.forEach(b => {
+                const t = b.innerText.trim().toLowerCase();
+                const active = (t === 'all' ? 'all' : t) === activeModelTag;
+                b.className = `model-tag-btn px-2 py-1 text-[10px] rounded border transition ${active ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`;
+            });
+        }
+
+        function renderModelList(filter = "") {
+            const container = get('model-list-container');
+            container.innerHTML = '';
+            const f = filter.toLowerCase();
+            
+            MODELS.forEach(group => {
+                const matches = group.items.filter(m => {
+                    const hit = m.name.toLowerCase().includes(f) || m.id.toLowerCase().includes(f);
+                    if (!hit) return false;
+                    if (activeModelTag === 'all') return true;
+                    return getModelTags(m, group).includes(activeModelTag);
+                });
+                if (matches.length > 0) {
+                    const groupEl = document.createElement('div');
+                    groupEl.innerHTML = `
+                        <div class="flex items-center gap-2 mb-3 px-2">
+                            <i class="${group.icon}"></i>
+                            <div>
+                                <h3 class="font-bold text-gray-200 text-sm">${group.category}</h3>
+                                <p class="text-[10px] text-gray-500">${group.description}</p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-6"></div>
+                    `;
+                    const grid = groupEl.querySelector('.grid');
+                    
+                    matches.forEach(m => {
+                        const item = document.createElement('button');
+                        const isSelected = get('model-select').value === m.id;
+                        const priceHtml = m.price ? `<div class="text-[10px] text-gray-500 mt-1 font-mono">${m.price}</div>` : '';
+                        item.className = `flex flex-col text-left p-3 rounded-lg border transition ${isSelected ? 'bg-blue-600/20 border-blue-500 ring-1 ring-blue-500' : 'bg-gray-800 border-gray-700 hover:border-gray-500 hover:bg-gray-750'}`;
+                        item.onclick = () => selectModel(m.id, m.name);
+                        item.innerHTML = `
+                            <div class="flex justify-between items-center w-full mb-1">
+                                <span class="font-bold text-sm text-gray-200">${m.name}</span>
+                                ${isSelected ? '<i class="fas fa-check-circle text-blue-400"></i>' : ''}
+                            </div>
+                            <span class="text-[10px] text-gray-400">${m.desc}</span>
+                            ${priceHtml}
+                        `;
+                        grid.appendChild(item);
+                    });
+                    container.appendChild(groupEl);
+                }
+            });
+            
+            if (container.children.length === 0) {
+                container.innerHTML = '<div class="text-center text-gray-500 py-8">No models found.</div>';
+            }
+        }
+
+        function openModelModal() {
+            get('model-modal').style.display = 'flex';
+            get('model-search').value = '';
+            get('model-search').focus();
+            updateModelTagUi();
+            renderModelList();
+        }
+
+        get('model-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'model-modal') {
+                get('model-modal').style.display = 'none';
+            }
+        });
+
+        function selectModel(id, name) {
+            const el = get('model-select');
+            el.value = id;
+            get('model-selector-text').innerText = name;
+            get('model-modal').style.display = 'none';
+            // Trigger change event manually
+            const event = new Event('change');
+            el.dispatchEvent(event);
+        }
+
+        get('model-search').addEventListener('input', (e) => renderModelList(e.target.value));
+        if (get('model-tag-bar')) {
+            get('model-tag-bar').addEventListener('click', (e) => {
+                const btn = e.target.closest('.model-tag-btn');
+                if (!btn) return;
+                const t = btn.innerText.trim().toLowerCase();
+                activeModelTag = MODEL_TAGS.includes(t) ? t : 'all';
+                updateModelTagUi();
+                renderModelList(get('model-search').value);
+            });
+            updateModelTagUi();
+        }
+
+        window.quickStart = (m) => {
+            let name = m;
+            for(const g of MODELS) {
+                const found = g.items.find(i => i.id === m);
+                if(found) { name = found.name; break; }
+            }
+            get('model-selector-text').innerText = name;
+            get('model-select').value = m;
+            toggleOptions(); 
+            get('welcome-screen').classList.add('hidden'); 
+        };
+
         document.addEventListener('DOMContentLoaded', () => {
             const bar = document.getElementById('alpha-bar'); setTimeout(() => { if(bar) { const target = document.getElementById('version-display'); if(target) { const barRect = bar.getBoundingClientRect(); const targetRect = target.getBoundingClientRect(); const tx = targetRect.left + (targetRect.width/2) - (barRect.left + barRect.width/2); const ty = targetRect.top + (targetRect.height/2) - (barRect.top + barRect.height/2); bar.style.transform = `translate(${tx}px, ${ty}px) scale(0.1)`; bar.style.opacity = '0'; setTimeout(() => { target.classList.add('pulse-target'); setTimeout(() => target.classList.remove('pulse-target'), 2000); bar.remove(); }, 800); } else { bar.style.opacity = '0'; setTimeout(() => bar.remove(), 1000); } } }, 3000);
             function toggleOptions() { 
@@ -317,6 +913,7 @@
                 const reasonOpts = get('reasoning-effort-container'); 
                 const thinkChk = get('enable-thinking'); 
                 const thinkLvl = get('thinking-level');
+                const thinkBudget = get('thinking-budget');
                 const searchChk = get('enable-search'); 
                 const searchCont = get('search-container'); 
                 
@@ -324,7 +921,16 @@
                 reasonOpts.classList.add('hidden'); 
                 if(thinkChk) thinkChk.disabled = false; 
                 
-                if(model.includes('gemini')) { 
+                if(thinkBudget) {
+                    thinkBudget.disabled = true;
+                    thinkBudget.classList.add('opacity-50');
+                }
+                const isGeminiImage = model.includes('gemini') && (model.includes('image') || model.includes('nano'));
+                if(model.includes('tts')) {
+                    if(searchCont) { get('enable-search').checked = false; searchCont.classList.add('opacity-50', 'pointer-events-none'); }
+                    if(pyCont) { pyChk.checked = false; pyCont.classList.add('opacity-50', 'pointer-events-none'); }
+                    sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50');
+                } else if(model.includes('gemini') && !isGeminiImage) { 
                     thinkOpts.classList.remove('hidden'); 
                     const isFlash = model.includes('flash');
                     Array.from(thinkLvl.options).forEach(opt => {
@@ -332,35 +938,296 @@
                     });
                     if(!isFlash && ['minimal', 'medium'].includes(thinkLvl.value)) { thinkLvl.value = 'high'; }
                     if(model.includes('gemini-3-pro') || model.includes('gemini-3-flash')) { if(thinkChk) { thinkChk.checked = true; thinkChk.disabled = true; } } 
+                    if(thinkBudget && model.includes('gemini-2.5')) {
+                        thinkBudget.disabled = false;
+                        thinkBudget.classList.remove('opacity-50');
+                    }
                 } 
-                else if(model.includes('gpt')) { 
+                else if(model.includes('gpt') && !model.includes('tts')) { 
                     reasonOpts.classList.remove('hidden'); 
                     if(searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none'); 
                 } 
                 else { 
                     if(searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none'); 
                 } 
+                
                 const sysChk = get('enable-sys-prompt'); const sysLbl = get('sys-prompt-option'); 
-                if(model.includes('nano') || model.includes('gpt-image')) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); } else { sysChk.disabled = false; sysLbl.classList.remove('opacity-50'); } 
+                const pyChk = get('enable-python'); const pyCont = get('python-container');
+
+                // TTS Special Handling
+                if(model.includes('tts')) {
+                    if(pyCont) pyCont.classList.add('opacity-50', 'pointer-events-none');
+                } else {
+                    if(pyCont) pyCont.classList.remove('opacity-50', 'pointer-events-none');
+                    if(!model.includes('nano') && !model.includes('gpt-image')) {
+                         sysChk.disabled = false; sysLbl.classList.remove('opacity-50');
+                    }
+                }
+
+                if(model.includes('nano') || model.includes('gpt-image')) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); } 
             }
             get('model-select').addEventListener('change', toggleOptions); toggleOptions();
-            marked.use({ renderer: { code(c, i, e) { const l = (i || '').match(/\S*/)[0]; const h = hljs.highlight(c, { language: hljs.getLanguage(l)?l:'plaintext' }).value; const enc = encodeURIComponent(c).replace(/'/g, "%27"); return `<div class="code-wrapper"><div class="code-header"><span class="code-lang">${l||'TEXT'}</span><button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="hljs language-${l}">${h}</code></pre></div>`; }, link(h, t, x) { return `<a href="${h}" title="${t||''}" target="_blank">${x}</a>`; } }, breaks: true, gfm: true });
+            marked.use({ renderer: { code(c, i, e) { const l = (i || '').match(/\S*/)[0]; if(l === 'pyexec'){ try { const obj = JSON.parse(c); const code = escapeHtml(obj.code || ''); const output = escapeHtml(obj.output || ''); return `<div class="python-box"><div class="python-header"><i class="fas fa-terminal"></i> Python Execution</div><div class="python-body"><div class="python-label">Code</div><pre class="python-code">${code}</pre><div class="python-label">Output</div><pre class="python-output">${output}</pre></div></div>`; } catch(e2){} } const safe = escapeHtml(c || ''); const h = hljs.highlight(safe, { language: hljs.getLanguage(l)?l:'plaintext' }).value; const enc = encodeURIComponent(c).replace(/'/g, "%27"); return `<div class="code-wrapper"><div class="code-header"><span class="code-lang">${l||'TEXT'}</span><button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="hljs language-${l}">${h}</code></pre></div>`; }, link(h, t, x) { return `<a href="${h}" title="${t||''}" target="_blank">${x}</a>`; }, image(h, t, x) { const alt = escapeHtml(x||''); const title = t ? ` title="${escapeHtml(t)}"` : ''; return `<img src="${h}" alt="${alt}"${title} class="chat-image" loading="lazy" width="320" height="320">`; } }, breaks: true, gfm: true });
             
             // Infinite Scroll Observer
-            const observer = new IntersectionObserver((entries) => {
+            threadObserver = new IntersectionObserver((entries) => {
                 if(entries[0].isIntersecting && hasMoreThreads) loadThreads(true);
             }, { root: get('thread-list'), threshold: 0.1 });
-            observer.observe(get('scroll-sentinel'));
+            threadObserver.observe(get('scroll-sentinel'));
             
+            checkVersion();
+            updateOfflineBanner();
+            window.addEventListener('online', updateOfflineBanner);
+            window.addEventListener('offline', updateOfflineBanner);
+            applyCacheMode(useSwCache);
             loadThreads(); loadGems(); 
             get('send-btn').onclick = sendMessage; get('new-chat-btn').onclick = () => startNewChat(); get('upload-btn').onclick = () => get('file-input').click(); get('file-input').onchange = (e) => handleFiles(e.target.files); 
             get('stop-btn').onclick = async () => { if(abortController) abortController.abort(); if(currentJobId) await apiFetch("/api/stop_chat", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({job_id: currentJobId})}); get('send-btn').disabled=false; get('stop-container').classList.add('hidden'); };
-            get('settings-btn').onclick = () => { get('settings-modal').style.display='flex'; apiFetch("{{ url_for('handle_settings', _=1) }}").then(r=>r.json()).then(d=>{ get('sys-prompt-text').value = d.system_prompt; get('set-openai').value = d.openai_key; get('set-gemini').value = d.gemini_key; get('set-xai').value = d.xai_key; get('set-e2ee').checked = d.enable_e2ee; if(get('set-username')) get('set-username').value = d.username; }); }; get('close-settings-btn').onclick = () => get('settings-modal').style.display='none'; get('save-settings-btn').onclick = async () => { const uEl = get('set-username'); const pEl = get('set-password'); const b = { system_prompt:get('sys-prompt-text').value, openai_key:get('set-openai').value, gemini_key:get('set-gemini').value, xai_key:get('set-xai').value, enable_e2ee: get('set-e2ee').checked, new_username: uEl ? uEl.value : null, new_password: pEl ? pEl.value : null }; await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}); location.reload(); };
+            get('settings-btn').onclick = () => { 
+                get('settings-modal').style.display='flex'; 
+                apiFetch("{{ url_for('handle_settings', _=1) }}").then(r=>r.json()).then(d=>{ 
+                    get('sys-prompt-text').value = d.system_prompt; 
+                    get('set-openai').value = d.openai_key; 
+                    get('set-gemini').value = d.gemini_key; 
+                    get('set-xai').value = d.xai_key; 
+                    if(get('set-google-key')) get('set-google-key').value = d.google_key || ''; 
+                    if(get('set-google-project')) get('set-google-project').value = d.google_project || ''; 
+                    if(get('set-stt-model')) get('set-stt-model').value = d.stt_model || 'gpt-4o-mini-transcribe';
+                    if(get('set-enter-to-send')) get('set-enter-to-send').checked = !!d.enter_to_send;
+                    if(get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;
+                    if(get('set-auto-search-links')) get('set-auto-search-links').checked = d.auto_search_on_links !== false;
+                    get('set-e2ee').checked = d.enable_e2ee; 
+                    if(get('set-username')) get('set-username').value = d.username; 
+                    
+                    // 2FA UI Update
+                    const badge = get('2fa-badge');
+                    const disBtn = get('disable-2fa-btn');
+                    if(d.is_2fa_enabled) {
+                        badge.innerText = "ENABLED";
+                        badge.classList.replace('bg-gray-700', 'bg-green-600');
+                        badge.classList.replace('text-gray-400', 'text-white');
+                        disBtn.classList.remove('hidden');
+                    } else {
+                        badge.innerText = "DISABLED";
+                        badge.classList.replace('bg-green-600', 'bg-gray-700');
+                        badge.classList.replace('text-white', 'text-gray-400');
+                        disBtn.classList.add('hidden');
+                    }
+
+                    const migBox = get('mig-status-box');
+                    const migText = get('mig-progress-text');
+                    const migBar = get('mig-progress-bar');
+                    const status = d.migration_status || 'idle';
+                    if (status === 'processing') {
+                        migBox.classList.remove('hidden');
+                        const prog = (d.migration_progress || '').split('/');
+                        if (prog.length === 2) {
+                            const done = parseInt(prog[0] || '0', 10);
+                            const total = parseInt(prog[1] || '0', 10);
+                            if (migText) migText.innerText = `${done} / ${total}`;
+                            if (migBar && total > 0) migBar.style.width = `${Math.min(100, Math.floor((done/total)*100))}%`;
+                        }
+                    } else {
+                        migBox.classList.add('hidden');
+                        if (migBar) migBar.style.width = '0%';
+                        if (migText) migText.innerText = '';
+                    }
+                }); 
+                loadFeedback();
+            }; 
+            get('close-settings-btn').onclick = () => get('settings-modal').style.display='none'; 
+            get('save-settings-btn').onclick = async () => { const uEl = get('set-username'); const pEl = get('set-password'); const b = { system_prompt:get('sys-prompt-text').value, openai_key:get('set-openai').value, gemini_key:get('set-gemini').value, xai_key:get('set-xai').value, google_key: get('set-google-key') ? get('set-google-key').value : null, google_project: get('set-google-project') ? get('set-google-project').value : null, stt_model: get('set-stt-model') ? get('set-stt-model').value : null, enter_to_send: get('set-enter-to-send') ? get('set-enter-to-send').checked : false, use_sw_cache: get('set-use-sw-cache') ? get('set-use-sw-cache').checked : false, auto_search_on_links: get('set-auto-search-links') ? get('set-auto-search-links').checked : true, enable_e2ee: get('set-e2ee').checked, new_username: uEl ? uEl.value : null, new_password: pEl ? pEl.value : null }; await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}); location.reload(); };
+            get('disable-2fa-btn').onclick = async () => { if(confirm("Disable 2FA?")) { await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({disable_2fa: true})}); location.reload(); } };
+            if (get('easy-login-generate')) {
+                get('easy-login-generate').onclick = async () => {
+                    const minsEl = get('easy-login-mins');
+                    const mins = minsEl ? parseInt(minsEl.value || '5', 10) : 5;
+                    if (!confirm(`簡易ログインを${mins}分間有効にしますか？`)) return;
+                    const res = await apiFetch("/api/easy_login", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({minutes: mins})});
+                    const data = await res.json();
+                    if (data && data.temp_password) {
+                        get('easy-login-code').textContent = data.temp_password;
+                        get('easy-login-exp').textContent = data.expires_at || '';
+                        get('easy-login-result').classList.remove('hidden');
+                    } else {
+                        showToast("簡易ログインの発行に失敗しました", "error", true);
+                    }
+                };
+            }
+            get('fb-submit').onclick = async () => {
+                const title = get('fb-title').value.trim();
+                const message = get('fb-message').value.trim();
+                if(!message) { showToast("フィードバック内容を入力してください", "error", true); return; }
+                await apiFetch("/api/feedback", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title, message})});
+                get('fb-title').value = '';
+                get('fb-message').value = '';
+                loadFeedback();
+            };
+
+            async function loadFeedback() {
+                const res = await apiFetch("/api/feedback?all=1");
+                const data = await res.json();
+                const list = get('fb-list');
+                list.innerHTML = '';
+                (data.items || []).filter(i => !data.is_admin || i.user_id === undefined || i.user_id === null || true).forEach(item => {
+                    if(data.is_admin) return;
+                    const el = document.createElement('div');
+                    el.className = 'p-2 rounded border border-gray-700 bg-gray-800/50';
+                    el.innerHTML = `<div class="text-[11px] text-gray-400">${item.created_at}</div><div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div><div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div><div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(item.status)}</div>${item.admin_reply ? `<div class="text-[11px] text-green-300 mt-1">Reply: ${escapeHtml(item.admin_reply)}</div>` : ''}`;
+                    list.appendChild(el);
+                });
+
+                const adminPanel = get('fb-admin-panel');
+                const adminList = get('fb-admin-list');
+                if(data.is_admin) {
+                    adminPanel.classList.remove('hidden');
+                    adminList.innerHTML = '';
+                    (data.items || []).forEach(item => {
+                        const el = document.createElement('div');
+                        el.className = 'p-2 rounded border border-gray-700 bg-gray-800/50 space-y-2';
+                        el.innerHTML = `
+                            <div class="text-[11px] text-gray-400">#${item.id} / user:${item.user_id} / ${item.created_at}</div>
+                            <div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div>
+                            <div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div>
+                            <div class="flex items-center gap-2">
+                                <select class="fb-status bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white">
+                                    <option value="new">new</option>
+                                    <option value="in_review">in_review</option>
+                                    <option value="replied">replied</option>
+                                    <option value="rejected">rejected</option>
+                                    <option value="resolved">resolved</option>
+                                </select>
+                                <button class="fb-save bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs">保存</button>
+                            </div>
+                            <textarea class="fb-reply w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white" rows="3" placeholder="返信内容">${escapeHtml(item.admin_reply||'')}</textarea>
+                        `;
+                        el.querySelector('.fb-status').value = item.status || 'new';
+                        el.querySelector('.fb-save').onclick = async () => {
+                            const status = el.querySelector('.fb-status').value;
+                            const admin_reply = el.querySelector('.fb-reply').value;
+                            await apiFetch(`/api/feedback/${item.id}/update`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status, admin_reply})});
+                            loadFeedback();
+                        };
+                        adminList.appendChild(el);
+                    });
+                } else {
+                    adminPanel.classList.add('hidden');
+                }
+            }
+            
+            window.setupTOTP = async () => {
+                const r = await apiFetch("/api/2fa/totp/setup", {method:'POST'});
+                const d = await r.json();
+                get('totp-qr').src = d.qr_image;
+                get('totp-secret-disp').innerText = d.secret;
+                get('totp-setup-area').classList.remove('hidden');
+            };
+            
+            window.enableTOTP = async () => {
+                const c = get('totp-verify-code').value;
+                if(!c) return;
+                const r = await apiFetch("/api/2fa/totp/enable", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:c})});
+                if(r.ok) { alert("TOTP Enabled!"); location.reload(); }
+                else alert("Invalid Code");
+            };
+            
+            window.registerWebAuthn = async () => {
+                try {
+                    const optsRes = await apiFetch('/api/2fa/webauthn/register/options', {method:'POST'});
+                    const options = await optsRes.json();
+                    const credential = await window.webauthnJSON.create({ publicKey: options });
+                    const verifyRes = await apiFetch('/api/2fa/webauthn/register/verify', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(credential)
+                    });
+                    if(verifyRes.ok) { alert("Passkey Registered!"); location.reload(); }
+                    else { const d=await verifyRes.json(); alert("Error: "+d.error); }
+                } catch(e) { alert("WebAuthn Error: "+e); }
+            };
+
             get('delete-account-btn').onclick = async () => { if(confirm("本当にアカウントを削除しますか？\nこの操作は取り消せません。")) { await apiFetch("{{ url_for('delete_account') }}", {method:'POST'}); location.href = "/"; } };
-            get('prompt-input').onkeydown = (e) => { if(!e.isComposing && (e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); sendMessage(); } }; get('prompt-input').addEventListener('input', function() { this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px'; });
+            get('prompt-input').onkeydown = (e) => {
+                if (e.isComposing) return;
+                if (enterToSend) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                    }
+                } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            };
+            get('prompt-input').addEventListener('input', function() { this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px'; });
+            get('cancel-edit-btn').onclick = cancelEdit;
+            updatePromptPlaceholder();
             get('menu-btn').onclick = () => { get('sidebar').classList.toggle('open'); get('overlay').classList.toggle('active'); }; get('overlay').onclick = () => { get('sidebar').classList.remove('open'); get('overlay').classList.remove('active'); };
             get('search-box').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => { threadPage=1; get('thread-list').innerHTML='<div id="scroll-sentinel"></div>'; loadThreads(); }, 300); }); get('mobile-new-chat-btn').onclick = () => startNewChat();
             get('prompt-input').addEventListener('paste', async (e) => { const items = (e.clipboardData || window.clipboardData).items; const files = []; for (let i = 0; i < items.length; i++) { if (items[i].kind === 'file') { files.push(items[i].getAsFile()); } } if (files.length > 0) { e.preventDefault(); await handleFiles(files); } });
+            get('chat-container').addEventListener('click', (e) => {
+                const img = e.target.closest('img.chat-image');
+                if (img && img.src) {
+                    e.preventDefault();
+                    openImageViewer(img.src);
+                }
+            });
+            get('image-viewer').addEventListener('click', (e) => {
+                if (e.target.id === 'image-viewer' || e.target.id === 'image-viewer-img') closeImageViewer();
+            });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeImageViewer(); });
+            
+            // Microphone / STT (OpenAI)
+            let mediaRecorder;
+            let audioChunks = [];
+            get('mic-btn').onclick = async () => {
+                if (mediaRecorder && mediaRecorder.state === "recording") {
+                    mediaRecorder.stop();
+                    get('mic-btn').classList.remove('bg-red-600', 'animate-pulse');
+                    get('mic-btn').classList.add('bg-gray-700');
+                    return;
+                }
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+                    mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const file = new File([audioBlob], "recording.webm", { type: 'audio/webm' });
+                        const fd = new FormData();
+                        fd.append('file', file);
+                        get('file-preview').classList.remove('hidden');
+                        get('file-name').innerText = "Transcribing...";
+                        try {
+                            const transRes = await apiFetch("{{ url_for('transcribe') }}", {
+                                method: 'POST',
+                                body: fd
+                            });
+                            const transData = await transRes.json();
+                            if (transData.transcript) {
+                                const input = get('prompt-input');
+                                input.value += (input.value ? " " : "") + transData.transcript;
+                                input.style.height = 'auto';
+                                input.style.height = input.scrollHeight + 'px';
+                            } else {
+                                showToast(transData.error || "Transcription failed", "error", true);
+                            }
+                        } catch (err) {
+                            showToast("Transcription error: " + err.message, "error", true);
+                        } finally {
+                            get('file-preview').classList.add('hidden');
+                            stream.getTracks().forEach(track => track.stop());
+                        }
+                    };
+                    mediaRecorder.start();
+                    get('mic-btn').classList.remove('bg-gray-700');
+                    get('mic-btn').classList.add('bg-red-600', 'animate-pulse');
+                } catch (err) {
+                    alert("Microphone access denied or not available.");
+                }
+            };
+
             get('lib-btn').onclick = () => { get('lib-modal').style.display='flex'; loadLibraryFiles(); }; get('lib-del-btn').onclick = deleteSelectedFiles;
             get('add-gem-btn').onclick = () => { get('gem-modal').style.display='flex'; get('gem-name').value=''; get('gem-desc').value=''; get('gem-inst').value=''; };
             get('save-gem-btn').onclick = async () => { const name = get('gem-name').value; const desc = get('gem-desc').value; const inst = get('gem-inst').value; if(name && inst) { await apiFetch("{{ url_for('handle_gems') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, description:desc, instruction:inst})}); get('gem-modal').style.display='none'; loadGems(); } else alert("Name and Instruction are required."); };
@@ -368,20 +1235,7 @@
                 if (e.target.closest('.edit-btn')) { 
                     const btn = e.target.closest('.edit-btn'); 
                     const id = btn.getAttribute('data-id'); 
-                    const text = messageStore[id]; 
-                    if (text) { 
-                        const input = get('prompt-input'); 
-                        input.value = text; 
-                        input.focus(); 
-                        input.style.height = 'auto'; 
-                        input.style.height = input.scrollHeight + 'px'; 
-                        
-                        // Set parent_id to the parent of the message being edited
-                        const msg = allMessages.find(m => m.id == id);
-                        if (msg) {
-                            currentParentId = msg.parent_id;
-                        }
-                    } 
+                    beginEditMessage(id);
                 } 
                 if (e.target.closest('.copy-btn')) {
                     const btn = e.target.closest('.copy-btn');
@@ -397,17 +1251,22 @@
         async function handleFiles(fs) { if(!fs.length) return; get('file-preview').classList.remove('hidden'); get('file-name').innerText = "Processing..."; for(let f of fs) { let t = f; if (get('enable-compression').checked && f.type.startsWith('image/')) { try { const o = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }; const c = await imageCompression(f, o); t = new File([c], f.name, { type: c.type }); } catch(e){} } const fd = new FormData(); fd.append('file', t); const r = await apiFetch("{{ url_for('upload') }}", {method:'POST', body:fd}); const d = await r.json(); if(d.filename) currentImageUrls.push(d.filename); } get('file-name').innerText = `${currentImageUrls.length} files ready`; }
         get('clear-file-btn').onclick = () => { currentImageUrls = []; get('file-preview').classList.add('hidden'); get('file-input').value = ''; };
         
-        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null) { 
+        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null) { 
             const isUser = role === 'user'; 
             const bg = isUser ? 'bg-blue-600' : 'bg-gray-700'; 
             const align = isUser ? 'justify-end' : 'justify-start'; 
             messageStore[id] = text; 
             
+            let qh = '';
+            if (quoteText) {
+                qh = `<div class="mb-2 p-2 bg-black/20 rounded border-l-4 border-blue-400 text-xs text-gray-300 italic truncate max-w-full"><i class="fas fa-quote-left mr-1 opacity-50"></i>${escapeHtml(quoteText)}</div>`;
+            }
+
             let th = ''; 
             if (thoughtData && !isUser) { 
                 let tx = ""; 
                 try { const o = JSON.parse(thoughtData); tx = o.text || ""; } catch(e) { tx = thoughtData; } 
-                if (tx) th = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content">${escapeHtml(tx)}</div></div>`; 
+                if (tx) th = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content collapsed">${escapeHtml(tx)}</div></div>`; 
             } 
             
             let at = ''; 
@@ -420,7 +1279,7 @@
                             const url = "{{ url_for('serve_file', filename='') }}" + u; 
                             const fn = u.split('/').pop(); 
                             const ext = fn.split('.').pop().toLowerCase(); 
-                            if(['jpg','jpeg','png','webp','gif'].includes(ext)) at += `<img src="${url}" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer" onclick="window.open('${url}')" title="${fn}">`; 
+                            if(['jpg','jpeg','png','webp','gif'].includes(ext)) at += `<img src="${url}" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer chat-image" onclick="openImageViewer('${url}')" title="${fn}">`; 
                             else at += `<div class="h-24 w-24 bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700" onclick="window.open('${url}')" title="${fn}"><i class="fas fa-file text-2xl text-gray-400 mb-1"></i><span class="text-[9px] truncate w-20 text-center">${fn}</span></div>`; 
                         }); 
                         at += '</div>'; 
@@ -428,8 +1287,12 @@
                 } catch(e){} 
             } 
             
-            const ctrl = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${isUser?`<button class="ctrl-btn edit-btn" data-id="${id}"><i class="fas fa-pen"></i></button><button class="ctrl-btn" onclick="deleteMessage(${id})"><i class="fas fa-trash"></i></button>`:''}</div>`; 
-            const mHtml = (modelName && !isUser) ? `<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">${modelName}</div>` : ''; 
+            const regenBtn = !isUser ? `<button class="ctrl-btn" onclick="regenerateMessage(${id})"><i class="fas fa-rotate-right"></i></button>` : '';
+            const ctrl = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${isUser?`<button class="ctrl-btn edit-btn" data-id="${id}"><i class="fas fa-pen"></i></button>`:''}${regenBtn}<button class="ctrl-btn" onclick="deleteMessage(${id})"><i class="fas fa-trash"></i></button></div>`; 
+            const footerParts = [];
+            if (!isUser && modelName) footerParts.push(modelName);
+            if (tokenCount !== null && tokenCount !== undefined) footerParts.push(`${tokenCount} tokens`);
+            const mHtml = footerParts.length ? `<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">${footerParts.join(' • ')}</div>` : ''; 
             
             let contentHtml;
             if (isUser) {
@@ -454,15 +1317,16 @@
                 `;
             }
             
-            const html = `<div class="flex ${align} mb-4 fade-in relative message-group group" id="msg-${id}"><div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">${ctrl}${th}${contentHtml}${at}${versionSwitcher}${mHtml}</div></div>`; 
+            const fadeClass = animate ? 'fade-in' : ''; 
+            const html = `<div class="flex ${align} mb-4 ${fadeClass} relative message-group group" id="msg-${id}"><div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">${ctrl}${qh}${th}${contentHtml}${at}${versionSwitcher}${mHtml}</div></div>`; 
             get('chat-container').insertAdjacentHTML('beforeend', html); 
-            if(!isUser) document.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b)); 
             scrollToBottom(); 
         }
         
         async function sendMessage() { 
             const t = get('prompt-input').value; // RAW INPUT (No trim)
             if(!t.trim() && currentImageUrls.length === 0) return; // Check trim only for empty check
+            playSendAnimation();
             if(!currentThreadId) { 
                 const r = await apiFetch("{{ url_for('handle_threads') }}", {method:'POST'}); 
                 const d = await r.json(); 
@@ -470,12 +1334,49 @@
                 history.pushState({}, '', '/c/' + d.id); 
             } 
             get('welcome-screen').classList.add('hidden'); 
+
+            let disableAutoSearch = false;
+            const xLinkPattern = /(https?:\/\/)?(x\.com|twitter\.com)\//i;
+            const hasXLink = xLinkPattern.test(t || '') || xLinkPattern.test(currentQuote || '');
+            if (hasXLink && !get('enable-search').checked && autoSearchOnLinks) {
+                const banner = get('auto-search-banner');
+                const onBtn = get('auto-search-on-btn');
+                const offBtn = get('auto-search-off-btn');
+                if (banner && onBtn && offBtn) {
+                    await new Promise((resolve) => {
+                        banner.classList.remove('hidden');
+                        const cleanup = (choice) => {
+                            banner.classList.add('hidden');
+                            onBtn.onclick = null;
+                            offBtn.onclick = null;
+                            resolve(choice);
+                        };
+                        onBtn.onclick = () => cleanup('enable');
+                        offBtn.onclick = () => cleanup('disable');
+                    }).then((choice) => {
+                        if (choice === 'enable') {
+                            get('enable-search').checked = true;
+                        } else {
+                            disableAutoSearch = true;
+                        }
+                    });
+                }
+            }
             
             // For immediate feedback, we render the user message.
             // But we'll do a full re-render (loadMessages) after the AI responds to ensure tree consistency.
-            renderMessage(Date.now(), 'user', t, JSON.stringify(currentImageUrls)); 
+            renderMessage(Date.now(), 'user', t, JSON.stringify(currentImageUrls), null, null, null, true, currentQuote); 
             get('prompt-input').value = ''; get('prompt-input').style.height = 'auto'; 
             
+            // If editing, hide the old message to avoid duplication
+            if (editingMessageId) {
+                const oldMsgEl = document.getElementById(`msg-${editingMessageId}`);
+                if (oldMsgEl) oldMsgEl.style.display = 'none';
+                // Also hide the AI response associated with it if possible? 
+                // Actually, just hiding the user message is enough to prevent "two prompts".
+                // The tree structure will handle the rest on reload.
+            }
+
             const p = { 
                 thread_id: currentThreadId, 
                 message: t, 
@@ -485,11 +1386,13 @@
                 enable_python: get('enable-python').checked, 
                 enable_thinking: get('enable-thinking').checked, 
                 thinking_level: get('thinking-level').value, 
+                thinking_budget: get('thinking-budget') ? get('thinking-budget').value : null,
                 reasoning_effort: get('reasoning-effort').value, 
                 enable_system_prompt: get('enable-sys-prompt').checked, 
                 safety_setting: get('safety-setting').value, 
                 quote_text: currentQuote,
-                parent_id: currentParentId
+                parent_id: currentParentId,
+                disable_auto_search: disableAutoSearch
             }; 
             if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; } 
             currentImageUrls = []; get('file-preview').classList.add('hidden'); get('send-btn').disabled = true; get('stop-container').classList.remove('hidden'); userAutoScroll = true; const aid = 'ai-' + Date.now(); clearQuote(); 
@@ -504,7 +1407,8 @@
                 const reader = r.body.getReader(); 
                 const dec = new TextDecoder(); 
                 const adiv = get(aid); 
-                let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null; 
+                let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null, hadError=false; 
+                const pyBoxes = {}; 
             
                 while(true) { 
                     const {done, value} = await reader.read(); 
@@ -543,6 +1447,20 @@
                                 } 
                                 thEl.textContent=tht; 
                                 if(userAutoScroll) thEl.scrollTop=thEl.scrollHeight; 
+                            } else if(j.type==='python'){ 
+                                const py = j.content || {}; 
+                                const pyId = py.id || `py_${Date.now()}`; 
+                                if(!pyBoxes[pyId]){ 
+                                    const boxHtml = `<div class="python-box" data-py-id="${pyId}"><div class="python-header"><i class="fas fa-terminal"></i> Python Execution</div><div class="python-body"><div class="python-label">Code</div><pre class="python-code"></pre><div class="python-label">Output</div><pre class="python-output"></pre></div></div>`; 
+                                    if(searchBox) searchBox.insertAdjacentHTML('afterend', boxHtml); 
+                                    else adiv.insertAdjacentHTML('afterbegin', boxHtml); 
+                                    pyBoxes[pyId] = adiv.querySelector(`[data-py-id="${pyId}"]`); 
+                                } 
+                                const box = pyBoxes[pyId]; 
+                                if(box){ 
+                                    if(py.code){ box.querySelector('.python-code').textContent = py.code; } 
+                                    if(py.output !== undefined){ box.querySelector('.python-output').textContent = py.output; } 
+                                } 
                             } else if(j.type==='content'){ 
                                 acc+=j.content; 
                                 if(!cEl){ 
@@ -551,29 +1469,61 @@
                                     if(!adiv.contains(cEl)) adiv.appendChild(cEl); 
                                 } 
                                 cEl.innerHTML=DOMPurify.sanitize(marked.parse(acc)); 
-                                cEl.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b)); 
                             } else if(j.type==='error'){ 
+                                hadError = true;
                                 adiv.insertAdjacentHTML('beforeend', `<div class="text-red-400 text-xs mt-2 border border-red-500 p-2 rounded">Error: ${j.content}</div>`); 
+                                showToast(j.content || "Unknown error", "error", true);
                             } 
                         } catch(e){} 
                     } 
                     scrollToBottom(); 
                 } 
 
-                // Full reload to establish new tree structure
-                await loadMessages(currentThreadId);
+                // Reset editing state
+                editingMessageId = null;
+                setEditUi(false);
+
+                if (!hadError && adiv) {
+                    const thoughts = adiv.querySelectorAll('.thought-content');
+                    thoughts.forEach(t => t.classList.add('collapsed'));
+                }
+                // Full reload to establish new tree structure (skip on error to keep the error visible)
+                if (!hadError) {
+                    await loadMessages(currentThreadId);
+                }
                 
+                // Only auto-scroll if user was already at bottom or auto-scroll is active
+                if(userAutoScroll) scrollToBottom();
+
                 if (document.querySelectorAll('.message-group').length <= 2) {
                      apiFetch("/api/generate_title", {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({thread_id: currentThreadId})}).then(r=>r.json()).then(d=>{ if(d.title) { document.title = d.title + " - AI Chat"; loadThreads(); } });
                 } else loadThreads(false); 
 
-            } catch(e){ if(e.name!=='AbortError') alert("Connection Error: " + e.message); } finally { get('send-btn').disabled=false; get('stop-container').classList.add('hidden'); abortController=null; currentJobId=null; } 
+            } catch(e){ 
+                if(e.name!=='AbortError') { 
+                    const msg = "Connection Error: " + e.message;
+                    showToast(msg, "error", true);
+                }
+                // Restore old message if error occurred during edit
+                if(editingMessageId) {
+                     const oldMsgEl = document.getElementById(`msg-${editingMessageId}`);
+                     if (oldMsgEl) oldMsgEl.style.display = 'flex';
+                }
+            } finally { get('send-btn').disabled=false; get('stop-container').classList.add('hidden'); abortController=null; currentJobId=null; editingMessageId=null; setEditUi(false); } 
         }
 
         async function loadThreads(append=false) { 
             if(threadLoading) return; 
             threadLoading = true;
-            if(!append) { threadPage = 1; hasMoreThreads = true; get('thread-list').innerHTML = '<div id="scroll-sentinel"></div>'; }
+            if(!append) { 
+                threadPage = 1; 
+                hasMoreThreads = true; 
+                get('thread-list').innerHTML = '<div id="scroll-sentinel"></div>'; 
+                if (threadObserver) {
+                    threadObserver.disconnect();
+                    threadObserver.observe(get('scroll-sentinel'));
+                }
+            }
             
             const r = await apiFetch(`{{ url_for('handle_threads') }}?q=${encodeURIComponent(get('search-box').value)}&page=${threadPage}`); 
             const d = await r.json(); 
@@ -582,8 +1532,9 @@
             
             d.threads.forEach(t => { 
                 const d = document.createElement('div'); 
+                const star = t.is_bookmarked ? 'text-yellow-400' : 'text-gray-500';
                 d.className = 'p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 truncate flex justify-between items-center group'; 
-                d.innerHTML = `<span class="truncate flex-1" onclick="loadMessages(${t.id})">${t.title||"No Title"}</span><div class="flex gap-1 opacity-0 group-hover:opacity-100"><button class="text-gray-500 hover:text-white px-1" onclick="renameThread(event, ${t.id})"><i class="fas fa-pen text-xs"></i></button><button class="text-gray-500 hover:text-red-400 px-1" onclick="deleteThread(event, ${t.id})"><i class="fas fa-trash text-xs"></i></button></div>`; 
+                d.innerHTML = `<div class="flex items-center gap-1 truncate flex-1"><button class="${star} hover:text-yellow-400 px-1" onclick="toggleBookmark(event, ${t.id})"><i class="fas fa-star text-[10px]"></i></button><span class="truncate" onclick="loadMessages(${t.id})">${t.title||"No Title"}</span></div><div class="flex gap-1 opacity-0 group-hover:opacity-100"><button class="text-gray-500 hover:text-white px-1" onclick="renameThread(event, ${t.id})"><i class="fas fa-pen text-xs"></i></button><button class="text-gray-500 hover:text-red-400 px-1" onclick="deleteThread(event, ${t.id})"><i class="fas fa-trash text-xs"></i></button></div>`; 
                 l.insertBefore(d, sentinel); 
             });
             
@@ -592,7 +1543,14 @@
             threadLoading = false;
         }
 
+        async function toggleBookmark(e, tid) {
+            if (e) e.stopPropagation();
+            await apiFetch(`/api/threads/${tid}/bookmark`, {method:'POST'});
+            loadThreads();
+        }
+
         async function loadMessages(tid) { 
+            cancelEdit();
             currentThreadId = tid; 
             history.pushState({}, '', '/c/' + tid); 
             clearActiveGem(); 
@@ -654,7 +1612,7 @@
                     siblings: siblings
                 } : null;
                 
-                renderMessage(m.id, m.role, m.content, m.image_url, m.thought_data, m.model, versionInfo);
+                renderMessage(m.id, m.role, m.content, m.image_url, m.thought_data, m.model, versionInfo, false, m.quote_text, m.tokens);
             });
             
             currentParentId = currentLeafId;
@@ -693,14 +1651,18 @@
         async function createGem(name, inst) { await apiFetch("{{ url_for('handle_gems') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, instruction:inst})}); loadGems(); }
         function activateGem(g) { activeGem = g; get('active-gem-name').innerText = g.name; get('gem-active-indicator').classList.remove('hidden'); startNewChat(); }
         function clearActiveGem() { activeGem=null; get('gem-active-indicator').classList.add('hidden'); get('sys-prompt-option').style.opacity = '1'; }
-        function startNewChat() { if(abortController) abortController.abort(); currentThreadId = null; history.pushState({}, '', '/'); get('chat-container').innerHTML = ''; get('welcome-screen').classList.remove('hidden'); loadThreads(); if(window.innerWidth < 768) get('overlay').click(); }
+        function startNewChat() { if(abortController) abortController.abort(); cancelEdit(); currentThreadId = null; history.pushState({}, '', '/'); get('chat-container').innerHTML = ''; get('welcome-screen').classList.remove('hidden'); loadThreads(); if(window.innerWidth < 768) get('overlay').click(); }
         async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('delete_gem', gid=0) }}".replace('0', id), {method: 'DELETE'}); loadGems(); }
         async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { await apiFetch("{{ url_for('update_title', tid=0) }}".replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); loadThreads(); } }
         async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('handle_thread_item', tid=0) }}".replace('0', id), {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }
         async function deleteMessage(id) { if(!confirm("Delete this message and subsequent history?")) return; await apiFetch("{{ url_for('delete_message', mid=0) }}".replace('0', id), {method:'DELETE'}); loadMessages(currentThreadId); }
+        window.regenerateMessage = (id) => {
+            const msg = allMessages.find(m => m.id == id);
+            if (!msg || !msg.parent_id) { showToast("再生成できるメッセージが見つかりません", "error", true); return; }
+            beginEditMessage(msg.parent_id, true);
+        };
         async function loadLibraryFiles() { const r = await apiFetch("{{ url_for('get_files_lib') }}"); const files = await r.json(); const grid = get('lib-grid'); grid.innerHTML = ''; get('lib-total-count').innerText = files.length + " files"; lib.selected.clear(); get('lib-del-btn').disabled = true; get('lib-del-btn').innerText = "削除"; files.forEach(f => { const el = document.createElement('div'); el.className = "relative group bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400"; const content = f.type==='image' ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`; const overlay = `<div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><a href="${f.url}" target="_blank" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a></div>`; el.innerHTML = content + overlay; el.onclick = () => { if (lib.selected.has(f.filepath)) { lib.selected.delete(f.filepath); el.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.add('border-gray-600'); } else { lib.selected.add(f.filepath); el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.remove('border-gray-600'); } get('lib-del-btn').disabled = lib.selected.size === 0; get('lib-del-btn').innerText = `削除 (${lib.selected.size})`; }; grid.appendChild(el); }); }
         async function deleteSelectedFiles() { if(!confirm('削除しますか？')) return; try{ await apiFetch("{{ url_for('delete_files_batch') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({filenames:Array.from(lib.selected)})}); loadLibraryFiles(); } catch(e){ alert("削除エラー"); } }
-        window.quickStart = (m) => { get('model-select').value=m; toggleOptions(); get('welcome-screen').classList.add('hidden'); };
         window.showLegal = async (t) => { get('legal-modal').style.display='flex'; const res = await apiFetch("/static/legal/" + t + ".md?t=" + Date.now()); if(!res.ok) return; const text = await res.text(); get('legal-content').innerHTML = DOMPurify.sanitize(marked.parse(text)); }
         window.copyCode = (btn, code) => { 
             const text = decodeURIComponent(code);
@@ -716,7 +1678,7 @@
                 (err) => { console.error(err); btn.innerHTML = '<i class="fas fa-times"></i>'; setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i>', 2000); }
             );
         };
-        window.toggleThinking = (el) => { const c = el.nextElementSibling; if(c.classList.contains('collapsed')) { c.classList.remove('collapsed'); c.style.display='block'; } else { c.classList.add('collapsed'); c.style.display='none'; } };
+        window.toggleThinking = (el) => { const c = el.nextElementSibling; if(c.classList.contains('collapsed')) { c.classList.remove('collapsed'); } else { c.classList.add('collapsed'); } };
 
     </script>
 </body>

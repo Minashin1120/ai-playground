@@ -1,7 +1,9 @@
 .env
+.env.backup*
+backups_*/
+*.bak
 secret.key
 virtualenv/
-venv/
 __pycache__/
 *.py[cod]
 maintenance.lock

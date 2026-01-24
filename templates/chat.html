@@ -119,6 +119,8 @@
         .model-list-animate { animation: modelListEnter 0.22s ease-out forwards; }
         .modal-overlay { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.22s ease, visibility 0.22s ease; }
         .modal-overlay .modal-panel { opacity: 0; transform: translateY(14px) scale(0.98); transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease; }
+        .modal-overlay.modal-prep { opacity: 0; visibility: visible; pointer-events: auto; }
+        .modal-overlay.modal-prep .modal-panel { opacity: 0; transform: translateY(14px) scale(0.98); }
         .modal-overlay.modal-open { opacity: 1; visibility: visible; pointer-events: auto; }
         .modal-overlay.modal-open .modal-panel { opacity: 1; transform: translateY(0) scale(1); }
         .modal-overlay.modal-close .modal-panel { opacity: 0; transform: translateY(10px) scale(0.98); }
@@ -599,9 +601,14 @@
             el.classList.remove('hidden');
             el.style.display = 'flex';
             el.classList.remove('modal-close');
+            el.classList.remove('modal-open');
+            el.classList.add('modal-prep');
             // Force a reflow so the first open animates reliably.
             void el.offsetHeight;
-            requestAnimationFrame(() => el.classList.add('modal-open'));
+            requestAnimationFrame(() => {
+                el.classList.remove('modal-prep');
+                el.classList.add('modal-open');
+            });
         };
         const hideModal = (id) => {
             const el = get(id);
@@ -609,6 +616,7 @@
             if (!el.classList.contains('modal-open')) {
                 el.style.display = 'none';
                 el.classList.remove('modal-close');
+                el.classList.remove('modal-prep');
                 el.classList.add('hidden');
                 return;
             }
@@ -617,6 +625,7 @@
             setTimeout(() => {
                 el.style.display = 'none';
                 el.classList.remove('modal-close');
+                el.classList.remove('modal-prep');
                 el.classList.add('hidden');
             }, MODAL_ANIM_MS);
         };

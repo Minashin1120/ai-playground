@@ -1178,18 +1178,18 @@
                 ]
             },
             {
-                category: "Legacy Gemini",
+                category: "Gemini 2.5",
                 icon: "fas fa-history text-gray-400",
-                description: "Previous generation models",
+                description: "Gemini 2.5 generation models",
                 items: [
                     { id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash-Lite", desc: "Fastest and most cost-efficient Gemini 2.5 model." },
                     { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", desc: "Balanced performance.", price: "In $0.30/1M, Out $2.50/1M" }
                 ]
             },
             {
-                category: "Banana Image Gen",
+                category: "Gemini Image (Banana)",
                 icon: "fas fa-image text-pink-400",
-                description: "Specialized image generation models",
+                description: "Gemini image generation models",
                 items: [
                     { id: "gemini-2.5-flash-image", name: "Nano Banana", desc: "Fast image generation.", price: "In $0.30/1M, Out $0.039/image" },
                     { id: "gemini-3-pro-image-preview", name: "Nano Banana Pro", desc: "High quality image generation.", price: "In $2.00/1M, Out $0.134 (1K/2K) or $0.24 (4K)" }
@@ -1206,7 +1206,7 @@
                 ]
             },
             {
-                category: "GPT",
+                category: "OpenAI GPT",
                 icon: "fas fa-brain text-green-400",
                 description: "OpenAI's flagship models",
                 items: [
@@ -1216,7 +1216,7 @@
                 ]
             },
             {
-                category: "Audio Generation",
+                category: "Audio (TTS)",
                 icon: "fas fa-microphone text-red-400",
                 description: "Text-to-Speech models",
                 items: [
@@ -1228,7 +1228,7 @@
                 ]
             },
             {
-                category: "Speech-to-Speech (Live)",
+                category: "Realtime Audio (STS)",
                 icon: "fas fa-headset text-cyan-400",
                 description: "Realtime voice models (audio in / audio out)",
                 items: [
@@ -1454,13 +1454,44 @@
             const name = (m.name || '').toLowerCase();
             const desc = (m.desc || '').toLowerCase();
             const cat = (group.category || '').toLowerCase();
-            if (cat.includes('gemini') || cat.includes('banana')) tags.push('gemini');
-            if (cat.includes('gpt') || cat.includes('openai')) tags.push('openai');
-            if (cat.includes('xai') || cat.includes('grok')) tags.push('xai');
-            if (cat.includes('image') || id.includes('image')) tags.push('image');
-            if (cat.includes('audio') || id.includes('tts') || name.includes('tts') || id.includes('realtime') || id.includes('live') || id.includes('voice-agent') || id.includes('native-audio')) tags.push('audio');
-            if (id.includes('reasoning') || name.includes('reasoning')) tags.push('reasoning');
-            if (id.includes('fast') || name.includes('fast') || desc.includes('fast')) tags.push('fast');
+            if (
+                cat.includes('gemini') ||
+                id.includes('gemini') ||
+                name.includes('gemini') ||
+                desc.includes('gemini') ||
+                cat.includes('banana') ||
+                name.includes('banana')
+            ) tags.push('gemini');
+            if (
+                cat.includes('gpt') ||
+                cat.includes('openai') ||
+                id.includes('gpt') ||
+                name.includes('gpt') ||
+                desc.includes('openai')
+            ) tags.push('openai');
+            if (
+                cat.includes('xai') ||
+                cat.includes('grok') ||
+                id.includes('grok') ||
+                name.includes('grok') ||
+                desc.includes('xai')
+            ) tags.push('xai');
+            if (cat.includes('image') || id.includes('image') || name.includes('image') || desc.includes('image')) tags.push('image');
+            if (
+                cat.includes('audio') ||
+                cat.includes('speech') ||
+                id.includes('tts') ||
+                name.includes('tts') ||
+                desc.includes('tts') ||
+                id.includes('realtime') ||
+                id.includes('live') ||
+                id.includes('voice-agent') ||
+                id.includes('native-audio') ||
+                name.includes('audio') ||
+                desc.includes('audio')
+            ) tags.push('audio');
+            if (id.includes('reasoning') || name.includes('reasoning') || desc.includes('reasoning')) tags.push('reasoning');
+            if (id.includes('fast') || name.includes('fast') || desc.includes('fast') || cat.includes('fast')) tags.push('fast');
             return tags;
         }
 

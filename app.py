@@ -16,6 +16,11 @@ import random
 import pyotp
 import qrcode
 import wave
+import asyncio
+import tempfile
+import threading
+import hashlib
+import httpx
 from webauthn import (
     generate_registration_options, verify_registration_response,
     generate_authentication_options, verify_authentication_response
@@ -43,6 +48,7 @@ from google import genai
 from google.genai import types
 from google.cloud import texttospeech
 from google.api_core.client_options import ClientOptions
+import websockets
 import pypdf
 from cryptography.fernet import Fernet
 from opentelemetry import trace
@@ -73,6 +79,123 @@ def log_force(msg):
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 if not os.getenv('FLASK_SECRET_KEY'):
     raise RuntimeError("FLASK_SECRET_KEY is required")
+
+def _env_int(name, default):
+    try:
+        return int(os.getenv(name, default))
+    except Exception:
+        return default
+
+def _env_float(name, default):
+    try:
+        return float(os.getenv(name, default))
+    except Exception:
+        return default
+
+def _env_bool(name, default=False):
+    val = str(os.getenv(name, "1" if default else "0")).strip().lower()
+    return val in ("1", "true", "yes", "on")
+
+def _key_sig(key, extra=""):
+    if not key:
+        return None
+    h = hashlib.sha256(key.encode()).hexdigest()
+    return f"{h}:{extra}" if extra else h
+
+_HTTP_MAX_CONNECTIONS = _env_int("AI_CHAT_HTTP_MAX_CONNECTIONS", 100)
+_HTTP_MAX_KEEPALIVE = _env_int("AI_CHAT_HTTP_MAX_KEEPALIVE", 20)
+_HTTP_KEEPALIVE_EXPIRY = _env_float("AI_CHAT_HTTP_KEEPALIVE_EXPIRY", 30.0)
+_HTTP2_ENABLED = _env_bool("AI_CHAT_HTTP2", True)
+if _HTTP2_ENABLED:
+    try:
+        import h2  # noqa: F401
+    except Exception:
+        _HTTP2_ENABLED = False
+
+_OPENAI_CONNECT_TIMEOUT = _env_float("OPENAI_CONNECT_TIMEOUT_SECONDS", 5.0)
+_OPENAI_READ_TIMEOUT = _env_float("OPENAI_READ_TIMEOUT_SECONDS", 120.0)
+_OPENAI_WRITE_TIMEOUT = _env_float("OPENAI_WRITE_TIMEOUT_SECONDS", 30.0)
+_OPENAI_POOL_TIMEOUT = _env_float("OPENAI_POOL_TIMEOUT_SECONDS", 5.0)
+_OPENAI_MAX_RETRIES = _env_int("OPENAI_MAX_RETRIES", 1)
+
+_XAI_API_HOST = os.getenv("XAI_API_HOST", "api.x.ai").strip() or "api.x.ai"
+_XAI_TIMEOUT_SECONDS = _env_float("XAI_TIMEOUT_SECONDS", 120.0)
+
+_GEMINI_TIMEOUT_MS = _env_int("GEMINI_TIMEOUT_MS", 120000)
+
+_HTTPX_LIMITS = httpx.Limits(
+    max_connections=_HTTP_MAX_CONNECTIONS,
+    max_keepalive_connections=_HTTP_MAX_KEEPALIVE,
+    keepalive_expiry=_HTTP_KEEPALIVE_EXPIRY
+)
+
+_OPENAI_HTTPX_TIMEOUT = httpx.Timeout(
+    connect=_OPENAI_CONNECT_TIMEOUT,
+    read=_OPENAI_READ_TIMEOUT,
+    write=_OPENAI_WRITE_TIMEOUT,
+    pool=_OPENAI_POOL_TIMEOUT
+)
+
+_OPENAI_HTTPX_CLIENT = httpx.Client(http2=_HTTP2_ENABLED, limits=_HTTPX_LIMITS, timeout=_OPENAI_HTTPX_TIMEOUT)
+_GEMINI_HTTPX_CLIENT = httpx.Client(http2=_HTTP2_ENABLED, limits=_HTTPX_LIMITS)
+
+_CLIENT_CACHE_LOCK = threading.Lock()
+_OPENAI_CLIENT_CACHE = {}
+_GEMINI_CLIENT_CACHE = {}
+_XAI_CLIENT_CACHE = {}
+
+def _get_openai_client(api_key, base_url=None):
+    sig = _key_sig(api_key, base_url or "openai")
+    if not sig:
+        return None
+    with _CLIENT_CACHE_LOCK:
+        client = _OPENAI_CLIENT_CACHE.get(sig)
+        if client:
+            return client
+        client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=_OPENAI_HTTPX_TIMEOUT,
+            max_retries=_OPENAI_MAX_RETRIES,
+            http_client=_OPENAI_HTTPX_CLIENT
+        )
+        _OPENAI_CLIENT_CACHE[sig] = client
+        return client
+
+def _get_gemini_client(api_key):
+    sig = _key_sig(api_key, "gemini")
+    if not sig:
+        return None
+    with _CLIENT_CACHE_LOCK:
+        client = _GEMINI_CLIENT_CACHE.get(sig)
+        if client:
+            return client
+        http_options = types.HttpOptions(
+            api_version='v1beta',
+            timeout=_GEMINI_TIMEOUT_MS,
+            httpx_client=_GEMINI_HTTPX_CLIENT
+        )
+        client = genai.Client(api_key=api_key, http_options=http_options)
+        _GEMINI_CLIENT_CACHE[sig] = client
+        return client
+
+def _get_xai_client(api_key):
+    if not XAI_SDK_AVAILABLE:
+        return None
+    sig = _key_sig(api_key, _XAI_API_HOST)
+    if not sig:
+        return None
+    with _CLIENT_CACHE_LOCK:
+        client = _XAI_CLIENT_CACHE.get(sig)
+        if client:
+            return client
+        client = XAIClient(
+            api_key=api_key,
+            api_host=_XAI_API_HOST,
+            timeout=_XAI_TIMEOUT_SECONDS
+        )
+        _XAI_CLIENT_CACHE[sig] = client
+        return client
 
 app = Flask(__name__)
 app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-01-16-001')
@@ -152,6 +275,21 @@ def pick_tts_voice(client, language, prefer_tier):
         ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
     )
 
+def clamp_float(val, min_v, max_v):
+    try:
+        v = float(val)
+    except Exception:
+        return None
+    if v < min_v: v = min_v
+    if v > max_v: v = max_v
+    return v
+
+GEMINI_TTS_VOICES = {
+    "Zephyr","Puck","Charon","Kore","Fenrir","Leda","Orus","Aoede","Callirrhoe","Autonoe",
+    "Enceladus","Iapetus","Umbriel","Algieba","Despina","Erinome","Algenib","Rasalgethi","Laomedeia","Achernar",
+    "Alnilam","Schedar","Gacrux","Pulcherrima","Achird","Zubenelgenubi","Vindemiatrix","Sadachbia","Sadaltager","Sulafat"
+}
+
 def secure_delete(path):
     if os.path.exists(path):
         try:
@@ -160,9 +298,233 @@ def secure_delete(path):
             os.remove(path)
         except: pass
 
+# Speech-to-Speech (STS) model registry
+STS_MODELS = {
+    "gpt-realtime": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
+    "gpt-realtime-mini": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
+    "gemini-2.5-flash-native-audio-preview-12-2025": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
+    "grok-voice-agent": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
+}
+OPENAI_STS_VOICES = {
+    "alloy","ash","ballad","coral","echo","sage","shimmer","verse","marin","cedar"
+}
+XAI_STS_VOICES = {"Ara","Rex","Sal","Eve","Leo"}
+GEMINI_STS_VOICES = {
+    "Zephyr","Puck","Charon","Kore","Fenrir","Leda","Orus","Aoede","Callirrhoe","Autonoe",
+    "Enceladus","Iapetus","Umbriel","Algieba","Despina","Erinome","Algenib","Rasalgethi","Laomedeia","Achernar",
+    "Alnilam","Schedar","Gacrux","Pulcherrima","Achird","Zubenelgenubi","Vindemiatrix","Sadachbia","Sadaltager","Sulafat"
+}
+XAI_PCM_RATES = {8000,16000,21050,24000,32000,44100,48000}
+
+def is_sts_model(model_key):
+    return model_key in STS_MODELS
+
+def get_sts_provider(model_key):
+    meta = STS_MODELS.get(model_key)
+    return meta.get("provider") if meta else None
+
+def _chunk_bytes(data, chunk_size=32000):
+    for i in range(0, len(data), chunk_size):
+        yield data[i:i + chunk_size]
+
+def _convert_audio_to_pcm(audio_bytes, src_suffix=".webm", rate=24000):
+    suffix = src_suffix if src_suffix.startswith('.') else f".{src_suffix}"
+    with tempfile.NamedTemporaryFile(suffix=suffix) as in_f, tempfile.NamedTemporaryFile(suffix=".pcm") as out_f:
+        in_f.write(audio_bytes)
+        in_f.flush()
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", in_f.name,
+            "-ac", "1",
+            "-ar", str(rate),
+            "-f", "s16le",
+            out_f.name
+        ]
+        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        out_f.seek(0)
+        return out_f.read()
+
+def _pcm_to_wav_bytes(pcm_bytes, rate=24000):
+    buf = BytesIO()
+    with wave.open(buf, 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(rate)
+        wf.writeframes(pcm_bytes)
+    return buf.getvalue()
+
+def _save_user_audio(user_id, data, suffix, encrypt):
+    user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
+    if not os.path.exists(user_dir): os.makedirs(user_dir, exist_ok=True)
+    fname = f"audio_{int(time.time())}_{os.urandom(4).hex()}{suffix}"
+    fpath = os.path.join(user_dir, fname)
+    if encrypt:
+        with open(fpath + '.enc', 'wb') as f: f.write(encrypt_bytes(data))
+    else:
+        with open(fpath, 'wb') as f: f.write(data)
+    return fname, fpath
+
+async def _openai_sts_realtime(pcm_bytes, api_key, model_key, voice="alloy", speed=None, rate=24000):
+    # OpenAI Realtime currently supports 24kHz PCM audio for output; keep session aligned.
+    rate = 24000
+    url = f"wss://api.openai.com/v1/realtime?model={model_key}"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "OpenAI-Beta": "realtime=v1",
+    }
+    audio_out = bytearray()
+    transcript_out = ""
+    async with websockets.connect(url, extra_headers=headers, max_size=None) as ws:
+        session_update = {
+            "type": "session.update",
+            "session": {
+                "type": "realtime",
+                "model": model_key,
+                "output_modalities": ["audio"],
+                "voice": voice,
+                "audio": {
+                    "input": {
+                        "format": {"type": "audio/pcm", "rate": rate},
+                        "turn_detection": None
+                    },
+                    "output": {
+                        "format": {"type": "audio/pcm", "rate": rate}
+                    }
+                }
+            }
+        }
+        if speed is not None:
+            session_update["session"]["speed"] = speed
+        await ws.send(json.dumps(session_update))
+        await ws.send(json.dumps({"type": "input_audio_buffer.clear"}))
+        for chunk in _chunk_bytes(pcm_bytes):
+            await ws.send(json.dumps({
+                "type": "input_audio_buffer.append",
+                "audio": base64.b64encode(chunk).decode('utf-8')
+            }))
+        await ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
+        resp_cfg = {"voice": voice}
+        if speed is not None:
+            resp_cfg["speed"] = speed
+        await ws.send(json.dumps({"type": "response.create", "response": resp_cfg}))
+        while True:
+            msg = json.loads(await ws.recv())
+            mtype = msg.get("type")
+            if mtype == "error":
+                logger.error(f"OpenAI STS error event: {msg}")
+            elif mtype and mtype.startswith("response."):
+                logger.debug(f"OpenAI STS event: {mtype}")
+            if mtype in ("response.output_audio.delta", "response.audio.delta"):
+                delta = msg.get("delta")
+                if delta:
+                    audio_out += base64.b64decode(delta)
+            elif mtype in ("response.output_audio", "response.audio"):
+                delta = msg.get("audio") or msg.get("data")
+                if delta:
+                    audio_out += base64.b64decode(delta)
+            elif mtype == "response.output_audio_transcript.delta":
+                delta = msg.get("delta")
+                if delta:
+                    transcript_out += delta
+            elif mtype in ("response.output_audio.done", "response.done"):
+                break
+    return bytes(audio_out), transcript_out
+
+async def _xai_sts_realtime(pcm_bytes, api_key, model_key="grok-voice-agent", voice="Ara", rate_in=24000, rate_out=24000):
+    url = f"wss://{_XAI_API_HOST}/v1/realtime?model={model_key}"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    audio_out = bytearray()
+    transcript_out = ""
+    async with websockets.connect(url, ssl=True, extra_headers=headers, max_size=None) as ws:
+        session_update = {
+            "type": "session.update",
+            "session": {
+                "voice": voice,
+                "turn_detection": {"type": None},
+                "audio": {
+                    "input": {"format": {"type": "audio/pcm", "rate": rate_in}},
+                    "output": {"format": {"type": "audio/pcm", "rate": rate_out}}
+                }
+            }
+        }
+        await ws.send(json.dumps(session_update))
+        for chunk in _chunk_bytes(pcm_bytes):
+            await ws.send(json.dumps({
+                "type": "input_audio_buffer.append",
+                "audio": base64.b64encode(chunk).decode('utf-8')
+            }))
+        await ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
+
+        # Wait for commit confirmation when using client-side VAD
+        try:
+            while True:
+                msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=2.0))
+                if msg.get("type") == "input_audio_buffer.committed":
+                    break
+        except Exception:
+            pass
+
+        await ws.send(json.dumps({"type": "response.create", "response": {"modalities": ["audio", "text"]}}))
+        while True:
+            msg = json.loads(await ws.recv())
+            mtype = msg.get("type")
+            if mtype == "error":
+                logger.error(f"xAI STS error event: {msg}")
+            elif mtype and mtype.startswith("response."):
+                logger.debug(f"xAI STS event: {mtype}")
+            if mtype == "response.output_audio.delta":
+                delta = msg.get("delta")
+                if delta:
+                    audio_out += base64.b64decode(delta)
+            elif mtype == "response.output_audio":
+                delta = msg.get("audio")
+                if delta:
+                    audio_out += base64.b64decode(delta)
+            elif mtype == "response.output_audio_transcript.delta":
+                delta = msg.get("delta")
+                if delta:
+                    transcript_out += delta
+            elif mtype in ("response.output_audio.done", "response.done"):
+                break
+    return bytes(audio_out), transcript_out
+
+async def _google_sts_live(pcm_bytes, api_key, model_key, rate=16000, voice="Kore"):
+    client = _get_gemini_client(api_key)
+    audio_out = bytearray()
+    transcript_out = ""
+    input_transcript = ""
+    live_conf = {"response_modalities": ["AUDIO"]}
+    if voice and voice in GEMINI_STS_VOICES:
+        live_conf["speech_config"] = {
+            "voice_config": {
+                "prebuilt_voice_config": {"voice_name": voice}
+            }
+        }
+    async with client.aio.live.connect(
+        model=model_key,
+        config=live_conf,
+    ) as session:
+        await session.send_realtime_input(
+            media=types.Blob(data=pcm_bytes, mime_type=f"audio/pcm;rate={rate}")
+        )
+        await session.send_realtime_input(audio_stream_end=True)
+        async for msg in session.receive():
+            if msg.data:
+                audio_out += msg.data
+            sc = getattr(msg, "server_content", None)
+            if sc:
+                if getattr(sc, "output_transcription", None) and sc.output_transcription.text:
+                    transcript_out += sc.output_transcription.text
+                if getattr(sc, "input_transcription", None) and sc.input_transcription.text:
+                    input_transcript = sc.input_transcription.text
+                if sc.turn_complete:
+                    break
+    return bytes(audio_out), transcript_out, input_transcript
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True)
+    is_admin = db.Column(db.Boolean, default=False)
     password_hash = db.Column(db.String(255))
     system_prompt = db.Column(db.Text, default="")
     openai_api_key = db.Column(db.Text, nullable=True)
@@ -174,6 +536,23 @@ class User(UserMixin, db.Model):
     enter_to_send = db.Column(db.Boolean, default=False)
     use_sw_cache = db.Column(db.Boolean, default=False)
     auto_search_on_links = db.Column(db.Boolean, default=True)
+    use_last_chat_settings = db.Column(db.Boolean, default=False)
+    default_enable_search = db.Column(db.Boolean, default=False)
+    default_enable_python = db.Column(db.Boolean, default=True)
+    default_enable_thinking = db.Column(db.Boolean, default=False)
+    default_thinking_level = db.Column(db.String(16), default="high")
+    default_thinking_budget = db.Column(db.Integer, default=4096)
+    default_reasoning_effort = db.Column(db.String(16), default="medium")
+    default_enable_system_prompt = db.Column(db.Boolean, default=False)
+    default_safety_setting = db.Column(db.String(16), default="default")
+    last_enable_search = db.Column(db.Boolean, default=False)
+    last_enable_python = db.Column(db.Boolean, default=True)
+    last_enable_thinking = db.Column(db.Boolean, default=False)
+    last_thinking_level = db.Column(db.String(16), default="high")
+    last_thinking_budget = db.Column(db.Integer, default=4096)
+    last_reasoning_effort = db.Column(db.String(16), default="medium")
+    last_enable_system_prompt = db.Column(db.Boolean, default=False)
+    last_safety_setting = db.Column(db.String(16), default="default")
     easy_login_hash = db.Column(db.Text, nullable=True)
     easy_login_expires_at = db.Column(db.DateTime, nullable=True)
     is_setup_completed = db.Column(db.Boolean, default=False)
@@ -182,6 +561,12 @@ class User(UserMixin, db.Model):
     is_2fa_enabled = db.Column(db.Boolean, default=False)
     totp_secret = db.Column(db.String(32), nullable=True) # Encrypted
     webauthn_credentials = db.Column(db.Text, nullable=True) # JSON list
+    bot_detection_enabled = db.Column(db.Boolean, default=True)
+    is_bot_banned = db.Column(db.Boolean, default=False)
+    bot_banned_at = db.Column(db.DateTime, nullable=True)
+    bot_ban_reason = db.Column(db.Text, nullable=True)
+    bot_unbanned_at = db.Column(db.DateTime, nullable=True)
+    bot_unban_notice = db.Column(db.Boolean, default=False)
     threads = db.relationship('Thread', backref='user', lazy=True, cascade="all, delete-orphan")
     gems = db.relationship('Gem', backref='user', lazy=True, cascade="all, delete-orphan")
     def set_password(self, password): self.password_hash = generate_password_hash(password)
@@ -231,6 +616,11 @@ class Feedback(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+class AppSetting(db.Model):
+    key = db.Column(db.String(64), primary_key=True)
+    value = db.Column(db.Text, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 @login_manager.user_loader
 def load_user(uid): return User.query.get(int(uid))
 
@@ -243,28 +633,93 @@ def get_csrf_token():
 
 @app.context_processor
 def inject_csrf():
-    return {'csrf_token': get_csrf_token(), 'app_version': app.config.get('APP_VERSION')}
+    is_admin = current_user.is_authenticated and bool(getattr(current_user, "is_admin", False))
+    return {'csrf_token': get_csrf_token(), 'app_version': app.config.get('APP_VERSION'), 'is_admin': is_admin}
 
 def validate_csrf():
     token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token')
     return token and token == session.get('csrf_token')
 
+def get_app_setting(key, default=None):
+    try:
+        row = AppSetting.query.get(key)
+        if row is None:
+            return default
+        return row.value
+    except Exception:
+        return default
+
+def set_app_setting(key, value):
+    row = AppSetting.query.get(key)
+    if row is None:
+        row = AppSetting(key=key, value=str(value))
+        db.session.add(row)
+    else:
+        row.value = str(value)
+    row.updated_at = datetime.utcnow()
+    safe_db_commit()
+
+def ensure_app_setting(key, default):
+    try:
+        row = AppSetting.query.get(key)
+        if row is None:
+            db.session.add(AppSetting(key=key, value=str(default)))
+            safe_db_commit()
+    except Exception:
+        pass
+
+def get_bool_app_setting(key, default=False):
+    val = get_app_setting(key, None)
+    if val is None:
+        return default
+    return str(val).strip().lower() in ("1", "true", "yes", "on")
+
+def get_bot_detection_global_enabled():
+    return get_bool_app_setting("bot_detection_global_enabled", True)
+
 @app.before_request
 def check_maintenance():
     if app.config.get('MAINTENANCE_MODE'):
         if request.endpoint in ['static', 'login', 'logout', 'toggle_maintenance']: return
-        if current_user.is_authenticated and current_user.username == 'minashin1120': return
+        if current_user.is_authenticated and getattr(current_user, "is_admin", False): return
         return render_template('maintenance.html'), 503
     if request.method in ['POST', 'PUT', 'DELETE', 'PATCH']:
         if request.endpoint not in ['static']:
             if not validate_csrf():
                 return jsonify({'error': 'CSRF token missing/invalid'}), 403
 
+@app.before_request
+def check_bot_ban():
+    if not current_user.is_authenticated:
+        return
+    if getattr(current_user, "is_admin", False):
+        return
+    if current_user.bot_unban_notice:
+        flash("ボット検出によるBANが解除されました。")
+        current_user.bot_unban_notice = False
+        safe_db_commit()
+    if current_user.is_bot_banned:
+        if request.endpoint in ['logout', 'static', 'banned']:
+            return
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'banned'}), 403
+        return redirect(url_for('banned'))
+
 def verify_turnstile(token):
     secret = os.getenv('TURNSTILE_SECRET_KEY')
-    if not secret: return True
+    if not secret: return False
+    if not token: return False
     try: return requests.post('https://challenges.cloudflare.com/turnstile/v0/siteverify', data={'secret': secret, 'response': token}, timeout=5).json().get('success', False)
     except: return False
+
+def rate_limit(key, limit, window_seconds):
+    try:
+        cur = redis_conn.incr(key)
+        if cur == 1:
+            redis_conn.expire(key, window_seconds)
+        return cur <= limit
+    except Exception:
+        return True
 
 def count_tokens(text, model="gpt-4"):
     try:
@@ -288,6 +743,49 @@ def safe_db_commit():
     except Exception:
         db.session.rollback()
         raise
+
+def evaluate_bot_score(payload):
+    try:
+        window_ms = int(payload.get('window_ms') or 0)
+        clicks = int(payload.get('clicks') or 0)
+        keys = int(payload.get('keys') or 0)
+        fast_clicks = int(payload.get('fast_clicks') or 0)
+        fast_keys = int(payload.get('fast_keys') or 0)
+        click_burst = int(payload.get('click_burst') or 0)
+        key_burst = int(payload.get('key_burst') or 0)
+        event_rate = float(payload.get('event_rate') or 0)
+        avg_click_ms = float(payload.get('avg_click_ms') or 9999)
+        click_cv = float(payload.get('click_cv') or 1.0)
+        pointer_speed_max = float(payload.get('pointer_speed_max') or 0)
+    except Exception:
+        return 0, []
+    score = 0
+    reasons = []
+    if click_burst >= 12:
+        score += 3
+        reasons.append('click_burst')
+    elif clicks >= 18 and window_ms <= 3000:
+        score += 2
+        reasons.append('click_rate')
+    if fast_clicks >= 6:
+        score += 2
+        reasons.append('fast_clicks')
+    if fast_keys >= 14:
+        score += 2
+        reasons.append('fast_keys')
+    if key_burst >= 18:
+        score += 2
+        reasons.append('key_burst')
+    if event_rate >= 25:
+        score += 1
+        reasons.append('high_event_rate')
+    if avg_click_ms < 140 and click_cv < 0.08:
+        score += 2
+        reasons.append('robotic_clicks')
+    if pointer_speed_max >= 6000:
+        score += 1
+        reasons.append('pointer_speed')
+    return score, reasons
 
 # --- Background Tasks ---
 
@@ -354,7 +852,7 @@ def migrate_e2ee_task(user_id, target_enable):
             r.set(f"migration_progress:{user_id}", "error")
 
 def safe_execute_python(code):
-    """Executes Python code in a restricted environment using unshare."""
+    """Executes Python code in a restricted environment using bubblewrap."""
     import subprocess
     import tempfile
     import os
@@ -364,23 +862,46 @@ def safe_execute_python(code):
     if not py_path:
         return "Error: python3 not found."
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as tmp:
-        tmp.write(code)
-        tmp_path = tmp.name
+    bwrap = shutil.which("bwrap")
+    if not bwrap:
+        return "Error: Python execution disabled (sandbox not available)."
 
-    try:
-        # Isolate network, mount, and PID. Use rootless mode (-r)
-        cmd = ["unshare", "-n", "-r", py_path, tmp_path]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        out = result.stdout + result.stderr
-        return out if out.strip() else "Success (No output)"
-    except subprocess.TimeoutExpired:
-        return "Error: Execution timed out (30s limit)"
-    except Exception as e:
-        return f"Error: {str(e)}"
-    finally:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
+    with tempfile.TemporaryDirectory() as td:
+        code_path = os.path.join(td, "code.py")
+        with open(code_path, "w") as f:
+            f.write(code)
+        binds = [
+            ("--ro-bind", "/usr", "/usr"),
+            ("--ro-bind", "/bin", "/bin"),
+        ]
+        for p in ["/lib", "/lib64"]:
+            if os.path.exists(p):
+                binds.append(("--ro-bind", p, p))
+        cmd = [
+            bwrap,
+            "--unshare-net",
+            "--unshare-uts",
+            "--unshare-pid",
+            "--unshare-ipc",
+            "--die-with-parent",
+            "--proc", "/proc",
+            "--dev", "/dev",
+            "--tmpfs", "/home",
+            "--tmpfs", "/var",
+            "--dir", "/tmp",
+            "--chdir", "/tmp",
+        ]
+        for b in binds:
+            cmd.extend(list(b))
+        cmd.extend(["--bind", td, "/work", py_path, "/work/code.py"])
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            out = (result.stdout or "") + (result.stderr or "")
+            return out if out.strip() else "Success (No output)"
+        except subprocess.TimeoutExpired:
+            return "Error: Execution timed out (30s limit)"
+        except Exception as e:
+            return f"Error: {str(e)}"
 
 def background_chat_task(job_id, thread_id, model_key, message_id, options, user_id, user_config):
     with app.app_context():
@@ -428,6 +949,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if user.enable_e2ee: sp = decrypt_val(sp)
                     final_sys_prompt = sp
             if final_sys_prompt: options['system_prompt'] = final_sys_prompt
+            if options.get('enable_python'):
+                python_notice = "Python execution is available; you can run Python code when needed."
+                base_prompt = options.get('system_prompt')
+                if base_prompt and str(base_prompt).strip():
+                    if python_notice.lower() not in str(base_prompt).lower():
+                        options['system_prompt'] = f"{python_notice}\n\n{base_prompt}"
+                else:
+                    options['system_prompt'] = python_notice
             quote_text = None
             try:
                 qv = r.get(f"quote:{job_id}")
@@ -445,6 +974,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             MAX_CONTEXT_TOKENS = 60000
             
             current_node = msg.parent # Start from the parent of the current message
+            if current_node and (current_node.thread_id != thread_id or current_node.thread.user_id != user_id):
+                current_node = None
             while current_node:
                 cnt = decrypt_val(current_node.content) if current_node.is_encrypted else current_node.content
                 t_len = count_tokens(cnt)
@@ -494,7 +1025,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 k = decrypt_val(db_val)
                 if k and str(k).strip():
                     return k
-                if user and user.username == 'minashin1120':
+                if user and getattr(user, 'is_admin', False):
                     return os.getenv(env_key)
                 return None
 
@@ -514,11 +1045,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 return
 
             g_client = None; o_client = None; x_client = None
-            if is_gem: g_client = genai.Client(api_key=key, http_options={'api_version': 'v1beta'})
+            if is_gem: g_client = _get_gemini_client(key)
             elif is_grok:
-                if XAI_SDK_AVAILABLE: x_client = XAIClient(api_key=key)
-                o_client = OpenAI(api_key=key, base_url="https://api.x.ai/v1")
-            else: o_client = OpenAI(api_key=key, base_url=None)
+                x_client = _get_xai_client(key)
+                o_client = _get_openai_client(key, base_url=f"https://{_XAI_API_HOST}/v1")
+            else: o_client = _get_openai_client(key, base_url=None)
 
             loaded_files = []
             for fn in img_list:
@@ -581,7 +1112,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 # Gemini TTS (Preview)
                 if "tts" in model_key:
                     try:
-                        voice_name = "Kore"
+                        voice_name = (options.get('tts_voice') or "Kore").strip()
+                        if voice_name not in GEMINI_TTS_VOICES:
+                            voice_name = "Kore"
+                        tts_lang = (options.get('tts_language') or "").strip() or None
                         tts_resp = g_client.models.generate_content(
                             model=model_key,
                             contents=final_message_text,
@@ -592,7 +1126,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         prebuilt_voice_config=types.PrebuiltVoiceConfig(
                                             voice_name=voice_name
                                         )
-                                    )
+                                    ),
+                                    language_code=tts_lang
                                 ),
                             ),
                         )
@@ -661,7 +1196,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         )
                         
                         if resp.candidates:
-                            for part in resp.candidates[0].content.parts:
+                            cand0 = resp.candidates[0]
+                            parts0 = getattr(getattr(cand0, 'content', None), 'parts', None) or []
+                            for part in parts0:
                                 if hasattr(part, 'thought_signature') and part.thought_signature:
                                     signature_parts.append(base64.b64encode(part.thought_signature).decode('utf-8'))
 
@@ -690,12 +1227,19 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         rm = "gemini-3-flash-preview"
                     elif "gemini-3-pro" in model_key or "gemini-3.0-pro" in model_key:
                         rm = "gemini-3-pro-preview"
-                    elif "gemini-2.5" in model_key: rm = "gemini-2.5-flash"
+                    elif "gemini-2.5-flash-lite" in model_key:
+                        rm = model_key
+                    elif "gemini-2.5" in model_key:
+                        rm = "gemini-2.5-flash"
 
                     conf = {'temperature': 0.7}
+                    is_gemini_3 = "gemini-3" in model_key
+                    if is_gemini_3:
+                        # Gemini 3 does not support fully disabling thinking; force enabled.
+                        options['enable_thinking'] = True
                     if options.get('enable_thinking'):
                         raw_lvl = (options.get('thinking_level') or 'high').lower()
-                        lvl = raw_lvl.upper()
+                        lvl = raw_lvl if raw_lvl in ("minimal", "low", "medium", "high") else "high"
                         if "gemini-2.5" in model_key:
                             budget_map = {"low": 1024, "medium": 4096, "high": 8192}
                             manual_budget = options.get('thinking_budget')
@@ -713,6 +1257,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             )
                         else:
                             conf['thinking_config'] = types.ThinkingConfig(include_thoughts=True, thinking_level=lvl)
+                    # For Gemini 3, if thinking_level is not specified, the model defaults to "high".
+                    # Avoid forcing "minimal" when users disable thinking, because Gemini 3 does not
+                    # support fully turning thinking off and defaults are higher per docs.
 
                     if options.get('enable_search'):
                         conf['tools'] = [types.Tool(google_search=types.GoogleSearch())]
@@ -773,18 +1320,19 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if check_stop(): break
                         if hasattr(chunk, 'candidates') and chunk.candidates:
                             for cand in chunk.candidates:
-                                if hasattr(cand, 'grounding_metadata') and cand.grounding_metadata:
-                                    gm = cand.grounding_metadata
-                                    if hasattr(gm, 'grounding_chunks'):
-                                        sources_text = "\n\n**Sources:**\n"
-                                        found = False
-                                        for g_chunk in gm.grounding_chunks:
-                                            if hasattr(g_chunk, 'web') and g_chunk.web:
-                                                sources_text += f"- [{g_chunk.web.title}]({g_chunk.web.uri})\n"
-                                                found = True
-                                        if found: pub("content", sources_text)
+                                gm = getattr(cand, 'grounding_metadata', None)
+                                g_chunks = getattr(gm, 'grounding_chunks', None) or []
+                                if g_chunks:
+                                    sources_text = "\n\n**Sources:**\n"
+                                    found = False
+                                    for g_chunk in g_chunks:
+                                        if hasattr(g_chunk, 'web') and g_chunk.web:
+                                            sources_text += f"- [{g_chunk.web.title}]({g_chunk.web.uri})\n"
+                                            found = True
+                                    if found: pub("content", sources_text)
 
-                                for part in cand.content.parts:
+                                parts = getattr(getattr(cand, 'content', None), 'parts', None) or []
+                                for part in parts:
                                     if hasattr(part, 'thought_signature') and part.thought_signature:
                                         signature_parts.append(base64.b64encode(part.thought_signature).decode('utf-8'))
                                     if hasattr(part, 'thought') and part.thought:
@@ -938,12 +1486,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if 'google-tts' in model_key:
                         # Google Cloud TTS (requires Google Cloud API key, not Gemini API key)
                         g_key = decrypt_val(current_user.google_api_key)
-                        if not g_key and current_user.username == 'minashin1120':
+                        if not g_key and getattr(current_user, 'is_admin', False):
                             g_key = os.getenv('GOOGLE_API_KEY')
                         if not g_key:
                             raise RuntimeError("Google API Key is not configured for Google TTS.")
                         g_project = decrypt_val(current_user.google_cloud_project)
-                        if not g_project and current_user.username == 'minashin1120':
+                        if not g_project and getattr(current_user, 'is_admin', False):
                             g_project = os.getenv('GOOGLE_CLOUD_PROJECT')
                         opts = {"api_key": g_key}
                         if g_project: opts["quota_project_id"] = g_project
@@ -951,24 +1499,37 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             client_options=ClientOptions(**opts)
                         )
                         synthesis_input = texttospeech.SynthesisInput(text=final_message_text)
+                        tts_lang = (options.get('tts_language') or "ja-JP").strip() or "ja-JP"
+                        tts_voice_custom = (options.get('tts_voice_custom') or "").strip()
                         
                         # Selection logic
-                        if 'studio' in model_key:
-                            voice = pick_tts_voice(client_tts, "ja-JP", "studio")
+                        if tts_voice_custom:
+                            voice = texttospeech.VoiceSelectionParams(language_code=tts_lang, name=tts_voice_custom)
+                        elif 'studio' in model_key:
+                            voice = pick_tts_voice(client_tts, tts_lang, "studio")
                         else:
-                            voice = pick_tts_voice(client_tts, "ja-JP", "neural")
+                            voice = pick_tts_voice(client_tts, tts_lang, "neural")
                         
-                        audio_config = texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.MP3)
+                        speed_val = clamp_float(options.get('tts_speed'), 0.25, 2.0)
+                        audio_kwargs = {"audio_encoding": texttospeech.AudioEncoding.MP3}
+                        if speed_val is not None:
+                            audio_kwargs["speaking_rate"] = speed_val
+                        audio_config = texttospeech.AudioConfig(**audio_kwargs)
                         response_tts = client_tts.synthesize_speech(input=synthesis_input, voice=voice, audio_config=audio_config)
                         audio_content = response_tts.audio_content
                         with open(speech_file_path, 'wb') as f: f.write(audio_content)
                     else:
                         # OpenAI TTS
-                        with o_client.audio.speech.with_streaming_response.create(
-                            model=model_key,
-                            voice="alloy",
-                            input=final_message_text
-                        ) as response:
+                        tts_voice = (options.get('tts_voice') or "alloy").strip().lower() or "alloy"
+                        speed_val = clamp_float(options.get('tts_speed'), 0.25, 4.0)
+                        tts_kwargs = {
+                            "model": model_key,
+                            "voice": tts_voice,
+                            "input": final_message_text
+                        }
+                        if speed_val is not None:
+                            tts_kwargs["speed"] = speed_val
+                        with o_client.audio.speech.with_streaming_response.create(**tts_kwargs) as response:
                             response.stream_to_file(speech_file_path)
 
                     # Encryption if enabled
@@ -1049,7 +1610,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 input_data.append({"role": "user", "content": curr_content})
                 
                 # OpenAI/xAI Responses API
-                kwargs = {"model": model_key, "input": input_data, "stream": True}
+                kwargs = {"model": model_key, "input": input_data, "stream": True, "store": True}
 
                 if is_grok and grok_enable_search:
                     kwargs['tools'] = [{"type": "web_search"}, {"type": "x_search"}]
@@ -1078,18 +1639,19 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                 if is_grok and options.get('enable_thinking') and not grok_reasoning_supported:
                     pub("thought", "APIの仕様により表示されません")
-                is_reasoning_model = any(x in model_key.lower() for x in ['o1', 'o3', 'gpt-5.2', 'reasoning'])
-                if is_grok and options.get('enable_thinking') and grok_reasoning_supported:
+                is_reasoning_model = (not is_grok) and any(x in model_key.lower() for x in ['o1', 'o3', 'gpt-5.2', 'gpt-5.1', 'gpt-5', 'reasoning'])
+                req_reasoning_effort = (options.get('reasoning_effort') or "").lower().strip()
+                enable_reasoning = bool(options.get('enable_thinking')) or (req_reasoning_effort and req_reasoning_effort != "none")
+                if is_grok and enable_reasoning and grok_reasoning_supported:
                     kwargs['reasoning'] = {"effort": _grok_reasoning_effort()}
                     log_force(f"Grok reasoning config: {kwargs['reasoning']}")
-                elif is_reasoning_model and options.get('enable_thinking'):
-                    effort = options.get('reasoning_effort')
+                elif is_reasoning_model and enable_reasoning:
+                    effort = req_reasoning_effort
                     if not effort:
                         lvl = (options.get('thinking_level') or "medium").lower()
                         effort = "low" if lvl == "low" else "high" if lvl == "high" else "medium"
                     kwargs['reasoning'] = {"effort": effort}
-                    if "gpt-5.2" in model_key.lower():
-                        kwargs['reasoning']["summary"] = "auto"
+                    kwargs['reasoning']["summary"] = "auto"
                     log_force(f"Reasoning config: {kwargs['reasoning']}")
 
                 log_force(f"Responses API Params: {kwargs.keys()}")
@@ -1101,6 +1663,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 for chunk in stream:
                     if check_stop(): break
                         # log_force(f"Responses Chunk: {chunk}") # Temporarily disabled to avoid log flooding
+                    # Capture response_id from any event type (some streams may skip response.created)
+                    if response_id is None:
+                        if isinstance(chunk, dict):
+                            response_id = chunk.get('response_id') or response_id
+                        else:
+                            response_id = getattr(chunk, 'response_id', None) or response_id
                     if isinstance(chunk, dict):
                         event_type = chunk.get('type')
                     else:
@@ -1157,6 +1725,17 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             if not saw_reasoning_summary_delta:
                                 thought_accumulated += part_text
                                 pub("thought", part_text)
+                    elif event_type in ("response.content_part.added", "response.content_part.done"):
+                        part = chunk.get('part') if isinstance(chunk, dict) else getattr(chunk, 'part', None)
+                        if isinstance(part, dict):
+                            part_type = part.get('type')
+                            part_text = part.get('text')
+                        else:
+                            part_type = getattr(part, 'type', None) if part else None
+                            part_text = getattr(part, 'text', None) if part else None
+                        if part_type in ("summary_text", "reasoning_text") and part_text:
+                            thought_accumulated += part_text
+                            pub("thought", part_text)
                     elif event_type == "response.output_item.added":
                         item = chunk.get('item') if isinstance(chunk, dict) else getattr(chunk, 'item', None)
                         if item:
@@ -1171,6 +1750,20 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 if not search_reported:
                                     pub("search_status", "searching")
                                     search_reported = True
+                            if i_type == "reasoning":
+                                summary_parts = item.get('summary') if isinstance(item, dict) else getattr(item, 'summary', None)
+                                if summary_parts:
+                                    for part in summary_parts:
+                                        if isinstance(part, dict):
+                                            p_type = part.get('type')
+                                            p_text = part.get('text')
+                                        else:
+                                            p_type = getattr(part, 'type', None)
+                                            p_text = getattr(part, 'text', None)
+                                        if p_type == "summary_text" and p_text:
+                                            saw_reasoning_summary_delta = True
+                                            thought_accumulated += p_text
+                                            pub("thought", p_text)
 
                     elif event_type == "response.output_item.done":
                         item = chunk.get('item') if isinstance(chunk, dict) else getattr(chunk, 'item', None)
@@ -1240,6 +1833,19 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     saw_reasoning_summary_delta = True
                                     thought_accumulated += part_text
                                     pub("thought", part_text)
+                        if item_type == "reasoning":
+                            content_parts = item.get('content') if isinstance(item, dict) else getattr(item, 'content', None)
+                            if content_parts:
+                                for part in content_parts:
+                                    if isinstance(part, dict):
+                                        p_type = part.get('type')
+                                        p_text = part.get('text')
+                                    else:
+                                        p_type = getattr(part, 'type', None)
+                                        p_text = getattr(part, 'text', None)
+                                    if p_type == "reasoning_text" and p_text:
+                                        thought_accumulated += p_text
+                                        pub("thought", p_text)
                     else:
                         if hasattr(chunk, 'output_text_delta') and chunk.output_text_delta:
                             if search_reported:
@@ -1287,6 +1893,59 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             if text:
                                                 thought_accumulated += text
                                                 pub("thought", text)
+                                    content_parts = item.get('content') if isinstance(item, dict) else getattr(item, 'content', None)
+                                    if content_parts:
+                                        for part in content_parts:
+                                            if isinstance(part, dict):
+                                                p_type = part.get('type')
+                                                p_text = part.get('text')
+                                            else:
+                                                p_type = getattr(part, 'type', None)
+                                                p_text = getattr(part, 'text', None)
+                                            if p_type == "reasoning_text" and p_text:
+                                                thought_accumulated += p_text
+                                                pub("thought", p_text)
+
+                # Fallback: retrieve full response if no reasoning summary surfaced in stream
+                if enable_reasoning and not thought_accumulated and response_id:
+                    try:
+                        resp_full = client.responses.retrieve(response_id)
+                        output_items = getattr(resp_full, 'output', None)
+                        if output_items:
+                            for item in output_items:
+                                if isinstance(item, dict):
+                                    item_type = item.get('type')
+                                    summary_parts = item.get('summary')
+                                    content_parts = item.get('content')
+                                else:
+                                    item_type = getattr(item, 'type', None)
+                                    summary_parts = getattr(item, 'summary', None)
+                                    content_parts = getattr(item, 'content', None)
+                                if item_type == "reasoning":
+                                    if summary_parts:
+                                        for part in summary_parts:
+                                            if isinstance(part, dict):
+                                                text = part.get('text')
+                                            else:
+                                                text = getattr(part, 'text', None)
+                                            if text:
+                                                thought_accumulated += text
+                                                pub("thought", text)
+                                    if content_parts:
+                                        for part in content_parts:
+                                            if isinstance(part, dict):
+                                                p_type = part.get('type')
+                                                p_text = part.get('text')
+                                            else:
+                                                p_type = getattr(part, 'type', None)
+                                                p_text = getattr(part, 'text', None)
+                                            if p_type == "reasoning_text" and p_text:
+                                                thought_accumulated += p_text
+                                                pub("thought", p_text)
+                    except Exception as e:
+                        log_force(f"Reasoning retrieve fallback failed: {e}")
+                elif enable_reasoning and not thought_accumulated:
+                    log_force("Reasoning summary missing after stream and retrieve fallback.")
 
             final_content = full_res
             final_signature = json.dumps(signature_parts) if signature_parts else None
@@ -1320,7 +1979,14 @@ def index():
     if current_user.is_authenticated:
         if not current_user.is_setup_completed: return redirect(url_for('setup'))
         easy_login_used = bool(session.pop('easy_login_used', False))
-        return render_template('chat.html', easy_login_used=easy_login_used)
+        bot_config = {
+            "username": current_user.username,
+            "isAdmin": bool(getattr(current_user, "is_admin", False)),
+            "globalEnabled": get_bot_detection_global_enabled(),
+            "accountEnabled": current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
+            "turnstileSiteKey": os.getenv('TURNSTILE_SITE_KEY') or ""
+        }
+        return render_template('chat.html', easy_login_used=easy_login_used, bot_config=bot_config)
     return render_template('landing.html')
 
 @app.route('/c/<int:thread_id>')
@@ -1330,7 +1996,14 @@ def chat_permalink(thread_id):
     if not thread or thread.user_id != current_user.id:
         return redirect(url_for('index'))
     easy_login_used = bool(session.pop('easy_login_used', False))
-    return render_template('chat.html', initial_thread_id=thread_id, easy_login_used=easy_login_used)
+    bot_config = {
+        "username": current_user.username,
+        "isAdmin": bool(getattr(current_user, "is_admin", False)),
+        "globalEnabled": get_bot_detection_global_enabled(),
+        "accountEnabled": current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
+        "turnstileSiteKey": os.getenv('TURNSTILE_SITE_KEY') or ""
+    }
+    return render_template('chat.html', initial_thread_id=thread_id, easy_login_used=easy_login_used, bot_config=bot_config)
 
 @app.route('/changelog')
 def changelog():
@@ -1342,6 +2015,19 @@ def changelog():
         for f in files:
             with open(f, 'r', encoding='utf-8') as file: logs.append({'content': file.read()})
     return render_template('changelog.html', logs=logs)
+
+@app.route('/banned')
+@login_required
+def banned():
+    if getattr(current_user, 'is_admin', False):
+        return redirect(url_for('index'))
+    if not current_user.is_bot_banned:
+        return redirect(url_for('index'))
+    return render_template(
+        'banned.html',
+        reason=current_user.bot_ban_reason,
+        banned_at=current_user.bot_banned_at
+    )
 
 @app.route('/api/version')
 def api_version():
@@ -1357,9 +2043,13 @@ def api_version():
 def login():
     if current_user.is_authenticated: return redirect(url_for('index'))
     if request.method == 'POST':
+        if not rate_limit(f"rl:login:ip:{request.remote_addr}", 20, 300):
+            return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
         if not verify_turnstile(request.form.get('cf-turnstile-response')): return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Auth Error")
         user = User.query.filter_by(username=request.form.get('username')).first()
         if user:
+            if not rate_limit(f"rl:login:user:{user.id}", 10, 300):
+                return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
             pw = request.form.get('password') or ""
             now = datetime.utcnow()
             easy_ok = False
@@ -1373,18 +2063,25 @@ def login():
                 user.easy_login_hash = None
                 user.easy_login_expires_at = None
                 safe_db_commit()
+                if user.is_bot_banned and not getattr(user, "is_admin", False):
+                    return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="This account is banned")
                 session['easy_login_used'] = True
-                login_user(user, remember=True)
+                remember = bool(request.form.get('remember'))
+                login_user(user, remember=remember)
                 return redirect(url_for('index'))
             if user.easy_login_hash and user.easy_login_expires_at and now > user.easy_login_expires_at:
                 user.easy_login_hash = None
                 user.easy_login_expires_at = None
                 safe_db_commit()
             if user.check_password(pw):
+                if user.is_bot_banned and not getattr(user, "is_admin", False):
+                    return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="This account is banned")
                 if user.is_2fa_enabled:
+                    session['remember_me'] = bool(request.form.get('remember'))
                     session['pre_2fa_user_id'] = user.id
                     return redirect(url_for('verify_2fa'))
-                login_user(user, remember=True)
+                remember = bool(request.form.get('remember'))
+                login_user(user, remember=remember)
                 return redirect(url_for('index'))
         return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Invalid credentials")
     return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'))
@@ -1399,12 +2096,17 @@ def verify_2fa():
     if not user: return redirect(url_for('login'))
 
     if request.method == 'POST':
+        if not rate_limit(f"rl:2fa:user:{user.id}", 8, 300):
+            return render_template('verify_2fa.html', error="Too many attempts. Try again later.")
         code = request.form.get('totp_code')
         if code:
             secret = decrypt_val(user.totp_secret)
             if secret and pyotp.TOTP(secret).verify(code):
                 session.pop('pre_2fa_user_id', None)
-                login_user(user, remember=True)
+                if user.is_bot_banned and not getattr(user, "is_admin", False):
+                    return render_template('verify_2fa.html', error="This account is banned")
+                remember = bool(session.pop('remember_me', False))
+                login_user(user, remember=remember)
                 return redirect(url_for('index'))
             return render_template('verify_2fa.html', error="Invalid Code")
             
@@ -1441,6 +2143,8 @@ def verify_2fa_webauthn_verify():
     user_id = session.get('pre_2fa_user_id')
     if not user_id: return jsonify({'error': 'Session expired'}), 401
     user = User.query.get(user_id)
+    if not rate_limit(f"rl:webauthn:user:{user_id}", 8, 300):
+        return jsonify({'error': 'Too many attempts'}), 429
     
     try:
         data = request.json
@@ -1466,7 +2170,8 @@ def verify_2fa_webauthn_verify():
         db.session.commit()
         
         session.pop('pre_2fa_user_id', None)
-        login_user(user, remember=True)
+        remember = bool(session.pop('remember_me', False))
+        login_user(user, remember=remember)
         return jsonify({'status': 'ok'})
     except Exception as e:
         logger.error(f"WebAuthn Verify Error: {e}")
@@ -1476,7 +2181,10 @@ def verify_2fa_webauthn_verify():
 def signup():
     if current_user.is_authenticated: return redirect(url_for('index'))
     if request.method == 'POST':
+        if not rate_limit(f"rl:signup:ip:{request.remote_addr}", 10, 3600):
+            return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
         if not verify_turnstile(request.form.get('cf-turnstile-response')): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Auth Error")
+        if request.form.get('username') == 'minashin1120': return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Username taken")
         if User.query.filter_by(username=request.form.get('username')).first(): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Username taken")
         new_user = User(username=request.form.get('username'), is_setup_completed=False)
         new_user.set_password(request.form.get('password'))
@@ -1532,6 +2240,15 @@ def chat_stream():
         if user_config['enable_e2ee']: msg_content = encrypt_val(msg_content)
         
         parent_id = data.get('parent_id')
+        if parent_id:
+            try:
+                pm = Message.query.get(int(parent_id))
+                if not pm or pm.thread_id != thread_id or pm.thread.user_id != current_user.id:
+                    parent_id = None
+                else:
+                    parent_id = pm.id
+            except Exception:
+                parent_id = None
         if not parent_id:
             # Default to the last message in the thread
             last_msg = Message.query.filter_by(thread_id=thread_id).order_by(Message.id.desc()).first()
@@ -1577,7 +2294,27 @@ def chat_stream():
         'reasoning_effort': data.get('reasoning_effort'),
         'enable_system_prompt': data.get('enable_system_prompt'),
         'safety_setting': data.get('safety_setting'),
+        'tts_voice': data.get('tts_voice'),
+        'tts_voice_custom': data.get('tts_voice_custom'),
+        'tts_language': data.get('tts_language'),
+        'tts_speed': data.get('tts_speed'),
     }
+
+    if current_user.use_last_chat_settings:
+        current_user.last_enable_search = bool(data.get('enable_search'))
+        current_user.last_enable_python = bool(data.get('enable_python'))
+        current_user.last_enable_thinking = bool(data.get('enable_thinking'))
+        current_user.last_thinking_level = (data.get('thinking_level') or current_user.last_thinking_level or "high")
+        tb = data.get('thinking_budget')
+        try:
+            if tb is not None and str(tb).strip() != "":
+                current_user.last_thinking_budget = int(tb)
+        except Exception:
+            pass
+        current_user.last_reasoning_effort = (data.get('reasoning_effort') or current_user.last_reasoning_effort or "medium")
+        current_user.last_enable_system_prompt = bool(data.get('enable_system_prompt'))
+        current_user.last_safety_setting = (data.get('safety_setting') or current_user.last_safety_setting or "default")
+        safe_db_commit()
 
     task_queue.enqueue(background_chat_task, job_id, thread_id, data.get('model'), user_msg.id, options, current_user.id, user_config, job_timeout=600)
     
@@ -1624,29 +2361,39 @@ def generate_title_api():
         
         # [FIX] Multi-model fallback logic
         title = "New Chat"
-        o_key = decrypt_val(current_user.openai_api_key) or (os.getenv('OPENAI_API_KEY') if current_user.username == 'minashin1120' else None)
-        g_key = decrypt_val(current_user.gemini_api_key) or (os.getenv('GEMINI_API_KEY') if current_user.username == 'minashin1120' else None)
-        x_key = decrypt_val(current_user.xai_api_key) or (os.getenv('XAI_API_KEY') if current_user.username == 'minashin1120' else None)
+        o_key = decrypt_val(current_user.openai_api_key) or (os.getenv('OPENAI_API_KEY') if getattr(current_user, 'is_admin', False) else None)
+        g_key = decrypt_val(current_user.gemini_api_key) or (os.getenv('GEMINI_API_KEY') if getattr(current_user, 'is_admin', False) else None)
+        x_key = decrypt_val(current_user.xai_api_key) or (os.getenv('XAI_API_KEY') if getattr(current_user, 'is_admin', False) else None)
 
         # Try OpenAI (gpt-4o-mini)
         if o_key:
             try:
-                client = OpenAI(api_key=o_key)
-                resp = client.chat.completions.create(
+                client = _get_openai_client(o_key, base_url=None)
+                resp = client.responses.create(
                     model="gpt-4o-mini",
-                    messages=[
+                    input=[
                         {"role": "system", "content": "Generate a short title (max 6 words) for this chat. Output JSON: {\"title\": \"...\"}"},
                         {"role": "user", "content": content[:500]}
-                    ],
-                    response_format={"type": "json_object"}
+                    ]
                 )
-                title = json.loads(resp.choices[0].message.content).get('title', 'New Chat')
+                raw = None
+                if isinstance(resp, dict):
+                    raw = resp.get("output_text")
+                else:
+                    raw = getattr(resp, "output_text", None)
+                if not raw and hasattr(resp, "output"):
+                    try:
+                        raw = resp.output[0].content[0].text
+                    except Exception:
+                        raw = None
+                if raw:
+                    title = json.loads(raw).get('title', 'New Chat')
             except: pass
         
         # Try Gemini (flash)
         elif g_key and title == "New Chat":
             try:
-                g_client = genai.Client(api_key=g_key, http_options={'api_version': 'v1beta'})
+                g_client = _get_gemini_client(g_key)
                 resp = g_client.models.generate_content(
                     model="gemini-3-flash-preview",
                     contents=[types.Part(text=f"Generate a short title (max 6 words) for this chat. JSON: {{'title': '...'}}\n\nChat: {content[:500]}")],
@@ -1880,7 +2627,7 @@ def feedback():
         return jsonify({'status': 'ok'})
 
     # GET
-    is_admin = current_user.username == 'minashin1120'
+    is_admin = bool(getattr(current_user, "is_admin", False))
     if is_admin and request.args.get('all') == '1':
         items = Feedback.query.order_by(Feedback.created_at.desc()).all()
     else:
@@ -1906,6 +2653,11 @@ def feedback():
 def create_easy_login():
     try:
         data = request.json or {}
+        if data.get('cancel'):
+            current_user.easy_login_hash = None
+            current_user.easy_login_expires_at = None
+            safe_db_commit()
+            return jsonify({'status': 'ok', 'cancelled': True})
         minutes = data.get('minutes', 5)
         try:
             minutes = int(minutes)
@@ -1930,7 +2682,7 @@ def create_easy_login():
 @app.route('/api/feedback/<int:fid>/update', methods=['POST'])
 @login_required
 def feedback_update(fid):
-    if current_user.username != 'minashin1120': return jsonify({'error': '403'}), 403
+    if not getattr(current_user, "is_admin", False): return jsonify({'error': '403'}), 403
     fb = Feedback.query.get_or_404(fid)
     data = request.json or {}
     status = data.get('status')
@@ -1943,6 +2695,115 @@ def feedback_update(fid):
     fb.updated_at = datetime.utcnow()
     safe_db_commit()
     return jsonify({'status': 'ok'})
+
+@app.route('/api/bot-telemetry', methods=['POST'])
+@login_required
+def bot_telemetry():
+    if getattr(current_user, 'is_admin', False):
+        return jsonify({'status': 'ok', 'skipped': True})
+    if not get_bot_detection_global_enabled() or not current_user.bot_detection_enabled:
+        return jsonify({'status': 'disabled'})
+    if current_user.is_bot_banned:
+        return jsonify({'error': 'banned'}), 403
+    data = request.json or {}
+    if not verify_turnstile(data.get('turnstile_token')):
+        return jsonify({'error': 'turnstile_failed'}), 403
+    score, reasons = evaluate_bot_score(data)
+    if score <= 0:
+        return jsonify({'status': 'ok', 'score': 0})
+    key = f"bot:score:{current_user.id}"
+    try:
+        new_score = redis_conn.incrbyfloat(key, float(score))
+        redis_conn.expire(key, 300)
+    except Exception:
+        new_score = float(score)
+    if new_score >= 8:
+        current_user.is_bot_banned = True
+        current_user.bot_banned_at = datetime.utcnow()
+        current_user.bot_ban_reason = "Automated behavior detected (fast clicks/inputs)"
+        safe_db_commit()
+        return jsonify({'error': 'banned', 'score': new_score, 'reasons': reasons}), 403
+    return jsonify({'status': 'ok', 'score': new_score, 'reasons': reasons})
+
+@app.route('/api/bot/unban', methods=['POST'])
+@login_required
+def bot_unban():
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({'error': '403'}), 403
+    data = request.json or {}
+    username = (data.get('username') or '').strip()
+    if not username:
+        return jsonify({'error': 'username_required'}), 400
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return jsonify({'error': 'not_found'}), 404
+    user.is_bot_banned = False
+    user.bot_ban_reason = None
+    user.bot_banned_at = None
+    user.bot_unbanned_at = datetime.utcnow()
+    user.bot_unban_notice = True
+    safe_db_commit()
+    return jsonify({'status': 'ok', 'username': username})
+
+@app.route('/api/bot/users', methods=['GET'])
+@login_required
+def bot_users():
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({'error': '403'}), 403
+    q = (request.args.get('q') or '').strip()
+    limit = request.args.get('limit') or '100'
+    try:
+        limit = max(1, min(500, int(limit)))
+    except Exception:
+        limit = 100
+    query = User.query
+    if q:
+        query = query.filter(User.username.like(f"%{q}%"))
+    users = query.order_by(User.id.desc()).limit(limit).all()
+    res = []
+    for u in users:
+        res.append({
+            'username': u.username,
+            'bot_detection_enabled': u.bot_detection_enabled if u.bot_detection_enabled is not None else True,
+            'is_bot_banned': bool(u.is_bot_banned),
+            'bot_ban_reason': u.bot_ban_reason,
+            'bot_banned_at': u.bot_banned_at.isoformat() + "Z" if u.bot_banned_at else None
+        })
+    return jsonify({'users': res})
+
+@app.route('/api/bot/update', methods=['POST'])
+@login_required
+def bot_update():
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({'error': '403'}), 403
+    data = request.json or {}
+    username = (data.get('username') or '').strip()
+    action = (data.get('action') or '').strip()
+    if not username or not action:
+        return jsonify({'error': 'bad_request'}), 400
+    if username == 'minashin1120':
+        return jsonify({'error': 'protected'}), 400
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return jsonify({'error': 'not_found'}), 404
+    if action == 'toggle_detection':
+        enabled = bool(data.get('enabled'))
+        user.bot_detection_enabled = enabled
+    elif action == 'ban':
+        user.is_bot_banned = True
+        user.bot_banned_at = datetime.utcnow()
+        user.bot_ban_reason = data.get('reason') or "Manual ban"
+        user.bot_unban_notice = False
+    elif action == 'unban':
+        user.is_bot_banned = False
+        user.bot_ban_reason = None
+        user.bot_banned_at = None
+        user.bot_unbanned_at = datetime.utcnow()
+        user.bot_unban_notice = True
+    else:
+        return jsonify({'error': 'bad_action'}), 400
+    safe_db_commit()
+    return jsonify({'status': 'ok', 'username': username, 'action': action})
 
 @app.route('/api/settings', methods=['GET', 'POST'])
 @login_required
@@ -1971,12 +2832,33 @@ def handle_settings():
             'enter_to_send': current_user.enter_to_send,
             'use_sw_cache': current_user.use_sw_cache,
             'auto_search_on_links': current_user.auto_search_on_links,
+            'use_last_chat_settings': current_user.use_last_chat_settings,
+            'default_enable_search': current_user.default_enable_search,
+            'default_enable_python': current_user.default_enable_python,
+            'default_enable_thinking': current_user.default_enable_thinking,
+            'default_thinking_level': current_user.default_thinking_level or "high",
+            'default_thinking_budget': current_user.default_thinking_budget if current_user.default_thinking_budget is not None else 4096,
+            'default_reasoning_effort': current_user.default_reasoning_effort or "medium",
+            'default_enable_system_prompt': current_user.default_enable_system_prompt,
+            'default_safety_setting': current_user.default_safety_setting or "default",
+            'last_enable_search': current_user.last_enable_search,
+            'last_enable_python': current_user.last_enable_python,
+            'last_enable_thinking': current_user.last_enable_thinking,
+            'last_thinking_level': current_user.last_thinking_level or "high",
+            'last_thinking_budget': current_user.last_thinking_budget if current_user.last_thinking_budget is not None else 4096,
+            'last_reasoning_effort': current_user.last_reasoning_effort or "medium",
+            'last_enable_system_prompt': current_user.last_enable_system_prompt,
+            'last_safety_setting': current_user.last_safety_setting or "default",
             'enable_e2ee': current_user.enable_e2ee,
             'migration_status': mig_status,
             'migration_progress': mig_progress,
             'is_2fa_enabled': current_user.is_2fa_enabled,
             'has_totp': has_totp,
-            'has_webauthn': has_webauthn
+            'has_webauthn': has_webauthn,
+            'bot_detection_enabled': current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
+            'bot_detection_global_enabled': get_bot_detection_global_enabled(),
+            'is_bot_banned': current_user.is_bot_banned,
+            'bot_ban_reason': current_user.bot_ban_reason
         })
     d = request.json
     if 'system_prompt' in d: 
@@ -1991,9 +2873,27 @@ def handle_settings():
     if 'enter_to_send' in d: current_user.enter_to_send = bool(d['enter_to_send'])
     if 'use_sw_cache' in d: current_user.use_sw_cache = bool(d['use_sw_cache'])
     if 'auto_search_on_links' in d: current_user.auto_search_on_links = bool(d['auto_search_on_links'])
+    if 'use_last_chat_settings' in d: current_user.use_last_chat_settings = bool(d['use_last_chat_settings'])
+    if 'default_enable_search' in d: current_user.default_enable_search = bool(d['default_enable_search'])
+    if 'default_enable_python' in d: current_user.default_enable_python = bool(d['default_enable_python'])
+    if 'default_enable_thinking' in d: current_user.default_enable_thinking = bool(d['default_enable_thinking'])
+    if 'default_thinking_level' in d: current_user.default_thinking_level = d['default_thinking_level'] or "high"
+    if 'default_thinking_budget' in d:
+        try:
+            current_user.default_thinking_budget = int(d['default_thinking_budget'])
+        except Exception:
+            pass
+    if 'default_reasoning_effort' in d: current_user.default_reasoning_effort = d['default_reasoning_effort'] or "medium"
+    if 'default_enable_system_prompt' in d: current_user.default_enable_system_prompt = bool(d['default_enable_system_prompt'])
+    if 'default_safety_setting' in d: current_user.default_safety_setting = d['default_safety_setting'] or "default"
+    if 'bot_detection_enabled' in d: current_user.bot_detection_enabled = bool(d['bot_detection_enabled'])
+    if getattr(current_user, 'is_admin', False) and 'bot_detection_global_enabled' in d:
+        set_app_setting("bot_detection_global_enabled", "1" if d['bot_detection_global_enabled'] else "0")
     if d.get('new_password'): current_user.set_password(d['new_password'])
     if d.get('new_username') and d['new_username'] != current_user.username:
-        if not User.query.filter_by(username=d['new_username']).first(): current_user.username = d['new_username']
+        if d['new_username'] == 'minashin1120' and not getattr(current_user, "is_admin", False):
+            pass
+        elif not User.query.filter_by(username=d['new_username']).first(): current_user.username = d['new_username']
     if 'enable_e2ee' in d and d['enable_e2ee'] != current_user.enable_e2ee:
         target_enable = d['enable_e2ee']
         task_queue.enqueue(migrate_e2ee_task, current_user.id, target_enable)
@@ -2114,7 +3014,7 @@ def delete_gem(gid):
 @app.route('/api/debug/log', methods=['GET'])
 @login_required
 def debug_log():
-    if current_user.username != 'minashin1120': return abort(403)
+    if not getattr(current_user, "is_admin", False): return abort(403)
     def generate():
         process = subprocess.Popen(['sudo', 'journalctl', '-u', 'ai-chat', '-n', '50', '--no-pager'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         stdout, _ = process.communicate()
@@ -2124,7 +3024,7 @@ def debug_log():
 @app.route('/api/maintenance', methods=['POST'])
 @login_required
 def toggle_maintenance():
-    if current_user.username != 'minashin1120': return abort(403)
+    if not getattr(current_user, "is_admin", False): return abort(403)
     lock_file = os.path.join(os.path.dirname(__file__), 'maintenance.lock')
     if request.json.get('enabled'):
         with open(lock_file, 'w') as f: f.write('locked')
@@ -2146,13 +3046,13 @@ def synthesize():
     
     try:
         g_key = decrypt_val(current_user.google_api_key)
-        if not g_key and current_user.username == 'minashin1120':
+        if not g_key and getattr(current_user, 'is_admin', False):
             g_key = os.getenv('GOOGLE_API_KEY')
         if not g_key:
             return jsonify({'error': 'Google API Key not configured (Google Cloud API key required)'}), 400
         
         g_project = decrypt_val(current_user.google_cloud_project)
-        if not g_project and current_user.username == 'minashin1120':
+        if not g_project and getattr(current_user, 'is_admin', False):
             g_project = os.getenv('GOOGLE_CLOUD_PROJECT')
         opts = {"api_key": g_key}
         if g_project: opts["quota_project_id"] = g_project
@@ -2236,7 +3136,7 @@ def transcribe():
     # OpenAI STT Implementation
     try:
         key = decrypt_val(current_user.openai_api_key)
-        if not key and current_user.username == 'minashin1120':
+        if not key and getattr(current_user, 'is_admin', False):
             key = os.getenv('OPENAI_API_KEY')
         if not key:
             return jsonify({'error': 'OpenAI API Key not configured'}), 400
@@ -2251,7 +3151,7 @@ def transcribe():
         if model not in allowed_models:
             model = "gpt-4o-mini-transcribe"
 
-        client = OpenAI(api_key=key)
+        client = _get_openai_client(key, base_url=None)
         audio_file = BytesIO(audio_content)
         audio_file.name = fname
 
@@ -2289,6 +3189,167 @@ def transcribe():
     except Exception as e:
         logger.error(f"Transcription failed: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/sts', methods=['POST'])
+@login_required
+def speech_to_speech():
+    if not request.files or 'file' not in request.files:
+        return jsonify({'error': 'No audio file'}), 400
+    f = request.files['file']
+    if not f or not f.filename:
+        return jsonify({'error': 'No file'}), 400
+
+    model_key = (request.form.get('model') or "").strip()
+    if not is_sts_model(model_key):
+        return jsonify({'error': 'Invalid STS model'}), 400
+
+    thread_id = request.form.get('thread_id')
+    if not thread_id:
+        return jsonify({'error': 'thread_id required'}), 400
+    t = Thread.query.get(thread_id)
+    if not t or t.user_id != current_user.id:
+        return jsonify({'error': 'Invalid thread'}), 403
+
+    audio_bytes = f.read()
+    if not audio_bytes:
+        return jsonify({'error': 'Empty audio'}), 400
+
+    provider = get_sts_provider(model_key)
+    meta = STS_MODELS.get(model_key, {})
+    rate_in = meta.get("rate_in", 24000)
+    rate_out = meta.get("rate_out", 24000)
+    sts_voice = (request.form.get('sts_voice') or "").strip()
+    sts_speed_raw = request.form.get('sts_speed')
+    sts_rate_in_raw = request.form.get('sts_rate_in')
+    sts_rate_out_raw = request.form.get('sts_rate_out')
+    sts_speed = None
+
+    if provider == "openai":
+        v = sts_voice.lower() if sts_voice else "alloy"
+        if v not in OPENAI_STS_VOICES:
+            v = "alloy"
+        sts_voice = v
+        sts_speed = clamp_float(sts_speed_raw, 0.25, 1.5)
+    elif provider == "xai":
+        if sts_voice not in XAI_STS_VOICES:
+            sts_voice = "Ara"
+        try:
+            ri = int(sts_rate_in_raw) if sts_rate_in_raw is not None and str(sts_rate_in_raw).strip() != "" else None
+            ro = int(sts_rate_out_raw) if sts_rate_out_raw is not None and str(sts_rate_out_raw).strip() != "" else None
+            if ri in XAI_PCM_RATES: rate_in = ri
+            if ro in XAI_PCM_RATES: rate_out = ro
+        except Exception:
+            pass
+    elif provider == "google":
+        if sts_voice not in GEMINI_STS_VOICES:
+            sts_voice = "Kore"
+
+    try:
+        src_ext = os.path.splitext(secure_filename(f.filename))[1].lower() or ".webm"
+        pcm_bytes = _convert_audio_to_pcm(audio_bytes, src_ext, rate=rate_in)
+    except Exception as e:
+        logger.error(f"Audio convert failed: {e}")
+        return jsonify({'error': 'Audio conversion failed'}), 500
+
+    assistant_audio = b""
+    assistant_text = ""
+    input_text = ""
+    try:
+        if provider == "openai":
+            key = decrypt_val(current_user.openai_api_key)
+            if not key and getattr(current_user, 'is_admin', False):
+                key = os.getenv('OPENAI_API_KEY')
+            if not key:
+                return jsonify({'error': 'OpenAI API Key not configured'}), 400
+            assistant_audio, assistant_text = asyncio.run(
+                _openai_sts_realtime(pcm_bytes, key, model_key, voice=sts_voice, speed=sts_speed, rate=rate_out)
+            )
+        elif provider == "xai":
+            key = decrypt_val(current_user.xai_api_key)
+            if not key and getattr(current_user, 'is_admin', False):
+                key = os.getenv('XAI_API_KEY')
+            if not key:
+                return jsonify({'error': 'xAI API Key not configured'}), 400
+            assistant_audio, assistant_text = asyncio.run(
+                _xai_sts_realtime(pcm_bytes, key, model_key=model_key, voice=sts_voice, rate_in=rate_in, rate_out=rate_out)
+            )
+        elif provider == "google":
+            key = decrypt_val(current_user.gemini_api_key)
+            if not key and getattr(current_user, 'is_admin', False):
+                key = os.getenv('GEMINI_API_KEY')
+            if not key:
+                return jsonify({'error': 'Gemini API Key not configured'}), 400
+            assistant_audio, assistant_text, input_text = asyncio.run(
+                _google_sts_live(pcm_bytes, key, model_key, rate=rate_in, voice=sts_voice)
+            )
+        else:
+            return jsonify({'error': 'Unsupported provider'}), 400
+    except Exception as e:
+        logger.error(f"STS failed: {e}")
+        return jsonify({'error': str(e)}), 500
+
+    if not assistant_audio:
+        return jsonify({'error': 'No audio response'}), 500
+
+    wav_bytes = _pcm_to_wav_bytes(assistant_audio, rate=rate_out)
+    out_fname, _ = _save_user_audio(current_user.id, wav_bytes, ".wav", current_user.enable_e2ee)
+    audio_url = f"/files/{current_user.id}/{out_fname}"
+
+    in_fname = None
+    try:
+        in_suffix = src_ext if src_ext.startswith('.') else f".{src_ext}"
+        in_fname, _ = _save_user_audio(current_user.id, audio_bytes, in_suffix, current_user.enable_e2ee)
+    except Exception:
+        in_fname = None
+
+    parent_id = None
+    try:
+        last_msg = Message.query.filter_by(thread_id=thread_id).order_by(Message.id.desc()).first()
+        if last_msg:
+            parent_id = last_msg.id
+    except Exception:
+        parent_id = None
+
+    user_text = (input_text or "Voice message").strip()
+    assistant_text_clean = (assistant_text or "").strip()
+    audio_tag = f'\n<audio controls src="{audio_url}" class="w-full mt-2"></audio>\n'
+    assistant_content = (assistant_text_clean + "\n" if assistant_text_clean else "") + audio_tag
+
+    try:
+        u_content = encrypt_val(user_text) if current_user.enable_e2ee else user_text
+        a_content = encrypt_val(assistant_content) if current_user.enable_e2ee else assistant_content
+        user_msg = Message(
+            thread_id=thread_id,
+            role='user',
+            content=u_content,
+            image_url=json.dumps([f"{current_user.id}/{in_fname}"]) if in_fname else None,
+            is_encrypted=current_user.enable_e2ee,
+            parent_id=parent_id,
+            tokens=count_tokens_for_display(user_text, model_key)
+        )
+        db.session.add(user_msg)
+        safe_db_commit()
+
+        assistant_msg = Message(
+            thread_id=thread_id,
+            role='assistant',
+            content=a_content,
+            model=model_key,
+            is_encrypted=current_user.enable_e2ee,
+            parent_id=user_msg.id,
+            tokens=count_tokens_for_display(assistant_text_clean, model_key)
+        )
+        db.session.add(assistant_msg)
+        safe_db_commit()
+    except Exception as e:
+        logger.error(f"STS message save failed: {e}")
+
+    return jsonify({
+        'audio_url': audio_url,
+        'transcript': assistant_text_clean,
+        'input_transcript': user_text,
+        'filename': f"{current_user.id}/{out_fname}"
+    })
 
 @app.route('/upload', methods=['POST'])
 @login_required
@@ -2344,6 +3405,20 @@ def upload():
 with app.app_context():
     db.create_all()
     try:
+        ensure_app_setting("bot_detection_global_enabled", "1")
+    except Exception:
+        pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0"))
+    except: pass
+    try:
+        admin_user = User.query.filter_by(username='minashin1120').first()
+        if admin_user and not getattr(admin_user, "is_admin", False):
+            admin_user.is_admin = True
+            safe_db_commit()
+    except Exception:
+        pass
+    try:
         with db.engine.connect() as conn: conn.execute(text("ALTER TABLE message ADD COLUMN thought_signature TEXT"))
     except: pass
     try:
@@ -2377,6 +3452,57 @@ with app.app_context():
         with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN auto_search_on_links BOOLEAN DEFAULT 1"))
     except: pass
     try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN use_last_chat_settings BOOLEAN DEFAULT 0"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN default_enable_search BOOLEAN DEFAULT 0"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN default_enable_python BOOLEAN DEFAULT 1"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN default_enable_thinking BOOLEAN DEFAULT 0"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN default_thinking_level VARCHAR(16) DEFAULT 'high'"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN default_thinking_budget INTEGER DEFAULT 4096"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN default_reasoning_effort VARCHAR(16) DEFAULT 'medium'"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN default_enable_system_prompt BOOLEAN DEFAULT 0"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN default_safety_setting VARCHAR(16) DEFAULT 'default'"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN last_enable_search BOOLEAN DEFAULT 0"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN last_enable_python BOOLEAN DEFAULT 1"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN last_enable_thinking BOOLEAN DEFAULT 0"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN last_thinking_level VARCHAR(16) DEFAULT 'high'"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN last_thinking_budget INTEGER DEFAULT 4096"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN last_reasoning_effort VARCHAR(16) DEFAULT 'medium'"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN last_enable_system_prompt BOOLEAN DEFAULT 0"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN last_safety_setting VARCHAR(16) DEFAULT 'default'"))
+    except: pass
+    try:
         with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN google_api_key TEXT"))
     except: pass
     try:
@@ -2387,6 +3513,24 @@ with app.app_context():
     except: pass
     try:
         with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN easy_login_expires_at DATETIME"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN bot_detection_enabled BOOLEAN DEFAULT 1"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN is_bot_banned BOOLEAN DEFAULT 0"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN bot_banned_at DATETIME"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN bot_ban_reason TEXT"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN bot_unbanned_at DATETIME"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN bot_unban_notice BOOLEAN DEFAULT 0"))
     except: pass
     try:
         with db.engine.connect() as conn: conn.execute(text("ALTER TABLE thread ADD COLUMN is_bookmarked BOOLEAN DEFAULT 0"))

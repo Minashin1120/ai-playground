@@ -16,6 +16,16 @@
         import { create, get } from 'https://esm.sh/@github/webauthn-json@2.1.1';
         window.webauthnJSON = { create, get };
     </script>
+    {% if bot_config and bot_config.turnstileSiteKey %}
+    <script>
+        window.__turnstileApiLoaded = false;
+        window.onTurnstileLoad = () => {
+            window.__turnstileApiLoaded = true;
+            if (window.initTurnstileWidget) window.initTurnstileWidget();
+        };
+    </script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit" async defer></script>
+    {% endif %}
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root {
@@ -41,8 +51,8 @@
         }
         
         /* Typography & Code Blocks */
-        .prose { font-size: 0.95rem; line-height: 1.7; color: #e5e7eb; max-width: none; }
-        .prose pre { background: #0f1117 !important; padding: 0 !important; overflow-x: auto; border: none !important; border-radius: 0 !important; margin: 0.5em 0; }
+        .prose { font-size: 0.95rem; line-height: 1.7; color: #e5e7eb; max-width: none; white-space: pre-wrap; }
+        .prose pre { background: #0f1117 !important; padding: 0 !important; overflow-x: auto; border: none !important; border-radius: 0 !important; margin: 0.5em 0; white-space: pre; }
         .prose code { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.9em; background: transparent !important; padding: 1em !important; display: block; line-height: 1.5; }
         .prose :not(pre) > code { background: #1f2a44 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.35rem !important; color: #e2e8f0 !important; display: inline; }
         .prose a { color: #60a5fa; text-decoration: underline; }
@@ -76,7 +86,7 @@
         .python-label { font-size: 0.7rem; color: #9ca3af; margin: 0.4rem 0 0.2rem; text-transform: uppercase; letter-spacing: 0.04em; }
         
         /* Quote UI */
-        #quote-popover { position: absolute; background: #0f172a; color: white; border: 1px solid var(--line); padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; display: none; z-index: 100; box-shadow: var(--shadow); }
+        #quote-popover { background: #0f172a; color: white; border: 1px solid var(--line); padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; display: none; z-index: 100; box-shadow: var(--shadow); }
         #quote-popover:hover { background: #374151; }
         #quote-bar { display: none; background: #0f172a; border-top: 1px solid var(--line); padding: 8px 12px; border-radius: 10px 10px 0 0; font-size: 12px; color: #d1d5db; position: relative; margin-bottom: -1px; }
         #quote-bar.visible { display: flex; align-items: center; justify-content: space-between; }
@@ -119,6 +129,7 @@
             40% { transform: translateY(-2px) scale(1.04); box-shadow: 0 8px 18px rgba(59, 130, 246, 0.25); } 
             100% { transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(59, 130, 246, 0); } 
         }
+        .turnstile-box { position: fixed; bottom: 12px; right: 12px; z-index: 120; }
 
         /* Toasts */
         #toast-stack { position: fixed; top: 16px; right: 16px; z-index: 120; display: flex; flex-direction: column; gap: 8px; }
@@ -146,6 +157,9 @@
         #prompt-input { background: #0f172a; border: 1px solid var(--line); }
         #prompt-input:focus { box-shadow: 0 0 0 2px rgba(59,130,246,0.25); }
         #send-btn { box-shadow: 0 10px 24px rgba(59,130,246,0.25); border: 1px solid rgba(59,130,246,0.35); }
+        #sts-panel { background: radial-gradient(120% 120% at 50% 0%, rgba(34,211,238,0.15), rgba(15,23,42,0.7)); border: 1px solid rgba(34,211,238,0.25); }
+        #sts-mic-btn { box-shadow: 0 16px 30px rgba(34,211,238,0.25); border: 1px solid rgba(34,211,238,0.35); }
+        #sts-mic-btn.animate-pulse { box-shadow: 0 0 0 6px rgba(239,68,68,0.15), 0 16px 30px rgba(239,68,68,0.25); }
         #upload-btn, #mic-btn { border: 1px solid var(--line); }
         #edit-bar { border: 1px solid var(--line); background: rgba(15,23,42,0.8); }
         .message-bubble.bg-blue-600 { background: linear-gradient(180deg, #3b82f6, #2563eb); }
@@ -191,6 +205,32 @@
             .sidebar.open { transform: translateX(0); } 
             .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; } 
             .overlay.active { display: block; } 
+            #chat-container { padding: 12px; } 
+            #model-selector-btn { max-width: 160px; } 
+            #stop-container { left: 50%; transform: translateX(-50%); } 
+            #quote-popover-container { right: 8px; }
+            #settings-modal { align-items: flex-start; }
+            #settings-modal > div { width: calc(100% - 16px); max-width: none; margin: 8px; padding: 12px 12px 14px; max-height: calc(100vh - 16px); border-radius: 14px; }
+            #settings-modal h2 { font-size: 16px; margin-bottom: 8px; }
+            #settings-modal .settings-tabs { gap: 6px; padding: 6px; background: rgba(15,23,42,0.65); border-radius: 10px; border: 1px solid rgba(255,255,255,0.06); }
+            #settings-modal .settings-tabs button { padding: 6px 10px; font-size: 12px; border-radius: 8px; }
+            #settings-modal .overflow-y-auto { padding-right: 6px; }
+            #settings-modal h3 { font-size: 12px; letter-spacing: 0.02em; }
+            #settings-modal label, #settings-modal span { font-size: 12px; }
+            #settings-modal input, #settings-modal select, #settings-modal textarea { font-size: 13px; padding: 9px 10px; }
+            #settings-modal textarea { min-height: 120px; }
+            #settings-modal .text-[10px] { font-size: 11px !important; }
+            #settings-modal .space-y-3 > * + * { margin-top: 10px; }
+            #settings-modal .space-y-4 > * + * { margin-top: 12px; }
+            #settings-modal .bg-gray-900 { background: rgba(9,14,26,0.95); }
+        }
+        @media (max-width: 640px) {
+            #settings-modal .bg-gray-800 { max-height: 92vh; padding: 12px; }
+            #settings-modal .settings-tabs { margin-bottom: 10px; gap: 8px; }
+            #settings-modal .settings-header { position: sticky; top: 0; z-index: 5; padding: 6px 0 8px; background: rgba(17,24,39,0.98); }
+            #settings-modal .settings-footer { position: sticky; bottom: 0; z-index: 5; padding-top: 8px; background: linear-gradient(0deg, rgba(17,24,39,0.98), rgba(17,24,39,0.6)); }
+            #settings-modal .settings-footer button { padding: 10px 14px; }
+            #settings-modal .overflow-y-auto { padding-bottom: 14px; }
         }
     </style>
 </head>
@@ -205,6 +245,7 @@
         </div>
       {% endif %}
     {% endwith %}
+    <div id="turnstile-container" class="hidden turnstile-box"></div>
     <div id="offline-banner"><i class="fas fa-wifi"></i> オフラインです（ネットワークが切断されています）</div>
     <div id="image-viewer">
         <button class="close-btn" onclick="closeImageViewer()" aria-label="close"><i class="fas fa-times"></i></button>
@@ -222,9 +263,6 @@
     <!-- Debug Console -->
     <div id="debug-console"><div class="flex justify-between border-b border-gray-700 mb-2 pb-1"><span>System Logs</span><div><button onclick="refreshLogs()" class="text-blue-400 mr-2">Refresh</button><button onclick="document.getElementById('debug-console').style.display='none'" class="text-red-400">Close</button></div></div><div id="debug-content" class="whitespace-pre-wrap"></div></div>
     
-    <!-- Quote Popover -->
-    <button id="quote-popover"><i class="fas fa-quote-left mr-1"></i> Quote</button>
-
     <!-- Sidebar -->
     <div id="sidebar" class="sidebar w-64 bg-gray-800 border-r border-gray-700 flex flex-col shrink-0">
         <div class="p-3 border-b border-gray-700 flex flex-col gap-2">
@@ -232,7 +270,7 @@
                 <h2 class="font-bold text-base flex-shrink-0 text-gray-200">AI Chat</h2>
                 <div class="flex items-center gap-1">
                     <a href="https://github.com/Minashin1120/ai-playground" target="_blank" class="text-gray-400 hover:text-white p-1.5 btn-hover" title="GitHub"><i class="fab fa-github"></i></a>
-                    {% if current_user.username == 'minashin1120' %}
+                    {% if is_admin %}
                     <button onclick="toggleDebug()" class="text-gray-400 hover:text-yellow-400 p-1.5 rounded btn-hover" title="Debug"><i class="fas fa-wrench text-xs"></i></button>
                     {% endif %}
                     <button onclick="location.href='{{ url_for('changelog') }}'" class="text-gray-400 hover:text-white p-1.5 rounded btn-hover" title="履歴"><i class="fas fa-history text-xs"></i></button>
@@ -262,6 +300,10 @@
             簡易ログインでログインしました。安全のため、再ログイン時は通常のパスワードと2FAをご利用ください。
         </div>
         {% endif %}
+        <div id="total-token-bar" class="hidden bg-gray-900/60 border-b border-gray-700 text-gray-300 text-xs px-4 py-1 flex items-center gap-2">
+            <i class="fas fa-coins text-yellow-400"></i>
+            <span id="total-token-count">Total: 0 tokens</span>
+        </div>
         <div class="flex-1 overflow-hidden relative">
             <div id="chat-container" class="absolute inset-0 overflow-y-auto p-4 space-y-6 scroll-smooth"></div>
             <div id="welcome-screen" class="absolute inset-0 flex flex-col items-center justify-center text-gray-500 space-y-4 bg-[#111827] z-10 fade-in"><h2 class="text-2xl font-bold text-white flex items-center gap-2"><i class="fas fa-gem text-blue-500"></i> AI Gems & Chat</h2><div class="grid grid-cols-1 gap-2 w-full max-w-md px-4"><button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover" onclick="quickStart('gemini-3-flash-preview')">⚡ Gemini 3.0 Flash</button><button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover" onclick="quickStart('gemini-3-pro-preview')">🧠 Gemini 3.0 Pro</button></div></div>
@@ -270,6 +312,9 @@
             <div class="max-w-3xl mx-auto space-y-2 relative">
                 <div id="gem-active-indicator" class="hidden absolute -top-10 left-0 bg-blue-900/80 text-blue-200 text-xs px-3 py-1 rounded-t-lg border-t border-l border-r border-blue-700 flex items-center gap-2 fade-in"><i class="fas fa-gem"></i> Using Gem: <span id="active-gem-name" class="font-bold"></span><button onclick="clearActiveGem()" class="ml-2 hover:text-white">×</button></div>
                 <div id="stop-container" class="absolute -top-12 left-1/2 transform -translate-x-1/2 hidden fade-in"><button id="stop-btn" class="bg-red-500/90 hover:bg-red-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm backdrop-blur-sm btn-hover"><i class="fas fa-stop"></i> 停止</button></div>
+                <div id="quote-popover-container" class="absolute -top-12 right-3 fade-in">
+                    <button id="quote-popover"><i class="fas fa-quote-left mr-1"></i> Quote</button>
+                </div>
                 
                 <!-- Quote Bar -->
                 <div id="quote-bar">
@@ -319,14 +364,70 @@
                     </div>
                 </div>
                 <div id="file-preview" class="hidden px-3 py-2 bg-gray-700/50 rounded text-xs text-blue-300 flex justify-between items-center"><span id="file-name" class="truncate"></span><button id="clear-file-btn" class="text-gray-400 hover:text-white ml-2">✕</button></div>
+                <div id="audio-gen-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-xs text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Voice</span>
+                        <select id="tts-voice" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white outline-none"></select>
+                    </div>
+                    <div id="tts-voice-custom-wrap" class="hidden items-center gap-2">
+                        <span class="text-gray-400">Custom Voice</span>
+                        <input id="tts-voice-custom" type="text" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white outline-none w-48" placeholder="e.g. en-US-Wavenet-D">
+                    </div>
+                    <div id="tts-language-wrap" class="hidden items-center gap-2">
+                        <span class="text-gray-400">Lang</span>
+                        <input id="tts-language" type="text" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white outline-none w-20" placeholder="ja-JP">
+                    </div>
+                    <div id="tts-speed-wrap" class="flex items-center gap-2">
+                        <span class="text-gray-400">Speed</span>
+                        <input id="tts-speed" type="range" min="0.25" max="4" step="0.05" value="1" class="accent-blue-500">
+                        <span id="tts-speed-label" class="text-gray-200 font-mono">1.00x</span>
+                        <span id="tts-speed-note" class="text-gray-500"></span>
+                    </div>
+                </div>
+                <div id="sts-panel" class="hidden px-4 py-3 rounded-lg flex items-center justify-between gap-3">
+                    <div class="flex flex-col gap-2">
+                        <div class="text-[10px] uppercase tracking-widest text-cyan-300/80">Speech-to-Speech Live</div>
+                        <div id="sts-status" class="text-sm text-gray-200">Tap to speak</div>
+                        <div class="text-[10px] text-gray-400">マイクをタップして開始/停止</div>
+                        <div class="flex flex-wrap gap-3 text-[10px] text-gray-300 mt-1">
+                            <label class="flex items-center gap-1 cursor-pointer select-none"><input id="sts-auto-play" type="checkbox" class="accent-cyan-400 w-3 h-3" checked><span>Auto Play</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer select-none"><input id="sts-auto-restart" type="checkbox" class="accent-cyan-400 w-3 h-3" checked><span>Auto Restart</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer select-none" title="音声の無音を検知して自動送信"><input id="sts-auto-send" type="checkbox" class="accent-cyan-400 w-3 h-3"><span>Auto Send</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer select-none" title="無音検出の待機時間（秒）"><span>Silence</span><input id="sts-silence-sec" type="number" min="1" max="10" step="0.5" value="2.5" class="w-12 bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none"><span>s</span></label>
+                        </div>
+                        <div id="sts-options" class="mt-2 flex flex-wrap gap-3 text-[10px] text-gray-300">
+                            <label class="flex items-center gap-1">
+                                <span>Voice</span>
+                                <select id="sts-voice" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none"></select>
+                            </label>
+                            <label id="sts-speed-wrap" class="flex items-center gap-1">
+                                <span>Speed</span>
+                                <input id="sts-speed" type="range" min="0.25" max="1.5" step="0.05" value="1" class="accent-cyan-400">
+                                <span id="sts-speed-label" class="text-gray-200 font-mono">1.00x</span>
+                            </label>
+                            <label id="sts-rate-wrap" class="flex items-center gap-1">
+                                <span>Rate In</span>
+                                <select id="sts-rate-in" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none"></select>
+                                <span>Out</span>
+                                <select id="sts-rate-out" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none"></select>
+                            </label>
+                            <span id="sts-note" class="text-gray-500"></span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-center gap-2">
+                        <button id="sts-mic-btn" class="bg-cyan-600 hover:bg-cyan-500 text-white w-14 h-14 rounded-full flex items-center justify-center text-xl transition"><i class="fas fa-microphone"></i></button>
+                        <button id="sts-cancel-btn" class="text-[10px] px-2 py-1 rounded bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 transition">Cancel</button>
+                    </div>
+                </div>
                 <div id="auto-search-banner" class="hidden mb-2 px-3 py-2 bg-yellow-900/30 border border-yellow-600/60 text-yellow-200 text-xs rounded flex items-center justify-between gap-3">
-                    <div class="flex items-center gap-2"><i class="fas fa-bolt"></i><span id="auto-search-msg">Xリンクを検出しました。検索を自動でONにします。</span></div>
-                    <div class="flex gap-2 shrink-0">
+                    <div class="flex items-center gap-2"><i class="fas fa-bolt"></i><span id="auto-search-msg">Xリンクを検出しました。検索ON＋Grok 4 Fast Reasoningに切替します。</span></div>
+                    <div class="flex gap-2 shrink-0 items-center">
+                        <label class="flex items-center gap-1 text-[10px] text-yellow-100/90 select-none"><input type="checkbox" id="auto-search-remember" class="accent-yellow-400 w-3 h-3"><span>次回から尋ねない</span></label>
                         <button id="auto-search-on-btn" class="px-2 py-1 bg-yellow-600 hover:bg-yellow-500 text-black rounded text-[11px] font-bold btn-hover">検索ONで続行</button>
                         <button id="auto-search-off-btn" class="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-[11px] btn-hover">検索OFFで回答</button>
                     </div>
                 </div>
-                <div class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><button id="upload-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="mic-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
+                <div id="input-row" class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><button id="upload-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="mic-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
             </div>
         </div>
     </div>
@@ -377,15 +478,16 @@
     </div>
 
     <!-- Settings Modal -->
-    <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm"><div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh] modal-animate"><h2 class="text-xl font-bold text-white mb-4 flex items-center"><i class="fas fa-cog mr-2 text-gray-400"></i>設定</h2>
-    <div class="flex border-b border-gray-700 mb-4 gap-4 overflow-x-auto">
+    <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm"><div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh] modal-animate"><div class="settings-header"><h2 class="text-xl font-bold text-white flex items-center"><i class="fas fa-cog mr-2 text-gray-400"></i>設定</h2></div>
+    <div class="flex border-b border-gray-700 mb-4 gap-4 overflow-x-auto settings-tabs">
         <button id="btn-tab-general" class="px-4 py-2 text-blue-400 border-b-2 border-blue-400 font-bold whitespace-nowrap" onclick="switchTab('general')">一般</button>
         <button id="btn-tab-security" class="px-4 py-2 text-gray-400 hover:text-white border-b-2 border-transparent whitespace-nowrap" onclick="switchTab('security')">セキュリティ</button>
         <button id="btn-tab-2fa" class="px-4 py-2 text-gray-400 hover:text-white border-b-2 border-transparent whitespace-nowrap" onclick="switchTab('2fa')">2要素認証 <span class="text-[10px] bg-green-600 text-white px-1 rounded ml-1">NEW</span></button>
         <button id="btn-tab-feedback" class="px-4 py-2 text-gray-400 hover:text-white border-b-2 border-transparent whitespace-nowrap" onclick="switchTab('feedback')">フィードバック</button>
     </div>
     
-    <div class="overflow-y-auto pr-2 space-y-4 flex-1 animate-fadeIn" id="tab-general"><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">APIキー</h3><div class="space-y-3"><div><label class="text-xs text-gray-500 block">OpenAI API Key</label><input type="password" id="set-openai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">Gemini API Key</label><input type="password" id="set-gemini" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">xAI API Key</label><input type="password" id="set-xai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">Google API Key (TTS)</label><input type="password" id="set-google-key" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">Google Cloud Project ID (TTS)</label><input type="text" id="set-google-project" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">音声設定</h3><div class="space-y-2"><label class="text-xs text-gray-500 block">STTモデル</label><select id="set-stt-model" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"><option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe</option><option value="gpt-4o-transcribe">gpt-4o-transcribe</option><option value="gpt-4o-transcribe-diarize">gpt-4o-transcribe-diarize</option><option value="whisper-1">whisper-1 (latest)</option></select><div class="text-[10px] text-gray-500">マイク入力の文字起こしモデルを選択します。</div></div></div><div><label class="text-xs text-gray-500 block mb-1">デフォルト システムプロンプト</label><textarea id="sys-prompt-text" class="w-full h-32 bg-gray-900 border-gray-600 rounded p-3 text-sm text-white"></textarea></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">送信設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-enter-to-send" class="accent-blue-500 w-3 h-3"><span>Enterで送信（改行はShift+Enter）</span></label></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">検索設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-auto-search-links" class="accent-yellow-500 w-3 h-3"><span>Xリンク検出時に自動で検索をONにする</span></label><div class="text-[10px] text-gray-500 mt-1">OFFにすると、リンク検出時の自動検索は行われません。</div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">簡易ログイン</h3><div class="space-y-3 text-xs text-gray-300"><div class="text-[10px] text-red-300">警告: 有効期間中は一時パスワードでログインでき、2FAはスキップされます。ログイン後は自動で無効化されます。</div><div class="flex items-center gap-2"><input type="number" id="easy-login-mins" value="5" min="1" max="120" class="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><span>分間有効</span><button id="easy-login-generate" class="ml-auto bg-orange-600 hover:bg-orange-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">一時パスワード発行</button></div><div id="easy-login-result" class="hidden bg-gray-800 border border-orange-500/40 rounded p-2 text-[11px] text-orange-200"><div>一時パスワード: <span id="easy-login-code" class="font-mono select-all"></span></div><div>有効期限: <span id="easy-login-exp" class="font-mono"></span></div></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">キャッシュ設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-use-sw-cache" class="accent-blue-500 w-3 h-3"><span>高速キャッシュ（Service Worker）を有効化</span></label><div class="text-[10px] text-gray-500 mt-1">ページ読み込み時に更新確認を行い、差分があればキャッシュを更新します。</div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">アカウント設定</h3><div class="space-y-3"><div><label class="text-xs text-gray-500 block">ユーザー名変更</label><input type="text" id="set-username" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄"></div><div><label class="text-xs text-gray-500 block">パスワード変更</label><input type="password" id="set-password" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄"></div></div></div></div><div class="overflow-y-auto pr-2 space-y-4 flex-1 hidden animate-fadeIn" id="tab-security"><div id="mig-status-box" class="hidden mb-4 p-3 bg-blue-900/30 border border-blue-500/50 rounded text-xs text-blue-200"><i class="fas fa-sync fa-spin mr-2"></i> 暗号化データの移行処理中です...<div id="mig-progress-text" class="mt-1 text-[10px] text-blue-200/80"></div><div class="w-full bg-blue-950/40 h-2 rounded mt-2 overflow-hidden"><div id="mig-progress-bar" class="h-2 bg-blue-400/80" style="width:0%"></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><div class="flex items-center justify-between"><div><div class="font-bold text-sm">E2EE (End-to-End Encryption)</div><div class="text-xs text-gray-500">チャット履歴とファイルを暗号化します。</div></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-e2ee" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div></label></div></div><div class="bg-red-900/20 p-4 rounded border border-red-800 mt-4"><h3 class="text-sm font-bold text-red-500 mb-2">アカウント削除</h3><button id="delete-account-btn" class="w-full bg-red-800/50 hover:bg-red-700 text-red-200 border border-red-600 py-2 rounded text-sm transition btn-hover">アカウントを完全に削除</button></div></div>
+    <div class="overflow-y-auto pr-2 space-y-4 flex-1 animate-fadeIn" id="tab-general"><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">APIキー</h3><div class="space-y-3"><div><label class="text-xs text-gray-500 block">OpenAI API Key</label><input type="password" id="set-openai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">Gemini API Key</label><input type="password" id="set-gemini" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">xAI API Key</label><input type="password" id="set-xai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">Google API Key (TTS)</label><input type="password" id="set-google-key" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">Google Cloud Project ID (TTS)</label><input type="text" id="set-google-project" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">音声設定</h3><div class="space-y-2"><label class="text-xs text-gray-500 block">STTモデル</label><select id="set-stt-model" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"><option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe</option><option value="gpt-4o-transcribe">gpt-4o-transcribe</option><option value="gpt-4o-transcribe-diarize">gpt-4o-transcribe-diarize</option><option value="whisper-1">whisper-1 (latest)</option></select><div class="text-[10px] text-gray-500">マイク入力の文字起こしモデルを選択します。</div></div></div><div><label class="text-xs text-gray-500 block mb-1">デフォルト システムプロンプト</label><textarea id="sys-prompt-text" class="w-full h-32 bg-gray-900 border-gray-600 rounded p-3 text-sm text-white"></textarea></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">送信設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-enter-to-send" class="accent-blue-500 w-3 h-3"><span>Enterで送信（改行はShift+Enter）</span></label></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">チャット既定値</h3><div class="space-y-3 text-xs text-gray-300"><label class="flex items-center gap-2"><input type="checkbox" id="set-use-last-settings" class="accent-blue-500 w-3 h-3"><span>前回の設定を保存して継続する</span></label><div class="text-[10px] text-gray-500">ONの場合は下の「デフォルト設定」は無視され、直近の送信時設定を引き継ぎます。</div><div class="flex flex-wrap gap-3 items-center"><label class="flex items-center gap-1"><input type="checkbox" id="set-default-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-python" class="accent-yellow-500 w-3 h-3"><span class="text-yellow-200">Python</span></label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-thinking" class="accent-purple-500 w-3 h-3"><span class="text-purple-300">Thinking</span></label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-sys-prompt" class="accent-green-500 w-3 h-3"><span class="text-green-300">SysPrompt</span></label></div><div class="flex flex-wrap gap-3 items-center"><label class="text-[10px] text-gray-400">Thinking Level</label><select id="set-default-thinking-level" class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><option value="minimal">Min</option><option value="low">Low</option><option value="medium">Mid</option><option value="high">High</option></select><label class="text-[10px] text-gray-400">Budget</label><input id="set-default-thinking-budget" type="number" min="0" max="32768" step="256" value="4096" class="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-[10px] text-white"><label class="text-[10px] text-gray-400">Effort</label><select id="set-default-reasoning-effort" class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><option value="none">None</option><option value="low">Low</option><option value="medium">Med</option><option value="high">High</option><option value="xhigh">XHigh</option></select><label class="text-[10px] text-gray-400">Safety</label><select id="set-default-safety" class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><option value="default">Default</option><option value="none">None</option></select></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">検索設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-auto-search-links" class="accent-yellow-500 w-3 h-3"><span>Xリンク検出時に検索ON＋Grok 4 Fast Reasoningへ自動切替</span></label><div class="text-[10px] text-gray-500 mt-1">OFFにすると、リンク検出時は毎回確認します。</div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">簡易ログイン</h3><div class="space-y-3 text-xs text-gray-300"><div class="text-[10px] text-red-300">警告: 有効期間中は一時パスワードでログインでき、2FAはスキップされます。ログイン後は自動で無効化されます。</div><div class="flex items-center gap-2"><input type="number" id="easy-login-mins" value="5" min="1" max="120" class="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><span>分間有効</span><button id="easy-login-generate" class="ml-auto bg-orange-600 hover:bg-orange-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">一時パスワード発行</button><button id="easy-login-cancel" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">発行をキャンセル</button></div><div id="easy-login-result" class="hidden bg-gray-800 border border-orange-500/40 rounded p-2 text-[11px] text-orange-200"><div>一時パスワード: <span id="easy-login-code" class="font-mono select-all"></span></div><div>有効期限: <span id="easy-login-exp" class="font-mono"></span></div></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">キャッシュ設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-use-sw-cache" class="accent-blue-500 w-3 h-3"><span>高速キャッシュ（Service Worker）を有効化</span></label><div class="text-[10px] text-gray-500 mt-1">ページ読み込み時に更新確認を行い、差分があればキャッシュを更新します。</div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">アカウント設定</h3><div class="space-y-3"><div><label class="text-xs text-gray-500 block">ユーザー名変更</label><input type="text" id="set-username" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄"></div><div><label class="text-xs text-gray-500 block">パスワード変更</label><input type="password" id="set-password" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄"></div></div></div></div><div class="overflow-y-auto pr-2 space-y-4 flex-1 hidden animate-fadeIn" id="tab-security"><div id="mig-status-box" class="hidden mb-4 p-3 bg-blue-900/30 border border-blue-500/50 rounded text-xs text-blue-200"><i class="fas fa-sync fa-spin mr-2"></i> 暗号化データの移行処理中です...<div id="mig-progress-text" class="mt-1 text-[10px] text-blue-200/80"></div><div class="w-full bg-blue-950/40 h-2 rounded mt-2 overflow-hidden"><div id="mig-progress-bar" class="h-2 bg-blue-400/80" style="width:0%"></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><div class="flex items-center justify-between"><div><div class="font-bold text-sm text-red-300">Bot Detection</div><div class="text-xs text-gray-500">すべての操作を監視し、高速クリックや機械的な操作を検出します。</div></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-bot-detect" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div></label></div><div id="bot-status" class="text-[11px] text-gray-400 mt-2 hidden"></div><div class="text-[10px] text-gray-500 mt-2">検出が有効な場合、疑わしい操作が続くとアカウントがBANされます。</div></div>{% if is_admin %}<div class="bg-gray-900 p-4 rounded border border-yellow-700/50"><div class="font-bold text-sm text-yellow-300 mb-2">管理者: Bot Detection 管理</div><div class="flex items-center justify-between"><div class="text-xs text-gray-500">全体で検出をON/OFF</div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-bot-detect-global" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div></label></div><div class="mt-3 flex items-center gap-2"><input type="text" id="bot-unban-username" class="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white" placeholder="BAN解除するユーザー名"><button id="bot-unban-btn" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">BAN解除</button></div><div id="bot-unban-result" class="text-[11px] text-gray-400 mt-2 hidden"></div><div class="mt-3"><button id="bot-admin-open" class="w-full bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded text-xs font-bold btn-hover">アカウント管理</button></div></div>{% endif %}<div class="bg-gray-900 p-4 rounded border border-gray-700"><div class="flex items-center justify-between"><div><div class="font-bold text-sm">E2EE (End-to-End Encryption)</div><div class="text-xs text-gray-500">チャット履歴とファイルを暗号化します。</div></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-e2ee" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div></label></div></div><div class="bg-red-900/20 p-4 rounded border border-red-800 mt-4"><h3 class="text-sm font-bold text-red-500 mb-2">アカウント削除</h3><button id="delete-account-btn" class="w-full bg-red-800/50 hover:bg-red-700 text-red-200 border border-red-600 py-2 rounded text-sm transition btn-hover">アカウントを完全に削除</button></div></div>
+
 
     <!-- 2FA Tab -->
     <div class="overflow-y-auto pr-2 space-y-4 flex-1 hidden animate-fadeIn" id="tab-2fa">
@@ -443,7 +545,7 @@
         </div>
     </div>
 
-<div class="flex justify-end gap-3 mt-4"><button id="close-settings-btn" class="px-4 py-2 text-gray-400 hover:text-white transition">キャンセル</button><button id="save-settings-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-hover">保存</button></div></div></div>
+<div class="settings-footer flex justify-end gap-3 mt-4"><button id="close-settings-btn" class="px-4 py-2 text-gray-400 hover:text-white transition">キャンセル</button><button id="save-settings-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-hover">保存</button></div></div></div>
     
     <!-- Library Modal -->
     <div id="lib-modal" class="fixed inset-0 bg-gray-900/95 z-50 flex flex-col backdrop-blur-sm" style="display:none;"><div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0 modal-animate"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button onclick="document.getElementById('lib-modal').style.display='none'" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div><div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0"><span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span><button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs btn-hover" disabled>削除</button></div><div id="lib-grid" class="flex-1 overflow-y-auto p-4 grid grid-cols-3 gap-4"></div></div>
@@ -453,6 +555,25 @@
     
     <!-- Alpha Info Modal -->
     <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-center justify-center backdrop-blur-sm"><div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4 modal-animate"><h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2><div class="text-sm text-gray-300 space-y-3"><p>このアプリケーションは開発中の<strong>アルファ版</strong>です。</p><ul class="list-disc list-inside space-y-1 text-gray-400"><li>予告なくデータが削除される可能性があります。</li><li>予期せぬ動作やエラーが発生する場合があります。</li></ul></div><div class="flex justify-end mt-6"><button onclick="document.getElementById('alpha-info-modal').style.display='none'" class="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded font-bold btn-hover">理解しました</button></div></div></div>
+
+    {% if is_admin %}
+    <!-- Bot Admin Modal -->
+    <div id="bot-admin-modal" class="fixed inset-0 bg-gray-900/95 z-[90] hidden items-center justify-center backdrop-blur-sm">
+        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 modal-animate flex flex-col max-h-[85vh]">
+            <div class="flex items-center justify-between border-b border-gray-700 pb-3 mb-3">
+                <h2 class="text-lg font-bold text-white">アカウント管理 (Bot Detection)</h2>
+                <button id="bot-admin-close" class="text-gray-400 hover:text-white">✕</button>
+            </div>
+            <div class="flex items-center gap-2 mb-3">
+                <input type="text" id="bot-admin-search" class="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white" placeholder="ユーザー名で検索">
+                <button id="bot-admin-search-btn" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">検索</button>
+                <button id="bot-admin-refresh-btn" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">更新</button>
+            </div>
+            <div class="text-[11px] text-gray-400 mb-2">最大500件まで表示します。</div>
+            <div id="bot-admin-list" class="flex-1 overflow-y-auto space-y-2"></div>
+        </div>
+    </div>
+    {% endif %}
 
     <script>
         const get = (id) => document.getElementById(id);
@@ -477,6 +598,12 @@
         let autoSearchOnLinks = {{ 'true' if current_user.is_authenticated and current_user.auto_search_on_links else 'false' }};
         let useSwCache = {{ 'true' if current_user.is_authenticated and current_user.use_sw_cache else 'false' }};
         const appVersion = "{{ app_version }}";
+        const botConfig = {{ bot_config|tojson if bot_config is defined else 'null' }};
+        const isAdminUser = botConfig && botConfig.isAdmin;
+        let turnstileWidgetId = null;
+        let turnstileToken = null;
+        let turnstilePending = false;
+        let chatDefaultsLoaded = false;
         
         // Tree State
         let allMessages = [];
@@ -484,6 +611,19 @@
         let currentParentId = null;
         
         function escapeHtml(t) { return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") : t; }
+        function updateTotalTokenBar(total) {
+            const bar = get('total-token-bar');
+            const count = get('total-token-count');
+            if (!bar || !count) return;
+            const val = Number(total || 0);
+            if (val > 0) {
+                bar.classList.remove('hidden');
+                count.innerText = `Total: ${val} tokens`;
+            } else {
+                bar.classList.add('hidden');
+                count.innerText = 'Total: 0 tokens';
+            }
+        }
         function updatePromptPlaceholder() {
             const input = get('prompt-input');
             if (!input) return;
@@ -494,6 +634,40 @@
             } else {
                 input.placeholder = "Ctrl + Enter で送信...";
             }
+        }
+        function applyChatDefaults(d) {
+            if (!d || chatDefaultsLoaded) return;
+            const useLast = !!d.use_last_chat_settings;
+            const src = useLast ? {
+                enable_search: d.last_enable_search,
+                enable_python: d.last_enable_python,
+                enable_thinking: d.last_enable_thinking,
+                thinking_level: d.last_thinking_level,
+                thinking_budget: d.last_thinking_budget,
+                reasoning_effort: d.last_reasoning_effort,
+                enable_system_prompt: d.last_enable_system_prompt,
+                safety_setting: d.last_safety_setting
+            } : {
+                enable_search: d.default_enable_search,
+                enable_python: d.default_enable_python,
+                enable_thinking: d.default_enable_thinking,
+                thinking_level: d.default_thinking_level,
+                thinking_budget: d.default_thinking_budget,
+                reasoning_effort: d.default_reasoning_effort,
+                enable_system_prompt: d.default_enable_system_prompt,
+                safety_setting: d.default_safety_setting
+            };
+            const s = (v, fallback) => (v === undefined || v === null || v === "") ? fallback : v;
+            if (get('enable-search')) get('enable-search').checked = !!s(src.enable_search, get('enable-search').checked);
+            if (get('enable-python')) get('enable-python').checked = !!s(src.enable_python, get('enable-python').checked);
+            if (get('enable-thinking')) get('enable-thinking').checked = !!s(src.enable_thinking, get('enable-thinking').checked);
+            if (get('thinking-level')) get('thinking-level').value = s(src.thinking_level, get('thinking-level').value || "high");
+            if (get('thinking-budget')) get('thinking-budget').value = s(src.thinking_budget, get('thinking-budget').value || 4096);
+            if (get('reasoning-effort')) get('reasoning-effort').value = s(src.reasoning_effort, get('reasoning-effort').value || "medium");
+            if (get('enable-sys-prompt')) get('enable-sys-prompt').checked = !!s(src.enable_system_prompt, get('enable-sys-prompt').checked);
+            if (get('safety-setting')) get('safety-setting').value = s(src.safety_setting, get('safety-setting').value || "default");
+            chatDefaultsLoaded = true;
+            toggleOptions();
         }
         function setEditUi(active) {
             const bar = get('edit-bar');
@@ -515,6 +689,9 @@
                 input.value = '';
                 input.style.height = 'auto';
             }
+            currentImageUrls = [];
+            get('file-preview').classList.add('hidden');
+            get('file-input').value = '';
             clearQuote();
             setEditUi(false);
         }
@@ -531,6 +708,28 @@
                 currentParentId = msg.parent_id;
                 editingMessageId = id;
                 setEditUi(true);
+                if (msg.image_url) {
+                    try {
+                        const imgs = JSON.parse(msg.image_url);
+                        if (Array.isArray(imgs) && imgs.length) {
+                            currentImageUrls = imgs.slice();
+                            get('file-preview').classList.remove('hidden');
+                            get('file-name').innerText = `${currentImageUrls.length} files ready`;
+                        } else {
+                            currentImageUrls = [];
+                            get('file-preview').classList.add('hidden');
+                            get('file-input').value = '';
+                        }
+                    } catch (e) {
+                        currentImageUrls = [];
+                        get('file-preview').classList.add('hidden');
+                        get('file-input').value = '';
+                    }
+                } else {
+                    currentImageUrls = [];
+                    get('file-preview').classList.add('hidden');
+                    get('file-input').value = '';
+                }
                 if (msg.quote_text) {
                     currentQuote = msg.quote_text;
                     get('quote-text-display').innerText = currentQuote;
@@ -590,6 +789,213 @@
             if (navigator.onLine) b.classList.remove('visible');
             else b.classList.add('visible');
         }
+        window.initTurnstileWidget = () => {
+            if (!botConfig || !botConfig.turnstileSiteKey || !window.turnstile) return;
+            if (turnstileWidgetId !== null) return;
+            const container = document.getElementById('turnstile-container');
+            if (!container) return;
+            turnstileWidgetId = window.turnstile.render(container, {
+                sitekey: botConfig.turnstileSiteKey,
+                size: 'compact',
+                callback: (token) => { turnstileToken = token; turnstilePending = false; container.classList.add('hidden'); },
+                'expired-callback': () => { turnstileToken = null; turnstilePending = false; container.classList.add('hidden'); },
+                'error-callback': () => { turnstileToken = null; turnstilePending = false; container.classList.add('hidden'); }
+            });
+        };
+        async function getTurnstileToken() {
+            if (!botConfig || !botConfig.turnstileSiteKey) return null;
+            if (turnstileToken) return turnstileToken;
+            if (!window.turnstile || turnstileWidgetId === null) return null;
+            const container = document.getElementById('turnstile-container');
+            if (container) container.classList.remove('hidden');
+            turnstilePending = true;
+            return await new Promise((resolve) => {
+                const prevToken = turnstileToken;
+                const timeout = setTimeout(() => resolve(null), 1500);
+                try {
+                    window.turnstile.execute(turnstileWidgetId);
+                } catch (e) {
+                    clearTimeout(timeout);
+                    resolve(null);
+                    return;
+                }
+                const interval = setInterval(() => {
+                    if (turnstileToken && turnstileToken !== prevToken) {
+                        clearTimeout(timeout);
+                        clearInterval(interval);
+                        resolve(turnstileToken);
+                    }
+                }, 50);
+            });
+        }
+        function resetTurnstileToken() {
+            turnstileToken = null;
+            turnstilePending = false;
+            if (window.turnstile && turnstileWidgetId !== null) {
+                try { window.turnstile.reset(turnstileWidgetId); } catch (e) {}
+            }
+        }
+        const botTelemetry = (() => {
+            const state = {
+                enabled: false,
+                windowStart: performance.now(),
+                lastSend: 0,
+                clicks: 0,
+                keys: 0,
+                moves: 0,
+                fastClicks: 0,
+                fastKeys: 0,
+                clickTimes: [],
+                keyTimes: [],
+                clickIntervals: [],
+                lastClickTs: 0,
+                lastKeyTs: 0,
+                lastMove: null,
+                speedMax: 0,
+                speedSum: 0,
+                speedSamples: 0,
+                lastMoveSample: 0
+            };
+            const refreshEnabled = () => {
+                state.enabled = !!(botConfig && botConfig.globalEnabled && botConfig.accountEnabled && !isAdminUser);
+            };
+            const resetWindow = () => {
+                state.windowStart = performance.now();
+                state.clicks = 0;
+                state.keys = 0;
+                state.moves = 0;
+                state.fastClicks = 0;
+                state.fastKeys = 0;
+                state.clickTimes = [];
+                state.keyTimes = [];
+                state.clickIntervals = [];
+                state.speedMax = 0;
+                state.speedSum = 0;
+                state.speedSamples = 0;
+            };
+            const recordClick = () => {
+                const now = performance.now();
+                state.clicks += 1;
+                if (state.lastClickTs) {
+                    const delta = now - state.lastClickTs;
+                    state.clickIntervals.push(delta);
+                    if (state.clickIntervals.length > 10) state.clickIntervals.shift();
+                    if (delta < 120) state.fastClicks += 1;
+                }
+                state.lastClickTs = now;
+                state.clickTimes.push(now);
+                state.clickTimes = state.clickTimes.filter(t => now - t <= 2000);
+                if (state.fastClicks >= 4) send(true);
+            };
+            const recordKey = () => {
+                const now = performance.now();
+                state.keys += 1;
+                if (state.lastKeyTs) {
+                    const delta = now - state.lastKeyTs;
+                    if (delta < 50) state.fastKeys += 1;
+                }
+                state.lastKeyTs = now;
+                state.keyTimes.push(now);
+                state.keyTimes = state.keyTimes.filter(t => now - t <= 2000);
+            };
+            const recordMove = (e) => {
+                const now = performance.now();
+                if (now - state.lastMoveSample < 80) return;
+                state.lastMoveSample = now;
+                state.moves += 1;
+                if (state.lastMove) {
+                    const dx = e.clientX - state.lastMove.x;
+                    const dy = e.clientY - state.lastMove.y;
+                    const dt = now - state.lastMove.t;
+                    if (dt > 0) {
+                        const speed = Math.sqrt(dx * dx + dy * dy) / (dt / 1000);
+                        state.speedMax = Math.max(state.speedMax, speed);
+                        state.speedSum += speed;
+                        state.speedSamples += 1;
+                    }
+                }
+                state.lastMove = { x: e.clientX, y: e.clientY, t: now };
+            };
+            const computeStats = () => {
+                const windowMs = Math.max(1, performance.now() - state.windowStart);
+                const clickBurst = state.clickTimes.length;
+                const keyBurst = state.keyTimes.length;
+                const avgSpeed = state.speedSamples ? (state.speedSum / state.speedSamples) : 0;
+                let avgClick = 0;
+                let clickCv = 1.0;
+                if (state.clickIntervals.length >= 3) {
+                    const mean = state.clickIntervals.reduce((a, b) => a + b, 0) / state.clickIntervals.length;
+                    const variance = state.clickIntervals.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / state.clickIntervals.length;
+                    avgClick = mean;
+                    clickCv = mean > 0 ? Math.sqrt(variance) / mean : 1.0;
+                }
+                return {
+                    window_ms: Math.round(windowMs),
+                    clicks: state.clicks,
+                    keys: state.keys,
+                    moves: state.moves,
+                    fast_clicks: state.fastClicks,
+                    fast_keys: state.fastKeys,
+                    click_burst: clickBurst,
+                    key_burst: keyBurst,
+                    avg_click_ms: avgClick,
+                    click_cv: clickCv,
+                    event_rate: (state.clicks + state.keys + state.moves) / (windowMs / 1000),
+                    pointer_speed_max: state.speedMax,
+                    pointer_speed_avg: avgSpeed
+                };
+            };
+            const isSuspicious = (payload) => {
+                if (payload.fast_clicks >= 4) return true;
+                if (payload.fast_keys >= 8) return true;
+                if (payload.click_burst >= 8) return true;
+                if (payload.key_burst >= 14) return true;
+                if (payload.event_rate >= 20) return true;
+                if (payload.avg_click_ms > 0 && payload.avg_click_ms < 160 && payload.click_cv < 0.08) return true;
+                return false;
+            };
+            const send = async (force = false) => {
+                if (!state.enabled) return;
+                const now = performance.now();
+                if (!force && now - state.lastSend < 3000) return;
+                state.lastSend = now;
+                const payload = computeStats();
+                if ((payload.clicks + payload.keys + payload.moves) === 0) return;
+                if (!force && !isSuspicious(payload)) return;
+                payload.turnstile_token = await getTurnstileToken();
+                if (botConfig && botConfig.turnstileSiteKey && !payload.turnstile_token) return;
+                try {
+                    const res = await apiFetch('/api/bot-telemetry', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (res.status === 403) {
+                        let data = null;
+                        try { data = await res.json(); } catch (e) {}
+                        if (data && data.error === 'banned') {
+                            showToast('ボット判定によりBANされました。', 'error', true);
+                            setTimeout(() => { location.href = '/banned'; }, 800);
+                            return;
+                        }
+                    }
+                } catch (e) {}
+                resetTurnstileToken();
+                resetWindow();
+            };
+            const start = () => {
+                refreshEnabled();
+                if (!state.enabled) return;
+                document.addEventListener('click', recordClick, true);
+                document.addEventListener('pointerdown', recordClick, true);
+                document.addEventListener('touchstart', recordClick, true);
+                document.addEventListener('keydown', recordKey, true);
+                document.addEventListener('wheel', () => { state.moves += 1; }, { passive: true });
+                document.addEventListener('mousemove', recordMove, true);
+                setInterval(() => send(false), 4000);
+            };
+            return { start, refreshEnabled, send };
+        })();
         function openImageViewer(url) {
             const viewer = get('image-viewer');
             const img = get('image-viewer-img');
@@ -718,6 +1124,7 @@
                 icon: "fas fa-history text-gray-400",
                 description: "Previous generation models",
                 items: [
+                    { id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash-Lite", desc: "Fastest and most cost-efficient Gemini 2.5 model." },
                     { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", desc: "Balanced performance.", price: "In $0.30/1M, Out $2.50/1M" }
                 ]
             },
@@ -763,6 +1170,17 @@
                 ]
             },
             {
+                category: "Speech-to-Speech (Live)",
+                icon: "fas fa-headset text-cyan-400",
+                description: "Realtime voice models (audio in / audio out)",
+                items: [
+                    { id: "gpt-realtime", name: "OpenAI Realtime", desc: "Latest OpenAI speech-to-speech model." },
+                    { id: "gpt-realtime-mini", name: "OpenAI Realtime Mini", desc: "Lower-latency, smaller realtime model." },
+                    { id: "gemini-2.5-flash-native-audio-preview-12-2025", name: "Gemini 2.5 Flash Native Audio (Live)", desc: "Google Live native audio model." },
+                    { id: "grok-voice-agent", name: "Grok Voice Agent", desc: "xAI realtime voice agent API." }
+                ]
+            },
+            {
                 category: "xAI Grok",
                 icon: "fas fa-rocket text-white",
                 description: "Models by xAI",
@@ -777,6 +1195,200 @@
 
         let activeModelTag = 'all';
         const MODEL_TAGS = ['all','openai','gemini','xai','image','audio','reasoning','fast'];
+        const STS_MODELS = new Set([
+            'gpt-realtime',
+            'gpt-realtime-mini',
+            'gemini-2.5-flash-native-audio-preview-12-2025',
+            'grok-voice-agent'
+        ]);
+        const OPENAI_TTS_VOICES = ['alloy','ash','ballad','coral','echo','fable','nova','onyx','sage','shimmer','verse','marin','cedar'];
+        const GEMINI_TTS_VOICES = [
+            'Zephyr','Puck','Charon','Kore','Fenrir','Leda','Orus','Aoede','Callirrhoe','Autonoe',
+            'Enceladus','Iapetus','Umbriel','Algieba','Despina','Erinome','Algenib','Rasalgethi','Laomedeia','Achernar',
+            'Alnilam','Schedar','Gacrux','Pulcherrima','Achird','Zubenelgenubi','Vindemiatrix','Sadachbia','Sadaltager','Sulafat'
+        ];
+        const OPENAI_STS_VOICES = ['alloy','ash','ballad','coral','echo','sage','shimmer','verse','marin','cedar'];
+        const GROK_STS_VOICES = ['Ara','Rex','Sal','Eve','Leo'];
+        const GEMINI_STS_VOICES = [
+            'Zephyr','Puck','Charon','Kore','Fenrir','Leda','Orus','Aoede','Callirrhoe','Autonoe',
+            'Enceladus','Iapetus','Umbriel','Algieba','Despina','Erinome','Algenib','Rasalgethi','Laomedeia','Achernar',
+            'Alnilam','Schedar','Gacrux','Pulcherrima','Achird','Zubenelgenubi','Vindemiatrix','Sadachbia','Sadaltager','Sulafat'
+        ];
+        const GROK_PCM_RATES = [8000,16000,21050,24000,32000,44100,48000];
+        const isTtsModel = () => get('model-select').value.includes('tts');
+
+        const isStsModel = () => STS_MODELS.has(get('model-select').value);
+        const getStsProvider = (model) => {
+            const m = (model || '').toLowerCase();
+            if (m.includes('gpt-realtime')) return 'openai';
+            if (m.includes('grok-voice-agent')) return 'xai';
+            if (m.includes('gemini') && m.includes('native-audio')) return 'gemini';
+            return null;
+        };
+        function setStsStatus(text, recording = false) {
+            const s = get('sts-status');
+            const b = get('sts-mic-btn');
+            if (s && text) s.innerText = text;
+            if (b) {
+                if (recording) {
+                    b.classList.add('bg-red-600', 'animate-pulse');
+                    b.classList.remove('bg-cyan-600');
+                } else {
+                    b.classList.remove('bg-red-600', 'animate-pulse');
+                    b.classList.add('bg-cyan-600');
+                }
+            }
+        }
+        function updateStsUi() {
+            const sts = isStsModel();
+            const inputRow = get('input-row');
+            const stsPanel = get('sts-panel');
+            const filePreview = get('file-preview');
+            if (sts) {
+                if (inputRow) inputRow.classList.add('hidden');
+                if (stsPanel) stsPanel.classList.remove('hidden');
+                if (filePreview) filePreview.classList.add('hidden');
+                setStsStatus('Tap to speak', false);
+            } else {
+                if (inputRow) inputRow.classList.remove('hidden');
+                if (stsPanel) stsPanel.classList.add('hidden');
+            }
+        }
+        function updateStsOptions() {
+            if (!isStsModel()) return;
+            const model = get('model-select').value || '';
+            const provider = getStsProvider(model);
+            const voiceSel = get('sts-voice');
+            const speedWrap = get('sts-speed-wrap');
+            const speedInput = get('sts-speed');
+            const speedLabel = get('sts-speed-label');
+            const rateWrap = get('sts-rate-wrap');
+            const rateIn = get('sts-rate-in');
+            const rateOut = get('sts-rate-out');
+            const note = get('sts-note');
+
+            if (provider === 'openai') {
+                setSelectOptions(voiceSel, OPENAI_STS_VOICES, voiceSel.value || 'alloy');
+                if (speedWrap) speedWrap.classList.remove('hidden');
+                if (speedInput) {
+                    speedInput.min = 0.25; speedInput.max = 1.5; speedInput.step = 0.05;
+                    if (!speedInput.value) speedInput.value = 1;
+                    if (Number(speedInput.value) < 0.25) speedInput.value = 0.25;
+                    if (Number(speedInput.value) > 1.5) speedInput.value = 1.5;
+                }
+                if (rateWrap) rateWrap.classList.add('hidden');
+                if (note) note.textContent = 'OpenAI Realtimeは24kHz PCM固定';
+            } else if (provider === 'xai') {
+                setSelectOptions(voiceSel, GROK_STS_VOICES, voiceSel.value || 'Ara');
+                if (speedWrap) speedWrap.classList.add('hidden');
+                if (rateWrap) rateWrap.classList.remove('hidden');
+                setSelectOptions(rateIn, GROK_PCM_RATES, Number(rateIn.value || 24000));
+                setSelectOptions(rateOut, GROK_PCM_RATES, Number(rateOut.value || 24000));
+                if (note) note.textContent = 'xAIはPCMサンプルレート変更可';
+            } else if (provider === 'gemini') {
+                setSelectOptions(voiceSel, GEMINI_STS_VOICES, voiceSel.value || 'Kore');
+                if (speedWrap) speedWrap.classList.add('hidden');
+                if (rateWrap) rateWrap.classList.add('hidden');
+                if (note) note.textContent = 'Gemini Liveは音声速度変更非対応';
+            }
+            if (speedWrap && speedLabel && speedInput && !speedWrap.classList.contains('hidden')) {
+                speedLabel.textContent = `${Number(speedInput.value || 1).toFixed(2)}x`;
+            }
+        }
+        function stsOpt(id) {
+            const el = get(id);
+            return el ? !!el.checked : false;
+        }
+        function getStsSilenceMs() {
+            const el = get('sts-silence-sec');
+            let v = el ? parseFloat(el.value) : 2.5;
+            if (isNaN(v) || v < 1) v = 1;
+            if (v > 10) v = 10;
+            return Math.round(v * 1000);
+        }
+        function getTtsProvider(model) {
+            if (!model) return null;
+            const m = model.toLowerCase();
+            if (m.includes('google-tts')) return 'google';
+            if (m.includes('gemini') && m.includes('tts')) return 'gemini';
+            if (m.includes('tts')) return 'openai';
+            return null;
+        }
+        function setSelectOptions(el, list, selected) {
+            if (!el) return;
+            el.innerHTML = '';
+            list.forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v.value || v;
+                opt.textContent = v.label || v;
+                if ((v.value || v) === selected) opt.selected = true;
+                el.appendChild(opt);
+            });
+        }
+        function updateTtsUi() {
+            const model = get('model-select').value || '';
+            const provider = getTtsProvider(model);
+            const wrap = get('audio-gen-options');
+            if (!wrap) return;
+            if (!provider) {
+                wrap.classList.add('hidden');
+                return;
+            }
+            wrap.classList.remove('hidden');
+            const voiceSel = get('tts-voice');
+            const voiceCustomWrap = get('tts-voice-custom-wrap');
+            const voiceCustom = get('tts-voice-custom');
+            const langWrap = get('tts-language-wrap');
+            const langInput = get('tts-language');
+            const speedWrap = get('tts-speed-wrap');
+            const speedInput = get('tts-speed');
+            const speedLabel = get('tts-speed-label');
+            const speedNote = get('tts-speed-note');
+
+            if (provider === 'openai') {
+                setSelectOptions(voiceSel, OPENAI_TTS_VOICES, voiceSel.value || 'alloy');
+                voiceCustomWrap.classList.add('hidden');
+                langWrap.classList.add('hidden');
+                if (speedInput) { 
+                    speedInput.min = 0.25; speedInput.max = 4; speedInput.step = 0.05; 
+                    if (!speedInput.value) speedInput.value = 1;
+                    if (Number(speedInput.value) < 0.25) speedInput.value = 0.25;
+                    if (Number(speedInput.value) > 4) speedInput.value = 4;
+                    speedInput.disabled = false; 
+                }
+                if (speedNote) speedNote.textContent = '';
+            } else if (provider === 'gemini') {
+                setSelectOptions(voiceSel, GEMINI_TTS_VOICES, voiceSel.value || 'Kore');
+                voiceCustomWrap.classList.add('hidden');
+                langWrap.classList.add('hidden');
+                if (speedInput) { speedInput.disabled = true; }
+                if (speedNote) speedNote.textContent = '(Gemini TTSは速度変更非対応)';
+            } else if (provider === 'google') {
+                setSelectOptions(voiceSel, [
+                    { value: 'auto', label: 'Auto (Studio/Neural2)' },
+                    { value: 'custom', label: 'Custom Voice Name' }
+                ], voiceSel.value || 'auto');
+                if (voiceSel.value === 'custom') {
+                    voiceCustomWrap.classList.remove('hidden');
+                } else {
+                    voiceCustomWrap.classList.add('hidden');
+                    if (voiceCustom) voiceCustom.value = '';
+                }
+                langWrap.classList.remove('hidden');
+                if (langInput && !langInput.value) langInput.value = 'ja-JP';
+                if (speedInput) { 
+                    speedInput.min = 0.25; speedInput.max = 2; speedInput.step = 0.05; 
+                    if (!speedInput.value) speedInput.value = 1;
+                    if (Number(speedInput.value) < 0.25) speedInput.value = 0.25;
+                    if (Number(speedInput.value) > 2) speedInput.value = 2;
+                    speedInput.disabled = false; 
+                }
+                if (speedNote) speedNote.textContent = '';
+            }
+            if (speedInput && speedLabel) {
+                speedLabel.textContent = `${Number(speedInput.value || 1).toFixed(2)}x`;
+            }
+        }
 
         function getModelTags(m, group) {
             const tags = [];
@@ -788,7 +1400,7 @@
             if (cat.includes('gpt') || cat.includes('openai')) tags.push('openai');
             if (cat.includes('xai') || cat.includes('grok')) tags.push('xai');
             if (cat.includes('image') || id.includes('image')) tags.push('image');
-            if (cat.includes('audio') || id.includes('tts') || name.includes('tts')) tags.push('audio');
+            if (cat.includes('audio') || id.includes('tts') || name.includes('tts') || id.includes('realtime') || id.includes('live') || id.includes('voice-agent') || id.includes('native-audio')) tags.push('audio');
             if (id.includes('reasoning') || name.includes('reasoning')) tags.push('reasoning');
             if (id.includes('fast') || name.includes('fast') || desc.includes('fast')) tags.push('fast');
             return tags;
@@ -879,6 +1491,14 @@
             const event = new Event('change');
             el.dispatchEvent(event);
         }
+        function selectModelById(id) {
+            let name = id;
+            for (const g of MODELS) {
+                const found = g.items.find(i => i.id === id);
+                if (found) { name = found.name; break; }
+            }
+            selectModel(id, name);
+        }
 
         get('model-search').addEventListener('input', (e) => renderModelList(e.target.value));
         if (get('model-tag-bar')) {
@@ -916,6 +1536,8 @@
                 const thinkBudget = get('thinking-budget');
                 const searchChk = get('enable-search'); 
                 const searchCont = get('search-container'); 
+                const sysChk = get('enable-sys-prompt'); const sysLbl = get('sys-prompt-option'); 
+                const pyChk = get('enable-python'); const pyCont = get('python-container');
                 
                 thinkOpts.classList.add('hidden'); 
                 reasonOpts.classList.add('hidden'); 
@@ -933,14 +1555,23 @@
                 } else if(model.includes('gemini') && !isGeminiImage) { 
                     thinkOpts.classList.remove('hidden'); 
                     const isFlash = model.includes('flash');
+                    const isGemini3 = model.includes('gemini-3');
                     Array.from(thinkLvl.options).forEach(opt => {
                         if(['minimal', 'medium'].includes(opt.value)) { opt.disabled = !isFlash; }
                     });
                     if(!isFlash && ['minimal', 'medium'].includes(thinkLvl.value)) { thinkLvl.value = 'high'; }
-                    if(model.includes('gemini-3-pro') || model.includes('gemini-3-flash')) { if(thinkChk) { thinkChk.checked = true; thinkChk.disabled = true; } } 
+                    if(isGemini3) { 
+                        if(thinkChk) { thinkChk.checked = true; thinkChk.disabled = true; } 
+                    } else if(thinkChk) {
+                        thinkChk.disabled = false;
+                    }
                     if(thinkBudget && model.includes('gemini-2.5')) {
                         thinkBudget.disabled = false;
                         thinkBudget.classList.remove('opacity-50');
+                    }
+                    if(thinkBudget && !model.includes('gemini-2.5')) {
+                        thinkBudget.disabled = true;
+                        thinkBudget.classList.add('opacity-50');
                     }
                 } 
                 else if(model.includes('gpt') && !model.includes('tts')) { 
@@ -951,9 +1582,6 @@
                     if(searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none'); 
                 } 
                 
-                const sysChk = get('enable-sys-prompt'); const sysLbl = get('sys-prompt-option'); 
-                const pyChk = get('enable-python'); const pyCont = get('python-container');
-
                 // TTS Special Handling
                 if(model.includes('tts')) {
                     if(pyCont) pyCont.classList.add('opacity-50', 'pointer-events-none');
@@ -965,8 +1593,22 @@
                 }
 
                 if(model.includes('nano') || model.includes('gpt-image')) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); } 
+                updateTtsUi();
+                updateStsUi();
+                updateStsOptions();
             }
             get('model-select').addEventListener('change', toggleOptions); toggleOptions();
+            if (get('tts-voice')) get('tts-voice').addEventListener('change', updateTtsUi);
+            if (get('tts-speed') && get('tts-speed-label')) {
+                get('tts-speed').addEventListener('input', () => {
+                    get('tts-speed-label').textContent = `${Number(get('tts-speed').value || 1).toFixed(2)}x`;
+                });
+            }
+            if (get('sts-speed') && get('sts-speed-label')) {
+                get('sts-speed').addEventListener('input', () => {
+                    get('sts-speed-label').textContent = `${Number(get('sts-speed').value || 1).toFixed(2)}x`;
+                });
+            }
             marked.use({ renderer: { code(c, i, e) { const l = (i || '').match(/\S*/)[0]; if(l === 'pyexec'){ try { const obj = JSON.parse(c); const code = escapeHtml(obj.code || ''); const output = escapeHtml(obj.output || ''); return `<div class="python-box"><div class="python-header"><i class="fas fa-terminal"></i> Python Execution</div><div class="python-body"><div class="python-label">Code</div><pre class="python-code">${code}</pre><div class="python-label">Output</div><pre class="python-output">${output}</pre></div></div>`; } catch(e2){} } const safe = escapeHtml(c || ''); const h = hljs.highlight(safe, { language: hljs.getLanguage(l)?l:'plaintext' }).value; const enc = encodeURIComponent(c).replace(/'/g, "%27"); return `<div class="code-wrapper"><div class="code-header"><span class="code-lang">${l||'TEXT'}</span><button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="hljs language-${l}">${h}</code></pre></div>`; }, link(h, t, x) { return `<a href="${h}" title="${t||''}" target="_blank">${x}</a>`; }, image(h, t, x) { const alt = escapeHtml(x||''); const title = t ? ` title="${escapeHtml(t)}"` : ''; return `<img src="${h}" alt="${alt}"${title} class="chat-image" loading="lazy" width="320" height="320">`; } }, breaks: true, gfm: true });
             
             // Infinite Scroll Observer
@@ -980,11 +1622,29 @@
             window.addEventListener('online', updateOfflineBanner);
             window.addEventListener('offline', updateOfflineBanner);
             applyCacheMode(useSwCache);
+            if (window.__turnstileApiLoaded && window.initTurnstileWidget) window.initTurnstileWidget();
+            if (botConfig && botConfig.globalEnabled && botConfig.accountEnabled && !isAdminUser) {
+                try { botTelemetry.start(); } catch (e) { console.error(e); }
+            } else {
+                const container = get('turnstile-container');
+                if (container) container.classList.add('hidden');
+            }
+            apiFetch("{{ url_for('handle_settings', _=1) }}").then(r => r.json()).then(d => {
+                applyChatDefaults(d);
+                const sysChk = get('enable-sys-prompt');
+                if (sysChk && d && d.system_prompt && String(d.system_prompt).trim()) {
+                    if (!sysChk.disabled && !d.default_enable_system_prompt && !d.use_last_chat_settings) sysChk.checked = true;
+                    toggleOptions();
+                }
+            }).catch(() => {});
             loadThreads(); loadGems(); 
             get('send-btn').onclick = sendMessage; get('new-chat-btn').onclick = () => startNewChat(); get('upload-btn').onclick = () => get('file-input').click(); get('file-input').onchange = (e) => handleFiles(e.target.files); 
             get('stop-btn').onclick = async () => { if(abortController) abortController.abort(); if(currentJobId) await apiFetch("/api/stop_chat", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({job_id: currentJobId})}); get('send-btn').disabled=false; get('stop-container').classList.add('hidden'); };
-            get('settings-btn').onclick = () => { 
-                get('settings-modal').style.display='flex'; 
+            const openSettingsModal = () => {
+                get('settings-modal').style.display='flex';
+                if (location.pathname !== '/settings') {
+                    history.pushState({ modal: 'settings', from: location.pathname }, '', '/settings');
+                }
                 apiFetch("{{ url_for('handle_settings', _=1) }}").then(r=>r.json()).then(d=>{ 
                     get('sys-prompt-text').value = d.system_prompt; 
                     get('set-openai').value = d.openai_key; 
@@ -996,7 +1656,28 @@
                     if(get('set-enter-to-send')) get('set-enter-to-send').checked = !!d.enter_to_send;
                     if(get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;
                     if(get('set-auto-search-links')) get('set-auto-search-links').checked = d.auto_search_on_links !== false;
+                    if(get('set-use-last-settings')) get('set-use-last-settings').checked = !!d.use_last_chat_settings;
+                    if(get('set-default-search')) get('set-default-search').checked = !!d.default_enable_search;
+                    if(get('set-default-python')) get('set-default-python').checked = !!d.default_enable_python;
+                    if(get('set-default-thinking')) get('set-default-thinking').checked = !!d.default_enable_thinking;
+                    if(get('set-default-sys-prompt')) get('set-default-sys-prompt').checked = !!d.default_enable_system_prompt;
+                    if(get('set-default-thinking-level')) get('set-default-thinking-level').value = d.default_thinking_level || 'high';
+                    if(get('set-default-thinking-budget')) get('set-default-thinking-budget').value = d.default_thinking_budget || 4096;
+                    if(get('set-default-reasoning-effort')) get('set-default-reasoning-effort').value = d.default_reasoning_effort || 'medium';
+                    if(get('set-default-safety')) get('set-default-safety').value = d.default_safety_setting || 'default';
                     get('set-e2ee').checked = d.enable_e2ee; 
+                    if(get('set-bot-detect')) get('set-bot-detect').checked = d.bot_detection_enabled !== false;
+                    if(get('set-bot-detect-global')) get('set-bot-detect-global').checked = d.bot_detection_global_enabled !== false;
+                    const botStatus = get('bot-status');
+                    if (botStatus) {
+                        if (d.is_bot_banned) {
+                            botStatus.textContent = `BAN中: ${d.bot_ban_reason || 'Bot detection'}`;
+                            botStatus.classList.remove('hidden');
+                            botStatus.classList.add('text-red-400');
+                        } else {
+                            botStatus.classList.add('hidden');
+                        }
+                    }
                     if(get('set-username')) get('set-username').value = d.username; 
                     
                     // 2FA UI Update
@@ -1034,10 +1715,120 @@
                     }
                 }); 
                 loadFeedback();
+            };
+            const closeSettingsModal = (skipHistory = false) => {
+                get('settings-modal').style.display='none';
+                if (!skipHistory && location.pathname === '/settings') {
+                    history.back();
+                }
+            };
+            get('settings-btn').onclick = () => { 
+                openSettingsModal();
             }; 
-            get('close-settings-btn').onclick = () => get('settings-modal').style.display='none'; 
-            get('save-settings-btn').onclick = async () => { const uEl = get('set-username'); const pEl = get('set-password'); const b = { system_prompt:get('sys-prompt-text').value, openai_key:get('set-openai').value, gemini_key:get('set-gemini').value, xai_key:get('set-xai').value, google_key: get('set-google-key') ? get('set-google-key').value : null, google_project: get('set-google-project') ? get('set-google-project').value : null, stt_model: get('set-stt-model') ? get('set-stt-model').value : null, enter_to_send: get('set-enter-to-send') ? get('set-enter-to-send').checked : false, use_sw_cache: get('set-use-sw-cache') ? get('set-use-sw-cache').checked : false, auto_search_on_links: get('set-auto-search-links') ? get('set-auto-search-links').checked : true, enable_e2ee: get('set-e2ee').checked, new_username: uEl ? uEl.value : null, new_password: pEl ? pEl.value : null }; await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}); location.reload(); };
+            get('close-settings-btn').onclick = () => closeSettingsModal(); 
+            get('save-settings-btn').onclick = async () => { const uEl = get('set-username'); const pEl = get('set-password'); const b = { system_prompt:get('sys-prompt-text').value, openai_key:get('set-openai').value, gemini_key:get('set-gemini').value, xai_key:get('set-xai').value, google_key: get('set-google-key') ? get('set-google-key').value : null, google_project: get('set-google-project') ? get('set-google-project').value : null, stt_model: get('set-stt-model') ? get('set-stt-model').value : null, enter_to_send: get('set-enter-to-send') ? get('set-enter-to-send').checked : false, use_sw_cache: get('set-use-sw-cache') ? get('set-use-sw-cache').checked : false, auto_search_on_links: get('set-auto-search-links') ? get('set-auto-search-links').checked : true, use_last_chat_settings: get('set-use-last-settings') ? get('set-use-last-settings').checked : false, default_enable_search: get('set-default-search') ? get('set-default-search').checked : false, default_enable_python: get('set-default-python') ? get('set-default-python').checked : false, default_enable_thinking: get('set-default-thinking') ? get('set-default-thinking').checked : false, default_thinking_level: get('set-default-thinking-level') ? get('set-default-thinking-level').value : null, default_thinking_budget: get('set-default-thinking-budget') ? get('set-default-thinking-budget').value : null, default_reasoning_effort: get('set-default-reasoning-effort') ? get('set-default-reasoning-effort').value : null, default_enable_system_prompt: get('set-default-sys-prompt') ? get('set-default-sys-prompt').checked : false, default_safety_setting: get('set-default-safety') ? get('set-default-safety').value : null, enable_e2ee: get('set-e2ee').checked, bot_detection_enabled: get('set-bot-detect') ? get('set-bot-detect').checked : true, bot_detection_global_enabled: get('set-bot-detect-global') ? get('set-bot-detect-global').checked : null, new_username: uEl ? uEl.value : null, new_password: pEl ? pEl.value : null }; await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}); location.reload(); };
             get('disable-2fa-btn').onclick = async () => { if(confirm("Disable 2FA?")) { await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({disable_2fa: true})}); location.reload(); } };
+            if (get('bot-unban-btn')) {
+                get('bot-unban-btn').onclick = async () => {
+                    const u = get('bot-unban-username');
+                    const username = u ? u.value.trim() : '';
+                    if (!username) { showToast('ユーザー名を入力してください', 'error', true); return; }
+                    if (!confirm(`ユーザー ${username} のBANを解除しますか？`)) return;
+                    const res = await apiFetch('/api/bot/unban', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username})});
+                    const data = await res.json();
+                    const box = get('bot-unban-result');
+                    if (res.ok && data && data.status === 'ok') {
+                        if (box) { box.textContent = `${username} のBANを解除しました`; box.classList.remove('hidden'); }
+                        if (u) u.value = '';
+                    } else {
+                        const msg = data && data.error ? data.error : '解除に失敗しました';
+                        showToast(msg, 'error', true);
+                    }
+                };
+            }
+            const botAdminModal = get('bot-admin-modal');
+            const renderBotUsers = (users) => {
+                const list = get('bot-admin-list');
+                if (!list) return;
+                list.innerHTML = '';
+                if (!users || !users.length) {
+                    list.innerHTML = '<div class="text-xs text-gray-400">該当ユーザーがいません。</div>';
+                    return;
+                }
+                users.forEach(u => {
+                    const isBanned = !!u.is_bot_banned;
+                    const detOn = u.bot_detection_enabled !== false;
+                    const row = document.createElement('div');
+                    row.className = 'flex items-center gap-2 bg-gray-900 border border-gray-700 rounded p-2 text-xs';
+                    row.innerHTML = `
+                        <div class="flex-1">
+                            <div class="text-gray-200 font-bold">${escapeHtml(u.username)}</div>
+                            <div class="text-[10px] text-gray-500">${isBanned ? 'BAN中' : '正常'} ${u.bot_ban_reason ? ' / ' + escapeHtml(u.bot_ban_reason) : ''}</div>
+                        </div>
+                        <button class="bot-toggle-detect bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded" data-user="${escapeHtml(u.username)}" data-enabled="${detOn ? '1' : '0'}">${detOn ? '検出ON' : '検出OFF'}</button>
+                        <button class="bot-toggle-ban ${isBanned ? 'bg-green-600 hover:bg-green-500' : 'bg-red-600 hover:bg-red-500'} text-white px-2 py-1 rounded" data-user="${escapeHtml(u.username)}" data-banned="${isBanned ? '1' : '0'}">${isBanned ? '解除' : 'BAN'}</button>
+                    `;
+                    list.appendChild(row);
+                });
+            };
+            const loadBotUsers = async (q = '') => {
+                const res = await apiFetch(`/api/bot/users?q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                if (res.ok && data && data.users) renderBotUsers(data.users);
+                else showToast('ユーザー一覧取得に失敗しました', 'error', true);
+            };
+            if (get('bot-admin-open')) {
+                get('bot-admin-open').onclick = async () => {
+                    if (botAdminModal) botAdminModal.style.display = 'flex';
+                    await loadBotUsers(get('bot-admin-search') ? get('bot-admin-search').value.trim() : '');
+                };
+            }
+            if (get('bot-admin-close')) {
+                get('bot-admin-close').onclick = () => { if (botAdminModal) botAdminModal.style.display = 'none'; };
+            }
+            if (get('bot-admin-search-btn')) {
+                get('bot-admin-search-btn').onclick = async () => {
+                    await loadBotUsers(get('bot-admin-search') ? get('bot-admin-search').value.trim() : '');
+                };
+            }
+            if (get('bot-admin-refresh-btn')) {
+                get('bot-admin-refresh-btn').onclick = async () => { await loadBotUsers(''); };
+            }
+            if (get('bot-admin-search')) {
+                get('bot-admin-search').addEventListener('keydown', async (e) => {
+                    if (e.key === 'Enter') await loadBotUsers(get('bot-admin-search').value.trim());
+                });
+            }
+            if (get('bot-admin-list')) {
+                get('bot-admin-list').onclick = async (e) => {
+                    const btn = e.target.closest('button');
+                    if (!btn) return;
+                    const username = btn.getAttribute('data-user');
+                    if (!username) return;
+                    if (btn.classList.contains('bot-toggle-detect')) {
+                        const enabled = btn.getAttribute('data-enabled') !== '1';
+                        await apiFetch('/api/bot/update', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username, action:'toggle_detection', enabled})});
+                        await loadBotUsers(get('bot-admin-search') ? get('bot-admin-search').value.trim() : '');
+                    } else if (btn.classList.contains('bot-toggle-ban')) {
+                        const banned = btn.getAttribute('data-banned') === '1';
+                        if (banned) {
+                            await apiFetch('/api/bot/update', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username, action:'unban'})});
+                        } else {
+                            if (!confirm(`ユーザー ${username} をBANしますか？`)) return;
+                            await apiFetch('/api/bot/update', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username, action:'ban', reason:'Admin ban'})});
+                        }
+                        await loadBotUsers(get('bot-admin-search') ? get('bot-admin-search').value.trim() : '');
+                    }
+                };
+            }
+            window.addEventListener('popstate', () => {
+                if (location.pathname !== '/settings' && get('settings-modal').style.display === 'flex') {
+                    closeSettingsModal(true);
+                }
+            });
+            if (location.pathname === '/settings') {
+                openSettingsModal();
+            }
             if (get('easy-login-generate')) {
                 get('easy-login-generate').onclick = async () => {
                     const minsEl = get('easy-login-mins');
@@ -1051,6 +1842,20 @@
                         get('easy-login-result').classList.remove('hidden');
                     } else {
                         showToast("簡易ログインの発行に失敗しました", "error", true);
+                    }
+                };
+            }
+            if (get('easy-login-cancel')) {
+                get('easy-login-cancel').onclick = async () => {
+                    if (!confirm("現在の一時パスワード発行をキャンセルしますか？")) return;
+                    const res = await apiFetch("/api/easy_login", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({cancel: true})});
+                    const data = await res.json();
+                    if (data && data.cancelled) {
+                        const box = get('easy-login-result');
+                        if (box) box.classList.add('hidden');
+                        showToast("簡易ログインをキャンセルしました", "success");
+                    } else {
+                        showToast("キャンセルに失敗しました", "error", true);
                     }
                 };
             }
@@ -1164,6 +1969,8 @@
             updatePromptPlaceholder();
             get('menu-btn').onclick = () => { get('sidebar').classList.toggle('open'); get('overlay').classList.toggle('active'); }; get('overlay').onclick = () => { get('sidebar').classList.remove('open'); get('overlay').classList.remove('active'); };
             get('search-box').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => { threadPage=1; get('thread-list').innerHTML='<div id="scroll-sentinel"></div>'; loadThreads(); }, 300); }); get('mobile-new-chat-btn').onclick = () => startNewChat();
+            if (get('sts-mic-btn')) get('sts-mic-btn').onclick = () => { if (isStsModel()) get('mic-btn').click(); };
+            if (get('sts-cancel-btn')) get('sts-cancel-btn').onclick = () => { if (isStsModel()) cancelRecording(); };
             get('prompt-input').addEventListener('paste', async (e) => { const items = (e.clipboardData || window.clipboardData).items; const files = []; for (let i = 0; i < items.length; i++) { if (items[i].kind === 'file') { files.push(items[i].getAsFile()); } } if (files.length > 0) { e.preventDefault(); await handleFiles(files); } });
             get('chat-container').addEventListener('click', (e) => {
                 const img = e.target.closest('img.chat-image');
@@ -1177,52 +1984,162 @@
             });
             document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeImageViewer(); });
             
-            // Microphone / STT (OpenAI)
+            // Microphone / STT or STS
             let mediaRecorder;
             let audioChunks = [];
+            let stsCancelPending = false;
+            let stsSilenceInterval = null;
+            let stsAudioCtx = null;
+            let stsAnalyser = null;
+            let stsSource = null;
+            let stsLastSoundTs = 0;
+            function stopSilenceMonitor() {
+                if (stsSilenceInterval) { clearInterval(stsSilenceInterval); stsSilenceInterval = null; }
+                if (stsSource) { try { stsSource.disconnect(); } catch(e) {} stsSource = null; }
+                if (stsAudioCtx) { try { stsAudioCtx.close(); } catch(e) {} stsAudioCtx = null; }
+                stsAnalyser = null;
+            }
+            function startSilenceMonitor(stream) {
+                if (!isStsModel() || !stsOpt('sts-auto-send')) return;
+                stopSilenceMonitor();
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) return;
+                stsAudioCtx = new AC();
+                stsAnalyser = stsAudioCtx.createAnalyser();
+                stsAnalyser.fftSize = 2048;
+                stsSource = stsAudioCtx.createMediaStreamSource(stream);
+                stsSource.connect(stsAnalyser);
+                const data = new Uint8Array(stsAnalyser.fftSize);
+                const silenceMs = getStsSilenceMs();
+                const threshold = 0.02;
+                stsLastSoundTs = Date.now();
+                stsSilenceInterval = setInterval(() => {
+                    if (!stsAnalyser) return;
+                    stsAnalyser.getByteTimeDomainData(data);
+                    let sum = 0;
+                    for (let i = 0; i < data.length; i++) {
+                        const v = (data[i] - 128) / 128;
+                        sum += v * v;
+                    }
+                    const rms = Math.sqrt(sum / data.length);
+                    if (rms > threshold) {
+                        stsLastSoundTs = Date.now();
+                        return;
+                    }
+                    if (Date.now() - stsLastSoundTs > silenceMs) {
+                        if (mediaRecorder && mediaRecorder.state === "recording") {
+                            mediaRecorder.stop();
+                        }
+                    }
+                }, 200);
+            }
+            function cancelRecording() {
+                if (mediaRecorder && mediaRecorder.state === "recording") {
+                    stsCancelPending = true;
+                    mediaRecorder.stop();
+                }
+            }
             get('mic-btn').onclick = async () => {
                 if (mediaRecorder && mediaRecorder.state === "recording") {
                     mediaRecorder.stop();
                     get('mic-btn').classList.remove('bg-red-600', 'animate-pulse');
                     get('mic-btn').classList.add('bg-gray-700');
+                    if (isStsModel()) setStsStatus('Processing voice...', false);
                     return;
                 }
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     mediaRecorder = new MediaRecorder(stream);
                     audioChunks = [];
+                    stsCancelPending = false;
                     mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
                     mediaRecorder.onstop = async () => {
+                        if (stsCancelPending) {
+                            audioChunks = [];
+                            get('file-preview').classList.add('hidden');
+                            stream.getTracks().forEach(track => track.stop());
+                            stopSilenceMonitor();
+                            if (isStsModel()) setStsStatus('Canceled', false);
+                            setTimeout(() => { if (isStsModel()) setStsStatus('Tap to speak', false); }, 800);
+                            return;
+                        }
                         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                         const file = new File([audioBlob], "recording.webm", { type: 'audio/webm' });
                         const fd = new FormData();
                         fd.append('file', file);
                         get('file-preview').classList.remove('hidden');
-                        get('file-name').innerText = "Transcribing...";
+                        const stsMode = isStsModel();
+                        get('file-name').innerText = stsMode ? "Processing voice..." : "Transcribing...";
                         try {
-                            const transRes = await apiFetch("{{ url_for('transcribe') }}", {
-                                method: 'POST',
-                                body: fd
-                            });
-                            const transData = await transRes.json();
-                            if (transData.transcript) {
-                                const input = get('prompt-input');
-                                input.value += (input.value ? " " : "") + transData.transcript;
-                                input.style.height = 'auto';
-                                input.style.height = input.scrollHeight + 'px';
+                            if (stsMode) {
+                                if (!currentThreadId) {
+                                    const r = await apiFetch("{{ url_for('handle_threads') }}", {method:'POST'});
+                                    const d = await r.json();
+                                    currentThreadId = d.id;
+                                    history.pushState({}, '', '/c/' + d.id);
+                                    get('welcome-screen').classList.add('hidden');
+                                }
+                                fd.append('model', get('model-select').value);
+                                fd.append('thread_id', currentThreadId);
+                                if (get('sts-voice')) fd.append('sts_voice', get('sts-voice').value || '');
+                                if (get('sts-speed')) fd.append('sts_speed', get('sts-speed').value || '');
+                                if (get('sts-rate-in')) fd.append('sts_rate_in', get('sts-rate-in').value || '');
+                                if (get('sts-rate-out')) fd.append('sts_rate_out', get('sts-rate-out').value || '');
+                                const stsRes = await apiFetch("/sts", { method: 'POST', body: fd });
+                                const stsData = await stsRes.json();
+                                if (stsRes.ok && stsData.audio_url) {
+                                    if (stsOpt('sts-auto-play')) {
+                                        setStsStatus('Playing response...', false);
+                                        const a = new Audio(stsData.audio_url);
+                                        a.onended = () => {
+                                            if (stsOpt('sts-auto-restart') && isStsModel()) {
+                                                setStsStatus('Listening...', true);
+                                                setTimeout(() => get('mic-btn').click(), 200);
+                                            } else {
+                                                setStsStatus('Tap to speak', false);
+                                            }
+                                        };
+                                        a.play().catch(() => {
+                                            if (stsOpt('sts-auto-restart') && isStsModel()) {
+                                                setTimeout(() => get('mic-btn').click(), 200);
+                                            }
+                                        });
+                                    } else {
+                                        setStsStatus('Tap to speak', false);
+                                    }
+                                    await loadMessages(currentThreadId);
+                                } else {
+                                    showToast(stsData.error || "Speech-to-speech failed", "error", true);
+                                }
                             } else {
-                                showToast(transData.error || "Transcription failed", "error", true);
+                                const transRes = await apiFetch("{{ url_for('transcribe') }}", {
+                                    method: 'POST',
+                                    body: fd
+                                });
+                                const transData = await transRes.json();
+                                if (transData.transcript) {
+                                    const input = get('prompt-input');
+                                    input.value += (input.value ? " " : "") + transData.transcript;
+                                    input.style.height = 'auto';
+                                    input.style.height = input.scrollHeight + 'px';
+                                } else {
+                                    showToast(transData.error || "Transcription failed", "error", true);
+                                }
                             }
                         } catch (err) {
-                            showToast("Transcription error: " + err.message, "error", true);
+                            showToast("Audio processing error: " + err.message, "error", true);
                         } finally {
                             get('file-preview').classList.add('hidden');
                             stream.getTracks().forEach(track => track.stop());
+                            stopSilenceMonitor();
+                            if (stsMode) setStsStatus('Tap to speak', false);
                         }
                     };
                     mediaRecorder.start();
                     get('mic-btn').classList.remove('bg-gray-700');
                     get('mic-btn').classList.add('bg-red-600', 'animate-pulse');
+                    startSilenceMonitor(stream);
+                    if (isStsModel()) setStsStatus('Recording... Tap to stop', true);
                 } catch (err) {
                     alert("Microphone access denied or not available.");
                 }
@@ -1251,7 +2168,7 @@
         async function handleFiles(fs) { if(!fs.length) return; get('file-preview').classList.remove('hidden'); get('file-name').innerText = "Processing..."; for(let f of fs) { let t = f; if (get('enable-compression').checked && f.type.startsWith('image/')) { try { const o = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }; const c = await imageCompression(f, o); t = new File([c], f.name, { type: c.type }); } catch(e){} } const fd = new FormData(); fd.append('file', t); const r = await apiFetch("{{ url_for('upload') }}", {method:'POST', body:fd}); const d = await r.json(); if(d.filename) currentImageUrls.push(d.filename); } get('file-name').innerText = `${currentImageUrls.length} files ready`; }
         get('clear-file-btn').onclick = () => { currentImageUrls = []; get('file-preview').classList.add('hidden'); get('file-input').value = ''; };
         
-        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null) { 
+        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, target = null, doScroll = true) { 
             const isUser = role === 'user'; 
             const bg = isUser ? 'bg-blue-600' : 'bg-gray-700'; 
             const align = isUser ? 'justify-end' : 'justify-start'; 
@@ -1319,13 +2236,19 @@
             
             const fadeClass = animate ? 'fade-in' : ''; 
             const html = `<div class="flex ${align} mb-4 ${fadeClass} relative message-group group" id="msg-${id}"><div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">${ctrl}${qh}${th}${contentHtml}${at}${versionSwitcher}${mHtml}</div></div>`; 
-            get('chat-container').insertAdjacentHTML('beforeend', html); 
-            scrollToBottom(); 
+            const container = target || get('chat-container');
+            container.insertAdjacentHTML('beforeend', html); 
+            if (doScroll) scrollToBottom(); 
         }
         
         async function sendMessage() { 
             const t = get('prompt-input').value; // RAW INPUT (No trim)
             if(!t.trim() && currentImageUrls.length === 0) return; // Check trim only for empty check
+            const editingId = editingMessageId;
+            if (editingId) {
+                editingMessageId = null;
+                setEditUi(false);
+            }
             playSendAnimation();
             if(!currentThreadId) { 
                 const r = await apiFetch("{{ url_for('handle_threads') }}", {method:'POST'}); 
@@ -1338,28 +2261,49 @@
             let disableAutoSearch = false;
             const xLinkPattern = /(https?:\/\/)?(x\.com|twitter\.com)\//i;
             const hasXLink = xLinkPattern.test(t || '') || xLinkPattern.test(currentQuote || '');
-            if (hasXLink && !get('enable-search').checked && autoSearchOnLinks) {
-                const banner = get('auto-search-banner');
-                const onBtn = get('auto-search-on-btn');
-                const offBtn = get('auto-search-off-btn');
-                if (banner && onBtn && offBtn) {
-                    await new Promise((resolve) => {
-                        banner.classList.remove('hidden');
-                        const cleanup = (choice) => {
-                            banner.classList.add('hidden');
-                            onBtn.onclick = null;
-                            offBtn.onclick = null;
-                            resolve(choice);
-                        };
-                        onBtn.onclick = () => cleanup('enable');
-                        offBtn.onclick = () => cleanup('disable');
-                    }).then((choice) => {
-                        if (choice === 'enable') {
-                            get('enable-search').checked = true;
-                        } else {
-                            disableAutoSearch = true;
-                        }
-                    });
+            const grokXModel = "grok-4-fast-reasoning";
+            const applyXLinkAuto = () => {
+                get('enable-search').checked = true;
+                if (get('model-select').value !== grokXModel) {
+                    selectModelById(grokXModel);
+                }
+            };
+            if (hasXLink && !get('enable-search').checked) {
+                if (autoSearchOnLinks) {
+                    applyXLinkAuto();
+                } else {
+                    const banner = get('auto-search-banner');
+                    const onBtn = get('auto-search-on-btn');
+                    const offBtn = get('auto-search-off-btn');
+                    const remember = get('auto-search-remember');
+                    if (banner && onBtn && offBtn) {
+                        if (remember) remember.checked = false;
+                        await new Promise((resolve) => {
+                            banner.classList.remove('hidden');
+                            const cleanup = (choice) => {
+                                banner.classList.add('hidden');
+                                onBtn.onclick = null;
+                                offBtn.onclick = null;
+                                resolve(choice);
+                            };
+                            onBtn.onclick = () => cleanup('enable');
+                            offBtn.onclick = () => cleanup('disable');
+                        }).then(async (choice) => {
+                            if (choice === 'enable') {
+                                applyXLinkAuto();
+                                if (remember && remember.checked) {
+                                    autoSearchOnLinks = true;
+                                    await apiFetch("{{ url_for('handle_settings') }}", {
+                                        method: 'POST',
+                                        headers: {'Content-Type': 'application/json'},
+                                        body: JSON.stringify({ auto_search_on_links: true })
+                                    });
+                                }
+                            } else {
+                                disableAutoSearch = true;
+                            }
+                        });
+                    }
                 }
             }
             
@@ -1369,8 +2313,8 @@
             get('prompt-input').value = ''; get('prompt-input').style.height = 'auto'; 
             
             // If editing, hide the old message to avoid duplication
-            if (editingMessageId) {
-                const oldMsgEl = document.getElementById(`msg-${editingMessageId}`);
+            if (editingId) {
+                const oldMsgEl = document.getElementById(`msg-${editingId}`);
                 if (oldMsgEl) oldMsgEl.style.display = 'none';
                 // Also hide the AI response associated with it if possible? 
                 // Actually, just hiding the user message is enough to prevent "two prompts".
@@ -1390,6 +2334,10 @@
                 reasoning_effort: get('reasoning-effort').value, 
                 enable_system_prompt: get('enable-sys-prompt').checked, 
                 safety_setting: get('safety-setting').value, 
+                tts_voice: isTtsModel() && get('tts-voice') ? get('tts-voice').value : null,
+                tts_voice_custom: isTtsModel() && get('tts-voice-custom') ? get('tts-voice-custom').value : null,
+                tts_language: isTtsModel() && get('tts-language') ? get('tts-language').value : null,
+                tts_speed: isTtsModel() && get('tts-speed') ? get('tts-speed').value : null,
                 quote_text: currentQuote,
                 parent_id: currentParentId,
                 disable_auto_search: disableAutoSearch
@@ -1489,7 +2437,7 @@
                 }
                 // Full reload to establish new tree structure (skip on error to keep the error visible)
                 if (!hadError) {
-                    await loadMessages(currentThreadId);
+                    await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
                 }
                 
                 // Only auto-scroll if user was already at bottom or auto-scroll is active
@@ -1505,8 +2453,8 @@
                     showToast(msg, "error", true);
                 }
                 // Restore old message if error occurred during edit
-                if(editingMessageId) {
-                     const oldMsgEl = document.getElementById(`msg-${editingMessageId}`);
+                if(editingId) {
+                     const oldMsgEl = document.getElementById(`msg-${editingId}`);
                      if (oldMsgEl) oldMsgEl.style.display = 'flex';
                 }
             } finally { get('send-btn').disabled=false; get('stop-container').classList.add('hidden'); abortController=null; currentJobId=null; editingMessageId=null; setEditUi(false); } 
@@ -1549,13 +2497,29 @@
             loadThreads();
         }
 
-        async function loadMessages(tid) { 
-            cancelEdit();
+        async function loadMessages(tid, opts = {}) { 
+            const preserveDraft = !!opts.preserveDraft;
+            const silent = !!opts.silent;
+            let draftText = '';
+            let draftHeight = '';
+            let draftImages = [];
+            if (preserveDraft) {
+                const input = get('prompt-input');
+                draftText = input ? input.value : '';
+                draftHeight = input ? input.style.height : '';
+                draftImages = currentImageUrls ? currentImageUrls.slice() : [];
+                editingMessageId = null;
+                setEditUi(false);
+            } else {
+                cancelEdit();
+            }
             currentThreadId = tid; 
             history.pushState({}, '', '/c/' + tid); 
             clearActiveGem(); 
             get('welcome-screen').classList.add('hidden'); 
-            get('chat-container').innerHTML = '<div class="text-center mt-10"><i class="fas fa-spinner fa-spin text-blue-500"></i></div>'; 
+            if (!silent) {
+                get('chat-container').innerHTML = '<div class="text-center mt-10"><i class="fas fa-spinner fa-spin text-blue-500"></i></div>'; 
+            }
             const r = await apiFetch("{{ url_for('handle_thread_item', tid=0) }}".replace('0', tid)); 
             allMessages = await r.json(); 
             
@@ -1566,14 +2530,33 @@
                 currentLeafId = null;
             }
             
-            renderThreadTree();
+            renderThreadTree({ silent });
+            if (preserveDraft) {
+                const input = get('prompt-input');
+                if (input) {
+                    input.value = draftText || '';
+                    if (draftHeight) input.style.height = draftHeight;
+                    else input.style.height = 'auto';
+                }
+                currentImageUrls = draftImages;
+                if (currentImageUrls && currentImageUrls.length) {
+                    get('file-preview').classList.remove('hidden');
+                    get('file-name').innerText = `${currentImageUrls.length} files ready`;
+                } else {
+                    get('file-preview').classList.add('hidden');
+                }
+            }
             if(window.innerWidth < 768) get('overlay').click(); 
         }
 
-        function renderThreadTree() {
-            get('chat-container').innerHTML = '';
+        function renderThreadTree(opts = {}) {
+            const silent = !!opts.silent;
+            const container = get('chat-container');
+            const target = silent ? document.createElement('div') : container;
+            if (!silent) container.innerHTML = '';
             if (allMessages.length === 0) {
                 currentParentId = null;
+                updateTotalTokenBar(0);
                 return;
             }
 
@@ -1603,7 +2586,9 @@
             }
 
             // Render path
+            let totalTokens = 0;
             path.forEach(m => {
+                totalTokens += Number(m.tokens || 0);
                 const parent = m.parent_id ? msgMap[m.parent_id] : null;
                 const siblings = parent ? parent.childrenIds : allMessages.filter(x => !x.parent_id).map(x => x.id);
                 const versionInfo = siblings.length > 1 ? {
@@ -1612,9 +2597,10 @@
                     siblings: siblings
                 } : null;
                 
-                renderMessage(m.id, m.role, m.content, m.image_url, m.thought_data, m.model, versionInfo, false, m.quote_text, m.tokens);
+                renderMessage(m.id, m.role, m.content, m.image_url, m.thought_data, m.model, versionInfo, false, m.quote_text, m.tokens, target, false);
             });
-            
+            if (silent) container.innerHTML = target.innerHTML;
+            updateTotalTokenBar(totalTokens);
             currentParentId = currentLeafId;
             scrollToBottom();
         }
@@ -1651,7 +2637,7 @@
         async function createGem(name, inst) { await apiFetch("{{ url_for('handle_gems') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, instruction:inst})}); loadGems(); }
         function activateGem(g) { activeGem = g; get('active-gem-name').innerText = g.name; get('gem-active-indicator').classList.remove('hidden'); startNewChat(); }
         function clearActiveGem() { activeGem=null; get('gem-active-indicator').classList.add('hidden'); get('sys-prompt-option').style.opacity = '1'; }
-        function startNewChat() { if(abortController) abortController.abort(); cancelEdit(); currentThreadId = null; history.pushState({}, '', '/'); get('chat-container').innerHTML = ''; get('welcome-screen').classList.remove('hidden'); loadThreads(); if(window.innerWidth < 768) get('overlay').click(); }
+        function startNewChat() { if(abortController) abortController.abort(); cancelEdit(); currentThreadId = null; allMessages = []; currentLeafId = null; currentParentId = null; updateTotalTokenBar(0); history.pushState({}, '', '/'); get('chat-container').innerHTML = ''; get('welcome-screen').classList.remove('hidden'); loadThreads(); if(window.innerWidth < 768) get('overlay').click(); }
         async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('delete_gem', gid=0) }}".replace('0', id), {method: 'DELETE'}); loadGems(); }
         async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { await apiFetch("{{ url_for('update_title', tid=0) }}".replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); loadThreads(); } }
         async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('handle_thread_item', tid=0) }}".replace('0', id), {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }

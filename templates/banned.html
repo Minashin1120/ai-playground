@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Banned</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root { --bg: #0b1020; --panel: #111827; --text: #e5e7eb; --muted: #9ca3af; --danger: #ef4444; }
+        body { margin:0; font-family: "Sora", system-ui, -apple-system, Segoe UI, sans-serif; background: radial-gradient(1000px 600px at 20% -10%, rgba(239,68,68,0.15), transparent 60%), #0b1020; color: var(--text); display:flex; min-height:100vh; align-items:center; justify-content:center; }
+        .card { background: var(--panel); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 28px; width: min(520px, 92vw); box-shadow: 0 20px 50px rgba(0,0,0,0.4); }
+        h1 { margin: 0 0 10px; font-size: 22px; color: var(--danger); }
+        p { margin: 6px 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+        .meta { margin-top: 12px; font-size: 12px; color: #cbd5f5; }
+        .btn { display:inline-block; margin-top: 16px; padding: 8px 14px; background: #1f2937; color: var(--text); border-radius: 8px; text-decoration: none; font-size: 13px; }
+        .btn:hover { filter: brightness(1.1); }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>アカウントはBANされています</h1>
+        <p>ボット検出により、このアカウントは停止中です。</p>
+        <p>解除できるのは <strong>minashin1120</strong> のみです。</p>
+        {% if reason %}
+        <p class="meta">理由: {{ reason }}</p>
+        {% endif %}
+        {% if banned_at %}
+        <p class="meta">日時: {{ banned_at }}</p>
+        {% endif %}
+        <a class="btn" href="{{ url_for('logout') }}">ログアウト</a>
+    </div>
+</body>
+</html>

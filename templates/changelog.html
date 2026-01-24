@@ -5,6 +5,7 @@
     <title>更新履歴 - AI Chat</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body { background-color: #111827; color: #f3f4f6; }
@@ -23,7 +24,7 @@
             {% for log in logs %}
             <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
                 <div class="markdown-body" id="log-{{ loop.index }}"></div>
-                <script>document.getElementById('log-{{ loop.index }}').innerHTML = marked.parse(`{{ log.content | replace('`', '\`') | safe }}`);</script>
+                <script>document.getElementById('log-{{ loop.index }}').innerHTML = DOMPurify.sanitize(marked.parse(`{{ log.content | replace('`', '\`') | safe }}`));</script>
             </div>
             {% endfor %}
         </div>

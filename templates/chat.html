@@ -1584,6 +1584,13 @@
                 hideModal('model-modal');
             }
         });
+        if (get('settings-modal')) {
+            get('settings-modal').addEventListener('click', (e) => {
+                if (e.target.id === 'settings-modal') {
+                    hideModal('settings-modal');
+                }
+            });
+        }
 
         function selectModel(id, name) {
             const el = get('model-select');

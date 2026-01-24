@@ -533,6 +533,19 @@
                 <p class="text-xs text-gray-400 mb-3">YubiKey, Touch ID, Windows Hello.</p>
                 <button onclick="registerWebAuthn()" class="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded text-xs font-bold w-full">Register Key</button>
             </div>
+
+            <div class="bg-gray-900 p-4 rounded border border-gray-700">
+                <h3 class="text-sm font-bold text-emerald-300 mb-2"><i class="fas fa-user-shield mr-2"></i> Passkey Only Login</h3>
+                <p class="text-xs text-gray-400 mb-3">パスワードをスキップし、パスキーのみでログインします。</p>
+                <label class="flex items-center justify-between text-xs text-gray-300">
+                    <span>パスキーのみログインを有効化</span>
+                    <span class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="set-passkey-only-login" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </span>
+                </label>
+                <div id="passkey-only-note" class="text-[10px] text-red-300 mt-2 hidden">パスキー未登録のため有効化できません。</div>
+            </div>
         </div>
     </div>
 
@@ -1804,6 +1817,18 @@
                         badge.classList.replace('text-white', 'text-gray-400');
                         disBtn.classList.add('hidden');
                     }
+                    const pkOnly = get('set-passkey-only-login');
+                    const pkNote = get('passkey-only-note');
+                    if (pkOnly) {
+                        pkOnly.checked = !!d.passkey_only_login;
+                        const hasKey = !!d.has_webauthn;
+                        pkOnly.disabled = !hasKey;
+                        if (!hasKey) pkOnly.checked = false;
+                        if (pkNote) {
+                            if (hasKey) pkNote.classList.add('hidden');
+                            else pkNote.classList.remove('hidden');
+                        }
+                    }
 
                     const migBox = get('mig-status-box');
                     const migText = get('mig-progress-text');
@@ -1836,7 +1861,7 @@
                 openSettingsModal();
             }; 
             get('close-settings-btn').onclick = () => closeSettingsModal(); 
-            get('save-settings-btn').onclick = async () => { const uEl = get('set-username'); const pEl = get('set-password'); const b = { system_prompt:get('sys-prompt-text').value, openai_key:get('set-openai').value, gemini_key:get('set-gemini').value, xai_key:get('set-xai').value, google_key: get('set-google-key') ? get('set-google-key').value : null, google_project: get('set-google-project') ? get('set-google-project').value : null, stt_model: get('set-stt-model') ? get('set-stt-model').value : null, enter_to_send: get('set-enter-to-send') ? get('set-enter-to-send').checked : false, use_sw_cache: get('set-use-sw-cache') ? get('set-use-sw-cache').checked : false, auto_search_on_links: get('set-auto-search-links') ? get('set-auto-search-links').checked : true, use_last_chat_settings: get('set-use-last-settings') ? get('set-use-last-settings').checked : false, default_enable_search: get('set-default-search') ? get('set-default-search').checked : false, default_enable_python: get('set-default-python') ? get('set-default-python').checked : false, default_enable_thinking: get('set-default-thinking') ? get('set-default-thinking').checked : false, default_thinking_level: get('set-default-thinking-level') ? get('set-default-thinking-level').value : null, default_thinking_budget: get('set-default-thinking-budget') ? get('set-default-thinking-budget').value : null, default_reasoning_effort: get('set-default-reasoning-effort') ? get('set-default-reasoning-effort').value : null, default_enable_system_prompt: get('set-default-sys-prompt') ? get('set-default-sys-prompt').checked : false, default_safety_setting: get('set-default-safety') ? get('set-default-safety').value : null, enable_e2ee: get('set-e2ee').checked, bot_detection_enabled: get('set-bot-detect') ? get('set-bot-detect').checked : true, bot_detection_global_enabled: get('set-bot-detect-global') ? get('set-bot-detect-global').checked : null, new_username: uEl ? uEl.value : null, new_password: pEl ? pEl.value : null }; await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}); location.reload(); };
+            get('save-settings-btn').onclick = async () => { const uEl = get('set-username'); const pEl = get('set-password'); const b = { system_prompt:get('sys-prompt-text').value, openai_key:get('set-openai').value, gemini_key:get('set-gemini').value, xai_key:get('set-xai').value, google_key: get('set-google-key') ? get('set-google-key').value : null, google_project: get('set-google-project') ? get('set-google-project').value : null, stt_model: get('set-stt-model') ? get('set-stt-model').value : null, enter_to_send: get('set-enter-to-send') ? get('set-enter-to-send').checked : false, use_sw_cache: get('set-use-sw-cache') ? get('set-use-sw-cache').checked : false, auto_search_on_links: get('set-auto-search-links') ? get('set-auto-search-links').checked : true, use_last_chat_settings: get('set-use-last-settings') ? get('set-use-last-settings').checked : false, default_enable_search: get('set-default-search') ? get('set-default-search').checked : false, default_enable_python: get('set-default-python') ? get('set-default-python').checked : false, default_enable_thinking: get('set-default-thinking') ? get('set-default-thinking').checked : false, default_thinking_level: get('set-default-thinking-level') ? get('set-default-thinking-level').value : null, default_thinking_budget: get('set-default-thinking-budget') ? get('set-default-thinking-budget').value : null, default_reasoning_effort: get('set-default-reasoning-effort') ? get('set-default-reasoning-effort').value : null, default_enable_system_prompt: get('set-default-sys-prompt') ? get('set-default-sys-prompt').checked : false, default_safety_setting: get('set-default-safety') ? get('set-default-safety').value : null, enable_e2ee: get('set-e2ee').checked, bot_detection_enabled: get('set-bot-detect') ? get('set-bot-detect').checked : true, bot_detection_global_enabled: get('set-bot-detect-global') ? get('set-bot-detect-global').checked : null, passkey_only_login: get('set-passkey-only-login') ? get('set-passkey-only-login').checked : false, new_username: uEl ? uEl.value : null, new_password: pEl ? pEl.value : null }; const res = await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}); if (res.ok) { location.reload(); } else { let d = {}; try { d = await res.json(); } catch (e) {} showToast(d.error || "設定の保存に失敗しました", "error", true); } };
             get('disable-2fa-btn').onclick = async () => { if(confirm("Disable 2FA?")) { await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({disable_2fa: true})}); location.reload(); } };
             if (get('bot-unban-btn')) {
                 get('bot-unban-btn').onclick = async () => {

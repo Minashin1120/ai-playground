@@ -561,6 +561,7 @@ class User(UserMixin, db.Model):
     is_2fa_enabled = db.Column(db.Boolean, default=False)
     totp_secret = db.Column(db.String(32), nullable=True) # Encrypted
     webauthn_credentials = db.Column(db.Text, nullable=True) # JSON list
+    passkey_only_login = db.Column(db.Boolean, default=False)
     bot_detection_enabled = db.Column(db.Boolean, default=True)
     is_bot_banned = db.Column(db.Boolean, default=False)
     bot_banned_at = db.Column(db.DateTime, nullable=True)
@@ -680,7 +681,7 @@ def get_bot_detection_global_enabled():
 @app.before_request
 def check_maintenance():
     if app.config.get('MAINTENANCE_MODE'):
-        if request.endpoint in ['static', 'login', 'logout', 'toggle_maintenance']: return
+        if request.endpoint in ['static', 'login', 'logout', 'toggle_maintenance', 'login_passkey_options', 'login_passkey_verify']: return
         if current_user.is_authenticated and getattr(current_user, "is_admin", False): return
         return render_template('maintenance.html'), 503
     if request.method in ['POST', 'PUT', 'DELETE', 'PATCH']:
@@ -2050,6 +2051,8 @@ def login():
         if user:
             if not rate_limit(f"rl:login:user:{user.id}", 10, 300):
                 return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
+            if getattr(user, "passkey_only_login", False):
+                return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Passkey-only login enabled. Use passkey login.")
             pw = request.form.get('password') or ""
             now = datetime.utcnow()
             easy_ok = False
@@ -2085,6 +2088,87 @@ def login():
                 return redirect(url_for('index'))
         return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Invalid credentials")
     return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'))
+
+@app.route('/login/passkey/options', methods=['POST'])
+def login_passkey_options():
+    if current_user.is_authenticated:
+        return jsonify({'error': 'already_authenticated'}), 400
+    if not rate_limit(f"rl:login:ip:{request.remote_addr}", 20, 300):
+        return jsonify({'error': 'Too many attempts. Try again later.'}), 429
+    data = request.json or {}
+    if not verify_turnstile(data.get('turnstile')):
+        return jsonify({'error': 'Auth Error'}), 401
+    username = (data.get('username') or '').strip()
+    if not username:
+        return jsonify({'error': 'Username required'}), 400
+    user = User.query.filter_by(username=username).first()
+    if not user or not getattr(user, "passkey_only_login", False):
+        return jsonify({'error': 'Invalid credentials'}), 400
+    if not rate_limit(f"rl:login:user:{user.id}", 10, 300):
+        return jsonify({'error': 'Too many attempts. Try again later.'}), 429
+    if user.is_bot_banned and not getattr(user, "is_admin", False):
+        return jsonify({'error': 'This account is banned'}), 403
+    creds = []
+    if user.webauthn_credentials:
+        try:
+            creds = json.loads(user.webauthn_credentials)
+        except Exception:
+            creds = []
+    if not creds:
+        return jsonify({'error': 'No credentials'}), 400
+    options = generate_authentication_options(
+        rp_id=request.host.split(':')[0],
+        allow_credentials=[
+            PublicKeyCredentialDescriptor(id=base64url_to_bytes(c['id'])) for c in creds
+        ],
+        user_verification=UserVerificationRequirement.PREFERRED
+    )
+    session['passkey_login_user_id'] = user.id
+    session['webauthn_login_challenge'] = base64.b64encode(options.challenge).decode('utf-8')
+    session['passkey_login_remember'] = bool(data.get('remember'))
+    return options_to_json(options)
+
+@app.route('/login/passkey/verify', methods=['POST'])
+def login_passkey_verify():
+    if current_user.is_authenticated:
+        return jsonify({'error': 'already_authenticated'}), 400
+    user_id = session.get('passkey_login_user_id')
+    if not user_id:
+        return jsonify({'error': 'Session expired'}), 401
+    if not rate_limit(f"rl:webauthn:user:{user_id}", 8, 300):
+        return jsonify({'error': 'Too many attempts'}), 429
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'Invalid user'}), 400
+    try:
+        data = request.json
+        challenge = session.get('webauthn_login_challenge')
+        if not challenge:
+            return jsonify({'error': 'Challenge missing'}), 400
+        creds = json.loads(user.webauthn_credentials) if user.webauthn_credentials else []
+        current_cred = next((c for c in creds if c['id'] == data['id']), None)
+        if not current_cred:
+            return jsonify({'error': 'Credential not found'}), 400
+        verification = verify_authentication_response(
+            credential=data,
+            expected_challenge=base64.b64decode(challenge),
+            expected_rp_id=request.host.split(':')[0],
+            expected_origin=request.url_root.rstrip('/'),
+            credential_public_key=base64url_to_bytes(current_cred['public_key']),
+            credential_current_sign_count=current_cred['sign_count'],
+            require_user_verification=False
+        )
+        current_cred['sign_count'] = verification.new_sign_count
+        user.webauthn_credentials = json.dumps(creds)
+        db.session.commit()
+        session.pop('passkey_login_user_id', None)
+        session.pop('webauthn_login_challenge', None)
+        remember = bool(session.pop('passkey_login_remember', False))
+        login_user(user, remember=remember)
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        logger.error(f"Passkey Login Verify Error: {e}")
+        return jsonify({'error': str(e)}), 400
 
 @app.route('/verify-2fa', methods=['GET', 'POST'])
 def verify_2fa():
@@ -2855,6 +2939,7 @@ def handle_settings():
             'is_2fa_enabled': current_user.is_2fa_enabled,
             'has_totp': has_totp,
             'has_webauthn': has_webauthn,
+            'passkey_only_login': current_user.passkey_only_login,
             'bot_detection_enabled': current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
             'bot_detection_global_enabled': get_bot_detection_global_enabled(),
             'is_bot_banned': current_user.is_bot_banned,
@@ -2886,6 +2971,18 @@ def handle_settings():
     if 'default_reasoning_effort' in d: current_user.default_reasoning_effort = d['default_reasoning_effort'] or "medium"
     if 'default_enable_system_prompt' in d: current_user.default_enable_system_prompt = bool(d['default_enable_system_prompt'])
     if 'default_safety_setting' in d: current_user.default_safety_setting = d['default_safety_setting'] or "default"
+    if 'passkey_only_login' in d:
+        target = bool(d['passkey_only_login'])
+        if target:
+            creds = []
+            if current_user.webauthn_credentials:
+                try:
+                    creds = json.loads(current_user.webauthn_credentials)
+                except Exception:
+                    creds = []
+            if not creds:
+                return jsonify({'error': 'No passkey registered'}), 400
+        current_user.passkey_only_login = target
     if 'bot_detection_enabled' in d: current_user.bot_detection_enabled = bool(d['bot_detection_enabled'])
     if getattr(current_user, 'is_admin', False) and 'bot_detection_global_enabled' in d:
         set_app_setting("bot_detection_global_enabled", "1" if d['bot_detection_global_enabled'] else "0")
@@ -3438,6 +3535,9 @@ with app.app_context():
     except: pass
     try:
         with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN webauthn_credentials TEXT"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN passkey_only_login BOOLEAN DEFAULT 0"))
     except: pass
     try:
         with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN stt_model VARCHAR(64)"))

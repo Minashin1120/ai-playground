@@ -111,8 +111,11 @@
         @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         .fade-in { animation: fadeIn 0.2s ease-out forwards; }
-        @keyframes modalPop { 0% { opacity: 0; transform: scale(0.95); } 100% { opacity: 1; transform: scale(1); } }
-        .modal-animate { animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .modal-overlay { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.22s ease, visibility 0.22s ease; }
+        .modal-overlay .modal-panel { opacity: 0; transform: translateY(14px) scale(0.98); transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease; }
+        .modal-overlay.modal-open { opacity: 1; visibility: visible; pointer-events: auto; }
+        .modal-overlay.modal-open .modal-panel { opacity: 1; transform: translateY(0) scale(1); }
+        .modal-overlay.modal-close .modal-panel { opacity: 0; transform: translateY(10px) scale(0.98); }
         .btn-hover { transition: all 0.2s; }
         .btn-hover:hover { transform: translateY(-1px); filter: brightness(1.1); }
         .edit-bar-animate { animation: fadeIn 0.2s ease-out forwards; }
@@ -177,7 +180,7 @@
         #settings-modal input:focus, #settings-modal textarea:focus, #settings-modal select:focus { box-shadow: 0 0 0 2px rgba(59,130,246,0.2); outline: none; }
         #model-modal input, #gem-modal input, #gem-modal textarea { background: #0b1220; border: 1px solid var(--line); }
         .fade-in { animation: fadeIn 0.25s ease-out forwards; }
-        .modal-animate { animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .modal-animate { animation: fadeIn 0.2s ease-out forwards; }
         .message-group { animation: fadeIn 0.25s ease-out forwards; }
         .message-bubble { transition: transform 0.2s ease, box-shadow 0.2s ease; }
         .message-bubble:hover { transform: translateY(-1px); }
@@ -433,11 +436,11 @@
     </div>
     
     <!-- Model Selector Modal -->
-    <div id="model-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-0 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh] modal-animate overflow-hidden">
+    <div id="model-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
+        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-0 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh] overflow-hidden modal-panel">
             <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-900/50">
                 <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-robot text-blue-400"></i> Select Model</h2>
-                <button onclick="document.getElementById('model-modal').style.display='none'" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+                <button onclick="hideModal('model-modal')" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-2 border-b border-gray-700 bg-gray-900/30">
                 <div class="relative">
@@ -462,8 +465,8 @@
     </div>
 
     <!-- Gem Modal -->
-    <div id="gem-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-800 rounded-lg w-full max-w-lg p-6 shadow-2xl border border-gray-700 m-4 flex flex-col modal-animate">
+    <div id="gem-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
+        <div class="bg-gray-800 rounded-lg w-full max-w-lg p-6 shadow-2xl border border-gray-700 m-4 flex flex-col modal-panel">
             <h2 class="text-xl font-bold text-white mb-4"><i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem</h2>
             <div class="space-y-4">
                 <div><label class="block text-xs text-gray-400 mb-1">Name</label><input type="text" id="gem-name" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="My Helper"></div>
@@ -471,14 +474,14 @@
                 <div><label class="block text-xs text-gray-400 mb-1">System Instruction</label><textarea id="gem-inst" class="w-full h-32 bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="You are a helpful assistant..."></textarea></div>
             </div>
             <div class="flex justify-end gap-3 mt-6">
-                <button onclick="document.getElementById('gem-modal').style.display='none'" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+                <button onclick="hideModal('gem-modal')" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
                 <button id="save-gem-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-hover">Create Gem</button>
             </div>
         </div>
     </div>
 
     <!-- Settings Modal -->
-    <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm"><div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh] modal-animate"><div class="settings-header"><h2 class="text-xl font-bold text-white flex items-center"><i class="fas fa-cog mr-2 text-gray-400"></i>設定</h2></div>
+    <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay"><div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh] modal-panel"><div class="settings-header"><h2 class="text-xl font-bold text-white flex items-center"><i class="fas fa-cog mr-2 text-gray-400"></i>設定</h2></div>
     <div class="flex border-b border-gray-700 mb-4 gap-4 overflow-x-auto settings-tabs">
         <button id="btn-tab-general" class="px-4 py-2 text-blue-400 border-b-2 border-blue-400 font-bold whitespace-nowrap" onclick="switchTab('general')">一般</button>
         <button id="btn-tab-security" class="px-4 py-2 text-gray-400 hover:text-white border-b-2 border-transparent whitespace-nowrap" onclick="switchTab('security')">セキュリティ</button>
@@ -548,18 +551,24 @@
 <div class="settings-footer flex justify-end gap-3 mt-4"><button id="close-settings-btn" class="px-4 py-2 text-gray-400 hover:text-white transition">キャンセル</button><button id="save-settings-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-hover">保存</button></div></div></div>
     
     <!-- Library Modal -->
-    <div id="lib-modal" class="fixed inset-0 bg-gray-900/95 z-50 flex flex-col backdrop-blur-sm" style="display:none;"><div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0 modal-animate"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button onclick="document.getElementById('lib-modal').style.display='none'" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div><div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0"><span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span><button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs btn-hover" disabled>削除</button></div><div id="lib-grid" class="flex-1 overflow-y-auto p-4 grid grid-cols-3 gap-4"></div></div>
+    <div id="lib-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
+        <div class="w-full h-full flex flex-col modal-panel">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button onclick="hideModal('lib-modal')" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div>
+            <div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0"><span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span><button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs btn-hover" disabled>削除</button></div>
+            <div id="lib-grid" class="flex-1 overflow-y-auto p-4 grid grid-cols-3 gap-4"></div>
+        </div>
+    </div>
     
     <!-- Legal Modal -->
-    <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm"><div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh] modal-animate"><h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">利用規約</h2><div id="legal-content" class="overflow-y-auto pr-2 flex-1 text-sm text-gray-300 leading-relaxed space-y-4 prose prose-invert max-w-none"></div><div class="flex justify-end mt-4 shrink-0"><button onclick="document.getElementById('legal-modal').style.display='none'" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition">閉じる</button></div></div></div>
+    <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm modal-overlay"><div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh] modal-panel"><h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">利用規約</h2><div id="legal-content" class="overflow-y-auto pr-2 flex-1 text-sm text-gray-300 leading-relaxed space-y-4 prose prose-invert max-w-none"></div><div class="flex justify-end mt-4 shrink-0"><button onclick="hideModal('legal-modal')" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition">閉じる</button></div></div></div>
     
     <!-- Alpha Info Modal -->
-    <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-center justify-center backdrop-blur-sm"><div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4 modal-animate"><h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2><div class="text-sm text-gray-300 space-y-3"><p>このアプリケーションは開発中の<strong>アルファ版</strong>です。</p><ul class="list-disc list-inside space-y-1 text-gray-400"><li>予告なくデータが削除される可能性があります。</li><li>予期せぬ動作やエラーが発生する場合があります。</li></ul></div><div class="flex justify-end mt-6"><button onclick="document.getElementById('alpha-info-modal').style.display='none'" class="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded font-bold btn-hover">理解しました</button></div></div></div>
+    <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-center justify-center backdrop-blur-sm modal-overlay"><div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4 modal-panel"><h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2><div class="text-sm text-gray-300 space-y-3"><p>このアプリケーションは開発中の<strong>アルファ版</strong>です。</p><ul class="list-disc list-inside space-y-1 text-gray-400"><li>予告なくデータが削除される可能性があります。</li><li>予期せぬ動作やエラーが発生する場合があります。</li></ul></div><div class="flex justify-end mt-6"><button onclick="hideModal('alpha-info-modal')" class="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded font-bold btn-hover">理解しました</button></div></div></div>
 
     {% if is_admin %}
     <!-- Bot Admin Modal -->
-    <div id="bot-admin-modal" class="fixed inset-0 bg-gray-900/95 z-[90] hidden items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 modal-animate flex flex-col max-h-[85vh]">
+    <div id="bot-admin-modal" class="fixed inset-0 bg-gray-900/95 z-[90] hidden items-center justify-center backdrop-blur-sm modal-overlay">
+        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 modal-panel flex flex-col max-h-[85vh]">
             <div class="flex items-center justify-between border-b border-gray-700 pb-3 mb-3">
                 <h2 class="text-lg font-bold text-white">アカウント管理 (Bot Detection)</h2>
                 <button id="bot-admin-close" class="text-gray-400 hover:text-white">✕</button>
@@ -577,6 +586,32 @@
 
     <script>
         const get = (id) => document.getElementById(id);
+        const MODAL_ANIM_MS = 260;
+        const showModal = (id) => {
+            const el = get(id);
+            if (!el) return;
+            el.classList.remove('hidden');
+            el.style.display = 'flex';
+            el.classList.remove('modal-close');
+            requestAnimationFrame(() => el.classList.add('modal-open'));
+        };
+        const hideModal = (id) => {
+            const el = get(id);
+            if (!el) return;
+            if (!el.classList.contains('modal-open')) {
+                el.style.display = 'none';
+                el.classList.remove('modal-close');
+                el.classList.add('hidden');
+                return;
+            }
+            el.classList.remove('modal-open');
+            el.classList.add('modal-close');
+            setTimeout(() => {
+                el.style.display = 'none';
+                el.classList.remove('modal-close');
+                el.classList.add('hidden');
+            }, MODAL_ANIM_MS);
+        };
         const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
         const apiFetch = (url, opts = {}) => {
             const method = (opts.method || 'GET').toUpperCase();
@@ -1469,7 +1504,7 @@
         }
 
         function openModelModal() {
-            get('model-modal').style.display = 'flex';
+            showModal('model-modal');
             get('model-search').value = '';
             get('model-search').focus();
             updateModelTagUi();
@@ -1478,7 +1513,7 @@
 
         get('model-modal').addEventListener('click', (e) => {
             if (e.target.id === 'model-modal') {
-                get('model-modal').style.display = 'none';
+                hideModal('model-modal');
             }
         });
 
@@ -1486,7 +1521,7 @@
             const el = get('model-select');
             el.value = id;
             get('model-selector-text').innerText = name;
-            get('model-modal').style.display = 'none';
+            hideModal('model-modal');
             // Trigger change event manually
             const event = new Event('change');
             el.dispatchEvent(event);
@@ -1641,7 +1676,7 @@
             get('send-btn').onclick = sendMessage; get('new-chat-btn').onclick = () => startNewChat(); get('upload-btn').onclick = () => get('file-input').click(); get('file-input').onchange = (e) => handleFiles(e.target.files); 
             get('stop-btn').onclick = async () => { if(abortController) abortController.abort(); if(currentJobId) await apiFetch("/api/stop_chat", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({job_id: currentJobId})}); get('send-btn').disabled=false; get('stop-container').classList.add('hidden'); };
             const openSettingsModal = () => {
-                get('settings-modal').style.display='flex';
+                showModal('settings-modal');
                 if (location.pathname !== '/settings') {
                     history.pushState({ modal: 'settings', from: location.pathname }, '', '/settings');
                 }
@@ -1717,7 +1752,7 @@
                 loadFeedback();
             };
             const closeSettingsModal = (skipHistory = false) => {
-                get('settings-modal').style.display='none';
+                hideModal('settings-modal');
                 if (!skipHistory && location.pathname === '/settings') {
                     history.back();
                 }
@@ -1779,12 +1814,12 @@
             };
             if (get('bot-admin-open')) {
                 get('bot-admin-open').onclick = async () => {
-                    if (botAdminModal) botAdminModal.style.display = 'flex';
+                    if (botAdminModal) showModal('bot-admin-modal');
                     await loadBotUsers(get('bot-admin-search') ? get('bot-admin-search').value.trim() : '');
                 };
             }
             if (get('bot-admin-close')) {
-                get('bot-admin-close').onclick = () => { if (botAdminModal) botAdminModal.style.display = 'none'; };
+                get('bot-admin-close').onclick = () => { if (botAdminModal) hideModal('bot-admin-modal'); };
             }
             if (get('bot-admin-search-btn')) {
                 get('bot-admin-search-btn').onclick = async () => {
@@ -1822,7 +1857,7 @@
                 };
             }
             window.addEventListener('popstate', () => {
-                if (location.pathname !== '/settings' && get('settings-modal').style.display === 'flex') {
+                if (location.pathname !== '/settings' && get('settings-modal').classList.contains('modal-open')) {
                     closeSettingsModal(true);
                 }
             });
@@ -2145,9 +2180,9 @@
                 }
             };
 
-            get('lib-btn').onclick = () => { get('lib-modal').style.display='flex'; loadLibraryFiles(); }; get('lib-del-btn').onclick = deleteSelectedFiles;
-            get('add-gem-btn').onclick = () => { get('gem-modal').style.display='flex'; get('gem-name').value=''; get('gem-desc').value=''; get('gem-inst').value=''; };
-            get('save-gem-btn').onclick = async () => { const name = get('gem-name').value; const desc = get('gem-desc').value; const inst = get('gem-inst').value; if(name && inst) { await apiFetch("{{ url_for('handle_gems') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, description:desc, instruction:inst})}); get('gem-modal').style.display='none'; loadGems(); } else alert("Name and Instruction are required."); };
+            get('lib-btn').onclick = () => { showModal('lib-modal'); loadLibraryFiles(); }; get('lib-del-btn').onclick = deleteSelectedFiles;
+            get('add-gem-btn').onclick = () => { showModal('gem-modal'); get('gem-name').value=''; get('gem-desc').value=''; get('gem-inst').value=''; };
+            get('save-gem-btn').onclick = async () => { const name = get('gem-name').value; const desc = get('gem-desc').value; const inst = get('gem-inst').value; if(name && inst) { await apiFetch("{{ url_for('handle_gems') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, description:desc, instruction:inst})}); hideModal('gem-modal'); loadGems(); } else alert("Name and Instruction are required."); };
             document.addEventListener('click', function(e) { 
                 if (e.target.closest('.edit-btn')) { 
                     const btn = e.target.closest('.edit-btn'); 
@@ -2649,7 +2684,7 @@
         };
         async function loadLibraryFiles() { const r = await apiFetch("{{ url_for('get_files_lib') }}"); const files = await r.json(); const grid = get('lib-grid'); grid.innerHTML = ''; get('lib-total-count').innerText = files.length + " files"; lib.selected.clear(); get('lib-del-btn').disabled = true; get('lib-del-btn').innerText = "削除"; files.forEach(f => { const el = document.createElement('div'); el.className = "relative group bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400"; const content = f.type==='image' ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`; const overlay = `<div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><a href="${f.url}" target="_blank" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a></div>`; el.innerHTML = content + overlay; el.onclick = () => { if (lib.selected.has(f.filepath)) { lib.selected.delete(f.filepath); el.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.add('border-gray-600'); } else { lib.selected.add(f.filepath); el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.remove('border-gray-600'); } get('lib-del-btn').disabled = lib.selected.size === 0; get('lib-del-btn').innerText = `削除 (${lib.selected.size})`; }; grid.appendChild(el); }); }
         async function deleteSelectedFiles() { if(!confirm('削除しますか？')) return; try{ await apiFetch("{{ url_for('delete_files_batch') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({filenames:Array.from(lib.selected)})}); loadLibraryFiles(); } catch(e){ alert("削除エラー"); } }
-        window.showLegal = async (t) => { get('legal-modal').style.display='flex'; const res = await apiFetch("/static/legal/" + t + ".md?t=" + Date.now()); if(!res.ok) return; const text = await res.text(); get('legal-content').innerHTML = DOMPurify.sanitize(marked.parse(text)); }
+        window.showLegal = async (t) => { showModal('legal-modal'); const res = await apiFetch("/static/legal/" + t + ".md?t=" + Date.now()); if(!res.ok) return; const text = await res.text(); get('legal-content').innerHTML = DOMPurify.sanitize(marked.parse(text)); }
         window.copyCode = (btn, code) => { 
             const text = decodeURIComponent(code);
             copyToClipboard(text, 

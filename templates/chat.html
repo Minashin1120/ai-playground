@@ -599,6 +599,8 @@
             el.classList.remove('hidden');
             el.style.display = 'flex';
             el.classList.remove('modal-close');
+            // Force a reflow so the first open animates reliably.
+            void el.offsetHeight;
             requestAnimationFrame(() => el.classList.add('modal-open'));
         };
         const hideModal = (id) => {

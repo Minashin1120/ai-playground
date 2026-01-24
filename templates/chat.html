@@ -115,6 +115,8 @@
         @keyframes tabExit { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-4px); } }
         .tab-enter { animation: tabEnter 0.22s ease-out forwards; }
         .tab-exit { animation: tabExit 0.16s ease-in forwards; }
+        @keyframes modelListEnter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .model-list-animate { animation: modelListEnter 0.22s ease-out forwards; }
         .modal-overlay { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.22s ease, visibility 0.22s ease; }
         .modal-overlay .modal-panel { opacity: 0; transform: translateY(14px) scale(0.98); transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease; }
         .modal-overlay.modal-open { opacity: 1; visibility: visible; pointer-events: auto; }
@@ -1475,6 +1477,8 @@
 
         function renderModelList(filter = "") {
             const container = get('model-list-container');
+            if (!container) return;
+            container.classList.remove('model-list-animate');
             container.innerHTML = '';
             const f = filter.toLowerCase();
             
@@ -1522,6 +1526,7 @@
             if (container.children.length === 0) {
                 container.innerHTML = '<div class="text-center text-gray-500 py-8">No models found.</div>';
             }
+            requestAnimationFrame(() => container.classList.add('model-list-animate'));
         }
 
         function openModelModal() {

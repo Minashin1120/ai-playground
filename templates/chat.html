@@ -111,6 +111,10 @@
         @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         .fade-in { animation: fadeIn 0.2s ease-out forwards; }
+        @keyframes tabEnter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes tabExit { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-4px); } }
+        .tab-enter { animation: tabEnter 0.22s ease-out forwards; }
+        .tab-exit { animation: tabExit 0.16s ease-in forwards; }
         .modal-overlay { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.22s ease, visibility 0.22s ease; }
         .modal-overlay .modal-panel { opacity: 0; transform: translateY(14px) scale(0.98); transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease; }
         .modal-overlay.modal-open { opacity: 1; visibility: visible; pointer-events: auto; }
@@ -1055,12 +1059,28 @@
             stack.appendChild(el);
             if (!sticky) setTimeout(() => el.remove(), 12000);
         }
+        let activeSettingsTab = 'general';
         function switchTab(t) { 
-            ['general', 'security', '2fa', 'feedback'].forEach(x => {
-                get('tab-'+x).classList.add('hidden');
+            if (t === activeSettingsTab) return;
+            const allTabs = ['general', 'security', '2fa', 'feedback'];
+            const prev = get('tab-' + activeSettingsTab);
+            if (prev) {
+                prev.classList.remove('tab-enter');
+                prev.classList.add('tab-exit');
+                setTimeout(() => {
+                    prev.classList.add('hidden');
+                    prev.classList.remove('tab-exit');
+                }, 170);
+            }
+            allTabs.forEach(x => {
                 const btn = get('btn-tab-'+x);
                 if(x === t) {
-                    get('tab-'+x).classList.remove('hidden');
+                    const panel = get('tab-'+x);
+                    panel.classList.remove('hidden');
+                    panel.classList.remove('tab-exit');
+                    panel.classList.remove('tab-enter');
+                    void panel.offsetWidth;
+                    panel.classList.add('tab-enter');
                     btn.classList.add('text-blue-400','border-blue-400','font-bold');
                     btn.classList.remove('text-gray-400','hover:text-white','border-transparent');
                 } else {
@@ -1068,6 +1088,7 @@
                     btn.classList.add('text-gray-400','hover:text-white','border-transparent');
                 }
             });
+            activeSettingsTab = t;
         }
         get('chat-container').addEventListener('scroll', function() { userAutoScroll = (this.scrollHeight - this.scrollTop - this.clientHeight) < 50; });
         function scrollToBottom() { if(userAutoScroll) { const c = get('chat-container'); c.scrollTop = c.scrollHeight; } }

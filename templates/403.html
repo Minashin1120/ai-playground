@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>403 - Access Denied</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: radial-gradient(circle at 20% 20%, #111827 0%, #0b1220 50%, #05070c 100%); color: #e5e7eb; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center px-6">
+    <div class="max-w-2xl w-full text-center">
+        <div class="text-sm uppercase tracking-[0.35em] text-slate-400">Access denied</div>
+        <div class="mt-3 text-7xl md:text-8xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-red-400">403</div>
+        <h1 class="mt-5 text-2xl md:text-3xl font-bold text-white">このページへのアクセス権限がありません</h1>
+        <p class="mt-3 text-slate-300 leading-relaxed">
+            ログイン状態や権限を確認してください。必要であれば管理者に連絡してください。
+        </p>
+        <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+            {% if current_user.is_authenticated %}
+            <a href="/chat" class="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold shadow-lg shadow-amber-500/30 transition">チャットへ戻る</a>
+            {% else %}
+            <a href="/login" class="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold shadow-lg shadow-amber-500/30 transition">ログインへ</a>
+            {% endif %}
+            <a href="/" class="px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition">トップページへ</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -196,7 +196,7 @@ def _get_xai_client(api_key):
             timeout=_XAI_TIMEOUT_SECONDS
         )
         _XAI_CLIENT_CACHE[sig] = client
-        return client
+    return client
 
 app = Flask(__name__)
 app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-01-16-001')
@@ -3660,6 +3660,14 @@ with app.app_context():
     try:
         with db.engine.connect() as conn: conn.execute(text("ALTER TABLE thread ADD COLUMN bookmarked_at DATETIME"))
     except: pass
+
+@app.errorhandler(403)
+def handle_forbidden(_error):
+    return render_template("403.html"), 403
+
+@app.errorhandler(404)
+def handle_not_found(_error):
+    return render_template("404.html"), 404
 
 if __name__ == '__main__':
     app.run(debug=True)

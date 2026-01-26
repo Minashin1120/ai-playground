@@ -2411,6 +2411,14 @@
                 nameEl.innerText = '';
             }
         }
+        function resetUploadState() {
+            currentImageUrls = [];
+            updateFilePreview();
+            const list = get('upload-list');
+            if (list) list.innerHTML = '';
+            const input = get('file-input');
+            if (input) input.value = '';
+        }
         function openUploadModal() {
             const list = get('upload-list');
             if (list && list.children.length === 0) {
@@ -2497,7 +2505,7 @@
             }
             updateFilePreview();
         }
-        get('clear-file-btn').onclick = () => { currentImageUrls = []; updateFilePreview(); get('file-input').value = ''; };
+        get('clear-file-btn').onclick = () => { resetUploadState(); };
         
         function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, target = null, doScroll = true) { 
             const isUser = role === 'user'; 
@@ -2674,7 +2682,7 @@
                 disable_auto_search: disableAutoSearch
             }; 
             if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; } 
-            currentImageUrls = []; get('file-preview').classList.add('hidden'); get('send-btn').disabled = true; get('stop-container').classList.remove('hidden'); userAutoScroll = true; const aid = 'ai-' + Date.now(); clearQuote(); 
+            resetUploadState(); get('send-btn').disabled = true; get('stop-container').classList.remove('hidden'); userAutoScroll = true; const aid = 'ai-' + Date.now(); clearQuote(); 
         
             let initialHtml = '<div class="content-area"><span class="animate-pulse">Thinking...</span></div>';
             get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aid}" class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${initialHtml}</div></div>`); 
@@ -2968,7 +2976,7 @@
         async function createGem(name, inst) { await apiFetch("{{ url_for('handle_gems') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, instruction:inst})}); loadGems(); }
         function activateGem(g) { activeGem = g; get('active-gem-name').innerText = g.name; get('gem-active-indicator').classList.remove('hidden'); startNewChat(); }
         function clearActiveGem() { activeGem=null; get('gem-active-indicator').classList.add('hidden'); get('sys-prompt-option').style.opacity = '1'; }
-        function startNewChat() { if(abortController) abortController.abort(); cancelEdit(); currentThreadId = null; allMessages = []; currentLeafId = null; currentParentId = null; updateTotalTokenBar(0); history.pushState({}, '', '/'); get('chat-container').innerHTML = ''; get('welcome-screen').classList.remove('hidden'); loadThreads(); if(window.innerWidth < 768) get('overlay').click(); }
+        function startNewChat() { if(abortController) abortController.abort(); cancelEdit(); resetUploadState(); currentThreadId = null; allMessages = []; currentLeafId = null; currentParentId = null; updateTotalTokenBar(0); history.pushState({}, '', '/'); get('chat-container').innerHTML = ''; get('welcome-screen').classList.remove('hidden'); loadThreads(); if(window.innerWidth < 768) get('overlay').click(); }
         async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('delete_gem', gid=0) }}".replace('0', id), {method: 'DELETE'}); loadGems(); }
         async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { await apiFetch("{{ url_for('update_title', tid=0) }}".replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); loadThreads(); } }
         async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('handle_thread_item', tid=0) }}".replace('0', id), {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }

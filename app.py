@@ -589,6 +589,7 @@ class UserSession(db.Model):
 
 class Thread(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(db.String(64), unique=True, index=True, nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     title = db.Column(db.String(200), default="New Chat")
     is_bookmarked = db.Column(db.Boolean, default=False)
@@ -651,6 +652,29 @@ def get_client_ip():
     if fwd:
         return fwd.split(',')[0].strip()
     return request.remote_addr
+
+def generate_thread_public_id():
+    for _ in range(8):
+        candidate = secrets.token_urlsafe(32)
+        if not Thread.query.filter_by(public_id=candidate).first():
+            return candidate
+    return secrets.token_urlsafe(32)
+
+def resolve_thread_for_user(identifier, user_id):
+    if identifier is None:
+        return None
+    ident_str = str(identifier).strip()
+    if not ident_str:
+        return None
+    t = None
+    if ident_str.isdigit():
+        t = Thread.query.get(int(ident_str))
+        if t and t.user_id == user_id and not t.public_id:
+            return t
+    t = Thread.query.filter_by(public_id=ident_str).first()
+    if t and t.user_id == user_id:
+        return t
+    return None
 
 def create_user_session(user):
     sid = secrets.token_urlsafe(32)
@@ -2082,11 +2106,11 @@ def settings_page():
     }
     return render_template('chat.html', easy_login_used=easy_login_used, bot_config=bot_config)
 
-@app.route('/c/<int:thread_id>')
+@app.route('/c/<thread_id>')
 @login_required
 def chat_permalink(thread_id):
-    thread = Thread.query.get(thread_id)
-    if not thread or thread.user_id != current_user.id:
+    thread = resolve_thread_for_user(thread_id, current_user.id)
+    if not thread:
         return render_template('404.html', message="指定されたチャットは存在しません。"), 404
     easy_login_used = bool(session.pop('easy_login_used', False))
     bot_config = {
@@ -2096,7 +2120,8 @@ def chat_permalink(thread_id):
         "accountEnabled": current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
         "turnstileSiteKey": os.getenv('TURNSTILE_SITE_KEY') or ""
     }
-    return render_template('chat.html', initial_thread_id=thread_id, easy_login_used=easy_login_used, bot_config=bot_config)
+    initial_thread_id = thread.public_id or thread.id
+    return render_template('chat.html', initial_thread_id=initial_thread_id, easy_login_used=easy_login_used, bot_config=bot_config)
 
 @app.route('/changelog')
 def changelog():
@@ -2422,9 +2447,10 @@ def chat_stream():
     thread_id = data.get('thread_id')
     if not thread_id:
         return jsonify({'error': 'thread_id required'}), 400
-    t = Thread.query.get(thread_id)
-    if not t or t.user_id != current_user.id:
+    t = resolve_thread_for_user(thread_id, current_user.id)
+    if not t:
         return jsonify({'error': 'Invalid thread'}), 403
+    thread_id = t.id
     
     user_msg = None
     try:
@@ -2543,11 +2569,11 @@ def generate_title_api():
     try:
         data = request.json
         thread_id = data.get('thread_id')
-        thread = Thread.query.get(thread_id)
-        if not thread or thread.user_id != current_user.id:
+        thread = resolve_thread_for_user(thread_id, current_user.id)
+        if not thread:
             return jsonify({'error': 'Unauthorized'}), 403
-        
-        first_msg = Message.query.filter_by(thread_id=thread_id, role='user').order_by(Message.timestamp).first()
+
+        first_msg = Message.query.filter_by(thread_id=thread.id, role='user').order_by(Message.timestamp).first()
         if not first_msg: return jsonify({'status': 'skipped'})
         
         content = decrypt_val(first_msg.content) if first_msg.is_encrypted else first_msg.content
@@ -2642,24 +2668,24 @@ def handle_threads():
             else: query = query.join(Message).filter(or_(Thread.title.contains(q), Message.content.contains(q))).distinct()
         
         pagination = query.order_by(Thread.is_bookmarked.desc(), Thread.bookmarked_at.desc(), Thread.updated_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
-        threads = [{'id': t.id, 'title': t.title, 'is_bookmarked': bool(t.is_bookmarked)} for t in pagination.items]
+        threads = [{'id': t.public_id or t.id, 'title': t.title, 'is_bookmarked': bool(t.is_bookmarked)} for t in pagination.items]
         return jsonify({
             'threads': threads,
             'has_next': pagination.has_next,
             'next_page': pagination.next_num
         })
-    t = Thread(user_id=current_user.id)
+    t = Thread(user_id=current_user.id, public_id=generate_thread_public_id())
     db.session.add(t)
     safe_db_commit()
-    return jsonify({'id': t.id, 'title': t.title})
+    return jsonify({'id': t.public_id, 'title': t.title})
 
-@app.route('/api/threads/<int:tid>', methods=['GET', 'DELETE'])
+@app.route('/api/threads/<thread_id>', methods=['GET', 'DELETE'])
 @login_required
-def handle_thread_item(tid):
-    t = Thread.query.get_or_404(tid)
-    if t.user_id != current_user.id: return jsonify({'error': '403'}), 403
+def handle_thread_item(thread_id):
+    t = resolve_thread_for_user(thread_id, current_user.id)
+    if not t: return jsonify({'error': '403'}), 403
     if request.method == 'GET':
-        ms = Message.query.filter_by(thread_id=tid).order_by(Message.timestamp).all()
+        ms = Message.query.filter_by(thread_id=t.id).order_by(Message.timestamp).all()
         res = []
         for m in ms:
             cnt = decrypt_val(m.content) if m.is_encrypted else m.content
@@ -2702,20 +2728,20 @@ def handle_thread_item(tid):
     safe_db_commit()
     return jsonify({'status': 'deleted'})
 
-@app.route('/api/threads/<int:tid>/title', methods=['PUT'])
+@app.route('/api/threads/<thread_id>/title', methods=['PUT'])
 @login_required
-def update_title(tid):
-    t = Thread.query.get_or_404(tid)
-    if t.user_id != current_user.id: return jsonify({'error': '403'}), 403
+def update_title(thread_id):
+    t = resolve_thread_for_user(thread_id, current_user.id)
+    if not t: return jsonify({'error': '403'}), 403
     t.title = request.json.get('title', 'Untitled')
     safe_db_commit()
     return jsonify({'status': 'ok'})
 
-@app.route('/api/threads/<int:tid>/bookmark', methods=['POST'])
+@app.route('/api/threads/<thread_id>/bookmark', methods=['POST'])
 @login_required
-def toggle_bookmark(tid):
-    t = Thread.query.get_or_404(tid)
-    if t.user_id != current_user.id: return jsonify({'error': '403'}), 403
+def toggle_bookmark(thread_id):
+    t = resolve_thread_for_user(thread_id, current_user.id)
+    if not t: return jsonify({'error': '403'}), 403
     t.is_bookmarked = not bool(t.is_bookmarked)
     t.bookmarked_at = datetime.utcnow() if t.is_bookmarked else None
     safe_db_commit()
@@ -3469,9 +3495,10 @@ def speech_to_speech():
     thread_id = request.form.get('thread_id')
     if not thread_id:
         return jsonify({'error': 'thread_id required'}), 400
-    t = Thread.query.get(thread_id)
-    if not t or t.user_id != current_user.id:
+    t = resolve_thread_for_user(thread_id, current_user.id)
+    if not t:
         return jsonify({'error': 'Invalid thread'}), 403
+    thread_id = t.id
 
     audio_bytes = f.read()
     if not audio_bytes:
@@ -3808,6 +3835,9 @@ with app.app_context():
     except: pass
     try:
         with db.engine.connect() as conn: conn.execute(text("ALTER TABLE thread ADD COLUMN bookmarked_at DATETIME"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE thread ADD COLUMN public_id VARCHAR(64)"))
     except: pass
 
 @app.errorhandler(403)

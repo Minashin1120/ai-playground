@@ -684,7 +684,10 @@
             }
             return fetch(url, Object.assign({}, opts, { headers }));
         };
-        let currentThreadId = {{ initial_thread_id|default('null') }};
+        let currentThreadId = {{ initial_thread_id|default('null')|tojson }};
+        if (currentThreadId !== null && currentThreadId !== undefined) {
+            currentThreadId = String(currentThreadId);
+        }
         let activeGem = null, currentImageUrls = [], abortController = null, userAutoScroll = true, searchTimeout; 
         let currentJobId = null; 
         let editingMessageId = null; // Track message being edited
@@ -2392,7 +2395,7 @@
                                 if (!currentThreadId) {
                                     const r = await apiFetch("{{ url_for('handle_threads') }}", {method:'POST'});
                                     const d = await r.json();
-                                    currentThreadId = d.id;
+                                    currentThreadId = d.id !== null && d.id !== undefined ? String(d.id) : d.id;
                                     history.pushState({}, '', '/c/' + d.id);
                                     get('welcome-screen').classList.add('hidden');
                                 }
@@ -2720,7 +2723,7 @@
             if(!currentThreadId) { 
                 const r = await apiFetch("{{ url_for('handle_threads') }}", {method:'POST'}); 
                 const d = await r.json(); 
-                currentThreadId = d.id; 
+                currentThreadId = d.id !== null && d.id !== undefined ? String(d.id) : d.id; 
                 history.pushState({}, '', '/c/' + d.id); 
             } 
             get('welcome-screen').classList.add('hidden'); 
@@ -2946,10 +2949,11 @@
             const sentinel = get('scroll-sentinel');
             
             d.threads.forEach(t => { 
+                const tid = String(t.id);
                 const d = document.createElement('div'); 
                 const star = t.is_bookmarked ? 'text-yellow-400' : 'text-gray-500';
                 d.className = 'p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 truncate flex justify-between items-center group'; 
-                d.innerHTML = `<div class="flex items-center gap-1 truncate flex-1"><button class="${star} hover:text-yellow-400 px-1" onclick="toggleBookmark(event, ${t.id})"><i class="fas fa-star text-[10px]"></i></button><span class="truncate" onclick="loadMessages(${t.id})">${t.title||"No Title"}</span></div><div class="flex gap-1 opacity-0 group-hover:opacity-100"><button class="text-gray-500 hover:text-white px-1" onclick="renameThread(event, ${t.id})"><i class="fas fa-pen text-xs"></i></button><button class="text-gray-500 hover:text-red-400 px-1" onclick="deleteThread(event, ${t.id})"><i class="fas fa-trash text-xs"></i></button></div>`; 
+                d.innerHTML = `<div class="flex items-center gap-1 truncate flex-1"><button class="${star} hover:text-yellow-400 px-1" onclick="toggleBookmark(event, '${tid}')"><i class="fas fa-star text-[10px]"></i></button><span class="truncate" onclick="loadMessages('${tid}')">${t.title||"No Title"}</span></div><div class="flex gap-1 opacity-0 group-hover:opacity-100"><button class="text-gray-500 hover:text-white px-1" onclick="renameThread(event, '${tid}')"><i class="fas fa-pen text-xs"></i></button><button class="text-gray-500 hover:text-red-400 px-1" onclick="deleteThread(event, '${tid}')"><i class="fas fa-trash text-xs"></i></button></div>`; 
                 l.insertBefore(d, sentinel); 
             });
             
@@ -2980,14 +2984,14 @@
             } else {
                 cancelEdit();
             }
-            currentThreadId = tid; 
+            currentThreadId = tid !== null && tid !== undefined ? String(tid) : tid; 
             history.pushState({}, '', '/c/' + tid); 
             clearActiveGem(); 
             get('welcome-screen').classList.add('hidden'); 
             if (!silent) {
                 get('chat-container').innerHTML = '<div class="text-center mt-10"><i class="fas fa-spinner fa-spin text-blue-500"></i></div>'; 
             }
-            const r = await apiFetch("{{ url_for('handle_thread_item', tid=0) }}".replace('0', tid)); 
+            const r = await apiFetch("{{ url_for('handle_thread_item', thread_id=0) }}".replace('0', tid)); 
             allMessages = await r.json(); 
             
             // Set default leaf (latest message)
@@ -3106,8 +3110,8 @@
         function clearActiveGem() { activeGem=null; get('gem-active-indicator').classList.add('hidden'); get('sys-prompt-option').style.opacity = '1'; }
         function startNewChat() { if(abortController) abortController.abort(); cancelEdit(); resetUploadState(); currentThreadId = null; allMessages = []; currentLeafId = null; currentParentId = null; updateTotalTokenBar(0); history.pushState({}, '', '/'); get('chat-container').innerHTML = ''; get('welcome-screen').classList.remove('hidden'); loadThreads(); if(window.innerWidth < 768) get('overlay').click(); }
         async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('delete_gem', gid=0) }}".replace('0', id), {method: 'DELETE'}); loadGems(); }
-        async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { await apiFetch("{{ url_for('update_title', tid=0) }}".replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); loadThreads(); } }
-        async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('handle_thread_item', tid=0) }}".replace('0', id), {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }
+        async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { await apiFetch("{{ url_for('update_title', thread_id=0) }}".replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); loadThreads(); } }
+        async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('handle_thread_item', thread_id=0) }}".replace('0', id), {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }
         async function deleteMessage(id) { if(!confirm("Delete this message and subsequent history?")) return; await apiFetch("{{ url_for('delete_message', mid=0) }}".replace('0', id), {method:'DELETE'}); loadMessages(currentThreadId); }
         window.regenerateMessage = (id) => {
             const msg = allMessages.find(m => m.id == id);

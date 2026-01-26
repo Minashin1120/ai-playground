@@ -572,8 +572,20 @@ class User(UserMixin, db.Model):
     bot_unban_notice = db.Column(db.Boolean, default=False)
     threads = db.relationship('Thread', backref='user', lazy=True, cascade="all, delete-orphan")
     gems = db.relationship('Gem', backref='user', lazy=True, cascade="all, delete-orphan")
+    sessions = db.relationship('UserSession', backref='user', lazy=True, cascade="all, delete-orphan")
     def set_password(self, password): self.password_hash = generate_password_hash(password)
     def check_password(self, password): return check_password_hash(self.password_hash, password)
+
+class UserSession(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    session_id = db.Column(db.String(128), unique=True, index=True, nullable=False)
+    user_agent = db.Column(db.Text, nullable=True)
+    ip_address = db.Column(db.String(64), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_seen_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_revoked = db.Column(db.Boolean, default=False)
+    revoked_at = db.Column(db.DateTime, nullable=True)
 
 class Thread(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -633,6 +645,35 @@ def get_csrf_token():
         token = secrets.token_urlsafe(32)
         session['csrf_token'] = token
     return token
+
+def get_client_ip():
+    fwd = request.headers.get('X-Forwarded-For', '')
+    if fwd:
+        return fwd.split(',')[0].strip()
+    return request.remote_addr
+
+def create_user_session(user):
+    sid = secrets.token_urlsafe(32)
+    session['session_id'] = sid
+    user_sess = UserSession(
+        user_id=user.id,
+        session_id=sid,
+        user_agent=request.headers.get('User-Agent', ''),
+        ip_address=get_client_ip()
+    )
+    db.session.add(user_sess)
+    safe_db_commit()
+    return user_sess
+
+def revoke_user_sessions(user_id, exclude_session_id=None):
+    q = UserSession.query.filter_by(user_id=user_id, is_revoked=False)
+    if exclude_session_id:
+        q = q.filter(UserSession.session_id != exclude_session_id)
+    now = datetime.utcnow()
+    for s in q.all():
+        s.is_revoked = True
+        s.revoked_at = now
+    safe_db_commit()
 
 @app.context_processor
 def inject_csrf():
@@ -707,6 +748,38 @@ def check_bot_ban():
         if request.path.startswith('/api/'):
             return jsonify({'error': 'banned'}), 403
         return redirect(url_for('banned'))
+
+@app.before_request
+def ensure_active_session():
+    if not current_user.is_authenticated:
+        return
+    if request.endpoint == 'static':
+        return
+    sid = session.get('session_id')
+    if not sid:
+        try:
+            create_user_session(current_user)
+        except Exception:
+            pass
+        return
+    user_sess = UserSession.query.filter_by(user_id=current_user.id, session_id=sid).first()
+    if not user_sess or user_sess.is_revoked:
+        session.pop('session_id', None)
+        logout_user()
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'session_revoked'}), 401
+        return redirect(url_for('login'))
+    now = datetime.utcnow()
+    if not user_sess.last_seen_at or (now - user_sess.last_seen_at) > timedelta(seconds=30):
+        user_sess.last_seen_at = now
+        user_sess.ip_address = get_client_ip() or user_sess.ip_address
+        ua = request.headers.get('User-Agent', '')
+        if ua:
+            user_sess.user_agent = ua
+        try:
+            safe_db_commit()
+        except Exception:
+            pass
 
 def verify_turnstile(token):
     secret = os.getenv('TURNSTILE_SECRET_KEY')
@@ -2090,6 +2163,7 @@ def login():
                 session['easy_login_used'] = True
                 remember = bool(request.form.get('remember'))
                 login_user(user, remember=remember)
+                create_user_session(user)
                 return redirect(url_for('index'))
             if user.easy_login_hash and user.easy_login_expires_at and now > user.easy_login_expires_at:
                 user.easy_login_hash = None
@@ -2104,6 +2178,7 @@ def login():
                     return redirect(url_for('verify_2fa'))
                 remember = bool(request.form.get('remember'))
                 login_user(user, remember=remember)
+                create_user_session(user)
                 return redirect(url_for('index'))
         return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Invalid credentials")
     return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'))
@@ -2184,6 +2259,7 @@ def login_passkey_verify():
         session.pop('webauthn_login_challenge', None)
         remember = bool(session.pop('passkey_login_remember', False))
         login_user(user, remember=remember)
+        create_user_session(user)
         return jsonify({'status': 'ok'})
     except Exception as e:
         logger.error(f"Passkey Login Verify Error: {e}")
@@ -2210,6 +2286,7 @@ def verify_2fa():
                     return render_template('verify_2fa.html', error="This account is banned")
                 remember = bool(session.pop('remember_me', False))
                 login_user(user, remember=remember)
+                create_user_session(user)
                 return redirect(url_for('index'))
             return render_template('verify_2fa.html', error="Invalid Code")
             
@@ -2275,6 +2352,7 @@ def verify_2fa_webauthn_verify():
         session.pop('pre_2fa_user_id', None)
         remember = bool(session.pop('remember_me', False))
         login_user(user, remember=remember)
+        create_user_session(user)
         return jsonify({'status': 'ok'})
     except Exception as e:
         logger.error(f"WebAuthn Verify Error: {e}")
@@ -2315,7 +2393,19 @@ def setup():
 
 @app.route('/logout')
 def logout():
+    if current_user.is_authenticated:
+        sid = session.get('session_id')
+        if sid:
+            user_sess = UserSession.query.filter_by(user_id=current_user.id, session_id=sid, is_revoked=False).first()
+            if user_sess:
+                user_sess.is_revoked = True
+                user_sess.revoked_at = datetime.utcnow()
+                try:
+                    safe_db_commit()
+                except Exception:
+                    pass
     logout_user()
+    session.pop('session_id', None)
     return redirect(url_for('index'))
 
 # -----------------------------------------------------------
@@ -3021,6 +3111,63 @@ def handle_settings():
         safe_db_commit()
         flash("設定を保存しました")
     return jsonify({'status': 'ok'})
+
+# --- Session Management ---
+
+@app.route('/api/sessions', methods=['GET'])
+@login_required
+def list_sessions():
+    sid = session.get('session_id')
+    rows = UserSession.query.filter_by(user_id=current_user.id).order_by(UserSession.last_seen_at.desc()).limit(50).all()
+    return jsonify({
+        'sessions': [
+            {
+                'id': s.id,
+                'created_at': s.created_at.isoformat(),
+                'last_seen_at': s.last_seen_at.isoformat() if s.last_seen_at else None,
+                'ip_address': s.ip_address,
+                'user_agent': s.user_agent,
+                'is_current': s.session_id == sid,
+                'is_revoked': s.is_revoked
+            } for s in rows
+        ]
+    })
+
+@app.route('/api/sessions/revoke', methods=['POST'])
+@login_required
+def revoke_session():
+    data = request.json or {}
+    sess_id = data.get('id')
+    if not sess_id:
+        return jsonify({'error': 'id_required'}), 400
+    user_sess = UserSession.query.filter_by(id=sess_id, user_id=current_user.id).first()
+    if not user_sess:
+        return jsonify({'error': 'not_found'}), 404
+    if not user_sess.is_revoked:
+        user_sess.is_revoked = True
+        user_sess.revoked_at = datetime.utcnow()
+        safe_db_commit()
+    logged_out = False
+    if user_sess.session_id == session.get('session_id'):
+        session.pop('session_id', None)
+        logout_user()
+        logged_out = True
+    return jsonify({'status': 'ok', 'logged_out': logged_out})
+
+@app.route('/api/sessions/revoke_others', methods=['POST'])
+@login_required
+def revoke_other_sessions():
+    sid = session.get('session_id')
+    revoke_user_sessions(current_user.id, exclude_session_id=sid)
+    return jsonify({'status': 'ok'})
+
+@app.route('/api/sessions/revoke_all', methods=['POST'])
+@login_required
+def revoke_all_sessions():
+    revoke_user_sessions(current_user.id, exclude_session_id=None)
+    session.pop('session_id', None)
+    logout_user()
+    return jsonify({'status': 'ok', 'logged_out': True})
 
 # --- 2FA Settings Routes ---
 

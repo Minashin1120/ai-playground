@@ -2087,7 +2087,7 @@ def settings_page():
 def chat_permalink(thread_id):
     thread = Thread.query.get(thread_id)
     if not thread or thread.user_id != current_user.id:
-        return redirect(url_for('index'))
+        return render_template('404.html', message="指定されたチャットは存在しません。"), 404
     easy_login_used = bool(session.pop('easy_login_used', False))
     bot_config = {
         "username": current_user.username,

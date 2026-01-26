@@ -2300,7 +2300,37 @@
             if(currentThreadId) { loadMessages(currentThreadId); }
         });
         
-        async function handleFiles(fs) { if(!fs.length) return; get('file-preview').classList.remove('hidden'); get('file-name').innerText = "Processing..."; for(let f of fs) { let t = f; if (get('enable-compression').checked && f.type.startsWith('image/')) { try { const o = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true }; const c = await imageCompression(f, o); t = new File([c], f.name, { type: c.type }); } catch(e){} } const fd = new FormData(); fd.append('file', t); const r = await apiFetch("{{ url_for('upload') }}", {method:'POST', body:fd}); const d = await r.json(); if(d.filename) currentImageUrls.push(d.filename); } get('file-name').innerText = `${currentImageUrls.length} files ready`; }
+        async function handleFiles(fs) {
+            if(!fs.length) return;
+            get('file-preview').classList.remove('hidden');
+            get('file-name').innerText = "Processing...";
+            for(let f of fs) {
+                let t = f;
+                if (get('enable-compression').checked && f.type.startsWith('image/')) {
+                    try {
+                        const o = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true };
+                        const c = await imageCompression(f, o);
+                        t = new File([c], f.name, { type: c.type });
+                    } catch(e){}
+                }
+                try {
+                    const fd = new FormData();
+                    fd.append('file', t);
+                    const r = await apiFetch("{{ url_for('upload') }}", {method:'POST', body:fd});
+                    let d = {};
+                    try { d = await r.json(); } catch(e2) {}
+                    if (r.ok && d.filename) {
+                        currentImageUrls.push(d.filename);
+                    } else {
+                        const msg = (d && d.error) ? d.error : "アップロードに失敗しました";
+                        showToast(msg, "error", true);
+                    }
+                } catch (e) {
+                    showToast("アップロード中にエラーが発生しました", "error", true);
+                }
+            }
+            get('file-name').innerText = `${currentImageUrls.length} files ready`;
+        }
         get('clear-file-btn').onclick = () => { currentImageUrls = []; get('file-preview').classList.add('hidden'); get('file-input').value = ''; };
         
         function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, target = null, doScroll = true) { 

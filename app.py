@@ -39,6 +39,7 @@ from PIL import Image
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, make_response, flash, send_file, abort, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import or_, exc, text
@@ -208,7 +209,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True, 'pool_recycle': 280}
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'instance/uploads')
 app.config['CHANGELOG_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static/changelogs')
-app.config['MAX_CONTENT_LENGTH'] = 128 * 1024 * 1024
+_upload_max_mb = int(os.getenv('UPLOAD_MAX_MB', '512') or '512')
+app.config['MAX_CONTENT_LENGTH'] = _upload_max_mb * 1024 * 1024
 app.config['MAINTENANCE_MODE'] = os.path.exists(os.path.join(os.path.dirname(__file__), 'maintenance.lock'))
 
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/10')
@@ -3466,7 +3468,7 @@ def speech_to_speech():
 @app.route('/upload', methods=['POST'])
 @login_required
 def upload():
-    ALLOWED_EXTENSIONS = {'.txt', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm'}
+    ALLOWED_EXTENSIONS = {'.txt', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm', '.mp4', '.mov', '.mkv', '.avi', '.m4v'}
     files = request.files.getlist('file')
     if not files: return jsonify({'error': 'No file'}), 400
     ud = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
@@ -3513,6 +3515,11 @@ def upload():
                 else: f.save(save_path)
             res.append(f"{current_user.id}/{fname}")
     return jsonify({'filename': res[0] if res else '', 'filenames': res})
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_upload_too_large(e):
+    limit_mb = app.config.get('MAX_CONTENT_LENGTH', 0) // (1024 * 1024)
+    return jsonify({'error': f'File too large. Max {limit_mb}MB'}), 413
 
 with app.app_context():
     db.create_all()

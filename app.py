@@ -1135,8 +1135,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             ),
                         )
                         audio_bytes = None
-                        if tts_resp.candidates and tts_resp.candidates[0].content.parts:
-                            p0 = tts_resp.candidates[0].content.parts[0]
+                        cand0 = tts_resp.candidates[0] if tts_resp.candidates else None
+                        parts0 = getattr(getattr(cand0, "content", None), "parts", None) or []
+                        if parts0:
+                            p0 = parts0[0]
                             if hasattr(p0, 'inline_data') and p0.inline_data:
                                 data = p0.inline_data.data
                                 if isinstance(data, (bytes, bytearray)):

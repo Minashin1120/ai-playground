@@ -19,12 +19,24 @@
         </p>
         <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
             {% if current_user.is_authenticated %}
-            <a href="/" class="px-6 py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold shadow-lg shadow-sky-500/30 transition">チャットへ戻る</a>
+            <a href="/" id="back-to-chat" class="px-6 py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold shadow-lg shadow-sky-500/30 transition">チャットへ戻る</a>
             {% else %}
             <a href="/login" class="px-6 py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold shadow-lg shadow-sky-500/30 transition">ログインへ</a>
             {% endif %}
             <a href="/" class="px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition">トップページへ</a>
         </div>
     </div>
+<script>
+    (function() {
+        const link = document.getElementById('back-to-chat');
+        if (!link) return;
+        const ref = document.referrer || '';
+        try {
+            if (ref && ref.startsWith(location.origin) && ref.includes('/c/')) {
+                link.href = ref;
+            }
+        } catch (e) {}
+    })();
+</script>
 </body>
 </html>

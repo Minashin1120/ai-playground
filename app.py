@@ -1990,6 +1990,21 @@ def index():
         return render_template('chat.html', easy_login_used=easy_login_used, bot_config=bot_config)
     return render_template('landing.html')
 
+@app.route('/settings')
+@login_required
+def settings_page():
+    if not current_user.is_setup_completed:
+        return redirect(url_for('setup'))
+    easy_login_used = bool(session.pop('easy_login_used', False))
+    bot_config = {
+        "username": current_user.username,
+        "isAdmin": bool(getattr(current_user, "is_admin", False)),
+        "globalEnabled": get_bot_detection_global_enabled(),
+        "accountEnabled": current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
+        "turnstileSiteKey": os.getenv('TURNSTILE_SITE_KEY') or ""
+    }
+    return render_template('chat.html', easy_login_used=easy_login_used, bot_config=bot_config)
+
 @app.route('/c/<int:thread_id>')
 @login_required
 def chat_permalink(thread_id):

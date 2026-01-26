@@ -1925,8 +1925,7 @@
             if (get('upload-select-btn')) get('upload-select-btn').onclick = () => get('file-input').click();
             if (get('upload-clear-btn')) {
                 get('upload-clear-btn').onclick = () => {
-                    const list = get('upload-list');
-                    if (list) list.innerHTML = '<div class="text-xs text-gray-500">まだアップロードがありません。</div>';
+                    resetUploadState();
                 };
             }
             const dropzone = get('upload-dropzone');
@@ -2411,11 +2410,13 @@
                 nameEl.innerText = '';
             }
         }
+        const uploadCancelTokens = new Set();
         function resetUploadState() {
             currentImageUrls = [];
+            uploadCancelTokens.clear();
             updateFilePreview();
             const list = get('upload-list');
-            if (list) list.innerHTML = '';
+            if (list) list.innerHTML = '<div class="text-xs text-gray-500">まだアップロードがありません。</div>';
             const input = get('file-input');
             if (input) input.value = '';
         }
@@ -2433,20 +2434,57 @@
             if (list.children.length === 1 && list.children[0].classList.contains('text-gray-500')) {
                 list.innerHTML = '';
             }
+            const uploadId = `up_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
             const row = document.createElement('div');
             row.className = 'upload-row bg-gray-900/60 rounded p-2';
+            row.dataset.uploadId = uploadId;
             const safeName = escapeHtml(file.name || 'file');
+            const isImage = file && file.type && file.type.startsWith('image/');
+            let previewHtml = '<div class="w-12 h-12 bg-gray-800 rounded border border-gray-700 flex items-center justify-center text-gray-400 text-sm">FILE</div>';
+            let previewUrl = '';
+            if (isImage) {
+                previewUrl = URL.createObjectURL(file);
+                previewHtml = `<img src="${previewUrl}" class="w-12 h-12 object-cover rounded border border-gray-700 cursor-pointer" alt="${safeName}">`;
+            }
             row.innerHTML = `
-                <div class="flex items-center justify-between gap-2">
-                    <div class="truncate text-xs text-gray-200">${safeName}</div>
-                    <div class="upload-status text-[10px] text-gray-400">待機中</div>
+                <div class="flex items-center gap-3">
+                    ${previewHtml}
+                    <div class="flex-1 min-w-0">
+                        <div class="truncate text-xs text-gray-200">${safeName}</div>
+                        <div class="upload-status text-[10px] text-gray-400">待機中</div>
+                    </div>
+                    <button class="upload-remove text-[10px] text-gray-400 hover:text-red-400 border border-gray-700 rounded px-2 py-1">削除</button>
                 </div>
                 <div class="upload-progress h-2 rounded mt-2 overflow-hidden">
                     <div style="width:0%"></div>
                 </div>
             `;
+            if (isImage && previewUrl) {
+                const img = row.querySelector('img');
+                if (img) {
+                    img.onload = () => URL.revokeObjectURL(previewUrl);
+                    img.onclick = () => {
+                        const w = window.open();
+                        if (w) w.location = previewUrl;
+                    };
+                }
+            }
+            const removeBtn = row.querySelector('.upload-remove');
+            if (removeBtn) {
+                removeBtn.onclick = () => {
+                    uploadCancelTokens.add(uploadId);
+                    const stored = row.getAttribute('data-filename');
+                    if (stored) currentImageUrls = currentImageUrls.filter(x => x !== stored);
+                    row.remove();
+                    updateFilePreview();
+                    if (list.children.length === 0) {
+                        list.innerHTML = '<div class="text-xs text-gray-500">まだアップロードがありません。</div>';
+                    }
+                };
+            }
             list.prepend(row);
             return {
+                uploadId,
                 row,
                 status: row.querySelector('.upload-status'),
                 bar: row.querySelector('.upload-progress > div')
@@ -2468,7 +2506,13 @@
                     let d = {};
                     try { d = JSON.parse(xhr.responseText || '{}'); } catch (e) {}
                     if (xhr.status >= 200 && xhr.status < 300 && d && d.filename) {
+                        if (row && row.row && row.uploadId && uploadCancelTokens.has(row.uploadId)) {
+                            if (row.row && row.row.parentNode) row.row.remove();
+                            resolve(false);
+                            return;
+                        }
                         currentImageUrls.push(d.filename);
+                        if (row && row.row) row.row.setAttribute('data-filename', d.filename);
                         if (row && row.status) row.status.textContent = '完了';
                         resolve(true);
                     } else {

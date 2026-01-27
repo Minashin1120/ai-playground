@@ -26,6 +26,8 @@
             color: var(--text);
             font-family: "Space Grotesk", system-ui, -apple-system, Segoe UI, sans-serif;
             position: relative;
+            font-size: 16px;
+            line-height: 1.7;
         }
         body::before {
             content: "";
@@ -37,10 +39,14 @@
             pointer-events: none;
             opacity: 0.35;
         }
-        .markdown-body h1 { font-size: 1.4em; font-weight: 700; margin-bottom: 0.6em; color: #5eead4; border-bottom: 1px solid rgba(148,163,184,0.2); }
-        .markdown-body p { margin-bottom: 0.7em; color: var(--muted); font-size: 1rem; }
+        .markdown-body { font-size: 1rem; line-height: 1.75; }
+        .markdown-body h1 { font-size: 1.5em; font-weight: 700; margin-bottom: 0.7em; color: #5eead4; border-bottom: 1px solid rgba(148,163,184,0.2); }
+        .markdown-body p { margin-bottom: 0.8em; color: var(--muted); font-size: 1rem; }
         .markdown-body ul { list-style-type: disc; padding-left: 1.4em; margin-bottom: 1em; color: #d1d5db; font-size: 1rem; }
+        .markdown-body li { margin-bottom: 0.35em; }
         @media (min-width: 768px) {
+            body { font-size: 15px; }
+            .markdown-body { font-size: 0.98rem; }
             .markdown-body h1 { font-size: 1.6em; }
             .markdown-body p { font-size: 0.95rem; }
             .markdown-body ul { font-size: 0.95rem; }

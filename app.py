@@ -118,6 +118,7 @@ _OPENAI_READ_TIMEOUT = _env_float("OPENAI_READ_TIMEOUT_SECONDS", 120.0)
 _OPENAI_WRITE_TIMEOUT = _env_float("OPENAI_WRITE_TIMEOUT_SECONDS", 30.0)
 _OPENAI_POOL_TIMEOUT = _env_float("OPENAI_POOL_TIMEOUT_SECONDS", 5.0)
 _OPENAI_MAX_RETRIES = _env_int("OPENAI_MAX_RETRIES", 1)
+RUN_SCHEMA_MIGRATIONS = _env_bool("RUN_SCHEMA_MIGRATIONS", False)
 
 _XAI_API_HOST = os.getenv("XAI_API_HOST", "api.x.ai").strip() or "api.x.ai"
 _XAI_TIMEOUT_SECONDS = _env_float("XAI_TIMEOUT_SECONDS", 120.0)
@@ -734,6 +735,14 @@ def ensure_app_setting(key, default):
         if row is None:
             db.session.add(AppSetting(key=key, value=str(default)))
             safe_db_commit()
+    except Exception:
+        pass
+
+def try_alter(sql):
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("SET SESSION lock_wait_timeout=1"))
+            conn.execute(text(sql))
     except Exception:
         pass
 
@@ -3723,144 +3732,145 @@ with app.app_context():
     except Exception:
         pass
     try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
         admin_user = User.query.filter_by(username='minashin1120').first()
         if admin_user and not getattr(admin_user, "is_admin", False):
             admin_user.is_admin = True
             safe_db_commit()
     except Exception:
         pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE message ADD COLUMN thought_signature TEXT"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN enable_e2ee BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE message ADD COLUMN is_encrypted BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN xai_api_key TEXT"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN is_2fa_enabled BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN totp_secret VARCHAR(255)"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN webauthn_credentials TEXT"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN passkey_only_login BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN stt_model VARCHAR(64)"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN enter_to_send BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN use_sw_cache BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN theme_color VARCHAR(16)"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN auto_search_on_links BOOLEAN DEFAULT 1"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN use_last_chat_settings BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN default_enable_search BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN default_enable_python BOOLEAN DEFAULT 1"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN default_enable_thinking BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN default_thinking_level VARCHAR(16) DEFAULT 'high'"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN default_thinking_budget INTEGER DEFAULT 4096"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN default_reasoning_effort VARCHAR(16) DEFAULT 'medium'"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN default_enable_system_prompt BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN default_safety_setting VARCHAR(16) DEFAULT 'default'"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN last_enable_search BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN last_enable_python BOOLEAN DEFAULT 1"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN last_enable_thinking BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN last_thinking_level VARCHAR(16) DEFAULT 'high'"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN last_thinking_budget INTEGER DEFAULT 4096"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN last_reasoning_effort VARCHAR(16) DEFAULT 'medium'"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN last_enable_system_prompt BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN last_safety_setting VARCHAR(16) DEFAULT 'default'"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN google_api_key TEXT"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN google_cloud_project TEXT"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN easy_login_hash TEXT"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN easy_login_expires_at DATETIME"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN bot_detection_enabled BOOLEAN DEFAULT 1"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN is_bot_banned BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN bot_banned_at DATETIME"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN bot_ban_reason TEXT"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN bot_unbanned_at DATETIME"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN bot_unban_notice BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE thread ADD COLUMN is_bookmarked BOOLEAN DEFAULT 0"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE thread ADD COLUMN bookmarked_at DATETIME"))
-    except: pass
-    try:
-        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE thread ADD COLUMN public_id VARCHAR(64)"))
-    except: pass
+    if RUN_SCHEMA_MIGRATIONS:
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE message ADD COLUMN thought_signature TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN enable_e2ee BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE message ADD COLUMN is_encrypted BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN xai_api_key TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN is_2fa_enabled BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN totp_secret VARCHAR(255)")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN webauthn_credentials TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN passkey_only_login BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN stt_model VARCHAR(64)")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN enter_to_send BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN use_sw_cache BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN theme_color VARCHAR(16)")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN auto_search_on_links BOOLEAN DEFAULT 1")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN use_last_chat_settings BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN default_enable_search BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN default_enable_python BOOLEAN DEFAULT 1")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN default_enable_thinking BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN default_thinking_level VARCHAR(16) DEFAULT 'high'")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN default_thinking_budget INTEGER DEFAULT 4096")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN default_reasoning_effort VARCHAR(16) DEFAULT 'medium'")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN default_enable_system_prompt BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN default_safety_setting VARCHAR(16) DEFAULT 'default'")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN last_enable_search BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN last_enable_python BOOLEAN DEFAULT 1")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN last_enable_thinking BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN last_thinking_level VARCHAR(16) DEFAULT 'high'")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN last_thinking_budget INTEGER DEFAULT 4096")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN last_reasoning_effort VARCHAR(16) DEFAULT 'medium'")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN last_enable_system_prompt BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN last_safety_setting VARCHAR(16) DEFAULT 'default'")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN google_api_key TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN google_cloud_project TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN easy_login_hash TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN easy_login_expires_at DATETIME")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN bot_detection_enabled BOOLEAN DEFAULT 1")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN is_bot_banned BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN bot_banned_at DATETIME")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN bot_ban_reason TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN bot_unbanned_at DATETIME")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN bot_unban_notice BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE thread ADD COLUMN is_bookmarked BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE thread ADD COLUMN bookmarked_at DATETIME")
+        except: pass
+        try:
+            try_alter("ALTER TABLE thread ADD COLUMN public_id VARCHAR(64)")
+        except: pass
 
 @app.errorhandler(403)
 def handle_forbidden(_error):

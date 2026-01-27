@@ -137,6 +137,35 @@
         .modal-overlay.modal-close .modal-panel { opacity: 0; transform: translateY(10px) scale(0.98); }
         .btn-hover { transition: all 0.2s; }
         .btn-hover:hover { transform: translateY(-1px); filter: brightness(1.1); }
+        .btn-modern {
+            border-radius: 14px;
+            border: 1px solid rgba(148,163,184,0.28);
+            box-shadow: 0 12px 24px rgba(2,6,23,0.35);
+            backdrop-filter: blur(10px);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+        }
+        .btn-modern:hover { transform: translateY(-1px); box-shadow: 0 16px 30px rgba(2,6,23,0.45); }
+        .btn-glass { background: rgba(11,18,26,0.75); }
+        .btn-primary {
+            background: linear-gradient(135deg, #14b8a6, #0ea5a4);
+            color: #041014;
+            border-color: rgba(20,184,166,0.5);
+            box-shadow: 0 16px 32px rgba(20,184,166,0.25);
+        }
+        .btn-warn {
+            background: linear-gradient(135deg, #f59e0b, #f97316);
+            color: #1f1303;
+            border-color: rgba(245,158,11,0.55);
+            box-shadow: 0 14px 30px rgba(245,158,11,0.25);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #fb7185, #f43f5e);
+            color: #26070c;
+            border-color: rgba(251,113,133,0.55);
+            box-shadow: 0 14px 30px rgba(251,113,133,0.25);
+        }
+        .btn-pill { border-radius: 999px; padding-left: 16px; padding-right: 16px; }
+        .icon-pill { border-radius: 12px; }
         .edit-bar-animate { animation: fadeIn 0.2s ease-out forwards; }
         #send-btn.fly { animation: sendBtnPop 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
         #send-btn.fly i { animation: planeFly 0.6s ease-in-out; transform-origin: center; display: inline-block; }
@@ -183,6 +212,39 @@
         #sts-mic-btn { box-shadow: 0 16px 30px rgba(20,184,166,0.22); border: 1px solid rgba(20,184,166,0.35); }
         #sts-mic-btn.animate-pulse { box-shadow: 0 0 0 6px rgba(251,113,133,0.18), 0 16px 30px rgba(251,113,133,0.25); }
         #upload-btn, #mic-btn { border: 1px solid var(--line); }
+        #send-btn, #new-chat-btn, #upload-select-btn, #save-gem-btn, #save-settings-btn,
+        #fb-submit, #session-refresh-btn, #session-revoke-others-btn, #session-revoke-all-btn,
+        #bot-unban-btn, #bot-admin-open, #easy-login-generate, #easy-login-cancel, #lib-del-btn,
+        #auto-search-on-btn, #auto-search-off-btn, #sts-cancel-btn, #upload-clear-btn {
+            border-radius: 14px;
+            border: 1px solid rgba(148,163,184,0.28);
+            box-shadow: 0 12px 24px rgba(2,6,23,0.35);
+        }
+        #new-chat-btn, #send-btn, #upload-select-btn, #save-gem-btn, #save-settings-btn, #fb-submit {
+            background: linear-gradient(135deg, #14b8a6, #0ea5a4) !important;
+            color: #041014 !important;
+            border-color: rgba(20,184,166,0.5);
+            box-shadow: 0 16px 32px rgba(20,184,166,0.25);
+        }
+        #upload-btn, #mic-btn, #upload-clear-btn, #easy-login-cancel, #session-refresh-btn {
+            background: rgba(11,18,26,0.75) !important;
+            color: #e2e8f0 !important;
+        }
+        #session-revoke-others-btn, #auto-search-on-btn {
+            background: linear-gradient(135deg, #f59e0b, #f97316) !important;
+            color: #1f1303 !important;
+            border-color: rgba(245,158,11,0.55);
+            box-shadow: 0 14px 30px rgba(245,158,11,0.25);
+        }
+        #session-revoke-all-btn, #delete-account-btn {
+            background: linear-gradient(135deg, #fb7185, #f43f5e) !important;
+            color: #26070c !important;
+            border-color: rgba(251,113,133,0.55);
+            box-shadow: 0 14px 30px rgba(251,113,133,0.25);
+        }
+        #auto-search-off-btn, #sts-cancel-btn { border-radius: 999px; }
+        #send-btn, #upload-btn, #mic-btn { border-radius: 16px; }
+        #mobile-new-chat-btn { border-radius: 12px; background: rgba(20,184,166,0.18); }
         #edit-bar { border: 1px solid var(--line); background: rgba(11,18,26,0.8); }
         .message-bubble.bg-blue-600 { background: linear-gradient(180deg, #14b8a6, #0ea5a4); color: #041014; }
         .message-bubble.bg-gray-700 { background: linear-gradient(180deg, #111827, #0b111a); }

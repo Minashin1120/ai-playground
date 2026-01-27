@@ -135,31 +135,38 @@
         #alpha-bar { transition: all 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55); transform-origin: center center; }
         .pulse-target { animation: pulse-green 1s infinite; }
         @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-        .fade-in { animation: fadeIn 0.2s ease-out forwards; }
+        
+        @keyframes messagePop { 
+            0% { opacity: 0; transform: translateY(12px) scale(0.97); } 
+            100% { opacity: 1; transform: translateY(0) scale(1); } 
+        }
+        .fade-in { animation: messagePop 0.4s cubic-bezier(0.21, 1.02, 0.48, 1) forwards; }
+        
         @keyframes tabEnter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes tabExit { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-4px); } }
-        .tab-enter { animation: tabEnter 0.22s ease-out forwards; }
-        .tab-exit { animation: tabExit 0.16s ease-in forwards; }
-        @keyframes modelListEnter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        .model-list-animate { animation: modelListEnter 0.22s ease-out forwards; }
-        .modal-overlay { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.22s ease, visibility 0.22s ease; }
-        .modal-overlay .modal-panel { opacity: 0; transform: translateY(14px) scale(0.98); transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease; }
+        .tab-enter { animation: tabEnter 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+        .tab-exit { animation: tabExit 0.15s ease-in forwards; }
+        @keyframes modelListEnter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .model-list-animate { animation: modelListEnter 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+        
+        .modal-overlay { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.3s ease, visibility 0.3s ease; }
+        .modal-overlay .modal-panel { opacity: 0; transform: translateY(16px) scale(0.96); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease; }
         .modal-overlay.modal-prep { opacity: 0; visibility: visible; pointer-events: auto; }
-        .modal-overlay.modal-prep .modal-panel { opacity: 0; transform: translateY(14px) scale(0.98); }
+        .modal-overlay.modal-prep .modal-panel { opacity: 0; transform: translateY(16px) scale(0.96); }
         .modal-overlay.modal-open { opacity: 1; visibility: visible; pointer-events: auto; }
         .modal-overlay.modal-open .modal-panel { opacity: 1; transform: translateY(0) scale(1); }
-        .modal-overlay.modal-close .modal-panel { opacity: 0; transform: translateY(10px) scale(0.98); }
-        .btn-hover { transition: all 0.2s; }
-        .btn-hover:hover { transform: translateY(-1px); filter: brightness(1.1); }
+        .modal-overlay.modal-close .modal-panel { opacity: 0; transform: translateY(12px) scale(0.96); transition: transform 0.2s ease-in, opacity 0.2s ease-in; }
+        
+        .btn-hover { transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); }
+        .btn-hover:hover { transform: translateY(-2px); filter: brightness(1.1); }
         .btn-modern {
             border-radius: 14px;
             border: 1px solid rgba(148,163,184,0.28);
             box-shadow: 0 12px 24px rgba(2,6,23,0.35);
             backdrop-filter: blur(10px);
-            transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+            transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s ease, filter 0.2s ease;
         }
-        .btn-modern:hover { transform: translateY(-1px); box-shadow: 0 16px 30px rgba(2,6,23,0.45); }
+        .btn-modern:hover { transform: translateY(-2px); box-shadow: 0 18px 36px rgba(2,6,23,0.45); }
         .btn-glass { background: rgba(11,18,26,0.75); }
         .btn-primary {
             background: linear-gradient(135deg, var(--theme-500), var(--theme-600));
@@ -217,11 +224,15 @@
         #scroll-sentinel { height: 10px; }
 
         /* Layout polish */
-        #sidebar { background: linear-gradient(180deg, rgba(11,17,26,0.96), rgba(8,12,18,0.96)); border-right: 1px solid var(--line); }
+        #sidebar { 
+            background: linear-gradient(180deg, rgba(11,17,26,0.96), rgba(8,12,18,0.96)); 
+            border-right: 1px solid var(--line);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease, background-color 0.3s ease;
+        }
         #chat-container { background: radial-gradient(800px 420px at 50% 0%, rgba(var(--theme-rgb),0.08), transparent 60%); }
         #settings-modal > div, #model-modal > div, #gem-modal > div { border: 1px solid var(--line); box-shadow: var(--shadow); }
-        #prompt-input { background: #0b121a; border: 1px solid var(--line); }
-        #prompt-input:focus { box-shadow: 0 0 0 2px rgba(var(--theme-rgb),0.25); }
+        #prompt-input { background: #0b121a; border: 1px solid var(--line); transition: box-shadow 0.2s ease, border-color 0.2s ease, height 0.1s; }
+        #prompt-input:focus { box-shadow: 0 0 0 2px rgba(var(--theme-rgb),0.25); border-color: rgba(var(--theme-rgb),0.5); }
         #send-btn { box-shadow: 0 12px 26px rgba(var(--theme-rgb),0.28); border: 1px solid rgba(var(--theme-rgb),0.4); background: linear-gradient(135deg, var(--theme-500), var(--theme-600)); }
         #sts-panel { background: radial-gradient(120% 120% at 50% 0%, rgba(var(--theme-rgb),0.18), rgba(11,18,26,0.7)); border: 1px solid rgba(var(--theme-rgb),0.25); }
         #sts-mic-btn { box-shadow: 0 16px 30px rgba(var(--theme-rgb),0.22); border: 1px solid rgba(var(--theme-rgb),0.35); }
@@ -234,6 +245,7 @@
             border-radius: 14px;
             border: 1px solid rgba(148,163,184,0.28);
             box-shadow: 0 12px 24px rgba(2,6,23,0.35);
+            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
         }
         #new-chat-btn, #send-btn, #upload-select-btn, #save-gem-btn, #save-settings-btn, #fb-submit {
             background: linear-gradient(135deg, var(--theme-500), var(--theme-600)) !important;
@@ -259,14 +271,14 @@
         }
         #auto-search-off-btn, #sts-cancel-btn { border-radius: 999px; }
         #send-btn, #upload-btn, #mic-btn { border-radius: 16px; }
-        #mobile-new-chat-btn { border-radius: 12px; background: rgba(var(--theme-rgb),0.18); }
+        #mobile-new-chat-btn { border-radius: 12px; background: rgba(var(--theme-rgb),0.18); transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); }
         #edit-bar { border: 1px solid var(--line); background: rgba(11,18,26,0.8); }
         .message-bubble.bg-blue-600 { background: linear-gradient(180deg, var(--theme-500), var(--theme-600)); color: #041014; }
         .message-bubble.bg-gray-700 { background: linear-gradient(180deg, #111827, #0b111a); }
         #sidebar .bg-gray-700 { background: rgba(11,18,26,0.85) !important; border: 1px solid var(--line); }
-        #sidebar button, #sidebar a { transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease; }
-        #sidebar button:hover, #sidebar a:hover { transform: translateY(-1px); }
-        #thread-list > div { border: 1px solid transparent; }
+        #sidebar button, #sidebar a { transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.2s ease, color 0.2s ease; }
+        #sidebar button:hover, #sidebar a:hover { transform: translateX(3px); }
+        #thread-list > div { border: 1px solid transparent; transition: background-color 0.2s ease, border-color 0.2s ease; }
         #thread-list > div:hover { border-color: rgba(var(--theme-rgb),0.3); background: rgba(11,18,26,0.8); }
         #gem-list .gem-item { border: 1px solid var(--line); background: rgba(11,18,26,0.7); }
         #gem-list .gem-item:hover { background: rgba(var(--theme-rgb),0.1); }
@@ -3247,11 +3259,12 @@
             const l = get('thread-list');
             const sentinel = get('scroll-sentinel');
             
-            d.threads.forEach(t => { 
+            d.threads.forEach((t, i) => { 
                 const tid = String(t.id);
                 const d = document.createElement('div'); 
                 const star = t.is_bookmarked ? 'text-yellow-400' : 'text-gray-500';
-                d.className = 'p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 truncate flex justify-between items-center group'; 
+                d.className = 'p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 truncate flex justify-between items-center group model-list-animate opacity-0'; 
+                d.style.animationDelay = `${i * 0.035}s`;
                 d.innerHTML = `<div class="flex items-center gap-1 truncate flex-1"><button class="${star} hover:text-yellow-400 px-1" onclick="toggleBookmark(event, '${tid}')"><i class="fas fa-star text-[10px]"></i></button><span class="truncate" onclick="loadMessages('${tid}')">${t.title||"No Title"}</span></div><div class="flex gap-1 opacity-0 group-hover:opacity-100"><button class="text-gray-500 hover:text-white px-1" onclick="renameThread(event, '${tid}')"><i class="fas fa-pen text-xs"></i></button><button class="text-gray-500 hover:text-red-400 px-1" onclick="deleteThread(event, '${tid}')"><i class="fas fa-trash text-xs"></i></button></div>`; 
                 l.insertBefore(d, sentinel); 
             });
@@ -3409,7 +3422,20 @@
             currentLeafId = currId;
             renderThreadTree();
         }
-        async function loadGems() { const r = await apiFetch("{{ url_for('handle_gems') }}"); const gs = await r.json(); const l = get('gem-list'); l.innerHTML = ''; gs.forEach(g => { const d = document.createElement('div'); d.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group'; d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${g.name}</span></div><button class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2" onclick="deleteGem(event, ${g.id})">×</button>`; d.onclick = (e) => { if(e.target.tagName!=='BUTTON') activateGem(g); }; l.appendChild(d); }); }
+        async function loadGems() { 
+            const r = await apiFetch("{{ url_for('handle_gems') }}"); 
+            const gs = await r.json(); 
+            const l = get('gem-list'); 
+            l.innerHTML = ''; 
+            gs.forEach((g, i) => { 
+                const d = document.createElement('div'); 
+                d.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group model-list-animate opacity-0'; 
+                d.style.animationDelay = `${i * 0.05}s`;
+                d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${g.name}</span></div><button class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2" onclick="deleteGem(event, ${g.id})">×</button>`; 
+                d.onclick = (e) => { if(e.target.tagName!=='BUTTON') activateGem(g); }; 
+                l.appendChild(d); 
+            }); 
+        }
         async function createGem(name, inst) { await apiFetch("{{ url_for('handle_gems') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, instruction:inst})}); loadGems(); }
         function applyActiveGem(g) {
             activeGem = g || null;
@@ -3437,7 +3463,26 @@
             if (!msg || !msg.parent_id) { showToast("再生成できるメッセージが見つかりません", "error", true); return; }
             beginEditMessage(msg.parent_id, true);
         };
-        async function loadLibraryFiles() { const r = await apiFetch("{{ url_for('get_files_lib') }}"); const files = await r.json(); const grid = get('lib-grid'); grid.innerHTML = ''; get('lib-total-count').innerText = files.length + " files"; lib.selected.clear(); get('lib-del-btn').disabled = true; get('lib-del-btn').innerText = "削除"; files.forEach(f => { const el = document.createElement('div'); el.className = "relative group bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400"; const content = f.type==='image' ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`; const overlay = `<div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><a href="${f.url}" target="_blank" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a></div>`; el.innerHTML = content + overlay; el.onclick = () => { if (lib.selected.has(f.filepath)) { lib.selected.delete(f.filepath); el.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.add('border-gray-600'); } else { lib.selected.add(f.filepath); el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.remove('border-gray-600'); } get('lib-del-btn').disabled = lib.selected.size === 0; get('lib-del-btn').innerText = `削除 (${lib.selected.size})`; }; grid.appendChild(el); }); }
+        async function loadLibraryFiles() { 
+            const r = await apiFetch("{{ url_for('get_files_lib') }}"); 
+            const files = await r.json(); 
+            const grid = get('lib-grid'); 
+            grid.innerHTML = ''; 
+            get('lib-total-count').innerText = files.length + " files"; 
+            lib.selected.clear(); 
+            get('lib-del-btn').disabled = true; 
+            get('lib-del-btn').innerText = "削除"; 
+            files.forEach((f, i) => { 
+                const el = document.createElement('div'); 
+                el.className = "relative group bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400 model-list-animate opacity-0"; 
+                el.style.animationDelay = `${i * 0.03}s`;
+                const content = f.type==='image' ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`; 
+                const overlay = `<div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><a href="${f.url}" target="_blank" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a></div>`; 
+                el.innerHTML = content + overlay; 
+                el.onclick = () => { if (lib.selected.has(f.filepath)) { lib.selected.delete(f.filepath); el.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.add('border-gray-600'); } else { lib.selected.add(f.filepath); el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.remove('border-gray-600'); } get('lib-del-btn').disabled = lib.selected.size === 0; get('lib-del-btn').innerText = `削除 (${lib.selected.size})`; }; 
+                grid.appendChild(el); 
+            }); 
+        }
         async function deleteSelectedFiles() { if(!confirm('削除しますか？')) return; try{ await apiFetch("{{ url_for('delete_files_batch') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({filenames:Array.from(lib.selected)})}); loadLibraryFiles(); } catch(e){ alert("削除エラー"); } }
         window.showLegal = async (t) => { showModal('legal-modal'); const res = await apiFetch("/static/legal/" + t + ".md?t=" + Date.now()); if(!res.ok) return; const text = await res.text(); get('legal-content').innerHTML = DOMPurify.sanitize(marked.parse(text)); }
         window.copyCode = (btn, code) => { 

@@ -875,6 +875,76 @@
         let currentParentId = null;
         
         function escapeHtml(t) { return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") : t; }
+        function hashString(str) {
+            let h = 0;
+            if (!str) return '0';
+            for (let i = 0; i < str.length; i++) {
+                h = ((h << 5) - h) + str.charCodeAt(i);
+                h |= 0;
+            }
+            return Math.abs(h).toString(36);
+        }
+        function snapshotCodeCollapse(container) {
+            if (!container) return [];
+            const states = [];
+            container.querySelectorAll('.code-wrapper').forEach((wrapper, idx) => {
+                const key = String(idx);
+                const collapsed = wrapper.classList.contains('collapsed') || wrapper.getAttribute('data-collapsed') === 'true';
+                states.push({ key, collapsed });
+            });
+            return states;
+        }
+        function applyCodeCollapse(container, states = [], defaultCollapsed = false) {
+            if (!container) return;
+            const map = new Map();
+            states.forEach(s => map.set(s.key, s.collapsed));
+            container.querySelectorAll('.code-wrapper').forEach((wrapper, idx) => {
+                const key = String(idx);
+                const collapsed = map.has(key) ? map.get(key) : defaultCollapsed;
+                wrapper.setAttribute('data-collapsed', collapsed ? 'true' : 'false');
+                wrapper.classList.toggle('collapsed', !!collapsed);
+                const btn = wrapper.querySelector('.code-toggle');
+                if (btn) {
+                    btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+                    btn.innerHTML = collapsed
+                        ? '<i class="fas fa-chevron-down"></i> Expand'
+                        : '<i class="fas fa-chevron-up"></i> Collapse';
+                }
+            });
+        }
+        function snapshotCodeCollapseByMessage(container) {
+            if (!container) return new Map();
+            const map = new Map();
+            container.querySelectorAll('.message-group').forEach(group => {
+                const msgId = group.getAttribute('id') || '';
+                group.querySelectorAll('.code-wrapper').forEach((wrapper, idx) => {
+                    const key = wrapper.getAttribute('data-code-key') || String(idx);
+                    const collapsed = wrapper.classList.contains('collapsed') || wrapper.getAttribute('data-collapsed') === 'true';
+                    map.set(`${msgId}:${key}`, collapsed);
+                });
+            });
+            return map;
+        }
+        function applyCodeCollapseByMessage(container, map, defaultCollapsed = false) {
+            if (!container) return;
+            container.querySelectorAll('.message-group').forEach(group => {
+                const msgId = group.getAttribute('id') || '';
+                group.querySelectorAll('.code-wrapper').forEach((wrapper, idx) => {
+                    const key = wrapper.getAttribute('data-code-key') || String(idx);
+                    const stateKey = `${msgId}:${key}`;
+                    const collapsed = map && map.has(stateKey) ? map.get(stateKey) : defaultCollapsed;
+                    wrapper.setAttribute('data-collapsed', collapsed ? 'true' : 'false');
+                    wrapper.classList.toggle('collapsed', !!collapsed);
+                    const btn = wrapper.querySelector('.code-toggle');
+                    if (btn) {
+                        btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+                        btn.innerHTML = collapsed
+                            ? '<i class="fas fa-chevron-down"></i> Expand'
+                            : '<i class="fas fa-chevron-up"></i> Collapse';
+                    }
+                });
+            });
+        }
         function updateTotalTokenBar(total) {
             const bar = get('total-token-bar');
             const count = get('total-token-count');
@@ -1931,7 +2001,7 @@
                     get('sts-speed-label').textContent = `${Number(get('sts-speed').value || 1).toFixed(2)}x`;
                 });
             }
-            marked.use({ renderer: { code(c, i, e) { const l = (i || '').match(/\S*/)[0]; if(l === 'pyexec'){ try { const obj = JSON.parse(c); const code = escapeHtml(obj.code || ''); const output = escapeHtml(obj.output || ''); return `<div class="python-box"><div class="python-header"><i class="fas fa-terminal"></i> Python Execution</div><div class="python-body"><div class="python-label">Code</div><pre class="python-code">${code}</pre><div class="python-label">Output</div><pre class="python-output">${output}</pre></div></div>`; } catch(e2){} } const safe = escapeHtml(c || ''); const h = hljs.highlight(safe, { language: hljs.getLanguage(l)?l:'plaintext' }).value; const enc = encodeURIComponent(c).replace(/'/g, "%27"); return `<div class="code-wrapper" data-collapsed="false"><div class="code-header"><span class="code-lang">${l||'TEXT'}</span><div class="code-actions"><button class="code-toggle" aria-expanded="true"><i class="fas fa-chevron-up"></i> Collapse</button><button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`; }, link(h, t, x) { return `<a href="${h}" title="${t||''}" target="_blank">${x}</a>`; }, image(h, t, x) { const alt = escapeHtml(x||''); const title = t ? ` title="${escapeHtml(t)}"` : ''; return `<img src="${h}" alt="${alt}"${title} class="chat-image" loading="lazy" width="320" height="320">`; } }, breaks: true, gfm: true });
+            marked.use({ renderer: { code(c, i, e) { const l = (i || '').match(/\S*/)[0]; if(l === 'pyexec'){ try { const obj = JSON.parse(c); const code = escapeHtml(obj.code || ''); const output = escapeHtml(obj.output || ''); return `<div class="python-box"><div class="python-header"><i class="fas fa-terminal"></i> Python Execution</div><div class="python-body"><div class="python-label">Code</div><pre class="python-code">${code}</pre><div class="python-label">Output</div><pre class="python-output">${output}</pre></div></div>`; } catch(e2){} } const safe = escapeHtml(c || ''); const h = hljs.highlight(safe, { language: hljs.getLanguage(l)?l:'plaintext' }).value; const enc = encodeURIComponent(c).replace(/'/g, "%27"); const codeKey = hashString(`${l||'TEXT'}\n${c||''}`); return `<div class="code-wrapper" data-collapsed="false" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${l||'TEXT'}</span><div class="code-actions"><button class="code-toggle" aria-expanded="true"><i class="fas fa-chevron-up"></i> Collapse</button><button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`; }, link(h, t, x) { return `<a href="${h}" title="${t||''}" target="_blank">${x}</a>`; }, image(h, t, x) { const alt = escapeHtml(x||''); const title = t ? ` title="${escapeHtml(t)}"` : ''; return `<img src="${h}" alt="${alt}"${title} class="chat-image" loading="lazy" width="320" height="320">`; } }, breaks: true, gfm: true });
             
             // Infinite Scroll Observer
             threadObserver = new IntersectionObserver((entries) => {
@@ -3113,7 +3183,9 @@
                                     cEl.className='prose prose-invert text-sm break-words'; 
                                     if(!adiv.contains(cEl)) adiv.appendChild(cEl); 
                                 } 
+                                const collapseState = snapshotCodeCollapse(cEl);
                                 cEl.innerHTML=DOMPurify.sanitize(marked.parse(acc)); 
+                                applyCodeCollapse(cEl, collapseState, false);
                             } else if(j.type==='error'){ 
                                 hadError = true;
                                 adiv.insertAdjacentHTML('beforeend', `<div class="text-red-400 text-xs mt-2 border border-red-500 p-2 rounded">Error: ${j.content}</div>`); 
@@ -3198,6 +3270,7 @@
         async function loadMessages(tid, opts = {}) { 
             const preserveDraft = !!opts.preserveDraft;
             const silent = !!opts.silent;
+            const codeState = silent ? snapshotCodeCollapseByMessage(get('chat-container')) : null;
             let draftText = '';
             let draftHeight = '';
             let draftImages = [];
@@ -3229,6 +3302,11 @@
             }
             
             renderThreadTree({ silent });
+            if (silent && codeState) {
+                applyCodeCollapseByMessage(get('chat-container'), codeState, false);
+            } else if (!silent) {
+                applyCodeCollapseByMessage(get('chat-container'), null, true);
+            }
             if (preserveDraft) {
                 const input = get('prompt-input');
                 if (input) {

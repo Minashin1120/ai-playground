@@ -2719,7 +2719,8 @@ def handle_thread_item(thread_id):
     t = resolve_thread_for_user(thread_id, current_user.id)
     if not t: return jsonify({'error': '403'}), 403
     if request.method == 'GET':
-        ms = Message.query.filter_by(thread_id=t.id).order_by(Message.timestamp).all()
+        # Ensure stable ordering even when timestamps collide (e.g., rapid edit/regenerate).
+        ms = Message.query.filter_by(thread_id=t.id).order_by(Message.timestamp, Message.id).all()
         res = []
         for m in ms:
             cnt = decrypt_val(m.content) if m.is_encrypted else m.content

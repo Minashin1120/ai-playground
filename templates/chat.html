@@ -77,10 +77,16 @@
         .prose img.chat-image { max-width: 320px; width: 100%; height: auto; object-fit: contain; }
         
         /* Code Wrapper & Copy Button */
-        .code-wrapper { margin: 1em 0; border-radius: 0.75rem; border: 1px solid var(--line); overflow: hidden; background: var(--panel-2); box-shadow: var(--shadow); }
-        .code-header { display: flex; justify-content: space-between; align-items: center; background: #0f1722; padding: 0.35rem 0.85rem; font-size: 0.75rem; color: #9aa3b2; border-bottom: 1px solid rgba(148,163,184,0.15); }
-        .copy-btn { background: transparent; border: none; color: #9aa3b2; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s; }
-        .copy-btn:hover { color: #e2e8f0; }
+        .code-wrapper { margin: 1em 0; border-radius: 0.75rem; border: 1px solid var(--line); background: var(--panel-2); box-shadow: var(--shadow); position: relative; }
+        .code-header { display: flex; justify-content: space-between; align-items: center; background: #0f1722; padding: 0.35rem 0.85rem; font-size: 0.75rem; color: #9aa3b2; border-bottom: 1px solid rgba(148,163,184,0.15); position: sticky; top: 6px; z-index: 2; }
+        .code-actions { display: flex; align-items: center; gap: 0.6rem; }
+        .copy-btn, .code-toggle { background: transparent; border: none; color: #9aa3b2; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s; }
+        .copy-btn:hover, .code-toggle:hover { color: #e2e8f0; }
+        .code-body { border-bottom-left-radius: 0.75rem; border-bottom-right-radius: 0.75rem; overflow: hidden; transition: max-height 0.28s ease, opacity 0.2s ease, padding 0.2s ease; }
+        .code-body pre { margin: 0; }
+        .code-wrapper.collapsed .code-body { max-height: 0; opacity: 0; padding: 0; overflow: hidden; }
+        .code-wrapper.collapsed .code-header { border-bottom-color: transparent; }
+        .code-wrapper.collapsed .code-lang { opacity: 0.7; }
 
         /* Thinking UI */
         .thought-container { margin-bottom: 1rem; border: 1px solid var(--line); border-radius: 0.75rem; background-color: #0c1420; overflow: hidden; box-shadow: var(--shadow); }
@@ -1925,7 +1931,7 @@
                     get('sts-speed-label').textContent = `${Number(get('sts-speed').value || 1).toFixed(2)}x`;
                 });
             }
-            marked.use({ renderer: { code(c, i, e) { const l = (i || '').match(/\S*/)[0]; if(l === 'pyexec'){ try { const obj = JSON.parse(c); const code = escapeHtml(obj.code || ''); const output = escapeHtml(obj.output || ''); return `<div class="python-box"><div class="python-header"><i class="fas fa-terminal"></i> Python Execution</div><div class="python-body"><div class="python-label">Code</div><pre class="python-code">${code}</pre><div class="python-label">Output</div><pre class="python-output">${output}</pre></div></div>`; } catch(e2){} } const safe = escapeHtml(c || ''); const h = hljs.highlight(safe, { language: hljs.getLanguage(l)?l:'plaintext' }).value; const enc = encodeURIComponent(c).replace(/'/g, "%27"); return `<div class="code-wrapper"><div class="code-header"><span class="code-lang">${l||'TEXT'}</span><button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div><pre><code class="hljs language-${l}">${h}</code></pre></div>`; }, link(h, t, x) { return `<a href="${h}" title="${t||''}" target="_blank">${x}</a>`; }, image(h, t, x) { const alt = escapeHtml(x||''); const title = t ? ` title="${escapeHtml(t)}"` : ''; return `<img src="${h}" alt="${alt}"${title} class="chat-image" loading="lazy" width="320" height="320">`; } }, breaks: true, gfm: true });
+            marked.use({ renderer: { code(c, i, e) { const l = (i || '').match(/\S*/)[0]; if(l === 'pyexec'){ try { const obj = JSON.parse(c); const code = escapeHtml(obj.code || ''); const output = escapeHtml(obj.output || ''); return `<div class="python-box"><div class="python-header"><i class="fas fa-terminal"></i> Python Execution</div><div class="python-body"><div class="python-label">Code</div><pre class="python-code">${code}</pre><div class="python-label">Output</div><pre class="python-output">${output}</pre></div></div>`; } catch(e2){} } const safe = escapeHtml(c || ''); const h = hljs.highlight(safe, { language: hljs.getLanguage(l)?l:'plaintext' }).value; const enc = encodeURIComponent(c).replace(/'/g, "%27"); return `<div class="code-wrapper" data-collapsed="false"><div class="code-header"><span class="code-lang">${l||'TEXT'}</span><div class="code-actions"><button class="code-toggle" aria-expanded="true"><i class="fas fa-chevron-up"></i> Collapse</button><button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`; }, link(h, t, x) { return `<a href="${h}" title="${t||''}" target="_blank">${x}</a>`; }, image(h, t, x) { const alt = escapeHtml(x||''); const title = t ? ` title="${escapeHtml(t)}"` : ''; return `<img src="${h}" alt="${alt}"${title} class="chat-image" loading="lazy" width="320" height="320">`; } }, breaks: true, gfm: true });
             
             // Infinite Scroll Observer
             threadObserver = new IntersectionObserver((entries) => {
@@ -2680,6 +2686,17 @@
                     const id = btn.getAttribute('data-id'); 
                     beginEditMessage(id);
                 } 
+                if (e.target.closest('.code-toggle')) {
+                    const btn = e.target.closest('.code-toggle');
+                    const wrapper = btn.closest('.code-wrapper');
+                    if (!wrapper) return;
+                    const isCollapsed = wrapper.classList.toggle('collapsed');
+                    wrapper.setAttribute('data-collapsed', isCollapsed ? 'true' : 'false');
+                    btn.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+                    btn.innerHTML = isCollapsed
+                        ? '<i class="fas fa-chevron-down"></i> Expand'
+                        : '<i class="fas fa-chevron-up"></i> Collapse';
+                }
                 if (e.target.closest('.copy-btn')) {
                     const btn = e.target.closest('.copy-btn');
                     const code = btn.getAttribute('data-code');

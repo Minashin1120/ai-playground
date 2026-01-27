@@ -37,13 +37,19 @@
             --line: #1c2636;
             --text: #e5e7eb;
             --muted: #9aa3b2;
-            --accent: #14b8a6;
+            --theme-500: #14b8a6;
+            --theme-600: #0ea5a4;
+            --theme-700: #0f766e;
+            --theme-300: #5eead4;
+            --theme-200: #99f6e4;
+            --theme-rgb: 20, 184, 166;
+            --accent: var(--theme-500);
             --accent-2: #f59e0b;
             --danger: #fb7185;
             --shadow: 0 20px 60px rgba(0,0,0,0.45);
         }
         body {
-            background: radial-gradient(900px 540px at 15% -10%, rgba(20,184,166,0.2), transparent 55%),
+            background: radial-gradient(900px 540px at 15% -10%, rgba(var(--theme-rgb),0.2), transparent 55%),
                         radial-gradient(800px 520px at 85% 0%, rgba(245,158,11,0.15), transparent 60%),
                         linear-gradient(180deg, var(--bg-1), var(--bg-2));
             color: var(--text);
@@ -65,8 +71,8 @@
         .prose { font-size: 0.96rem; line-height: 1.75; color: #e5e7eb; max-width: none; white-space: pre-wrap; }
         .prose pre { background: #0a0f16 !important; padding: 0 !important; overflow-x: auto; border: none !important; border-radius: 0 !important; margin: 0.6em 0; white-space: pre; }
         .prose code { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.9em; background: transparent !important; padding: 1em !important; display: block; line-height: 1.55; }
-        .prose :not(pre) > code { background: rgba(20,184,166,0.14) !important; padding: 0.2rem 0.4rem !important; border-radius: 0.4rem !important; color: #ccfbf1 !important; display: inline; }
-        .prose a { color: #5eead4; text-decoration: underline; }
+        .prose :not(pre) > code { background: rgba(var(--theme-rgb),0.14) !important; padding: 0.2rem 0.4rem !important; border-radius: 0.4rem !important; color: #ccfbf1 !important; display: inline; }
+        .prose a { color: var(--theme-300); text-decoration: underline; }
         .prose img { max-width: 320px; width: 100%; height: auto; border-radius: 0.7rem; border: 1px solid rgba(148,163,184,0.25); background: #0a0f16; display: block; cursor: zoom-in; }
         .prose img.chat-image { max-width: 320px; width: 100%; height: auto; object-fit: contain; }
         
@@ -78,15 +84,15 @@
 
         /* Thinking UI */
         .thought-container { margin-bottom: 1rem; border: 1px solid var(--line); border-radius: 0.75rem; background-color: #0c1420; overflow: hidden; box-shadow: var(--shadow); }
-        .thought-header { background: rgba(20,184,166,0.12); padding: 0.55rem 0.85rem; font-size: 0.75rem; color: #99f6e4; display: flex; align-items: center; gap: 0.5rem; font-weight: 600; cursor: pointer; transition: background-color 0.2s; user-select: none; }
-        .thought-header:hover { background: rgba(20,184,166,0.2); color: #e2e8f0; }
+        .thought-header { background: rgba(var(--theme-rgb),0.12); padding: 0.55rem 0.85rem; font-size: 0.75rem; color: var(--theme-200); display: flex; align-items: center; gap: 0.5rem; font-weight: 600; cursor: pointer; transition: background-color 0.2s; user-select: none; }
+        .thought-header:hover { background: rgba(var(--theme-rgb),0.2); color: #e2e8f0; }
         .thought-content { padding: 0.85rem; font-size: 0.85rem; color: #cbd5f5; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; max-height: 400px; overflow-y: auto; display: block; background-color: #0b111a; border-top: 1px solid rgba(148,163,184,0.2); transition: max-height 0.35s ease, opacity 0.25s ease, padding 0.25s ease; }
         .thought-content.collapsed { max-height: 0; opacity: 0; padding: 0; overflow: hidden; }
         
         /* Search UI */
         .search-box { margin-bottom: 0.5rem; padding: 0.55rem 0.8rem; background: #0b121a; border: 1px solid var(--line); border-radius: 0.65rem; display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: #94a3b8; display: none; }
         .search-box.visible { display: flex; }
-        .search-box.searching { border-color: rgba(20,184,166,0.6); color: #5eead4; }
+        .search-box.searching { border-color: rgba(var(--theme-rgb),0.6); color: var(--theme-300); }
         .search-box i { width: 16px; text-align: center; }
 
         /* Python Execution UI */
@@ -98,10 +104,10 @@
         
         /* Quote UI */
         #quote-popover { background: #0b121a; color: #e2e8f0; border: 1px solid var(--line); padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; display: none; z-index: 100; box-shadow: var(--shadow); }
-        #quote-popover:hover { background: rgba(20,184,166,0.18); }
+        #quote-popover:hover { background: rgba(var(--theme-rgb),0.18); }
         #quote-bar { display: none; background: #0b121a; border-top: 1px solid var(--line); padding: 8px 12px; border-radius: 10px 10px 0 0; font-size: 12px; color: #cbd5f5; position: relative; margin-bottom: -1px; }
         #quote-bar.visible { display: flex; align-items: center; justify-content: space-between; }
-        .quote-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90%; opacity: 0.8; font-style: italic; border-left: 3px solid #3b82f6; padding-left: 8px; }
+        .quote-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90%; opacity: 0.8; font-style: italic; border-left: 3px solid var(--theme-500); padding-left: 8px; }
         
         /* Messages */
         .message-bubble { max-width: 90%; position: relative; word-wrap: break-word; border: 1px solid rgba(148,163,184,0.16); box-shadow: var(--shadow); backdrop-filter: blur(6px); }
@@ -110,11 +116,14 @@
         .msg-controls { opacity: 0; transition: opacity 0.2s; position: absolute; top: -12px; right: 0; display: flex; gap: 6px; }
         .message-group:hover .msg-controls { opacity: 1; }
         .ctrl-btn { background: #0b121a; color: #9aa3b2; border: 1px solid var(--line); border-radius: 6px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 10px; transition: all 0.2s; }
-        .ctrl-btn:hover { background: rgba(20,184,166,0.18); color: #e2e8f0; }
+        .ctrl-btn:hover { background: rgba(var(--theme-rgb),0.18); color: #e2e8f0; }
         
         #debug-console { position: fixed; bottom: 0; right: 0; width: 100%; height: 200px; background: rgba(0,0,0,0.95); color: #0f0; font-family: monospace; font-size: 11px; overflow-y: auto; z-index: 9999; padding: 10px; border-top: 1px solid #444; display: none; }
         .welcome-btn { width: 100%; text-align: left; border: 1px solid var(--line); background: #0b121a; }
-        .gem-item.active { background-color: rgba(20,184,166,0.18); border-left: 3px solid var(--accent); }
+        .gem-item.active { background-color: rgba(var(--theme-rgb),0.18); border-left: 3px solid var(--accent); }
+        .theme-swatch { width: 22px; height: 22px; border-radius: 999px; border: 2px solid rgba(148,163,184,0.4); cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+        .theme-swatch:hover { transform: translateY(-1px); box-shadow: 0 0 0 2px rgba(var(--theme-rgb),0.35); }
+        .theme-swatch.active { box-shadow: 0 0 0 2px rgba(var(--theme-rgb),0.6); border-color: rgba(255,255,255,0.6); }
 
         /* Alpha Bar Animation */
         #alpha-bar { transition: all 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55); transform-origin: center center; }
@@ -147,10 +156,10 @@
         .btn-modern:hover { transform: translateY(-1px); box-shadow: 0 16px 30px rgba(2,6,23,0.45); }
         .btn-glass { background: rgba(11,18,26,0.75); }
         .btn-primary {
-            background: linear-gradient(135deg, #14b8a6, #0ea5a4);
+            background: linear-gradient(135deg, var(--theme-500), var(--theme-600));
             color: #041014;
-            border-color: rgba(20,184,166,0.5);
-            box-shadow: 0 16px 32px rgba(20,184,166,0.25);
+            border-color: rgba(var(--theme-rgb),0.5);
+            box-shadow: 0 16px 32px rgba(var(--theme-rgb),0.25);
         }
         .btn-warn {
             background: linear-gradient(135deg, #f59e0b, #f97316);
@@ -176,9 +185,9 @@
             100% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; } 
         }
         @keyframes sendBtnPop { 
-            0% { transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(59, 130, 246, 0); } 
-            40% { transform: translateY(-2px) scale(1.04); box-shadow: 0 8px 18px rgba(59, 130, 246, 0.25); } 
-            100% { transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(59, 130, 246, 0); } 
+            0% { transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(var(--theme-rgb), 0); } 
+            40% { transform: translateY(-2px) scale(1.04); box-shadow: 0 8px 18px rgba(var(--theme-rgb), 0.25); } 
+            100% { transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(var(--theme-rgb), 0); } 
         }
         .turnstile-box { position: fixed; bottom: 12px; right: 12px; z-index: 120; }
 
@@ -203,13 +212,13 @@
 
         /* Layout polish */
         #sidebar { background: linear-gradient(180deg, rgba(11,17,26,0.96), rgba(8,12,18,0.96)); border-right: 1px solid var(--line); }
-        #chat-container { background: radial-gradient(800px 420px at 50% 0%, rgba(20,184,166,0.08), transparent 60%); }
+        #chat-container { background: radial-gradient(800px 420px at 50% 0%, rgba(var(--theme-rgb),0.08), transparent 60%); }
         #settings-modal > div, #model-modal > div, #gem-modal > div { border: 1px solid var(--line); box-shadow: var(--shadow); }
         #prompt-input { background: #0b121a; border: 1px solid var(--line); }
-        #prompt-input:focus { box-shadow: 0 0 0 2px rgba(20,184,166,0.25); }
-        #send-btn { box-shadow: 0 12px 26px rgba(20,184,166,0.28); border: 1px solid rgba(20,184,166,0.4); background: linear-gradient(135deg, #14b8a6, #0ea5a4); }
-        #sts-panel { background: radial-gradient(120% 120% at 50% 0%, rgba(20,184,166,0.18), rgba(11,18,26,0.7)); border: 1px solid rgba(20,184,166,0.25); }
-        #sts-mic-btn { box-shadow: 0 16px 30px rgba(20,184,166,0.22); border: 1px solid rgba(20,184,166,0.35); }
+        #prompt-input:focus { box-shadow: 0 0 0 2px rgba(var(--theme-rgb),0.25); }
+        #send-btn { box-shadow: 0 12px 26px rgba(var(--theme-rgb),0.28); border: 1px solid rgba(var(--theme-rgb),0.4); background: linear-gradient(135deg, var(--theme-500), var(--theme-600)); }
+        #sts-panel { background: radial-gradient(120% 120% at 50% 0%, rgba(var(--theme-rgb),0.18), rgba(11,18,26,0.7)); border: 1px solid rgba(var(--theme-rgb),0.25); }
+        #sts-mic-btn { box-shadow: 0 16px 30px rgba(var(--theme-rgb),0.22); border: 1px solid rgba(var(--theme-rgb),0.35); }
         #sts-mic-btn.animate-pulse { box-shadow: 0 0 0 6px rgba(251,113,133,0.18), 0 16px 30px rgba(251,113,133,0.25); }
         #upload-btn, #mic-btn { border: 1px solid var(--line); }
         #send-btn, #new-chat-btn, #upload-select-btn, #save-gem-btn, #save-settings-btn,
@@ -221,10 +230,10 @@
             box-shadow: 0 12px 24px rgba(2,6,23,0.35);
         }
         #new-chat-btn, #send-btn, #upload-select-btn, #save-gem-btn, #save-settings-btn, #fb-submit {
-            background: linear-gradient(135deg, #14b8a6, #0ea5a4) !important;
+            background: linear-gradient(135deg, var(--theme-500), var(--theme-600)) !important;
             color: #041014 !important;
-            border-color: rgba(20,184,166,0.5);
-            box-shadow: 0 16px 32px rgba(20,184,166,0.25);
+            border-color: rgba(var(--theme-rgb),0.5);
+            box-shadow: 0 16px 32px rgba(var(--theme-rgb),0.25);
         }
         #upload-btn, #mic-btn, #upload-clear-btn, #easy-login-cancel, #session-refresh-btn {
             background: rgba(11,18,26,0.75) !important;
@@ -244,28 +253,44 @@
         }
         #auto-search-off-btn, #sts-cancel-btn { border-radius: 999px; }
         #send-btn, #upload-btn, #mic-btn { border-radius: 16px; }
-        #mobile-new-chat-btn { border-radius: 12px; background: rgba(20,184,166,0.18); }
+        #mobile-new-chat-btn { border-radius: 12px; background: rgba(var(--theme-rgb),0.18); }
         #edit-bar { border: 1px solid var(--line); background: rgba(11,18,26,0.8); }
-        .message-bubble.bg-blue-600 { background: linear-gradient(180deg, #14b8a6, #0ea5a4); color: #041014; }
+        .message-bubble.bg-blue-600 { background: linear-gradient(180deg, var(--theme-500), var(--theme-600)); color: #041014; }
         .message-bubble.bg-gray-700 { background: linear-gradient(180deg, #111827, #0b111a); }
         #sidebar .bg-gray-700 { background: rgba(11,18,26,0.85) !important; border: 1px solid var(--line); }
         #sidebar button, #sidebar a { transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease; }
         #sidebar button:hover, #sidebar a:hover { transform: translateY(-1px); }
         #thread-list > div { border: 1px solid transparent; }
-        #thread-list > div:hover { border-color: rgba(20,184,166,0.3); background: rgba(11,18,26,0.8); }
+        #thread-list > div:hover { border-color: rgba(var(--theme-rgb),0.3); background: rgba(11,18,26,0.8); }
         #gem-list .gem-item { border: 1px solid var(--line); background: rgba(11,18,26,0.7); }
-        #gem-list .gem-item:hover { background: rgba(20,184,166,0.1); }
+        #gem-list .gem-item:hover { background: rgba(var(--theme-rgb),0.1); }
         #model-selector-btn { border: 1px solid var(--line); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02); }
         #file-preview { border: 1px solid var(--line); background: rgba(11,18,26,0.7); }
-        #drop-overlay { background: rgba(11,18,26,0.92); border: 2px dashed rgba(20,184,166,0.6); }
+        #drop-overlay { background: rgba(11,18,26,0.92); border: 2px dashed rgba(var(--theme-rgb),0.6); }
         #upload-dropzone { border: 1px dashed rgba(148,163,184,0.5); background: rgba(11,18,26,0.6); }
-        #upload-dropzone.dragover { border-color: rgba(20,184,166,0.9); background: rgba(20,184,166,0.18); }
+        #upload-dropzone.dragover { border-color: rgba(var(--theme-rgb),0.9); background: rgba(var(--theme-rgb),0.18); }
         .upload-row { border: 1px solid rgba(148,163,184,0.18); }
-        .upload-progress { background: rgba(20,184,166,0.25); }
-        .upload-progress > div { background: linear-gradient(90deg, #5eead4, #14b8a6); }
+        .upload-progress { background: rgba(var(--theme-rgb),0.25); }
+        .upload-progress > div { background: linear-gradient(90deg, var(--theme-300), var(--theme-500)); }
         #settings-modal input, #settings-modal textarea, #settings-modal select { background: #0b121a; border: 1px solid var(--line); }
-        #settings-modal input:focus, #settings-modal textarea:focus, #settings-modal select:focus { box-shadow: 0 0 0 2px rgba(20,184,166,0.2); outline: none; }
+        #settings-modal input:focus, #settings-modal textarea:focus, #settings-modal select:focus { box-shadow: 0 0 0 2px rgba(var(--theme-rgb),0.2); outline: none; }
         #model-modal input, #gem-modal input, #gem-modal textarea { background: #0b121a; border: 1px solid var(--line); }
+        .text-blue-200 { color: var(--theme-200) !important; }
+        .text-blue-300, .text-blue-400 { color: var(--theme-300) !important; }
+        .text-blue-500 { color: var(--theme-500) !important; }
+        .text-blue-600 { color: var(--theme-600) !important; }
+        .text-cyan-400, .text-teal-400 { color: var(--theme-300) !important; }
+        .bg-blue-500 { background-color: var(--theme-500) !important; }
+        .bg-blue-600 { background-color: var(--theme-600) !important; }
+        .bg-blue-700 { background-color: var(--theme-700) !important; }
+        .bg-blue-900\/80 { background-color: rgba(var(--theme-rgb),0.2) !important; }
+        .border-blue-400, .border-blue-500 { border-color: var(--theme-500) !important; }
+        .border-blue-600 { border-color: var(--theme-600) !important; }
+        .border-blue-700 { border-color: var(--theme-700) !important; }
+        .hover\:bg-blue-500:hover { background-color: var(--theme-500) !important; }
+        .hover\:bg-blue-600:hover { background-color: var(--theme-600) !important; }
+        .hover\:text-blue-300:hover, .hover\:text-blue-400:hover { color: var(--theme-300) !important; }
+        .accent-blue-500, .accent-cyan-400 { accent-color: var(--theme-500) !important; }
         .fade-in { animation: fadeIn 0.25s ease-out forwards; }
         .modal-animate { animation: fadeIn 0.2s ease-out forwards; }
         .message-group { animation: fadeIn 0.25s ease-out forwards; }
@@ -277,16 +302,16 @@
         .model-tag-btn:hover { transform: translateY(-1px); }
         ::-webkit-scrollbar { height: 10px; width: 10px; }
         ::-webkit-scrollbar-track { background: rgba(15,23,42,0.6); }
-        ::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.3); border-radius: 999px; border: 2px solid rgba(15,23,42,0.6); }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(59,130,246,0.45); }
+        ::-webkit-scrollbar-thumb { background: rgba(var(--theme-rgb),0.3); border-radius: 999px; border: 2px solid rgba(15,23,42,0.6); }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(var(--theme-rgb),0.45); }
 
         /* Button & checkbox polish */
         .btn-hover { border: 1px solid rgba(255,255,255,0.08); background-image: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.08)); }
         .btn-hover:hover { box-shadow: 0 8px 20px rgba(0,0,0,0.25); }
-        button:focus-visible { outline: 2px solid rgba(59,130,246,0.6); outline-offset: 2px; }
+        button:focus-visible { outline: 2px solid rgba(var(--theme-rgb),0.6); outline-offset: 2px; }
         input[type="checkbox"] { appearance: none; width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.18); background: #0b1220; display: inline-grid; place-content: center; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04); }
-        input[type="checkbox"]::after { content: ""; width: 8px; height: 8px; transform: scale(0); transition: transform 120ms ease-in-out; background: linear-gradient(180deg, #60a5fa, #3b82f6); border-radius: 2px; }
-        input[type="checkbox"]:checked { border-color: rgba(59,130,246,0.6); box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+        input[type="checkbox"]::after { content: ""; width: 8px; height: 8px; transform: scale(0); transition: transform 120ms ease-in-out; background: linear-gradient(180deg, var(--theme-300), var(--theme-600)); border-radius: 2px; }
+        input[type="checkbox"]:checked { border-color: rgba(var(--theme-rgb),0.6); box-shadow: 0 0 0 2px rgba(var(--theme-rgb),0.2); }
         input[type="checkbox"]:checked::after { transform: scale(1); }
 
         /* Mobile */
@@ -603,7 +628,7 @@
         <button id="btn-tab-feedback" class="px-4 py-2 text-gray-400 hover:text-white border-b-2 border-transparent whitespace-nowrap" onclick="switchTab('feedback')">フィードバック</button>
     </div>
     
-    <div class="overflow-y-auto pr-2 space-y-4 flex-1 animate-fadeIn" id="tab-general"><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">APIキー</h3><div class="space-y-3"><div><label class="text-xs text-gray-500 block">OpenAI API Key</label><input type="password" id="set-openai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">Gemini API Key</label><input type="password" id="set-gemini" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">xAI API Key</label><input type="password" id="set-xai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">Google API Key (TTS)</label><input type="password" id="set-google-key" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">Google Cloud Project ID (TTS)</label><input type="text" id="set-google-project" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">音声設定</h3><div class="space-y-2"><label class="text-xs text-gray-500 block">STTモデル</label><select id="set-stt-model" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"><option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe</option><option value="gpt-4o-transcribe">gpt-4o-transcribe</option><option value="gpt-4o-transcribe-diarize">gpt-4o-transcribe-diarize</option><option value="whisper-1">whisper-1 (latest)</option></select><div class="text-[10px] text-gray-500">マイク入力の文字起こしモデルを選択します。</div></div></div><div><label class="text-xs text-gray-500 block mb-1">デフォルト システムプロンプト</label><textarea id="sys-prompt-text" class="w-full h-32 bg-gray-900 border-gray-600 rounded p-3 text-sm text-white"></textarea></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">送信設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-enter-to-send" class="accent-blue-500 w-3 h-3"><span>Enterで送信（改行はShift+Enter）</span></label></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">チャット既定値</h3><div class="space-y-3 text-xs text-gray-300"><label class="flex items-center gap-2"><input type="checkbox" id="set-use-last-settings" class="accent-blue-500 w-3 h-3"><span>前回の設定を保存して継続する</span></label><div class="text-[10px] text-gray-500">ONの場合は下の「デフォルト設定」は無視され、直近の送信時設定を引き継ぎます。</div><div class="flex flex-wrap gap-3 items-center"><label class="flex items-center gap-1"><input type="checkbox" id="set-default-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-python" class="accent-yellow-500 w-3 h-3"><span class="text-yellow-200">Python</span></label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-thinking" class="accent-purple-500 w-3 h-3"><span class="text-purple-300">Thinking</span></label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-sys-prompt" class="accent-green-500 w-3 h-3"><span class="text-green-300">SysPrompt</span></label></div><div class="flex flex-wrap gap-3 items-center"><label class="text-[10px] text-gray-400">Thinking Level</label><select id="set-default-thinking-level" class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><option value="minimal">Min</option><option value="low">Low</option><option value="medium">Mid</option><option value="high">High</option></select><label class="text-[10px] text-gray-400">Budget</label><input id="set-default-thinking-budget" type="number" min="0" max="32768" step="256" value="4096" class="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-[10px] text-white"><label class="text-[10px] text-gray-400">Effort</label><select id="set-default-reasoning-effort" class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><option value="none">None</option><option value="low">Low</option><option value="medium">Med</option><option value="high">High</option><option value="xhigh">XHigh</option></select><label class="text-[10px] text-gray-400">Safety</label><select id="set-default-safety" class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><option value="default">Default</option><option value="none">None</option></select></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">検索設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-auto-search-links" class="accent-yellow-500 w-3 h-3"><span>Xリンク検出時に検索ON＋Grok 4 Fast Reasoningへ自動切替</span></label><div class="text-[10px] text-gray-500 mt-1">OFFにすると、リンク検出時は毎回確認します。</div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">簡易ログイン</h3><div class="space-y-3 text-xs text-gray-300"><div class="text-[10px] text-red-300">警告: 有効期間中は一時パスワードでログインでき、2FAはスキップされます。ログイン後は自動で無効化されます。</div><div class="flex items-center gap-2"><input type="number" id="easy-login-mins" value="5" min="1" max="120" class="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><span>分間有効</span><button id="easy-login-generate" class="ml-auto bg-orange-600 hover:bg-orange-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">一時パスワード発行</button><button id="easy-login-cancel" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">発行をキャンセル</button></div><div id="easy-login-result" class="hidden bg-gray-800 border border-orange-500/40 rounded p-2 text-[11px] text-orange-200"><div>一時パスワード: <span id="easy-login-code" class="font-mono select-all"></span></div><div>有効期限: <span id="easy-login-exp" class="font-mono"></span></div></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">キャッシュ設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-use-sw-cache" class="accent-blue-500 w-3 h-3"><span>高速キャッシュ（Service Worker）を有効化</span></label><div class="text-[10px] text-gray-500 mt-1">ページ読み込み時に更新確認を行い、差分があればキャッシュを更新します。</div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">アカウント設定</h3><div class="space-y-3"><div><label class="text-xs text-gray-500 block">ユーザー名変更</label><input type="text" id="set-username" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄"></div><div><label class="text-xs text-gray-500 block">パスワード変更</label><input type="password" id="set-password" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄"></div></div></div></div><div class="overflow-y-auto pr-2 space-y-4 flex-1 hidden animate-fadeIn" id="tab-security"><div id="mig-status-box" class="hidden mb-4 p-3 bg-blue-900/30 border border-blue-500/50 rounded text-xs text-blue-200"><i class="fas fa-sync fa-spin mr-2"></i> 暗号化データの移行処理中です...<div id="mig-progress-text" class="mt-1 text-[10px] text-blue-200/80"></div><div class="w-full bg-blue-950/40 h-2 rounded mt-2 overflow-hidden"><div id="mig-progress-bar" class="h-2 bg-blue-400/80" style="width:0%"></div></div></div>{% if is_admin %}<div class="bg-gray-900 p-4 rounded border border-gray-700"><div class="flex items-center justify-between"><div><div class="font-bold text-sm text-red-300">Bot Detection</div><div class="text-xs text-gray-500">すべての操作を監視し、高速クリックや機械的な操作を検出します。</div></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-bot-detect" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div></label></div><div id="bot-status" class="text-[11px] text-gray-400 mt-2 hidden"></div><div class="text-[10px] text-gray-500 mt-2">検出が有効な場合、疑わしい操作が続くとアカウントがBANされます。</div></div>{% endif %}{% if is_admin %}<div class="bg-gray-900 p-4 rounded border border-yellow-700/50"><div class="font-bold text-sm text-yellow-300 mb-2">管理者: Bot Detection 管理</div><div class="flex items-center justify-between"><div class="text-xs text-gray-500">全体で検出をON/OFF</div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-bot-detect-global" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div></label></div><div class="mt-3 flex items-center gap-2"><input type="text" id="bot-unban-username" class="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white" placeholder="BAN解除するユーザー名"><button id="bot-unban-btn" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">BAN解除</button></div><div id="bot-unban-result" class="text-[11px] text-gray-400 mt-2 hidden"></div><div class="mt-3"><button id="bot-admin-open" class="w-full bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded text-xs font-bold btn-hover">アカウント管理</button></div></div>{% endif %}<div class="bg-gray-900 p-4 rounded border border-gray-700"><div class="flex items-center justify-between"><div><div class="font-bold text-sm">E2EE (End-to-End Encryption)</div><div class="text-xs text-gray-500">チャット履歴とファイルを暗号化します。</div></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-e2ee" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div></label></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">ログインセッション</h3><div class="text-xs text-gray-500">現在ログイン中の端末を確認し、不要なセッションをログアウトできます。</div><div class="flex flex-wrap gap-2 mt-3"><button id="session-refresh-btn" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">更新</button><button id="session-revoke-others-btn" class="bg-orange-600 hover:bg-orange-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">他のセッションをログアウト</button><button id="session-revoke-all-btn" class="bg-red-700 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">全セッションを強制ログアウト</button></div><div id="session-list" class="mt-3 space-y-2"></div></div><div class="bg-red-900/20 p-4 rounded border border-red-800 mt-4"><h3 class="text-sm font-bold text-red-500 mb-2">アカウント削除</h3><button id="delete-account-btn" class="w-full bg-red-800/50 hover:bg-red-700 text-red-200 border border-red-600 py-2 rounded text-sm transition btn-hover">アカウントを完全に削除</button></div></div>
+    <div class="overflow-y-auto pr-2 space-y-4 flex-1 animate-fadeIn" id="tab-general"><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">APIキー</h3><div class="space-y-3"><div><label class="text-xs text-gray-500 block">OpenAI API Key</label><input type="password" id="set-openai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">Gemini API Key</label><input type="password" id="set-gemini" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">xAI API Key</label><input type="password" id="set-xai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">Google API Key (TTS)</label><input type="password" id="set-google-key" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div><div><label class="text-xs text-gray-500 block">Google Cloud Project ID (TTS)</label><input type="text" id="set-google-project" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">音声設定</h3><div class="space-y-2"><label class="text-xs text-gray-500 block">STTモデル</label><select id="set-stt-model" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"><option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe</option><option value="gpt-4o-transcribe">gpt-4o-transcribe</option><option value="gpt-4o-transcribe-diarize">gpt-4o-transcribe-diarize</option><option value="whisper-1">whisper-1 (latest)</option></select><div class="text-[10px] text-gray-500">マイク入力の文字起こしモデルを選択します。</div></div></div><div><label class="text-xs text-gray-500 block mb-1">デフォルト システムプロンプト</label><textarea id="sys-prompt-text" class="w-full h-32 bg-gray-900 border-gray-600 rounded p-3 text-sm text-white"></textarea></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">送信設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-enter-to-send" class="accent-blue-500 w-3 h-3"><span>Enterで送信（改行はShift+Enter）</span></label></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">チャット既定値</h3><div class="space-y-3 text-xs text-gray-300"><label class="flex items-center gap-2"><input type="checkbox" id="set-use-last-settings" class="accent-blue-500 w-3 h-3"><span>前回の設定を保存して継続する</span></label><div class="text-[10px] text-gray-500">ONの場合は下の「デフォルト設定」は無視され、直近の送信時設定を引き継ぎます。</div><div class="flex flex-wrap gap-3 items-center"><label class="flex items-center gap-1"><input type="checkbox" id="set-default-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-python" class="accent-yellow-500 w-3 h-3"><span class="text-yellow-200">Python</span></label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-thinking" class="accent-purple-500 w-3 h-3"><span class="text-purple-300">Thinking</span></label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-sys-prompt" class="accent-green-500 w-3 h-3"><span class="text-green-300">SysPrompt</span></label></div><div class="flex flex-wrap gap-3 items-center"><label class="text-[10px] text-gray-400">Thinking Level</label><select id="set-default-thinking-level" class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><option value="minimal">Min</option><option value="low">Low</option><option value="medium">Mid</option><option value="high">High</option></select><label class="text-[10px] text-gray-400">Budget</label><input id="set-default-thinking-budget" type="number" min="0" max="32768" step="256" value="4096" class="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-[10px] text-white"><label class="text-[10px] text-gray-400">Effort</label><select id="set-default-reasoning-effort" class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><option value="none">None</option><option value="low">Low</option><option value="medium">Med</option><option value="high">High</option><option value="xhigh">XHigh</option></select><label class="text-[10px] text-gray-400">Safety</label><select id="set-default-safety" class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><option value="default">Default</option><option value="none">None</option></select></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">検索設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-auto-search-links" class="accent-yellow-500 w-3 h-3"><span>Xリンク検出時に検索ON＋Grok 4 Fast Reasoningへ自動切替</span></label><div class="text-[10px] text-gray-500 mt-1">OFFにすると、リンク検出時は毎回確認します。</div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">簡易ログイン</h3><div class="space-y-3 text-xs text-gray-300"><div class="text-[10px] text-red-300">警告: 有効期間中は一時パスワードでログインでき、2FAはスキップされます。ログイン後は自動で無効化されます。</div><div class="flex items-center gap-2"><input type="number" id="easy-login-mins" value="5" min="1" max="120" class="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><span>分間有効</span><button id="easy-login-generate" class="ml-auto bg-orange-600 hover:bg-orange-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">一時パスワード発行</button><button id="easy-login-cancel" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">発行をキャンセル</button></div><div id="easy-login-result" class="hidden bg-gray-800 border border-orange-500/40 rounded p-2 text-[11px] text-orange-200"><div>一時パスワード: <span id="easy-login-code" class="font-mono select-all"></span></div><div>有効期限: <span id="easy-login-exp" class="font-mono"></span></div></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">キャッシュ設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-use-sw-cache" class="accent-blue-500 w-3 h-3"><span>高速キャッシュ（Service Worker）を有効化</span></label><div class="text-[10px] text-gray-500 mt-1">ページ読み込み時に更新確認を行い、差分があればキャッシュを更新します。</div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">テーマ</h3><div class="space-y-3"><div class="flex items-center gap-3"><input type="color" id="set-theme-color" value="#14b8a6" class="w-10 h-10 rounded border border-gray-600 bg-transparent p-0"><input type="text" id="set-theme-color-text" class="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white" placeholder="#14b8a6"><button id="theme-reset-btn" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">リセット</button></div><div class="flex items-center gap-2" id="theme-presets"><button type="button" class="theme-swatch" data-color="#14b8a6" style="background: #14b8a6;"></button><button type="button" class="theme-swatch" data-color="#38bdf8" style="background: #38bdf8;"></button><button type="button" class="theme-swatch" data-color="#a855f7" style="background: #a855f7;"></button><button type="button" class="theme-swatch" data-color="#f97316" style="background: #f97316;"></button><button type="button" class="theme-swatch" data-color="#22c55e" style="background: #22c55e;"></button></div><div class="text-[10px] text-gray-500">主要アクセントカラーを変更します。</div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">アカウント設定</h3><div class="space-y-3"><div><label class="text-xs text-gray-500 block">ユーザー名変更</label><input type="text" id="set-username" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄"></div><div><label class="text-xs text-gray-500 block">パスワード変更</label><input type="password" id="set-password" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄"></div></div></div></div><div class="overflow-y-auto pr-2 space-y-4 flex-1 hidden animate-fadeIn" id="tab-security"><div id="mig-status-box" class="hidden mb-4 p-3 bg-blue-900/30 border border-blue-500/50 rounded text-xs text-blue-200"><i class="fas fa-sync fa-spin mr-2"></i> 暗号化データの移行処理中です...<div id="mig-progress-text" class="mt-1 text-[10px] text-blue-200/80"></div><div class="w-full bg-blue-950/40 h-2 rounded mt-2 overflow-hidden"><div id="mig-progress-bar" class="h-2 bg-blue-400/80" style="width:0%"></div></div></div>{% if is_admin %}<div class="bg-gray-900 p-4 rounded border border-gray-700"><div class="flex items-center justify-between"><div><div class="font-bold text-sm text-red-300">Bot Detection</div><div class="text-xs text-gray-500">すべての操作を監視し、高速クリックや機械的な操作を検出します。</div></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-bot-detect" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div></label></div><div id="bot-status" class="text-[11px] text-gray-400 mt-2 hidden"></div><div class="text-[10px] text-gray-500 mt-2">検出が有効な場合、疑わしい操作が続くとアカウントがBANされます。</div></div>{% endif %}{% if is_admin %}<div class="bg-gray-900 p-4 rounded border border-yellow-700/50"><div class="font-bold text-sm text-yellow-300 mb-2">管理者: Bot Detection 管理</div><div class="flex items-center justify-between"><div class="text-xs text-gray-500">全体で検出をON/OFF</div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-bot-detect-global" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div></label></div><div class="mt-3 flex items-center gap-2"><input type="text" id="bot-unban-username" class="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white" placeholder="BAN解除するユーザー名"><button id="bot-unban-btn" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">BAN解除</button></div><div id="bot-unban-result" class="text-[11px] text-gray-400 mt-2 hidden"></div><div class="mt-3"><button id="bot-admin-open" class="w-full bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded text-xs font-bold btn-hover">アカウント管理</button></div></div>{% endif %}<div class="bg-gray-900 p-4 rounded border border-gray-700"><div class="flex items-center justify-between"><div><div class="font-bold text-sm">E2EE (End-to-End Encryption)</div><div class="text-xs text-gray-500">チャット履歴とファイルを暗号化します。</div></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-e2ee" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div></label></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">ログインセッション</h3><div class="text-xs text-gray-500">現在ログイン中の端末を確認し、不要なセッションをログアウトできます。</div><div class="flex flex-wrap gap-2 mt-3"><button id="session-refresh-btn" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">更新</button><button id="session-revoke-others-btn" class="bg-orange-600 hover:bg-orange-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">他のセッションをログアウト</button><button id="session-revoke-all-btn" class="bg-red-700 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">全セッションを強制ログアウト</button></div><div id="session-list" class="mt-3 space-y-2"></div></div><div class="bg-red-900/20 p-4 rounded border border-red-800 mt-4"><h3 class="text-sm font-bold text-red-500 mb-2">アカウント削除</h3><button id="delete-account-btn" class="w-full bg-red-800/50 hover:bg-red-700 text-red-200 border border-red-600 py-2 rounded text-sm transition btn-hover">アカウントを完全に削除</button></div></div>
 
 
     <!-- 2FA Tab -->
@@ -713,7 +738,64 @@
 
     <script>
         const get = (id) => document.getElementById(id);
+        const THEME_DEFAULT = '#14b8a6';
+        const THEME_STORAGE_KEY = 'theme_color';
+        const normalizeHex = (value) => {
+            if (!value) return null;
+            let v = String(value).trim();
+            if (!v) return null;
+            if (!v.startsWith('#')) v = `#${v}`;
+            if (v.length === 4) v = `#${v[1]}${v[1]}${v[2]}${v[2]}${v[3]}${v[3]}`;
+            if (!/^#[0-9a-fA-F]{6}$/.test(v)) return null;
+            return v.toLowerCase();
+        };
+        const hexToRgb = (hex) => {
+            const h = hex.replace('#', '');
+            const r = parseInt(h.slice(0, 2), 16);
+            const g = parseInt(h.slice(2, 4), 16);
+            const b = parseInt(h.slice(4, 6), 16);
+            return [r, g, b];
+        };
+        const mix = (a, b, p) => Math.round(a + (b - a) * p);
+        const rgbToHex = (r, g, b) => `#${[r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')}`;
+        const deriveTheme = (hex) => {
+            const [r, g, b] = hexToRgb(hex);
+            const light = rgbToHex(mix(r, 255, 0.45), mix(g, 255, 0.45), mix(b, 255, 0.45));
+            const lighter = rgbToHex(mix(r, 255, 0.7), mix(g, 255, 0.7), mix(b, 255, 0.7));
+            const dark = rgbToHex(mix(r, 0, 0.18), mix(g, 0, 0.18), mix(b, 0, 0.18));
+            const darker = rgbToHex(mix(r, 0, 0.32), mix(g, 0, 0.32), mix(b, 0, 0.32));
+            return { base: hex, light, lighter, dark, darker, rgb: `${r}, ${g}, ${b}` };
+        };
+        const applyThemeColor = (value, persist = false) => {
+            const hex = normalizeHex(value) || THEME_DEFAULT;
+            const theme = deriveTheme(hex);
+            const root = document.documentElement;
+            root.style.setProperty('--theme-500', theme.base);
+            root.style.setProperty('--theme-600', theme.dark);
+            root.style.setProperty('--theme-700', theme.darker);
+            root.style.setProperty('--theme-300', theme.light);
+            root.style.setProperty('--theme-200', theme.lighter);
+            root.style.setProperty('--theme-rgb', theme.rgb);
+            if (persist) localStorage.setItem(THEME_STORAGE_KEY, hex);
+        };
+        const syncThemeInputs = (value) => {
+            const hex = normalizeHex(value) || THEME_DEFAULT;
+            const colorInput = get('set-theme-color');
+            const textInput = get('set-theme-color-text');
+            if (colorInput) colorInput.value = hex;
+            if (textInput) textInput.value = hex;
+            const swatches = document.querySelectorAll('#theme-presets .theme-swatch');
+            swatches.forEach((btn) => {
+                const c = normalizeHex(btn.getAttribute('data-color'));
+                btn.classList.toggle('active', c === hex);
+            });
+        };
+        const initThemeFromStorage = () => {
+            const stored = normalizeHex(localStorage.getItem(THEME_STORAGE_KEY));
+            if (stored) applyThemeColor(stored, false);
+        };
         const MODAL_ANIM_MS = 260;
+        initThemeFromStorage();
         const showModal = (id) => {
             const el = get(id);
             if (!el) return;
@@ -1947,6 +2029,9 @@
             };
             apiFetch("{{ url_for('handle_settings', _=1) }}").then(r => r.json()).then(d => {
                 applyChatDefaults(d);
+                if (d && d.theme_color) {
+                    applyThemeColor(d.theme_color, true);
+                }
                 const sysChk = get('enable-sys-prompt');
                 if (sysChk && d && d.system_prompt && String(d.system_prompt).trim()) {
                     if (!sysChk.disabled && !d.default_enable_system_prompt && !d.use_last_chat_settings) sysChk.checked = true;
@@ -2000,6 +2085,12 @@
                         } else {
                             botStatus.classList.add('hidden');
                         }
+                    }
+                    if (d && d.theme_color) {
+                        applyThemeColor(d.theme_color, true);
+                        syncThemeInputs(d.theme_color);
+                    } else {
+                        syncThemeInputs(localStorage.getItem(THEME_STORAGE_KEY) || THEME_DEFAULT);
                     }
                     if(get('set-username')) get('set-username').value = d.username; 
                     
@@ -2059,11 +2150,47 @@
                     history.back();
                 }
             };
+            const bindThemeControls = () => {
+                const colorInput = get('set-theme-color');
+                const textInput = get('set-theme-color-text');
+                const resetBtn = get('theme-reset-btn');
+                const swatches = document.querySelectorAll('#theme-presets .theme-swatch');
+                const applyFromValue = (value, persist = true) => {
+                    const hex = normalizeHex(value);
+                    if (!hex) return;
+                    applyThemeColor(hex, persist);
+                    syncThemeInputs(hex);
+                };
+                if (colorInput) {
+                    colorInput.addEventListener('input', () => applyFromValue(colorInput.value, true));
+                }
+                if (textInput) {
+                    textInput.addEventListener('change', () => {
+                        const hex = normalizeHex(textInput.value);
+                        if (!hex) {
+                            syncThemeInputs(localStorage.getItem(THEME_STORAGE_KEY) || THEME_DEFAULT);
+                            return;
+                        }
+                        applyFromValue(hex, true);
+                    });
+                    textInput.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            textInput.blur();
+                        }
+                    });
+                }
+                if (resetBtn) resetBtn.onclick = () => applyFromValue(THEME_DEFAULT, true);
+                swatches.forEach((btn) => {
+                    btn.addEventListener('click', () => applyFromValue(btn.getAttribute('data-color'), true));
+                });
+            };
             get('settings-btn').onclick = () => { 
                 openSettingsModal();
             }; 
             get('close-settings-btn').onclick = () => closeSettingsModal(); 
-            get('save-settings-btn').onclick = async () => { const uEl = get('set-username'); const pEl = get('set-password'); const b = { system_prompt:get('sys-prompt-text').value, openai_key:get('set-openai').value, gemini_key:get('set-gemini').value, xai_key:get('set-xai').value, google_key: get('set-google-key') ? get('set-google-key').value : null, google_project: get('set-google-project') ? get('set-google-project').value : null, stt_model: get('set-stt-model') ? get('set-stt-model').value : null, enter_to_send: get('set-enter-to-send') ? get('set-enter-to-send').checked : false, use_sw_cache: get('set-use-sw-cache') ? get('set-use-sw-cache').checked : false, auto_search_on_links: get('set-auto-search-links') ? get('set-auto-search-links').checked : true, use_last_chat_settings: get('set-use-last-settings') ? get('set-use-last-settings').checked : false, default_enable_search: get('set-default-search') ? get('set-default-search').checked : false, default_enable_python: get('set-default-python') ? get('set-default-python').checked : false, default_enable_thinking: get('set-default-thinking') ? get('set-default-thinking').checked : false, default_thinking_level: get('set-default-thinking-level') ? get('set-default-thinking-level').value : null, default_thinking_budget: get('set-default-thinking-budget') ? get('set-default-thinking-budget').value : null, default_reasoning_effort: get('set-default-reasoning-effort') ? get('set-default-reasoning-effort').value : null, default_enable_system_prompt: get('set-default-sys-prompt') ? get('set-default-sys-prompt').checked : false, default_safety_setting: get('set-default-safety') ? get('set-default-safety').value : null, enable_e2ee: get('set-e2ee').checked, bot_detection_enabled: get('set-bot-detect') ? get('set-bot-detect').checked : true, bot_detection_global_enabled: get('set-bot-detect-global') ? get('set-bot-detect-global').checked : null, passkey_only_login: get('set-passkey-only-login') ? get('set-passkey-only-login').checked : false, new_username: uEl ? uEl.value : null, new_password: pEl ? pEl.value : null }; const res = await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}); if (res.ok) { location.reload(); } else { let d = {}; try { d = await res.json(); } catch (e) {} showToast(d.error || "設定の保存に失敗しました", "error", true); } };
+            bindThemeControls();
+            get('save-settings-btn').onclick = async () => { const uEl = get('set-username'); const pEl = get('set-password'); const b = { system_prompt:get('sys-prompt-text').value, openai_key:get('set-openai').value, gemini_key:get('set-gemini').value, xai_key:get('set-xai').value, google_key: get('set-google-key') ? get('set-google-key').value : null, google_project: get('set-google-project') ? get('set-google-project').value : null, theme_color: normalizeHex(get('set-theme-color-text') ? get('set-theme-color-text').value : '') || THEME_DEFAULT, stt_model: get('set-stt-model') ? get('set-stt-model').value : null, enter_to_send: get('set-enter-to-send') ? get('set-enter-to-send').checked : false, use_sw_cache: get('set-use-sw-cache') ? get('set-use-sw-cache').checked : false, auto_search_on_links: get('set-auto-search-links') ? get('set-auto-search-links').checked : true, use_last_chat_settings: get('set-use-last-settings') ? get('set-use-last-settings').checked : false, default_enable_search: get('set-default-search') ? get('set-default-search').checked : false, default_enable_python: get('set-default-python') ? get('set-default-python').checked : false, default_enable_thinking: get('set-default-thinking') ? get('set-default-thinking').checked : false, default_thinking_level: get('set-default-thinking-level') ? get('set-default-thinking-level').value : null, default_thinking_budget: get('set-default-thinking-budget') ? get('set-default-thinking-budget').value : null, default_reasoning_effort: get('set-default-reasoning-effort') ? get('set-default-reasoning-effort').value : null, default_enable_system_prompt: get('set-default-sys-prompt') ? get('set-default-sys-prompt').checked : false, default_safety_setting: get('set-default-safety') ? get('set-default-safety').value : null, enable_e2ee: get('set-e2ee').checked, bot_detection_enabled: get('set-bot-detect') ? get('set-bot-detect').checked : true, bot_detection_global_enabled: get('set-bot-detect-global') ? get('set-bot-detect-global').checked : null, passkey_only_login: get('set-passkey-only-login') ? get('set-passkey-only-login').checked : false, new_username: uEl ? uEl.value : null, new_password: pEl ? pEl.value : null }; const res = await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}); if (res.ok) { location.reload(); } else { let d = {}; try { d = await res.json(); } catch (e) {} showToast(d.error || "設定の保存に失敗しました", "error", true); } };
             get('disable-2fa-btn').onclick = async () => { if(confirm("Disable 2FA?")) { await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({disable_2fa: true})}); location.reload(); } };
             if (get('bot-unban-btn')) {
                 get('bot-unban-btn').onclick = async () => {

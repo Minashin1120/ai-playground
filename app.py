@@ -537,6 +537,7 @@ class User(UserMixin, db.Model):
     stt_model = db.Column(db.String(64), default="gpt-4o-mini-transcribe")
     enter_to_send = db.Column(db.Boolean, default=False)
     use_sw_cache = db.Column(db.Boolean, default=False)
+    theme_color = db.Column(db.String(16), default="")
     auto_search_on_links = db.Column(db.Boolean, default=True)
     use_last_chat_settings = db.Column(db.Boolean, default=False)
     default_enable_search = db.Column(db.Boolean, default=False)
@@ -3024,6 +3025,22 @@ def bot_update():
     safe_db_commit()
     return jsonify({'status': 'ok', 'username': username, 'action': action})
 
+def normalize_theme_color(value):
+    if not value:
+        return ""
+    v = str(value).strip()
+    if not v:
+        return ""
+    if not v.startswith('#'):
+        v = f"#{v}"
+    if len(v) == 4:
+        v = f"#{v[1]}{v[1]}{v[2]}{v[2]}{v[3]}{v[3]}"
+    if len(v) != 7:
+        return ""
+    if any(c not in "0123456789abcdefABCDEF" for c in v[1:]):
+        return ""
+    return v.lower()
+
 @app.route('/api/settings', methods=['GET', 'POST'])
 @login_required
 def handle_settings():
@@ -3050,6 +3067,7 @@ def handle_settings():
             'stt_model': current_user.stt_model or "gpt-4o-mini-transcribe",
             'enter_to_send': current_user.enter_to_send,
             'use_sw_cache': current_user.use_sw_cache,
+            'theme_color': current_user.theme_color or "",
             'auto_search_on_links': current_user.auto_search_on_links,
             'use_last_chat_settings': current_user.use_last_chat_settings,
             'default_enable_search': current_user.default_enable_search,
@@ -3092,6 +3110,7 @@ def handle_settings():
     if 'stt_model' in d: current_user.stt_model = d['stt_model']
     if 'enter_to_send' in d: current_user.enter_to_send = bool(d['enter_to_send'])
     if 'use_sw_cache' in d: current_user.use_sw_cache = bool(d['use_sw_cache'])
+    if 'theme_color' in d: current_user.theme_color = normalize_theme_color(d.get('theme_color'))
     if 'auto_search_on_links' in d: current_user.auto_search_on_links = bool(d['auto_search_on_links'])
     if 'use_last_chat_settings' in d: current_user.use_last_chat_settings = bool(d['use_last_chat_settings'])
     if 'default_enable_search' in d: current_user.default_enable_search = bool(d['default_enable_search'])
@@ -3745,6 +3764,9 @@ with app.app_context():
     except: pass
     try:
         with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN use_sw_cache BOOLEAN DEFAULT 0"))
+    except: pass
+    try:
+        with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN theme_color VARCHAR(16)"))
     except: pass
     try:
         with db.engine.connect() as conn: conn.execute(text("ALTER TABLE user ADD COLUMN auto_search_on_links BOOLEAN DEFAULT 1"))

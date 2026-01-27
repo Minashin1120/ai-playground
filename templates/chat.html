@@ -839,7 +839,7 @@
             }
             return fetch(url, Object.assign({}, opts, { headers }));
         };
-        let currentThreadId = {{ initial_thread_id|default('null')|tojson }};
+        let currentThreadId = {{ initial_thread_id|default(none)|tojson }};
         if (currentThreadId !== null && currentThreadId !== undefined) {
             currentThreadId = String(currentThreadId);
         }

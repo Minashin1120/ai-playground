@@ -376,7 +376,7 @@ async def _openai_sts_realtime(pcm_bytes, api_key, model_key, voice="alloy", spe
     }
     audio_out = bytearray()
     transcript_out = ""
-    async with websockets.connect(url, extra_headers=headers, max_size=None) as ws:
+    async with websockets.connect(url, additional_headers=headers, max_size=None) as ws:
         session_update = {
             "type": "session.update",
             "session": {
@@ -437,7 +437,7 @@ async def _xai_sts_realtime(pcm_bytes, api_key, model_key="grok-voice-agent", vo
     headers = {"Authorization": f"Bearer {api_key}"}
     audio_out = bytearray()
     transcript_out = ""
-    async with websockets.connect(url, ssl=True, extra_headers=headers, max_size=None) as ws:
+    async with websockets.connect(url, ssl=True, additional_headers=headers, max_size=None) as ws:
         session_update = {
             "type": "session.update",
             "session": {

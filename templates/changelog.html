@@ -7,22 +7,51 @@
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { background-color: #111827; color: #f3f4f6; }
-        .markdown-body h1 { font-size: 1.5em; font-weight: bold; margin-bottom: 0.5em; color: #60a5fa; border-bottom: 1px solid #374151; }
-        .markdown-body p { margin-bottom: 0.5em; color: #9ca3af; font-size: 0.9rem; }
+        :root {
+            --bg-1: #0b0f14;
+            --bg-2: #0f1720;
+            --panel: #0c141e;
+            --line: #1c2636;
+            --text: #e5e7eb;
+            --muted: #9aa3b2;
+            --accent: #14b8a6;
+            --accent-2: #f59e0b;
+        }
+        body {
+            background: radial-gradient(900px 520px at 15% -10%, rgba(20,184,166,0.2), transparent 55%),
+                        radial-gradient(800px 520px at 85% 0%, rgba(245,158,11,0.18), transparent 60%),
+                        linear-gradient(180deg, var(--bg-1), var(--bg-2));
+            color: var(--text);
+            font-family: "Space Grotesk", system-ui, -apple-system, Segoe UI, sans-serif;
+            position: relative;
+        }
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background-image: linear-gradient(transparent 97%, rgba(148,163,184,0.05) 98%),
+                              linear-gradient(90deg, transparent 97%, rgba(148,163,184,0.05) 98%);
+            background-size: 44px 44px;
+            pointer-events: none;
+            opacity: 0.35;
+        }
+        .markdown-body h1 { font-size: 1.5em; font-weight: 700; margin-bottom: 0.6em; color: #5eead4; border-bottom: 1px solid rgba(148,163,184,0.2); }
+        .markdown-body p { margin-bottom: 0.6em; color: var(--muted); font-size: 0.92rem; }
         .markdown-body ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1em; color: #d1d5db; }
+        .log-card { background: rgba(11,18,26,0.9); border: 1px solid rgba(148,163,184,0.2); box-shadow: 0 22px 50px rgba(0,0,0,0.4); backdrop-filter: blur(12px); }
     </style>
 </head>
-<body class="bg-gray-900 min-h-screen p-6 md:p-12">
+<body class="min-h-screen p-6 md:p-12">
     <div class="max-w-4xl mx-auto">
         <div class="flex justify-between items-center mb-10">
-            <h1 class="text-3xl font-bold text-white"><i class="fas fa-history text-orange-500 mr-3"></i> 更新履歴</h1>
-            <a href="/" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg border border-gray-700 transition">戻る</a>
+            <h1 class="text-3xl font-bold text-white"><i class="fas fa-history text-amber-300 mr-3"></i> 更新履歴</h1>
+            <a href="/" class="px-4 py-2 bg-slate-900/70 hover:bg-slate-800 text-white rounded-lg border border-slate-700 transition">戻る</a>
         </div>
         <div class="space-y-8">
             {% for log in logs %}
-            <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
+            <div class="log-card p-6 rounded-xl">
                 <div class="markdown-body" id="log-{{ loop.index }}"></div>
                 <script>document.getElementById('log-{{ loop.index }}').innerHTML = DOMPurify.sanitize(marked.parse(`{{ log.content | replace('`', '\`') | safe }}`));</script>
             </div>

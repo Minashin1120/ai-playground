@@ -6,7 +6,24 @@
     <title>403 - Access Denied</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background: radial-gradient(circle at 20% 20%, #111827 0%, #0b1220 50%, #05070c 100%); color: #e5e7eb; }
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap');
+        body {
+            font-family: "Space Grotesk", system-ui, -apple-system, Segoe UI, sans-serif;
+            background: radial-gradient(800px 520px at 15% -10%, rgba(245,158,11,0.2), transparent 55%),
+                        radial-gradient(700px 520px at 85% 0%, rgba(20,184,166,0.18), transparent 60%),
+                        linear-gradient(180deg, #0b0f14, #0f1720);
+            color: #e5e7eb;
+        }
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background-image: linear-gradient(transparent 97%, rgba(148,163,184,0.05) 98%),
+                              linear-gradient(90deg, transparent 97%, rgba(148,163,184,0.05) 98%);
+            background-size: 40px 40px;
+            pointer-events: none;
+            opacity: 0.35;
+        }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center px-6">

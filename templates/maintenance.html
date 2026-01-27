@@ -5,13 +5,42 @@
     <title>メンテナンス中 - AI Chat</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: "Space Grotesk", system-ui, -apple-system, Segoe UI, sans-serif;
+            background: radial-gradient(900px 520px at 20% -10%, rgba(245,158,11,0.2), transparent 55%),
+                        radial-gradient(700px 520px at 85% 0%, rgba(20,184,166,0.18), transparent 60%),
+                        linear-gradient(180deg, #0b0f14, #0f1720);
+            color: #e5e7eb;
+            position: relative;
+        }
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background-image: linear-gradient(transparent 97%, rgba(148,163,184,0.05) 98%),
+                              linear-gradient(90deg, transparent 97%, rgba(148,163,184,0.05) 98%);
+            background-size: 40px 40px;
+            pointer-events: none;
+            opacity: 0.35;
+        }
+        .maint-card {
+            background: rgba(11,18,26,0.9);
+            border: 1px solid rgba(148,163,184,0.2);
+            box-shadow: 0 26px 60px rgba(0,0,0,0.45);
+            border-radius: 20px;
+            padding: 32px 36px;
+            backdrop-filter: blur(14px);
+        }
+    </style>
 </head>
-<body class="bg-gray-900 text-white h-screen flex flex-col items-center justify-center p-4">
-    <div class="text-center space-y-6">
-        <div class="text-orange-500 text-6xl animate-pulse"><i class="fas fa-tools"></i></div>
+<body class="text-white h-screen flex flex-col items-center justify-center p-4">
+    <div class="maint-card text-center space-y-6">
+        <div class="text-amber-300 text-6xl animate-pulse"><i class="fas fa-tools"></i></div>
         <h1 class="text-3xl font-bold">システムメンテナンス中</h1>
-        <p class="text-gray-400">現在、データ移行処理などを行っております。<br>しばらくしてから再度アクセスしてください。</p>
-        <div class="mt-8"><a href="/logout" class="text-sm text-gray-500 hover:text-white underline">ログアウト</a></div>
+        <p class="text-slate-400">現在、データ移行処理などを行っております。<br>しばらくしてから再度アクセスしてください。</p>
+        <div class="mt-8"><a href="/logout" class="text-sm text-slate-400 hover:text-white underline">ログアウト</a></div>
     </div>
 </body>
 </html>

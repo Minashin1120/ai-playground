@@ -4,15 +4,55 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Account Banned</title>
-    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        :root { --bg: #0b1020; --panel: #111827; --text: #e5e7eb; --muted: #9ca3af; --danger: #ef4444; }
-        body { margin:0; font-family: "Sora", system-ui, -apple-system, Segoe UI, sans-serif; background: radial-gradient(1000px 600px at 20% -10%, rgba(239,68,68,0.15), transparent 60%), #0b1020; color: var(--text); display:flex; min-height:100vh; align-items:center; justify-content:center; }
-        .card { background: var(--panel); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 28px; width: min(520px, 92vw); box-shadow: 0 20px 50px rgba(0,0,0,0.4); }
+        :root { --bg: #0b0f14; --panel: #0c141e; --text: #e5e7eb; --muted: #9aa3b2; --danger: #fb7185; }
+        body {
+            margin:0;
+            font-family: "Space Grotesk", system-ui, -apple-system, Segoe UI, sans-serif;
+            background: radial-gradient(900px 520px at 20% -10%, rgba(251,113,133,0.18), transparent 55%),
+                        radial-gradient(700px 520px at 85% 0%, rgba(245,158,11,0.12), transparent 60%),
+                        linear-gradient(180deg, #0b0f14, #0f1720);
+            color: var(--text);
+            display:flex;
+            min-height:100vh;
+            align-items:center;
+            justify-content:center;
+            position: relative;
+        }
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background-image: linear-gradient(transparent 97%, rgba(148,163,184,0.05) 98%),
+                              linear-gradient(90deg, transparent 97%, rgba(148,163,184,0.05) 98%);
+            background-size: 40px 40px;
+            pointer-events: none;
+            opacity: 0.35;
+        }
+        .card {
+            background: rgba(11,18,26,0.92);
+            border: 1px solid rgba(148,163,184,0.2);
+            border-radius: 18px;
+            padding: 28px;
+            width: min(520px, 92vw);
+            box-shadow: 0 24px 60px rgba(0,0,0,0.45);
+            backdrop-filter: blur(14px);
+        }
         h1 { margin: 0 0 10px; font-size: 22px; color: var(--danger); }
         p { margin: 6px 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
         .meta { margin-top: 12px; font-size: 12px; color: #cbd5f5; }
-        .btn { display:inline-block; margin-top: 16px; padding: 8px 14px; background: #1f2937; color: var(--text); border-radius: 8px; text-decoration: none; font-size: 13px; }
+        .btn {
+            display:inline-block;
+            margin-top: 16px;
+            padding: 9px 16px;
+            background: rgba(15,23,32,0.9);
+            color: var(--text);
+            border-radius: 10px;
+            text-decoration: none;
+            font-size: 13px;
+            border: 1px solid rgba(148,163,184,0.2);
+        }
         .btn:hover { filter: brightness(1.1); }
     </style>
 </head>

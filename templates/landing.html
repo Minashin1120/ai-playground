@@ -6,49 +6,94 @@
     <title>AI Chat Playground - 次世代AIチャット</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { background-color: #0f172a; color: #f8fafc; font-family: sans-serif; }
-        .hero-bg { background: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%); }
-        .feature-card { background: #1e293b; border: 1px solid #334155; transition: transform 0.3s; }
-        .feature-card:hover { transform: translateY(-5px); border-color: #3b82f6; }
+        :root {
+            --bg-1: #0b0f14;
+            --bg-2: #0f1720;
+            --panel: #0c141e;
+            --line: #1c2636;
+            --text: #e5e7eb;
+            --muted: #9aa3b2;
+            --accent: #14b8a6;
+            --accent-2: #f59e0b;
+        }
+        body {
+            background: radial-gradient(1000px 620px at 15% -10%, rgba(20,184,166,0.2), transparent 55%),
+                        radial-gradient(900px 620px at 85% 0%, rgba(245,158,11,0.18), transparent 60%),
+                        linear-gradient(180deg, var(--bg-1), var(--bg-2));
+            color: var(--text);
+            font-family: "Space Grotesk", system-ui, -apple-system, Segoe UI, sans-serif;
+            position: relative;
+        }
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background-image: linear-gradient(transparent 97%, rgba(148,163,184,0.05) 98%),
+                              linear-gradient(90deg, transparent 97%, rgba(148,163,184,0.05) 98%);
+            background-size: 44px 44px;
+            pointer-events: none;
+            opacity: 0.35;
+        }
+        .hero-bg {
+            background: radial-gradient(600px 280px at 50% 0%, rgba(20,184,166,0.18), transparent 65%);
+        }
+        .feature-card {
+            background: rgba(11,18,26,0.85);
+            border: 1px solid rgba(148,163,184,0.2);
+            transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+            box-shadow: 0 24px 60px rgba(0,0,0,0.3);
+            backdrop-filter: blur(14px);
+        }
+        .feature-card:hover {
+            transform: translateY(-6px);
+            border-color: rgba(20,184,166,0.5);
+            box-shadow: 0 24px 70px rgba(20,184,166,0.12);
+        }
+        .glow-badge {
+            background: rgba(245,158,11,0.15);
+            border: 1px solid rgba(245,158,11,0.5);
+            color: #fcd34d;
+        }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
     <header class="p-6 flex justify-between items-center max-w-7xl mx-auto w-full">
-        <div class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
-            AI Chat Playground <span class="text-xs text-orange-500 border border-orange-500 px-1 rounded ml-2 align-middle">ALPHA</span>
+        <div class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-300 to-amber-300">
+            AI Chat Playground <span class="text-xs glow-badge px-2 py-0.5 rounded ml-2 align-middle">ALPHA</span>
         </div>
         <div class="flex gap-4">
-            <a href="/login" class="px-4 py-2 text-gray-300 hover:text-white transition">ログイン</a>
-            <a href="/signup" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold transition shadow-lg shadow-blue-500/30">アカウント作成</a>
+            <a href="/login" class="px-4 py-2 text-slate-300 hover:text-white transition">ログイン</a>
+            <a href="/signup" class="px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-900 rounded-lg font-bold transition shadow-lg shadow-teal-500/30">アカウント作成</a>
         </div>
     </header>
     <main class="flex-1 flex flex-col items-center justify-center text-center p-8 hero-bg">
-        <h1 class="text-5xl md:text-7xl font-extrabold mb-6 tracking-tight">複数のAIモデルを、<br><span class="text-blue-400">ひとつの場所で。</span></h1>
-        <p class="text-xl text-gray-400 max-w-2xl mb-10 leading-relaxed">Gemini 3.0 Pro, GPT-5, Grok などの最新モデルをシームレスに切り替え。<br>あなたのAPIキーで動作する、プライベートかつ自由なチャット環境。</p>
+        <h1 class="text-5xl md:text-7xl font-extrabold mb-6 tracking-tight">複数のAIモデルを、<br><span class="text-teal-300">ひとつの場所で。</span></h1>
+        <p class="text-xl text-slate-400 max-w-2xl mb-10 leading-relaxed">Gemini 3.0 Pro, GPT-5, Grok などの最新モデルをシームレスに切り替え。<br>あなたのAPIキーで動作する、プライベートかつ自由なチャット環境。</p>
         <div class="flex flex-col sm:flex-row gap-4">
-            <a href="/signup" class="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-lg font-bold rounded-xl shadow-xl transition transform hover:scale-105">無料で始める</a>
-            <a href="/login" class="px-8 py-4 bg-gray-800 hover:bg-gray-700 text-white text-lg font-bold rounded-xl border border-gray-700 transition">ログイン</a>
+            <a href="/signup" class="px-8 py-4 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-900 text-lg font-bold rounded-xl shadow-xl transition transform hover:scale-105">無料で始める</a>
+            <a href="/login" class="px-8 py-4 bg-slate-900/70 hover:bg-slate-800 text-white text-lg font-bold rounded-xl border border-slate-700 transition">ログイン</a>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-24 max-w-6xl w-full px-4">
             <div class="feature-card p-6 rounded-xl text-left">
-                <div class="w-12 h-12 bg-blue-900/50 rounded-lg flex items-center justify-center mb-4 text-blue-400 text-2xl"><i class="fas fa-brain"></i></div>
+                <div class="w-12 h-12 bg-teal-500/15 rounded-lg flex items-center justify-center mb-4 text-teal-300 text-2xl"><i class="fas fa-brain"></i></div>
                 <h3 class="text-xl font-bold mb-2">マルチモデル対応</h3>
-                <p class="text-gray-400 text-sm">Google, OpenAI, xAIの最新モデルを即座に切り替えて利用可能。推論プロセス（Thinking）も可視化。</p>
+                <p class="text-slate-400 text-sm">Google, OpenAI, xAIの最新モデルを即座に切り替えて利用可能。推論プロセス（Thinking）も可視化。</p>
             </div>
             <div class="feature-card p-6 rounded-xl text-left">
-                <div class="w-12 h-12 bg-purple-900/50 rounded-lg flex items-center justify-center mb-4 text-purple-400 text-2xl"><i class="fas fa-shield-alt"></i></div>
+                <div class="w-12 h-12 bg-amber-500/15 rounded-lg flex items-center justify-center mb-4 text-amber-300 text-2xl"><i class="fas fa-shield-alt"></i></div>
                 <h3 class="text-xl font-bold mb-2">BYOK & プライバシー</h3>
-                <p class="text-gray-400 text-sm">Bring Your Own Key方式。APIキーは暗号化され、チャットデータはあなたの管理下に。</p>
+                <p class="text-slate-400 text-sm">Bring Your Own Key方式。APIキーは暗号化され、チャットデータはあなたの管理下に。</p>
             </div>
             <div class="feature-card p-6 rounded-xl text-left">
-                <div class="w-12 h-12 bg-green-900/50 rounded-lg flex items-center justify-center mb-4 text-green-400 text-2xl"><i class="fas fa-file-upload"></i></div>
+                <div class="w-12 h-12 bg-emerald-500/15 rounded-lg flex items-center justify-center mb-4 text-emerald-300 text-2xl"><i class="fas fa-file-upload"></i></div>
                 <h3 class="text-xl font-bold mb-2">マルチモーダル</h3>
-                <p class="text-gray-400 text-sm">画像やPDFファイルをドラッグ＆ドロップ。クリップボードからの貼り付けにも対応。</p>
+                <p class="text-slate-400 text-sm">画像やPDFファイルをドラッグ＆ドロップ。クリップボードからの貼り付けにも対応。</p>
             </div>
         </div>
     </main>
-    <footer class="py-8 border-t border-gray-800 text-center text-sm text-gray-500">
+    <footer class="py-8 border-t border-slate-800 text-center text-sm text-slate-500">
         <div class="flex justify-center gap-6 mb-4">
             <a href="/changelog" class="hover:text-white transition">更新履歴</a>
             <button onclick="location.href='/login'" class="hover:text-white transition">利用規約</button>

@@ -56,7 +56,6 @@ pytz==2025.2
 redis==7.1.0
 regex==2025.11.3
 requests==2.32.5
-websockets==13.1
 rq==2.6.1
 rsa==4.9.1
 six==1.17.0

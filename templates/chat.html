@@ -476,11 +476,10 @@
                     </button>
                     <div class="flex gap-3 items-center flex-wrap">
                         <label id="search-container" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label><label id="python-container" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-python" class="accent-yellow-500 w-3 h-3" checked><span class="text-yellow-200">Python</span></label>
-                        <button id="thread-settings-btn" onclick="openThreadModal()" class="flex items-center space-x-1 cursor-pointer select-none text-cyan-400 hover:text-cyan-300 transition btn-hover mr-1" title="Chat specific prompt">
-                            <i class="fas fa-comment-dots"></i>
-                            <span>ChatPrompt</span>
-                        </button>
-                        <label id="sys-prompt-option" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-sys-prompt" class="accent-green-500 w-3 h-3"><span class="text-green-300">SysPrompt</span></label>
+                        <label id="sys-prompt-option" class="flex items-center space-x-1 cursor-pointer select-none group">
+                            <input type="checkbox" id="enable-sys-prompt" class="accent-green-500 w-3 h-3">
+                            <span class="text-green-300 hover:text-green-200 transition" onclick="openThreadModal()">SysPrompt <i class="fas fa-cog text-[10px] opacity-0 group-hover:opacity-100 transition"></i></span>
+                        </label>
                         <div id="thinking-options" class="flex items-center gap-2 hidden">
                             <label class="flex items-center space-x-1 cursor-pointer select-none">
                                 <input type="checkbox" id="enable-thinking" class="accent-purple-500 w-3 h-3">
@@ -600,24 +599,20 @@
     <div id="thread-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
         <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-gray-700 m-4 flex flex-col modal-panel">
             <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <i class="fas fa-comment-dots text-cyan-400"></i> Chat Settings
+                <i class="fas fa-comment-dots text-green-400"></i> Chat Instructions
             </h2>
             <div class="space-y-4">
                 <div>
-                    <label class="text-xs text-gray-500 block mb-1">Custom System Prompt for this Chat</label>
-                    <textarea id="thread-custom-instruction" class="w-full h-40 bg-gray-900 border border-gray-600 rounded p-3 text-sm text-white focus:ring-1 focus:ring-cyan-500 outline-none" placeholder="このチャット専用の指示を入力..."></textarea>
-                </div>
-                <div class="flex items-center justify-between">
-                    <div class="text-xs text-gray-300">設定のシステムプロンプトも適用する</div>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="thread-include-global" class="sr-only peer" checked>
-                        <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
-                    </label>
+                    <label class="text-xs text-gray-400 block mb-1">このチャット専用のシステムプロンプト</label>
+                    <textarea id="thread-custom-instruction" class="w-full h-48 bg-gray-900 border border-gray-600 rounded p-3 text-sm text-white focus:ring-1 focus:ring-green-500 outline-none" placeholder="このチャットだけで有効にしたい指示（役割や出力形式など）を入力してください..."></textarea>
+                    <div class="text-[10px] text-gray-500 mt-2">
+                        ※ メイン画面の「SysPrompt」チェックがONの場合、設定画面のグローバルプロンプトの後にこの指示が追加されます。OFFの場合はこの指示のみが適用されます。
+                    </div>
                 </div>
             </div>
             <div class="flex justify-end gap-3 mt-6">
                 <button onclick="hideModal('thread-modal')" class="px-4 py-2 text-gray-400 hover:text-white transition">キャンセル</button>
-                <button id="save-thread-settings-btn" class="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded font-bold btn-modern">保存</button>
+                <button id="save-thread-settings-btn" class="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded font-bold btn-modern">保存</button>
             </div>
         </div>
     </div>
@@ -3342,9 +3337,6 @@
             if (get('thread-custom-instruction')) {
                 get('thread-custom-instruction').value = threadData.custom_instruction || '';
             }
-            if (get('thread-include-global')) {
-                get('thread-include-global').checked = threadData.include_global_instruction !== false;
-            }
             
             // Set default leaf (latest message)
             if (allMessages.length > 0) {
@@ -3505,7 +3497,6 @@
             get('chat-container').innerHTML = ''; 
             get('welcome-screen').classList.remove('hidden'); 
             if (get('thread-custom-instruction')) get('thread-custom-instruction').value = '';
-            if (get('thread-include-global')) get('thread-include-global').checked = true;
             if (!opts.preserveGem) applyActiveGem(null); 
             loadThreads(); 
             if(window.innerWidth < 768) get('overlay').click(); 
@@ -3530,13 +3521,12 @@
         get('save-thread-settings-btn').onclick = async () => {
             if (!currentThreadId) return;
             const custom_instruction = get('thread-custom-instruction').value;
-            const include_global_instruction = get('thread-include-global').checked;
             
             try {
                 const res = await apiFetch(`/api/threads/${currentThreadId}/settings`, {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ custom_instruction, include_global_instruction })
+                    body: JSON.stringify({ custom_instruction })
                 });
                 if (res.ok) {
                     showToast("チャット設定を保存しました", "success");

@@ -1054,25 +1054,32 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     try: r.delete(f"sys:{job_id}")
                     except: pass
             
-            if not base_sys_prompt and options.get('enable_system_prompt'):
-                if user.system_prompt:
+            # Global prompt (only if enabled via checkbox or if it's a Gem forced prompt)
+            global_prompt = None
+            if options.get('enable_system_prompt'):
+                if base_sys_prompt:
+                    global_prompt = base_sys_prompt
+                elif user.system_prompt:
                     sp = user.system_prompt
                     if user.enable_e2ee: sp = decrypt_val(sp)
-                    base_sys_prompt = sp
-            
+                    global_prompt = sp
+            else:
+                # If master checkbox is OFF, we might still have a Gem prompt in base_sys_prompt
+                # But gems usually force enable_system_prompt=True, so this is just a safety.
+                global_prompt = base_sys_prompt
+
             # Thread specific prompt
             th = Thread.query.get(thread_id)
-            local_sys_prompt = th.custom_instruction if th else None
-            include_global = th.include_global_instruction if (th and th.include_global_instruction is not None) else True
+            local_sys_prompt = th.custom_instruction if (th and th.custom_instruction and th.custom_instruction.strip()) else None
             
             final_sys_prompt = ""
-            if local_sys_prompt and local_sys_prompt.strip():
-                if include_global and base_sys_prompt and base_sys_prompt.strip():
-                    final_sys_prompt = f"{base_sys_prompt}\n\n[Thread Specific Instructions]:\n{local_sys_prompt}"
+            if local_sys_prompt:
+                if global_prompt:
+                    final_sys_prompt = f"{global_prompt}\n\n[Chat Specific Instructions]:\n{local_sys_prompt}"
                 else:
                     final_sys_prompt = local_sys_prompt
             else:
-                final_sys_prompt = base_sys_prompt
+                final_sys_prompt = global_prompt or ""
             
             options['system_prompt'] = final_sys_prompt
 

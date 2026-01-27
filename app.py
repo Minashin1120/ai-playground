@@ -596,6 +596,8 @@ class Thread(db.Model):
     title = db.Column(db.String(200), default="New Chat")
     is_bookmarked = db.Column(db.Boolean, default=False)
     bookmarked_at = db.Column(db.DateTime, nullable=True)
+    custom_instruction = db.Column(db.Text, nullable=True)
+    include_global_instruction = db.Column(db.Boolean, default=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     messages = db.relationship('Message', backref='thread', cascade="all, delete-orphan", lazy=True)
 
@@ -1041,30 +1043,45 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if not isinstance(img_list, list):
                         img_list = [img_list]
                 except: pass
-            sys_prompt = options.get('system_prompt')
-            if not sys_prompt:
+            # System Prompt Construction
+            base_sys_prompt = options.get('system_prompt')
+            if not base_sys_prompt:
                 try:
                     sv = r.get(f"sys:{job_id}")
-                    if sv: sys_prompt = sv.decode('utf-8')
+                    if sv: base_sys_prompt = sv.decode('utf-8')
                 except: pass
                 finally:
                     try: r.delete(f"sys:{job_id}")
                     except: pass
-            if sys_prompt:
-                options['system_prompt'] = sys_prompt
-            final_sys_prompt = options.get('system_prompt')
-            if not final_sys_prompt and options.get('enable_system_prompt'):
+            
+            if not base_sys_prompt and options.get('enable_system_prompt'):
                 if user.system_prompt:
                     sp = user.system_prompt
                     if user.enable_e2ee: sp = decrypt_val(sp)
-                    final_sys_prompt = sp
-            if final_sys_prompt: options['system_prompt'] = final_sys_prompt
+                    base_sys_prompt = sp
+            
+            # Thread specific prompt
+            th = Thread.query.get(thread_id)
+            local_sys_prompt = th.custom_instruction if th else None
+            include_global = th.include_global_instruction if (th and th.include_global_instruction is not None) else True
+            
+            final_sys_prompt = ""
+            if local_sys_prompt and local_sys_prompt.strip():
+                if include_global and base_sys_prompt and base_sys_prompt.strip():
+                    final_sys_prompt = f"{base_sys_prompt}\n\n[Thread Specific Instructions]:\n{local_sys_prompt}"
+                else:
+                    final_sys_prompt = local_sys_prompt
+            else:
+                final_sys_prompt = base_sys_prompt
+            
+            options['system_prompt'] = final_sys_prompt
+
             if options.get('enable_python'):
                 python_notice = "Python execution is available; you can run Python code when needed."
-                base_prompt = options.get('system_prompt')
-                if base_prompt and str(base_prompt).strip():
-                    if python_notice.lower() not in str(base_prompt).lower():
-                        options['system_prompt'] = f"{python_notice}\n\n{base_prompt}"
+                curr_p = options.get('system_prompt')
+                if curr_p and str(curr_p).strip():
+                    if python_notice.lower() not in str(curr_p).lower():
+                        options['system_prompt'] = f"{python_notice}\n\n{curr_p}"
                 else:
                     options['system_prompt'] = python_notice
             quote_text = None
@@ -2717,7 +2734,11 @@ def handle_thread_item(thread_id):
                 'quote_text': m.quote_text,
                 'parent_id': m.parent_id
             })
-        return jsonify(res)
+        return jsonify({
+            'messages': res,
+            'custom_instruction': t.custom_instruction,
+            'include_global_instruction': t.include_global_instruction if t.include_global_instruction is not None else True
+        })
     
     for m in t.messages:
         if m.image_url:
@@ -2737,6 +2758,19 @@ def handle_thread_item(thread_id):
     db.session.delete(t)
     safe_db_commit()
     return jsonify({'status': 'deleted'})
+
+@app.route('/api/threads/<thread_id>/settings', methods=['PUT'])
+@login_required
+def update_thread_settings(thread_id):
+    t = resolve_thread_for_user(thread_id, current_user.id)
+    if not t: return jsonify({'error': '403'}), 403
+    d = request.json
+    if 'custom_instruction' in d:
+        t.custom_instruction = d['custom_instruction']
+    if 'include_global_instruction' in d:
+        t.include_global_instruction = bool(d['include_global_instruction'])
+    safe_db_commit()
+    return jsonify({'status': 'ok'})
 
 @app.route('/api/threads/<thread_id>/title', methods=['PUT'])
 @login_required

@@ -476,6 +476,10 @@
                     </button>
                     <div class="flex gap-3 items-center flex-wrap">
                         <label id="search-container" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label><label id="python-container" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-python" class="accent-yellow-500 w-3 h-3" checked><span class="text-yellow-200">Python</span></label>
+                        <button id="thread-settings-btn" onclick="openThreadModal()" class="flex items-center space-x-1 cursor-pointer select-none text-cyan-400 hover:text-cyan-300 transition btn-hover mr-1" title="Chat specific prompt">
+                            <i class="fas fa-comment-dots"></i>
+                            <span>ChatPrompt</span>
+                        </button>
                         <label id="sys-prompt-option" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-sys-prompt" class="accent-green-500 w-3 h-3"><span class="text-green-300">SysPrompt</span></label>
                         <div id="thinking-options" class="flex items-center gap-2 hidden">
                             <label class="flex items-center space-x-1 cursor-pointer select-none">
@@ -589,6 +593,32 @@
             </div>
             <div class="text-xs text-gray-400 mb-2">進行状況</div>
             <div id="upload-list" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
+        </div>
+    </div>
+
+    <!-- Thread Settings Modal -->
+    <div id="thread-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-gray-700 m-4 flex flex-col modal-panel">
+            <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <i class="fas fa-comment-dots text-cyan-400"></i> Chat Settings
+            </h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-xs text-gray-500 block mb-1">Custom System Prompt for this Chat</label>
+                    <textarea id="thread-custom-instruction" class="w-full h-40 bg-gray-900 border border-gray-600 rounded p-3 text-sm text-white focus:ring-1 focus:ring-cyan-500 outline-none" placeholder="このチャット専用の指示を入力..."></textarea>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="text-xs text-gray-300">設定のシステムプロンプトも適用する</div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="thread-include-global" class="sr-only peer" checked>
+                        <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
+                    </label>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6">
+                <button onclick="hideModal('thread-modal')" class="px-4 py-2 text-gray-400 hover:text-white transition">キャンセル</button>
+                <button id="save-thread-settings-btn" class="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded font-bold btn-modern">保存</button>
+            </div>
         </div>
     </div>
 
@@ -3305,7 +3335,16 @@
                 get('chat-container').innerHTML = '<div class="text-center mt-10"><i class="fas fa-spinner fa-spin text-blue-500"></i></div>'; 
             }
             const r = await apiFetch("{{ url_for('handle_thread_item', thread_id=0) }}".replace('0', tid)); 
-            allMessages = await r.json(); 
+            const threadData = await r.json();
+            allMessages = threadData.messages || []; 
+            
+            // Update thread-specific settings UI
+            if (get('thread-custom-instruction')) {
+                get('thread-custom-instruction').value = threadData.custom_instruction || '';
+            }
+            if (get('thread-include-global')) {
+                get('thread-include-global').checked = threadData.include_global_instruction !== false;
+            }
             
             // Set default leaf (latest message)
             if (allMessages.length > 0) {
@@ -3453,7 +3492,62 @@
         }
         function activateGem(g) { pendingGemForNewThread = g; applyActiveGem(g); startNewChat({ preserveGem: true }); }
         function clearActiveGem() { if (currentThreadId) delete threadGemMap[currentThreadId]; pendingGemForNewThread = null; applyActiveGem(null); }
-        function startNewChat(opts = {}) { if(abortController) abortController.abort(); cancelEdit(); resetUploadState(); currentThreadId = null; allMessages = []; currentLeafId = null; currentParentId = null; updateTotalTokenBar(0); history.pushState({}, '', '/'); get('chat-container').innerHTML = ''; get('welcome-screen').classList.remove('hidden'); if (!opts.preserveGem) applyActiveGem(null); loadThreads(); if(window.innerWidth < 768) get('overlay').click(); }
+        function startNewChat(opts = {}) { 
+            if(abortController) abortController.abort(); 
+            cancelEdit(); 
+            resetUploadState(); 
+            currentThreadId = null; 
+            allMessages = []; 
+            currentLeafId = null; 
+            currentParentId = null; 
+            updateTotalTokenBar(0); 
+            history.pushState({}, '', '/'); 
+            get('chat-container').innerHTML = ''; 
+            get('welcome-screen').classList.remove('hidden'); 
+            if (get('thread-custom-instruction')) get('thread-custom-instruction').value = '';
+            if (get('thread-include-global')) get('thread-include-global').checked = true;
+            if (!opts.preserveGem) applyActiveGem(null); 
+            loadThreads(); 
+            if(window.innerWidth < 768) get('overlay').click(); 
+        }
+
+        window.openThreadModal = async () => {
+            if (!currentThreadId) {
+                try {
+                    const r = await apiFetch("{{ url_for('handle_threads') }}", {method:'POST'}); 
+                    const d = await r.json(); 
+                    currentThreadId = d.id !== null && d.id !== undefined ? String(d.id) : d.id; 
+                    history.pushState({}, '', '/c/' + d.id);
+                    loadThreads();
+                } catch (err) {
+                    showToast("チャットの作成に失敗しました", "error", true);
+                    return;
+                }
+            }
+            showModal('thread-modal');
+        };
+
+        get('save-thread-settings-btn').onclick = async () => {
+            if (!currentThreadId) return;
+            const custom_instruction = get('thread-custom-instruction').value;
+            const include_global_instruction = get('thread-include-global').checked;
+            
+            try {
+                const res = await apiFetch(`/api/threads/${currentThreadId}/settings`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ custom_instruction, include_global_instruction })
+                });
+                if (res.ok) {
+                    showToast("チャット設定を保存しました", "success");
+                    hideModal('thread-modal');
+                } else {
+                    showToast("保存に失敗しました", "error", true);
+                }
+            } catch (err) {
+                showToast("エラー: " + err.message, "error", true);
+            }
+        };
         async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('delete_gem', gid=0) }}".replace('0', id), {method: 'DELETE'}); loadGems(); }
         async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { await apiFetch("{{ url_for('update_title', thread_id=0) }}".replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); loadThreads(); } }
         async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('handle_thread_item', thread_id=0) }}".replace('0', id), {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }

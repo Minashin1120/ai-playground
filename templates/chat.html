@@ -390,8 +390,8 @@
             簡易ログインでログインしました。安全のため、再ログイン時は通常のパスワードと2FAをご利用ください。
         </div>
         {% endif %}
-        <div id="total-token-bar" class="hidden bg-gray-900/60 border-b border-gray-700 text-gray-300 text-xs px-4 py-1 flex items-center gap-2">
-            <i class="fas fa-coins text-yellow-400"></i>
+        <div id="total-token-bar" class="hidden bg-gray-900/70 border-b border-gray-700 text-slate-200 text-xs px-4 py-1.5 flex items-center gap-2">
+            <i class="fas fa-coins text-amber-300"></i>
             <span id="total-token-count">Total: 0 tokens</span>
         </div>
         <div class="flex-1 overflow-hidden relative">
@@ -2758,7 +2758,7 @@
             const footerParts = [];
             if (!isUser && modelName) footerParts.push(modelName);
             if (tokenCount !== null && tokenCount !== undefined) footerParts.push(`${tokenCount} tokens`);
-            const mHtml = footerParts.length ? `<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">${footerParts.join(' • ')}</div>` : ''; 
+            const mHtml = footerParts.length ? `<div class="text-[10px] text-slate-300/90 mt-2 text-right font-mono">${footerParts.join(' • ')}</div>` : ''; 
             
             let contentHtml;
             if (isUser) {

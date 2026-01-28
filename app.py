@@ -1783,7 +1783,28 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         img_kwargs["output_format"] = format_opt
                         if format_opt in {"jpeg", "webp"}:
                             img_kwargs["output_compression"] = comp_opt if comp_opt is not None else _OPENAI_IMAGE_OUTPUT_COMPRESSION
-                    resp = img_client.images.generate(**img_kwargs)
+                    img_inputs = []
+                    for fi in loaded_files:
+                        if not fi.get('bytes') or not fi.get('mime', '').startswith('image/'):
+                            continue
+                        img_bytes = fi['bytes']
+                        img_mime = fi['mime']
+                        if img_mime not in ('image/png', 'image/jpeg', 'image/webp'):
+                            try:
+                                im = Image.open(BytesIO(img_bytes))
+                                if im.mode not in ('RGB', 'RGBA'):
+                                    im = im.convert('RGB')
+                                out = BytesIO()
+                                im.save(out, format='PNG')
+                                img_bytes = out.getvalue()
+                                img_mime = 'image/png'
+                            except Exception:
+                                pass
+                        img_inputs.append((f"input_{len(img_inputs)}", img_bytes, img_mime))
+                    if img_inputs:
+                        resp = img_client.images.edit(image=img_inputs, **img_kwargs)
+                    else:
+                        resp = img_client.images.generate(**img_kwargs)
                     if resp.data:
                         img_bytes = base64.b64decode(resp.data[0].b64_json)
                         ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))

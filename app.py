@@ -1829,8 +1829,21 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 part['text'] += f"\n\n[File: {fi['name']}]\n{fi['text']}"
                                 break
                     elif fi.get('bytes') and fi['mime'].startswith('image/'):
-                        b64 = base64.b64encode(fi['bytes']).decode('utf-8')
-                        curr_content.append({"type": image_type, "image_url": f"data:{fi['mime']};base64,{b64}"})
+                        img_bytes = fi['bytes']
+                        img_mime = fi['mime']
+                        if is_grok and img_mime not in ('image/jpeg', 'image/png'):
+                            try:
+                                im = Image.open(BytesIO(img_bytes))
+                                if im.mode not in ('RGB', 'RGBA'):
+                                    im = im.convert('RGB')
+                                out = BytesIO()
+                                im.save(out, format='PNG')
+                                img_bytes = out.getvalue()
+                                img_mime = 'image/png'
+                            except Exception:
+                                pass
+                        b64 = base64.b64encode(img_bytes).decode('utf-8')
+                        curr_content.append({"type": image_type, "image_url": f"data:{img_mime};base64,{b64}"})
                 
                 input_data.append({"role": "user", "content": curr_content})
                 

@@ -2161,9 +2161,10 @@
             get('new-chat-btn').onclick = () => startNewChat(); 
             get('upload-btn').onclick = () => openUploadModal(); 
             get('file-input').onchange = (e) => { 
-                const files = e.target.files;
-                if (files && files.length) handleFiles(files); 
+                const files = Array.from(e.target.files || []);
+                // Clear after copying to avoid losing selections during async uploads.
                 e.target.value = '';
+                if (files.length) handleFiles(files); 
             }; 
             get('stop-btn').onclick = async () => { if(abortController) abortController.abort(); if(currentJobId) await apiFetch("/api/stop_chat", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({job_id: currentJobId})}); get('send-btn').disabled=false; get('stop-container').classList.add('hidden'); };
             const openSettingsModal = () => {

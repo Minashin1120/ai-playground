@@ -1340,12 +1340,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             img_prompt = f"{options.get('system_prompt')}\n\n{final_message_text}"
 
                         img_model = "gemini-2.5-flash-image" if "2.5" in model_key else "gemini-3-pro-image-preview"
-                        aspect_allowed = {"1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"}
+                        aspect_allowed = {"1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9", "auto"}
                         size_allowed = {"1K", "2K", "4K"}
                         aspect_val = options.get('gemini_image_aspect')
                         if aspect_val:
                             aspect_val = str(aspect_val).strip()
-                            if aspect_val not in aspect_allowed:
+                            if aspect_val not in aspect_allowed or aspect_val == "auto":
                                 aspect_val = None
                         size_val = options.get('gemini_image_size')
                         if size_val:

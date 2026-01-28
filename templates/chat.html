@@ -982,7 +982,7 @@
             if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
                 headers['X-CSRF-Token'] = csrfToken;
             }
-            return fetch(url, Object.assign({}, opts, { headers }));
+            return fetch(url, Object.assign({}, opts, { headers, credentials: 'same-origin' }));
         };
         let currentThreadId = {{ initial_thread_id|default(none)|tojson }};
         if (currentThreadId !== null && currentThreadId !== undefined) {

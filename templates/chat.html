@@ -3909,7 +3909,7 @@
         };
         function renderLibraryItem(f, i = 0) {
             const el = document.createElement('div'); 
-            el.className = "relative group bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400 model-list-animate opacity-0"; 
+            el.className = "relative group bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400 model-list-animate"; 
             if (i !== null && i !== undefined) el.style.animationDelay = `${i * 0.03}s`;
             const content = f.type==='image' ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`; 
             const overlay = `<div class="lib-overlay absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><button class="lib-open-btn p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-eye"></i></button></div>`; 
@@ -3982,19 +3982,29 @@
             }
         }
         async function loadLibraryFiles() { 
-            const r = await apiFetch("{{ url_for('get_files_lib') }}"); 
-            const files = await r.json(); 
-            const grid = get('lib-grid'); 
-            grid.innerHTML = ''; 
-            get('lib-total-count').innerText = files.length + " files"; 
-            lib.selected.clear(); 
-            lib.files = files;
-            lib.fileSet = new Set(files.map(f => f.filepath));
-            updateLibSelectionUi();
-            files.forEach((f, i) => { 
-                const el = renderLibraryItem(f, i);
-                grid.appendChild(el); 
-            }); 
+            const grid = get('lib-grid');
+            if (grid) grid.innerHTML = '<div class="text-xs text-gray-500">読み込み中...</div>';
+            try {
+                const r = await apiFetch("{{ url_for('get_files_lib') }}"); 
+                if (!r.ok) throw new Error('Failed to load files');
+                const files = await r.json(); 
+                if (grid) grid.innerHTML = '';
+                get('lib-total-count').innerText = files.length + " files"; 
+                lib.selected.clear(); 
+                lib.files = files;
+                lib.fileSet = new Set(files.map(f => f.filepath));
+                updateLibSelectionUi();
+                if (!files.length && grid) {
+                    grid.innerHTML = '<div class="text-xs text-gray-500">ファイルがありません。</div>';
+                    return;
+                }
+                files.forEach((f, i) => { 
+                    const el = renderLibraryItem(f, i);
+                    if (grid) grid.appendChild(el); 
+                }); 
+            } catch (e) {
+                if (grid) grid.innerHTML = '<div class="text-xs text-red-400">ライブラリの読み込みに失敗しました。</div>';
+            }
         }
         async function deleteSelectedFiles() {
             if(!confirm('削除しますか？')) return;

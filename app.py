@@ -1835,7 +1835,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 input_data.append({"role": "user", "content": curr_content})
                 
                 # OpenAI/xAI Responses API
-                kwargs = {"model": model_key, "input": input_data, "stream": True, "store": True}
+                has_image_inputs = any(fi.get('bytes') and str(fi.get('mime', '')).startswith('image/') for fi in loaded_files)
+                # xAI docs: image understanding requests should avoid server-side storage.
+                store_flag = False if (is_grok and has_image_inputs) else True
+                kwargs = {"model": model_key, "input": input_data, "stream": True, "store": store_flag}
 
                 if is_grok and grok_enable_search:
                     kwargs['tools'] = [{"type": "web_search"}, {"type": "x_search"}]

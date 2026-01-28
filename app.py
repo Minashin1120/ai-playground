@@ -1371,7 +1371,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                         resp = g_client.models.generate_content(
                             model=img_model,
-                            contents=[types.Part(text=img_prompt)],
+                            contents=[
+                                *[
+                                    types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime'])
+                                    for fi in loaded_files
+                                    if fi.get('bytes') and fi.get('mime', '').startswith('image/')
+                                ],
+                                types.Part(text=img_prompt)
+                            ],
                             config=types.GenerateContentConfig(**config_kwargs)
                         )
                         

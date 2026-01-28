@@ -1726,6 +1726,18 @@
             const m = (get('model-select').value || '').toLowerCase();
             return m.includes('gemini') && (m.includes('image') || m.includes('nano'));
         };
+        const isLlmModel = () => {
+            const m = (get('model-select').value || '').toLowerCase();
+            if (
+                m.includes('tts') ||
+                m.includes('realtime') ||
+                m.includes('voice-agent') ||
+                m.includes('native-audio') ||
+                m.includes('image') ||
+                m.includes('nano')
+            ) return false;
+            return m.includes('gpt') || m.includes('gemini') || m.includes('grok');
+        };
 
         const isStsModel = () => STS_MODELS.has(get('model-select').value);
         const getStsProvider = (model) => {
@@ -2183,6 +2195,16 @@
                 }
 
                 if(model.includes('nano') || model.includes('gpt-image')) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); } 
+                if (pyCont) {
+                    if (isLlmModel()) {
+                        pyCont.classList.remove('hidden');
+                        pyChk.disabled = false;
+                    } else {
+                        pyChk.checked = false;
+                        pyChk.disabled = true;
+                        pyCont.classList.add('hidden');
+                    }
+                }
                 updateTtsUi();
                 updateStsUi();
                 updateStsOptions();

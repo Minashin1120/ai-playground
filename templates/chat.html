@@ -523,6 +523,39 @@
                     </div>
                 </div>
                 <div id="file-preview" class="hidden px-3 py-2 bg-gray-700/50 rounded text-xs text-blue-300 flex justify-between items-center"><span id="file-name" class="truncate"></span><button id="clear-file-btn" class="text-gray-400 hover:text-white ml-2">✕</button></div>
+                <div id="gpt-image-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Size</span>
+                        <select id="gpt-image-size" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="1024x1024" selected>1024x1024</option>
+                            <option value="1536x1024">1536x1024</option>
+                            <option value="1024x1536">1024x1536</option>
+                            <option value="auto">Auto</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Quality</span>
+                        <select id="gpt-image-quality" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                            <option value="auto">Auto</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Format</span>
+                        <select id="gpt-image-format" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="jpeg" selected>JPEG</option>
+                            <option value="png">PNG</option>
+                            <option value="webp">WebP</option>
+                        </select>
+                    </div>
+                    <div id="gpt-image-compression-wrap" class="flex items-center gap-2">
+                        <span class="text-gray-400">Compression</span>
+                        <input id="gpt-image-compression" type="number" min="0" max="100" step="1" value="85" class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                    </div>
+                    <span class="text-gray-500">※ GPT-Image のみ有効</span>
+                </div>
                 <div id="audio-gen-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-xs text-gray-300 flex flex-wrap items-center gap-3">
                     <div class="flex items-center gap-2">
                         <span class="text-gray-400">Voice</span>
@@ -1661,6 +1694,7 @@
         ];
         const GROK_PCM_RATES = [8000,16000,21050,24000,32000,44100,48000];
         const isTtsModel = () => get('model-select').value.includes('tts');
+        const isGptImageModel = () => (get('model-select').value || '').includes('gpt-image');
 
         const isStsModel = () => STS_MODELS.has(get('model-select').value);
         const getStsProvider = (model) => {
@@ -2013,6 +2047,24 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             const bar = document.getElementById('alpha-bar'); setTimeout(() => { if(bar) { const target = document.getElementById('version-display'); if(target) { const barRect = bar.getBoundingClientRect(); const targetRect = target.getBoundingClientRect(); const tx = targetRect.left + (targetRect.width/2) - (barRect.left + barRect.width/2); const ty = targetRect.top + (targetRect.height/2) - (barRect.top + barRect.height/2); bar.style.transform = `translate(${tx}px, ${ty}px) scale(0.1)`; bar.style.opacity = '0'; setTimeout(() => { target.classList.add('pulse-target'); setTimeout(() => target.classList.remove('pulse-target'), 2000); bar.remove(); }, 800); } else { bar.style.opacity = '0'; setTimeout(() => bar.remove(), 1000); } } }, 3000);
+            function updateGptImageUi() {
+                const wrap = get('gpt-image-options');
+                if (!wrap) return;
+                if (isGptImageModel()) {
+                    wrap.classList.remove('hidden');
+                } else {
+                    wrap.classList.add('hidden');
+                }
+                const fmt = get('gpt-image-format');
+                const compWrap = get('gpt-image-compression-wrap');
+                if (fmt && compWrap) {
+                    if (fmt.value === 'png') {
+                        compWrap.classList.add('hidden');
+                    } else {
+                        compWrap.classList.remove('hidden');
+                    }
+                }
+            }
             function toggleOptions() { 
                 const model = get('model-select').value; 
                 const thinkOpts = get('thinking-options'); 
@@ -2082,9 +2134,11 @@
                 updateTtsUi();
                 updateStsUi();
                 updateStsOptions();
+                updateGptImageUi();
             }
             get('model-select').addEventListener('change', toggleOptions); toggleOptions();
             if (get('tts-voice')) get('tts-voice').addEventListener('change', updateTtsUi);
+            if (get('gpt-image-format')) get('gpt-image-format').addEventListener('change', () => updateGptImageUi());
             if (get('tts-speed') && get('tts-speed-label')) {
                 get('tts-speed').addEventListener('input', () => {
                     get('tts-speed-label').textContent = `${Number(get('tts-speed').value || 1).toFixed(2)}x`;
@@ -3216,6 +3270,10 @@
                 tts_voice_custom: isTtsModel() && get('tts-voice-custom') ? get('tts-voice-custom').value : null,
                 tts_language: isTtsModel() && get('tts-language') ? get('tts-language').value : null,
                 tts_speed: isTtsModel() && get('tts-speed') ? get('tts-speed').value : null,
+                image_size: isGptImageModel() && get('gpt-image-size') ? get('gpt-image-size').value : null,
+                image_quality: isGptImageModel() && get('gpt-image-quality') ? get('gpt-image-quality').value : null,
+                image_format: isGptImageModel() && get('gpt-image-format') ? get('gpt-image-format').value : null,
+                image_compression: isGptImageModel() && get('gpt-image-compression') ? get('gpt-image-compression').value : null,
                 quote_text: currentQuote,
                 parent_id: currentParentId,
                 disable_auto_search: disableAutoSearch

@@ -1719,24 +1719,39 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         timeout=_OPENAI_IMAGE_TIMEOUT_SECONDS,
                         max_retries=_OPENAI_IMAGE_MAX_RETRIES
                     )
+                    def _pick_image_opt(val, allowed):
+                        if val is None:
+                            return None
+                        v = str(val).strip()
+                        return v if v in allowed else None
+                    size_opt = _pick_image_opt(options.get('image_size'), {"auto", "1024x1024", "1536x1024", "1024x1536"}) or _OPENAI_IMAGE_DEFAULT_SIZE
+                    quality_opt = _pick_image_opt(options.get('image_quality'), {"auto", "low", "medium", "high"}) or _OPENAI_IMAGE_DEFAULT_QUALITY
+                    format_opt = _pick_image_opt(options.get('image_format'), {"png", "jpeg", "webp"}) or _OPENAI_IMAGE_OUTPUT_FORMAT
+                    comp_opt = None
+                    try:
+                        comp_opt = int(options.get('image_compression')) if options.get('image_compression') is not None else None
+                    except Exception:
+                        comp_opt = None
+                    if comp_opt is not None and (comp_opt < 0 or comp_opt > 100):
+                        comp_opt = None
                     img_kwargs = {"model": model_key, "prompt": final_message_text}
-                    if _OPENAI_IMAGE_DEFAULT_SIZE:
-                        img_kwargs["size"] = _OPENAI_IMAGE_DEFAULT_SIZE
-                    if _OPENAI_IMAGE_DEFAULT_QUALITY:
-                        img_kwargs["quality"] = _OPENAI_IMAGE_DEFAULT_QUALITY
-                    if _OPENAI_IMAGE_OUTPUT_FORMAT:
-                        img_kwargs["output_format"] = _OPENAI_IMAGE_OUTPUT_FORMAT
-                        if _OPENAI_IMAGE_OUTPUT_FORMAT in {"jpeg", "webp"}:
-                            img_kwargs["output_compression"] = _OPENAI_IMAGE_OUTPUT_COMPRESSION
+                    if size_opt:
+                        img_kwargs["size"] = size_opt
+                    if quality_opt:
+                        img_kwargs["quality"] = quality_opt
+                    if format_opt:
+                        img_kwargs["output_format"] = format_opt
+                        if format_opt in {"jpeg", "webp"}:
+                            img_kwargs["output_compression"] = comp_opt if comp_opt is not None else _OPENAI_IMAGE_OUTPUT_COMPRESSION
                     resp = img_client.images.generate(**img_kwargs)
                     if resp.data:
                         img_bytes = base64.b64decode(resp.data[0].b64_json)
                         ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
                         if not os.path.exists(ud): os.makedirs(ud, exist_ok=True)
                         ext = "png"
-                        if _OPENAI_IMAGE_OUTPUT_FORMAT == "jpeg":
+                        if format_opt == "jpeg":
                             ext = "jpg"
-                        elif _OPENAI_IMAGE_OUTPUT_FORMAT == "webp":
+                        elif format_opt == "webp":
                             ext = "webp"
                         fn2 = f"gen_gpt_{int(time.time())}_{len(generated_images)}.{ext}"
                         fp2 = os.path.join(ud, fn2)
@@ -2592,6 +2607,10 @@ def chat_stream():
         'tts_voice_custom': data.get('tts_voice_custom'),
         'tts_language': data.get('tts_language'),
         'tts_speed': data.get('tts_speed'),
+        'image_size': data.get('image_size'),
+        'image_quality': data.get('image_quality'),
+        'image_format': data.get('image_format'),
+        'image_compression': data.get('image_compression'),
     }
 
     if current_user.use_last_chat_settings:

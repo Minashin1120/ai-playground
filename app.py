@@ -97,6 +97,10 @@ def _env_bool(name, default=False):
     val = str(os.getenv(name, "1" if default else "0")).strip().lower()
     return val in ("1", "true", "yes", "on")
 
+def _env_choice(name, default, allowed):
+    val = (os.getenv(name) or "").strip()
+    return val if val in allowed else default
+
 def _key_sig(key, extra=""):
     if not key:
         return None
@@ -120,6 +124,24 @@ _OPENAI_POOL_TIMEOUT = _env_float("OPENAI_POOL_TIMEOUT_SECONDS", 5.0)
 _OPENAI_MAX_RETRIES = _env_int("OPENAI_MAX_RETRIES", 1)
 _OPENAI_IMAGE_TIMEOUT_SECONDS = _env_float("OPENAI_IMAGE_TIMEOUT_SECONDS", 120.0)
 _OPENAI_IMAGE_MAX_RETRIES = _env_int("OPENAI_IMAGE_MAX_RETRIES", 1)
+_OPENAI_IMAGE_DEFAULT_SIZE = _env_choice(
+    "OPENAI_IMAGE_DEFAULT_SIZE",
+    "1024x1024",
+    {"auto", "1024x1024", "1536x1024", "1024x1536"}
+)
+_OPENAI_IMAGE_DEFAULT_QUALITY = _env_choice(
+    "OPENAI_IMAGE_DEFAULT_QUALITY",
+    "medium",
+    {"auto", "low", "medium", "high"}
+)
+_OPENAI_IMAGE_OUTPUT_FORMAT = _env_choice(
+    "OPENAI_IMAGE_OUTPUT_FORMAT",
+    "jpeg",
+    {"png", "jpeg", "webp"}
+)
+_OPENAI_IMAGE_OUTPUT_COMPRESSION = _env_int("OPENAI_IMAGE_OUTPUT_COMPRESSION", 85)
+if _OPENAI_IMAGE_OUTPUT_COMPRESSION < 0 or _OPENAI_IMAGE_OUTPUT_COMPRESSION > 100:
+    _OPENAI_IMAGE_OUTPUT_COMPRESSION = 85
 RUN_SCHEMA_MIGRATIONS = _env_bool("RUN_SCHEMA_MIGRATIONS", False)
 
 _XAI_API_HOST = os.getenv("XAI_API_HOST", "api.x.ai").strip() or "api.x.ai"
@@ -1697,12 +1719,26 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         timeout=_OPENAI_IMAGE_TIMEOUT_SECONDS,
                         max_retries=_OPENAI_IMAGE_MAX_RETRIES
                     )
-                    resp = img_client.images.generate(model=model_key, prompt=final_message_text)
+                    img_kwargs = {"model": model_key, "prompt": final_message_text}
+                    if _OPENAI_IMAGE_DEFAULT_SIZE:
+                        img_kwargs["size"] = _OPENAI_IMAGE_DEFAULT_SIZE
+                    if _OPENAI_IMAGE_DEFAULT_QUALITY:
+                        img_kwargs["quality"] = _OPENAI_IMAGE_DEFAULT_QUALITY
+                    if _OPENAI_IMAGE_OUTPUT_FORMAT:
+                        img_kwargs["output_format"] = _OPENAI_IMAGE_OUTPUT_FORMAT
+                        if _OPENAI_IMAGE_OUTPUT_FORMAT in {"jpeg", "webp"}:
+                            img_kwargs["output_compression"] = _OPENAI_IMAGE_OUTPUT_COMPRESSION
+                    resp = img_client.images.generate(**img_kwargs)
                     if resp.data:
                         img_bytes = base64.b64decode(resp.data[0].b64_json)
                         ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
                         if not os.path.exists(ud): os.makedirs(ud, exist_ok=True)
-                        fn2 = f"gen_gpt_{int(time.time())}_{len(generated_images)}.png"
+                        ext = "png"
+                        if _OPENAI_IMAGE_OUTPUT_FORMAT == "jpeg":
+                            ext = "jpg"
+                        elif _OPENAI_IMAGE_OUTPUT_FORMAT == "webp":
+                            ext = "webp"
+                        fn2 = f"gen_gpt_{int(time.time())}_{len(generated_images)}.{ext}"
                         fp2 = os.path.join(ud, fn2)
                         if user_config.get('enable_e2ee'):
                             with open(fp2 + '.enc', 'wb') as f: f.write(encrypt_bytes(img_bytes))

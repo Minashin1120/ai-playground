@@ -583,6 +583,7 @@
                     </div>
                     <span class="text-gray-500">※ Nano Banana 系のみ有効</span>
                 </div>
+                <div id="image-input-limits" class="hidden mt-2 px-3 py-2 bg-gray-900/40 border border-gray-700 rounded-lg text-[10px] text-gray-400"></div>
                 <div id="audio-gen-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-xs text-gray-300 flex flex-wrap items-center gap-3">
                     <div class="flex items-center gap-2">
                         <span class="text-gray-400">Voice</span>
@@ -2129,6 +2130,41 @@
                     sizeEl.value = '1K';
                 }
             }
+            function updateImageInputLimits() {
+                const el = get('image-input-limits');
+                if (!el) return;
+                const model = (get('model-select').value || '').toLowerCase();
+                let html = '';
+                let show = false;
+                if (model.includes('gpt-image')) {
+                    show = true;
+                    html = [
+                        '<div class="font-bold text-gray-300 mb-1">GPT-Image 入力制限</div>',
+                        '<div>最大 16 枚 / 画像1枚あたり 50MB 未満 / PNG・JPG・WEBP</div>',
+                        '<div>マスク使用時: PNGのみ、4MB未満、元画像と同サイズ</div>'
+                    ].join('');
+                } else if (model.includes('gemini') && (model.includes('image') || model.includes('nano'))) {
+                    show = true;
+                    if (model.includes('gemini-2.5') && model.includes('image')) {
+                        html = [
+                            '<div class="font-bold text-gray-300 mb-1">Nano Banana 入力目安</div>',
+                            '<div>画像入力は最大3枚までが推奨</div>'
+                        ].join('');
+                    } else {
+                        html = [
+                            '<div class="font-bold text-gray-300 mb-1">Nano Banana Pro 入力目安</div>',
+                            '<div>高精度は最大5枚 / 合計14枚まで対応</div>'
+                        ].join('');
+                    }
+                }
+                if (show) {
+                    el.innerHTML = html;
+                    el.classList.remove('hidden');
+                } else {
+                    el.classList.add('hidden');
+                    el.innerHTML = '';
+                }
+            }
             function toggleOptions() { 
                 const model = get('model-select').value; 
                 const thinkOpts = get('thinking-options'); 
@@ -2210,6 +2246,7 @@
                 updateStsOptions();
                 updateGptImageUi();
                 updateGeminiImageUi();
+                updateImageInputLimits();
             }
             get('model-select').addEventListener('change', toggleOptions); toggleOptions();
             if (get('tts-voice')) get('tts-voice').addEventListener('change', updateTtsUi);

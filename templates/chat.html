@@ -3987,20 +3987,32 @@
             try {
                 const r = await apiFetch("{{ url_for('get_files_lib') }}"); 
                 if (!r.ok) throw new Error('Failed to load files');
-                const files = await r.json(); 
+                let files = [];
+                try {
+                    files = await r.json();
+                } catch (e) {
+                    const raw = await r.text();
+                    files = JSON.parse(raw);
+                }
+                if (!Array.isArray(files)) files = [];
                 if (grid) grid.innerHTML = '';
                 get('lib-total-count').innerText = files.length + " files"; 
                 lib.selected.clear(); 
-                lib.files = files;
-                lib.fileSet = new Set(files.map(f => f.filepath));
+                lib.files = files.filter(f => f && f.filepath && f.url);
+                lib.fileSet = new Set(lib.files.map(f => f.filepath));
                 updateLibSelectionUi();
-                if (!files.length && grid) {
+                if (!lib.files.length && grid) {
                     grid.innerHTML = '<div class="text-xs text-gray-500">ファイルがありません。</div>';
                     return;
                 }
-                files.forEach((f, i) => { 
-                    const el = renderLibraryItem(f, i);
-                    if (grid) grid.appendChild(el); 
+                let idx = 0;
+                lib.files.forEach((f) => { 
+                    try {
+                        const el = renderLibraryItem(f, idx++);
+                        if (grid) grid.appendChild(el); 
+                    } catch (e) {
+                        // Skip broken entries instead of failing entire render.
+                    }
                 }); 
             } catch (e) {
                 if (grid) grid.innerHTML = '<div class="text-xs text-red-400">ライブラリの読み込みに失敗しました。</div>';

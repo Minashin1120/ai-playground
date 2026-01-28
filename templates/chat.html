@@ -216,6 +216,15 @@
         #image-viewer.visible { display: flex; }
         #image-viewer img { max-width: min(92vw, 1200px); max-height: 88vh; border-radius: 12px; border: 1px solid rgba(148,163,184,0.2); box-shadow: var(--shadow); cursor: zoom-out; background: #0b121a; }
         #image-viewer .close-btn { position: absolute; top: 14px; right: 14px; width: 36px; height: 36px; border-radius: 999px; background: rgba(11,18,26,0.8); border: 1px solid var(--line); color: #e5e7eb; display: grid; place-items: center; }
+        #file-viewer { position: fixed; inset: 0; background: rgba(2,6,16,0.92); display: none; align-items: center; justify-content: center; z-index: 140; }
+        #file-viewer.visible { display: flex; }
+        #file-viewer .panel { width: min(92vw, 980px); max-height: 86vh; background: #0b121a; border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; }
+        #file-viewer .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(148,163,184,0.15); color: #e5e7eb; font-size: 12px; }
+        #file-viewer .panel-body { padding: 10px; overflow: auto; }
+        #file-viewer .panel-body iframe { width: 100%; height: 70vh; border: none; background: #0b121a; }
+        #file-viewer .panel-body video, #file-viewer .panel-body audio { width: 100%; }
+        #file-viewer .panel-body .fallback { color: #cbd5f5; font-size: 12px; text-align: center; padding: 24px 12px; }
+        #file-viewer .close-btn { width: 32px; height: 32px; border-radius: 999px; background: rgba(11,18,26,0.8); border: 1px solid var(--line); color: #e5e7eb; display: grid; place-items: center; }
 
         @media (prefers-reduced-motion: reduce) {
             * { animation: none !important; transition: none !important; }
@@ -383,6 +392,15 @@
     <div id="image-viewer">
         <button class="close-btn" onclick="closeImageViewer()" aria-label="close"><i class="fas fa-times"></i></button>
         <img id="image-viewer-img" alt="image preview">
+    </div>
+    <div id="file-viewer">
+        <div class="panel">
+            <div class="panel-header">
+                <span id="file-viewer-title">File Preview</span>
+                <button class="close-btn" onclick="closeFileViewer()" aria-label="close"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="file-viewer-body" class="panel-body"></div>
+        </div>
     </div>
 
     <!-- Toast Stack -->
@@ -1384,6 +1402,40 @@
             const img = get('image-viewer-img');
             if (!viewer || !img) return;
             img.src = '';
+            viewer.classList.remove('visible');
+        }
+        function openFileViewer(url, filename = '') {
+            if (!url) return;
+            const ext = (filename || url).split('.').pop().toLowerCase();
+            const imageExt = ['png','jpg','jpeg','webp','gif'];
+            const videoExt = ['mp4','mov','mkv','avi','m4v','webm'];
+            const audioExt = ['mp3','wav','m4a','ogg','flac'];
+            const docExt = ['pdf','txt','md','csv','log','json'];
+            if (imageExt.includes(ext)) {
+                openImageViewer(url);
+                return;
+            }
+            const viewer = get('file-viewer');
+            const body = get('file-viewer-body');
+            const title = get('file-viewer-title');
+            if (!viewer || !body || !title) return;
+            title.textContent = filename || 'File Preview';
+            if (videoExt.includes(ext)) {
+                body.innerHTML = `<video src="${url}" controls playsinline></video>`;
+            } else if (audioExt.includes(ext)) {
+                body.innerHTML = `<audio src="${url}" controls></audio>`;
+            } else if (docExt.includes(ext)) {
+                body.innerHTML = `<iframe src="${url}"></iframe>`;
+            } else {
+                body.innerHTML = `<div class="fallback">この形式はプレビューできません。<div class="mt-3 flex justify-center gap-2"><a href="${url}" download class="px-3 py-1 bg-gray-800 text-white rounded text-xs border border-gray-700">ダウンロード</a><a href="${url}" target="_blank" class="px-3 py-1 bg-gray-800 text-white rounded text-xs border border-gray-700">新しいタブで開く</a></div></div>`;
+            }
+            viewer.classList.add('visible');
+        }
+        function closeFileViewer() {
+            const viewer = get('file-viewer');
+            const body = get('file-viewer-body');
+            if (!viewer || !body) return;
+            body.innerHTML = '';
             viewer.classList.remove('visible');
         }
         function showToast(msg, type = "error", sticky = false) {
@@ -2623,6 +2675,9 @@
             get('image-viewer').addEventListener('click', (e) => {
                 if (e.target.id === 'image-viewer' || e.target.id === 'image-viewer-img') closeImageViewer();
             });
+            get('file-viewer').addEventListener('click', (e) => {
+                if (e.target.id === 'file-viewer') closeFileViewer();
+            });
             document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeImageViewer(); });
             
             // Microphone / STT or STS
@@ -2863,11 +2918,14 @@
             row.dataset.uploadId = uploadId;
             const safeName = escapeHtml(file.name || 'file');
             const isImage = file && file.type && file.type.startsWith('image/');
-            let previewHtml = '<div class="w-12 h-12 bg-gray-800 rounded border border-gray-700 flex items-center justify-center text-gray-400 text-sm">FILE</div>';
+            let previewHtml = '<div class="upload-preview w-12 h-12 bg-gray-800 rounded border border-gray-700 flex items-center justify-center text-gray-400 text-sm">FILE</div>';
             let previewUrl = '';
             if (isImage) {
                 previewUrl = URL.createObjectURL(file);
-                previewHtml = `<img src="${previewUrl}" class="w-12 h-12 object-cover rounded border border-gray-700 cursor-pointer" alt="${safeName}">`;
+                previewHtml = `<img src="${previewUrl}" class="upload-preview w-12 h-12 object-cover rounded border border-gray-700 cursor-pointer" alt="${safeName}">`;
+            } else {
+                previewUrl = URL.createObjectURL(file);
+                previewHtml = `<div class="upload-preview w-12 h-12 bg-gray-800 rounded border border-gray-700 flex items-center justify-center text-gray-400 text-sm cursor-pointer">FILE</div>`;
             }
             row.innerHTML = `
                 <div class="flex items-center gap-3">
@@ -2882,20 +2940,21 @@
                     <div style="width:0%"></div>
                 </div>
             `;
-            if (isImage && previewUrl) {
-                const img = row.querySelector('img');
-                if (img) {
-                    img.onload = () => URL.revokeObjectURL(previewUrl);
-                    img.onclick = () => {
-                        const w = window.open();
-                        if (w) w.location = previewUrl;
-                    };
-                }
+            if (previewUrl) row.setAttribute('data-local-url', previewUrl);
+            const previewEl = row.querySelector('.upload-preview');
+            if (previewEl) {
+                previewEl.onclick = () => {
+                    const filepath = row.getAttribute('data-filename');
+                    const url = filepath ? ("{{ url_for('serve_file', filename='') }}" + filepath) : row.getAttribute('data-local-url');
+                    openFileViewer(url, file.name || filepath || '');
+                };
             }
             const removeBtn = row.querySelector('.upload-remove');
             if (removeBtn) {
                 removeBtn.onclick = () => {
                     uploadCancelTokens.add(uploadId);
+                    const localUrl = row.getAttribute('data-local-url');
+                    if (localUrl) URL.revokeObjectURL(localUrl);
                     const stored = row.getAttribute('data-filename');
                     if (stored) currentImageUrls = currentImageUrls.filter(x => x !== stored);
                     row.remove();
@@ -2933,6 +2992,11 @@
                             if (row.row && row.row.parentNode) row.row.remove();
                             resolve(false);
                             return;
+                        }
+                        if (row && row.row) {
+                            const localUrl = row.row.getAttribute('data-local-url');
+                            if (localUrl) URL.revokeObjectURL(localUrl);
+                            row.row.removeAttribute('data-local-url');
                         }
                         currentImageUrls.push(d.filename);
                         if (row && row.row) row.row.setAttribute('data-filename', d.filename);
@@ -3562,9 +3626,24 @@
             el.className = "relative group bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400 model-list-animate opacity-0"; 
             if (i !== null && i !== undefined) el.style.animationDelay = `${i * 0.03}s`;
             const content = f.type==='image' ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`; 
-            const overlay = `<div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><a href="${f.url}" target="_blank" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a></div>`; 
-            el.innerHTML = content + overlay; 
+            const overlay = `<div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><button class="lib-open-btn p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-eye"></i></button></div>`; 
+            const actions = `<div class="absolute top-1 right-1 flex gap-1 z-20"><button class="lib-open-btn w-7 h-7 rounded-full bg-gray-900/70 border border-gray-600 text-gray-200 text-[10px]" title="開く"><i class="fas fa-eye"></i></button><button class="lib-del-btn w-7 h-7 rounded-full bg-gray-900/70 border border-gray-600 text-red-300 text-[10px]" title="削除"><i class="fas fa-trash"></i></button></div>`;
+            el.innerHTML = content + overlay + actions; 
             el.onclick = () => { if (lib.selected.has(f.filepath)) { lib.selected.delete(f.filepath); el.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.add('border-gray-600'); } else { lib.selected.add(f.filepath); el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.remove('border-gray-600'); } get('lib-del-btn').disabled = lib.selected.size === 0; get('lib-del-btn').innerText = `削除 (${lib.selected.size})`; }; 
+            const openBtns = el.querySelectorAll('.lib-open-btn');
+            openBtns.forEach((btn) => {
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    openFileViewer(f.url, f.filename);
+                };
+            });
+            const delBtn = el.querySelector('.lib-del-btn');
+            if (delBtn) {
+                delBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    await deleteSingleLibraryFile(f.filepath, el);
+                };
+            }
             return el;
         }
         function addLibraryFileFromPath(filepath) {
@@ -3586,6 +3665,24 @@
             if (grid && lib.modal && lib.modal.classList.contains('modal-open')) {
                 const el = renderLibraryItem(f, 0);
                 grid.prepend(el);
+            }
+        }
+        async function deleteSingleLibraryFile(filepath, el) {
+            if (!filepath) return;
+            if (!confirm('削除しますか？')) return;
+            try {
+                await apiFetch("{{ url_for('delete_files_batch') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({filenames:[filepath]})});
+                if (el && el.parentNode) el.remove();
+                if (lib.files) lib.files = lib.files.filter(f => f.filepath !== filepath);
+                if (lib.fileSet) lib.fileSet.delete(filepath);
+                lib.selected.delete(filepath);
+                const count = lib.files ? lib.files.length : 0;
+                const countEl = get('lib-total-count');
+                if (countEl) countEl.innerText = count + " files";
+                get('lib-del-btn').disabled = lib.selected.size === 0; 
+                get('lib-del-btn').innerText = lib.selected.size ? `削除 (${lib.selected.size})` : "削除";
+            } catch(e) {
+                showToast("削除に失敗しました", "error", true);
             }
         }
         async function loadLibraryFiles() { 

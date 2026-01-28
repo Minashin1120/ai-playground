@@ -1801,8 +1801,43 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             except Exception:
                                 pass
                         img_inputs.append((f"input_{len(img_inputs)}", img_bytes, img_mime))
+                    mask_file = None
+                    mask_name = options.get('image_mask')
+                    if mask_name:
+                        if not img_inputs:
+                            raise RuntimeError("Mask requires at least one input image.")
+                        norm = os.path.normpath(mask_name)
+                        if norm.startswith("..") or os.path.isabs(norm) or not norm.startswith(f"{user_id}/"):
+                            raise RuntimeError("Invalid mask path.")
+                        mp = os.path.join(app.config['UPLOAD_FOLDER'], norm)
+                        me = mp + '.enc'
+                        mbytes = None
+                        if os.path.exists(mp):
+                            with open(mp, 'rb') as f: mbytes = f.read()
+                        elif os.path.exists(me):
+                            with open(me, 'rb') as f: mbytes = decrypt_bytes(f.read())
+                        if not mbytes:
+                            raise RuntimeError("Mask file not found.")
+                        try:
+                            base_img = Image.open(BytesIO(img_inputs[0][1]))
+                            mask_img = Image.open(BytesIO(mbytes)).convert('RGBA')
+                            if base_img.size != mask_img.size:
+                                raise RuntimeError("Mask must match input image size.")
+                            out = BytesIO()
+                            mask_img.save(out, format='PNG')
+                            mbytes = out.getvalue()
+                            if len(mbytes) > 4 * 1024 * 1024:
+                                raise RuntimeError("Mask must be less than 4MB.")
+                            mask_file = ("mask.png", mbytes, "image/png")
+                        except RuntimeError:
+                            raise
+                        except Exception:
+                            raise RuntimeError("Failed to process mask file.")
                     if img_inputs:
-                        resp = img_client.images.edit(image=img_inputs, **img_kwargs)
+                        if mask_file:
+                            resp = img_client.images.edit(image=img_inputs, mask=mask_file, **img_kwargs)
+                        else:
+                            resp = img_client.images.edit(image=img_inputs, **img_kwargs)
                     else:
                         resp = img_client.images.generate(**img_kwargs)
                     if resp.data:
@@ -2688,6 +2723,7 @@ def chat_stream():
         'image_quality': data.get('image_quality'),
         'image_format': data.get('image_format'),
         'image_compression': data.get('image_compression'),
+        'image_mask': data.get('image_mask'),
         'gemini_image_aspect': data.get('gemini_image_aspect'),
         'gemini_image_size': data.get('gemini_image_size'),
     }

@@ -523,6 +523,7 @@
                     </div>
                 </div>
                 <div id="file-preview" class="hidden px-3 py-2 bg-gray-700/50 rounded text-xs text-blue-300 flex justify-between items-center"><span id="file-name" class="truncate"></span><button id="clear-file-btn" class="text-gray-400 hover:text-white ml-2">✕</button></div>
+                <div id="mask-preview" class="hidden px-3 py-2 bg-gray-700/40 rounded text-[10px] text-amber-200 flex justify-between items-center"><span id="mask-name" class="truncate"></span><button id="clear-mask-btn" class="text-gray-400 hover:text-white ml-2">✕</button></div>
                 <div id="gpt-image-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
                     <div class="flex items-center gap-2">
                         <span class="text-gray-400">Size</span>
@@ -647,7 +648,7 @@
                         <button id="auto-search-off-btn" class="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-[11px] btn-hover">検索OFFで回答</button>
                     </div>
                 </div>
-                <div id="input-row" class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><button id="upload-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="mic-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
+                <div id="input-row" class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><input type="file" id="mask-input" class="hidden" accept="image/*"><button id="upload-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="mask-btn" class="hidden bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Mask (GPT-Image)"><i class="fas fa-mask"></i></button><button id="mic-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
             </div>
         </div>
     </div>
@@ -970,7 +971,7 @@
         if (currentThreadId !== null && currentThreadId !== undefined) {
             currentThreadId = String(currentThreadId);
         }
-        let activeGem = null, currentImageUrls = [], abortController = null, userAutoScroll = true, searchTimeout; 
+        let activeGem = null, currentImageUrls = [], currentMaskImage = null, abortController = null, userAutoScroll = true, searchTimeout; 
         const threadGemMap = {};
         let pendingGemForNewThread = null;
         let currentJobId = null; 
@@ -2130,41 +2131,47 @@
                     sizeEl.value = '1K';
                 }
             }
-            function updateImageInputLimits() {
-                const el = get('image-input-limits');
-                if (!el) return;
-                const model = (get('model-select').value || '').toLowerCase();
-                let html = '';
-                let show = false;
-                if (model.includes('gpt-image')) {
-                    show = true;
+        function updateImageInputLimits() {
+            const el = get('image-input-limits');
+            if (!el) return;
+            const model = (get('model-select').value || '').toLowerCase();
+            let html = '';
+            let show = false;
+            if (model.includes('gpt-image')) {
+                show = true;
+                html = [
+                    '<div class="font-bold text-gray-300 mb-1">GPT-Image 入力制限</div>',
+                    '<div>最大 16 枚 / 画像1枚あたり 50MB 未満 / PNG・JPG・WEBP</div>',
+                    '<div>マスク使用時: PNGのみ、4MB未満、元画像と同サイズ</div>'
+                ].join('');
+            } else if (model.includes('gemini') && (model.includes('image') || model.includes('nano'))) {
+                show = true;
+                if (model.includes('gemini-2.5') && model.includes('image')) {
                     html = [
-                        '<div class="font-bold text-gray-300 mb-1">GPT-Image 入力制限</div>',
-                        '<div>最大 16 枚 / 画像1枚あたり 50MB 未満 / PNG・JPG・WEBP</div>',
-                        '<div>マスク使用時: PNGのみ、4MB未満、元画像と同サイズ</div>'
+                        '<div class="font-bold text-gray-300 mb-1">Nano Banana 入力目安</div>',
+                        '<div>画像入力は最大3枚までが推奨</div>'
                     ].join('');
-                } else if (model.includes('gemini') && (model.includes('image') || model.includes('nano'))) {
-                    show = true;
-                    if (model.includes('gemini-2.5') && model.includes('image')) {
-                        html = [
-                            '<div class="font-bold text-gray-300 mb-1">Nano Banana 入力目安</div>',
-                            '<div>画像入力は最大3枚までが推奨</div>'
-                        ].join('');
-                    } else {
-                        html = [
-                            '<div class="font-bold text-gray-300 mb-1">Nano Banana Pro 入力目安</div>',
-                            '<div>高精度は最大5枚 / 合計14枚まで対応</div>'
-                        ].join('');
-                    }
-                }
-                if (show) {
-                    el.innerHTML = html;
-                    el.classList.remove('hidden');
                 } else {
-                    el.classList.add('hidden');
-                    el.innerHTML = '';
+                    html = [
+                        '<div class="font-bold text-gray-300 mb-1">Nano Banana Pro 入力目安</div>',
+                        '<div>高精度は最大5枚 / 合計14枚まで対応</div>'
+                    ].join('');
                 }
+            } else if (model.includes('grok')) {
+                show = true;
+                html = [
+                    '<div class="font-bold text-gray-300 mb-1">Grok 画像入力制限</div>',
+                    '<div>最大 20MiB / PNG・JPG のみ / 枚数制限なし</div>'
+                ].join('');
             }
+            if (show) {
+                el.innerHTML = html;
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+                el.innerHTML = '';
+            }
+        }
             function toggleOptions() { 
                 const model = get('model-select').value; 
                 const thinkOpts = get('thinking-options'); 
@@ -2239,6 +2246,16 @@
                         pyChk.checked = false;
                         pyChk.disabled = true;
                         pyCont.classList.add('hidden');
+                    }
+                }
+                const maskBtn = get('mask-btn');
+                if (maskBtn) {
+                    if (isGptImageModel()) {
+                        maskBtn.classList.remove('hidden');
+                    } else {
+                        maskBtn.classList.add('hidden');
+                        currentMaskImage = null;
+                        updateMaskPreview();
                     }
                 }
                 updateTtsUi();
@@ -3055,15 +3072,49 @@
                 nameEl.innerText = '';
             }
         }
+        function updateMaskPreview() {
+            const preview = get('mask-preview');
+            const nameEl = get('mask-name');
+            if (!preview || !nameEl) return;
+            if (currentMaskImage) {
+                preview.classList.remove('hidden');
+                nameEl.innerText = `Mask: ${currentMaskImage.split('/').pop()}`;
+            } else {
+                preview.classList.add('hidden');
+                nameEl.innerText = '';
+            }
+        }
         const uploadCancelTokens = new Set();
         function resetUploadState() {
             currentImageUrls = [];
+            currentMaskImage = null;
             uploadCancelTokens.clear();
             updateFilePreview();
+            updateMaskPreview();
             const list = get('upload-list');
             if (list) list.innerHTML = '<div class="text-xs text-gray-500">まだアップロードがありません。</div>';
             const input = get('file-input');
             if (input) input.value = '';
+            const maskInput = get('mask-input');
+            if (maskInput) maskInput.value = '';
+        }
+
+        async function uploadMaskFile(file) {
+            if (!file) return;
+            const fd = new FormData();
+            fd.append('file', file);
+            try {
+                const r = await fetch("{{ url_for('upload') }}", { method: 'POST', body: fd });
+                const d = await r.json();
+                if (r.ok && d.filename) {
+                    currentMaskImage = d.filename;
+                    updateMaskPreview();
+                } else {
+                    showToast(d.error || "Mask upload failed", "error", true);
+                }
+            } catch (e) {
+                showToast("Mask upload failed", "error", true);
+            }
         }
         function openUploadModal() {
             const list = get('upload-list');
@@ -3208,6 +3259,23 @@
             updateFilePreview();
         }
         get('clear-file-btn').onclick = () => { resetUploadState(); };
+        if (get('clear-mask-btn')) {
+            get('clear-mask-btn').onclick = () => {
+                currentMaskImage = null;
+                updateMaskPreview();
+            };
+        }
+        if (get('mask-btn') && get('mask-input')) {
+            get('mask-btn').onclick = () => {
+                get('mask-input').click();
+            };
+            get('mask-input').addEventListener('change', async (e) => {
+                const f = e.target.files && e.target.files[0];
+                if (!f) return;
+                await uploadMaskFile(f);
+                e.target.value = '';
+            });
+        }
         
         function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, target = null, doScroll = true) { 
             const isUser = role === 'user'; 
@@ -3285,6 +3353,10 @@
         async function sendMessage() { 
             const t = get('prompt-input').value; // RAW INPUT (No trim)
             if(!t.trim() && currentImageUrls.length === 0) return; // Check trim only for empty check
+            if (isGptImageModel() && currentMaskImage && currentImageUrls.length === 0) {
+                showToast("Mask は画像入力が必要です", "error", true);
+                return;
+            }
             const editingId = editingMessageId;
             if (editingId) {
                 editingMessageId = null;
@@ -3387,6 +3459,7 @@
                 image_quality: isGptImageModel() && get('gpt-image-quality') ? get('gpt-image-quality').value : null,
                 image_format: isGptImageModel() && get('gpt-image-format') ? get('gpt-image-format').value : null,
                 image_compression: isGptImageModel() && get('gpt-image-compression') ? get('gpt-image-compression').value : null,
+                image_mask: isGptImageModel() ? currentMaskImage : null,
                 gemini_image_aspect: isGeminiImageModel() && get('gemini-image-aspect') ? get('gemini-image-aspect').value : null,
                 gemini_image_size: isGeminiImageModel() && get('gemini-image-size') ? get('gemini-image-size').value : null,
                 quote_text: currentQuote,

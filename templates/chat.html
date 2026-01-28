@@ -2937,6 +2937,9 @@
                         currentImageUrls.push(d.filename);
                         if (row && row.row) row.row.setAttribute('data-filename', d.filename);
                         if (row && row.status) row.status.textContent = '完了';
+                        updateFilePreview();
+                        const filenames = Array.isArray(d.filenames) && d.filenames.length ? d.filenames : [d.filename];
+                        filenames.forEach((fp) => addLibraryFileFromPath(fp));
                         resolve(true);
                     } else {
                         const msg = (d && d.error) ? d.error : "アップロードに失敗しました";
@@ -2958,7 +2961,8 @@
         async function handleFiles(fs) {
             if(!fs || !fs.length) return;
             openUploadModal();
-            for(let f of fs) {
+            const tasks = Array.from(fs).map(async (f) => {
+                const row = addUploadRow(f);
                 let t = f;
                 if (get('enable-compression').checked && f.type.startsWith('image/')) {
                     try {
@@ -2967,9 +2971,9 @@
                         t = new File([c], f.name, { type: c.type });
                     } catch(e){}
                 }
-                const row = addUploadRow(t);
-                await uploadFileWithProgress(t, row);
-            }
+                return uploadFileWithProgress(t, row);
+            });
+            await Promise.all(tasks);
             updateFilePreview();
         }
         get('clear-file-btn').onclick = () => { resetUploadState(); };
@@ -3553,6 +3557,37 @@
             if (!msg || !msg.parent_id) { showToast("再生成できるメッセージが見つかりません", "error", true); return; }
             beginEditMessage(msg.parent_id, true);
         };
+        function renderLibraryItem(f, i = 0) {
+            const el = document.createElement('div'); 
+            el.className = "relative group bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400 model-list-animate opacity-0"; 
+            if (i !== null && i !== undefined) el.style.animationDelay = `${i * 0.03}s`;
+            const content = f.type==='image' ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`; 
+            const overlay = `<div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><a href="${f.url}" target="_blank" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a></div>`; 
+            el.innerHTML = content + overlay; 
+            el.onclick = () => { if (lib.selected.has(f.filepath)) { lib.selected.delete(f.filepath); el.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.add('border-gray-600'); } else { lib.selected.add(f.filepath); el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.remove('border-gray-600'); } get('lib-del-btn').disabled = lib.selected.size === 0; get('lib-del-btn').innerText = `削除 (${lib.selected.size})`; }; 
+            return el;
+        }
+        function addLibraryFileFromPath(filepath) {
+            if (!filepath) return;
+            if (!lib.fileSet) lib.fileSet = new Set();
+            if (lib.fileSet.has(filepath)) return;
+            const filename = filepath.split('/').pop() || filepath;
+            const ext = (filename.split('.').pop() || '').toLowerCase();
+            const type = ['png','jpg','jpeg','webp','gif'].includes(ext) ? 'image' : 'file';
+            const url = "{{ url_for('serve_file', filename='') }}" + filepath;
+            const f = { filename, filepath, url, type, ext };
+            lib.fileSet.add(filepath);
+            if (!lib.files) lib.files = [];
+            lib.files.unshift(f);
+            const count = lib.files.length;
+            const countEl = get('lib-total-count');
+            if (countEl) countEl.innerText = count + " files";
+            const grid = get('lib-grid');
+            if (grid && lib.modal && lib.modal.classList.contains('modal-open')) {
+                const el = renderLibraryItem(f, 0);
+                grid.prepend(el);
+            }
+        }
         async function loadLibraryFiles() { 
             const r = await apiFetch("{{ url_for('get_files_lib') }}"); 
             const files = await r.json(); 
@@ -3560,16 +3595,12 @@
             grid.innerHTML = ''; 
             get('lib-total-count').innerText = files.length + " files"; 
             lib.selected.clear(); 
+            lib.files = files;
+            lib.fileSet = new Set(files.map(f => f.filepath));
             get('lib-del-btn').disabled = true; 
             get('lib-del-btn').innerText = "削除"; 
             files.forEach((f, i) => { 
-                const el = document.createElement('div'); 
-                el.className = "relative group bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400 model-list-animate opacity-0"; 
-                el.style.animationDelay = `${i * 0.03}s`;
-                const content = f.type==='image' ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`; 
-                const overlay = `<div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><a href="${f.url}" target="_blank" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i></a></div>`; 
-                el.innerHTML = content + overlay; 
-                el.onclick = () => { if (lib.selected.has(f.filepath)) { lib.selected.delete(f.filepath); el.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.add('border-gray-600'); } else { lib.selected.add(f.filepath); el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.remove('border-gray-600'); } get('lib-del-btn').disabled = lib.selected.size === 0; get('lib-del-btn').innerText = `削除 (${lib.selected.size})`; }; 
+                const el = renderLibraryItem(f, i);
                 grid.appendChild(el); 
             }); 
         }

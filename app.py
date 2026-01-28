@@ -2845,6 +2845,31 @@ def get_files_lib():
                         seen.add(p)
                         ext = os.path.splitext(p)[1].lower().replace('.', '')
                         files.append({'filename': os.path.basename(p), 'filepath': p, 'url': url_for('serve_file', filename=p), 'type': 'image' if ext in ['png','jpg','webp'] else 'file', 'ext': ext})
+        # Include uploaded files that are not yet attached to any message
+        ud = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
+        if os.path.isdir(ud):
+            for entry in os.scandir(ud):
+                if not entry.is_file():
+                    continue
+                name = entry.name
+                is_enc = name.endswith('.enc')
+                base_name = name[:-4] if is_enc else name
+                if not base_name:
+                    continue
+                rel_path = f"{current_user.id}/{base_name}"
+                if rel_path in seen:
+                    continue
+                ext = os.path.splitext(base_name)[1].lower().replace('.', '')
+                if not ext:
+                    continue
+                seen.add(rel_path)
+                files.append({
+                    'filename': os.path.basename(rel_path),
+                    'filepath': rel_path,
+                    'url': url_for('serve_file', filename=rel_path),
+                    'type': 'image' if ext in ['png','jpg','webp','jpeg','gif'] else 'file',
+                    'ext': ext
+                })
         return jsonify(files)
     except: return jsonify([])
 

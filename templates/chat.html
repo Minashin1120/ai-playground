@@ -299,6 +299,16 @@
         .upload-row { border: 1px solid rgba(148,163,184,0.18); }
         .upload-progress { background: rgba(var(--theme-rgb),0.25); }
         .upload-progress > div { background: linear-gradient(90deg, var(--theme-300), var(--theme-500)); }
+        @media (max-width: 768px) {
+            #lib-modal.lib-selecting #lib-grid .lib-open-btn,
+            #lib-modal.lib-selecting #lib-grid .lib-del-btn,
+            #lib-modal.lib-selecting #lib-grid a[download] {
+                display: none !important;
+            }
+            #lib-modal.lib-selecting #lib-grid .lib-overlay {
+                pointer-events: none;
+            }
+        }
         #settings-modal input, #settings-modal textarea, #settings-modal select { background: #0b121a; border: 1px solid var(--line); }
         #settings-modal input:focus, #settings-modal textarea:focus, #settings-modal select:focus { box-shadow: 0 0 0 2px rgba(var(--theme-rgb),0.2); outline: none; }
         #model-modal input, #gem-modal input, #gem-modal textarea { background: #0b121a; border: 1px solid var(--line); }
@@ -673,6 +683,7 @@
             </div>
             <div class="flex gap-2 mb-4">
                 <button id="upload-select-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-bold btn-hover">ファイルを選択</button>
+                <button id="upload-lib-btn" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm btn-hover">ライブラリから選択</button>
                 <button id="upload-clear-btn" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm btn-hover">リストをクリア</button>
             </div>
             <div class="text-xs text-gray-400 mb-2">進行状況</div>
@@ -834,7 +845,13 @@
     <div id="lib-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
         <div class="w-full h-full flex flex-col modal-panel">
             <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button onclick="hideModal('lib-modal')" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div>
-            <div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0"><span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span><button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs btn-hover" disabled>削除</button></div>
+            <div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0">
+                <span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span>
+                <div class="flex items-center gap-2">
+                    <button id="lib-attach-btn" class="bg-blue-600 text-white px-4 py-1.5 rounded text-xs btn-hover" disabled>添付</button>
+                    <button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs btn-hover" disabled>削除</button>
+                </div>
+            </div>
             <div id="lib-grid" class="flex-1 overflow-y-auto p-4 grid grid-cols-3 gap-4"></div>
         </div>
     </div>
@@ -976,7 +993,7 @@
         let pendingGemForNewThread = null;
         let currentJobId = null; 
         let editingMessageId = null; // Track message being edited
-        const messageStore = {}, lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set() };
+        const messageStore = {}, lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), attachMode: false };
         let threadPage = 1, threadLoading = false, hasMoreThreads = true;
         let threadObserver = null;
         let currentQuote = "";
@@ -3029,7 +3046,30 @@
                 }
             };
 
-            get('lib-btn').onclick = () => { showModal('lib-modal'); loadLibraryFiles(); }; get('lib-del-btn').onclick = deleteSelectedFiles;
+        function updateLibSelectionUi() {
+            const count = lib.selected.size;
+            const delBtn = get('lib-del-btn');
+            const attachBtn = get('lib-attach-btn');
+            if (delBtn) {
+                delBtn.disabled = count === 0;
+                delBtn.innerText = count ? `削除 (${count})` : "削除";
+            }
+            if (attachBtn) {
+                attachBtn.disabled = count === 0;
+                attachBtn.innerText = count ? `添付 (${count})` : "添付";
+            }
+            if (lib.modal) {
+                const isMobile = window.matchMedia('(max-width: 768px)').matches;
+                lib.modal.classList.toggle('lib-selecting', isMobile && count > 0);
+            }
+        }
+        function setLibAttachMode(flag) {
+            lib.attachMode = !!flag;
+        }
+        get('lib-btn').onclick = () => { setLibAttachMode(false); showModal('lib-modal'); loadLibraryFiles(); };
+        get('lib-del-btn').onclick = deleteSelectedFiles;
+        if (get('lib-attach-btn')) get('lib-attach-btn').onclick = () => attachSelectedLibraryFiles();
+        if (get('upload-lib-btn')) get('upload-lib-btn').onclick = () => { setLibAttachMode(true); showModal('lib-modal'); loadLibraryFiles(); };
             get('add-gem-btn').onclick = () => { showModal('gem-modal'); get('gem-name').value=''; get('gem-desc').value=''; get('gem-inst').value=''; };
             get('save-gem-btn').onclick = async () => { const name = get('gem-name').value; const desc = get('gem-desc').value; const inst = get('gem-inst').value; if(name && inst) { await apiFetch("{{ url_for('handle_gems') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, description:desc, instruction:inst})}); hideModal('gem-modal'); loadGems(); } else alert("Name and Instruction are required."); };
             document.addEventListener('click', function(e) { 
@@ -3872,10 +3912,21 @@
             el.className = "relative group bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400 model-list-animate opacity-0"; 
             if (i !== null && i !== undefined) el.style.animationDelay = `${i * 0.03}s`;
             const content = f.type==='image' ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`; 
-            const overlay = `<div class="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><button class="lib-open-btn p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-eye"></i></button></div>`; 
+            const overlay = `<div class="lib-overlay absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><button class="lib-open-btn p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-eye"></i></button></div>`; 
             const actions = `<div class="absolute top-1 right-1 flex gap-1 z-20"><button class="lib-open-btn w-7 h-7 rounded-full bg-gray-900/70 border border-gray-600 text-gray-200 text-[10px]" title="開く"><i class="fas fa-eye"></i></button><button class="lib-del-btn w-7 h-7 rounded-full bg-gray-900/70 border border-gray-600 text-red-300 text-[10px]" title="削除"><i class="fas fa-trash"></i></button></div>`;
             el.innerHTML = content + overlay + actions; 
-            el.onclick = () => { if (lib.selected.has(f.filepath)) { lib.selected.delete(f.filepath); el.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.add('border-gray-600'); } else { lib.selected.add(f.filepath); el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500'); el.classList.remove('border-gray-600'); } get('lib-del-btn').disabled = lib.selected.size === 0; get('lib-del-btn').innerText = `削除 (${lib.selected.size})`; }; 
+            el.onclick = () => {
+                if (lib.selected.has(f.filepath)) {
+                    lib.selected.delete(f.filepath);
+                    el.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500');
+                    el.classList.add('border-gray-600');
+                } else {
+                    lib.selected.add(f.filepath);
+                    el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500');
+                    el.classList.remove('border-gray-600');
+                }
+                updateLibSelectionUi();
+            }; 
             const openBtns = el.querySelectorAll('.lib-open-btn');
             openBtns.forEach((btn) => {
                 btn.onclick = (e) => {
@@ -3925,8 +3976,7 @@
                 const count = lib.files ? lib.files.length : 0;
                 const countEl = get('lib-total-count');
                 if (countEl) countEl.innerText = count + " files";
-                get('lib-del-btn').disabled = lib.selected.size === 0; 
-                get('lib-del-btn').innerText = lib.selected.size ? `削除 (${lib.selected.size})` : "削除";
+                updateLibSelectionUi();
             } catch(e) {
                 showToast("削除に失敗しました", "error", true);
             }
@@ -3940,14 +3990,33 @@
             lib.selected.clear(); 
             lib.files = files;
             lib.fileSet = new Set(files.map(f => f.filepath));
-            get('lib-del-btn').disabled = true; 
-            get('lib-del-btn').innerText = "削除"; 
+            updateLibSelectionUi();
             files.forEach((f, i) => { 
                 const el = renderLibraryItem(f, i);
                 grid.appendChild(el); 
             }); 
         }
-        async function deleteSelectedFiles() { if(!confirm('削除しますか？')) return; try{ await apiFetch("{{ url_for('delete_files_batch') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({filenames:Array.from(lib.selected)})}); loadLibraryFiles(); } catch(e){ alert("削除エラー"); } }
+        async function deleteSelectedFiles() {
+            if(!confirm('削除しますか？')) return;
+            try{
+                await apiFetch("{{ url_for('delete_files_batch') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({filenames:Array.from(lib.selected)})});
+                loadLibraryFiles();
+            } catch(e){
+                alert("削除エラー");
+            }
+        }
+        function attachSelectedLibraryFiles() {
+            if (!lib.selected.size) return;
+            const selected = Array.from(lib.selected);
+            selected.forEach((fp) => {
+                if (!currentImageUrls.includes(fp)) currentImageUrls.push(fp);
+            });
+            updateFilePreview();
+            lib.selected.clear();
+            updateLibSelectionUi();
+            hideModal('lib-modal');
+            showToast("ライブラリから添付しました", "success");
+        }
         window.showLegal = async (t) => { showModal('legal-modal'); const res = await apiFetch("/static/legal/" + t + ".md?t=" + Date.now()); if(!res.ok) return; const text = await res.text(); get('legal-content').innerHTML = DOMPurify.sanitize(marked.parse(text)); }
         window.copyCode = (btn, code) => { 
             const text = decodeURIComponent(code);

@@ -3987,13 +3987,9 @@
             try {
                 const r = await apiFetch("{{ url_for('get_files_lib') }}"); 
                 if (!r.ok) throw new Error('Failed to load files');
+                const raw = await r.text();
                 let files = [];
-                try {
-                    files = await r.json();
-                } catch (e) {
-                    const raw = await r.text();
-                    files = JSON.parse(raw);
-                }
+                try { files = JSON.parse(raw); } catch (e) { files = []; }
                 if (!Array.isArray(files)) files = [];
                 if (grid) grid.innerHTML = '';
                 get('lib-total-count').innerText = files.length + " files"; 

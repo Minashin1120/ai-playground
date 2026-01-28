@@ -118,6 +118,8 @@ _OPENAI_READ_TIMEOUT = _env_float("OPENAI_READ_TIMEOUT_SECONDS", 120.0)
 _OPENAI_WRITE_TIMEOUT = _env_float("OPENAI_WRITE_TIMEOUT_SECONDS", 30.0)
 _OPENAI_POOL_TIMEOUT = _env_float("OPENAI_POOL_TIMEOUT_SECONDS", 5.0)
 _OPENAI_MAX_RETRIES = _env_int("OPENAI_MAX_RETRIES", 1)
+_OPENAI_IMAGE_TIMEOUT_SECONDS = _env_float("OPENAI_IMAGE_TIMEOUT_SECONDS", 120.0)
+_OPENAI_IMAGE_MAX_RETRIES = _env_int("OPENAI_IMAGE_MAX_RETRIES", 1)
 RUN_SCHEMA_MIGRATIONS = _env_bool("RUN_SCHEMA_MIGRATIONS", False)
 
 _XAI_API_HOST = os.getenv("XAI_API_HOST", "api.x.ai").strip() or "api.x.ai"
@@ -1690,8 +1692,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 try:
                     pub("content", "**Generating Image (OpenAI)...**\n")
                     # GPT Image models always return base64; response_format is not supported for them.
-                    # Use a tighter timeout/retry to avoid very long hangs on upstream 5xx.
-                    img_client = o_client.with_options(timeout=45, max_retries=1)
+                    # Use a dedicated timeout/retry so image generation can be slower without timing out.
+                    img_client = o_client.with_options(
+                        timeout=_OPENAI_IMAGE_TIMEOUT_SECONDS,
+                        max_retries=_OPENAI_IMAGE_MAX_RETRIES
+                    )
                     resp = img_client.images.generate(model=model_key, prompt=final_message_text)
                     if resp.data:
                         img_bytes = base64.b64decode(resp.data[0].b64_json)

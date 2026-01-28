@@ -1340,19 +1340,39 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             img_prompt = f"{options.get('system_prompt')}\n\n{final_message_text}"
 
                         img_model = "gemini-2.5-flash-image" if "2.5" in model_key else "gemini-3-pro-image-preview"
-                        
+                        aspect_allowed = {"1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"}
+                        size_allowed = {"1K", "2K", "4K"}
+                        aspect_val = options.get('gemini_image_aspect')
+                        if aspect_val:
+                            aspect_val = str(aspect_val).strip()
+                            if aspect_val not in aspect_allowed:
+                                aspect_val = None
+                        size_val = options.get('gemini_image_size')
+                        if size_val:
+                            size_val = str(size_val).strip().upper()
+                            if size_val not in size_allowed:
+                                size_val = None
+                        image_cfg_kwargs = {}
+                        if aspect_val:
+                            image_cfg_kwargs["aspect_ratio"] = aspect_val
+                        if size_val and "gemini-3-pro-image-preview" in img_model:
+                            image_cfg_kwargs["image_size"] = size_val
+                        config_kwargs = {
+                            "temperature": 0.7,
+                            "safety_settings": [
+                                types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
+                                types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
+                                types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
+                                types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE")
+                            ]
+                        }
+                        if image_cfg_kwargs:
+                            config_kwargs["image_config"] = types.ImageConfig(**image_cfg_kwargs)
+
                         resp = g_client.models.generate_content(
                             model=img_model,
                             contents=[types.Part(text=img_prompt)],
-                            config=types.GenerateContentConfig(
-                                temperature=0.7,
-                                safety_settings=[
-                                    types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
-                                    types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
-                                    types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
-                                    types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE")
-                                ]
-                            )
+                            config=types.GenerateContentConfig(**config_kwargs)
                         )
                         
                         if resp.candidates:
@@ -2611,6 +2631,8 @@ def chat_stream():
         'image_quality': data.get('image_quality'),
         'image_format': data.get('image_format'),
         'image_compression': data.get('image_compression'),
+        'gemini_image_aspect': data.get('gemini_image_aspect'),
+        'gemini_image_size': data.get('gemini_image_size'),
     }
 
     if current_user.use_last_chat_settings:

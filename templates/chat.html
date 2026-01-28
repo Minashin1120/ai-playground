@@ -556,6 +556,32 @@
                     </div>
                     <span class="text-gray-500">※ GPT-Image のみ有効</span>
                 </div>
+                <div id="gemini-image-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Aspect</span>
+                        <select id="gemini-image-aspect" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="1:1" selected>1:1</option>
+                            <option value="2:3">2:3</option>
+                            <option value="3:2">3:2</option>
+                            <option value="3:4">3:4</option>
+                            <option value="4:3">4:3</option>
+                            <option value="4:5">4:5</option>
+                            <option value="5:4">5:4</option>
+                            <option value="9:16">9:16</option>
+                            <option value="16:9">16:9</option>
+                            <option value="21:9">21:9</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Size</span>
+                        <select id="gemini-image-size" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="1K" selected>1K</option>
+                            <option value="2K">2K</option>
+                            <option value="4K">4K</option>
+                        </select>
+                    </div>
+                    <span class="text-gray-500">※ Nano Banana 系のみ有効</span>
+                </div>
                 <div id="audio-gen-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-xs text-gray-300 flex flex-wrap items-center gap-3">
                     <div class="flex items-center gap-2">
                         <span class="text-gray-400">Voice</span>
@@ -1695,6 +1721,10 @@
         const GROK_PCM_RATES = [8000,16000,21050,24000,32000,44100,48000];
         const isTtsModel = () => get('model-select').value.includes('tts');
         const isGptImageModel = () => (get('model-select').value || '').includes('gpt-image');
+        const isGeminiImageModel = () => {
+            const m = (get('model-select').value || '').toLowerCase();
+            return m.includes('gemini') && (m.includes('image') || m.includes('nano'));
+        };
 
         const isStsModel = () => STS_MODELS.has(get('model-select').value);
         const getStsProvider = (model) => {
@@ -2065,6 +2095,27 @@
                     }
                 }
             }
+            function updateGeminiImageUi() {
+                const wrap = get('gemini-image-options');
+                if (!wrap) return;
+                if (isGeminiImageModel()) {
+                    wrap.classList.remove('hidden');
+                } else {
+                    wrap.classList.add('hidden');
+                }
+                const model = (get('model-select').value || '').toLowerCase();
+                const sizeEl = get('gemini-image-size');
+                if (!sizeEl) return;
+                const isFlashImage = model.includes('gemini-2.5') && model.includes('image');
+                Array.from(sizeEl.options).forEach(opt => {
+                    if (opt.value !== '1K') {
+                        opt.disabled = isFlashImage;
+                    }
+                });
+                if (isFlashImage && sizeEl.value !== '1K') {
+                    sizeEl.value = '1K';
+                }
+            }
             function toggleOptions() { 
                 const model = get('model-select').value; 
                 const thinkOpts = get('thinking-options'); 
@@ -2135,10 +2186,12 @@
                 updateStsUi();
                 updateStsOptions();
                 updateGptImageUi();
+                updateGeminiImageUi();
             }
             get('model-select').addEventListener('change', toggleOptions); toggleOptions();
             if (get('tts-voice')) get('tts-voice').addEventListener('change', updateTtsUi);
             if (get('gpt-image-format')) get('gpt-image-format').addEventListener('change', () => updateGptImageUi());
+            if (get('gemini-image-size')) get('gemini-image-size').addEventListener('change', () => updateGeminiImageUi());
             if (get('tts-speed') && get('tts-speed-label')) {
                 get('tts-speed').addEventListener('input', () => {
                     get('tts-speed-label').textContent = `${Number(get('tts-speed').value || 1).toFixed(2)}x`;
@@ -3274,6 +3327,8 @@
                 image_quality: isGptImageModel() && get('gpt-image-quality') ? get('gpt-image-quality').value : null,
                 image_format: isGptImageModel() && get('gpt-image-format') ? get('gpt-image-format').value : null,
                 image_compression: isGptImageModel() && get('gpt-image-compression') ? get('gpt-image-compression').value : null,
+                gemini_image_aspect: isGeminiImageModel() && get('gemini-image-aspect') ? get('gemini-image-aspect').value : null,
+                gemini_image_size: isGeminiImageModel() && get('gemini-image-size') ? get('gemini-image-size').value : null,
                 quote_text: currentQuote,
                 parent_id: currentParentId,
                 disable_auto_search: disableAutoSearch

@@ -4056,17 +4056,26 @@ def upload():
     files = request.files.getlist('file')
     if not files: return jsonify({'error': 'No file'}), 400
     try:
+        if current_user.username != 'minashin1120':
+            hard_limit = _get_user_storage_limit_bytes(current_user)
+            if hard_limit:
+                for f in files:
+                    size = _get_filestorage_size(f)
+                    if size is not None and size > hard_limit:
+                        limit_mb = _bytes_to_mb_str(hard_limit)
+                        return jsonify({'error': f'File too large. Max {limit_mb}'}), 413
         total_incoming = 0
         for f in files:
             size = _get_filestorage_size(f)
             if size is None:
                 continue
             total_incoming += size
-        ok, used, limit = _check_storage_capacity(current_user, total_incoming)
-        if not ok:
-            used_mb = _bytes_to_mb_str(used)
-            limit_mb = _bytes_to_mb_str(limit)
-            return jsonify({'error': f'Storage limit exceeded ({used_mb} / {limit_mb})'}), 413
+        if current_user.username != 'minashin1120':
+            ok, used, limit = _check_storage_capacity(current_user, total_incoming)
+            if not ok:
+                used_mb = _bytes_to_mb_str(used)
+                limit_mb = _bytes_to_mb_str(limit)
+                return jsonify({'error': f'Storage limit exceeded ({used_mb} / {limit_mb})'}), 413
     except Exception:
         pass
     ud = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))

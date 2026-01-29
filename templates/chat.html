@@ -3269,8 +3269,99 @@
                 bar: row.querySelector('.upload-progress > div')
             };
         }
+        const CHUNK_THRESHOLD_BYTES = 80 * 1024 * 1024;
+        async function uploadFileChunked(file, row) {
+            if (!file) return false;
+            try {
+                const initRes = await apiFetch("/upload/init", {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken},
+                    body: JSON.stringify({ filename: file.name, size: file.size })
+                });
+                const initData = await initRes.json();
+                if (!initRes.ok) {
+                    const msg = initData && initData.error ? initData.error : "アップロードに失敗しました";
+                    if (row && row.status) row.status.textContent = '失敗';
+                    showToast(msg, "error", true);
+                    return false;
+                }
+                const uploadId = initData.upload_id;
+                const chunkSize = initData.chunk_size || (10 * 1024 * 1024);
+                const totalChunks = Math.ceil(file.size / chunkSize);
+                for (let i = 0; i < totalChunks; i++) {
+                    const start = i * chunkSize;
+                    const end = Math.min(file.size, start + chunkSize);
+                    const chunk = file.slice(start, end);
+                    const ok = await new Promise((resolve) => {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('POST', "/upload/chunk", true);
+                        xhr.setRequestHeader('X-CSRF-Token', csrfToken);
+                        xhr.upload.onprogress = (e) => {
+                            if (e.lengthComputable && row && row.bar) {
+                                const done = start + e.loaded;
+                                const pct = Math.min(100, Math.floor((done / file.size) * 100));
+                                row.bar.style.width = `${pct}%`;
+                                if (row.status) row.status.textContent = `${pct}%`;
+                            }
+                        };
+                        xhr.onload = () => {
+                            if (xhr.status >= 200 && xhr.status < 300) resolve(true);
+                            else resolve(false);
+                        };
+                        xhr.onerror = () => resolve(false);
+                        const fd = new FormData();
+                        fd.append('upload_id', uploadId);
+                        fd.append('index', String(i));
+                        fd.append('total', String(totalChunks));
+                        fd.append('chunk', chunk, file.name);
+                        xhr.send(fd);
+                    });
+                    if (!ok) {
+                        if (row && row.status) row.status.textContent = '失敗';
+                        showToast("アップロードに失敗しました", "error", true);
+                        return false;
+                    }
+                }
+                const doneRes = await apiFetch("/upload/complete", {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken},
+                    body: JSON.stringify({ upload_id: uploadId })
+                });
+                const doneData = await doneRes.json();
+                if (doneRes.ok && doneData && doneData.filename) {
+                    if (row && row.row && row.uploadId && uploadCancelTokens.has(row.uploadId)) {
+                        if (row.row && row.row.parentNode) row.row.remove();
+                        return false;
+                    }
+                    if (row && row.row) {
+                        const localUrl = row.row.getAttribute('data-local-url');
+                        if (localUrl) URL.revokeObjectURL(localUrl);
+                        row.row.removeAttribute('data-local-url');
+                    }
+                    currentImageUrls.push(doneData.filename);
+                    if (row && row.row) row.row.setAttribute('data-filename', doneData.filename);
+                    if (row && row.status) row.status.textContent = '完了';
+                    updateFilePreview();
+                    const filenames = Array.isArray(doneData.filenames) && doneData.filenames.length ? doneData.filenames : [doneData.filename];
+                    filenames.forEach((fp) => addLibraryFileFromPath(fp));
+                    return true;
+                }
+                const msg = (doneData && doneData.error) ? doneData.error : "アップロードに失敗しました";
+                if (row && row.status) row.status.textContent = '失敗';
+                showToast(msg, "error", true);
+                return false;
+            } catch (e) {
+                if (row && row.status) row.status.textContent = '失敗';
+                showToast("アップロード中にエラーが発生しました", "error", true);
+                return false;
+            }
+        }
         function uploadFileWithProgress(file, row) {
             return new Promise((resolve) => {
+                if (file && file.size > CHUNK_THRESHOLD_BYTES) {
+                    uploadFileChunked(file, row).then(resolve);
+                    return;
+                }
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', "{{ url_for('upload') }}", true);
                 xhr.setRequestHeader('X-CSRF-Token', csrfToken);

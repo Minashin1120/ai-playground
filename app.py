@@ -252,7 +252,7 @@ login_manager.login_view = 'login'
 
 @app.before_request
 def _apply_per_user_upload_limits():
-    if request.endpoint != 'upload':
+    if request.endpoint not in ('upload', 'upload_chunk'):
         return
     try:
         if current_user.is_authenticated and current_user.username == 'minashin1120':
@@ -263,10 +263,14 @@ def _apply_per_user_upload_limits():
                 if request.content_length and request.content_length > limit:
                     limit_mb = _bytes_to_mb_str(limit)
                     return jsonify({'error': f'File too large. Max {limit_mb}'}), 413
-                used = _get_user_storage_usage_bytes(current_user.id)
-                remaining = max(0, limit - used)
-                hard_cap = app.config.get('MAX_CONTENT_LENGTH') or remaining
-                request.max_content_length = min(hard_cap, remaining if remaining > 0 else 1)
+                if request.endpoint == 'upload_chunk':
+                    hard_cap = app.config.get('MAX_CONTENT_LENGTH') or limit
+                    request.max_content_length = min(hard_cap, limit)
+                else:
+                    used = _get_user_storage_usage_bytes(current_user.id)
+                    remaining = max(0, limit - used)
+                    hard_cap = app.config.get('MAX_CONTENT_LENGTH') or remaining
+                    request.max_content_length = min(hard_cap, remaining if remaining > 0 else 1)
             else:
                 request.max_content_length = app.config.get('MAX_CONTENT_LENGTH')
     except Exception:
@@ -338,6 +342,30 @@ def _check_storage_capacity(user, additional_bytes):
     if used + additional_bytes > limit:
         return False, used, limit
     return True, used + additional_bytes, limit
+
+def _chunk_root_dir():
+    return os.path.join(app.config['UPLOAD_FOLDER'], '.chunks')
+
+def _chunk_user_dir(user_id):
+    return os.path.join(_chunk_root_dir(), str(user_id))
+
+def _chunk_session_dir(user_id, upload_id):
+    return os.path.join(_chunk_user_dir(user_id), upload_id)
+
+def _load_chunk_meta(path):
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+def _save_chunk_meta(path, meta):
+    try:
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(meta, f)
+        return True
+    except Exception:
+        return False
 
 KEY_FILE = os.path.join(os.path.dirname(__file__), 'secret.key')
 cipher = None
@@ -4124,6 +4152,158 @@ def upload():
                         f.save(save_path)
                 else: f.save(save_path)
             res.append(f"{current_user.id}/{fname}")
+    return jsonify({'filename': res[0] if res else '', 'filenames': res})
+
+@app.route('/upload/init', methods=['POST'])
+@login_required
+def upload_init():
+    data = request.json or {}
+    filename = secure_filename((data.get('filename') or '').strip())
+    total_size = int(data.get('size') or 0)
+    if not filename or total_size <= 0:
+        return jsonify({'error': 'Invalid upload'}), 400
+
+    allowed = {'.txt', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm', '.mp4', '.mov', '.mkv', '.avi', '.m4v'}
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in allowed:
+        return jsonify({'error': f'File type {ext} not allowed'}), 400
+
+    if current_user.username != 'minashin1120':
+        hard_limit = _get_user_storage_limit_bytes(current_user)
+        if hard_limit and total_size > hard_limit:
+            limit_mb = _bytes_to_mb_str(hard_limit)
+            return jsonify({'error': f'File too large. Max {limit_mb}'}), 413
+        ok, used, limit = _check_storage_capacity(current_user, total_size)
+        if not ok:
+            used_mb = _bytes_to_mb_str(used)
+            limit_mb = _bytes_to_mb_str(limit)
+            return jsonify({'error': f'Storage limit exceeded ({used_mb} / {limit_mb})'}), 413
+
+    upload_id = f"up_{int(time.time())}_{os.urandom(4).hex()}"
+    session_dir = _chunk_session_dir(current_user.id, upload_id)
+    os.makedirs(session_dir, exist_ok=True)
+    os.chmod(session_dir, 0o700)
+    meta = {
+        "filename": filename,
+        "size": total_size,
+        "received": 0,
+        "created": int(time.time()),
+        "ext": ext
+    }
+    if not _save_chunk_meta(os.path.join(session_dir, 'meta.json'), meta):
+        return jsonify({'error': 'Init failed'}), 500
+    chunk_size = 10 * 1024 * 1024
+    return jsonify({'upload_id': upload_id, 'chunk_size': chunk_size})
+
+@app.route('/upload/chunk', methods=['POST'])
+@login_required
+def upload_chunk():
+    upload_id = (request.form.get('upload_id') or '').strip()
+    index = request.form.get('index')
+    total = request.form.get('total')
+    f = request.files.get('chunk')
+    if not upload_id or f is None:
+        return jsonify({'error': 'Invalid chunk'}), 400
+    session_dir = _chunk_session_dir(current_user.id, upload_id)
+    meta_path = os.path.join(session_dir, 'meta.json')
+    meta = _load_chunk_meta(meta_path)
+    if not meta:
+        return jsonify({'error': 'Upload not found'}), 404
+    try:
+        index = int(index) if index is not None else 0
+        total = int(total) if total is not None else 0
+    except Exception:
+        return jsonify({'error': 'Invalid chunk index'}), 400
+
+    part_path = os.path.join(session_dir, 'data.part')
+    try:
+        with open(part_path, 'ab') as out:
+            chunk_data = f.read()
+            out.write(chunk_data)
+        meta['received'] = int(meta.get('received') or 0) + len(chunk_data)
+        _save_chunk_meta(meta_path, meta)
+    except Exception:
+        return jsonify({'error': 'Chunk write failed'}), 500
+
+    return jsonify({'received': meta['received'], 'total': meta.get('size', 0), 'index': index, 'chunks': total})
+
+@app.route('/upload/complete', methods=['POST'])
+@login_required
+def upload_complete():
+    data = request.json or {}
+    upload_id = (data.get('upload_id') or '').strip()
+    if not upload_id:
+        return jsonify({'error': 'Invalid upload'}), 400
+    session_dir = _chunk_session_dir(current_user.id, upload_id)
+    meta_path = os.path.join(session_dir, 'meta.json')
+    meta = _load_chunk_meta(meta_path)
+    if not meta:
+        return jsonify({'error': 'Upload not found'}), 404
+
+    part_path = os.path.join(session_dir, 'data.part')
+    if not os.path.exists(part_path):
+        return jsonify({'error': 'Upload missing'}), 400
+    if int(meta.get('received') or 0) != int(meta.get('size') or 0):
+        return jsonify({'error': 'Upload incomplete'}), 400
+
+    ud = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
+    if not os.path.exists(ud):
+        os.makedirs(ud, exist_ok=True)
+        os.chmod(ud, 0o700)
+    else:
+        try: os.chmod(ud, 0o700)
+        except: pass
+
+    orig_name = meta.get('filename') or 'file'
+    ext = os.path.splitext(orig_name)[1].lower()
+    fname_base = f"{int(time.time())}_{os.urandom(4).hex()}"
+    fname = f"{fname_base}{ext}"
+    save_path = os.path.join(ud, fname)
+    res = []
+    try:
+        if current_user.enable_e2ee:
+            is_image = ext in ['.jpg', '.jpeg', '.png']
+            if is_image and not orig_name.endswith('.webp'):
+                try:
+                    buf = BytesIO()
+                    Image.open(part_path).convert('RGB').save(buf, 'WEBP', quality=80)
+                    enc_data = encrypt_bytes(buf.getvalue())
+                    fname = f"{fname_base}.webp"
+                    with open(os.path.join(ud, fname + '.enc'), 'wb') as ef: ef.write(enc_data)
+                except Exception:
+                    with open(part_path, 'rb') as rf:
+                        with open(os.path.join(ud, fname + '.enc'), 'wb') as ef:
+                            ef.write(encrypt_bytes(rf.read()))
+            else:
+                with open(part_path, 'rb') as rf:
+                    with open(os.path.join(ud, fname + '.enc'), 'wb') as ef:
+                        ef.write(encrypt_bytes(rf.read()))
+        else:
+            is_image = ext in ['.jpg', '.jpeg', '.png']
+            if is_image and not orig_name.endswith('.webp'):
+                try:
+                    Image.open(part_path).convert('RGB').save(os.path.join(ud, f"{fname_base}.webp"), 'WEBP', quality=80)
+                    fname = f"{fname_base}.webp"
+                except Exception:
+                    os.replace(part_path, save_path)
+            else:
+                os.replace(part_path, save_path)
+        res.append(f"{current_user.id}/{fname}")
+    except Exception as e:
+        logger.error(f"Chunk finalize failed: {e}")
+        return jsonify({'error': 'Finalize failed'}), 500
+    finally:
+        try:
+            if os.path.exists(part_path):
+                os.remove(part_path)
+        except Exception:
+            pass
+        try:
+            if os.path.exists(meta_path):
+                os.remove(meta_path)
+            os.rmdir(session_dir)
+        except Exception:
+            pass
     return jsonify({'filename': res[0] if res else '', 'filenames': res})
 
 @app.route('/api/storage', methods=['GET'])

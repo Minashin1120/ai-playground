@@ -247,6 +247,18 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+@app.before_request
+def _apply_per_user_upload_limits():
+    if request.endpoint != 'upload':
+        return
+    try:
+        if current_user.is_authenticated and current_user.username == 'minashin1120':
+            request.max_content_length = None
+        else:
+            request.max_content_length = app.config.get('MAX_CONTENT_LENGTH')
+    except Exception:
+        request.max_content_length = app.config.get('MAX_CONTENT_LENGTH')
+
 KEY_FILE = os.path.join(os.path.dirname(__file__), 'secret.key')
 cipher = None
 try:
@@ -3964,7 +3976,10 @@ def upload():
 
 @app.errorhandler(RequestEntityTooLarge)
 def handle_upload_too_large(e):
-    limit_mb = app.config.get('MAX_CONTENT_LENGTH', 0) // (1024 * 1024)
+    limit = getattr(request, 'max_content_length', None) or app.config.get('MAX_CONTENT_LENGTH')
+    if not limit:
+        return jsonify({'error': 'File too large. The server rejected the upload.'}), 413
+    limit_mb = limit // (1024 * 1024)
     return jsonify({'error': f'File too large. Max {limit_mb}MB'}), 413
 
 with app.app_context():

@@ -237,6 +237,8 @@ app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'instance/
 app.config['CHANGELOG_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static/changelogs')
 _upload_max_mb = int(os.getenv('UPLOAD_MAX_MB', '512') or '512')
 app.config['MAX_CONTENT_LENGTH'] = _upload_max_mb * 1024 * 1024
+_user_storage_limit_mb = int(os.getenv('USER_STORAGE_LIMIT_MB', '100') or '100')
+app.config['USER_STORAGE_LIMIT_MB'] = _user_storage_limit_mb
 app.config['MAINTENANCE_MODE'] = os.path.exists(os.path.join(os.path.dirname(__file__), 'maintenance.lock'))
 
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/10')
@@ -256,9 +258,83 @@ def _apply_per_user_upload_limits():
         if current_user.is_authenticated and current_user.username == 'minashin1120':
             request.max_content_length = None
         else:
-            request.max_content_length = app.config.get('MAX_CONTENT_LENGTH')
+            limit = _get_user_storage_limit_bytes(current_user) if current_user.is_authenticated else None
+            if limit:
+                used = _get_user_storage_usage_bytes(current_user.id)
+                remaining = max(0, limit - used)
+                hard_cap = app.config.get('MAX_CONTENT_LENGTH') or remaining
+                request.max_content_length = min(hard_cap, remaining if remaining > 0 else 1)
+            else:
+                request.max_content_length = app.config.get('MAX_CONTENT_LENGTH')
     except Exception:
         request.max_content_length = app.config.get('MAX_CONTENT_LENGTH')
+
+class StorageLimitError(Exception):
+    def __init__(self, message, used=None, limit=None):
+        super().__init__(message)
+        self.used = used
+        self.limit = limit
+
+def _bytes_to_mb_str(val):
+    try:
+        return f"{float(val) / (1024 * 1024):.1f}MB"
+    except Exception:
+        return "0MB"
+
+def _get_user_storage_limit_bytes(user):
+    try:
+        if not user:
+            return None
+        if getattr(user, "username", None) == 'minashin1120':
+            return None
+        limit_mb = int(app.config.get('USER_STORAGE_LIMIT_MB') or 0)
+        if limit_mb <= 0:
+            return None
+        return limit_mb * 1024 * 1024
+    except Exception:
+        return None
+
+def _get_user_storage_usage_bytes(user_id):
+    total = 0
+    try:
+        user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
+        if os.path.isdir(user_dir):
+            for root, _, files in os.walk(user_dir):
+                for name in files:
+                    try:
+                        total += os.path.getsize(os.path.join(root, name))
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+    return total
+
+def _get_filestorage_size(fs):
+    if not fs:
+        return None
+    try:
+        stream = fs.stream
+        pos = stream.tell()
+        stream.seek(0, os.SEEK_END)
+        size = stream.tell()
+        stream.seek(pos)
+        return size
+    except Exception:
+        try:
+            data = fs.read()
+            fs.stream.seek(0)
+            return len(data)
+        except Exception:
+            return None
+
+def _check_storage_capacity(user, additional_bytes):
+    limit = _get_user_storage_limit_bytes(user)
+    if not limit:
+        return True, None, None
+    used = _get_user_storage_usage_bytes(user.id)
+    if used + additional_bytes > limit:
+        return False, used, limit
+    return True, used + additional_bytes, limit
 
 KEY_FILE = os.path.join(os.path.dirname(__file__), 'secret.key')
 cipher = None
@@ -396,6 +472,17 @@ def _pcm_to_wav_bytes(pcm_bytes, rate=24000):
 def _save_user_audio(user_id, data, suffix, encrypt):
     user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
     if not os.path.exists(user_dir): os.makedirs(user_dir, exist_ok=True)
+    user = None
+    try:
+        user = User.query.get(user_id)
+    except Exception:
+        user = None
+    if user:
+        ok, used, limit = _check_storage_capacity(user, len(data) if data else 0)
+        if not ok:
+            used_mb = _bytes_to_mb_str(used)
+            limit_mb = _bytes_to_mb_str(limit)
+            raise StorageLimitError(f"Storage limit exceeded ({used_mb} / {limit_mb})", used=used, limit=limit)
     fname = f"audio_{int(time.time())}_{os.urandom(4).hex()}{suffix}"
     fpath = os.path.join(user_dir, fname)
     if encrypt:
@@ -3672,6 +3759,14 @@ def synthesize():
         )
 
         # Save audio file
+        try:
+            ok, used, limit = _check_storage_capacity(current_user, len(response.audio_content) if response.audio_content else 0)
+            if not ok:
+                used_mb = _bytes_to_mb_str(used)
+                limit_mb = _bytes_to_mb_str(limit)
+                return jsonify({'error': f'Storage limit exceeded ({used_mb} / {limit_mb})'}), 413
+        except Exception:
+            pass
         user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
         if not os.path.exists(user_dir): os.makedirs(user_dir, exist_ok=True)
         
@@ -3886,6 +3981,15 @@ def speech_to_speech():
         return jsonify({'error': 'No audio response'}), 500
 
     wav_bytes = _pcm_to_wav_bytes(assistant_audio, rate=rate_out)
+    try:
+        incoming_size = len(wav_bytes) + (len(audio_bytes) if audio_bytes else 0)
+        ok, used, limit = _check_storage_capacity(current_user, incoming_size)
+        if not ok:
+            used_mb = _bytes_to_mb_str(used)
+            limit_mb = _bytes_to_mb_str(limit)
+            return jsonify({'error': f'Storage limit exceeded ({used_mb} / {limit_mb})'}), 413
+    except Exception:
+        pass
     out_fname, _ = _save_user_audio(current_user.id, wav_bytes, ".wav", current_user.enable_e2ee)
     audio_url = f"/files/{current_user.id}/{out_fname}"
 
@@ -3951,6 +4055,20 @@ def upload():
     ALLOWED_EXTENSIONS = {'.txt', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm', '.mp4', '.mov', '.mkv', '.avi', '.m4v'}
     files = request.files.getlist('file')
     if not files: return jsonify({'error': 'No file'}), 400
+    try:
+        total_incoming = 0
+        for f in files:
+            size = _get_filestorage_size(f)
+            if size is None:
+                continue
+            total_incoming += size
+        ok, used, limit = _check_storage_capacity(current_user, total_incoming)
+        if not ok:
+            used_mb = _bytes_to_mb_str(used)
+            limit_mb = _bytes_to_mb_str(limit)
+            return jsonify({'error': f'Storage limit exceeded ({used_mb} / {limit_mb})'}), 413
+    except Exception:
+        pass
     ud = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
     if not os.path.exists(ud):
         os.makedirs(ud, exist_ok=True)
@@ -3995,6 +4113,21 @@ def upload():
                 else: f.save(save_path)
             res.append(f"{current_user.id}/{fname}")
     return jsonify({'filename': res[0] if res else '', 'filenames': res})
+
+@app.route('/api/storage', methods=['GET'])
+@login_required
+def get_storage_usage():
+    limit = _get_user_storage_limit_bytes(current_user)
+    used = _get_user_storage_usage_bytes(current_user.id)
+    if limit is None:
+        limit = 0
+    return jsonify({
+        'used_bytes': used,
+        'limit_bytes': limit,
+        'used_mb': _bytes_to_mb_str(used),
+        'limit_mb': _bytes_to_mb_str(limit) if limit else 'unlimited',
+        'is_unlimited': limit == 0
+    })
 
 @app.errorhandler(RequestEntityTooLarge)
 def handle_upload_too_large(e):

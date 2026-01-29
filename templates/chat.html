@@ -3047,7 +3047,7 @@
                 }
             };
 
-        function updateLibSelectionUi() {
+        window.updateLibSelectionUi = function () {
             if (!lib.selected) lib.selected = new Set();
             const count = lib.selected.size;
             const delBtn = get('lib-del-btn');
@@ -3064,7 +3064,7 @@
                 const isMobile = window.matchMedia('(max-width: 768px)').matches;
                 lib.modal.classList.toggle('lib-selecting', isMobile && count > 0);
             }
-        }
+        };
         function setLibAttachMode(flag) {
             lib.attachMode = !!flag;
         }
@@ -3927,7 +3927,7 @@
                     el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500');
                     el.classList.remove('border-gray-600');
                 }
-                updateLibSelectionUi();
+                window.updateLibSelectionUi();
             }; 
             const openBtns = el.querySelectorAll('.lib-open-btn');
             openBtns.forEach((btn) => {
@@ -3978,7 +3978,7 @@
                 const count = lib.files ? lib.files.length : 0;
                 const countEl = get('lib-total-count');
                 if (countEl) countEl.innerText = count + " files";
-                updateLibSelectionUi();
+                window.updateLibSelectionUi();
             } catch(e) {
                 showToast("削除に失敗しました", "error", true);
             }
@@ -4015,7 +4015,7 @@
                 lib.selected.clear(); 
                 lib.files = files.filter(f => f && f.filepath && f.url);
                 lib.fileSet = new Set(lib.files.map(f => f.filepath));
-                updateLibSelectionUi();
+                window.updateLibSelectionUi();
                 if (!lib.files.length && grid) {
                     grid.innerHTML = '<div class="text-xs text-gray-500">ファイルがありません。</div>';
                     return;
@@ -4054,7 +4054,7 @@
             });
             updateFilePreview();
             lib.selected.clear();
-            updateLibSelectionUi();
+            window.updateLibSelectionUi();
             hideModal('lib-modal');
             showToast("ライブラリから添付しました", "success");
         }

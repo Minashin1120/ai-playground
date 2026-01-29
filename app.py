@@ -994,6 +994,82 @@ def ban_related_accounts(user, reason):
             u.bot_ban_reason = ban_reason
     safe_db_commit()
 
+def _get_user_identifiers(user):
+    ips = set()
+    tokens = set()
+    if not user:
+        return ips, tokens
+    for s in UserSession.query.filter_by(user_id=user.id).all():
+        if s.ip_address:
+            ips.add(s.ip_address)
+    for t in UserClientToken.query.filter_by(user_id=user.id).all():
+        if t.token:
+            tokens.add(t.token)
+    if current_user.is_authenticated and current_user.id == user.id:
+        try:
+            ip_now = get_client_ip()
+            if ip_now:
+                ips.add(ip_now)
+        except Exception:
+            pass
+        try:
+            token_now = get_client_token()
+            if token_now:
+                tokens.add(token_now)
+        except Exception:
+            pass
+    return ips, tokens
+
+def _unban_user(user):
+    if not user:
+        return
+    user.is_bot_banned = False
+    user.bot_ban_reason = None
+    user.bot_banned_at = None
+    user.bot_unbanned_at = datetime.utcnow()
+    user.bot_unban_notice = True
+
+def _unblock_identifiers(ips, tokens):
+    if not ips and not tokens:
+        return
+    clauses = []
+    if ips:
+        clauses.append((BannedIdentifier.kind == 'ip') & (BannedIdentifier.value.in_(list(ips))))
+    if tokens:
+        clauses.append((BannedIdentifier.kind == 'cookie') & (BannedIdentifier.value.in_(list(tokens))))
+    if not clauses:
+        return
+    BannedIdentifier.query.filter(or_(*clauses)).delete(synchronize_session=False)
+
+def unban_single_account(user):
+    if not user or _is_admin_exempt(user):
+        return
+    ips, tokens = _get_user_identifiers(user)
+    _unban_user(user)
+    _unblock_identifiers(ips, tokens)
+    safe_db_commit()
+
+def unban_linked_accounts(user):
+    if not user or _is_admin_exempt(user):
+        return
+    ips, tokens = _get_user_identifiers(user)
+    user_ids = set()
+    if ips:
+        for s in UserSession.query.filter(UserSession.ip_address.in_(list(ips))).all():
+            if s.user_id:
+                user_ids.add(s.user_id)
+    if tokens:
+        for t in UserClientToken.query.filter(UserClientToken.token.in_(list(tokens))).all():
+            if t.user_id:
+                user_ids.add(t.user_id)
+    for uid in user_ids:
+        u = User.query.get(uid)
+        if not u or _is_admin_exempt(u):
+            continue
+        _unban_user(u)
+    _unblock_identifiers(ips, tokens)
+    safe_db_commit()
+
 def generate_thread_public_id():
     for _ in range(8):
         candidate = secrets.token_urlsafe(32)
@@ -3742,13 +3818,12 @@ def bot_unban():
     user = User.query.filter_by(username=username).first()
     if not user:
         return jsonify({'error': 'not_found'}), 404
-    user.is_bot_banned = False
-    user.bot_ban_reason = None
-    user.bot_banned_at = None
-    user.bot_unbanned_at = datetime.utcnow()
-    user.bot_unban_notice = True
-    safe_db_commit()
-    return jsonify({'status': 'ok', 'username': username})
+    mode = (data.get('mode') or 'single').strip().lower()
+    if mode == 'linked':
+        unban_linked_accounts(user)
+    else:
+        unban_single_account(user)
+    return jsonify({'status': 'ok', 'username': username, 'mode': mode})
 
 @app.route('/api/bot/users', methods=['GET'])
 @login_required
@@ -3801,11 +3876,9 @@ def bot_update():
         user.bot_unban_notice = False
         ban_related_accounts(user, user.bot_ban_reason)
     elif action == 'unban':
-        user.is_bot_banned = False
-        user.bot_ban_reason = None
-        user.bot_banned_at = None
-        user.bot_unbanned_at = datetime.utcnow()
-        user.bot_unban_notice = True
+        unban_single_account(user)
+    elif action == 'unban_linked':
+        unban_linked_accounts(user)
     else:
         return jsonify({'error': 'bad_action'}), 400
     safe_db_commit()
@@ -4873,6 +4946,12 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE ban_appeal ADD COLUMN replied_at DATETIME")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user_client_token ADD COLUMN last_seen_at DATETIME")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user_client_token ADD COLUMN ip_address VARCHAR(64)")
         except: pass
         try:
             try_alter("ALTER TABLE thread ADD COLUMN is_bookmarked BOOLEAN DEFAULT 0")

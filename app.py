@@ -810,6 +810,23 @@ class Feedback(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+class BanAppeal(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    username = db.Column(db.String(80), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), default="new")  # new, in_review, resolved, rejected
+    admin_note = db.Column(db.Text, nullable=True)
+    admin_read_at = db.Column(db.DateTime, nullable=True)
+    handled_at = db.Column(db.DateTime, nullable=True)
+    handled_by = db.Column(db.String(80), nullable=True)
+    ban_reason = db.Column(db.Text, nullable=True)
+    ban_at = db.Column(db.DateTime, nullable=True)
+    ip_address = db.Column(db.String(64), nullable=True)
+    user_agent = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 class AppSetting(db.Model):
     key = db.Column(db.String(64), primary_key=True)
     value = db.Column(db.Text, nullable=True)
@@ -953,7 +970,9 @@ def check_bot_ban():
         current_user.bot_unban_notice = False
         safe_db_commit()
     if current_user.is_bot_banned:
-        if request.endpoint in ['logout', 'static', 'banned']:
+        if request.endpoint in ['logout', 'static', 'banned', 'submit_ban_appeal', 'api_ban_appeal_status']:
+            return
+        if request.endpoint in ['api_ban_appeal', 'api_ban_appeals_summary']:
             return
         if request.path.startswith('/api/'):
             return jsonify({'error': 'banned'}), 403
@@ -2514,11 +2533,61 @@ def banned():
         return redirect(url_for('index'))
     if not current_user.is_bot_banned:
         return redirect(url_for('index'))
+    latest_appeal = None
+    try:
+        latest_appeal = BanAppeal.query.filter_by(user_id=current_user.id).order_by(BanAppeal.created_at.desc()).first()
+    except Exception:
+        latest_appeal = None
     return render_template(
         'banned.html',
         reason=current_user.bot_ban_reason,
-        banned_at=current_user.bot_banned_at
+        banned_at=current_user.bot_banned_at,
+        latest_appeal=latest_appeal,
+        appeal_submitted=session.pop('appeal_submitted', False),
+        appeal_error=session.pop('appeal_error', None)
     )
+
+@app.route('/ban/appeal', methods=['POST'])
+@login_required
+def submit_ban_appeal():
+    if getattr(current_user, 'is_admin', False):
+        return redirect(url_for('index'))
+    if not current_user.is_bot_banned:
+        return redirect(url_for('index'))
+    message = (request.form.get('message') or '').strip()
+    if not message or len(message) < 10:
+        session['appeal_error'] = "内容は10文字以上で入力してください。"
+        return redirect(url_for('banned'))
+    if len(message) > 3000:
+        session['appeal_error'] = "内容は3000文字以内で入力してください。"
+        return redirect(url_for('banned'))
+    appeal = BanAppeal(
+        user_id=current_user.id,
+        username=current_user.username,
+        message=message,
+        ban_reason=current_user.bot_ban_reason,
+        ban_at=current_user.bot_banned_at,
+        ip_address=get_client_ip(),
+        user_agent=request.headers.get('User-Agent', '')
+    )
+    db.session.add(appeal)
+    safe_db_commit()
+    session['appeal_submitted'] = True
+    return redirect(url_for('banned'))
+
+@app.route('/api/ban/appeal/status')
+@login_required
+def api_ban_appeal_status():
+    if getattr(current_user, 'is_admin', False):
+        return jsonify({'error': 'admin_not_allowed'}), 403
+    latest = BanAppeal.query.filter_by(user_id=current_user.id).order_by(BanAppeal.created_at.desc()).first()
+    if not latest:
+        return jsonify({'has_appeal': False})
+    return jsonify({
+        'has_appeal': True,
+        'status': latest.status,
+        'created_at': latest.created_at.isoformat() + "Z" if latest.created_at else None
+    })
 
 @app.route('/api/version')
 def api_version():
@@ -3230,6 +3299,7 @@ def delete_account():
     try:
         # Remove feedback records first (no cascade)
         Feedback.query.filter_by(user_id=current_user.id).delete()
+        BanAppeal.query.filter_by(user_id=current_user.id).delete()
 
         user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
         if os.path.exists(user_dir):
@@ -3327,6 +3397,95 @@ def feedback_update(fid):
         fb.admin_reply = reply
     fb.handled_by = current_user.username
     fb.updated_at = datetime.utcnow()
+    safe_db_commit()
+    return jsonify({'status': 'ok'})
+
+@app.route('/api/ban/appeals/summary', methods=['GET'])
+@login_required
+def api_ban_appeals_summary():
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({'error': '403'}), 403
+    unread = BanAppeal.query.filter(BanAppeal.admin_read_at.is_(None)).count()
+    return jsonify({'unread_count': unread})
+
+@app.route('/api/ban/appeals', methods=['GET'])
+@login_required
+def api_ban_appeals():
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({'error': '403'}), 403
+    limit = request.args.get('limit') or '50'
+    try:
+        limit = max(1, min(200, int(limit)))
+    except Exception:
+        limit = 50
+    items = BanAppeal.query.order_by(BanAppeal.created_at.desc()).limit(limit).all()
+    res = []
+    for a in items:
+        res.append({
+            'id': a.id,
+            'user_id': a.user_id,
+            'username': a.username,
+            'message': a.message,
+            'status': a.status,
+            'admin_note': a.admin_note or "",
+            'admin_read_at': a.admin_read_at.isoformat() + "Z" if a.admin_read_at else None,
+            'handled_at': a.handled_at.isoformat() + "Z" if a.handled_at else None,
+            'handled_by': a.handled_by or "",
+            'ban_reason': a.ban_reason or "",
+            'ban_at': a.ban_at.isoformat() + "Z" if a.ban_at else None,
+            'ip_address': a.ip_address or "",
+            'user_agent': a.user_agent or "",
+            'created_at': a.created_at.isoformat() + "Z" if a.created_at else None,
+            'updated_at': a.updated_at.isoformat() + "Z" if a.updated_at else None
+        })
+    return jsonify({'items': res})
+
+@app.route('/api/ban/appeals/mark_read', methods=['POST'])
+@login_required
+def api_ban_appeals_mark_read():
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({'error': '403'}), 403
+    data = request.json or {}
+    ids = data.get('ids') or []
+    mark_all = bool(data.get('all'))
+    now = datetime.utcnow()
+    if mark_all:
+        BanAppeal.query.filter(BanAppeal.admin_read_at.is_(None)).update({'admin_read_at': now, 'updated_at': now})
+        safe_db_commit()
+        return jsonify({'status': 'ok', 'all': True})
+    if not isinstance(ids, list) or not ids:
+        return jsonify({'error': 'ids_required'}), 400
+    items = BanAppeal.query.filter(BanAppeal.id.in_(ids)).all()
+    for a in items:
+        if not a.admin_read_at:
+            a.admin_read_at = now
+        a.updated_at = now
+    safe_db_commit()
+    return jsonify({'status': 'ok', 'count': len(items)})
+
+@app.route('/api/ban/appeals/update', methods=['POST'])
+@login_required
+def api_ban_appeals_update():
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({'error': '403'}), 403
+    data = request.json or {}
+    appeal_id = data.get('id')
+    if not appeal_id:
+        return jsonify({'error': 'id_required'}), 400
+    appeal = BanAppeal.query.get_or_404(int(appeal_id))
+    status = data.get('status')
+    admin_note = data.get('admin_note')
+    now = datetime.utcnow()
+    if status in ['new', 'in_review', 'resolved', 'rejected']:
+        appeal.status = status
+        if status in ['resolved', 'rejected']:
+            appeal.handled_at = now
+            appeal.handled_by = current_user.username
+    if admin_note is not None:
+        appeal.admin_note = admin_note.strip()[:2000]
+    if not appeal.admin_read_at:
+        appeal.admin_read_at = now
+    appeal.updated_at = now
     safe_db_commit()
     return jsonify({'status': 'ok'})
 

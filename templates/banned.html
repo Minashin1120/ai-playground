@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Account Banned</title>
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root { --bg: #0b0f14; --panel: #0c141e; --text: #e5e7eb; --muted: #9aa3b2; --danger: #fb7185; }
@@ -53,7 +54,26 @@
             font-size: 13px;
             border: 1px solid rgba(148,163,184,0.2);
         }
+        .btn.primary { background: rgba(59,130,246,0.2); border-color: rgba(59,130,246,0.5); }
         .btn:hover { filter: brightness(1.1); }
+        .appeal-box { margin-top: 18px; padding-top: 14px; border-top: 1px dashed rgba(148,163,184,0.25); }
+        .appeal-box h2 { margin: 0 0 8px; font-size: 15px; color: #e2e8f0; }
+        textarea {
+            width: 100%;
+            min-height: 120px;
+            background: rgba(12,20,30,0.9);
+            border: 1px solid rgba(148,163,184,0.2);
+            border-radius: 10px;
+            padding: 10px 12px;
+            color: var(--text);
+            font-size: 13px;
+            resize: vertical;
+        }
+        .hint { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+        .alert { margin-top: 10px; font-size: 12px; padding: 8px 10px; border-radius: 8px; }
+        .alert.success { background: rgba(34,197,94,0.15); color: #a7f3d0; border: 1px solid rgba(34,197,94,0.35); }
+        .alert.error { background: rgba(239,68,68,0.15); color: #fecaca; border: 1px solid rgba(239,68,68,0.35); }
+        .badge { display:inline-block; margin-left: 6px; font-size: 11px; padding: 2px 6px; border-radius: 999px; background: rgba(59,130,246,0.2); color: #bfdbfe; border: 1px solid rgba(59,130,246,0.4); }
     </style>
 </head>
 <body>
@@ -67,6 +87,25 @@
         {% if banned_at %}
         <p class="meta">日時: {{ banned_at }}</p>
         {% endif %}
+        <div class="appeal-box">
+            <h2>異議申し立て<span class="badge">管理者に通知されます</span></h2>
+            <p>誤判定の可能性がある場合は、状況を詳しく記入してください。</p>
+            {% if latest_appeal %}
+            <p class="meta">最新の申し立て: {{ latest_appeal.created_at }} / 状態: {{ latest_appeal.status }}</p>
+            {% endif %}
+            {% if appeal_submitted %}
+            <div class="alert success">申し立てを送信しました。管理者が確認します。</div>
+            {% endif %}
+            {% if appeal_error %}
+            <div class="alert error">{{ appeal_error }}</div>
+            {% endif %}
+            <form method="POST" action="{{ url_for('submit_ban_appeal') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <textarea name="message" placeholder="例: 利用環境や操作内容、誤判定の可能性について記載してください。"></textarea>
+                <div class="hint">10〜3000文字で入力してください。</div>
+                <button class="btn primary" type="submit">異議申し立てを送信</button>
+            </form>
+        </div>
         <a class="btn" href="{{ url_for('logout') }}">ログアウト</a>
     </div>
 </body>

@@ -3048,6 +3048,7 @@
             };
 
         function updateLibSelectionUi() {
+            if (!lib.selected) lib.selected = new Set();
             const count = lib.selected.size;
             const delBtn = get('lib-del-btn');
             const attachBtn = get('lib-attach-btn');
@@ -3995,7 +3996,8 @@
                 if (grid) grid.innerHTML = '';
                 const countEl = get('lib-total-count');
                 if (countEl) countEl.innerText = files.length + " files"; 
-                if (lib.selected) lib.selected.clear(); 
+                if (!lib.selected) lib.selected = new Set();
+                lib.selected.clear(); 
                 lib.files = files.filter(f => f && f.filepath && f.url);
                 lib.fileSet = new Set(lib.files.map(f => f.filepath));
                 updateLibSelectionUi();

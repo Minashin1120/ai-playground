@@ -3986,13 +3986,28 @@
         async function loadLibraryFiles() { 
             const grid = get('lib-grid');
             if (grid) grid.innerHTML = '<div class="text-xs text-gray-500">読み込み中...</div>';
+            let files = null;
+            let lastErr = null;
+            const baseUrl = "{{ url_for('get_files_lib') }}";
+            for (let i = 0; i < 2; i++) {
+                try {
+                    const url = i === 0 ? baseUrl : (baseUrl + (baseUrl.includes('?') ? '&' : '?') + 't=' + Date.now());
+                    const r = await apiFetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json' } }); 
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    const raw = await r.text();
+                    let parsed = [];
+                    try { parsed = JSON.parse(raw); } catch (e) { parsed = []; }
+                    if (Array.isArray(parsed)) {
+                        files = parsed;
+                        lastErr = null;
+                        break;
+                    }
+                } catch (e) {
+                    lastErr = e;
+                }
+            }
+            if (!Array.isArray(files)) files = [];
             try {
-                const r = await apiFetch("{{ url_for('get_files_lib') }}", { cache: 'no-store' }); 
-                if (!r.ok) throw new Error('Failed to load files');
-                const raw = await r.text();
-                let files = [];
-                try { files = JSON.parse(raw); } catch (e) { files = []; }
-                if (!Array.isArray(files)) files = [];
                 if (grid) grid.innerHTML = '';
                 const countEl = get('lib-total-count');
                 if (countEl) countEl.innerText = files.length + " files"; 
@@ -4015,7 +4030,11 @@
                     }
                 }); 
             } catch (e) {
-                if (grid) grid.innerHTML = '<div class="text-xs text-red-400">ライブラリの読み込みに失敗しました。</div>';
+                lastErr = lastErr || e;
+            }
+            if (lastErr && grid) {
+                console.error('Library load failed:', lastErr);
+                grid.innerHTML = '<div class="text-xs text-red-400">ライブラリの読み込みに失敗しました。</div>';
             }
         }
         async function deleteSelectedFiles() {

@@ -982,7 +982,8 @@
             if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
                 headers['X-CSRF-Token'] = csrfToken;
             }
-            return fetch(url, Object.assign({}, opts, { headers, credentials: 'same-origin' }));
+            const credentials = opts.credentials || 'include';
+            return fetch(url, Object.assign({}, opts, { headers, credentials }));
         };
         let currentThreadId = {{ initial_thread_id|default(none)|tojson }};
         if (currentThreadId !== null && currentThreadId !== undefined) {
@@ -3985,15 +3986,16 @@
             const grid = get('lib-grid');
             if (grid) grid.innerHTML = '<div class="text-xs text-gray-500">読み込み中...</div>';
             try {
-                const r = await apiFetch("{{ url_for('get_files_lib') }}"); 
+                const r = await apiFetch("{{ url_for('get_files_lib') }}", { cache: 'no-store' }); 
                 if (!r.ok) throw new Error('Failed to load files');
                 const raw = await r.text();
                 let files = [];
                 try { files = JSON.parse(raw); } catch (e) { files = []; }
                 if (!Array.isArray(files)) files = [];
                 if (grid) grid.innerHTML = '';
-                get('lib-total-count').innerText = files.length + " files"; 
-                lib.selected.clear(); 
+                const countEl = get('lib-total-count');
+                if (countEl) countEl.innerText = files.length + " files"; 
+                if (lib.selected) lib.selected.clear(); 
                 lib.files = files.filter(f => f && f.filepath && f.url);
                 lib.fileSet = new Set(lib.files.map(f => f.filepath));
                 updateLibSelectionUi();

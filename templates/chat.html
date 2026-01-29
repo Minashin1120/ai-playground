@@ -3134,6 +3134,11 @@
                     if (code) window.copyCode(btn, code);
                 }
             });
+            document.querySelectorAll('.modal-overlay').forEach((overlay) => {
+                overlay.addEventListener('click', (e) => {
+                    if (e.target === overlay) hideModal(overlay.id);
+                });
+            });
 
             // Initial Load Logic for Permalink
             if(currentThreadId) { loadMessages(currentThreadId); }

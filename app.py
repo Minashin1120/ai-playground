@@ -260,6 +260,9 @@ def _apply_per_user_upload_limits():
         else:
             limit = _get_user_storage_limit_bytes(current_user) if current_user.is_authenticated else None
             if limit:
+                if request.content_length and request.content_length > limit:
+                    limit_mb = _bytes_to_mb_str(limit)
+                    return jsonify({'error': f'File too large. Max {limit_mb}'}), 413
                 used = _get_user_storage_usage_bytes(current_user.id)
                 remaining = max(0, limit - used)
                 hard_cap = app.config.get('MAX_CONTENT_LENGTH') or remaining

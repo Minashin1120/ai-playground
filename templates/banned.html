@@ -92,6 +92,9 @@
             <p>誤判定の可能性がある場合は、状況を詳しく記入してください。</p>
             {% if latest_appeal %}
             <p class="meta">最新の申し立て: {{ latest_appeal.created_at }} / 状態: {{ latest_appeal.status }}</p>
+            {% if latest_appeal.admin_reply %}
+            <div class="alert success">管理者からの返信: {{ latest_appeal.admin_reply }}</div>
+            {% endif %}
             {% endif %}
             {% if appeal_submitted %}
             <div class="alert success">申し立てを送信しました。管理者が確認します。</div>
@@ -99,12 +102,16 @@
             {% if appeal_error %}
             <div class="alert error">{{ appeal_error }}</div>
             {% endif %}
+            {% if appeal_blocked %}
+            <div class="alert error">異議申し立てはブロックされています。{% if appeal_block_reason %}理由: {{ appeal_block_reason }}{% endif %}</div>
+            {% else %}
             <form method="POST" action="{{ url_for('submit_ban_appeal') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <textarea name="message" placeholder="例: 利用環境や操作内容、誤判定の可能性について記載してください。"></textarea>
                 <div class="hint">10〜3000文字で入力してください。</div>
                 <button class="btn primary" type="submit">異議申し立てを送信</button>
             </form>
+            {% endif %}
         </div>
         <a class="btn" href="{{ url_for('logout') }}">ログアウト</a>
     </div>

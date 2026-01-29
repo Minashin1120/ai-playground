@@ -746,6 +746,9 @@ class User(UserMixin, db.Model):
     bot_ban_reason = db.Column(db.Text, nullable=True)
     bot_unbanned_at = db.Column(db.DateTime, nullable=True)
     bot_unban_notice = db.Column(db.Boolean, default=False)
+    appeal_blocked = db.Column(db.Boolean, default=False)
+    appeal_block_reason = db.Column(db.Text, nullable=True)
+    appeal_blocked_at = db.Column(db.DateTime, nullable=True)
     threads = db.relationship('Thread', backref='user', lazy=True, cascade="all, delete-orphan")
     gems = db.relationship('Gem', backref='user', lazy=True, cascade="all, delete-orphan")
     sessions = db.relationship('UserSession', backref='user', lazy=True, cascade="all, delete-orphan")
@@ -815,9 +818,11 @@ class BanAppeal(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     username = db.Column(db.String(80), nullable=False)
     message = db.Column(db.Text, nullable=False)
-    status = db.Column(db.String(20), default="new")  # new, in_review, resolved, rejected
+    status = db.Column(db.String(20), default="new")  # new, in_review, replied, resolved, rejected
     admin_note = db.Column(db.Text, nullable=True)
+    admin_reply = db.Column(db.Text, nullable=True)
     admin_read_at = db.Column(db.DateTime, nullable=True)
+    replied_at = db.Column(db.DateTime, nullable=True)
     handled_at = db.Column(db.DateTime, nullable=True)
     handled_by = db.Column(db.String(80), nullable=True)
     ban_reason = db.Column(db.Text, nullable=True)
@@ -2544,7 +2549,9 @@ def banned():
         banned_at=current_user.bot_banned_at,
         latest_appeal=latest_appeal,
         appeal_submitted=session.pop('appeal_submitted', False),
-        appeal_error=session.pop('appeal_error', None)
+        appeal_error=session.pop('appeal_error', None),
+        appeal_blocked=bool(getattr(current_user, "appeal_blocked", False)),
+        appeal_block_reason=getattr(current_user, "appeal_block_reason", None)
     )
 
 @app.route('/ban/appeal', methods=['POST'])
@@ -2554,6 +2561,9 @@ def submit_ban_appeal():
         return redirect(url_for('index'))
     if not current_user.is_bot_banned:
         return redirect(url_for('index'))
+    if getattr(current_user, "appeal_blocked", False):
+        session['appeal_error'] = current_user.appeal_block_reason or "異議申し立てはブロックされています。"
+        return redirect(url_for('banned'))
     message = (request.form.get('message') or '').strip()
     if not message or len(message) < 10:
         session['appeal_error'] = "内容は10文字以上で入力してください。"
@@ -3428,7 +3438,9 @@ def api_ban_appeals():
             'message': a.message,
             'status': a.status,
             'admin_note': a.admin_note or "",
+            'admin_reply': a.admin_reply or "",
             'admin_read_at': a.admin_read_at.isoformat() + "Z" if a.admin_read_at else None,
+            'replied_at': a.replied_at.isoformat() + "Z" if a.replied_at else None,
             'handled_at': a.handled_at.isoformat() + "Z" if a.handled_at else None,
             'handled_by': a.handled_by or "",
             'ban_reason': a.ban_reason or "",
@@ -3475,17 +3487,38 @@ def api_ban_appeals_update():
     appeal = BanAppeal.query.get_or_404(int(appeal_id))
     status = data.get('status')
     admin_note = data.get('admin_note')
+    admin_reply = data.get('admin_reply')
+    block_user = bool(data.get('block_user')) if 'block_user' in data else False
+    unblock_user = bool(data.get('unblock_user')) if 'unblock_user' in data else False
+    block_reason = (data.get('block_reason') or '').strip()
     now = datetime.utcnow()
-    if status in ['new', 'in_review', 'resolved', 'rejected']:
+    if status in ['new', 'in_review', 'replied', 'resolved', 'rejected']:
         appeal.status = status
         if status in ['resolved', 'rejected']:
             appeal.handled_at = now
             appeal.handled_by = current_user.username
     if admin_note is not None:
         appeal.admin_note = admin_note.strip()[:2000]
+    if admin_reply is not None:
+        reply_text = admin_reply.strip()
+        appeal.admin_reply = reply_text[:3000]
+        appeal.replied_at = now if reply_text else None
+        if not status:
+            appeal.status = 'replied' if reply_text else appeal.status
     if not appeal.admin_read_at:
         appeal.admin_read_at = now
     appeal.updated_at = now
+    if block_user or unblock_user:
+        target_user = User.query.get(appeal.user_id)
+        if target_user:
+            if unblock_user:
+                target_user.appeal_blocked = False
+                target_user.appeal_block_reason = None
+                target_user.appeal_blocked_at = None
+            else:
+                target_user.appeal_blocked = True
+                target_user.appeal_block_reason = block_reason or "異議申し立てはブロックされています。"
+                target_user.appeal_blocked_at = now
     safe_db_commit()
     return jsonify({'status': 'ok'})
 
@@ -4639,6 +4672,21 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN bot_unban_notice BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN appeal_blocked BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN appeal_block_reason TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN appeal_blocked_at DATETIME")
+        except: pass
+        try:
+            try_alter("ALTER TABLE ban_appeal ADD COLUMN admin_reply TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE ban_appeal ADD COLUMN replied_at DATETIME")
         except: pass
         try:
             try_alter("ALTER TABLE thread ADD COLUMN is_bookmarked BOOLEAN DEFAULT 0")

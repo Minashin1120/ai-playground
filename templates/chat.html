@@ -2468,8 +2468,10 @@
                     const statusLabel = a.status || 'new';
                     const readTag = a.admin_read_at ? '<span class="text-[10px] text-gray-500 ml-2">既読</span>' : '<span class="text-[10px] text-yellow-300 ml-2">未読</span>';
                     const time = a.created_at ? new Date(a.created_at).toLocaleString() : '';
+                    const repliedAt = a.replied_at ? new Date(a.replied_at).toLocaleString() : '';
+                    const replyValue = a.admin_reply || '';
                     return `
-                        <div class="border border-gray-700/70 rounded p-2 bg-gray-900/60">
+                        <div class="border border-gray-700/70 rounded p-2 bg-gray-900/60" data-appeal-id="${a.id}">
                             <div class="flex items-center justify-between">
                                 <div class="text-xs text-blue-200 font-bold">${escapeHtml(a.username || '')}${readTag}</div>
                                 <div class="text-[10px] text-gray-500">${escapeHtml(time)}</div>
@@ -2477,11 +2479,18 @@
                             <div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(statusLabel)}</div>
                             <div class="text-xs text-gray-200 mt-2 whitespace-pre-wrap">${escapeHtml(a.message || '')}</div>
                             <div class="text-[10px] text-gray-500 mt-2">BAN理由: ${escapeHtml(a.ban_reason || 'N/A')}</div>
-                            <div class="mt-2 flex gap-2">
+                            <div class="mt-3">
+                                <label class="text-[10px] text-gray-400">管理者返信</label>
+                                <textarea class="ban-appeal-reply w-full mt-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-[11px] text-gray-100" rows="3" placeholder="返信内容">${escapeHtml(replyValue)}</textarea>
+                                ${replyValue ? `<div class=\"text-[10px] text-gray-500 mt-1\">返信日時: ${escapeHtml(repliedAt)}</div>` : ''}
+                            </div>
+                            <div class="mt-2 flex flex-wrap gap-2">
                                 <button class="ban-appeal-mark text-[10px] px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded" data-id="${a.id}">既読</button>
                                 <button class="ban-appeal-status text-[10px] px-2 py-1 bg-blue-700 hover:bg-blue-600 rounded" data-id="${a.id}" data-status="in_review">対応中</button>
                                 <button class="ban-appeal-status text-[10px] px-2 py-1 bg-green-700 hover:bg-green-600 rounded" data-id="${a.id}" data-status="resolved">完了</button>
                                 <button class="ban-appeal-status text-[10px] px-2 py-1 bg-red-700 hover:bg-red-600 rounded" data-id="${a.id}" data-status="rejected">却下</button>
+                                <button class="ban-appeal-reply-send text-[10px] px-2 py-1 bg-sky-700 hover:bg-sky-600 rounded" data-id="${a.id}">返信送信</button>
+                                <button class="ban-appeal-block text-[10px] px-2 py-1 bg-rose-700 hover:bg-rose-600 rounded" data-id="${a.id}">申し立てブロック</button>
                             </div>
                         </div>
                     `;
@@ -2525,10 +2534,10 @@
                     }
                 } catch (e) {}
             };
-            const updateBanAppealStatus = async (id, status) => {
+            const updateBanAppealStatus = async (payload) => {
                 if (!isAdminUser) return;
                 try {
-                    const res = await apiFetch('/api/ban/appeals/update', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, status}) });
+                    const res = await apiFetch('/api/ban/appeals/update', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
                     if (res.ok) {
                         await loadBanAppeals();
                     }
@@ -2747,13 +2756,28 @@
                 get('ban-appeal-list').addEventListener('click', async (e) => {
                     const btn = e.target.closest('button');
                     if (!btn) return;
+                    const id = btn.getAttribute('data-id');
                     if (btn.classList.contains('ban-appeal-mark')) {
-                        const id = btn.getAttribute('data-id');
                         if (id) await markBanAppealsRead([Number(id)]);
-                    } else if (btn.classList.contains('ban-appeal-status')) {
-                        const id = btn.getAttribute('data-id');
+                        return;
+                    }
+                    if (btn.classList.contains('ban-appeal-status')) {
                         const status = btn.getAttribute('data-status');
-                        if (id && status) await updateBanAppealStatus(Number(id), status);
+                        if (id && status) await updateBanAppealStatus({ id: Number(id), status });
+                        return;
+                    }
+                    if (btn.classList.contains('ban-appeal-reply-send')) {
+                        const card = btn.closest('[data-appeal-id]');
+                        const textarea = card ? card.querySelector('.ban-appeal-reply') : null;
+                        const reply = textarea ? textarea.value : '';
+                        if (id) await updateBanAppealStatus({ id: Number(id), admin_reply: reply });
+                        return;
+                    }
+                    if (btn.classList.contains('ban-appeal-block')) {
+                        if (!confirm('このユーザーの異議申し立てをブロックしますか？')) return;
+                        const reason = prompt('ブロック理由 (任意)') || '';
+                        if (id) await updateBanAppealStatus({ id: Number(id), block_user: true, block_reason: reason });
+                        return;
                     }
                 });
             }

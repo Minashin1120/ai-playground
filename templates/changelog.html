@@ -63,6 +63,9 @@
         <div class="space-y-8">
             {% for log in logs %}
             <div class="log-card p-6 rounded-xl">
+                {% if log.title %}
+                <div class="text-teal-300 font-semibold text-sm mb-2">{{ log.title }}</div>
+                {% endif %}
                 <div class="markdown-body" id="log-{{ loop.index }}"></div>
                 <script>document.getElementById('log-{{ loop.index }}').innerHTML = DOMPurify.sanitize(marked.parse(`{{ log.content | replace('`', '\`') | safe }}`));</script>
             </div>

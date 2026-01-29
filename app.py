@@ -6,6 +6,7 @@ import logging
 import base64
 import mimetypes
 import secrets
+import re
 import redis
 import shutil
 import glob
@@ -2343,9 +2344,30 @@ def changelog():
     logs = []
     if os.path.exists(log_dir):
         files = glob.glob(os.path.join(log_dir, '*.md'))
-        files.sort(key=os.path.getmtime, reverse=True)
+        def _changelog_meta(path):
+            base = os.path.splitext(os.path.basename(path))[0]
+            m = re.match(r'^(\\d{4}-\\d{2}-\\d{2})_v(.+)$', base)
+            if not m:
+                m = re.match(r'^(\\d{8})_v(.+)$', base)
+            if m:
+                date_raw, version = m.group(1), m.group(2)
+                if len(date_raw) == 8:
+                    date_fmt = f"{date_raw[0:4]}-{date_raw[4:6]}-{date_raw[6:8]}"
+                else:
+                    date_fmt = date_raw
+                date_key = int(date_fmt.replace('-', ''))
+                ver_nums = tuple(int(x) for x in re.findall(r'\\d+', version)) or (0,)
+                title = f"V{version} ({date_fmt})"
+                return date_key, ver_nums, title
+            return 0, (0,), base
+        files.sort(key=lambda p: _changelog_meta(p)[:2], reverse=True)
         for f in files:
-            with open(f, 'r', encoding='utf-8') as file: logs.append({'content': file.read()})
+            with open(f, 'r', encoding='utf-8') as file:
+                content = file.read()
+            title = None
+            if not content.lstrip().startswith('#'):
+                _, _, title = _changelog_meta(f)
+            logs.append({'content': content, 'title': title})
     return render_template('changelog.html', logs=logs)
 
 @app.route('/banned')

@@ -2600,7 +2600,45 @@
             }; 
             get('close-settings-btn').onclick = () => closeSettingsModal(); 
             bindThemeControls();
-            get('save-settings-btn').onclick = async () => { const uEl = get('set-username'); const pEl = get('set-password'); const b = { system_prompt:get('sys-prompt-text').value, openai_key:get('set-openai').value, gemini_key:get('set-gemini').value, xai_key:get('set-xai').value, google_key: get('set-google-key') ? get('set-google-key').value : null, google_project: get('set-google-project') ? get('set-google-project').value : null, theme_color: normalizeHex(get('set-theme-color-text') ? get('set-theme-color-text').value : '') || THEME_DEFAULT, stt_model: get('set-stt-model') ? get('set-stt-model').value : null, enter_to_send: get('set-enter-to-send') ? get('set-enter-to-send').checked : false, use_sw_cache: get('set-use-sw-cache') ? get('set-use-sw-cache').checked : false, auto_search_on_links: get('set-auto-search-links') ? get('set-auto-search-links').checked : true, use_last_chat_settings: get('set-use-last-settings') ? get('set-use-last-settings').checked : false, default_enable_search: get('set-default-search') ? get('set-default-search').checked : false, default_enable_python: get('set-default-python') ? get('set-default-python').checked : false, default_enable_thinking: get('set-default-thinking') ? get('set-default-thinking').checked : false, default_thinking_level: get('set-default-thinking-level') ? get('set-default-thinking-level').value : null, default_thinking_budget: get('set-default-thinking-budget') ? get('set-default-thinking-budget').value : null, default_reasoning_effort: get('set-default-reasoning-effort') ? get('set-default-reasoning-effort').value : null, default_enable_system_prompt: get('set-default-sys-prompt') ? get('set-default-sys-prompt').checked : false, default_safety_setting: get('set-default-safety') ? get('set-default-safety').value : null, enable_e2ee: get('set-e2ee').checked, bot_detection_enabled: get('set-bot-detect') ? get('set-bot-detect').checked : true, bot_detection_global_enabled: get('set-bot-detect-global') ? get('set-bot-detect-global').checked : null, passkey_only_login: get('set-passkey-only-login') ? get('set-passkey-only-login').checked : false, new_username: uEl ? uEl.value : null, new_password: pEl ? pEl.value : null }; const res = await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}); if (res.ok) { location.reload(); } else { let d = {}; try { d = await res.json(); } catch (e) {} showToast(d.error || "設定の保存に失敗しました", "error", true); } };
+            get('save-settings-btn').onclick = async () => {
+                const uEl = get('set-username');
+                const pEl = get('set-password');
+                const b = {
+                    system_prompt: get('sys-prompt-text').value,
+                    openai_key: get('set-openai').value,
+                    gemini_key: get('set-gemini').value,
+                    xai_key: get('set-xai').value,
+                    google_key: get('set-google-key') ? get('set-google-key').value : null,
+                    google_project: get('set-google-project') ? get('set-google-project').value : null,
+                    theme_color: normalizeHex(get('set-theme-color-text') ? get('set-theme-color-text').value : '') || THEME_DEFAULT,
+                    stt_model: get('set-stt-model') ? get('set-stt-model').value : null,
+                    enter_to_send: get('set-enter-to-send') ? get('set-enter-to-send').checked : false,
+                    use_sw_cache: get('set-use-sw-cache') ? get('set-use-sw-cache').checked : false,
+                    auto_search_on_links: get('set-auto-search-links') ? get('set-auto-search-links').checked : true,
+                    use_last_chat_settings: get('set-use-last-settings') ? get('set-use-last-settings').checked : false,
+                    default_enable_search: get('set-default-search') ? get('set-default-search').checked : false,
+                    default_enable_python: get('set-default-python') ? get('set-default-python').checked : false,
+                    default_enable_thinking: get('set-default-thinking') ? get('set-default-thinking').checked : false,
+                    default_thinking_level: get('set-default-thinking-level') ? get('set-default-thinking-level').value : null,
+                    default_thinking_budget: get('set-default-thinking-budget') ? get('set-default-thinking-budget').value : null,
+                    default_reasoning_effort: get('set-default-reasoning-effort') ? get('set-default-reasoning-effort').value : null,
+                    default_enable_system_prompt: get('set-default-sys-prompt') ? get('set-default-sys-prompt').checked : false,
+                    default_safety_setting: get('set-default-safety') ? get('set-default-safety').value : null,
+                    enable_e2ee: get('set-e2ee').checked,
+                    passkey_only_login: get('set-passkey-only-login') ? get('set-passkey-only-login').checked : false,
+                    new_username: uEl ? uEl.value : null,
+                    new_password: pEl ? pEl.value : null
+                };
+                if (get('set-bot-detect')) b.bot_detection_enabled = get('set-bot-detect').checked;
+                if (get('set-bot-detect-global')) b.bot_detection_global_enabled = get('set-bot-detect-global').checked;
+                const res = await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)});
+                if (res.ok) { location.reload(); }
+                else {
+                    let d = {};
+                    try { d = await res.json(); } catch (e) {}
+                    showToast(d.error || "設定の保存に失敗しました", "error", true);
+                }
+            };
             get('disable-2fa-btn').onclick = async () => { if(confirm("Disable 2FA?")) { await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({disable_2fa: true})}); location.reload(); } };
             if (get('bot-unban-btn')) {
                 get('bot-unban-btn').onclick = async () => {

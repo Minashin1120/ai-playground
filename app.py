@@ -2556,8 +2556,6 @@ def login():
                 user.easy_login_hash = None
                 user.easy_login_expires_at = None
                 safe_db_commit()
-                if user.is_bot_banned and not getattr(user, "is_admin", False):
-                    return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="This account is banned")
                 session['easy_login_used'] = True
                 remember = bool(request.form.get('remember'))
                 login_user(user, remember=remember)
@@ -2568,8 +2566,6 @@ def login():
                 user.easy_login_expires_at = None
                 safe_db_commit()
             if user.check_password(pw):
-                if user.is_bot_banned and not getattr(user, "is_admin", False):
-                    return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="This account is banned")
                 if user.is_2fa_enabled:
                     session['remember_me'] = bool(request.form.get('remember'))
                     session['pre_2fa_user_id'] = user.id
@@ -2598,8 +2594,6 @@ def login_passkey_options():
         return jsonify({'error': 'Invalid credentials'}), 400
     if not rate_limit(f"rl:login:user:{user.id}", 10, 300):
         return jsonify({'error': 'Too many attempts. Try again later.'}), 429
-    if user.is_bot_banned and not getattr(user, "is_admin", False):
-        return jsonify({'error': 'This account is banned'}), 403
     creds = []
     if user.webauthn_credentials:
         try:
@@ -2680,8 +2674,6 @@ def verify_2fa():
             secret = decrypt_val(user.totp_secret)
             if secret and pyotp.TOTP(secret).verify(code):
                 session.pop('pre_2fa_user_id', None)
-                if user.is_bot_banned and not getattr(user, "is_admin", False):
-                    return render_template('verify_2fa.html', error="This account is banned")
                 remember = bool(session.pop('remember_me', False))
                 login_user(user, remember=remember)
                 create_user_session(user)
@@ -3559,7 +3551,8 @@ def handle_settings():
             if not creds:
                 return jsonify({'error': 'No passkey registered'}), 400
         current_user.passkey_only_login = target
-    if 'bot_detection_enabled' in d: current_user.bot_detection_enabled = bool(d['bot_detection_enabled'])
+    if 'bot_detection_enabled' in d and d['bot_detection_enabled'] is not None:
+        current_user.bot_detection_enabled = bool(d['bot_detection_enabled'])
     if getattr(current_user, 'is_admin', False) and 'bot_detection_global_enabled' in d:
         set_app_setting("bot_detection_global_enabled", "1" if d['bot_detection_global_enabled'] else "0")
     if d.get('new_password'): current_user.set_password(d['new_password'])

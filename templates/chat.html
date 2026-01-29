@@ -3322,6 +3322,7 @@
                         return false;
                     }
                 }
+                if (row && row.status) row.status.textContent = '処理中...';
                 const doneRes = await apiFetch("/upload/complete", {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken},

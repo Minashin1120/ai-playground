@@ -2860,9 +2860,7 @@ def login():
         if not verify_turnstile(request.form.get('cf-turnstile-response')): return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Auth Error")
         username = (request.form.get('username') or '').strip()
         user = User.query.filter_by(username=username).first()
-        if is_request_banned_identifier():
-            if not (user and _is_admin_exempt(user)):
-                return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Access blocked.")
+        # Allow login even if IP/Cookie is banned; ban screen will handle after login.
         if user:
             if not rate_limit(f"rl:login:user:{user.id}", 10, 300):
                 return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
@@ -2919,8 +2917,7 @@ def login_passkey_options():
     user = User.query.filter_by(username=username).first()
     if not user or not getattr(user, "passkey_only_login", False):
         return jsonify({'error': 'Invalid credentials'}), 400
-    if is_request_banned_identifier() and not _is_admin_exempt(user):
-        return jsonify({'error': 'Access blocked'}), 403
+    # Allow passkey login even if IP/Cookie is banned; ban screen will handle after login.
     if not rate_limit(f"rl:login:user:{user.id}", 10, 300):
         return jsonify({'error': 'Too many attempts. Try again later.'}), 429
     creds = []

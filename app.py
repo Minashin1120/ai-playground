@@ -1972,6 +1972,33 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         pub("python", {"id": py_id, "output": part.code_execution_result.output})
                                         py_payload = {"code": current_py_code or "", "output": part.code_execution_result.output}
                                         full_res += f"\n```pyexec\n{json.dumps(py_payload)}\n```\n"
+
+                                    if hasattr(part, 'inline_data') and part.inline_data:
+                                        try:
+                                            ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
+                                            os.makedirs(ud, exist_ok=True)
+                                            mime = getattr(part.inline_data, "mime_type", None) or "image/png"
+                                            ext_map = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
+                                            ext = ext_map.get(mime, "png")
+                                            fn2 = f"agentic_{int(time.time())}_{len(generated_images)}.{ext}"
+                                            fp2 = os.path.join(ud, fn2)
+                                            
+                                            img_data = part.inline_data.data
+                                            if isinstance(img_data, str):
+                                                img_data = base64.b64decode(img_data)
+                                            
+                                            if user_config.get('enable_e2ee'):
+                                                with open(fp2 + '.enc', 'wb') as f: f.write(encrypt_bytes(img_data))
+                                            else:
+                                                with open(fp2, 'wb') as f: f.write(img_data)
+                                                
+                                            generated_images.append(f"{user_id}/{fn2}")
+                                            img_md = f"\n![Agentic View](/files/{user_id}/{fn2})\n"
+                                            full_res += img_md
+                                            pub("content", img_md)
+                                        except Exception as e:
+                                            log_force(f"Agentic Vision Image Error: {e}")
+
                                     if hasattr(part, 'text') and part.text:
                                         full_res += part.text
                                         pub("content", part.text)

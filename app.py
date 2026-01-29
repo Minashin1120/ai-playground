@@ -37,7 +37,7 @@ from rq import Queue
 from datetime import datetime, timedelta
 from io import BytesIO
 from PIL import Image
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, make_response, flash, send_file, abort, session
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, make_response, flash, send_file, abort, session, g
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -766,6 +766,23 @@ class UserSession(db.Model):
     is_revoked = db.Column(db.Boolean, default=False)
     revoked_at = db.Column(db.DateTime, nullable=True)
 
+class UserClientToken(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    token = db.Column(db.String(128), index=True, nullable=False)
+    ip_address = db.Column(db.String(64), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_seen_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class BannedIdentifier(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String(16), index=True, nullable=False)  # ip / cookie
+    value = db.Column(db.String(255), index=True, nullable=False)
+    reason = db.Column(db.Text, nullable=True)
+    source_user_id = db.Column(db.Integer, nullable=True)
+    source_username = db.Column(db.String(80), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 class Thread(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     public_id = db.Column(db.String(64), unique=True, index=True, nullable=True)
@@ -852,6 +869,130 @@ def get_client_ip():
     if fwd:
         return fwd.split(',')[0].strip()
     return request.remote_addr
+
+CLIENT_TOKEN_COOKIE = "ai_client_token"
+
+def _is_secure_request():
+    if request.is_secure:
+        return True
+    proto = request.headers.get('X-Forwarded-Proto', '')
+    return proto.lower() == 'https'
+
+def get_client_token():
+    token = request.cookies.get(CLIENT_TOKEN_COOKIE)
+    if not token:
+        token = secrets.token_urlsafe(24)
+        g.new_client_token = token
+    g.client_token = token
+    return token
+
+def is_request_banned_identifier():
+    ip = get_client_ip()
+    token = request.cookies.get(CLIENT_TOKEN_COOKIE)
+    clauses = []
+    if ip:
+        clauses.append((BannedIdentifier.kind == 'ip') & (BannedIdentifier.value == ip))
+    if token:
+        clauses.append((BannedIdentifier.kind == 'cookie') & (BannedIdentifier.value == token))
+    if not clauses:
+        return False
+    try:
+        return BannedIdentifier.query.filter(or_(*clauses)).first() is not None
+    except Exception:
+        return False
+
+def _is_admin_exempt(user):
+    return bool(getattr(user, "is_admin", False)) or _is_primary_admin_user(user)
+
+def record_user_client_token(user):
+    if not user:
+        return
+    token = get_client_token()
+    if not token:
+        return
+    now = datetime.utcnow()
+    ip = get_client_ip()
+    row = UserClientToken.query.filter_by(user_id=user.id, token=token).first()
+    if row:
+        if not row.last_seen_at or (now - row.last_seen_at) > timedelta(minutes=5):
+            row.last_seen_at = now
+            if ip:
+                row.ip_address = ip
+            safe_db_commit()
+        return
+    row = UserClientToken(
+        user_id=user.id,
+        token=token,
+        ip_address=ip,
+        created_at=now,
+        last_seen_at=now
+    )
+    db.session.add(row)
+    safe_db_commit()
+
+def _ensure_banned_identifier(kind, value, reason, source_user):
+    if not value:
+        return
+    existing = BannedIdentifier.query.filter_by(kind=kind, value=value).first()
+    if existing:
+        return
+    entry = BannedIdentifier(
+        kind=kind,
+        value=value,
+        reason=reason,
+        source_user_id=getattr(source_user, "id", None),
+        source_username=getattr(source_user, "username", None)
+    )
+    db.session.add(entry)
+
+def ban_related_accounts(user, reason):
+    if not user or _is_admin_exempt(user):
+        return
+    ban_reason = reason or "Linked ban"
+    ips = set()
+    tokens = set()
+    try:
+        if current_user.is_authenticated and current_user.id == user.id:
+            ip_now = get_client_ip()
+            if ip_now:
+                ips.add(ip_now)
+            token_now = get_client_token()
+            if token_now:
+                tokens.add(token_now)
+    except Exception:
+        pass
+    for s in UserSession.query.filter_by(user_id=user.id).all():
+        if s.ip_address:
+            ips.add(s.ip_address)
+    for t in UserClientToken.query.filter_by(user_id=user.id).all():
+        if t.token:
+            tokens.add(t.token)
+
+    for ip in ips:
+        _ensure_banned_identifier("ip", ip, ban_reason, user)
+    for token in tokens:
+        _ensure_banned_identifier("cookie", token, ban_reason, user)
+
+    user_ids = set()
+    if ips:
+        for s in UserSession.query.filter(UserSession.ip_address.in_(list(ips))).all():
+            if s.user_id:
+                user_ids.add(s.user_id)
+    if tokens:
+        for t in UserClientToken.query.filter(UserClientToken.token.in_(list(tokens))).all():
+            if t.user_id:
+                user_ids.add(t.user_id)
+    now = datetime.utcnow()
+    for uid in user_ids:
+        u = User.query.get(uid)
+        if not u or _is_admin_exempt(u):
+            continue
+        if not u.is_bot_banned:
+            u.is_bot_banned = True
+            u.bot_banned_at = now
+        if not u.bot_ban_reason:
+            u.bot_ban_reason = ban_reason
+    safe_db_commit()
 
 def generate_thread_public_id():
     for _ in range(8):
@@ -954,6 +1095,27 @@ def get_bot_detection_global_enabled():
     return get_bool_app_setting("bot_detection_global_enabled", True)
 
 @app.before_request
+def ensure_client_token():
+    try:
+        get_client_token()
+    except Exception:
+        pass
+
+@app.after_request
+def set_client_token_cookie(response):
+    token = getattr(g, "new_client_token", None)
+    if token:
+        response.set_cookie(
+            CLIENT_TOKEN_COOKIE,
+            token,
+            max_age=60 * 60 * 24 * 365 * 2,
+            httponly=True,
+            samesite="Lax",
+            secure=_is_secure_request()
+        )
+    return response
+
+@app.before_request
 def check_maintenance():
     if app.config.get('MAINTENANCE_MODE'):
         if request.endpoint in ['static', 'login', 'logout', 'toggle_maintenance', 'login_passkey_options', 'login_passkey_verify']: return
@@ -1014,6 +1176,10 @@ def ensure_active_session():
             safe_db_commit()
         except Exception:
             pass
+    try:
+        record_user_client_token(current_user)
+    except Exception:
+        pass
 
 def verify_turnstile(token):
     secret = os.getenv('TURNSTILE_SECRET_KEY')
@@ -2616,7 +2782,11 @@ def login():
         if not rate_limit(f"rl:login:ip:{request.remote_addr}", 20, 300):
             return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
         if not verify_turnstile(request.form.get('cf-turnstile-response')): return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Auth Error")
-        user = User.query.filter_by(username=request.form.get('username')).first()
+        username = (request.form.get('username') or '').strip()
+        user = User.query.filter_by(username=username).first()
+        if is_request_banned_identifier():
+            if not (user and _is_admin_exempt(user)):
+                return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Access blocked.")
         if user:
             if not rate_limit(f"rl:login:user:{user.id}", 10, 300):
                 return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
@@ -2639,6 +2809,7 @@ def login():
                 remember = bool(request.form.get('remember'))
                 login_user(user, remember=remember)
                 create_user_session(user)
+                record_user_client_token(user)
                 return redirect(url_for('index'))
             if user.easy_login_hash and user.easy_login_expires_at and now > user.easy_login_expires_at:
                 user.easy_login_hash = None
@@ -2652,6 +2823,7 @@ def login():
                 remember = bool(request.form.get('remember'))
                 login_user(user, remember=remember)
                 create_user_session(user)
+                record_user_client_token(user)
                 return redirect(url_for('index'))
         return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Invalid credentials")
     return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'))
@@ -2671,6 +2843,8 @@ def login_passkey_options():
     user = User.query.filter_by(username=username).first()
     if not user or not getattr(user, "passkey_only_login", False):
         return jsonify({'error': 'Invalid credentials'}), 400
+    if is_request_banned_identifier() and not _is_admin_exempt(user):
+        return jsonify({'error': 'Access blocked'}), 403
     if not rate_limit(f"rl:login:user:{user.id}", 10, 300):
         return jsonify({'error': 'Too many attempts. Try again later.'}), 429
     creds = []
@@ -2731,6 +2905,7 @@ def login_passkey_verify():
         remember = bool(session.pop('passkey_login_remember', False))
         login_user(user, remember=remember)
         create_user_session(user)
+        record_user_client_token(user)
         return jsonify({'status': 'ok'})
     except Exception as e:
         logger.error(f"Passkey Login Verify Error: {e}")
@@ -2756,6 +2931,7 @@ def verify_2fa():
                 remember = bool(session.pop('remember_me', False))
                 login_user(user, remember=remember)
                 create_user_session(user)
+                record_user_client_token(user)
                 return redirect(url_for('index'))
             return render_template('verify_2fa.html', error="Invalid Code")
             
@@ -2834,6 +3010,8 @@ def signup():
         if not rate_limit(f"rl:signup:ip:{request.remote_addr}", 10, 3600):
             return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
         if not verify_turnstile(request.form.get('cf-turnstile-response')): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Auth Error")
+        if is_request_banned_identifier():
+            return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Signup blocked.")
         if _is_primary_admin_username(request.form.get('username')): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Username taken")
         if User.query.filter_by(username=request.form.get('username')).first(): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Username taken")
         new_user = User(username=request.form.get('username'), is_setup_completed=False)
@@ -2841,6 +3019,7 @@ def signup():
         db.session.add(new_user)
         safe_db_commit()
         login_user(new_user)
+        record_user_client_token(new_user)
         return redirect(url_for('setup'))
     return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'))
 
@@ -3547,7 +3726,7 @@ def bot_telemetry():
         current_user.is_bot_banned = True
         current_user.bot_banned_at = datetime.utcnow()
         current_user.bot_ban_reason = "Automated behavior detected (fast clicks/inputs)"
-        safe_db_commit()
+        ban_related_accounts(current_user, current_user.bot_ban_reason)
         return jsonify({'error': 'banned', 'score': new_score, 'reasons': reasons}), 403
     return jsonify({'status': 'ok', 'score': new_score, 'reasons': reasons})
 
@@ -3620,6 +3799,7 @@ def bot_update():
         user.bot_banned_at = datetime.utcnow()
         user.bot_ban_reason = data.get('reason') or "Manual ban"
         user.bot_unban_notice = False
+        ban_related_accounts(user, user.bot_ban_reason)
     elif action == 'unban':
         user.is_bot_banned = False
         user.bot_ban_reason = None
@@ -4534,7 +4714,13 @@ def handle_upload_too_large(e):
     return jsonify({'error': f'File too large. Max {limit_mb}MB'}), 413
 
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+    except Exception as e:
+        try:
+            logger.error(f"db.create_all failed: {e}")
+        except Exception:
+            pass
     try:
         ensure_app_setting("bot_detection_global_enabled", "1")
     except Exception:

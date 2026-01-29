@@ -239,6 +239,8 @@ _upload_max_mb = int(os.getenv('UPLOAD_MAX_MB', '512') or '512')
 app.config['MAX_CONTENT_LENGTH'] = _upload_max_mb * 1024 * 1024
 _user_storage_limit_mb = int(os.getenv('USER_STORAGE_LIMIT_MB', '100') or '100')
 app.config['USER_STORAGE_LIMIT_MB'] = _user_storage_limit_mb
+_primary_admin_username = (os.getenv('PRIMARY_ADMIN_USERNAME') or '').strip()
+app.config['PRIMARY_ADMIN_USERNAME'] = _primary_admin_username or None
 app.config['MAINTENANCE_MODE'] = os.path.exists(os.path.join(os.path.dirname(__file__), 'maintenance.lock'))
 
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/10')
@@ -255,7 +257,7 @@ def _apply_per_user_upload_limits():
     if request.endpoint not in ('upload', 'upload_chunk'):
         return
     try:
-        if current_user.is_authenticated and current_user.username == 'minashin1120':
+        if current_user.is_authenticated and _is_primary_admin_user(current_user):
             request.max_content_length = None
         else:
             limit = _get_user_storage_limit_bytes(current_user) if current_user.is_authenticated else None
@@ -288,11 +290,28 @@ def _bytes_to_mb_str(val):
     except Exception:
         return "0MB"
 
+def _get_primary_admin_username():
+    name = app.config.get('PRIMARY_ADMIN_USERNAME')
+    if not name:
+        return None
+    return str(name).strip()
+
+def _is_primary_admin_username(username):
+    name = _get_primary_admin_username()
+    if not name or not username:
+        return False
+    return str(username) == name
+
+def _is_primary_admin_user(user):
+    if not user:
+        return False
+    return _is_primary_admin_username(getattr(user, "username", None))
+
 def _get_user_storage_limit_bytes(user):
     try:
         if not user:
             return None
-        if getattr(user, "username", None) == 'minashin1120':
+        if _is_primary_admin_user(user):
             return None
         limit_mb = int(app.config.get('USER_STORAGE_LIMIT_MB') or 0)
         if limit_mb <= 0:
@@ -2744,7 +2763,7 @@ def signup():
         if not rate_limit(f"rl:signup:ip:{request.remote_addr}", 10, 3600):
             return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
         if not verify_turnstile(request.form.get('cf-turnstile-response')): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Auth Error")
-        if request.form.get('username') == 'minashin1120': return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Username taken")
+        if _is_primary_admin_username(request.form.get('username')): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Username taken")
         if User.query.filter_by(username=request.form.get('username')).first(): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Username taken")
         new_user = User(username=request.form.get('username'), is_setup_completed=False)
         new_user.set_password(request.form.get('password'))
@@ -3404,7 +3423,7 @@ def bot_update():
     action = (data.get('action') or '').strip()
     if not username or not action:
         return jsonify({'error': 'bad_request'}), 400
-    if username == 'minashin1120':
+    if _is_primary_admin_username(username):
         return jsonify({'error': 'protected'}), 400
     user = User.query.filter_by(username=username).first()
     if not user:
@@ -3545,7 +3564,7 @@ def handle_settings():
         set_app_setting("bot_detection_global_enabled", "1" if d['bot_detection_global_enabled'] else "0")
     if d.get('new_password'): current_user.set_password(d['new_password'])
     if d.get('new_username') and d['new_username'] != current_user.username:
-        if d['new_username'] == 'minashin1120' and not getattr(current_user, "is_admin", False):
+        if _is_primary_admin_username(d['new_username']) and not getattr(current_user, "is_admin", False):
             pass
         elif not User.query.filter_by(username=d['new_username']).first(): current_user.username = d['new_username']
     if 'enable_e2ee' in d and d['enable_e2ee'] != current_user.enable_e2ee:
@@ -4087,7 +4106,7 @@ def upload():
     files = request.files.getlist('file')
     if not files: return jsonify({'error': 'No file'}), 400
     try:
-        if current_user.username != 'minashin1120':
+        if not _is_primary_admin_user(current_user):
             hard_limit = _get_user_storage_limit_bytes(current_user)
             if hard_limit:
                 for f in files:
@@ -4101,7 +4120,7 @@ def upload():
             if size is None:
                 continue
             total_incoming += size
-        if current_user.username != 'minashin1120':
+        if not _is_primary_admin_user(current_user):
             ok, used, limit = _check_storage_capacity(current_user, total_incoming)
             if not ok:
                 used_mb = _bytes_to_mb_str(used)
@@ -4168,7 +4187,7 @@ def upload_init():
     if ext not in allowed:
         return jsonify({'error': f'File type {ext} not allowed'}), 400
 
-    if current_user.username != 'minashin1120':
+    if not _is_primary_admin_user(current_user):
         hard_limit = _get_user_storage_limit_bytes(current_user)
         if hard_limit and total_size > hard_limit:
             limit_mb = _bytes_to_mb_str(hard_limit)
@@ -4336,7 +4355,10 @@ with app.app_context():
     except Exception:
         pass
     try:
-        admin_user = User.query.filter_by(username='minashin1120').first()
+        admin_user = None
+        primary_admin = _get_primary_admin_username()
+        if primary_admin:
+            admin_user = User.query.filter_by(username=primary_admin).first()
         if admin_user and not getattr(admin_user, "is_admin", False):
             admin_user.is_admin = True
             safe_db_commit()

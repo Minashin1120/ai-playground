@@ -2074,6 +2074,120 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     logger.exception("Grok Imagine Error")
                     pub("error", f"Grok Imagine Error: {str(e)}")
 
+            # --- 1.6 Grok Imagine Video Generation ---
+            elif model_key == "grok-imagine-video":
+                log_force("Routing: Grok Video Branch")
+                try:
+                    pub("content", "**Generating Video (Grok)...**\n")
+                    
+                    # Prepare params
+                    duration = None
+                    try:
+                        duration = int(options.get('grok_video_duration') or 5)
+                    except: duration = 5
+                    
+                    aspect_ratio = options.get('grok_video_aspect') or "16:9"
+                    resolution = options.get('grok_video_resolution') or "720p"
+                    
+                    api_key = key # Decrypted XAI API Key
+                    headers = {
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json"
+                    }
+                    
+                    # Determine endpoint and payload
+                    endpoint = f"https://{_XAI_API_HOST}/v1/videos/generations"
+                    payload = {
+                        "model": "grok-imagine-video",
+                        "prompt": final_message_text,
+                        "duration": duration,
+                        "aspect_ratio": aspect_ratio,
+                        "resolution": resolution
+                    }
+                    
+                    # Check for image or video inputs
+                    img_urls = []
+                    vid_urls = []
+                    for fi in loaded_files:
+                        if fi.get('bytes'):
+                            # For simplicity, if we have local bytes, we might need to upload them to a public URL 
+                            # or use data URIs if supported. The docs say:
+                            # "Note: The input video URL must be a direct, publicly accessible link to the video file."
+                            # This is a limitation for local files.
+                            # However, for Image-to-Video, the docs show:
+                            # image: { url: '<url of the image>' }
+                            # But also curl example shows "image": {"url": "<url of the image>"}
+                            # Wait, can we use base64? 
+                            # image-gen docs showed base64 support for Image.
+                            # Let's try base64 for image-to-video.
+                            mime = fi.get('mime', 'image/png')
+                            if mime.startswith('image/'):
+                                b64 = base64.b64encode(fi['bytes']).decode('utf-8')
+                                payload["image"] = {"url": f"data:{mime};base64,{b64}"}
+                            elif mime.startswith('video/'):
+                                # Video edit requires a public URL. Local files won't work easily here.
+                                # But we'll try to provide it if we had a public URL.
+                                pass
+
+                    # Send request
+                    resp = httpx.post(endpoint, headers=headers, json=payload, timeout=60.0)
+                    if resp.status_code != 200:
+                        raise RuntimeError(f"xAI API Error: {resp.status_code} - {resp.text}")
+                    
+                    data = resp.json()
+                    request_id = data.get("request_id")
+                    if not request_id:
+                        raise RuntimeError(f"No request_id returned: {data}")
+                    
+                    pub("content", f"Request ID: `{request_id}`. Polling for result...\n")
+                    
+                    # Polling
+                    poll_url = f"https://{_XAI_API_HOST}/v1/videos/{request_id}"
+                    max_polls = 60 # 2 minutes if 2s interval
+                    video_url = None
+                    for i in range(max_polls):
+                        if check_stop(): break
+                        time.sleep(2)
+                        p_resp = httpx.get(poll_url, headers=headers, timeout=30.0)
+                        if p_resp.status_code == 200:
+                            p_data = p_resp.json()
+                            status = p_data.get("status")
+                            if status == "completed" or p_data.get("url"):
+                                video_url = p_data.get("url")
+                                break
+                            elif status == "failed":
+                                raise RuntimeError(f"Video generation failed: {p_data.get('error')}")
+                        elif p_resp.status_code != 200:
+                            log_force(f"Polling error {p_resp.status_code}: {p_resp.text}")
+                    
+                    if video_url:
+                        # Download and save the video locally
+                        v_resp = httpx.get(video_url, timeout=60.0)
+                        if v_resp.status_code == 200:
+                            ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
+                            if not os.path.exists(ud): os.makedirs(ud, exist_ok=True)
+                            
+                            fn2 = f"gen_video_{int(time.time())}_{os.urandom(4).hex()}.mp4"
+                            fp2 = os.path.join(ud, fn2)
+                            
+                            if user_config.get('enable_e2ee'):
+                                with open(fp2 + '.enc', 'wb') as f: f.write(encrypt_bytes(v_resp.content))
+                            else:
+                                with open(fp2, 'wb') as f: f.write(v_resp.content)
+                                
+                            generated_images.append(f"{user_id}/{fn2}")
+                            vid_tag = f'\n<video controls src="/files/{user_id}/{fn2}" class="w-full mt-2"></video>\n'
+                            pub("content", vid_tag)
+                            full_res += f"Generated Video for: {final_message_text}\n"
+                        else:
+                            pub("error", f"Failed to download generated video: {v_resp.status_code}")
+                    else:
+                        pub("error", "Video generation timed out or was canceled.")
+                        
+                except Exception as e:
+                    logger.exception("Grok Imagine Video Error")
+                    pub("error", f"Grok Imagine Video Error: {str(e)}")
+
             # --- 2. xAI Grok (Native SDK) ---
             elif is_grok and x_client and not options.get('enable_python'):
                 log_force("Routing: Grok Branch (Native SDK)")
@@ -3320,6 +3434,9 @@ def chat_stream():
         'gemini_image_size': data.get('gemini_image_size'),
         'grok_image_aspect': data.get('grok_image_aspect'),
         'grok_image_format': data.get('grok_image_format'),
+        'grok_video_duration': data.get('grok_video_duration'),
+        'grok_video_aspect': data.get('grok_video_aspect'),
+        'grok_video_resolution': data.get('grok_video_resolution'),
     }
 
     if current_user.use_last_chat_settings:

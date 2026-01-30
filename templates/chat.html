@@ -614,6 +614,33 @@
                     </div>
                     <span class="text-gray-500">※ Grok Imagine</span>
                 </div>
+                <div id="grok-video-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Duration</span>
+                        <input id="grok-video-duration" type="number" min="1" max="15" step="1" value="5" class="w-12 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                        <span class="text-gray-500">sec</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Aspect</span>
+                        <select id="grok-video-aspect" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="16:9" selected>16:9</option>
+                            <option value="4:3">4:3</option>
+                            <option value="1:1">1:1</option>
+                            <option value="9:16">9:16</option>
+                            <option value="3:4">3:4</option>
+                            <option value="3:2">3:2</option>
+                            <option value="2:3">2:3</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Resolution</span>
+                        <select id="grok-video-resolution" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="720p" selected>720p</option>
+                            <option value="480p">480p</option>
+                        </select>
+                    </div>
+                    <span class="text-gray-500">※ Grok Imagine Video</span>
+                </div>
                 <div id="image-input-limits" class="hidden mt-2 px-3 py-2 bg-gray-900/40 border border-gray-700 rounded-lg text-[10px] text-gray-400"></div>
                 <div id="audio-gen-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-xs text-gray-300 flex flex-wrap items-center gap-3">
                     <div class="flex items-center gap-2">
@@ -1760,11 +1787,12 @@
                 ]
             },
             {
-                category: "xAI Image",
-                icon: "fas fa-image text-blue-400",
-                description: "Grok image generation",
+                category: "Grok Imagine",
+                icon: "fas fa-magic text-blue-400",
+                description: "Grok generation models",
                 items: [
-                    { id: "grok-imagine-image", name: "Grok Imagine", desc: "Latest Grok image generation.", price: "Unknown" }
+                    { id: "grok-imagine-image", name: "Grok Imagine Image", desc: "Latest Grok image generation.", price: "Unknown" },
+                    { id: "grok-imagine-video", name: "Grok Imagine Video", desc: "Latest Grok video generation.", price: "Unknown" }
                 ]
             },
             {
@@ -1816,13 +1844,18 @@
                 m.includes('voice-agent') ||
                 m.includes('native-audio') ||
                 m.includes('image') ||
-                m.includes('nano')
+                m.includes('nano') ||
+                m.includes('video')
             ) return false;
             return m.includes('gpt') || m.includes('gemini') || m.includes('grok');
         };
         const isGrokImageModel = () => {
             const m = (get('model-select').value || '').toLowerCase();
-            return m.includes('grok') && (m.includes('imagine') || m.includes('image'));
+            return m.includes('grok') && (m.includes('imagine') || m.includes('image')) && !m.includes('video');
+        };
+        const isGrokVideoModel = () => {
+            const m = (get('model-select').value || '').toLowerCase();
+            return m.includes('grok') && m.includes('video');
         };
 
         const isStsModel = () => STS_MODELS.has(get('model-select').value);
@@ -2224,6 +2257,15 @@
                 wrap.classList.add('hidden');
             }
         }
+        function updateGrokVideoUi() {
+            const wrap = get('grok-video-options');
+            if (!wrap) return;
+            if (isGrokVideoModel()) {
+                wrap.classList.remove('hidden');
+            } else {
+                wrap.classList.add('hidden');
+            }
+        }
         function updateImageInputLimits() {
             const el = get('image-input-limits');
             if (!el) return;
@@ -2255,6 +2297,13 @@
                 html = [
                     '<div class="font-bold text-gray-300 mb-1">Grok 画像入力制限</div>',
                     '<div>最大 20MiB / PNG・JPG のみ / 枚数制限なし</div>'
+                ].join('');
+            } else if (model.includes('grok') && model.includes('video')) {
+                show = true;
+                html = [
+                    '<div class="font-bold text-gray-300 mb-1">Grok 動画生成制限</div>',
+                    '<div>Duration: 1-15s / Resolution: 720p, 480p</div>',
+                    '<div>画像からの動画生成に対応 (PNG・JPG)</div>'
                 ].join('');
             }
             if (show) {
@@ -2330,7 +2379,7 @@
                     }
                 }
 
-                if(model.includes('nano') || model.includes('gpt-image') || isGrokImageModel()) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); } 
+                if(model.includes('nano') || model.includes('gpt-image') || isGrokImageModel() || isGrokVideoModel()) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); } 
                 if (pyCont) {
                     if (isLlmModel()) {
                         pyCont.classList.remove('hidden');
@@ -2357,6 +2406,7 @@
                 updateGptImageUi();
                 updateGeminiImageUi();
                 updateGrokImageUi();
+                updateGrokVideoUi();
                 updateImageInputLimits();
             }
             get('model-select').addEventListener('change', toggleOptions); toggleOptions();
@@ -3928,6 +3978,10 @@
                 image_mask: isGptImageModel() ? currentMaskImage : null,
                 gemini_image_aspect: isGeminiImageModel() && get('gemini-image-aspect') ? get('gemini-image-aspect').value : null,
                 gemini_image_size: isGeminiImageModel() && get('gemini-image-size') ? get('gemini-image-size').value : null,
+                grok_image_aspect: isGrokImageModel() && get('grok-image-aspect') ? get('grok-image-aspect').value : null,
+                grok_video_duration: isGrokVideoModel() && get('grok-video-duration') ? get('grok-video-duration').value : null,
+                grok_video_aspect: isGrokVideoModel() && get('grok-video-aspect') ? get('grok-video-aspect').value : null,
+                grok_video_resolution: isGrokVideoModel() && get('grok-video-resolution') ? get('grok-video-resolution').value : null,
                 quote_text: currentQuote,
                 parent_id: currentParentId,
                 disable_auto_search: disableAutoSearch

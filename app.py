@@ -2017,8 +2017,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         "n": 1,
                         "response_format": "b64_json"
                     }
+                    # aspect_ratio is an xAI-specific parameter; pass via extra_body for generate
+                    eb = {}
                     if aspect_ratio:
-                        img_kwargs["aspect_ratio"] = aspect_ratio
+                        eb["aspect_ratio"] = aspect_ratio
 
                     img_inputs = []
                     for fi in loaded_files:
@@ -2041,13 +2043,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         img_inputs.append((f"input_{len(img_inputs)}", img_bytes, img_mime))
 
                     if img_inputs:
-                        # Use first image for editing as per docs (docs show single image input for edit)
-                        # OpenAI SDK for xAI might differ slightly in how it expects multiple images, 
-                        # but standard images.edit usually takes one image and optional mask.
-                        # For Grok Imagine, the doc shows: image=[open(...)]
+                        # Use first image for editing as per docs
+                        # Note: aspect_ratio is usually not supported/needed for edits as it follows input image
                         resp = o_client.images.edit(image=img_inputs[0][1], **img_kwargs)
                     else:
-                        resp = o_client.images.generate(**img_kwargs)
+                        resp = o_client.images.generate(**img_kwargs, extra_body=eb)
                     
                     if resp.data:
                         img_data_b64 = resp.data[0].b64_json

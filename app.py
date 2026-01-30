@@ -2152,14 +2152,18 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if p_resp.status_code == 200:
                             p_data = p_resp.json()
                             status = p_data.get("status")
-                            if status == "completed" or p_data.get("url"):
-                                video_url = p_data.get("url")
+                            # xAI Video API might return URL nested inside "video" object
+                            video_url = p_data.get("url")
+                            if not video_url and isinstance(p_data.get("video"), dict):
+                                video_url = p_data["video"].get("url")
+                            
+                            if status == "completed" or video_url:
                                 break
                             elif status == "failed":
                                 raise RuntimeError(f"Video generation failed: {p_data.get('error')}")
                             else:
                                 if i % 5 == 0: # Log every 10s
-                                    log_force(f"Still polling video {request_id}: {status}")
+                                    log_force(f"Polling video {request_id}: status={status}, has_url={bool(video_url)}")
                         elif p_resp.status_code != 200:
                             log_force(f"Polling error {p_resp.status_code}: {p_resp.text}")
                     

@@ -2143,7 +2143,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     
                     # Polling
                     poll_url = f"https://{_XAI_API_HOST}/v1/videos/{request_id}"
-                    max_polls = 60 # 2 minutes if 2s interval
+                    max_polls = 300 # 10 minutes if 2s interval
                     video_url = None
                     for i in range(max_polls):
                         if check_stop(): break
@@ -2157,6 +2157,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 break
                             elif status == "failed":
                                 raise RuntimeError(f"Video generation failed: {p_data.get('error')}")
+                            else:
+                                if i % 5 == 0: # Log every 10s
+                                    log_force(f"Still polling video {request_id}: {status}")
                         elif p_resp.status_code != 200:
                             log_force(f"Polling error {p_resp.status_code}: {p_resp.text}")
                     

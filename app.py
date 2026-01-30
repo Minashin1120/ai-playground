@@ -2003,6 +2003,77 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         full_res += part.text
                                         pub("content", part.text)
 
+            # --- 1.5 Grok Imagine Image Generation ---
+            elif model_key == "grok-imagine-image":
+                log_force("Routing: Grok Imagine Branch")
+                try:
+                    pub("content", "**Generating Image (Grok)...**\n")
+                    
+                    aspect_ratio = options.get('grok_image_aspect') or "1:1"
+                    
+                    img_kwargs = {
+                        "model": "grok-imagine-image",
+                        "prompt": final_message_text,
+                        "n": 1,
+                        "response_format": "b64_json"
+                    }
+                    if aspect_ratio:
+                        img_kwargs["aspect_ratio"] = aspect_ratio
+
+                    img_inputs = []
+                    for fi in loaded_files:
+                        if not fi.get('bytes') or not fi.get('mime', '').startswith('image/'):
+                            continue
+                        img_bytes = fi['bytes']
+                        img_mime = fi['mime']
+                        # xAI supports jpg/jpeg or png.
+                        if img_mime not in ('image/png', 'image/jpeg'):
+                            try:
+                                im = Image.open(BytesIO(img_bytes))
+                                if im.mode not in ('RGB', 'RGBA'):
+                                    im = im.convert('RGB')
+                                out = BytesIO()
+                                im.save(out, format='PNG')
+                                img_bytes = out.getvalue()
+                                img_mime = 'image/png'
+                            except Exception:
+                                pass
+                        img_inputs.append((f"input_{len(img_inputs)}", img_bytes, img_mime))
+
+                    if img_inputs:
+                        # Use first image for editing as per docs (docs show single image input for edit)
+                        # OpenAI SDK for xAI might differ slightly in how it expects multiple images, 
+                        # but standard images.edit usually takes one image and optional mask.
+                        # For Grok Imagine, the doc shows: image=[open(...)]
+                        resp = o_client.images.edit(image=img_inputs[0][1], **img_kwargs)
+                    else:
+                        resp = o_client.images.generate(**img_kwargs)
+                    
+                    if resp.data:
+                        img_data_b64 = resp.data[0].b64_json
+                        img_bytes = base64.b64decode(img_data_b64)
+                        
+                        ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
+                        if not os.path.exists(ud): os.makedirs(ud, exist_ok=True)
+                        
+                        ext = "png"
+                        fn2 = f"gen_grok_{int(time.time())}_{len(generated_images)}.{ext}"
+                        fp2 = os.path.join(ud, fn2)
+                        
+                        if user_config.get('enable_e2ee'):
+                            with open(fp2 + '.enc', 'wb') as f: f.write(encrypt_bytes(img_bytes))
+                        else:
+                            with open(fp2, 'wb') as f: f.write(img_bytes)
+                            
+                        generated_images.append(f"{user_id}/{fn2}")
+                        pub("content", f"\n![Image](/files/{user_id}/{fn2})\n")
+                        full_res += f"Generated Image for: {final_message_text}\n"
+                    else:
+                        pub("error", "Grok Image Gen Error: No data returned.")
+                except Exception as e:
+                    logger.exception("Grok Imagine Error")
+                    pub("error", f"Grok Imagine Error: {str(e)}")
+
             # --- 2. xAI Grok (Native SDK) ---
             elif is_grok and x_client and not options.get('enable_python'):
                 log_force("Routing: Grok Branch (Native SDK)")
@@ -3247,6 +3318,8 @@ def chat_stream():
         'image_mask': data.get('image_mask'),
         'gemini_image_aspect': data.get('gemini_image_aspect'),
         'gemini_image_size': data.get('gemini_image_size'),
+        'grok_image_aspect': data.get('grok_image_aspect'),
+        'grok_image_format': data.get('grok_image_format'),
     }
 
     if current_user.use_last_chat_settings:

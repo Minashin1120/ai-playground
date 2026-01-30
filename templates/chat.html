@@ -594,6 +594,26 @@
                     </div>
                     <span class="text-gray-500">※ Nano Banana 系のみ有効</span>
                 </div>
+                <div id="grok-image-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Aspect</span>
+                        <select id="grok-image-aspect" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="1:1" selected>1:1 (Square)</option>
+                            <option value="16:9">16:9 (Landscape)</option>
+                            <option value="4:3">4:3</option>
+                            <option value="3:4">3:4</option>
+                            <option value="9:16">9:16 (Portrait)</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Format</span>
+                        <select id="grok-image-format" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="url" selected>URL</option>
+                            <option value="b64_json">Base64</option>
+                        </select>
+                    </div>
+                    <span class="text-gray-500">※ Grok Imagine</span>
+                </div>
                 <div id="image-input-limits" class="hidden mt-2 px-3 py-2 bg-gray-900/40 border border-gray-700 rounded-lg text-[10px] text-gray-400"></div>
                 <div id="audio-gen-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-xs text-gray-300 flex flex-wrap items-center gap-3">
                     <div class="flex items-center gap-2">
@@ -1740,6 +1760,14 @@
                 ]
             },
             {
+                category: "xAI Image",
+                icon: "fas fa-image text-blue-400",
+                description: "Grok image generation",
+                items: [
+                    { id: "grok-imagine-image", name: "Grok Imagine", desc: "Latest Grok image generation.", price: "Unknown" }
+                ]
+            },
+            {
                 category: "xAI Grok",
                 icon: "fas fa-rocket text-white",
                 description: "Models by xAI",
@@ -1791,6 +1819,10 @@
                 m.includes('nano')
             ) return false;
             return m.includes('gpt') || m.includes('gemini') || m.includes('grok');
+        };
+        const isGrokImageModel = () => {
+            const m = (get('model-select').value || '').toLowerCase();
+            return m.includes('grok') && (m.includes('imagine') || m.includes('image'));
         };
 
         const isStsModel = () => STS_MODELS.has(get('model-select').value);
@@ -2183,6 +2215,15 @@
                     sizeEl.value = '1K';
                 }
             }
+        function updateGrokImageUi() {
+            const wrap = get('grok-image-options');
+            if (!wrap) return;
+            if (isGrokImageModel()) {
+                wrap.classList.remove('hidden');
+            } else {
+                wrap.classList.add('hidden');
+            }
+        }
         function updateImageInputLimits() {
             const el = get('image-input-limits');
             if (!el) return;
@@ -2289,7 +2330,7 @@
                     }
                 }
 
-                if(model.includes('nano') || model.includes('gpt-image')) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); } 
+                if(model.includes('nano') || model.includes('gpt-image') || isGrokImageModel()) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); } 
                 if (pyCont) {
                     if (isLlmModel()) {
                         pyCont.classList.remove('hidden');
@@ -2315,6 +2356,7 @@
                 updateStsOptions();
                 updateGptImageUi();
                 updateGeminiImageUi();
+                updateGrokImageUi();
                 updateImageInputLimits();
             }
             get('model-select').addEventListener('change', toggleOptions); toggleOptions();

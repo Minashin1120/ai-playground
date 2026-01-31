@@ -792,6 +792,7 @@ class Thread(db.Model):
     bookmarked_at = db.Column(db.DateTime, nullable=True)
     custom_instruction = db.Column(db.Text, nullable=True)
     include_global_instruction = db.Column(db.Boolean, default=True)
+    last_model = db.Column(db.String(64), nullable=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     messages = db.relationship('Message', backref='thread', cascade="all, delete-orphan", lazy=True)
 
@@ -2928,7 +2929,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 parent_id=message_id
             )
             db.session.add(msg_entry)
-            Thread.query.get(thread_id).updated_at = datetime.utcnow()
+            th = Thread.query.get(thread_id)
+            if th:
+                th.updated_at = datetime.utcnow()
+                th.last_model = model_key
             safe_db_commit()
             pub("done", "OK")
 
@@ -3621,7 +3625,12 @@ def handle_threads():
             else: query = query.join(Message).filter(or_(Thread.title.contains(q), Message.content.contains(q))).distinct()
         
         pagination = query.order_by(Thread.is_bookmarked.desc(), Thread.bookmarked_at.desc(), Thread.updated_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
-        threads = [{'id': t.public_id or t.id, 'title': t.title, 'is_bookmarked': bool(t.is_bookmarked)} for t in pagination.items]
+        threads = [{
+            'id': t.public_id or t.id,
+            'title': t.title,
+            'is_bookmarked': bool(t.is_bookmarked),
+            'last_model': t.last_model
+        } for t in pagination.items]
         return jsonify({
             'threads': threads,
             'has_next': pagination.has_next,
@@ -3664,7 +3673,8 @@ def handle_thread_item(thread_id):
         return jsonify({
             'messages': res,
             'custom_instruction': t.custom_instruction,
-            'include_global_instruction': t.include_global_instruction if t.include_global_instruction is not None else True
+            'include_global_instruction': t.include_global_instruction if t.include_global_instruction is not None else True,
+            'last_model': t.last_model
         })
     
     for m in t.messages:
@@ -5208,6 +5218,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE thread ADD COLUMN public_id VARCHAR(64)")
+        except: pass
+        try:
+            try_alter("ALTER TABLE thread ADD COLUMN last_model VARCHAR(64)")
         except: pass
 
 @app.errorhandler(403)

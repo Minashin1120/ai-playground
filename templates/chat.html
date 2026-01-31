@@ -4184,6 +4184,9 @@
             if (get('thread-custom-instruction')) {
                 get('thread-custom-instruction').value = threadData.custom_instruction || '';
             }
+            if (threadData.last_model) {
+                selectModelById(threadData.last_model);
+            }
             
             // Set default leaf (latest message)
             if (allMessages.length > 0) {

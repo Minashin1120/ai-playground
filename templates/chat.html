@@ -3185,7 +3185,7 @@
             get('search-box').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => { threadPage=1; get('thread-list').innerHTML='<div id="scroll-sentinel"></div>'; loadThreads(); }, 300); }); get('mobile-new-chat-btn').onclick = () => startNewChat();
             if (get('sts-mic-btn')) get('sts-mic-btn').onclick = () => { if (isStsModel()) get('mic-btn').click(); };
             if (get('sts-cancel-btn')) get('sts-cancel-btn').onclick = () => { if (isStsModel()) cancelRecording(); };
-            get('prompt-input').addEventListener('paste', async (e) => { const items = (e.clipboardData || window.clipboardData).items; const files = []; for (let i = 0; i < items.length; i++) { if (items[i].kind === 'file') { files.push(items[i].getAsFile()); } } if (files.length > 0) { e.preventDefault(); await handleFiles(files); } });
+            get('prompt-input').addEventListener('paste', async (e) => { const items = (e.clipboardData || window.clipboardData).items; const files = []; for (let i = 0; i < items.length; i++) { if (items[i].kind === 'file') { files.push(items[i].getAsFile()); } } if (files.length > 0) { e.preventDefault(); await handleFiles(files, { openModal: false }); } });
             get('chat-container').addEventListener('click', (e) => {
                 const img = e.target.closest('img.chat-image');
                 if (img && img.src) {
@@ -3763,9 +3763,10 @@
                 xhr.send(fd);
             });
         }
-        async function handleFiles(fs) {
+        async function handleFiles(fs, opts = {}) {
             if(!fs || !fs.length) return;
-            openUploadModal();
+            const shouldOpenModal = opts.openModal !== false;
+            if (shouldOpenModal) openUploadModal();
             const tasks = Array.from(fs).map(async (f) => {
                 const row = addUploadRow(f);
                 let t = f;

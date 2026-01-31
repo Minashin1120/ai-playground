@@ -1162,6 +1162,21 @@ def try_alter(sql):
     except Exception:
         pass
 
+def ensure_thread_last_model_column():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='thread' "
+                "AND COLUMN_NAME='last_model'"
+            )).scalar()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE thread ADD COLUMN last_model VARCHAR(64)"))
+    except Exception:
+        pass
+
 def get_bool_app_setting(key, default=False):
     val = get_app_setting(key, None)
     if val is None:
@@ -5051,6 +5066,10 @@ with app.app_context():
             logger.error(f"db.create_all failed: {e}")
         except Exception:
             pass
+    try:
+        ensure_thread_last_model_column()
+    except Exception:
+        pass
     try:
         ensure_app_setting("bot_detection_global_enabled", "1")
     except Exception:

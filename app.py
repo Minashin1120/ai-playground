@@ -2064,7 +2064,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         # Use first image for editing as per docs.
                         # xAI image edits expect JSON (not multipart), so send base64.
                         img_bytes = img_inputs[0][1]
+                        img_mime = img_inputs[0][2] if len(img_inputs[0]) > 2 else "image/png"
                         img_b64 = base64.b64encode(img_bytes).decode("utf-8")
+                        img_data_url = f"data:{img_mime};base64,{img_b64}"
                         endpoint = f"https://{_XAI_API_HOST}/v1/images/edits"
                         headers = {
                             "Authorization": f"Bearer {key}",
@@ -2074,7 +2076,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         payload = {
                             "model": "grok-imagine-image",
                             "prompt": final_message_text,
-                            "image": img_b64,
+                            "image": {"url": img_data_url},
                             "response_format": img_response_format
                         }
                         resp = httpx.post(endpoint, headers=headers, json=payload, timeout=120)

@@ -2011,11 +2011,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     
                     aspect_ratio = options.get('grok_image_aspect') or "1:1"
                     
+                    img_response_format = "b64_json"
                     img_kwargs = {
                         "model": "grok-imagine-image",
                         "prompt": final_message_text,
                         "n": 1,
-                        "response_format": "b64_json"
+                        "response_format": img_response_format
                     }
                     # aspect_ratio is an xAI-specific parameter; pass via extra_body for generate
                     eb = {}
@@ -2042,15 +2043,40 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 pass
                         img_inputs.append((f"input_{len(img_inputs)}", img_bytes, img_mime))
 
+                    img_data_b64 = None
                     if img_inputs:
-                        # Use first image for editing as per docs
-                        # Note: aspect_ratio is usually not supported/needed for edits as it follows input image
-                        resp = o_client.images.edit(image=img_inputs[0][1], **img_kwargs)
+                        # Use first image for editing as per docs.
+                        # xAI image edits expect JSON (not multipart), so send base64.
+                        img_bytes = img_inputs[0][1]
+                        img_mime = img_inputs[0][2] if len(img_inputs[0]) > 2 else "image/png"
+                        img_b64 = base64.b64encode(img_bytes).decode("utf-8")
+                        img_data_url = f"data:{img_mime};base64,{img_b64}"
+                        endpoint = f"https://{_XAI_API_HOST}/v1/images/edits"
+                        headers = {
+                            "Authorization": f"Bearer {key}",
+                            "Content-Type": "application/json",
+                            "Accept": "application/json"
+                        }
+                        payload = {
+                            "model": "grok-imagine-image",
+                            "prompt": final_message_text,
+                            "image": img_data_url,
+                            "response_format": img_response_format
+                        }
+                        resp = httpx.post(endpoint, headers=headers, json=payload, timeout=120)
+                        resp.raise_for_status()
+                        resp_json = resp.json()
+                        if isinstance(resp_json, dict):
+                            if resp_json.get("data") and resp_json["data"]:
+                                img_data_b64 = (resp_json["data"][0] or {}).get("b64_json")
+                            if not img_data_b64 and resp_json.get("image"):
+                                img_data_b64 = resp_json.get("image")
                     else:
                         resp = o_client.images.generate(**img_kwargs, extra_body=eb)
+                        if resp.data:
+                            img_data_b64 = resp.data[0].b64_json
                     
-                    if resp.data:
-                        img_data_b64 = resp.data[0].b64_json
+                    if img_data_b64:
                         img_bytes = base64.b64decode(img_data_b64)
                         
                         ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))

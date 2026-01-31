@@ -108,6 +108,29 @@ def _key_sig(key, extra=""):
     h = hashlib.sha256(key.encode()).hexdigest()
     return f"{h}:{extra}" if extra else h
 
+def _closest_aspect_ratio(width, height, allowed):
+    try:
+        if not width or not height:
+            return None
+        ratio = float(width) / float(height)
+    except Exception:
+        return None
+    best = None
+    best_diff = None
+    for a in allowed:
+        try:
+            parts = a.split(":")
+            if len(parts) != 2:
+                continue
+            ar = float(parts[0]) / float(parts[1])
+            diff = abs(ratio - ar)
+            if best is None or diff < best_diff:
+                best = a
+                best_diff = diff
+        except Exception:
+            continue
+    return best
+
 _HTTP_MAX_CONNECTIONS = _env_int("AI_CHAT_HTTP_MAX_CONNECTIONS", 100)
 _HTTP_MAX_KEEPALIVE = _env_int("AI_CHAT_HTTP_MAX_KEEPALIVE", 20)
 _HTTP_KEEPALIVE_EXPIRY = _env_float("AI_CHAT_HTTP_KEEPALIVE_EXPIRY", 30.0)
@@ -2171,6 +2194,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             if mime.startswith('image/'):
                                 b64 = base64.b64encode(fi['bytes']).decode('utf-8')
                                 payload["image"] = {"url": f"data:{mime};base64,{b64}"}
+                                try:
+                                    im = Image.open(BytesIO(fi['bytes']))
+                                    inferred = _closest_aspect_ratio(im.width, im.height, {"16:9", "4:3", "1:1", "9:16", "3:4", "3:2", "2:3"})
+                                    if inferred:
+                                        payload["aspect_ratio"] = inferred
+                                except Exception:
+                                    pass
                             elif mime.startswith('video/'):
                                 # Video edit requires a public URL. Local files won't work easily here.
                                 # But we'll try to provide it if we had a public URL.

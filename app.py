@@ -1965,42 +1965,46 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             except: pass
                         if parts: contents.append(types.Content(role='model' if m['role'] == 'assistant' else 'user', parts=parts))
 
-                    curr = [types.Part(text=final_message_text)]
-                    # Gemini 3 Flash does not support audio inputs. Transcribe audio to text when possible.
-                    audio_transcripts = []
-                    openai_key = api_keys.get('openai')
-                    openai_client = _get_openai_client(openai_key, base_url=None) if openai_key else None
-                    stt_model = (getattr(user, 'stt_model', None) or 'gpt-4o-mini-transcribe').strip()
-                    stt_allowed = {"gpt-4o-mini-transcribe", "gpt-4o-transcribe", "gpt-4o-transcribe-diarize", "whisper-1"}
+                    curr_parts = [types.Part(text=final_message_text)]
+                    use_raw_parts = False
+                    audio_inline_limit = 20 * 1024 * 1024  # 20MiB limit for inline audio
+
                     for fi in loaded_files:
-                        if fi['text']: curr.append(types.Part(text=f"\nFile: {fi['name']}\n{fi['text']}"))
-                        elif fi['bytes']:
-                            mime = (fi.get('mime') or 'application/octet-stream').lower()
-                            if mime.startswith('image/'):
-                                curr.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime']))
-                            elif mime.startswith('audio/'):
-                                if openai_client and stt_model in stt_allowed:
-                                    try:
-                                        audio_file = BytesIO(fi['bytes'])
-                                        audio_file.name = fi.get('name') or 'audio'
-                                        kwargs = {"model": stt_model, "file": audio_file}
-                                        if stt_model == "gpt-4o-transcribe-diarize":
-                                            kwargs["response_format"] = "verbose_json"
-                                            kwargs["timestamp_granularities"] = ["segment"]
-                                        transcription = openai_client.audio.transcriptions.create(**kwargs)
-                                        transcript_text = getattr(transcription, 'text', None) or transcription.get('text') if isinstance(transcription, dict) else None
-                                        if transcript_text:
-                                            audio_transcripts.append(f"[Audio: {fi.get('name') or 'audio'}]\n{transcript_text}")
-                                    except Exception as e:
-                                        log_force(f"Audio transcription failed: {e}")
+                        if fi['text']:
+                            curr_parts.append(types.Part(text=f"\nFile: {fi['name']}\n{fi['text']}"))
+                            continue
+                        if not fi.get('bytes'):
+                            continue
+                        mime = (fi.get('mime') or 'application/octet-stream').lower()
+                        if mime.startswith('image/'):
+                            curr_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime']))
+                            continue
+                        if mime.startswith('audio/'):
+                            try:
+                                if len(fi['bytes']) <= audio_inline_limit:
+                                    curr_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime']))
                                 else:
-                                    log_force("Audio input skipped: OpenAI API key missing for transcription.")
-                            else:
-                                # Skip unsupported binary inputs for Gemini text models
-                                pass
-                    if audio_transcripts:
-                        curr.append(types.Part(text="\n\n" + "\n\n".join(audio_transcripts)))
-                    contents.append(types.Content(role='user', parts=curr))
+                                    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(fi.get('name') or '')[1] or '.bin') as tmp:
+                                        tmp.write(fi['bytes'])
+                                        tmp.flush()
+                                        up = g_client.files.upload(file=tmp.name, config={"mimeType": fi['mime']})
+                                    uri = getattr(up, "uri", None) or getattr(up, "name", None) or (up.get("uri") if isinstance(up, dict) else None)
+                                    up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or fi['mime']
+                                    if uri and hasattr(types.Part, "from_uri"):
+                                        curr_parts.append(types.Part.from_uri(uri=uri, mime_type=up_mime))
+                                    else:
+                                        use_raw_parts = True
+                                        curr_parts.append(up)
+                            except Exception as e:
+                                log_force(f"Gemini audio upload failed: {e}")
+                            continue
+                        # Skip unsupported binary inputs for Gemini text models
+                        pass
+
+                    if use_raw_parts:
+                        contents.extend(curr_parts)
+                    else:
+                        contents.append(types.Content(role='user', parts=curr_parts))
 
                     stream = g_client.models.generate_content_stream(model=rm, contents=contents, config=types.GenerateContentConfig(**conf))
                     current_py_id = None

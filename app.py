@@ -3202,8 +3202,6 @@ def login():
         if user:
             if not rate_limit(f"rl:login:user:{user.id}", 10, 300):
                 return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
-            if getattr(user, "passkey_only_login", False):
-                return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Passkey-only login enabled. Use passkey login.")
             pw = request.form.get('password') or ""
             now = datetime.utcnow()
             easy_ok = False

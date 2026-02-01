@@ -740,6 +740,13 @@
                 <button id="upload-lib-btn" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm btn-hover">ライブラリから選択</button>
                 <button id="upload-clear-btn" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm btn-hover">リストをクリア</button>
             </div>
+            <div class="flex flex-wrap items-center gap-3 mb-3 text-xs text-gray-300">
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                    <input type="checkbox" id="upload-audio-only" class="accent-blue-500 w-3 h-3">
+                    <span>動画は音声のみ送信</span>
+                </label>
+                <span class="text-[10px] text-gray-500">動画ファイルは音声のみ抽出してアップロードします。</span>
+            </div>
             <div class="text-xs text-gray-400 mb-2">進行状況</div>
             <div id="upload-list" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
         </div>
@@ -3765,13 +3772,118 @@
                 xhr.send(fd);
             });
         }
+        function isVideoFile(file) {
+            return !!(file && file.type && file.type.startsWith('video/'));
+        }
+        function pickAudioRecorderType() {
+            if (typeof MediaRecorder === 'undefined') return '';
+            const candidates = [
+                'audio/webm;codecs=opus',
+                'audio/webm',
+                'audio/ogg;codecs=opus',
+                'audio/ogg'
+            ];
+            for (const c of candidates) {
+                if (MediaRecorder.isTypeSupported(c)) return c;
+            }
+            return '';
+        }
+        function updateUploadRowFile(row, file) {
+            if (!row || !row.row || !file) return;
+            const nameEl = row.row.querySelector('.truncate');
+            if (nameEl) nameEl.textContent = file.name || 'file';
+            const localUrl = row.row.getAttribute('data-local-url');
+            if (localUrl) URL.revokeObjectURL(localUrl);
+            const newUrl = URL.createObjectURL(file);
+            row.row.setAttribute('data-local-url', newUrl);
+        }
+        async function extractAudioFromVideo(file, row) {
+            if (!isVideoFile(file)) return null;
+            if (typeof MediaRecorder === 'undefined' || !HTMLMediaElement.prototype.captureStream) {
+                return null;
+            }
+            const mimeType = pickAudioRecorderType();
+            if (!mimeType) return null;
+            if (row && row.status) row.status.textContent = '音声抽出中...';
+            return new Promise((resolve) => {
+                const video = document.createElement('video');
+                video.preload = 'auto';
+                video.muted = true;
+                video.playsInline = true;
+                video.src = URL.createObjectURL(file);
+                let stream = null;
+                let recorder = null;
+                let chunks = [];
+                let timeoutId = null;
+
+                const cleanup = () => {
+                    if (timeoutId) clearTimeout(timeoutId);
+                    try { URL.revokeObjectURL(video.src); } catch (e) {}
+                    try { video.remove(); } catch (e) {}
+                    if (stream) {
+                        stream.getTracks().forEach(t => t.stop());
+                    }
+                };
+                const fail = () => {
+                    cleanup();
+                    resolve(null);
+                };
+
+                video.onloadedmetadata = async () => {
+                    try {
+                        stream = video.captureStream();
+                        const audioTracks = stream.getAudioTracks();
+                        if (!audioTracks || !audioTracks.length) return fail();
+                        recorder = new MediaRecorder(new MediaStream(audioTracks), { mimeType });
+                        recorder.ondataavailable = (e) => {
+                            if (e.data && e.data.size > 0) chunks.push(e.data);
+                        };
+                        recorder.onstop = () => {
+                            const blobType = recorder.mimeType || mimeType || 'audio/webm';
+                            const blob = new Blob(chunks, { type: blobType });
+                            const baseName = (file.name || 'video').replace(/\.[^/.]+$/, '');
+                            const ext = blobType.includes('ogg') ? 'ogg' : 'webm';
+                            const audioFile = new File([blob], `${baseName}.audio.${ext}`, { type: blobType });
+                            cleanup();
+                            resolve(audioFile);
+                        };
+                        recorder.start();
+                        const durationMs = isFinite(video.duration) ? Math.max(1, Math.ceil(video.duration * 1000)) : 0;
+                        if (durationMs > 0) {
+                            timeoutId = setTimeout(() => {
+                                if (recorder && recorder.state !== 'inactive') recorder.stop();
+                            }, durationMs + 250);
+                        }
+                        await video.play();
+                        video.onended = () => {
+                            if (recorder && recorder.state !== 'inactive') recorder.stop();
+                        };
+                    } catch (e) {
+                        fail();
+                    }
+                };
+                video.onerror = () => fail();
+            });
+        }
         async function handleFiles(fs, opts = {}) {
             if(!fs || !fs.length) return;
             const shouldOpenModal = opts.openModal !== false;
             if (shouldOpenModal) openUploadModal();
+            const audioOnly = !!(get('upload-audio-only') && get('upload-audio-only').checked);
             const tasks = Array.from(fs).map(async (f) => {
                 const row = addUploadRow(f);
                 let t = f;
+                if (audioOnly && isVideoFile(f)) {
+                    const audioFile = await extractAudioFromVideo(f, row);
+                    if (audioFile) {
+                        t = audioFile;
+                        updateUploadRowFile(row, audioFile);
+                        if (row && row.status) row.status.textContent = '音声のみ';
+                    } else {
+                        if (row && row.status) row.status.textContent = '抽出失敗: 動画送信';
+                        showToast("音声抽出に失敗しました。動画のまま送信します。", "error", true);
+                    }
+                }
                 if (get('enable-compression').checked && f.type.startsWith('image/')) {
                     try {
                         const o = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true };

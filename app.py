@@ -2276,7 +2276,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             elif is_grok and x_client and not options.get('enable_python'):
                 log_force("Routing: Grok Branch (Native SDK)")
                 if options.get('enable_thinking') and not grok_reasoning_supported:
-                    pub("thought", "APIの仕様により表示されません")
+                    # Grok non-reasoning models should not emit thought events (avoids UI thought box).
+                    log_force("Grok non-reasoning: skip thought stream")
                 search_params = None
                 tools = []
                 include = []

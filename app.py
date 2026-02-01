@@ -1958,14 +1958,48 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         with open(bp2, 'rb') as f: d2 = f.read()
                                     elif os.path.exists(ep2):
                                         with open(ep2, 'rb') as f: d2 = decrypt_bytes(f.read())
-                                    if d2: parts.append(types.Part.from_bytes(data=d2, mime_type=mimetypes.guess_type(bp2)[0] or 'image/webp'))
+                                    if d2:
+                                        mime2 = mimetypes.guess_type(bp2)[0] or 'application/octet-stream'
+                                        if mime2.startswith('image/'):
+                                            parts.append(types.Part.from_bytes(data=d2, mime_type=mime2))
                             except: pass
                         if parts: contents.append(types.Content(role='model' if m['role'] == 'assistant' else 'user', parts=parts))
 
                     curr = [types.Part(text=final_message_text)]
+                    # Gemini 3 Flash does not support audio inputs. Transcribe audio to text when possible.
+                    audio_transcripts = []
+                    openai_key = api_keys.get('openai')
+                    openai_client = _get_openai_client(openai_key, base_url=None) if openai_key else None
+                    stt_model = (getattr(user, 'stt_model', None) or 'gpt-4o-mini-transcribe').strip()
+                    stt_allowed = {"gpt-4o-mini-transcribe", "gpt-4o-transcribe", "gpt-4o-transcribe-diarize", "whisper-1"}
                     for fi in loaded_files:
                         if fi['text']: curr.append(types.Part(text=f"\nFile: {fi['name']}\n{fi['text']}"))
-                        elif fi['bytes']: curr.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime']))
+                        elif fi['bytes']:
+                            mime = (fi.get('mime') or 'application/octet-stream').lower()
+                            if mime.startswith('image/'):
+                                curr.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime']))
+                            elif mime.startswith('audio/'):
+                                if openai_client and stt_model in stt_allowed:
+                                    try:
+                                        audio_file = BytesIO(fi['bytes'])
+                                        audio_file.name = fi.get('name') or 'audio'
+                                        kwargs = {"model": stt_model, "file": audio_file}
+                                        if stt_model == "gpt-4o-transcribe-diarize":
+                                            kwargs["response_format"] = "verbose_json"
+                                            kwargs["timestamp_granularities"] = ["segment"]
+                                        transcription = openai_client.audio.transcriptions.create(**kwargs)
+                                        transcript_text = getattr(transcription, 'text', None) or transcription.get('text') if isinstance(transcription, dict) else None
+                                        if transcript_text:
+                                            audio_transcripts.append(f"[Audio: {fi.get('name') or 'audio'}]\n{transcript_text}")
+                                    except Exception as e:
+                                        log_force(f"Audio transcription failed: {e}")
+                                else:
+                                    log_force("Audio input skipped: OpenAI API key missing for transcription.")
+                            else:
+                                # Skip unsupported binary inputs for Gemini text models
+                                pass
+                    if audio_transcripts:
+                        curr.append(types.Part(text="\n\n" + "\n\n".join(audio_transcripts)))
                     contents.append(types.Content(role='user', parts=curr))
 
                     stream = g_client.models.generate_content_stream(model=rm, contents=contents, config=types.GenerateContentConfig(**conf))

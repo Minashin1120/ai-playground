@@ -2260,7 +2260,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 with open(fp2, 'wb') as f: f.write(v_resp.content)
                                 
                             generated_images.append(f"{user_id}/{fn2}")
-                            vid_tag = f'\n<video controls src="/files/{user_id}/{fn2}" class="w-full mt-2"></video>\n'
+                            vid_tag = f'\n<video controls playsinline preload="metadata" src="/files/{user_id}/{fn2}" class="w-full mt-2"></video>\n'
                             pub("content", vid_tag)
                             full_res += f"Generated Video for: {final_message_text}\n"
                         else:
@@ -3656,11 +3656,32 @@ def serve_file(filename):
     if not os.path.realpath(file_path).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])): abort(403)
     enc_path = file_path + '.enc'
     mtype = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
-    if os.path.exists(file_path): return send_file(file_path, mimetype=mtype)
+    if os.path.exists(file_path):
+        resp = send_file(file_path, mimetype=mtype, conditional=True)
+        resp.headers.setdefault("Accept-Ranges", "bytes")
+        return resp
     elif os.path.exists(enc_path):
-        with open(enc_path, 'rb') as f: data = decrypt_bytes(f.read())
+        with open(enc_path, 'rb') as f:
+            data = decrypt_bytes(f.read())
+        range_header = request.headers.get('Range')
+        if range_header:
+            m = re.match(r"bytes=(\d*)-(\d*)", range_header)
+            if m:
+                size = len(data)
+                start = int(m.group(1)) if m.group(1) else 0
+                end = int(m.group(2)) if m.group(2) else size - 1
+                end = min(end, size - 1)
+                if start > end or start >= size:
+                    return Response(status=416, headers={"Content-Range": f"bytes */{size}"})
+                chunk = data[start:end + 1]
+                resp = Response(chunk, status=206, mimetype=mtype, direct_passthrough=True)
+                resp.headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+                resp.headers["Accept-Ranges"] = "bytes"
+                resp.headers["Content-Length"] = str(end - start + 1)
+                return resp
         return send_file(BytesIO(data), download_name=os.path.basename(filename), as_attachment=False, mimetype=mtype)
-    else: abort(404)
+    else:
+        abort(404)
 
 @app.route('/api/threads', methods=['GET', 'POST'])
 @login_required

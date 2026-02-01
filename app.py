@@ -1969,6 +1969,22 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     use_raw_parts = False
                     audio_inline_limit = 20 * 1024 * 1024  # 20MiB limit for inline audio
 
+                    def _normalize_gemini_audio(data, mime, name=""):
+                        if not data or not mime:
+                            return data, mime, name
+                        m = (mime or '').lower()
+                        ext = (os.path.splitext(name or '')[1] or '').lower()
+                        if m in ("audio/webm", "audio/ogg", "audio/oga", "audio/opus") or ext in (".webm", ".ogg", ".oga", ".opus"):
+                            try:
+                                src_suffix = ext if ext else ".webm"
+                                pcm = _convert_audio_to_pcm(data, src_suffix=src_suffix, rate=16000)
+                                wav = _pcm_to_wav_bytes(pcm, rate=16000)
+                                base = os.path.splitext(name or "audio")[0]
+                                return wav, "audio/wav", f"{base}.wav"
+                            except Exception as e:
+                                log_force(f"Gemini audio convert failed: {e}")
+                        return data, mime, name
+
                     for fi in loaded_files:
                         if fi['text']:
                             curr_parts.append(types.Part(text=f"\nFile: {fi['name']}\n{fi['text']}"))
@@ -1981,15 +1997,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             continue
                         if mime.startswith('audio/'):
                             try:
-                                if len(fi['bytes']) <= audio_inline_limit:
-                                    curr_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime']))
+                                audio_bytes, audio_mime, audio_name = _normalize_gemini_audio(fi['bytes'], fi.get('mime') or mime, fi.get('name') or "")
+                                if len(audio_bytes) <= audio_inline_limit:
+                                    curr_parts.append(types.Part.from_bytes(data=audio_bytes, mime_type=audio_mime))
                                 else:
-                                    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(fi.get('name') or '')[1] or '.bin') as tmp:
-                                        tmp.write(fi['bytes'])
+                                    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(audio_name or '')[1] or '.bin') as tmp:
+                                        tmp.write(audio_bytes)
                                         tmp.flush()
-                                        up = g_client.files.upload(file=tmp.name, config={"mimeType": fi['mime']})
+                                        up = g_client.files.upload(file=tmp.name, config={"mimeType": audio_mime})
                                     uri = getattr(up, "uri", None) or getattr(up, "name", None) or (up.get("uri") if isinstance(up, dict) else None)
-                                    up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or fi['mime']
+                                    up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or audio_mime
                                     if uri and hasattr(types.Part, "from_uri"):
                                         curr_parts.append(types.Part.from_uri(uri=uri, mime_type=up_mime))
                                     else:

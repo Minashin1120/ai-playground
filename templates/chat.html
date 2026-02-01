@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.57)</title>
+    <title>AI Playground (V4.8.58)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -3887,17 +3887,11 @@
                 setEditUi(false);
             }
             playSendAnimation();
-            if(!currentThreadId) { 
-                const r = await apiFetch("{{ url_for('handle_threads') }}", {method:'POST'}); 
-                const d = await r.json(); 
-                currentThreadId = d.id !== null && d.id !== undefined ? String(d.id) : d.id; 
-                history.pushState({}, '', '/c/' + d.id); 
-            } 
-            if (currentThreadId && activeGem) {
-                threadGemMap[currentThreadId] = activeGem;
-                pendingGemForNewThread = null;
-            }
             get('welcome-screen').classList.add('hidden'); 
+
+            // Render UI immediately to reduce perceived latency.
+            renderMessage(Date.now(), 'user', t, JSON.stringify(currentImageUrls), null, null, null, true, currentQuote); 
+            get('prompt-input').value = ''; get('prompt-input').style.height = 'auto'; 
 
             let disableAutoSearch = false;
             const xLinkPattern = /(https?:\/\/)?(x\.com|twitter\.com)\//i;
@@ -3948,10 +3942,17 @@
                 }
             }
             
-            // For immediate feedback, we render the user message.
-            // But we'll do a full re-render (loadMessages) after the AI responds to ensure tree consistency.
-            renderMessage(Date.now(), 'user', t, JSON.stringify(currentImageUrls), null, null, null, true, currentQuote); 
-            get('prompt-input').value = ''; get('prompt-input').style.height = 'auto'; 
+            // Create thread in parallel when needed.
+            let threadPromise = null;
+            if(!currentThreadId) {
+                threadPromise = apiFetch("{{ url_for('handle_threads') }}", {method:'POST'})
+                    .then(r => r.json())
+                    .then(d => {
+                        currentThreadId = d.id !== null && d.id !== undefined ? String(d.id) : d.id;
+                        history.pushState({}, '', '/c/' + d.id);
+                        return currentThreadId;
+                    });
+            }
             
             // If editing, hide the old message to avoid duplication
             if (editingId) {
@@ -3997,12 +3998,23 @@
             if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; } 
             resetUploadState(); get('send-btn').disabled = true; get('stop-container').classList.remove('hidden'); userAutoScroll = true; const aid = 'ai-' + Date.now(); clearQuote(); 
         
-            let initialHtml = '<div class="content-area"><span class="animate-pulse">Thinking...</span></div>';
+            let initialHtml = '<div class="content-area"><span class="animate-pulse">APIに送信中...</span></div>';
             get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aid}" class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${initialHtml}</div></div>`); 
             scrollToBottom(); 
             
             abortController = new AbortController(); 
             try { 
+                if (threadPromise) {
+                    try { 
+                        p.thread_id = await threadPromise; 
+                    } catch (e) {
+                        throw new Error("Thread create failed");
+                    }
+                }
+                if (p.thread_id && activeGem) {
+                    threadGemMap[p.thread_id] = activeGem;
+                    pendingGemForNewThread = null;
+                }
                 const r = await apiFetch("{{ url_for('chat_stream') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p), signal:abortController.signal}); 
                 const reader = r.body.getReader(); 
                 const dec = new TextDecoder(); 

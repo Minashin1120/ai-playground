@@ -2552,10 +2552,32 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     pub("search_status", "done")
                 if last_response and getattr(last_response, 'citations', None):
                     citations_text = "\n\n**Sources:**\n"
-                    for c in last_response.citations:
-                        if hasattr(c, 'url'): url = c.url
-                        else: url = str(c)
-                        citations_text += f"- {url}\n"
+                    inline_citations = getattr(last_response, 'inline_citations', None)
+                    if inline_citations:
+                        for c in inline_citations:
+                            cid = getattr(c, 'id', None)
+                            web_cit = getattr(c, 'web_citation', None)
+                            url = None
+                            title = None
+                            if web_cit:
+                                url = getattr(web_cit, 'url', None)
+                                title = getattr(web_cit, 'title', None)
+                            if url:
+                                label = title or url
+                                if cid is not None:
+                                    citations_text += f"- [{cid}] {label} ({url})\n"
+                                else:
+                                    citations_text += f"- {label} ({url})\n"
+                    else:
+                        for c in last_response.citations:
+                            if hasattr(c, 'url'):
+                                url = c.url
+                                title = getattr(c, 'title', None)
+                            else:
+                                url = str(c)
+                                title = None
+                            label = title or url
+                            citations_text += f"- {label}\n"
                     full_res += citations_text
                     pub("content", citations_text)
 
@@ -2904,6 +2926,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                 if is_grok and grok_enable_search:
                     kwargs['tools'] = [{"type": "web_search"}, {"type": "x_search"}]
+                    kwargs.setdefault("include", [])
+                    if "inline_citations" not in kwargs["include"]:
+                        kwargs["include"].append("inline_citations")
                     log_force("Enabled Web + X Search Tools (Responses API)")
                 elif auto_enable_search:
                     kwargs['tools'] = [{"type": "web_search"}]
@@ -2949,6 +2974,53 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 search_reported = False
                 saw_reasoning_summary_delta = False
                 response_id = None
+                collected_sources = []
+                seen_source_urls = set()
+                sources_emitted = False
+
+                def _add_source(title, url):
+                    if not url or url in seen_source_urls:
+                        return
+                    seen_source_urls.add(url)
+                    collected_sources.append((title or url, url))
+
+                def _collect_sources_from_annotations(ann_list):
+                    for ann in ann_list or []:
+                        if isinstance(ann, dict):
+                            a_type = ann.get('type')
+                            a_url = ann.get('url') or ann.get('source') or ann.get('link')
+                            a_title = ann.get('title') or a_url
+                        else:
+                            a_type = getattr(ann, 'type', None)
+                            a_url = getattr(ann, 'url', None)
+                            a_title = getattr(ann, 'title', None) or a_url
+                        if a_url and (a_type is None or "citation" in str(a_type).lower() or "annotation" in str(a_type).lower()):
+                            _add_source(a_title, a_url)
+
+                def _collect_sources_from_web_search_call(item):
+                    action = item.get('action') if isinstance(item, dict) else getattr(item, 'action', None)
+                    sources = None
+                    if isinstance(action, dict):
+                        sources = action.get('sources')
+                    else:
+                        sources = getattr(action, 'sources', None)
+                    for src in sources or []:
+                        if isinstance(src, dict):
+                            _add_source(src.get('title') or src.get('name'), src.get('url'))
+                        else:
+                            _add_source(getattr(src, 'title', None) or getattr(src, 'name', None), getattr(src, 'url', None))
+
+                def _emit_sources_once():
+                    nonlocal sources_emitted
+                    if sources_emitted or not collected_sources:
+                        return
+                    sources_emitted = True
+                    sources_text = "\n\n**Sources:**\n"
+                    for title, url in collected_sources:
+                        sources_text += f"- [{title}]({url})\n"
+                    full_res_add = sources_text
+                    pub("content", sources_text)
+                    return full_res_add
 
                 for chunk in stream:
                     if check_stop(): break
@@ -2988,6 +3060,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 search_reported = False
                             full_res += text_delta
                             pub("content", text_delta)
+                    elif event_type == "response.output_text.annotation.added":
+                        ann = chunk.get('annotation') if isinstance(chunk, dict) else getattr(chunk, 'annotation', None)
+                        if ann:
+                            _collect_sources_from_annotations([ann])
                     elif event_type in ("response.reasoning_text.delta", "response.reasoning_summary_text.delta"):
                         reasoning_delta = chunk.get('delta') if isinstance(chunk, dict) else getattr(chunk, 'delta', None)
                         if reasoning_delta:
@@ -3165,6 +3241,26 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         else:
                             response_id = getattr(resp, 'id', None) or response_id
                             output_items = getattr(resp, 'output', None) if resp else None
+                        if output_items:
+                            for item in output_items:
+                                if isinstance(item, dict):
+                                    item_type = item.get('type')
+                                    content_parts = item.get('content')
+                                else:
+                                    item_type = getattr(item, 'type', None)
+                                    content_parts = getattr(item, 'content', None)
+                                if item_type == "web_search_call":
+                                    _collect_sources_from_web_search_call(item)
+                                if content_parts:
+                                    for part in content_parts:
+                                        if isinstance(part, dict):
+                                            p_type = part.get('type')
+                                            p_anns = part.get('annotations')
+                                        else:
+                                            p_type = getattr(part, 'type', None)
+                                            p_anns = getattr(part, 'annotations', None)
+                                        if p_type in ("output_text", "text") and p_anns:
+                                            _collect_sources_from_annotations(p_anns)
                         if output_items and not saw_reasoning_summary_delta:
                             for item in output_items:
                                 if isinstance(item, dict):
@@ -3195,6 +3291,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             if p_type == "reasoning_text" and p_text:
                                                 thought_accumulated += p_text
                                                 pub("thought", p_text)
+                        if collected_sources:
+                            appended = _emit_sources_once()
+                            if appended:
+                                full_res += appended
 
                 # Fallback: retrieve full response if no reasoning summary surfaced in stream
                 if enable_reasoning and not thought_accumulated and response_id:
@@ -3232,6 +3332,22 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             if p_type == "reasoning_text" and p_text:
                                                 thought_accumulated += p_text
                                                 pub("thought", p_text)
+                                if item_type == "web_search_call":
+                                    _collect_sources_from_web_search_call(item)
+                                if content_parts:
+                                    for part in content_parts:
+                                        if isinstance(part, dict):
+                                            p_type = part.get('type')
+                                            p_anns = part.get('annotations')
+                                        else:
+                                            p_type = getattr(part, 'type', None)
+                                            p_anns = getattr(part, 'annotations', None)
+                                        if p_type in ("output_text", "text") and p_anns:
+                                            _collect_sources_from_annotations(p_anns)
+                            if collected_sources and not sources_emitted:
+                                appended = _emit_sources_once()
+                                if appended:
+                                    full_res += appended
                     except Exception as e:
                         log_force(f"Reasoning retrieve fallback failed: {e}")
                 elif enable_reasoning and not thought_accumulated:

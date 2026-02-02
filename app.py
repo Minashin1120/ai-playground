@@ -3473,6 +3473,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 elif enable_reasoning and not thought_accumulated:
                     log_force("Reasoning summary missing after stream and retrieve fallback.")
 
+            if is_grok and grok_reasoning_supported and options.get('enable_thinking') and not thought_accumulated:
+                thought_accumulated = " "
             final_content = full_res
             final_signature = json.dumps(signature_parts) if signature_parts else None
             final_thought = json.dumps({'text': thought_accumulated}) if thought_accumulated else None

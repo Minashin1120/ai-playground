@@ -1319,13 +1319,67 @@ def count_tokens(text, model="gpt-4"):
     except:
         return len(text or "") // 4
 
-def should_count_tokens_for_display(model_key):
-    return not (model_key and 'grok' in model_key.lower())
+NON_LLM_TOKEN_MARKERS = (
+    "gpt-image",
+    "imagine",
+    "image",
+    "video",
+    "tts",
+    "transcribe",
+    "whisper",
+    "stt",
+    "realtime",
+    "voice",
+    "audio",
+)
 
-def count_tokens_for_display(text, model_key):
+def is_llm_model_for_tokens(model_key):
+    if not model_key:
+        return False
+    if is_sts_model(model_key):
+        return False
+    mk = model_key.lower()
+    for marker in NON_LLM_TOKEN_MARKERS:
+        if marker in mk:
+            return False
+    return True
+
+def should_count_tokens_for_display(model_key):
+    return is_llm_model_for_tokens(model_key)
+
+def extract_reasoning_text(thought_data):
+    if not thought_data:
+        return ""
+    if isinstance(thought_data, dict):
+        return (thought_data.get("text") or "").strip()
+    if isinstance(thought_data, str):
+        try:
+            parsed = json.loads(thought_data)
+        except Exception:
+            return thought_data.strip()
+        if isinstance(parsed, dict):
+            return (parsed.get("text") or "").strip()
+        if isinstance(parsed, list):
+            parts = []
+            for item in parsed:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict):
+                    text = item.get("text")
+                    if text:
+                        parts.append(text)
+            return "\n".join(parts).strip()
+    return ""
+
+def count_tokens_for_display(text, model_key, thought_text=None):
     if not should_count_tokens_for_display(model_key):
         return None
-    return count_tokens(text)
+    total = 0
+    if text:
+        total += count_tokens(text)
+    if thought_text:
+        total += count_tokens(thought_text)
+    return total
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), retry=retry_if_exception_type(exc.SQLAlchemyError))
 def safe_db_commit():
@@ -3374,7 +3428,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             msg_entry = Message(
                 thread_id=thread_id, role='assistant', content=final_content, 
                 model=model_key, image_url=json.dumps(generated_images) if generated_images else None, 
-                thought_data=final_thought, tokens=count_tokens_for_display(full_res, model_key), 
+                thought_data=final_thought, tokens=count_tokens_for_display(full_res, model_key, thought_accumulated), 
                 is_encrypted=is_enc, thought_signature=final_signature,
                 parent_id=message_id
             )
@@ -4213,12 +4267,13 @@ def handle_thread_item(thread_id):
         for m in ms:
             cnt = decrypt_val(m.content) if m.is_encrypted else m.content
             tht = decrypt_val(m.thought_data) if (m.is_encrypted and m.thought_data) else m.thought_data
+            thought_text = extract_reasoning_text(tht)
             token_count = None
             if should_count_tokens_for_display(m.model):
-                if m.tokens is not None and m.tokens > 0:
+                if m.tokens is not None and m.tokens > 0 and not thought_text:
                     token_count = m.tokens
                 else:
-                    token_count = count_tokens(cnt)
+                    token_count = count_tokens_for_display(cnt, m.model, thought_text)
             res.append({
                 'id': m.id, 
                 'role': m.role, 

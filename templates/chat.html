@@ -4158,7 +4158,7 @@
             if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; } 
             resetUploadState(); get('send-btn').disabled = true; get('stop-container').classList.remove('hidden'); userAutoScroll = true; const aid = 'ai-' + Date.now(); clearQuote(); 
         
-            let initialHtml = '<div class="content-area"><span class="animate-pulse">APIに送信中...</span></div>';
+            let initialHtml = '<div class="content-area"><span class="animate-pulse">APIに送信中...</span><div class="text-xs text-gray-300/80 mt-2">回答を待機中...</div></div>';
             get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aid}" class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${initialHtml}</div></div>`); 
             scrollToBottom(); 
             

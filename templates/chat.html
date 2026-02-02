@@ -1088,6 +1088,7 @@
         const threadGemMap = {};
         let pendingGemForNewThread = null;
         let currentJobId = null; 
+        let currentThreadPending = null;
         let editingMessageId = null; // Track message being edited
         const messageStore = {}, lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), attachMode: false };
         let threadPage = 1, threadLoading = false, hasMoreThreads = true;
@@ -4034,6 +4035,14 @@
             if (doScroll) scrollToBottom(); 
         }
         
+        function renderPendingMessage(target = null, animate = true, doScroll = true) {
+            const fadeClass = animate ? 'fade-in' : '';
+            const html = `<div class="flex justify-start mb-4 ${fadeClass}"><div class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative"><div class="content-area"><span class="animate-pulse">APIに送信中...</span><div class="text-xs text-gray-300/80 mt-2">回答を待機中...</div></div></div></div>`;
+            const container = target || get('chat-container');
+            container.insertAdjacentHTML('beforeend', html);
+            if (doScroll) scrollToBottom();
+        }
+        
         async function sendMessage() { 
             const t = get('prompt-input').value; // RAW INPUT (No trim)
             if(!t.trim() && currentImageUrls.length === 0) return; // Check trim only for empty check
@@ -4352,6 +4361,7 @@
             const r = await apiFetch("{{ url_for('handle_thread_item', thread_id=0) }}".replace('0', tid)); 
             const threadData = await r.json();
             allMessages = threadData.messages || []; 
+            currentThreadPending = threadData.pending_job || null;
             
             // Update thread-specific settings UI
             if (get('thread-custom-instruction')) {
@@ -4442,6 +4452,17 @@
                 
                 renderMessage(m.id, m.role, m.content, m.image_url, m.thought_data, m.model, versionInfo, false, m.quote_text, m.tokens, target, false);
             });
+            const pending = currentThreadPending;
+            if (pending) {
+                const pendingId = pending.message_id;
+                const pathIds = new Set(path.map(p => p.id));
+                const lastMsg = path.length ? path[path.length - 1] : null;
+                const shouldRender = (pendingId && pathIds.has(pendingId) && currentLeafId === pendingId)
+                    || (!pendingId && lastMsg && lastMsg.role === 'user');
+                if (shouldRender) {
+                    renderPendingMessage(target, !silent, false);
+                }
+            }
             if (silent) container.innerHTML = target.innerHTML;
             updateTotalTokenBar(totalTokens);
             currentParentId = currentLeafId;
@@ -4515,6 +4536,7 @@
             allMessages = []; 
             currentLeafId = null; 
             currentParentId = null; 
+            currentThreadPending = null;
             updateTotalTokenBar(0); 
             history.pushState({}, '', '/'); 
             get('chat-container').innerHTML = ''; 

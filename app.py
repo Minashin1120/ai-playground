@@ -3048,6 +3048,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             pub("error", str(e))
         finally:
             r.delete(f"stop_job:{job_id}")
+            try:
+                r.delete(f"pending_job:{user_id}:{thread_id}")
+            except Exception:
+                pass
 
 @app.route('/')
 def index():
@@ -3597,6 +3601,14 @@ def chat_stream():
         safe_db_commit()
 
     task_queue.enqueue(background_chat_task, job_id, thread_id, data.get('model'), user_msg.id, options, current_user.id, user_config, job_timeout=600)
+    try:
+        redis_conn.setex(
+            f"pending_job:{current_user.id}:{thread_id}",
+            600,
+            json.dumps({"job_id": job_id, "message_id": user_msg.id, "created_at": int(time.time())})
+        )
+    except Exception:
+        pass
     
     def generate():
         pubsub = redis_conn.pubsub()
@@ -3795,11 +3807,22 @@ def handle_thread_item(thread_id):
                 'quote_text': m.quote_text,
                 'parent_id': m.parent_id
             })
+        pending_job = None
+        try:
+            pending_raw = redis_conn.get(f"pending_job:{current_user.id}:{t.id}")
+            if pending_raw:
+                try:
+                    pending_job = json.loads(pending_raw)
+                except Exception:
+                    pending_job = {"job_id": pending_raw.decode("utf-8", "ignore")}
+        except Exception:
+            pending_job = None
         return jsonify({
             'messages': res,
             'custom_instruction': t.custom_instruction,
             'include_global_instruction': t.include_global_instruction if t.include_global_instruction is not None else True,
-            'last_model': t.last_model
+            'last_model': t.last_model,
+            'pending_job': pending_job
         })
     
     for m in t.messages:

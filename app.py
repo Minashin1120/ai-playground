@@ -1319,33 +1319,50 @@ def count_tokens(text, model="gpt-4"):
     except:
         return len(text or "") // 4
 
-NON_LLM_TOKEN_MARKERS = (
+NON_COUNTABLE_TOKEN_MARKERS = (
+    "transcribe",
+    "whisper",
+    "stt",
+    "realtime",
+    "native-audio",
+    "voice-agent",
+    "audio",
+)
+
+LLM_TOKEN_MARKERS = (
+    "gpt",
+    "gemini",
+    "grok",
+)
+
+PROMPT_TOKEN_MARKERS = (
     "gpt-image",
     "imagine",
     "image",
     "video",
     "tts",
-    "transcribe",
-    "whisper",
-    "stt",
-    "realtime",
-    "voice",
-    "audio",
 )
 
-def is_llm_model_for_tokens(model_key):
+def is_token_countable_model(model_key):
     if not model_key:
         return False
     if is_sts_model(model_key):
         return False
     mk = model_key.lower()
-    for marker in NON_LLM_TOKEN_MARKERS:
+    for marker in NON_COUNTABLE_TOKEN_MARKERS:
         if marker in mk:
             return False
-    return True
+    # Prompt-based non-LLM models (image/video/tts) are still countable.
+    for marker in PROMPT_TOKEN_MARKERS:
+        if marker in mk:
+            return True
+    for marker in LLM_TOKEN_MARKERS:
+        if marker in mk:
+            return True
+    return False
 
 def should_count_tokens_for_display(model_key):
-    return is_llm_model_for_tokens(model_key)
+    return is_token_countable_model(model_key)
 
 def extract_reasoning_text(thought_data):
     if not thought_data:

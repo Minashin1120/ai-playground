@@ -3605,7 +3605,12 @@ def chat_stream():
         redis_conn.setex(
             f"pending_job:{current_user.id}:{thread_id}",
             600,
-            json.dumps({"job_id": job_id, "message_id": user_msg.id, "created_at": int(time.time())})
+            json.dumps({
+                "job_id": job_id,
+                "message_id": user_msg.id,
+                "created_at": int(time.time()),
+                "model": data.get('model')
+            })
         )
     except Exception:
         pass
@@ -3624,6 +3629,52 @@ def chat_stream():
                     yield json.dumps(data) + "\n"
                     if data['type'] in ['done', 'error']: break
         finally: pubsub.unsubscribe()
+    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+
+@app.route('/chat_stream_resume', methods=['POST'])
+@login_required
+def chat_stream_resume():
+    data = request.json or {}
+    job_id = data.get('job_id')
+    thread_id = data.get('thread_id')
+    if not job_id or not thread_id:
+        return jsonify({'error': 'job_id and thread_id required'}), 400
+    t = resolve_thread_for_user(thread_id, current_user.id)
+    if not t:
+        return jsonify({'error': 'Invalid thread'}), 403
+    pending_raw = None
+    try:
+        pending_raw = redis_conn.get(f"pending_job:{current_user.id}:{t.id}")
+    except Exception:
+        pending_raw = None
+    if not pending_raw:
+        return jsonify({'error': 'no pending job'}), 404
+    pending_job = None
+    try:
+        pending_job = json.loads(pending_raw)
+    except Exception:
+        try:
+            pending_job = {"job_id": pending_raw.decode("utf-8", "ignore")}
+        except Exception:
+            pending_job = None
+    if pending_job and pending_job.get('job_id') and pending_job.get('job_id') != job_id:
+        return jsonify({'error': 'job mismatch'}), 404
+
+    def generate():
+        pubsub = redis_conn.pubsub()
+        channel = f"ai_chat:channel:{job_id}"
+        pubsub.subscribe(channel)
+        start_time = time.time()
+        yield json.dumps({"type": "job_id", "content": job_id}) + "\n"
+        try:
+            for message in pubsub.listen():
+                if time.time() - start_time > 600: break
+                if message['type'] == 'message':
+                    data = json.loads(message['data'])
+                    yield json.dumps(data) + "\n"
+                    if data.get('type') in ['done', 'error']: break
+        finally:
+            pubsub.unsubscribe()
     return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
 
 @app.route('/api/stop_chat', methods=['POST'])

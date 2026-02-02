@@ -4035,9 +4035,10 @@
             if (doScroll) scrollToBottom(); 
         }
         
-        function renderPendingMessage(target = null, animate = true, doScroll = true) {
+        function renderPendingMessage(target = null, animate = true, doScroll = true, pendingId = null) {
             const fadeClass = animate ? 'fade-in' : '';
-            const html = `<div class="flex justify-start mb-4 ${fadeClass}"><div class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative"><div class="content-area"><span class="animate-pulse">APIに送信中...</span><div class="text-xs text-gray-300/80 mt-2">回答を待機中...</div></div></div></div>`;
+            const idAttr = pendingId ? ` id="${pendingId}"` : '';
+            const html = `<div class="flex justify-start mb-4 ${fadeClass}"><div${idAttr} class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative"><div class="content-area"><span class="animate-pulse">APIに送信中...</span><div class="text-xs text-gray-300/80 mt-2">回答を待機中...</div></div></div></div>`;
             const container = target || get('chat-container');
             container.insertAdjacentHTML('beforeend', html);
             if (doScroll) scrollToBottom();
@@ -4295,6 +4296,124 @@
             } finally { get('send-btn').disabled=false; get('stop-container').classList.add('hidden'); abortController=null; currentJobId=null; editingMessageId=null; setEditUi(false); } 
         }
 
+        async function resumePendingStream(pending) {
+            if (!pending || !pending.job_id || !currentThreadId) return;
+            const jobId = pending.job_id;
+            const bubbleId = `pending-${jobId}`;
+            if (!get(bubbleId)) {
+                renderPendingMessage(get('chat-container'), true, true, bubbleId);
+            }
+            const adiv = get(bubbleId);
+            if (!adiv) return;
+            currentJobId = jobId;
+            get('send-btn').disabled = true;
+            get('stop-container').classList.remove('hidden');
+            abortController = new AbortController();
+            let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null, hadError=false;
+            const pyBoxes = {};
+            try {
+                const r = await apiFetch("/chat_stream_resume", {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ thread_id: currentThreadId, job_id: jobId }),
+                    signal: abortController.signal
+                });
+                if (!r.ok) {
+                    throw new Error(`Resume failed (${r.status})`);
+                }
+                const reader = r.body.getReader();
+                const dec = new TextDecoder();
+                while (true) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
+                    buf += dec.decode(value, {stream:true});
+                    let ls = buf.split("\n");
+                    buf = ls.pop();
+                    for (let l of ls) {
+                        if (!l.trim()) continue;
+                        try {
+                            const j = JSON.parse(l);
+                            if (j.type === 'job_id') { currentJobId = j.content || jobId; continue; }
+                            if (j.type === 'search_status') {
+                                if (j.content === 'searching' && !searchBox) {
+                                     adiv.insertAdjacentHTML('afterbegin', `<div class="search-box visible animate-pulse mb-2"><i class="fas fa-globe"></i> Searching web...</div>`);
+                                     searchBox = adiv.querySelector('.search-box');
+                                } else if (j.content === 'done' && searchBox) {
+                                     searchBox.classList.remove('animate-pulse');
+                                     searchBox.innerHTML = '<i class="fas fa-check-circle text-green-400"></i> Search complete';
+                                     setTimeout(() => { if(searchBox) searchBox.remove(); searchBox=null; }, 2000);
+                                }
+                                continue;
+                            }
+                            if (first) {
+                                const ca = adiv.querySelector('.content-area');
+                                if (ca) ca.innerHTML = '';
+                                first = false;
+                            }
+                            if (j.type === 'thought') {
+                                tht += j.content;
+                                if (!thEl) {
+                                    const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>`;
+                                    if (searchBox) searchBox.insertAdjacentHTML('afterend', tHtml);
+                                    else adiv.insertAdjacentHTML('afterbegin', tHtml);
+                                    thEl = adiv.querySelector('.thought-content');
+                                }
+                                thEl.textContent = tht;
+                                if (userAutoScroll) thEl.scrollTop = thEl.scrollHeight;
+                            } else if (j.type === 'python') {
+                                const py = j.content || {};
+                                const pyId = py.id || `py_${Date.now()}`;
+                                if (!pyBoxes[pyId]) {
+                                    const boxHtml = `<div class="python-box" data-py-id="${pyId}"><div class="python-header"><i class="fas fa-terminal"></i> Python Execution</div><div class="python-body"><div class="python-label">Code</div><pre class="python-code"></pre><div class="python-label">Output</div><pre class="python-output"></pre></div></div>`;
+                                    if (searchBox) searchBox.insertAdjacentHTML('afterend', boxHtml);
+                                    else adiv.insertAdjacentHTML('afterbegin', boxHtml);
+                                    pyBoxes[pyId] = adiv.querySelector(`[data-py-id="${pyId}"]`);
+                                }
+                                const box = pyBoxes[pyId];
+                                if (box) {
+                                    if (py.code) box.querySelector('.python-code').textContent = py.code;
+                                    if (py.output !== undefined) box.querySelector('.python-output').textContent = py.output;
+                                }
+                            } else if (j.type === 'content') {
+                                acc += j.content;
+                                if (!cEl) {
+                                    cEl = adiv.querySelector('.content-area') || document.createElement('div');
+                                    cEl.className = 'prose prose-invert text-sm break-words';
+                                    if (!adiv.contains(cEl)) adiv.appendChild(cEl);
+                                }
+                                const collapseState = snapshotCodeCollapse(cEl);
+                                cEl.innerHTML = DOMPurify.sanitize(marked.parse(acc));
+                                applyCodeCollapse(cEl, collapseState, false);
+                            } else if (j.type === 'error') {
+                                hadError = true;
+                                adiv.insertAdjacentHTML('beforeend', `<div class="text-red-400 text-xs mt-2 border border-red-500 p-2 rounded">Error: ${j.content}</div>`);
+                                showToast(j.content || "Unknown error", "error", true);
+                            }
+                        } catch (e) {}
+                    }
+                    scrollToBottom();
+                }
+
+                if (!hadError) {
+                    const thoughts = adiv.querySelectorAll('.thought-content');
+                    thoughts.forEach(t => t.classList.add('collapsed'));
+                    await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
+                    loadThreads(false);
+                }
+            } catch (e) {
+                if (e.name !== 'AbortError') {
+                    const msg = "Connection Error: " + e.message;
+                    showToast(msg, "error", true);
+                }
+            } finally {
+                get('send-btn').disabled = false;
+                get('stop-container').classList.add('hidden');
+                abortController = null;
+                currentJobId = null;
+                currentThreadPending = null;
+            }
+        }
+
         async function loadThreads(append=false) { 
             if(threadLoading) return; 
             threadLoading = true;
@@ -4384,6 +4503,9 @@
             } else if (!silent) {
                 applyCodeCollapseByMessage(get('chat-container'), null, true);
             }
+            if (currentThreadPending && !silent) {
+                resumePendingStream(currentThreadPending);
+            }
             if (preserveDraft) {
                 const input = get('prompt-input');
                 if (input) {
@@ -4460,7 +4582,8 @@
                 const shouldRender = (pendingId && pathIds.has(pendingId) && currentLeafId === pendingId)
                     || (!pendingId && lastMsg && lastMsg.role === 'user');
                 if (shouldRender) {
-                    renderPendingMessage(target, !silent, false);
+                    const bubbleId = pending.job_id ? `pending-${pending.job_id}` : null;
+                    renderPendingMessage(target, !silent, false, bubbleId);
                 }
             }
             if (silent) container.innerHTML = target.innerHTML;

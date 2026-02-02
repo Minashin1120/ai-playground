@@ -2957,6 +2957,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 is_reasoning_model = (not is_grok) and any(x in model_key.lower() for x in ['o1', 'o3', 'gpt-5.2', 'gpt-5.1', 'gpt-5', 'reasoning'])
                 req_reasoning_effort = (options.get('reasoning_effort') or "").lower().strip()
                 enable_reasoning = bool(options.get('enable_thinking')) or (req_reasoning_effort and req_reasoning_effort != "none")
+
+                def _normalize_reasoning_effort(model_key_l, effort):
+                    if not effort:
+                        return effort
+                    effort = effort.lower().strip()
+                    # gpt-5-mini does not accept "none"; use minimal instead.
+                    if "gpt-5-mini" in model_key_l and effort == "none":
+                        return "minimal"
+                    return effort
                 if is_grok and enable_reasoning and grok_reasoning_supported:
                     kwargs['reasoning'] = {"effort": _grok_reasoning_effort()}
                     log_force(f"Grok reasoning config: {kwargs['reasoning']}")
@@ -2965,6 +2974,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if not effort:
                         lvl = (options.get('thinking_level') or "medium").lower()
                         effort = "low" if lvl == "low" else "high" if lvl == "high" else "medium"
+                    effort = _normalize_reasoning_effort(model_key_l, effort)
                     kwargs['reasoning'] = {"effort": effort}
                     kwargs['reasoning']["summary"] = "auto"
                     log_force(f"Reasoning config: {kwargs['reasoning']}")

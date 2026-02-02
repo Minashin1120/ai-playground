@@ -1499,7 +1499,39 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
         db.engine.dispose()
         channel = f"ai_chat:channel:{job_id}"
         r = redis.from_url(REDIS_URL)
-        def pub(dt, d): r.publish(channel, json.dumps({"type": dt, "content": d}))
+        def _append_limited(key, chunk, limit=1_000_000):
+            try:
+                if chunk is None:
+                    return
+                if not isinstance(chunk, str):
+                    chunk = str(chunk)
+                r.append(key, chunk)
+                size = r.strlen(key)
+                if size and size > limit:
+                    curr = r.get(key) or b""
+                    if len(curr) > limit:
+                        r.set(key, curr[-limit:])
+                r.expire(key, 600)
+            except Exception:
+                pass
+        def pub(dt, d):
+            r.publish(channel, json.dumps({"type": dt, "content": d}))
+            try:
+                if dt == "content":
+                    _append_limited(f"stream_acc:{job_id}:content", d)
+                elif dt == "thought":
+                    _append_limited(f"stream_acc:{job_id}:thought", d)
+                elif dt == "python":
+                    py = d if isinstance(d, dict) else {}
+                    py_id = py.get("id") or "default"
+                    r.hset(f"stream_acc:{job_id}:python", py_id, json.dumps(py))
+                    r.expire(f"stream_acc:{job_id}:python", 600)
+                elif dt == "search_status":
+                    r.setex(f"stream_acc:{job_id}:search", 600, d)
+                elif dt in ["error", "done"]:
+                    r.setex(f"stream_acc:{job_id}:final", 600, dt)
+            except Exception:
+                pass
         
         def check_stop():
             if r.get(f"stop_job:{job_id}"):
@@ -3052,6 +3084,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 r.delete(f"pending_job:{user_id}:{thread_id}")
             except Exception:
                 pass
+            try:
+                r.delete(f"stream_acc:{job_id}:content")
+                r.delete(f"stream_acc:{job_id}:thought")
+                r.delete(f"stream_acc:{job_id}:search")
+                r.delete(f"stream_acc:{job_id}:final")
+                r.delete(f"stream_acc:{job_id}:python")
+            except Exception:
+                pass
 
 @app.route('/')
 def index():
@@ -3666,6 +3706,26 @@ def chat_stream_resume():
         pubsub.subscribe(channel)
         start_time = time.time()
         yield json.dumps({"type": "job_id", "content": job_id}) + "\n"
+        try:
+            cached_thought = redis_conn.get(f"stream_acc:{job_id}:thought")
+            if cached_thought:
+                yield json.dumps({"type": "thought", "content": cached_thought.decode("utf-8", "ignore")}) + "\n"
+            cached_content = redis_conn.get(f"stream_acc:{job_id}:content")
+            if cached_content:
+                yield json.dumps({"type": "content", "content": cached_content.decode("utf-8", "ignore")}) + "\n"
+            cached_search = redis_conn.get(f"stream_acc:{job_id}:search")
+            if cached_search:
+                yield json.dumps({"type": "search_status", "content": cached_search.decode("utf-8", "ignore")}) + "\n"
+            cached_py = redis_conn.hgetall(f"stream_acc:{job_id}:python")
+            if cached_py:
+                for _, raw in cached_py.items():
+                    try:
+                        py = json.loads(raw)
+                        yield json.dumps({"type": "python", "content": py}) + "\n"
+                    except Exception:
+                        continue
+        except Exception:
+            pass
         try:
             for message in pubsub.listen():
                 if time.time() - start_time > 600: break

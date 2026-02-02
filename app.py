@@ -2628,6 +2628,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 stream = chat_session.stream()
                 search_reported = False
                 last_response = None
+                if options.get('enable_thinking') and grok_reasoning_supported:
+                    # Ensure thought box is created even if Grok doesn't stream reasoning text.
+                    pub("thought", " ")
                 for resp, chunk in stream:
                     last_response = resp
                     if check_stop(): break
@@ -4083,7 +4086,7 @@ def chat_stream():
         channel = f"ai_chat:channel:{job_id}"
         pubsub.subscribe(channel)
         start_time = time.time()
-        yield json.dumps({"type": "job_id", "data": job_id}) + "\n"
+        yield json.dumps({"type": "job_id", "content": job_id}) + "\n"
         try:
             for message in pubsub.listen():
                 if time.time() - start_time > 600: break

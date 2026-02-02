@@ -1202,6 +1202,30 @@ def ensure_thread_last_model_column():
     except Exception:
         pass
 
+def ensure_message_token_io_columns():
+    try:
+        with db.engine.connect() as conn:
+            res_in = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='message' "
+                "AND COLUMN_NAME='tokens_in'"
+            )).scalar()
+            if not res_in:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE message ADD COLUMN tokens_in INTEGER DEFAULT 0"))
+            res_out = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='message' "
+                "AND COLUMN_NAME='tokens_out'"
+            )).scalar()
+            if not res_out:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE message ADD COLUMN tokens_out INTEGER DEFAULT 0"))
+    except Exception:
+        pass
+
 def get_bool_app_setting(key, default=False):
     val = get_app_setting(key, None)
     if val is None:
@@ -5734,6 +5758,10 @@ with app.app_context():
             pass
     try:
         ensure_thread_last_model_column()
+    except Exception:
+        pass
+    try:
+        ensure_message_token_io_columns()
     except Exception:
         pass
     try:

@@ -1750,7 +1750,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             is_openai_search_model = model_key_l in ("gpt-5-search-api", "gpt-4o-search-preview", "gpt-4o-mini-search-preview")
             is_gem = 'gemini' in model_key_l or 'nano' in model_key_l
             is_grok = 'grok' in model_key_l and 'gpt' not in model_key_l
-            grok_reasoning_supported = "grok-3-mini" in model_key.lower()
+            grok_reasoning_supported = ("grok-3-mini" in model_key_l) or ("reasoning" in model_key_l and "non-reasoning" not in model_key_l)
 
             def _grok_reasoning_effort():
                 raw = (options.get('reasoning_effort') or "").lower().strip()
@@ -2628,7 +2628,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 stream = chat_session.stream()
                 search_reported = False
                 last_response = None
-                if options.get('enable_thinking') and grok_reasoning_supported:
+                if grok_reasoning_supported:
                     # Ensure thought box is created even if Grok doesn't stream reasoning text.
                     pub("thought", " ")
                 for resp, chunk in stream:
@@ -3473,7 +3473,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 elif enable_reasoning and not thought_accumulated:
                     log_force("Reasoning summary missing after stream and retrieve fallback.")
 
-            if is_grok and grok_reasoning_supported and options.get('enable_thinking') and not thought_accumulated:
+            if is_grok and grok_reasoning_supported and not thought_accumulated:
                 thought_accumulated = " "
             final_content = full_res
             final_signature = json.dumps(signature_parts) if signature_parts else None

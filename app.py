@@ -2057,6 +2057,79 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     else:
                         contents.append(types.Content(role='user', parts=curr_parts))
 
+                    grounding_chunks = None
+                    grounding_supports = None
+
+                    def _collect_grounding(gm):
+                        nonlocal grounding_chunks, grounding_supports
+                        if not gm:
+                            return
+                        g_chunks = getattr(gm, 'grounding_chunks', None) or getattr(gm, 'groundingChunks', None) or []
+                        if g_chunks and grounding_chunks is None:
+                            grounding_chunks = g_chunks
+                        g_supports = getattr(gm, 'grounding_supports', None) or getattr(gm, 'groundingSupports', None) or []
+                        if g_supports and grounding_supports is None:
+                            grounding_supports = g_supports
+
+                    def _chunk_web_info(chunk):
+                        web = None
+                        if isinstance(chunk, dict):
+                            web = chunk.get('web')
+                        else:
+                            web = getattr(chunk, 'web', None)
+                        title = None
+                        uri = None
+                        if web:
+                            if isinstance(web, dict):
+                                title = web.get('title')
+                                uri = web.get('uri') or web.get('url')
+                            else:
+                                title = getattr(web, 'title', None)
+                                uri = getattr(web, 'uri', None) or getattr(web, 'url', None)
+                        return title, uri
+
+                    def _segment_end_index(segment):
+                        if segment is None:
+                            return None
+                        end_index = getattr(segment, 'end_index', None)
+                        if end_index is None:
+                            end_index = getattr(segment, 'endIndex', None)
+                        return end_index
+
+                    def _add_gemini_citations(text, supports, chunks):
+                        if not text or not supports or not chunks:
+                            return text
+                        try:
+                            sorted_supports = sorted(
+                                supports,
+                                key=lambda s: _segment_end_index(getattr(s, 'segment', None)) or 0,
+                                reverse=True
+                            )
+                        except Exception:
+                            sorted_supports = supports
+                        for support in sorted_supports:
+                            segment = getattr(support, 'segment', None)
+                            end_index = _segment_end_index(segment)
+                            if end_index is None or end_index > len(text):
+                                continue
+                            idxs = getattr(support, 'grounding_chunk_indices', None) or getattr(support, 'groundingChunkIndices', None) or []
+                            if not idxs:
+                                continue
+                            citation_links = []
+                            for i in idxs:
+                                try:
+                                    idx = int(i)
+                                except Exception:
+                                    continue
+                                if idx < 0 or idx >= len(chunks):
+                                    continue
+                                _, uri = _chunk_web_info(chunks[idx])
+                                if uri:
+                                    citation_links.append(f"[{idx + 1}]({uri})")
+                            if citation_links:
+                                text = text[:end_index] + "".join(citation_links) + text[end_index:]
+                        return text
+
                     stream = g_client.models.generate_content_stream(model=rm, contents=contents, config=types.GenerateContentConfig(**conf))
                     current_py_id = None
                     current_py_code = None
@@ -2065,15 +2138,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if hasattr(chunk, 'candidates') and chunk.candidates:
                             for cand in chunk.candidates:
                                 gm = getattr(cand, 'grounding_metadata', None)
-                                g_chunks = getattr(gm, 'grounding_chunks', None) or []
-                                if g_chunks:
-                                    sources_text = "\n\n**Sources:**\n"
-                                    found = False
-                                    for g_chunk in g_chunks:
-                                        if hasattr(g_chunk, 'web') and g_chunk.web:
-                                            sources_text += f"- [{g_chunk.web.title}]({g_chunk.web.uri})\n"
-                                            found = True
-                                    if found: pub("content", sources_text)
+                                _collect_grounding(gm)
 
                                 parts = getattr(getattr(cand, 'content', None), 'parts', None) or []
                                 for part in parts:
@@ -2130,6 +2195,26 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     if hasattr(part, 'text') and part.text:
                                         full_res += part.text
                                         pub("content", part.text)
+                    if grounding_chunks and options.get('enable_search'):
+                        if grounding_supports:
+                            full_res = _add_gemini_citations(full_res, grounding_supports, grounding_chunks)
+                        sources_lines = []
+                        has_sources = False
+                        for i, chunk in enumerate(grounding_chunks):
+                            title, uri = _chunk_web_info(chunk)
+                            if title or uri:
+                                has_sources = True
+                            if uri:
+                                label = title or uri
+                                sources_lines.append(f"- [{i + 1}] [{label}]({uri})")
+                            elif title:
+                                sources_lines.append(f"- [{i + 1}] {title}")
+                            else:
+                                sources_lines.append(f"- [{i + 1}] (source unavailable)")
+                        if has_sources:
+                            sources_text = "\n\n**Sources:**\n" + "\n".join(sources_lines) + "\n"
+                            full_res += sources_text
+                            pub("content", sources_text)
 
             # --- 1.5 Grok Imagine Image Generation ---
             elif model_key == "grok-imagine-image":

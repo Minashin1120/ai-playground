@@ -828,6 +828,8 @@ class Message(db.Model):
     image_url = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     tokens = db.Column(db.Integer, default=0)
+    tokens_in = db.Column(db.Integer, default=0)
+    tokens_out = db.Column(db.Integer, default=0)
     thought_data = db.Column(db.Text)
     quote_text = db.Column(db.Text)
     is_encrypted = db.Column(db.Boolean, default=False)
@@ -1396,6 +1398,16 @@ def count_tokens_for_display(text, model_key, thought_text=None):
         total += count_tokens(text)
     if thought_text:
         total += count_tokens(thought_text)
+    return total
+
+def sum_token_counts(tokens_in, tokens_out):
+    if tokens_in is None and tokens_out is None:
+        return None
+    total = 0
+    if tokens_in is not None:
+        total += tokens_in
+    if tokens_out is not None:
+        total += tokens_out
     return total
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), retry=retry_if_exception_type(exc.SQLAlchemyError))
@@ -3442,10 +3454,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 final_content = encrypt_val(final_content)
                 if final_thought: final_thought = encrypt_val(final_thought)
             
+            assistant_tokens_out = count_tokens_for_display(full_res, model_key, thought_accumulated)
             msg_entry = Message(
                 thread_id=thread_id, role='assistant', content=final_content, 
                 model=model_key, image_url=json.dumps(generated_images) if generated_images else None, 
-                thought_data=final_thought, tokens=count_tokens_for_display(full_res, model_key, thought_accumulated), 
+                thought_data=final_thought, tokens_out=assistant_tokens_out, tokens=sum_token_counts(None, assistant_tokens_out), 
                 is_encrypted=is_enc, thought_signature=final_signature,
                 parent_id=message_id
             )
@@ -3950,15 +3963,18 @@ def chat_stream():
             if last_msg:
                 parent_id = last_msg.id
 
+        user_tokens_in = count_tokens_for_display(raw_msg_content, data.get('model'))
         user_msg = Message(
             thread_id=thread_id,
             role='user',
             content=msg_content,
+            model=data.get('model'),
             image_url=json.dumps(data.get('image_urls', [])) if data.get('image_urls') else None,
             quote_text=data.get('quote_text'),
             is_encrypted=user_config['enable_e2ee'],
             parent_id=parent_id,
-            tokens=count_tokens_for_display(raw_msg_content, data.get('model'))
+            tokens_in=user_tokens_in,
+            tokens=sum_token_counts(user_tokens_in, None)
         )
         db.session.add(user_msg)
         safe_db_commit()
@@ -4285,12 +4301,27 @@ def handle_thread_item(thread_id):
             cnt = decrypt_val(m.content) if m.is_encrypted else m.content
             tht = decrypt_val(m.thought_data) if (m.is_encrypted and m.thought_data) else m.thought_data
             thought_text = extract_reasoning_text(tht)
-            token_count = None
-            if should_count_tokens_for_display(m.model):
-                if m.tokens is not None and m.tokens > 0 and not thought_text:
-                    token_count = m.tokens
+            token_in = None
+            token_out = None
+            token_total = None
+            if (m.tokens_in and m.tokens_in > 0) or (m.tokens_out and m.tokens_out > 0):
+                if m.tokens_in and m.tokens_in > 0:
+                    token_in = m.tokens_in
+                if m.tokens_out and m.tokens_out > 0:
+                    token_out = m.tokens_out
+                token_total = sum_token_counts(token_in, token_out)
+            elif m.tokens is not None and m.tokens > 0 and (should_count_tokens_for_display(m.model) or not m.model):
+                if m.role == 'user':
+                    token_in = m.tokens
                 else:
-                    token_count = count_tokens_for_display(cnt, m.model, thought_text)
+                    token_out = m.tokens
+                token_total = m.tokens
+            elif should_count_tokens_for_display(m.model):
+                if m.role == 'user':
+                    token_in = count_tokens_for_display(cnt, m.model)
+                else:
+                    token_out = count_tokens_for_display(cnt, m.model, thought_text)
+                token_total = sum_token_counts(token_in, token_out)
             res.append({
                 'id': m.id, 
                 'role': m.role, 
@@ -4298,7 +4329,9 @@ def handle_thread_item(thread_id):
                 'image_url': m.image_url, 
                 'model': m.model, 
                 'thought_data': tht,
-                'tokens': token_count,
+                'tokens': token_total,
+                'tokens_in': token_in,
+                'tokens_out': token_out,
                 'quote_text': m.quote_text,
                 'parent_id': m.parent_id
             })
@@ -5404,6 +5437,8 @@ def speech_to_speech():
     try:
         u_content = encrypt_val(user_text) if current_user.enable_e2ee else user_text
         a_content = encrypt_val(assistant_content) if current_user.enable_e2ee else assistant_content
+        user_tokens_in = count_tokens_for_display(user_text, model_key)
+        assistant_tokens_out = count_tokens_for_display(assistant_text_clean, model_key)
         user_msg = Message(
             thread_id=thread_id,
             role='user',
@@ -5411,7 +5446,9 @@ def speech_to_speech():
             image_url=json.dumps([f"{current_user.id}/{in_fname}"]) if in_fname else None,
             is_encrypted=current_user.enable_e2ee,
             parent_id=parent_id,
-            tokens=count_tokens_for_display(user_text, model_key)
+            model=model_key,
+            tokens_in=user_tokens_in,
+            tokens=sum_token_counts(user_tokens_in, None)
         )
         db.session.add(user_msg)
         safe_db_commit()
@@ -5423,7 +5460,8 @@ def speech_to_speech():
             model=model_key,
             is_encrypted=current_user.enable_e2ee,
             parent_id=user_msg.id,
-            tokens=count_tokens_for_display(assistant_text_clean, model_key)
+            tokens_out=assistant_tokens_out,
+            tokens=sum_token_counts(None, assistant_tokens_out)
         )
         db.session.add(assistant_msg)
         safe_db_commit()
@@ -5718,6 +5756,12 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE message ADD COLUMN thought_signature TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE message ADD COLUMN tokens_in INTEGER DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE message ADD COLUMN tokens_out INTEGER DEFAULT 0")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN enable_e2ee BOOLEAN DEFAULT 0")

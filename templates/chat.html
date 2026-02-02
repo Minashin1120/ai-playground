@@ -3978,7 +3978,7 @@
             });
         }
         
-        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, target = null, doScroll = true) { 
+        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, target = null, doScroll = true) { 
             const isUser = role === 'user'; 
             const bg = isUser ? 'bg-blue-600' : 'bg-gray-700'; 
             const align = isUser ? 'justify-end' : 'justify-start'; 
@@ -4018,7 +4018,11 @@
             const ctrl = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${isUser?`<button class="ctrl-btn edit-btn" data-id="${id}"><i class="fas fa-pen"></i></button>`:''}${regenBtn}<button class="ctrl-btn" onclick="deleteMessage(${id})"><i class="fas fa-trash"></i></button></div>`; 
             const footerParts = [];
             if (!isUser && modelName) footerParts.push(modelName);
-            if (tokenCount !== null && tokenCount !== undefined) footerParts.push(`${tokenCount} tokens`);
+            const tokenParts = [];
+            if (tokenIn !== null && tokenIn !== undefined) tokenParts.push(`In ${tokenIn}`);
+            if (tokenOut !== null && tokenOut !== undefined) tokenParts.push(`Out ${tokenOut}`);
+            if (tokenParts.length) footerParts.push(tokenParts.join(' / '));
+            else if (tokenCount !== null && tokenCount !== undefined) footerParts.push(`${tokenCount} tokens`);
             const mHtml = footerParts.length ? `<div class="text-[10px] text-slate-300/90 mt-2 text-right font-mono">${footerParts.join(' • ')}</div>` : ''; 
             
             let contentHtml;
@@ -4588,7 +4592,7 @@
                     siblings: siblings
                 } : null;
                 
-                renderMessage(m.id, m.role, m.content, m.image_url, m.thought_data, m.model, versionInfo, false, m.quote_text, m.tokens, target, false);
+                renderMessage(m.id, m.role, m.content, m.image_url, m.thought_data, m.model, versionInfo, false, m.quote_text, m.tokens, m.tokens_in, m.tokens_out, target, false);
             });
             const pending = currentThreadPending;
             if (pending) {

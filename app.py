@@ -1639,8 +1639,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 current_node = current_node.parent
 
             model_key = model_key.strip()
-            is_gem = 'gemini' in model_key or 'nano' in model_key
-            is_grok = 'grok' in model_key.lower() and 'gpt' not in model_key.lower()
+            model_key_l = model_key.lower()
+            is_openai_search_model = model_key_l in ("gpt-5-search-api", "gpt-4o-search-preview", "gpt-4o-mini-search-preview")
+            is_gem = 'gemini' in model_key_l or 'nano' in model_key_l
+            is_grok = 'grok' in model_key_l and 'gpt' not in model_key_l
             grok_reasoning_supported = "grok-3-mini" in model_key.lower()
 
             def _grok_reasoning_effort():
@@ -2666,6 +2668,105 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     pub("error", f"GPT Image Gen Error: {str(e)}")
                 except Exception as e:
                     pub("error", f"GPT Image Gen Error: {str(e)}")
+
+            # --- 3.5 OpenAI Search API (Chat Completions) ---
+            elif is_openai_search_model:
+                log_force("Routing: OpenAI Search API Branch (Chat Completions)")
+                try:
+                    if any(fi.get('bytes') and str(fi.get('mime', '')).startswith('image/') for fi in loaded_files):
+                        pub("error", "gpt-5-search-api does not support image inputs. Please remove images and retry.")
+                        return
+                    if check_stop():
+                        return
+                    pub("search_status", "searching")
+                    client = o_client
+                    sys_prompt = _openai_system_prompt(options.get('system_prompt'), True)
+                    messages = []
+                    if sys_prompt:
+                        messages.append({"role": "system", "content": sys_prompt})
+                    for m in history:
+                        messages.append({"role": m['role'], "content": m['content']})
+
+                    user_text = ""
+                    if quote_text:
+                        user_text += f"User Quote:\n{quote_text}\n---\n"
+                    user_text += message_text
+                    for fi in loaded_files:
+                        if fi.get('text'):
+                            user_text += f"\n\n[File: {fi['name']}]\n{fi['text']}"
+                    messages.append({"role": "user", "content": user_text})
+
+                    resp = client.chat.completions.create(
+                        model=model_key,
+                        messages=messages,
+                        web_search_options={"search_context_size": "medium"}
+                    )
+                    if not resp or not getattr(resp, "choices", None):
+                        pub("error", "Search API Error: Empty response.")
+                        return
+
+                    msg = resp.choices[0].message
+                    text_parts = []
+                    citations = []
+                    seen_urls = set()
+
+                    def _add_citation(title, url):
+                        if not url or url in seen_urls:
+                            return
+                        seen_urls.add(url)
+                        citations.append((title or url, url))
+
+                    def _handle_annotations(ann_list):
+                        for ann in ann_list or []:
+                            if isinstance(ann, dict):
+                                a_type = ann.get("type")
+                                a_url = ann.get("url") or ann.get("source") or ann.get("link")
+                                a_title = ann.get("title") or a_url
+                            else:
+                                a_type = getattr(ann, "type", None)
+                                a_url = getattr(ann, "url", None)
+                                a_title = getattr(ann, "title", None) or a_url
+                            if a_type and "citation" in str(a_type).lower() and a_url:
+                                _add_citation(a_title, a_url)
+
+                    content = getattr(msg, "content", None)
+                    if isinstance(content, list):
+                        for part in content:
+                            if isinstance(part, dict):
+                                p_type = part.get("type")
+                                p_text = part.get("text")
+                                p_anns = part.get("annotations")
+                            else:
+                                p_type = getattr(part, "type", None)
+                                p_text = getattr(part, "text", None)
+                                p_anns = getattr(part, "annotations", None)
+                            if p_type in (None, "text", "output_text") and p_text:
+                                text_parts.append(p_text)
+                            if p_anns:
+                                _handle_annotations(p_anns)
+                    elif isinstance(content, str):
+                        if content:
+                            text_parts.append(content)
+                    elif content is not None:
+                        text_parts.append(str(content))
+
+                    _handle_annotations(getattr(msg, "annotations", None))
+
+                    final_text = "".join(text_parts).strip()
+                    if final_text:
+                        full_res += final_text
+                        pub("content", final_text)
+
+                    if citations:
+                        citations_text = "\n\n**Sources:**\n"
+                        for title, url in citations:
+                            citations_text += f"- [{title}]({url})\n"
+                        full_res += citations_text
+                        pub("content", citations_text)
+                except Exception as e:
+                    pub("error", f"Search API Error: {str(e)}")
+                finally:
+                    pub("search_status", "done")
 
             # --- 4. OpenAI Responses API (or Grok Fallback) ---
             else:

@@ -1776,6 +1776,7 @@
                     { id: "gpt-4o", name: "GPT-4o", desc: "Multimodal flagship model.", price: "In $2.50/1M, Out $10.00/1M" },
                     { id: "gpt-4o-mini", name: "GPT-4o mini", desc: "Fast, low-cost model.", price: "In $0.15/1M, Out $0.60/1M" },
                     { id: "gpt-5.2", name: "GPT-5.2 (Responses API)", desc: "Most capable reasoning model.", price: "In $1.75/1M, Out $14/1M" },
+                    { id: "gpt-5-search-api", name: "GPT-5 Search (API)", desc: "Search-optimized model (Chat Completions)." },
                     { id: "gpt-5.1", name: "GPT-5.1", desc: "High intelligence.", price: "In $1.25/1M, Out $10/1M" },
                     { id: "gpt-5-mini", name: "GPT-5 mini", desc: "Small and efficient.", price: "In $0.25/1M, Out $2/1M" }
                 ]
@@ -2343,6 +2344,7 @@
                 const searchCont = get('search-container'); 
                 const sysChk = get('enable-sys-prompt'); const sysLbl = get('sys-prompt-option'); 
                 const pyChk = get('enable-python'); const pyCont = get('python-container');
+                const isSearchModel = model === 'gpt-5-search-api';
                 
                 thinkOpts.classList.add('hidden'); 
                 reasonOpts.classList.add('hidden'); 
@@ -2407,6 +2409,20 @@
                         pyChk.disabled = true;
                         pyCont.classList.add('hidden');
                     }
+                }
+                if (isSearchModel) {
+                    if (searchChk) {
+                        searchChk.checked = true;
+                        searchChk.disabled = true;
+                    }
+                    if (searchCont) searchCont.classList.add('opacity-50', 'pointer-events-none');
+                    if (pyCont) {
+                        pyChk.checked = false;
+                        pyChk.disabled = true;
+                        pyCont.classList.add('opacity-50', 'pointer-events-none');
+                    }
+                } else if (searchChk && !model.includes('tts')) {
+                    searchChk.disabled = false;
                 }
                 const maskBtn = get('mask-btn');
                 if (maskBtn) {

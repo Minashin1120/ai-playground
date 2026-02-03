@@ -1261,6 +1261,11 @@ def get_bool_app_setting(key, default=False):
 def get_bot_detection_global_enabled():
     return get_bool_app_setting("bot_detection_global_enabled", True)
 
+def build_global_system_prompt(now=None):
+    if now is None:
+        now = datetime.now().astimezone()
+    return f"Current time: {now.strftime('%Y-%m-%d %H:%M:%S %Z')} (UTC{now.strftime('%z')})"
+
 @app.before_request
 def ensure_client_token():
     try:
@@ -1739,13 +1744,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             use_time_notice = False
             if options.get('enable_system_prompt'):
                 user_allows_global = getattr(user, "apply_global_system_prompt", True)
-                global_enabled = get_bool_app_setting("global_system_prompt_enabled", True)
-                global_value = get_app_setting("global_system_prompt", "") or ""
-                if global_enabled and user_allows_global:
-                    if global_value.strip():
-                        global_prompt = global_value
-                    else:
-                        use_time_notice = True
+                if user_allows_global:
+                    use_time_notice = True
                 if user.system_prompt and (user.system_prompt_enabled is None or user.system_prompt_enabled):
                     sp = user.system_prompt
                     if user.enable_e2ee: sp = decrypt_val(sp)
@@ -1787,8 +1787,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 else:
                     options['system_prompt'] = marker_prompt
             if use_time_notice:
-                now = datetime.now().astimezone()
-                time_notice = f"Current time: {now.strftime('%Y-%m-%d %H:%M:%S %Z')} (UTC{now.strftime('%z')})"
+                time_notice = build_global_system_prompt()
                 curr_p = options.get('system_prompt') or ""
                 if curr_p.strip():
                     options['system_prompt'] = f"{time_notice}\n\n{curr_p}"
@@ -5005,9 +5004,8 @@ def handle_settings():
         payload = {
             'system_prompt': sp or "",
             'system_prompt_enabled': current_user.system_prompt_enabled if current_user.system_prompt_enabled is not None else True,
-            'temp_system_prompt': tp or "",
-            'temp_system_prompt_enabled': current_user.temp_system_prompt_enabled,
             'apply_global_system_prompt': current_user.apply_global_system_prompt if current_user.apply_global_system_prompt is not None else True,
+            'global_system_prompt_preview': build_global_system_prompt(),
             'username': current_user.username, 
             'openai_key': decrypt_val(current_user.openai_api_key) or "", 
             'gemini_key': decrypt_val(current_user.gemini_api_key) or "", 
@@ -5048,9 +5046,6 @@ def handle_settings():
             'is_bot_banned': current_user.is_bot_banned,
             'bot_ban_reason': current_user.bot_ban_reason
         }
-        if getattr(current_user, 'is_admin', False):
-            payload['global_system_prompt'] = get_app_setting("global_system_prompt", "") or ""
-            payload['global_system_prompt_enabled'] = get_bool_app_setting("global_system_prompt_enabled", True)
         return jsonify(payload)
     d = request.json
     if 'system_prompt' in d: 
@@ -5058,11 +5053,6 @@ def handle_settings():
         else: current_user.system_prompt = d['system_prompt']
     if 'system_prompt_enabled' in d:
         current_user.system_prompt_enabled = bool(d['system_prompt_enabled'])
-    if 'temp_system_prompt' in d:
-        if current_user.enable_e2ee: current_user.temp_system_prompt = encrypt_val(d['temp_system_prompt'])
-        else: current_user.temp_system_prompt = d['temp_system_prompt']
-    if 'temp_system_prompt_enabled' in d:
-        current_user.temp_system_prompt_enabled = bool(d['temp_system_prompt_enabled'])
     if 'apply_global_system_prompt' in d:
         current_user.apply_global_system_prompt = bool(d['apply_global_system_prompt'])
     if 'openai_key' in d: current_user.openai_api_key = encrypt_val(d['openai_key'])
@@ -5104,11 +5094,6 @@ def handle_settings():
         current_user.bot_detection_enabled = bool(d['bot_detection_enabled'])
     if getattr(current_user, 'is_admin', False) and 'bot_detection_global_enabled' in d:
         set_app_setting("bot_detection_global_enabled", "1" if d['bot_detection_global_enabled'] else "0")
-    if getattr(current_user, 'is_admin', False):
-        if 'global_system_prompt' in d:
-            set_app_setting("global_system_prompt", d['global_system_prompt'])
-        if 'global_system_prompt_enabled' in d:
-            set_app_setting("global_system_prompt_enabled", "1" if d['global_system_prompt_enabled'] else "0")
     if d.get('new_password'): current_user.set_password(d['new_password'])
     if d.get('new_username') and d['new_username'] != current_user.username:
         if _is_primary_admin_username(d['new_username']) and not getattr(current_user, "is_admin", False):
@@ -5922,11 +5907,6 @@ with app.app_context():
         pass
     try:
         ensure_app_setting("bot_detection_global_enabled", "1")
-    except Exception:
-        pass
-    try:
-        ensure_app_setting("global_system_prompt", "")
-        ensure_app_setting("global_system_prompt_enabled", "1")
     except Exception:
         pass
     try:

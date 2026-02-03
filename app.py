@@ -1229,6 +1229,27 @@ def ensure_message_token_io_columns():
     except Exception:
         pass
 
+def ensure_user_system_prompt_columns():
+    try:
+        with db.engine.connect() as conn:
+            columns = [
+                ("system_prompt_enabled", "ALTER TABLE user ADD COLUMN system_prompt_enabled BOOLEAN DEFAULT 1"),
+                ("temp_system_prompt", "ALTER TABLE user ADD COLUMN temp_system_prompt TEXT"),
+                ("temp_system_prompt_enabled", "ALTER TABLE user ADD COLUMN temp_system_prompt_enabled BOOLEAN DEFAULT 0"),
+            ]
+            for column_name, ddl in columns:
+                res = conn.execute(text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA=DATABASE() "
+                    "AND TABLE_NAME='user' "
+                    "AND COLUMN_NAME=:column_name"
+                ), {"column_name": column_name}).scalar()
+                if not res:
+                    conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                    conn.execute(text(ddl))
+    except Exception:
+        pass
+
 def get_bool_app_setting(key, default=False):
     val = get_app_setting(key, None)
     if val is None:
@@ -5881,6 +5902,10 @@ with app.app_context():
         pass
     try:
         ensure_message_token_io_columns()
+    except Exception:
+        pass
+    try:
+        ensure_user_system_prompt_columns()
     except Exception:
         pass
     try:

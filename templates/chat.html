@@ -4598,10 +4598,8 @@
             const rawText = get('prompt-input').value; // RAW INPUT (No trim)
             const imageUrlsToSend = collectImageUrlsForSend();
             if(!rawText.trim() && imageUrlsToSend.length === 0) return; // Check trim only for empty check
-            let t = rawText;
-            if (hasMarkerHint() && !/マーカー|marker/i.test(rawText || '')) {
-                t = rawText.trim() ? `${rawText}\n\n${MARKER_HINT_TEXT}` : MARKER_HINT_TEXT;
-            }
+            const t = rawText;
+            const markerSysPrompt = hasMarkerHint() ? MARKER_HINT_TEXT : null;
             if (isGptImageModel() && currentMaskImage && imageUrlsToSend.length === 0) {
                 showToast("Mask は画像入力が必要です", "error", true);
                 return;
@@ -4700,6 +4698,7 @@
                 thinking_budget: get('thinking-budget') ? get('thinking-budget').value : null,
                 reasoning_effort: get('reasoning-effort').value, 
                 enable_system_prompt: get('enable-sys-prompt').checked, 
+                marker_system_prompt: markerSysPrompt,
                 safety_setting: get('safety-setting').value, 
                 tts_voice: isTtsModel() && get('tts-voice') ? get('tts-voice').value : null,
                 tts_voice_custom: isTtsModel() && get('tts-voice-custom') ? get('tts-voice-custom').value : null,

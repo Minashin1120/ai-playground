@@ -1741,6 +1741,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         options['system_prompt'] = f"{python_notice}\n\n{curr_p}"
                 else:
                     options['system_prompt'] = python_notice
+            marker_prompt = options.get('marker_system_prompt')
+            if marker_prompt and str(marker_prompt).strip():
+                curr_p = options.get('system_prompt') or ""
+                if curr_p.strip():
+                    if str(marker_prompt).strip() not in str(curr_p):
+                        options['system_prompt'] = f"{curr_p}\n\n{marker_prompt}"
+                else:
+                    options['system_prompt'] = marker_prompt
             quote_text = None
             try:
                 qv = r.get(f"quote:{job_id}")
@@ -4065,6 +4073,7 @@ def chat_stream():
         'thinking_budget': data.get('thinking_budget'),
         'reasoning_effort': data.get('reasoning_effort'),
         'enable_system_prompt': data.get('enable_system_prompt'),
+        'marker_system_prompt': data.get('marker_system_prompt'),
         'safety_setting': data.get('safety_setting'),
         'tts_voice': data.get('tts_voice'),
         'tts_voice_custom': data.get('tts_voice_custom'),

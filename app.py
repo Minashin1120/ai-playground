@@ -3657,9 +3657,9 @@ def changelog():
         files = glob.glob(os.path.join(log_dir, '*.md'))
         def _changelog_meta(path):
             base = os.path.splitext(os.path.basename(path))[0]
-            m = re.match(r'^(\\d{4}-\\d{2}-\\d{2})_v(.+)$', base)
+            m = re.match(r'^(\d{4}-\d{2}-\d{2})_v(.+)$', base)
             if not m:
-                m = re.match(r'^(\\d{8})_v(.+)$', base)
+                m = re.match(r'^(\d{8})_v(.+)$', base)
             if m:
                 date_raw, version = m.group(1), m.group(2)
                 if len(date_raw) == 8:
@@ -3667,7 +3667,7 @@ def changelog():
                 else:
                     date_fmt = date_raw
                 date_key = int(date_fmt.replace('-', ''))
-                ver_nums = tuple(int(x) for x in re.findall(r'\\d+', version)) or (0,)
+                ver_nums = tuple(int(x) for x in re.findall(r'\d+', version)) or (0,)
                 title = f"V{version} ({date_fmt})"
                 return date_key, ver_nums, title
             return 0, (0,), base

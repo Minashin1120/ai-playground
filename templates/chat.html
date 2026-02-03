@@ -1181,7 +1181,7 @@
                 });
             });
         }
-        function updateTotalTokenBar(total) {
+        function updateTotalTokenBar(total, details = null) {
             const bar = get('total-token-bar');
             const count = get('total-token-count');
             if (!bar || !count) return;
@@ -1189,9 +1189,25 @@
             if (val > 0) {
                 bar.classList.remove('hidden');
                 count.innerText = `Total: ${val} tokens`;
+                count.classList.add('cursor-pointer', 'underline', 'decoration-dotted');
+                if (details) {
+                    messageMeta.__total__ = {
+                        tokens_total: val,
+                        tokens_in: details.tokens_in,
+                        tokens_out: details.tokens_out,
+                        tokens_content: details.tokens_content,
+                        tokens_thought: details.tokens_thought,
+                        is_encrypted: null,
+                        role: 'total',
+                        model: 'Conversation'
+                    };
+                    count.onclick = () => openTokenDetail('__total__');
+                }
             } else {
                 bar.classList.add('hidden');
                 count.innerText = 'Total: 0 tokens';
+                count.classList.remove('cursor-pointer', 'underline', 'decoration-dotted');
+                count.onclick = null;
             }
         }
         function updatePromptPlaceholder() {
@@ -2179,6 +2195,11 @@
                 if (e.target.id === 'token-detail-modal') closeTokenDetail();
             });
         }
+        if (get('encryption-status-modal')) {
+            get('encryption-status-modal').addEventListener('click', (e) => {
+                if (e.target.id === 'encryption-status-modal') closeEncryptionModal();
+            });
+        }
         if (get('settings-modal')) {
             get('settings-modal').addEventListener('click', (e) => {
                 if (e.target.id === 'settings-modal') {
@@ -2706,7 +2727,7 @@
                     }
                 } catch (e) {}
             };
-            const openSettingsModal = () => {
+            window.openSettingsModal = () => {
                 showModal('settings-modal');
                 loadStorageUsage();
                 if (location.pathname !== '/settings') {
@@ -4150,10 +4171,35 @@
 
         function openEncryptionSettings(id) {
             const meta = messageMeta[id];
-            if (meta && meta.is_encrypted !== null && meta.is_encrypted !== undefined) {
-                const msg = meta.is_encrypted ? 'このメッセージは暗号化されています。' : 'このメッセージは暗号化されていません。';
-                showToast(msg, meta.is_encrypted ? 'success' : 'error', true);
+            if (!meta) return;
+            openEncryptionModal(meta.is_encrypted);
+        }
+
+        function openEncryptionModal(isEncrypted) {
+            const modal = get('encryption-status-modal');
+            if (!modal) return;
+            const title = get('encryption-status-title');
+            const body = get('encryption-status-body');
+            if (isEncrypted) {
+                if (title) title.innerText = '暗号化されています';
+                if (body) body.innerText = 'このメッセージはE2EEで暗号化されています。';
+            } else {
+                if (title) title.innerText = '暗号化されていません';
+                if (body) body.innerText = 'このメッセージは暗号化されていません。';
             }
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeEncryptionModal() {
+            const modal = get('encryption-status-modal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function goToEncryptionSettings() {
+            closeEncryptionModal();
             if (typeof openSettingsModal === 'function') {
                 openSettingsModal();
                 switchTab('security');
@@ -4691,8 +4737,16 @@
 
             // Render path
             let totalTokens = 0;
+            let totalTokensIn = 0;
+            let totalTokensOut = 0;
+            let totalTokensContent = 0;
+            let totalTokensThought = 0;
             path.forEach(m => {
                 totalTokens += Number(m.tokens || 0);
+                if (m.tokens_in !== null && m.tokens_in !== undefined) totalTokensIn += Number(m.tokens_in || 0);
+                if (m.tokens_out !== null && m.tokens_out !== undefined) totalTokensOut += Number(m.tokens_out || 0);
+                if (m.tokens_content !== null && m.tokens_content !== undefined) totalTokensContent += Number(m.tokens_content || 0);
+                if (m.tokens_thought !== null && m.tokens_thought !== undefined) totalTokensThought += Number(m.tokens_thought || 0);
                 const parent = m.parent_id ? msgMap[m.parent_id] : null;
                 const siblings = parent ? parent.childrenIds : allMessages.filter(x => !x.parent_id).map(x => x.id);
                 const versionInfo = siblings.length > 1 ? {
@@ -4716,7 +4770,12 @@
                 }
             }
             if (silent) container.innerHTML = target.innerHTML;
-            updateTotalTokenBar(totalTokens);
+            updateTotalTokenBar(totalTokens, {
+                tokens_in: totalTokensIn || null,
+                tokens_out: totalTokensOut || null,
+                tokens_content: totalTokensContent || null,
+                tokens_thought: totalTokensThought || null
+            });
             currentParentId = currentLeafId;
             scrollToBottom();
         }
@@ -5024,6 +5083,18 @@
       <div class="flex justify-between"><span>Content</span><span id="token-detail-content" class="font-mono">-</span></div>
       <div class="flex justify-between"><span>Thought</span><span id="token-detail-thought" class="font-mono">-</span></div>
       <div class="flex justify-between"><span>Encryption</span><span id="token-detail-encrypted" class="font-mono">-</span></div>
+    </div>
+  </div>
+</div>
+
+<div id="encryption-status-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm">
+  <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4 text-white relative">
+    <button onclick="closeEncryptionModal()" class="absolute right-3 top-3 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+    <div class="text-sm font-bold text-blue-300" id="encryption-status-title">暗号化されています</div>
+    <div class="mt-3 text-xs text-gray-300" id="encryption-status-body">このメッセージはE2EEで暗号化されています。</div>
+    <div class="mt-4 flex justify-end gap-2">
+      <button onclick="closeEncryptionModal()" class="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 rounded">閉じる</button>
+      <button onclick="goToEncryptionSettings()" class="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 rounded">設定へ</button>
     </div>
   </div>
 </div>

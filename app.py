@@ -1434,6 +1434,38 @@ def sum_token_counts(tokens_in, tokens_out):
         total += tokens_out
     return total
 
+def build_message_token_details(role, content, thought_text, model_key, tokens_in=None, tokens_out=None):
+    if not should_count_tokens_for_display(model_key):
+        return {
+            "tokens_in": None,
+            "tokens_out": None,
+            "tokens_total": None,
+            "tokens_content": None,
+            "tokens_thought": None,
+        }
+    if role == "user":
+        if tokens_in is None:
+            tokens_in = count_tokens_for_display(content, model_key)
+        tokens_content = count_tokens(content or "")
+        return {
+            "tokens_in": tokens_in,
+            "tokens_out": None,
+            "tokens_total": sum_token_counts(tokens_in, None),
+            "tokens_content": tokens_content,
+            "tokens_thought": None,
+        }
+    tokens_content = count_tokens(content or "")
+    tokens_thought = count_tokens(thought_text or "") if thought_text else 0
+    if tokens_out is None:
+        tokens_out = sum_token_counts(tokens_content, tokens_thought)
+    return {
+        "tokens_in": None,
+        "tokens_out": tokens_out,
+        "tokens_total": sum_token_counts(None, tokens_out),
+        "tokens_content": tokens_content,
+        "tokens_thought": tokens_thought,
+    }
+
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), retry=retry_if_exception_type(exc.SQLAlchemyError))
 def safe_db_commit():
     try:
@@ -4333,11 +4365,11 @@ def handle_thread_item(thread_id):
             token_in = None
             token_out = None
             token_total = None
+            tokens_content = None
+            tokens_thought = None
             if (m.tokens_in and m.tokens_in > 0) or (m.tokens_out and m.tokens_out > 0):
-                if m.tokens_in and m.tokens_in > 0:
-                    token_in = m.tokens_in
-                if m.tokens_out and m.tokens_out > 0:
-                    token_out = m.tokens_out
+                token_in = m.tokens_in if m.tokens_in and m.tokens_in > 0 else None
+                token_out = m.tokens_out if m.tokens_out and m.tokens_out > 0 else None
                 token_total = sum_token_counts(token_in, token_out)
             elif m.tokens is not None and m.tokens > 0 and (should_count_tokens_for_display(m.model) or not m.model):
                 if m.role == 'user':
@@ -4345,12 +4377,13 @@ def handle_thread_item(thread_id):
                 else:
                     token_out = m.tokens
                 token_total = m.tokens
-            elif should_count_tokens_for_display(m.model):
-                if m.role == 'user':
-                    token_in = count_tokens_for_display(cnt, m.model)
-                else:
-                    token_out = count_tokens_for_display(cnt, m.model, thought_text)
-                token_total = sum_token_counts(token_in, token_out)
+            if should_count_tokens_for_display(m.model):
+                details = build_message_token_details(m.role, cnt, thought_text, m.model, token_in, token_out)
+                token_in = details["tokens_in"] if details["tokens_in"] is not None else token_in
+                token_out = details["tokens_out"] if details["tokens_out"] is not None else token_out
+                token_total = details["tokens_total"] if details["tokens_total"] is not None else token_total
+                tokens_content = details["tokens_content"]
+                tokens_thought = details["tokens_thought"]
             res.append({
                 'id': m.id, 
                 'role': m.role, 
@@ -4361,6 +4394,9 @@ def handle_thread_item(thread_id):
                 'tokens': token_total,
                 'tokens_in': token_in,
                 'tokens_out': token_out,
+                'tokens_content': tokens_content,
+                'tokens_thought': tokens_thought,
+                'is_encrypted': bool(m.is_encrypted),
                 'quote_text': m.quote_text,
                 'parent_id': m.parent_id
             })
@@ -4400,6 +4436,39 @@ def handle_thread_item(thread_id):
     db.session.delete(t)
     safe_db_commit()
     return jsonify({'status': 'deleted'})
+
+@app.route('/api/encryption_scan', methods=['GET'])
+@login_required
+def encryption_scan():
+    thread_id = request.args.get('thread_id')
+    q = Message.query.join(Thread, Message.thread_id == Thread.id).filter(Thread.user_id == current_user.id)
+    target_thread = None
+    if thread_id:
+        target_thread = resolve_thread_for_user(thread_id, current_user.id)
+        if not target_thread:
+            return jsonify({'error': 'Invalid thread'}), 403
+        q = q.filter(Message.thread_id == target_thread.id)
+    try:
+        total = q.count()
+        encrypted = q.filter(Message.is_encrypted.is_(True)).count()
+        unencrypted = q.filter((Message.is_encrypted.is_(False)) | (Message.is_encrypted.is_(None))).order_by(Message.timestamp.desc()).limit(100).all()
+        unenc_list = []
+        for m in unencrypted:
+            unenc_list.append({
+                "id": m.id,
+                "thread_id": m.thread.public_id if m.thread else None,
+                "role": m.role,
+                "timestamp": m.timestamp.isoformat() if m.timestamp else None
+            })
+        return jsonify({
+            "thread_id": target_thread.public_id if target_thread else None,
+            "total": total,
+            "encrypted": encrypted,
+            "unencrypted": total - encrypted,
+            "samples": unenc_list
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/threads/<thread_id>/settings', methods=['PUT'])
 @login_required

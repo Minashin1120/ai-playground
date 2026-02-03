@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.94)</title>
+    <title>AI Playground (V4.8.95)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -3366,6 +3366,8 @@
             let stsAnalyser = null;
             let stsSource = null;
             let stsLastSoundTs = 0;
+            let stsHasSound = false;
+            let stsPlaybackAudio = null;
             function stopSilenceMonitor() {
                 if (stsSilenceInterval) { clearInterval(stsSilenceInterval); stsSilenceInterval = null; }
                 if (stsSource) { try { stsSource.disconnect(); } catch(e) {} stsSource = null; }
@@ -3385,7 +3387,8 @@
                 const data = new Uint8Array(stsAnalyser.fftSize);
                 const silenceMs = getStsSilenceMs();
                 const threshold = 0.02;
-                stsLastSoundTs = Date.now();
+                stsLastSoundTs = 0;
+                stsHasSound = false;
                 stsSilenceInterval = setInterval(() => {
                     if (!stsAnalyser) return;
                     stsAnalyser.getByteTimeDomainData(data);
@@ -3396,15 +3399,37 @@
                     }
                     const rms = Math.sqrt(sum / data.length);
                     if (rms > threshold) {
+                        if (!stsHasSound) stsHasSound = true;
                         stsLastSoundTs = Date.now();
                         return;
                     }
-                    if (Date.now() - stsLastSoundTs > silenceMs) {
+                    if (stsHasSound && Date.now() - stsLastSoundTs > silenceMs) {
                         if (mediaRecorder && mediaRecorder.state === "recording") {
                             mediaRecorder.stop();
                         }
                     }
                 }, 200);
+            }
+            function stopStsPlayback() {
+                if (stsPlaybackAudio) {
+                    try { stsPlaybackAudio.pause(); } catch (e) {}
+                    try { stsPlaybackAudio.src = ''; } catch (e) {}
+                    stsPlaybackAudio = null;
+                }
+            }
+            async function playStsAudio(url) {
+                stopStsPlayback();
+                const audio = new Audio();
+                audio.src = url;
+                audio.preload = 'auto';
+                audio.autoplay = true;
+                audio.playsInline = true;
+                stsPlaybackAudio = audio;
+                await audio.play();
+                return new Promise(resolve => {
+                    audio.onended = () => resolve('ended');
+                    audio.onerror = () => resolve('error');
+                });
             }
             function cancelRecording() {
                 if (mediaRecorder && mediaRecorder.state === "recording") {
@@ -3467,20 +3492,18 @@
                                 if (stsRes.ok && stsData.audio_url) {
                                     if (stsOpt('sts-auto-play')) {
                                         setStsStatus('Playing response...', false);
-                                        const a = new Audio(stsData.audio_url);
-                                        a.onended = () => {
-                                            if (stsOpt('sts-auto-restart') && isStsModel()) {
+                                        try {
+                                            const result = await playStsAudio(stsData.audio_url);
+                                            if (result === 'ended' && stsOpt('sts-auto-restart') && isStsModel()) {
                                                 setStsStatus('Listening...', true);
                                                 setTimeout(() => get('mic-btn').click(), 200);
-                                            } else {
+                                            } else if (result === 'ended') {
                                                 setStsStatus('Tap to speak', false);
                                             }
-                                        };
-                                        a.play().catch(() => {
-                                            if (stsOpt('sts-auto-restart') && isStsModel()) {
-                                                setTimeout(() => get('mic-btn').click(), 200);
-                                            }
-                                        });
+                                        } catch (e) {
+                                            showToast("Autoplay blocked. Tap play to continue.", "error", true);
+                                            setStsStatus('Tap to speak', false);
+                                        }
                                     } else {
                                         setStsStatus('Tap to speak', false);
                                     }

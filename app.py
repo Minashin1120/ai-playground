@@ -1731,31 +1731,39 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     try: r.delete(f"sys:{job_id}")
                     except: pass
             
-            # Global prompt (only if enabled via checkbox or if it's a Gem forced prompt)
+            forced_prompt = base_sys_prompt or ""
             global_prompt = None
+            user_prompt = None
             temp_prompt = None
+            use_time_notice = False
             if options.get('enable_system_prompt'):
-                if base_sys_prompt:
-                    global_prompt = base_sys_prompt
-                elif user.system_prompt and (user.system_prompt_enabled is None or user.system_prompt_enabled):
+                global_enabled = get_bool_app_setting("global_system_prompt_enabled", True)
+                global_value = get_app_setting("global_system_prompt", "") or ""
+                if global_enabled:
+                    if global_value.strip():
+                        global_prompt = global_value
+                    else:
+                        use_time_notice = True
+                if user.system_prompt and (user.system_prompt_enabled is None or user.system_prompt_enabled):
                     sp = user.system_prompt
                     if user.enable_e2ee: sp = decrypt_val(sp)
-                    global_prompt = sp
+                    user_prompt = sp
                 if user.temp_system_prompt_enabled and user.temp_system_prompt:
                     tp = user.temp_system_prompt
                     if user.enable_e2ee: tp = decrypt_val(tp)
                     temp_prompt = tp
-            else:
-                # If master checkbox is OFF, we might still have a Gem prompt in base_sys_prompt
-                # But gems usually force enable_system_prompt=True, so this is just a safety.
-                global_prompt = base_sys_prompt
 
             # Thread specific prompt
             th = Thread.query.get(thread_id)
             local_sys_prompt = th.custom_instruction if (th and th.custom_instruction and th.custom_instruction.strip()) else None
             
-            final_sys_prompt = ""
-            combined_prompt = global_prompt or ""
+            combined_prompt = ""
+            for part in [forced_prompt, global_prompt, user_prompt]:
+                if part and str(part).strip():
+                    if combined_prompt:
+                        combined_prompt = f"{combined_prompt}\n\n{part}"
+                    else:
+                        combined_prompt = str(part).strip()
             if temp_prompt:
                 if combined_prompt:
                     combined_prompt = f"{combined_prompt}\n\n[Temporary Instructions]:\n{temp_prompt}"
@@ -1763,13 +1771,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     combined_prompt = temp_prompt
             if local_sys_prompt:
                 if combined_prompt:
-                    final_sys_prompt = f"{combined_prompt}\n\n[Chat Specific Instructions]:\n{local_sys_prompt}"
+                    combined_prompt = f"{combined_prompt}\n\n[Chat Specific Instructions]:\n{local_sys_prompt}"
                 else:
-                    final_sys_prompt = local_sys_prompt
-            else:
-                final_sys_prompt = combined_prompt or ""
+                    combined_prompt = local_sys_prompt
             
-            options['system_prompt'] = final_sys_prompt
+            options['system_prompt'] = combined_prompt
 
             if options.get('enable_python'):
                 python_notice = "Python execution is available; you can run Python code when needed."
@@ -1787,13 +1793,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         options['system_prompt'] = f"{curr_p}\n\n{marker_prompt}"
                 else:
                     options['system_prompt'] = marker_prompt
-            now = datetime.now().astimezone()
-            time_notice = f"Current time: {now.strftime('%Y-%m-%d %H:%M:%S %Z')} (UTC{now.strftime('%z')})"
-            curr_p = options.get('system_prompt') or ""
-            if curr_p.strip():
-                options['system_prompt'] = f"{time_notice}\n\n{curr_p}"
-            else:
-                options['system_prompt'] = time_notice
+            if use_time_notice:
+                now = datetime.now().astimezone()
+                time_notice = f"Current time: {now.strftime('%Y-%m-%d %H:%M:%S %Z')} (UTC{now.strftime('%z')})"
+                curr_p = options.get('system_prompt') or ""
+                if curr_p.strip():
+                    options['system_prompt'] = f"{time_notice}\n\n{curr_p}"
+                else:
+                    options['system_prompt'] = time_notice
             quote_text = None
             try:
                 qv = r.get(f"quote:{job_id}")
@@ -5002,7 +5009,7 @@ def handle_settings():
         has_totp = bool(current_user.totp_secret)
         has_webauthn = bool(current_user.webauthn_credentials and json.loads(current_user.webauthn_credentials))
         
-        return jsonify({
+        payload = {
             'system_prompt': sp or "",
             'system_prompt_enabled': current_user.system_prompt_enabled if current_user.system_prompt_enabled is not None else True,
             'temp_system_prompt': tp or "",
@@ -5046,7 +5053,11 @@ def handle_settings():
             'bot_detection_global_enabled': get_bot_detection_global_enabled(),
             'is_bot_banned': current_user.is_bot_banned,
             'bot_ban_reason': current_user.bot_ban_reason
-        })
+        }
+        if getattr(current_user, 'is_admin', False):
+            payload['global_system_prompt'] = get_app_setting("global_system_prompt", "") or ""
+            payload['global_system_prompt_enabled'] = get_bool_app_setting("global_system_prompt_enabled", True)
+        return jsonify(payload)
     d = request.json
     if 'system_prompt' in d: 
         if current_user.enable_e2ee: current_user.system_prompt = encrypt_val(d['system_prompt'])
@@ -5097,6 +5108,11 @@ def handle_settings():
         current_user.bot_detection_enabled = bool(d['bot_detection_enabled'])
     if getattr(current_user, 'is_admin', False) and 'bot_detection_global_enabled' in d:
         set_app_setting("bot_detection_global_enabled", "1" if d['bot_detection_global_enabled'] else "0")
+    if getattr(current_user, 'is_admin', False):
+        if 'global_system_prompt' in d:
+            set_app_setting("global_system_prompt", d['global_system_prompt'])
+        if 'global_system_prompt_enabled' in d:
+            set_app_setting("global_system_prompt_enabled", "1" if d['global_system_prompt_enabled'] else "0")
     if d.get('new_password'): current_user.set_password(d['new_password'])
     if d.get('new_username') and d['new_username'] != current_user.username:
         if _is_primary_admin_username(d['new_username']) and not getattr(current_user, "is_admin", False):
@@ -5910,6 +5926,11 @@ with app.app_context():
         pass
     try:
         ensure_app_setting("bot_detection_global_enabled", "1")
+    except Exception:
+        pass
+    try:
+        ensure_app_setting("global_system_prompt", "")
+        ensure_app_setting("global_system_prompt_enabled", "1")
     except Exception:
         pass
     try:

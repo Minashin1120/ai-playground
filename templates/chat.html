@@ -306,6 +306,14 @@
         .upload-row { border: 1px solid rgba(148,163,184,0.18); }
         .upload-progress { background: rgba(var(--theme-rgb),0.25); }
         .upload-progress > div { background: linear-gradient(90deg, var(--theme-300), var(--theme-500)); }
+        .upload-marker { background: rgba(250,204,21,0.16); color: #fde68a; border: 1px solid rgba(250,204,21,0.4); }
+        .upload-marker:hover { background: rgba(250,204,21,0.28); color: #fff7c2; }
+        .upload-marker-tag { background: rgba(250,204,21,0.18); color: #fde68a; border: 1px solid rgba(250,204,21,0.35); border-radius: 999px; padding: 1px 6px; font-size: 10px; }
+
+        #marker-modal .marker-stage { position: relative; background: #0a0f16; border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; justify-content: center; align-items: center; max-height: 60vh; overflow: hidden; }
+        #marker-image { max-width: 100%; max-height: 58vh; height: auto; border-radius: 10px; pointer-events: none; z-index: 1; }
+        #marker-canvas { position: absolute; top: 0; left: 0; touch-action: none; z-index: 2; }
+        #marker-toolbar input[type="range"] { accent-color: #facc15; }
         @media (max-width: 768px) {
             #lib-modal.lib-selecting #lib-grid .lib-open-btn,
             #lib-modal.lib-selecting #lib-grid .lib-del-btn,
@@ -382,6 +390,9 @@
             #settings-modal .space-y-3 > * + * { margin-top: 10px; }
             #settings-modal .space-y-4 > * + * { margin-top: 12px; }
             #settings-modal .bg-gray-900 { background: rgba(9,14,26,0.95); }
+            #marker-modal > div { width: calc(100% - 16px); max-width: none; margin: 8px; padding: 12px; max-height: calc(100vh - 16px); }
+            #marker-modal .marker-stage { max-height: 55vh; padding: 8px; }
+            #marker-image { max-height: 52vh; }
         }
         @media (max-width: 640px) {
             #settings-modal .bg-gray-800 { max-height: 92vh; padding: 12px; }
@@ -752,6 +763,32 @@
         </div>
     </div>
 
+    <!-- Marker Modal -->
+    <div id="marker-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
+        <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh] modal-panel">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-highlighter text-yellow-300"></i> マーカー</h2>
+                <button id="marker-modal-close" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="text-xs text-gray-400 mb-3">マーカーで指示してください。送信時に「マーカーを見てください」を自動で追加します。</div>
+            <div id="marker-stage" class="marker-stage mb-4">
+                <img id="marker-image" alt="marker target">
+                <canvas id="marker-canvas"></canvas>
+            </div>
+            <div id="marker-toolbar" class="flex flex-wrap items-center gap-3 text-xs text-gray-300">
+                <label class="flex items-center gap-2">
+                    <span class="text-gray-400">太さ</span>
+                    <input id="marker-size" type="range" min="6" max="40" value="16">
+                </label>
+                <span class="text-[10px] text-gray-500">黄色マーカー（半透明）</span>
+                <div class="ml-auto flex items-center gap-2">
+                    <button id="marker-clear" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white btn-hover">消去</button>
+                    <button id="marker-save" class="px-4 py-1 rounded bg-yellow-500 hover:bg-yellow-400 text-black font-bold btn-hover">保存して反映</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Thread Settings Modal -->
     <div id="thread-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
         <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-gray-700 m-4 flex flex-col modal-panel">
@@ -1054,6 +1091,9 @@
         const hideModal = (id) => {
             const el = get(id);
             if (!el) return;
+            if (id === 'marker-modal') {
+                markerState.row = null;
+            }
             if (!el.classList.contains('modal-open')) {
                 el.style.display = 'none';
                 el.classList.remove('modal-close');
@@ -1085,6 +1125,9 @@
             currentThreadId = String(currentThreadId);
         }
         let activeGem = null, currentImageUrls = [], currentMaskImage = null, abortController = null, userAutoScroll = true, searchTimeout; 
+        const markerAppliedUploads = new Set();
+        const MARKER_HINT_TEXT = "画像のマーカー部分を見てください。";
+        const markerState = { row: null, filename: '', hasStroke: false, naturalWidth: 0, naturalHeight: 0, color: 'rgba(250,204,21,0.6)' };
         const threadGemMap = {};
         let pendingGemForNewThread = null;
         let currentJobId = null; 
@@ -2990,6 +3033,15 @@
                     resetUploadState();
                 };
             }
+            if (get('marker-modal-close')) {
+                get('marker-modal-close').onclick = () => {
+                    hideModal('marker-modal');
+                    markerState.row = null;
+                };
+            }
+            if (get('marker-clear')) get('marker-clear').onclick = () => clearMarkerCanvas();
+            if (get('marker-save')) get('marker-save').onclick = () => saveMarkerToRow();
+            initMarkerCanvas();
             const dropzone = get('upload-dropzone');
             if (dropzone) {
                 dropzone.addEventListener('dragover', (e) => {
@@ -3535,11 +3587,79 @@
                 nameEl.innerText = '';
             }
         }
+        function getRowMarkerKey(row) {
+            if (!row) return null;
+            return row.dataset.uploadId || row.getAttribute('data-filename') || null;
+        }
+        function setRowMarkerState(row, applied) {
+            const key = getRowMarkerKey(row);
+            if (key) {
+                if (applied) markerAppliedUploads.add(key);
+                else markerAppliedUploads.delete(key);
+            }
+            const tag = row ? row.querySelector('.upload-marker-tag') : null;
+            if (tag) tag.classList.toggle('hidden', !applied);
+        }
+        function hasMarkerHint() {
+            return markerAppliedUploads.size > 0;
+        }
+        function getRowImageSource(row) {
+            if (!row) return '';
+            const localUrl = row.getAttribute('data-local-url');
+            if (localUrl) return localUrl;
+            const filepath = row.getAttribute('data-filename');
+            if (filepath) return "{{ url_for('serve_file', filename='') }}" + filepath;
+            return '';
+        }
+        function openMarkerModalForRow(row) {
+            const src = getRowImageSource(row);
+            if (!src) {
+                showToast("画像が読み込めませんでした", "error", true);
+                return;
+            }
+            markerState.row = row;
+            const nameEl = row ? row.querySelector('.truncate') : null;
+            markerState.filename = nameEl ? nameEl.textContent.trim() : 'image.png';
+            markerState.hasStroke = false;
+            markerState.naturalWidth = 0;
+            markerState.naturalHeight = 0;
+            const img = get('marker-image');
+            const canvas = get('marker-canvas');
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+            showModal('marker-modal');
+            if (img) {
+                img.onload = () => {
+                    const stage = get('marker-stage');
+                    if (!stage || !canvas) return;
+                    const stageRect = stage.getBoundingClientRect();
+                    const imgRect = img.getBoundingClientRect();
+                    const width = Math.max(1, Math.floor(imgRect.width));
+                    const height = Math.max(1, Math.floor(imgRect.height));
+                    canvas.width = width;
+                    canvas.height = height;
+                    canvas.style.width = `${width}px`;
+                    canvas.style.height = `${height}px`;
+                    const left = Math.max(0, Math.floor(imgRect.left - stageRect.left));
+                    const top = Math.max(0, Math.floor(imgRect.top - stageRect.top));
+                    canvas.style.left = `${left}px`;
+                    canvas.style.top = `${top}px`;
+                    markerState.naturalWidth = img.naturalWidth || width;
+                    markerState.naturalHeight = img.naturalHeight || height;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+                };
+                img.src = src;
+            }
+        }
         const uploadCancelTokens = new Set();
         function resetUploadState() {
             currentImageUrls = [];
             currentMaskImage = null;
             uploadCancelTokens.clear();
+            markerAppliedUploads.clear();
             updateFilePreview();
             updateMaskPreview();
             const list = get('upload-list');
@@ -3604,6 +3724,9 @@
             row.dataset.uploadId = uploadId;
             row.setAttribute('data-filename', filepath);
             const safeName = escapeHtml(filename);
+            const markerBtnHtml = isImage
+                ? `<button class="upload-marker text-[10px] border rounded px-2 py-1">マーカー</button>`
+                : '';
             const previewHtml = isImage
                 ? `<img src="${url}" class="upload-preview w-12 h-12 object-cover rounded border border-gray-700 cursor-pointer" alt="${safeName}">`
                 : `<div class="upload-preview w-12 h-12 bg-gray-800 rounded border border-gray-700 flex items-center justify-center text-gray-400 text-sm cursor-pointer">FILE</div>`;
@@ -3612,9 +3735,15 @@
                     ${previewHtml}
                     <div class="flex-1 min-w-0">
                         <div class="truncate text-xs text-gray-200">${safeName}</div>
-                        <div class="upload-status text-[10px] text-gray-400">ready</div>
+                        <div class="flex items-center gap-2">
+                            <div class="upload-status text-[10px] text-gray-400">ready</div>
+                            <span class="upload-marker-tag hidden">MARKED</span>
+                        </div>
                     </div>
-                    <button class="upload-remove text-[10px] text-gray-400 hover:text-red-400 border border-gray-700 rounded px-2 py-1">削除</button>
+                    <div class="flex items-center gap-1">
+                        ${markerBtnHtml}
+                        <button class="upload-remove text-[10px] text-gray-400 hover:text-red-400 border border-gray-700 rounded px-2 py-1">削除</button>
+                    </div>
                 </div>
                 <div class="upload-progress h-2 rounded mt-2 overflow-hidden">
                     <div style="width:100%"></div>
@@ -3630,12 +3759,17 @@
                     uploadCancelTokens.add(uploadId);
                     const stored = row.getAttribute('data-filename');
                     if (stored) currentImageUrls = currentImageUrls.filter(x => x !== stored);
+                    setRowMarkerState(row, false);
                     row.remove();
                     updateFilePreview();
                     if (list.children.length === 0) {
                         list.innerHTML = '<div class="text-xs text-gray-500">まだアップロードがありません。</div>';
                     }
                 };
+            }
+            const markerBtn = row.querySelector('.upload-marker');
+            if (markerBtn) {
+                markerBtn.onclick = () => openMarkerModalForRow(row);
             }
             list.prepend(row);
             return row;
@@ -3653,6 +3787,9 @@
             const safeName = escapeHtml(file.name || 'file');
             const isImage = file && file.type && file.type.startsWith('image/');
             let previewHtml = '<div class="upload-preview w-12 h-12 bg-gray-800 rounded border border-gray-700 flex items-center justify-center text-gray-400 text-sm">FILE</div>';
+            const markerBtnHtml = isImage
+                ? `<button class="upload-marker text-[10px] border rounded px-2 py-1">マーカー</button>`
+                : '';
             let previewUrl = '';
             if (isImage) {
                 previewUrl = URL.createObjectURL(file);
@@ -3666,9 +3803,15 @@
                     ${previewHtml}
                     <div class="flex-1 min-w-0">
                         <div class="truncate text-xs text-gray-200">${safeName}</div>
-                        <div class="upload-status text-[10px] text-gray-400">待機中</div>
+                        <div class="flex items-center gap-2">
+                            <div class="upload-status text-[10px] text-gray-400">待機中</div>
+                            <span class="upload-marker-tag hidden">MARKED</span>
+                        </div>
                     </div>
-                    <button class="upload-remove text-[10px] text-gray-400 hover:text-red-400 border border-gray-700 rounded px-2 py-1">削除</button>
+                    <div class="flex items-center gap-1">
+                        ${markerBtnHtml}
+                        <button class="upload-remove text-[10px] text-gray-400 hover:text-red-400 border border-gray-700 rounded px-2 py-1">削除</button>
+                    </div>
                 </div>
                 <div class="upload-progress h-2 rounded mt-2 overflow-hidden">
                     <div style="width:0%"></div>
@@ -3691,12 +3834,17 @@
                     if (localUrl) URL.revokeObjectURL(localUrl);
                     const stored = row.getAttribute('data-filename');
                     if (stored) currentImageUrls = currentImageUrls.filter(x => x !== stored);
+                    setRowMarkerState(row, false);
                     row.remove();
                     updateFilePreview();
                     if (list.children.length === 0) {
                         list.innerHTML = '<div class="text-xs text-gray-500">まだアップロードがありません。</div>';
                     }
                 };
+            }
+            const markerBtn = row.querySelector('.upload-marker');
+            if (markerBtn) {
+                markerBtn.onclick = () => openMarkerModalForRow(row);
             }
             list.prepend(row);
             return {
@@ -3905,6 +4053,122 @@
             if (localUrl) URL.revokeObjectURL(localUrl);
             const newUrl = URL.createObjectURL(file);
             row.row.setAttribute('data-local-url', newUrl);
+            const isImage = file.type && file.type.startsWith('image/');
+            const safeName = escapeHtml(file.name || 'file');
+            const previewHtml = isImage
+                ? `<img src="${newUrl}" class="upload-preview w-12 h-12 object-cover rounded border border-gray-700 cursor-pointer" alt="${safeName}">`
+                : `<div class="upload-preview w-12 h-12 bg-gray-800 rounded border border-gray-700 flex items-center justify-center text-gray-400 text-sm cursor-pointer">FILE</div>`;
+            const previewOld = row.row.querySelector('.upload-preview');
+            if (previewOld) previewOld.outerHTML = previewHtml;
+            const previewEl = row.row.querySelector('.upload-preview');
+            if (previewEl) {
+                previewEl.onclick = () => {
+                    const filepath = row.row.getAttribute('data-filename');
+                    const url = filepath ? ("{{ url_for('serve_file', filename='') }}" + filepath) : row.row.getAttribute('data-local-url');
+                    openFileViewer(url, file.name || filepath || '');
+                };
+            }
+            const markerBtn = row.row.querySelector('.upload-marker');
+            if (markerBtn) {
+                markerBtn.classList.toggle('hidden', !isImage);
+            }
+            if (!isImage) setRowMarkerState(row.row, false);
+        }
+        function clearMarkerCanvas() {
+            const canvas = get('marker-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+            markerState.hasStroke = false;
+        }
+        function initMarkerCanvas() {
+            const canvas = get('marker-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const sizeInput = get('marker-size');
+            const getPoint = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+                const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+                return { x, y };
+            };
+            let drawing = false;
+            const start = (e) => {
+                if (!ctx) return;
+                drawing = true;
+                const size = sizeInput ? Number(sizeInput.value || 16) : 16;
+                ctx.strokeStyle = markerState.color;
+                ctx.lineWidth = size;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                const p = getPoint(e);
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(p.x, p.y);
+                ctx.stroke();
+                markerState.hasStroke = true;
+                if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+                e.preventDefault();
+            };
+            const move = (e) => {
+                if (!drawing || !ctx) return;
+                const p = getPoint(e);
+                ctx.lineTo(p.x, p.y);
+                ctx.stroke();
+                e.preventDefault();
+            };
+            const end = (e) => {
+                drawing = false;
+                if (canvas.releasePointerCapture) canvas.releasePointerCapture(e.pointerId);
+                e.preventDefault();
+            };
+            canvas.addEventListener('pointerdown', start);
+            canvas.addEventListener('pointermove', move);
+            canvas.addEventListener('pointerup', end);
+            canvas.addEventListener('pointercancel', end);
+            canvas.addEventListener('pointerleave', end);
+        }
+        async function saveMarkerToRow() {
+            const row = markerState.row;
+            const img = get('marker-image');
+            const canvas = get('marker-canvas');
+            if (!row || !img || !canvas) return;
+            const out = document.createElement('canvas');
+            const w = markerState.naturalWidth || img.naturalWidth || canvas.width;
+            const h = markerState.naturalHeight || img.naturalHeight || canvas.height;
+            out.width = w;
+            out.height = h;
+            const octx = out.getContext('2d');
+            if (!octx) return;
+            octx.drawImage(img, 0, 0, w, h);
+            octx.drawImage(canvas, 0, 0, w, h);
+            const blob = await new Promise((resolve) => out.toBlob(resolve, 'image/png', 0.92));
+            if (!blob) {
+                showToast("マーカー画像の生成に失敗しました", "error", true);
+                return;
+            }
+            const originalName = markerState.filename || 'marked.png';
+            const base = originalName.replace(/\.[^/.]+$/, '');
+            const file = new File([blob], `${base}_marked.png`, { type: 'image/png' });
+            const rowObj = {
+                row,
+                uploadId: row.dataset.uploadId,
+                status: row.querySelector('.upload-status'),
+                bar: row.querySelector('.upload-progress > div')
+            };
+            if (rowObj.status) rowObj.status.textContent = 'マーカー反映中...';
+            updateUploadRowFile(rowObj, file);
+            const prevFilename = row.getAttribute('data-filename');
+            const success = await uploadFileWithProgress(file, rowObj);
+            if (success) {
+                if (prevFilename) currentImageUrls = currentImageUrls.filter(x => x !== prevFilename);
+                setRowMarkerState(row, true);
+            } else {
+                showToast("マーカー画像のアップロードに失敗しました", "error", true);
+            }
+            updateFilePreview();
+            hideModal('marker-modal');
+            markerState.row = null;
         }
         async function extractAudioFromVideo(file, row) {
             if (!isVideoFile(file)) return null;
@@ -4220,8 +4484,12 @@
         }
         
         async function sendMessage() { 
-            const t = get('prompt-input').value; // RAW INPUT (No trim)
-            if(!t.trim() && currentImageUrls.length === 0) return; // Check trim only for empty check
+            const rawText = get('prompt-input').value; // RAW INPUT (No trim)
+            if(!rawText.trim() && currentImageUrls.length === 0) return; // Check trim only for empty check
+            let t = rawText;
+            if (hasMarkerHint() && !/マーカー|marker/i.test(rawText || '')) {
+                t = rawText.trim() ? `${rawText}\n\n${MARKER_HINT_TEXT}` : MARKER_HINT_TEXT;
+            }
             if (isGptImageModel() && currentMaskImage && currentImageUrls.length === 0) {
                 showToast("Mask は画像入力が必要です", "error", true);
                 return;

@@ -727,6 +727,9 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=False)
     password_hash = db.Column(db.String(255))
     system_prompt = db.Column(db.Text, default="")
+    system_prompt_enabled = db.Column(db.Boolean, default=True)
+    temp_system_prompt = db.Column(db.Text, default="")
+    temp_system_prompt_enabled = db.Column(db.Boolean, default=False)
     openai_api_key = db.Column(db.Text, nullable=True)
     gemini_api_key = db.Column(db.Text, nullable=True)
     xai_api_key = db.Column(db.Text, nullable=True)
@@ -1542,6 +1545,9 @@ def migrate_e2ee_task(user_id, target_enable):
             if user.system_prompt:
                 if target_enable: user.system_prompt = encrypt_val(user.system_prompt)
                 else: user.system_prompt = decrypt_val(user.system_prompt)
+            if user.temp_system_prompt:
+                if target_enable: user.temp_system_prompt = encrypt_val(user.temp_system_prompt)
+                else: user.temp_system_prompt = decrypt_val(user.temp_system_prompt)
             for t in threads:
                 for m in t.messages:
                     if m.content:
@@ -1706,13 +1712,18 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             
             # Global prompt (only if enabled via checkbox or if it's a Gem forced prompt)
             global_prompt = None
+            temp_prompt = None
             if options.get('enable_system_prompt'):
                 if base_sys_prompt:
                     global_prompt = base_sys_prompt
-                elif user.system_prompt:
+                elif user.system_prompt and (user.system_prompt_enabled is None or user.system_prompt_enabled):
                     sp = user.system_prompt
                     if user.enable_e2ee: sp = decrypt_val(sp)
                     global_prompt = sp
+                if user.temp_system_prompt_enabled and user.temp_system_prompt:
+                    tp = user.temp_system_prompt
+                    if user.enable_e2ee: tp = decrypt_val(tp)
+                    temp_prompt = tp
             else:
                 # If master checkbox is OFF, we might still have a Gem prompt in base_sys_prompt
                 # But gems usually force enable_system_prompt=True, so this is just a safety.
@@ -1723,13 +1734,19 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             local_sys_prompt = th.custom_instruction if (th and th.custom_instruction and th.custom_instruction.strip()) else None
             
             final_sys_prompt = ""
+            combined_prompt = global_prompt or ""
+            if temp_prompt:
+                if combined_prompt:
+                    combined_prompt = f"{combined_prompt}\n\n[Temporary Instructions]:\n{temp_prompt}"
+                else:
+                    combined_prompt = temp_prompt
             if local_sys_prompt:
-                if global_prompt:
-                    final_sys_prompt = f"{global_prompt}\n\n[Chat Specific Instructions]:\n{local_sys_prompt}"
+                if combined_prompt:
+                    final_sys_prompt = f"{combined_prompt}\n\n[Chat Specific Instructions]:\n{local_sys_prompt}"
                 else:
                     final_sys_prompt = local_sys_prompt
             else:
-                final_sys_prompt = global_prompt or ""
+                final_sys_prompt = combined_prompt or ""
             
             options['system_prompt'] = final_sys_prompt
 
@@ -4957,6 +4974,8 @@ def handle_settings():
         mig_progress = prog.decode() if prog else ""
         sp = current_user.system_prompt
         if current_user.enable_e2ee and sp: sp = decrypt_val(sp)
+        tp = current_user.temp_system_prompt
+        if current_user.enable_e2ee and tp: tp = decrypt_val(tp)
         
         # 2FA Status
         has_totp = bool(current_user.totp_secret)
@@ -4964,6 +4983,9 @@ def handle_settings():
         
         return jsonify({
             'system_prompt': sp or "",
+            'system_prompt_enabled': current_user.system_prompt_enabled if current_user.system_prompt_enabled is not None else True,
+            'temp_system_prompt': tp or "",
+            'temp_system_prompt_enabled': current_user.temp_system_prompt_enabled,
             'username': current_user.username, 
             'openai_key': decrypt_val(current_user.openai_api_key) or "", 
             'gemini_key': decrypt_val(current_user.gemini_api_key) or "", 
@@ -5008,6 +5030,13 @@ def handle_settings():
     if 'system_prompt' in d: 
         if current_user.enable_e2ee: current_user.system_prompt = encrypt_val(d['system_prompt'])
         else: current_user.system_prompt = d['system_prompt']
+    if 'system_prompt_enabled' in d:
+        current_user.system_prompt_enabled = bool(d['system_prompt_enabled'])
+    if 'temp_system_prompt' in d:
+        if current_user.enable_e2ee: current_user.temp_system_prompt = encrypt_val(d['temp_system_prompt'])
+        else: current_user.temp_system_prompt = d['temp_system_prompt']
+    if 'temp_system_prompt_enabled' in d:
+        current_user.temp_system_prompt_enabled = bool(d['temp_system_prompt_enabled'])
     if 'openai_key' in d: current_user.openai_api_key = encrypt_val(d['openai_key'])
     if 'gemini_key' in d: current_user.gemini_api_key = encrypt_val(d['gemini_key'])
     if 'xai_key' in d: current_user.xai_api_key = encrypt_val(d['xai_key'])
@@ -5940,6 +5969,15 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN default_enable_system_prompt BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN system_prompt_enabled BOOLEAN DEFAULT 1")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN temp_system_prompt TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN temp_system_prompt_enabled BOOLEAN DEFAULT 0")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN default_safety_setting VARCHAR(16) DEFAULT 'default'")

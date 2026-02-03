@@ -880,7 +880,7 @@
     <!-- Gem Modal -->
     <div id="gem-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
         <div class="bg-gray-800 rounded-lg w-full max-w-lg p-6 shadow-2xl border border-gray-700 m-4 flex flex-col modal-panel">
-            <h2 class="text-xl font-bold text-white mb-4"><i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem</h2>
+            <h2 class="text-xl font-bold text-white mb-4" id="gem-modal-title"><i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem</h2>
             <div class="space-y-4">
                 <div><label class="block text-xs text-gray-400 mb-1">Name</label><input type="text" id="gem-name" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="My Helper"></div>
                 <div><label class="block text-xs text-gray-400 mb-1">Description (Optional)</label><input type="text" id="gem-desc" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="A short description..."></div>
@@ -1161,7 +1161,8 @@
         if (currentThreadId !== null && currentThreadId !== undefined) {
             currentThreadId = String(currentThreadId);
         }
-        let activeGem = null, currentImageUrls = [], currentMaskImage = null, abortController = null, userAutoScroll = true, searchTimeout; 
+                let activeGem = null, editingGemId = null, currentImageUrls = [], currentMaskImage = null, abortController = null, userAutoScroll = true, searchTimeout;
+         
         const markerAppliedUploads = new Set();
         const MARKER_HINT_TEXT = "画像のマーカー部分を見てください。";
         const markerState = { row: null, filename: '', hasStroke: false, naturalWidth: 0, naturalHeight: 0, color: 'rgba(250,204,21,0.6)' };
@@ -3607,8 +3608,34 @@
         get('lib-del-btn').onclick = deleteSelectedFiles;
         if (get('lib-attach-btn')) get('lib-attach-btn').onclick = () => attachSelectedLibraryFiles();
         if (get('upload-lib-btn')) get('upload-lib-btn').onclick = () => { setLibAttachMode(true); showModal('lib-modal'); loadLibraryFiles(); };
-            get('add-gem-btn').onclick = () => { showModal('gem-modal'); get('gem-name').value=''; get('gem-desc').value=''; get('gem-inst').value=''; };
-            get('save-gem-btn').onclick = async () => { const name = get('gem-name').value; const desc = get('gem-desc').value; const inst = get('gem-inst').value; if(name && inst) { await apiFetch("{{ url_for('handle_gems') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, description:desc, instruction:inst})}); hideModal('gem-modal'); loadGems(); } else alert("Name and Instruction are required."); };
+            get('add-gem-btn').onclick = () => { 
+                editingGemId = null;
+                get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem`;
+                get('save-gem-btn').innerText = "Create Gem";
+                showModal('gem-modal'); 
+                get('gem-name').value=''; get('gem-desc').value=''; get('gem-inst').value=''; 
+            };
+            get('save-gem-btn').onclick = async () => { 
+                const name = get('gem-name').value; 
+                const desc = get('gem-desc').value; 
+                const inst = get('gem-inst').value; 
+                if(name && inst) { 
+                    const method = editingGemId ? 'PUT' : 'POST';
+                    const url = editingGemId ? `/api/gems/${editingGemId}` : "{{ url_for('handle_gems') }}";
+                    await apiFetch(url, {
+                        method: method, 
+                        headers:{'Content-Type':'application/json'}, 
+                        body:JSON.stringify({name, description:desc, instruction:inst})
+                    }); 
+                    hideModal('gem-modal'); 
+                    loadGems(); 
+                    if (editingGemId && activeGem && activeGem.id === editingGemId) {
+                        activeGem.name = name;
+                        activeGem.instruction = inst;
+                        applyActiveGem(activeGem);
+                    }
+                } else alert("Name and Instruction are required."); 
+            };
             document.addEventListener('click', function(e) { 
                 if (e.target.closest('.edit-btn')) { 
                     const btn = e.target.closest('.edit-btn'); 
@@ -5265,10 +5292,26 @@
                 const d = document.createElement('div'); 
                 d.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group model-list-animate opacity-0'; 
                 d.style.animationDelay = `${i * 0.05}s`;
-                d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${g.name}</span></div><button class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2" onclick="deleteGem(event, ${g.id})">×</button>`; 
-                d.onclick = (e) => { if(e.target.tagName!=='BUTTON') activateGem(g); }; 
+                d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${g.name}</span></div><div class="flex items-center gap-1"><button class="text-gray-600 hover:text-blue-400 opacity-0 group-hover:opacity-100 px-2 transition" onclick="openEditGemModal(event, ${g.id})"><i class="fas fa-pencil-alt text-[10px]"></i></button><button class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2 transition" onclick="deleteGem(event, ${g.id})"><i class="fas fa-trash text-[10px]"></i></button></div>`; 
+                d.onclick = (e) => { if(!e.target.closest('button')) activateGem(g); }; 
                 l.appendChild(d); 
             }); 
+        }
+        async function openEditGemModal(e, id) {
+            e.stopPropagation();
+            editingGemId = id;
+            try {
+                const r = await apiFetch(`/api/gems/${id}`);
+                const g = await r.json();
+                get('gem-name').value = g.name;
+                get('gem-desc').value = g.description || '';
+                get('gem-inst').value = g.instruction;
+                get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Edit Gem`;
+                get('save-gem-btn').innerText = "Save Changes";
+                showModal('gem-modal');
+            } catch (err) {
+                showToast("Gemの取得に失敗しました", "error", true);
+            }
         }
         async function createGem(name, inst) { await apiFetch("{{ url_for('handle_gems') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, instruction:inst})}); loadGems(); }
         function applyActiveGem(g) {

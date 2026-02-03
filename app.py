@@ -5264,14 +5264,27 @@ def handle_gems():
     safe_db_commit()
     return jsonify({'id': gem.id, 'name': gem.name})
 
-@app.route('/api/gems/<int:gid>', methods=['DELETE'])
+@app.route('/api/gems/<int:gid>', methods=['GET', 'PUT', 'DELETE'])
 @login_required
-def delete_gem(gid):
+def handle_gem_item(gid):
     gem = Gem.query.get_or_404(gid)
     if gem.user_id != current_user.id: return jsonify({'error': '403'}), 403
-    db.session.delete(gem)
-    safe_db_commit()
-    return jsonify({'status': 'deleted'})
+    
+    if request.method == 'GET':
+        return jsonify({'id': gem.id, 'name': gem.name, 'description': gem.description, 'instruction': gem.instruction})
+    
+    if request.method == 'PUT':
+        d = request.json
+        gem.name = d.get('name', gem.name)
+        gem.description = d.get('description', gem.description)
+        gem.instruction = d.get('instruction', gem.instruction)
+        safe_db_commit()
+        return jsonify({'id': gem.id, 'name': gem.name})
+    
+    if request.method == 'DELETE':
+        db.session.delete(gem)
+        safe_db_commit()
+        return jsonify({'status': 'deleted'})
 
 @app.route('/api/debug/log', methods=['GET'])
 @login_required

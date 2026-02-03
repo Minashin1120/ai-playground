@@ -310,8 +310,9 @@
         .upload-marker:hover { background: rgba(250,204,21,0.28); color: #fff7c2; }
         .upload-marker-tag { background: rgba(250,204,21,0.18); color: #fde68a; border: 1px solid rgba(250,204,21,0.35); border-radius: 999px; padding: 1px 6px; font-size: 10px; }
 
-        #marker-modal .marker-stage { position: relative; background: #0a0f16; border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; justify-content: center; align-items: center; max-height: 60vh; overflow: hidden; }
-        #marker-image { max-width: 100%; max-height: 58vh; height: auto; border-radius: 10px; pointer-events: none; z-index: 1; }
+        #marker-modal .marker-stage { position: relative; background: #0a0f16; border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; justify-content: center; align-items: center; max-height: 60vh; overflow: hidden; touch-action: none; }
+        #marker-viewport { position: relative; transform-origin: 0 0; }
+        #marker-image { display: block; max-width: 100%; max-height: 58vh; height: auto; border-radius: 10px; pointer-events: none; z-index: 1; }
         #marker-canvas { position: absolute; top: 0; left: 0; touch-action: none; z-index: 2; }
         #marker-toolbar input[type="range"] { accent-color: #facc15; }
         @media (max-width: 768px) {
@@ -772,15 +773,21 @@
             </div>
             <div class="text-xs text-gray-400 mb-3">マーカーで指示してください。送信時に「マーカーを見てください」を自動で追加します。</div>
             <div id="marker-stage" class="marker-stage mb-4">
-                <img id="marker-image" alt="marker target">
-                <canvas id="marker-canvas"></canvas>
+                <div id="marker-viewport">
+                    <img id="marker-image" alt="marker target">
+                    <canvas id="marker-canvas"></canvas>
+                </div>
             </div>
             <div id="marker-toolbar" class="flex flex-wrap items-center gap-3 text-xs text-gray-300">
                 <label class="flex items-center gap-2">
                     <span class="text-gray-400">太さ</span>
                     <input id="marker-size" type="range" min="6" max="40" value="16">
                 </label>
-                <span class="text-[10px] text-gray-500">黄色マーカー（半透明）</span>
+                <label class="flex items-center gap-2 text-[10px] text-gray-400">
+                    <input type="checkbox" id="marker-attach-original" class="accent-yellow-400 w-3 h-3">
+                    <span>元画像も添付</span>
+                </label>
+                <span class="text-[10px] text-gray-500">黄色マーカー（半透明） / 二本指で拡大</span>
                 <div class="ml-auto flex items-center gap-2">
                     <button id="marker-clear" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white btn-hover">消去</button>
                     <button id="marker-save" class="px-4 py-1 rounded bg-yellow-500 hover:bg-yellow-400 text-black font-bold btn-hover">保存して反映</button>
@@ -1128,6 +1135,7 @@
         const markerAppliedUploads = new Set();
         const MARKER_HINT_TEXT = "画像のマーカー部分を見てください。";
         const markerState = { row: null, filename: '', hasStroke: false, naturalWidth: 0, naturalHeight: 0, color: 'rgba(250,204,21,0.6)' };
+        const markerView = { scale: 1, offsetX: 0, offsetY: 0, minScale: 1, maxScale: 4 };
         const threadGemMap = {};
         let pendingGemForNewThread = null;
         let currentJobId = null; 
@@ -3053,6 +3061,7 @@
                 });
                 dropzone.addEventListener('drop', (e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     dropzone.classList.remove('dragover');
                     const files = e.dataTransfer ? e.dataTransfer.files : null;
                     if (files && files.length) handleFiles(files);
@@ -3089,6 +3098,7 @@
             window.addEventListener('drop', (e) => {
                 if (!e.dataTransfer || !e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
                 e.preventDefault();
+                if (dropzone && dropzone.contains(e.target)) return;
                 dragCounter = 0;
                 hideDropOverlay();
                 handleFiles(e.dataTransfer.files);
@@ -3567,9 +3577,10 @@
             const preview = get('file-preview');
             const nameEl = get('file-name');
             if (!preview || !nameEl) return;
-            if (currentImageUrls.length > 0) {
+            const pendingUrls = collectImageUrlsForSend();
+            if (pendingUrls.length > 0) {
                 preview.classList.remove('hidden');
-                nameEl.innerText = `${currentImageUrls.length} files ready`;
+                nameEl.innerText = `${pendingUrls.length} files ready`;
             } else {
                 preview.classList.add('hidden');
                 nameEl.innerText = '';
@@ -3587,6 +3598,17 @@
                 nameEl.innerText = '';
             }
         }
+        function applyMarkerTransform() {
+            const viewport = get('marker-viewport');
+            if (!viewport) return;
+            viewport.style.transform = `translate(${markerView.offsetX}px, ${markerView.offsetY}px) scale(${markerView.scale})`;
+        }
+        function resetMarkerTransform() {
+            markerView.scale = 1;
+            markerView.offsetX = 0;
+            markerView.offsetY = 0;
+            applyMarkerTransform();
+        }
         function getRowMarkerKey(row) {
             if (!row) return null;
             return row.dataset.uploadId || row.getAttribute('data-filename') || null;
@@ -3602,6 +3624,35 @@
         }
         function hasMarkerHint() {
             return markerAppliedUploads.size > 0;
+        }
+        function collectImageUrlsForSend() {
+            const urls = [];
+            const seen = new Set();
+            const list = get('upload-list');
+            if (list) {
+                list.querySelectorAll('[data-filename]').forEach((row) => {
+                    const main = row.getAttribute('data-filename');
+                    if (main && !seen.has(main)) {
+                        seen.add(main);
+                        urls.push(main);
+                    }
+                    const original = row.getAttribute('data-original-filename');
+                    const attachOriginal = row.dataset.attachOriginal === '1';
+                    if (attachOriginal && original && !seen.has(original)) {
+                        seen.add(original);
+                        urls.push(original);
+                    }
+                });
+            }
+            if (urls.length === 0 && currentImageUrls && currentImageUrls.length) {
+                currentImageUrls.forEach((u) => {
+                    if (!seen.has(u)) {
+                        seen.add(u);
+                        urls.push(u);
+                    }
+                });
+            }
+            return urls;
         }
         function getRowImageSource(row) {
             if (!row) return '';
@@ -3623,33 +3674,35 @@
             markerState.hasStroke = false;
             markerState.naturalWidth = 0;
             markerState.naturalHeight = 0;
+            const attachOriginal = get('marker-attach-original');
+            if (attachOriginal) {
+                attachOriginal.checked = row.dataset.attachOriginal === '1';
+            }
             const img = get('marker-image');
             const canvas = get('marker-canvas');
             if (canvas) {
                 const ctx = canvas.getContext('2d');
                 if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
             }
+            resetMarkerTransform();
             showModal('marker-modal');
             if (img) {
                 img.onload = () => {
                     const stage = get('marker-stage');
                     if (!stage || !canvas) return;
-                    const stageRect = stage.getBoundingClientRect();
-                    const imgRect = img.getBoundingClientRect();
-                    const width = Math.max(1, Math.floor(imgRect.width));
-                    const height = Math.max(1, Math.floor(imgRect.height));
+                    const width = Math.max(1, Math.floor(img.clientWidth));
+                    const height = Math.max(1, Math.floor(img.clientHeight));
                     canvas.width = width;
                     canvas.height = height;
                     canvas.style.width = `${width}px`;
                     canvas.style.height = `${height}px`;
-                    const left = Math.max(0, Math.floor(imgRect.left - stageRect.left));
-                    const top = Math.max(0, Math.floor(imgRect.top - stageRect.top));
-                    canvas.style.left = `${left}px`;
-                    canvas.style.top = `${top}px`;
+                    canvas.style.left = '0px';
+                    canvas.style.top = '0px';
                     markerState.naturalWidth = img.naturalWidth || width;
                     markerState.naturalHeight = img.naturalHeight || height;
                     const ctx = canvas.getContext('2d');
                     if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    resetMarkerTransform();
                 };
                 img.src = src;
             }
@@ -4072,7 +4125,11 @@
             if (markerBtn) {
                 markerBtn.classList.toggle('hidden', !isImage);
             }
-            if (!isImage) setRowMarkerState(row.row, false);
+            if (!isImage) {
+                setRowMarkerState(row.row, false);
+                row.row.dataset.originalFilename = '';
+                row.row.dataset.attachOriginal = '';
+            }
         }
         function clearMarkerCanvas() {
             const canvas = get('marker-canvas');
@@ -4086,15 +4143,39 @@
             if (!canvas) return;
             const ctx = canvas.getContext('2d');
             const sizeInput = get('marker-size');
+            const activePointers = new Map();
+            let pinching = false;
+            let pinchStartDist = 0;
+            let pinchStartScale = markerView.scale;
+            let pinchStartOffset = { x: 0, y: 0 };
+            let pinchStartMid = { x: 0, y: 0 };
             const getPoint = (e) => {
                 const rect = canvas.getBoundingClientRect();
                 const x = (e.clientX - rect.left) * (canvas.width / rect.width);
                 const y = (e.clientY - rect.top) * (canvas.height / rect.height);
                 return { x, y };
             };
+            const getMid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+            const getDist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
             let drawing = false;
             const start = (e) => {
                 if (!ctx) return;
+                activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                if (activePointers.size >= 2) {
+                    const pts = Array.from(activePointers.values());
+                    const p1 = pts[0];
+                    const p2 = pts[1];
+                    pinching = true;
+                    drawing = false;
+                    pinchStartDist = getDist(p1, p2) || 1;
+                    pinchStartScale = markerView.scale;
+                    pinchStartOffset = { x: markerView.offsetX, y: markerView.offsetY };
+                    pinchStartMid = getMid(p1, p2);
+                    if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+                    e.preventDefault();
+                    return;
+                }
+                if (pinching) return;
                 drawing = true;
                 const size = sizeInput ? Number(sizeInput.value || 16) : 16;
                 ctx.strokeStyle = markerState.color;
@@ -4111,6 +4192,23 @@
                 e.preventDefault();
             };
             const move = (e) => {
+                if (activePointers.has(e.pointerId)) {
+                    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                }
+                if (pinching && activePointers.size >= 2) {
+                    const pts = Array.from(activePointers.values());
+                    const p1 = pts[0];
+                    const p2 = pts[1];
+                    const mid = getMid(p1, p2);
+                    const dist = getDist(p1, p2) || 1;
+                    const nextScale = pinchStartScale * (dist / pinchStartDist);
+                    markerView.scale = Math.min(markerView.maxScale, Math.max(markerView.minScale, nextScale));
+                    markerView.offsetX = pinchStartOffset.x + (mid.x - pinchStartMid.x);
+                    markerView.offsetY = pinchStartOffset.y + (mid.y - pinchStartMid.y);
+                    applyMarkerTransform();
+                    e.preventDefault();
+                    return;
+                }
                 if (!drawing || !ctx) return;
                 const p = getPoint(e);
                 ctx.lineTo(p.x, p.y);
@@ -4118,7 +4216,13 @@
                 e.preventDefault();
             };
             const end = (e) => {
-                drawing = false;
+                activePointers.delete(e.pointerId);
+                if (activePointers.size < 2) {
+                    pinching = false;
+                }
+                if (activePointers.size === 0) {
+                    drawing = false;
+                }
                 if (canvas.releasePointerCapture) canvas.releasePointerCapture(e.pointerId);
                 e.preventDefault();
             };
@@ -4133,6 +4237,10 @@
             const img = get('marker-image');
             const canvas = get('marker-canvas');
             if (!row || !img || !canvas) return;
+            const attachOriginal = get('marker-attach-original');
+            if (attachOriginal) {
+                row.dataset.attachOriginal = attachOriginal.checked ? '1' : '';
+            }
             const out = document.createElement('canvas');
             const w = markerState.naturalWidth || img.naturalWidth || canvas.width;
             const h = markerState.naturalHeight || img.naturalHeight || canvas.height;
@@ -4159,6 +4267,9 @@
             if (rowObj.status) rowObj.status.textContent = 'マーカー反映中...';
             updateUploadRowFile(rowObj, file);
             const prevFilename = row.getAttribute('data-filename');
+            if (prevFilename && !row.dataset.originalFilename) {
+                row.dataset.originalFilename = prevFilename;
+            }
             const success = await uploadFileWithProgress(file, rowObj);
             if (success) {
                 if (prevFilename) currentImageUrls = currentImageUrls.filter(x => x !== prevFilename);
@@ -4485,12 +4596,13 @@
         
         async function sendMessage() { 
             const rawText = get('prompt-input').value; // RAW INPUT (No trim)
-            if(!rawText.trim() && currentImageUrls.length === 0) return; // Check trim only for empty check
+            const imageUrlsToSend = collectImageUrlsForSend();
+            if(!rawText.trim() && imageUrlsToSend.length === 0) return; // Check trim only for empty check
             let t = rawText;
             if (hasMarkerHint() && !/マーカー|marker/i.test(rawText || '')) {
                 t = rawText.trim() ? `${rawText}\n\n${MARKER_HINT_TEXT}` : MARKER_HINT_TEXT;
             }
-            if (isGptImageModel() && currentMaskImage && currentImageUrls.length === 0) {
+            if (isGptImageModel() && currentMaskImage && imageUrlsToSend.length === 0) {
                 showToast("Mask は画像入力が必要です", "error", true);
                 return;
             }
@@ -4503,7 +4615,7 @@
             get('welcome-screen').classList.add('hidden'); 
 
             // Render UI immediately to reduce perceived latency.
-            renderMessage(Date.now(), 'user', t, JSON.stringify(currentImageUrls), null, null, null, true, currentQuote, null, null, null, null, null, null); 
+            renderMessage(Date.now(), 'user', t, JSON.stringify(imageUrlsToSend), null, null, null, true, currentQuote, null, null, null, null, null, null); 
             get('prompt-input').value = ''; get('prompt-input').style.height = 'auto'; 
 
             let disableAutoSearch = false;
@@ -4580,7 +4692,7 @@
                 thread_id: currentThreadId, 
                 message: t, 
                 model: get('model-select').value, 
-                image_urls: currentImageUrls, 
+                image_urls: imageUrlsToSend, 
                 enable_search: get('enable-search').checked, 
                 enable_python: get('enable-python').checked, 
                 enable_thinking: get('enable-thinking').checked, 

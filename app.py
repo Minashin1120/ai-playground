@@ -1749,6 +1749,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         options['system_prompt'] = f"{curr_p}\n\n{marker_prompt}"
                 else:
                     options['system_prompt'] = marker_prompt
+            now = datetime.now().astimezone()
+            time_notice = f"Current time: {now.strftime('%Y-%m-%d %H:%M:%S %Z')} (UTC{now.strftime('%z')})"
+            curr_p = options.get('system_prompt') or ""
+            if curr_p.strip():
+                options['system_prompt'] = f"{time_notice}\n\n{curr_p}"
+            else:
+                options['system_prompt'] = time_notice
             quote_text = None
             try:
                 qv = r.get(f"quote:{job_id}")

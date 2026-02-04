@@ -4736,6 +4736,91 @@ def _auto_link_orphan_uploads_once():
         except Exception:
             pass
 
+def _auto_delete_orphan_uploads_once():
+    marker = os.path.join(app.config['UPLOAD_FOLDER'], '.auto_delete_orphans_done')
+    lock = marker + '.lock'
+    if os.path.exists(marker):
+        return
+    try:
+        if os.path.exists(lock):
+            try:
+                if time.time() - os.path.getmtime(lock) > 3600:
+                    os.remove(lock)
+            except Exception:
+                pass
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except Exception:
+        return
+    try:
+        try:
+            os.write(fd, str(time.time()).encode('utf-8'))
+        except Exception:
+            pass
+        allowed_exts = {'.txt', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm', '.mp4', '.mov', '.mkv', '.avi', '.m4v'}
+        users = User.query.all()
+        for u in users:
+            try:
+                ud = os.path.join(app.config['UPLOAD_FOLDER'], str(u.id))
+                if not os.path.isdir(ud):
+                    continue
+                referenced = set()
+                msgs = Message.query.join(Thread).filter(Thread.user_id == u.id, Message.image_url != None).all()
+                for m in msgs:
+                    if not m.image_url:
+                        continue
+                    try:
+                        l = json.loads(m.image_url)
+                        if not isinstance(l, list):
+                            l = [m.image_url]
+                    except Exception:
+                        l = [m.image_url]
+                    for p in l:
+                        if p:
+                            referenced.add(p)
+                seen_names = set()
+                for entry in os.scandir(ud):
+                    if not entry.is_file():
+                        continue
+                    name = entry.name
+                    if name.startswith('.'):
+                        continue
+                    if name.endswith('.enc'):
+                        base_name = name[:-4]
+                    else:
+                        base_name = name
+                    if not base_name or base_name in seen_names:
+                        continue
+                    seen_names.add(base_name)
+                    ext = os.path.splitext(base_name)[1].lower()
+                    if not ext or ext not in allowed_exts:
+                        continue
+                    rel_path = f"{u.id}/{base_name}"
+                    if rel_path in referenced:
+                        continue
+                    fp = os.path.join(ud, base_name)
+                    try:
+                        secure_delete(fp)
+                        secure_delete(fp + '.enc')
+                    except Exception:
+                        pass
+            except Exception:
+                continue
+        try:
+            with open(marker, 'w', encoding='utf-8') as f:
+                f.write(f"done {datetime.utcnow().isoformat()}Z\n")
+        except Exception:
+            pass
+    finally:
+        try:
+            os.close(fd)
+        except Exception:
+            pass
+        try:
+            if os.path.exists(lock):
+                os.remove(lock)
+        except Exception:
+            pass
+
 @app.route('/api/files/delete', methods=['POST'])
 @login_required
 def delete_files_batch():
@@ -6014,7 +6099,7 @@ with app.app_context():
         except Exception:
             pass
     try:
-        _auto_link_orphan_uploads_once()
+        _auto_delete_orphan_uploads_once()
     except Exception:
         pass
     try:

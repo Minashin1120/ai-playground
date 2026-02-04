@@ -1846,6 +1846,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
             supports_audio_inputs = _is_gemini_text_model(model_key_l)
             supports_video_inputs = supports_audio_inputs
+            supports_pdf_inputs = supports_audio_inputs
 
             def _grok_reasoning_effort():
                 raw = (options.get('reasoning_effort') or "").lower().strip()
@@ -1905,18 +1906,32 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 bp = os.path.join(app.config['UPLOAD_FOLDER'], fn)
                 ep = bp + '.enc'
                 data = None
+                is_pdf = fn.lower().endswith('.pdf')
                 mime = mimetypes.guess_type(bp)[0] or 'application/octet-stream'
+                if is_pdf:
+                    mime = 'application/pdf'
                 try:
                     if os.path.exists(bp):
                         with open(bp, 'rb') as f: data = f.read()
                     elif os.path.exists(ep):
                         with open(ep, 'rb') as f: data = decrypt_bytes(f.read())
                     if data:
-                        if fn.lower().endswith('.pdf'):
-                            reader = pypdf.PdfReader(BytesIO(data))
-                            extracted = "".join([p.extract_text() + "\n" for p in reader.pages])
-                            loaded_files.append({'name': fn, 'text': extracted[:50000], 'bytes': None, 'mime': 'application/pdf'})
-                        else: loaded_files.append({'name': fn, 'text': None, 'bytes': data, 'mime': mime})
+                        if is_pdf:
+                            extracted = None
+                            try:
+                                reader = pypdf.PdfReader(BytesIO(data))
+                                extracted = "".join([p.extract_text() + "\n" for p in reader.pages])
+                            except Exception:
+                                extracted = None
+                            loaded_files.append({
+                                'name': fn,
+                                'text': extracted[:50000] if extracted else None,
+                                'bytes': data,
+                                'mime': mime,
+                                'is_pdf': True
+                            })
+                        else:
+                            loaded_files.append({'name': fn, 'text': None, 'bytes': data, 'mime': mime, 'is_pdf': False})
                 except: pass
 
             has_audio = any(fi.get('bytes') and str(fi.get('mime', '')).startswith('audio/') for fi in loaded_files)
@@ -2237,7 +2252,31 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         return data, mime, name
 
                     for fi in loaded_files:
-                        if fi['text']:
+                        if fi.get('is_pdf') and supports_pdf_inputs and fi.get('bytes'):
+                            try:
+                                pdf_bytes = fi['bytes']
+                                pdf_mime = fi.get('mime') or 'application/pdf'
+                                pdf_name = os.path.basename(fi.get('name') or 'document.pdf')
+                                if len(pdf_bytes) <= media_inline_limit:
+                                    curr_parts.append(types.Part.from_bytes(data=pdf_bytes, mime_type=pdf_mime))
+                                else:
+                                    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(pdf_name)[1] or '.pdf') as tmp:
+                                        tmp.write(pdf_bytes)
+                                        tmp.flush()
+                                        up = g_client.files.upload(file=tmp.name, config={"mimeType": pdf_mime})
+                                    uri = getattr(up, "uri", None) or getattr(up, "name", None) or (up.get("uri") if isinstance(up, dict) else None)
+                                    up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or pdf_mime
+                                    if uri and hasattr(types.Part, "from_uri"):
+                                        curr_parts.append(types.Part.from_uri(uri=uri, mime_type=up_mime))
+                                    else:
+                                        use_raw_parts = True
+                                        curr_parts.append(up)
+                            except Exception as e:
+                                log_force(f"Gemini PDF upload failed: {e}")
+                                if fi.get('text'):
+                                    curr_parts.append(types.Part(text=f"\nFile: {fi['name']}\n{fi['text']}"))
+                            continue
+                        if fi.get('text'):
                             curr_parts.append(types.Part(text=f"\nFile: {fi['name']}\n{fi['text']}"))
                             continue
                         if not fi.get('bytes'):
@@ -3075,10 +3114,41 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if quote_text:
                         user_text += f"User Quote:\n{quote_text}\n---\n"
                     user_text += message_text
+                    pdf_parts = []
+                    pdf_inline_limit = 20 * 1024 * 1024  # 20MiB inline limit for PDF inputs
                     for fi in loaded_files:
+                        if fi.get('is_pdf') and fi.get('bytes'):
+                            attached = False
+                            try:
+                                pdf_bytes = fi['bytes']
+                                pdf_name = os.path.basename(fi.get('name') or 'document.pdf')
+                                if len(pdf_bytes) <= pdf_inline_limit:
+                                    b64 = base64.b64encode(pdf_bytes).decode('utf-8')
+                                    pdf_parts.append({"type": "file", "file": {"file_data": b64, "filename": pdf_name}})
+                                else:
+                                    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(pdf_name)[1] or '.pdf') as tmp:
+                                        tmp.write(pdf_bytes)
+                                        tmp.flush()
+                                        tmp.seek(0)
+                                        up = client.files.create(file=tmp, purpose="user_data")
+                                    file_id = getattr(up, "id", None) or (up.get("id") if isinstance(up, dict) else None)
+                                    if file_id:
+                                        pdf_parts.append({"type": "file", "file": {"file_id": file_id, "filename": pdf_name}})
+                                    else:
+                                        raise RuntimeError("file_id missing from upload response")
+                                attached = True
+                            except Exception as e:
+                                log_force(f"OpenAI Search PDF attach failed: {e}")
+                            if attached:
+                                continue
                         if fi.get('text'):
                             user_text += f"\n\n[File: {fi['name']}]\n{fi['text']}"
-                    messages.append({"role": "user", "content": user_text})
+                    if pdf_parts:
+                        user_parts = [{"type": "text", "text": user_text}]
+                        user_parts.extend(pdf_parts)
+                        messages.append({"role": "user", "content": user_parts})
+                    else:
+                        messages.append({"role": "user", "content": user_text})
 
                     resp = client.chat.completions.create(
                         model=model_key,
@@ -3169,9 +3239,34 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 image_type = "input_image"
                 if quote_text: curr_content.append({"type": text_type, "text": f"User Quote:\n{quote_text}\n---"})
                 curr_content.append({"type": text_type, "text": message_text})
-                
+                pdf_inline_limit = 20 * 1024 * 1024  # 20MiB inline limit for PDF inputs
+
                 for fi in loaded_files:
-                    if fi['text']:
+                    if fi.get('is_pdf') and fi.get('bytes') and not is_grok:
+                        attached = False
+                        try:
+                            pdf_bytes = fi['bytes']
+                            pdf_name = os.path.basename(fi.get('name') or 'document.pdf')
+                            if len(pdf_bytes) <= pdf_inline_limit:
+                                b64 = base64.b64encode(pdf_bytes).decode('utf-8')
+                                curr_content.append({"type": "input_file", "file_data": b64, "filename": pdf_name})
+                            else:
+                                with tempfile.NamedTemporaryFile(suffix=os.path.splitext(pdf_name)[1] or '.pdf') as tmp:
+                                    tmp.write(pdf_bytes)
+                                    tmp.flush()
+                                    tmp.seek(0)
+                                    up = client.files.create(file=tmp, purpose="user_data")
+                                file_id = getattr(up, "id", None) or (up.get("id") if isinstance(up, dict) else None)
+                                if file_id:
+                                    curr_content.append({"type": "input_file", "file_id": file_id, "filename": pdf_name})
+                                else:
+                                    raise RuntimeError("file_id missing from upload response")
+                            attached = True
+                        except Exception as e:
+                            log_force(f"OpenAI PDF attach failed: {e}")
+                        if attached:
+                            continue
+                    if fi.get('text'):
                         for part in reversed(curr_content):
                             if part.get('type') == text_type:
                                 part['text'] += f"\n\n[File: {fi['name']}]\n{fi['text']}"

@@ -4600,13 +4600,18 @@ def get_files_lib():
                 l = json.loads(m.image_url)
                 if not isinstance(l, list): l = [m.image_url]
             except: l = [m.image_url]
+            msg_ts = None
+            try:
+                msg_ts = int(m.timestamp.timestamp())
+            except:
+                msg_ts = None
             for p in l:
                 if p and p not in seen:
                     fp = os.path.join(app.config['UPLOAD_FOLDER'], p)
                     if os.path.exists(fp) or os.path.exists(fp + '.enc'):
                         seen.add(p)
                         ext = os.path.splitext(p)[1].lower().replace('.', '')
-                        files.append({'filename': os.path.basename(p), 'filepath': p, 'url': url_for('serve_file', filename=p), 'type': 'image' if ext in image_exts else 'file', 'ext': ext})
+                        files.append({'filename': os.path.basename(p), 'filepath': p, 'url': url_for('serve_file', filename=p), 'type': 'image' if ext in image_exts else 'file', 'ext': ext, 'ts': msg_ts})
         # Include uploaded files that are not yet attached to any message
         ud = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
         if os.path.isdir(ud):
@@ -4625,12 +4630,18 @@ def get_files_lib():
                     continue
                 ext = os.path.splitext(base_name)[1].lower().replace('.', '')
                 seen.add(rel_path)
+                ts = None
+                try:
+                    ts = int(entry.stat().st_mtime)
+                except:
+                    ts = None
                 files.append({
                     'filename': os.path.basename(rel_path),
                     'filepath': rel_path,
                     'url': url_for('serve_file', filename=rel_path),
                     'type': 'image' if ext in image_exts else 'file',
-                    'ext': ext
+                    'ext': ext,
+                    'ts': ts
                 })
         return jsonify(files)
     except: return jsonify([])

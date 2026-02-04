@@ -995,6 +995,13 @@
             <div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0">
                 <span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span>
                 <div class="flex items-center gap-2">
+                    <label class="text-[11px] text-gray-400">表示順</label>
+                    <select id="lib-sort" class="bg-gray-800 border border-gray-600 text-xs text-gray-200 rounded px-2 py-1">
+                        <option value="newest">新しい順</option>
+                        <option value="oldest">古い順</option>
+                        <option value="name_asc">名前順 (A→Z)</option>
+                        <option value="name_desc">名前順 (Z→A)</option>
+                    </select>
                     <button id="lib-attach-btn" class="bg-blue-600 text-white px-4 py-1.5 rounded text-xs btn-hover" disabled>添付</button>
                     <button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs btn-hover" disabled>削除</button>
                 </div>
@@ -1197,6 +1204,7 @@
         let currentThreadPending = null;
         let editingMessageId = null; // Track message being edited
         const messageStore = {}, lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), attachMode: false };
+        const LIB_SORT_KEY = 'lib_sort_order';
         let threadPage = 1, threadLoading = false, hasMoreThreads = true;
         let threadObserver = null;
         let currentQuote = "";
@@ -3638,6 +3646,15 @@
         get('lib-del-btn').onclick = deleteSelectedFiles;
         if (get('lib-attach-btn')) get('lib-attach-btn').onclick = () => attachSelectedLibraryFiles();
         if (get('upload-lib-btn')) get('upload-lib-btn').onclick = () => { setLibAttachMode(true); showModal('lib-modal'); loadLibraryFiles(); };
+        if (get('lib-sort')) {
+            const storedSort = localStorage.getItem(LIB_SORT_KEY) || 'newest';
+            get('lib-sort').value = storedSort;
+            get('lib-sort').onchange = () => {
+                const v = get('lib-sort').value || 'newest';
+                localStorage.setItem(LIB_SORT_KEY, v);
+                renderLibraryGrid();
+            };
+        }
             get('add-gem-btn').onclick = () => { 
                 editingGemId = null;
                 get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem`;
@@ -5708,6 +5725,46 @@
             if (!msg || !msg.parent_id) { showToast("再生成できるメッセージが見つかりません", "error", true); return; }
             beginEditMessage(msg.parent_id, true);
         };
+        function getLibSortOrder() {
+            const sel = get('lib-sort');
+            let v = sel ? sel.value : '';
+            if (!v) v = localStorage.getItem(LIB_SORT_KEY) || 'newest';
+            if (sel && sel.value !== v) sel.value = v;
+            return v || 'newest';
+        }
+        function sortLibraryFiles(list) {
+            const order = getLibSortOrder();
+            const files = Array.isArray(list) ? list.slice() : [];
+            const collator = new Intl.Collator('ja', { numeric: true, sensitivity: 'base' });
+            const nameAsc = (a, b) => collator.compare(a.filename || '', b.filename || '');
+            const nameDesc = (a, b) => collator.compare(b.filename || '', a.filename || '');
+            const tsDesc = (a, b) => (Number(b.ts) || 0) - (Number(a.ts) || 0);
+            const tsAsc = (a, b) => (Number(a.ts) || 0) - (Number(b.ts) || 0);
+            if (order === 'name_asc') files.sort((a, b) => nameAsc(a, b) || tsDesc(a, b));
+            else if (order === 'name_desc') files.sort((a, b) => nameDesc(a, b) || tsDesc(a, b));
+            else if (order === 'oldest') files.sort((a, b) => tsAsc(a, b) || nameAsc(a, b));
+            else files.sort((a, b) => tsDesc(a, b) || nameAsc(a, b));
+            return files;
+        }
+        function renderLibraryGrid() {
+            const grid = get('lib-grid');
+            if (!grid) return;
+            grid.innerHTML = '';
+            if (!lib.files || !lib.files.length) {
+                grid.innerHTML = '<div class="text-xs text-gray-500">ファイルがありません。</div>';
+                return;
+            }
+            const ordered = sortLibraryFiles(lib.files);
+            let idx = 0;
+            ordered.forEach((f) => {
+                try {
+                    const el = renderLibraryItem(f, idx++);
+                    grid.appendChild(el);
+                } catch (e) {
+                    // Skip broken entries instead of failing entire render.
+                }
+            });
+        }
         function renderLibraryItem(f, i = 0) {
             const el = document.createElement('div'); 
             el.className = "relative group bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400 model-list-animate"; 
@@ -5728,6 +5785,10 @@
                 }
                 window.updateLibSelectionUi();
             }; 
+            if (lib.selected && lib.selected.has(f.filepath)) {
+                el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500');
+                el.classList.remove('border-gray-600');
+            }
             const openBtns = el.querySelectorAll('.lib-open-btn');
             openBtns.forEach((btn) => {
                 btn.onclick = (e) => {
@@ -5752,7 +5813,7 @@
             const ext = (filename.split('.').pop() || '').toLowerCase();
             const type = ['png','jpg','jpeg','webp','gif'].includes(ext) ? 'image' : 'file';
             const url = "{{ url_for('serve_file', filename='') }}" + filepath;
-            const f = { filename, filepath, url, type, ext };
+            const f = { filename, filepath, url, type, ext, ts: Math.floor(Date.now() / 1000) };
             lib.fileSet.add(filepath);
             if (!lib.files) lib.files = [];
             lib.files.unshift(f);
@@ -5761,8 +5822,7 @@
             if (countEl) countEl.innerText = count + " files";
             const grid = get('lib-grid');
             if (grid && lib.modal && lib.modal.classList.contains('modal-open')) {
-                const el = renderLibraryItem(f, 0);
-                grid.prepend(el);
+                renderLibraryGrid();
             }
         }
         async function deleteSingleLibraryFile(filepath, el) {
@@ -5815,7 +5875,7 @@
                     const filename = fp.split('/').pop() || fp;
                     const ext = (filename.split('.').pop() || '').toLowerCase();
                     const type = ['png','jpg','jpeg','webp','gif'].includes(ext) ? 'image' : 'file';
-                    files.unshift({ filename, filepath: fp, url: base + fp, type, ext });
+                    files.unshift({ filename, filepath: fp, url: base + fp, type, ext, ts: Math.floor(Date.now() / 1000) });
                     seenPaths.add(fp);
                 });
             } catch (e) {}
@@ -5828,19 +5888,7 @@
                 lib.files = files.filter(f => f && f.filepath && f.url);
                 lib.fileSet = new Set(lib.files.map(f => f.filepath));
                 window.updateLibSelectionUi();
-                if (!lib.files.length && grid) {
-                    grid.innerHTML = '<div class="text-xs text-gray-500">ファイルがありません。</div>';
-                    return;
-                }
-                let idx = 0;
-                lib.files.forEach((f) => { 
-                    try {
-                        const el = renderLibraryItem(f, idx++);
-                        if (grid) grid.appendChild(el); 
-                    } catch (e) {
-                        // Skip broken entries instead of failing entire render.
-                    }
-                }); 
+                renderLibraryGrid();
             } catch (e) {
                 lastErr = lastErr || e;
             }

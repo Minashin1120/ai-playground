@@ -5087,8 +5087,7 @@
             const pyChk = get('enable-python');
             if (modelId.includes('gemini') && !modelId.includes('image') && !modelId.includes('nano') && !modelId.includes('tts') && !modelId.includes('native-audio')) {
                 if ((hasAudio || hasVideo) && pyChk && pyChk.checked) {
-                    pyChk.checked = false;
-                    showToast("GeminiのPython実行は音声/動画入力と併用できないため、PythonをOFFにしました", "error", true);
+                    showToast("Geminiの音声/動画 + Python はローカル実行モードです。実行したい場合は python コードブロック先頭に # EXECUTE を入れてください。", "info", true);
                 }
             }
             if ((hasAudio && !support.audio) || (hasVideo && !support.video)) {

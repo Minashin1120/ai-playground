@@ -1921,10 +1921,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
             has_audio = any(fi.get('bytes') and str(fi.get('mime', '')).startswith('audio/') for fi in loaded_files)
             has_video = any(fi.get('bytes') and str(fi.get('mime', '')).startswith('video/') for fi in loaded_files)
+            gemini_local_python = False
             if is_gem and (has_audio or has_video) and options.get('enable_python'):
-                # Gemini code_execution does not accept audio/video inputs.
-                log_force("Gemini: disable code_execution due to audio/video input")
-                options['enable_python'] = False
+                # Gemini code_execution does not accept audio/video inputs; fall back to local exec.
+                gemini_local_python = True
+                log_force("Gemini: local python mode for audio/video inputs")
+                local_py_notice = "Python execution is available locally. To run code, include a python fenced block that starts with '# EXECUTE' on the first line."
+                curr_p = options.get('system_prompt') or ""
+                if local_py_notice not in str(curr_p):
+                    options['system_prompt'] = f"{local_py_notice}\n\n{curr_p}" if str(curr_p).strip() else local_py_notice
             if (has_audio and not supports_audio_inputs) or (has_video and not supports_video_inputs):
                 pub("error", "This model does not support audio/video inputs. Please remove them and retry.")
                 return
@@ -2164,7 +2169,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                     if options.get('enable_search'):
                         conf['tools'] = [types.Tool(google_search=types.GoogleSearch())]
-                    if options.get('enable_python'):
+                    if options.get('enable_python') and not gemini_local_python:
                         if 'tools' not in conf: conf['tools'] = []
                         conf['tools'].append(types.Tool(code_execution=types.ToolCodeExecution()))
                     if options.get('system_prompt'):
@@ -2449,6 +2454,39 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             sources_text = "\n\n**Sources:**\n" + "\n".join(sources_lines) + "\n"
                             full_res += sources_text
                             pub("content", sources_text)
+
+                    if gemini_local_python and options.get('enable_python'):
+                        try:
+                            def _extract_exec_blocks(text):
+                                blocks = []
+                                if not text:
+                                    return blocks
+                                for m in re.finditer(r"```python\\s*\\n(.*?)```", text, flags=re.S|re.I):
+                                    code = m.group(1) or ""
+                                    lines = code.splitlines()
+                                    marker_idx = None
+                                    for i, line in enumerate(lines):
+                                        if not line.strip():
+                                            continue
+                                        if line.strip().upper() in ("# EXECUTE", "#EXECUTE", "# EXEC"):
+                                            marker_idx = i
+                                        break
+                                    if marker_idx is None:
+                                        continue
+                                    run_code = "\n".join(lines[marker_idx + 1:]).strip()
+                                    if run_code:
+                                        blocks.append(run_code)
+                                return blocks
+
+                            exec_blocks = _extract_exec_blocks(full_res)
+                            for b in exec_blocks:
+                                result = safe_execute_python(b)
+                                out_txt = f"\\n**Output:**\\n```\\n{result}\\n```\\n"
+                                full_res += out_txt
+                                pub("content", out_txt)
+                                pub("python", {"id": f"gem_local_py_{int(time.time()*1000)}_{os.urandom(3).hex()}", "code": b, "output": result})
+                        except Exception as e:
+                            log_force(f"Gemini local python failed: {e}")
 
             # --- 1.5 Grok Imagine Image Generation ---
             elif model_key == "grok-imagine-image":

@@ -6099,10 +6099,6 @@ with app.app_context():
         except Exception:
             pass
     try:
-        _auto_delete_orphan_uploads_once()
-    except Exception:
-        pass
-    try:
         ensure_thread_last_model_column()
     except Exception:
         pass

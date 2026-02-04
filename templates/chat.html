@@ -5548,6 +5548,19 @@
             }
             if (!Array.isArray(files)) files = [];
             try {
+                const base = "{{ url_for('serve_file', filename='') }}";
+                const seenPaths = new Set(files.map(f => f && f.filepath).filter(Boolean));
+                const extra = Array.isArray(currentImageUrls) ? currentImageUrls : [];
+                extra.forEach((fp) => {
+                    if (!fp || seenPaths.has(fp)) return;
+                    const filename = fp.split('/').pop() || fp;
+                    const ext = (filename.split('.').pop() || '').toLowerCase();
+                    const type = ['png','jpg','jpeg','webp','gif'].includes(ext) ? 'image' : 'file';
+                    files.unshift({ filename, filepath: fp, url: base + fp, type, ext });
+                    seenPaths.add(fp);
+                });
+            } catch (e) {}
+            try {
                 if (grid) grid.innerHTML = '';
                 const countEl = get('lib-total-count');
                 if (countEl) countEl.innerText = files.length + " files"; 

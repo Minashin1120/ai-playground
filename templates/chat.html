@@ -1964,6 +1964,26 @@
             'gemini-2.5-flash-native-audio-preview-12-2025',
             'grok-voice-agent'
         ]);
+        const AUDIO_EXTS = ['mp3','wav','aac','ogg','flac','aiff','aif','m4a','opus','oga','weba','webm'];
+        const VIDEO_EXTS = ['mp4','mov','avi','mkv','m4v','webm','mpg','mpeg','wmv','3gp','3gpp','flv'];
+        const getFileExt = (name) => {
+            if (!name) return '';
+            const idx = name.lastIndexOf('.');
+            if (idx === -1) return '';
+            return name.slice(idx + 1).toLowerCase();
+        };
+        const getModelMediaSupport = (model) => {
+            const m = (model || '').toLowerCase();
+            if (!m.includes('gemini')) return { audio: false, video: false };
+            if (m.includes('image') || m.includes('nano') || m.includes('tts') || m.includes('native-audio')) {
+                return { audio: false, video: false };
+            }
+            return { audio: true, video: true };
+        };
+        const supportsAudioInputModel = () => getModelMediaSupport(get('model-select').value).audio;
+        const supportsVideoInputModel = () => getModelMediaSupport(get('model-select').value).video;
+        const isAudioPath = (path) => AUDIO_EXTS.includes(getFileExt(path || ''));
+        const isVideoPath = (path) => VIDEO_EXTS.includes(getFileExt(path || ''));
         const OPENAI_TTS_VOICES = ['alloy','ash','ballad','coral','echo','fable','nova','onyx','sage','shimmer','verse','marin','cedar'];
         const GEMINI_TTS_VOICES = [
             'Zephyr','Puck','Charon','Kore','Fenrir','Leda','Orus','Aoede','Callirrhoe','Autonoe',
@@ -2582,6 +2602,7 @@
                 updateGrokImageUi();
                 updateGrokVideoUi();
                 updateImageInputLimits();
+                purgeUnsupportedAttachments(true);
             }
             get('model-select').addEventListener('change', toggleOptions); toggleOptions();
             if (get('tts-voice')) get('tts-voice').addEventListener('change', updateTtsUi);
@@ -3858,6 +3879,48 @@
             }
             return urls;
         }
+        function purgeUnsupportedAttachments(notify = true) {
+            const support = getModelMediaSupport(get('model-select').value);
+            let removedAudio = 0;
+            let removedVideo = 0;
+            if (Array.isArray(currentImageUrls) && currentImageUrls.length) {
+                const filtered = [];
+                currentImageUrls.forEach((fp) => {
+                    const isAudio = isAudioPath(fp);
+                    const isVideo = isVideoPath(fp);
+                    if ((isAudio && !support.audio) || (isVideo && !support.video)) {
+                        if (isAudio) removedAudio += 1;
+                        if (isVideo) removedVideo += 1;
+                        return;
+                    }
+                    filtered.push(fp);
+                });
+                if (filtered.length !== currentImageUrls.length) {
+                    currentImageUrls = filtered;
+                }
+            }
+            const list = get('upload-list');
+            if (list) {
+                list.querySelectorAll('[data-filename]').forEach((row) => {
+                    const fp = row.getAttribute('data-filename');
+                    if (!fp) return;
+                    if (!currentImageUrls.includes(fp) && (isAudioPath(fp) || isVideoPath(fp))) {
+                        setRowMarkerState(row, false);
+                        row.remove();
+                    }
+                });
+                if (list.children.length === 0) {
+                    list.innerHTML = '<div class="text-xs text-gray-500">まだアップロードがありません。</div>';
+                }
+            }
+            updateFilePreview();
+            if (notify && (removedAudio || removedVideo)) {
+                const parts = [];
+                if (removedAudio) parts.push(`${removedAudio}件の音声`);
+                if (removedVideo) parts.push(`${removedVideo}件の動画`);
+                showToast(`このモデルは${parts.join('・')}入力に非対応のため削除しました`, "error", true);
+            }
+        }
         function getRowImageSource(row) {
             if (!row) return '';
             const localUrl = row.getAttribute('data-local-url');
@@ -4275,7 +4338,14 @@
             });
         }
         function isVideoFile(file) {
-            return !!(file && file.type && file.type.startsWith('video/'));
+            if (!file) return false;
+            if (file.type && file.type.startsWith('video/')) return true;
+            return VIDEO_EXTS.includes(getFileExt(file.name || ''));
+        }
+        function isAudioFile(file) {
+            if (!file) return false;
+            if (file.type && file.type.startsWith('audio/')) return true;
+            return AUDIO_EXTS.includes(getFileExt(file.name || ''));
         }
         function encodeWav(buffers, sampleRate) {
             let length = 0;
@@ -4770,7 +4840,16 @@
             const shouldOpenModal = opts.openModal !== false;
             if (shouldOpenModal) openUploadModal();
             const audioOnly = !!(get('upload-audio-only') && get('upload-audio-only').checked);
+            const support = getModelMediaSupport(get('model-select').value);
             const tasks = Array.from(fs).map(async (f) => {
+                if (isAudioFile(f) && !support.audio) {
+                    showToast("このモデルは音声入力に対応していません", "error", true);
+                    return false;
+                }
+                if (isVideoFile(f) && !support.video) {
+                    showToast("このモデルは動画入力に対応していません", "error", true);
+                    return false;
+                }
                 const row = addUploadRow(f);
                 let t = f;
                 if (audioOnly && isVideoFile(f)) {
@@ -5001,6 +5080,14 @@
         async function sendMessage() { 
             const rawText = get('prompt-input').value; // RAW INPUT (No trim)
             const imageUrlsToSend = collectImageUrlsForSend();
+            const support = getModelMediaSupport(get('model-select').value);
+            const hasAudio = imageUrlsToSend.some((fp) => isAudioPath(fp));
+            const hasVideo = imageUrlsToSend.some((fp) => isVideoPath(fp));
+            if ((hasAudio && !support.audio) || (hasVideo && !support.video)) {
+                showToast("このモデルは音声/動画入力に対応していません", "error", true);
+                purgeUnsupportedAttachments(true);
+                return;
+            }
             if(!rawText.trim() && imageUrlsToSend.length === 0) return; // Check trim only for empty check
             const t = rawText;
             const markerSysPrompt = hasMarkerHint() ? MARKER_HINT_TEXT : null;
@@ -5908,8 +5995,18 @@
         }
         function attachSelectedLibraryFiles() {
             if (!lib.selected.size) return;
+            const support = getModelMediaSupport(get('model-select').value);
+            let skippedAudio = 0;
+            let skippedVideo = 0;
             const selected = Array.from(lib.selected);
             selected.forEach((fp) => {
+                const isAudio = isAudioPath(fp);
+                const isVideo = isVideoPath(fp);
+                if ((isAudio && !support.audio) || (isVideo && !support.video)) {
+                    if (isAudio) skippedAudio += 1;
+                    if (isVideo) skippedVideo += 1;
+                    return;
+                }
                 if (!currentImageUrls.includes(fp)) currentImageUrls.push(fp);
             });
             updateFilePreview();
@@ -5917,7 +6014,14 @@
             lib.selected.clear();
             window.updateLibSelectionUi();
             hideModal('lib-modal');
-            showToast("ライブラリから添付しました", "success");
+            if (skippedAudio || skippedVideo) {
+                const parts = [];
+                if (skippedAudio) parts.push(`${skippedAudio}件の音声`);
+                if (skippedVideo) parts.push(`${skippedVideo}件の動画`);
+                showToast(`このモデルは${parts.join('・')}入力に非対応のため除外しました`, "error", true);
+            } else {
+                showToast("ライブラリから添付しました", "success");
+            }
         }
         window.showLegal = async (t) => { showModal('legal-modal'); const res = await apiFetch("/static/legal/" + t + ".md?t=" + Date.now()); if(!res.ok) return; const text = await res.text(); get('legal-content').innerHTML = DOMPurify.sanitize(marked.parse(text)); }
         window.copyCode = (btn, code) => { 

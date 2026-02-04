@@ -166,24 +166,6 @@ _OPENAI_IMAGE_OUTPUT_FORMAT = _env_choice(
 _OPENAI_IMAGE_OUTPUT_COMPRESSION = _env_int("OPENAI_IMAGE_OUTPUT_COMPRESSION", 85)
 if _OPENAI_IMAGE_OUTPUT_COMPRESSION < 0 or _OPENAI_IMAGE_OUTPUT_COMPRESSION > 100:
     _OPENAI_IMAGE_OUTPUT_COMPRESSION = 85
-_MEDIA_FRAME_COUNT = _env_int("MEDIA_FRAME_COUNT", 3)
-_MEDIA_FRAME_MAX_WIDTH = _env_int("MEDIA_FRAME_MAX_WIDTH", 512)
-_MEDIA_AUDIO_SAMPLE_RATE = _env_int("MEDIA_AUDIO_SAMPLE_RATE", 16000)
-_MEDIA_TRANSCRIBE_MAX_SECONDS = _env_int("MEDIA_TRANSCRIBE_MAX_SECONDS", 600)
-_MEDIA_TRANSCRIBE_MAX_BYTES = _env_int("MEDIA_TRANSCRIBE_MAX_BYTES", 25 * 1024 * 1024)
-_MEDIA_TRANSCRIPT_CHAR_LIMIT = _env_int("MEDIA_TRANSCRIPT_CHAR_LIMIT", 20000)
-if _MEDIA_FRAME_COUNT < 0:
-    _MEDIA_FRAME_COUNT = 0
-if _MEDIA_FRAME_MAX_WIDTH < 64:
-    _MEDIA_FRAME_MAX_WIDTH = 64
-if _MEDIA_AUDIO_SAMPLE_RATE <= 0:
-    _MEDIA_AUDIO_SAMPLE_RATE = 16000
-if _MEDIA_TRANSCRIBE_MAX_SECONDS < 0:
-    _MEDIA_TRANSCRIBE_MAX_SECONDS = 0
-if _MEDIA_TRANSCRIBE_MAX_BYTES < 0:
-    _MEDIA_TRANSCRIBE_MAX_BYTES = 0
-if _MEDIA_TRANSCRIPT_CHAR_LIMIT < 0:
-    _MEDIA_TRANSCRIPT_CHAR_LIMIT = 0
 RUN_SCHEMA_MIGRATIONS = _env_bool("RUN_SCHEMA_MIGRATIONS", False)
 
 _XAI_API_HOST = os.getenv("XAI_API_HOST", "api.x.ai").strip() or "api.x.ai"
@@ -559,253 +541,6 @@ def _pcm_to_wav_bytes(pcm_bytes, rate=24000):
         wf.setframerate(rate)
         wf.writeframes(pcm_bytes)
     return buf.getvalue()
-
-def _ffprobe_duration_seconds(path):
-    try:
-        out = subprocess.check_output(
-            [
-                "ffprobe",
-                "-v", "error",
-                "-show_entries", "format=duration",
-                "-of", "default=nw=1:nk=1",
-                path
-            ],
-            stderr=subprocess.DEVNULL
-        )
-        val = float(out.decode("utf-8", errors="ignore").strip())
-        return val if val > 0 else None
-    except Exception:
-        return None
-
-def _extract_audio_from_video_bytes(video_bytes, src_suffix=".mp4", rate=16000, max_seconds=None):
-    if not video_bytes:
-        return None
-    suffix = src_suffix if src_suffix.startswith('.') else f".{src_suffix}"
-    with tempfile.NamedTemporaryFile(suffix=suffix) as in_f, tempfile.NamedTemporaryFile(suffix=".wav") as out_f:
-        in_f.write(video_bytes)
-        in_f.flush()
-        cmd = [
-            "ffmpeg", "-y",
-            "-i", in_f.name,
-            "-vn",
-            "-ac", "1",
-            "-ar", str(rate)
-        ]
-        if max_seconds and max_seconds > 0:
-            cmd += ["-t", str(max_seconds)]
-        cmd += ["-f", "wav", out_f.name]
-        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        out_f.seek(0)
-        return out_f.read()
-
-def _extract_video_frames(video_bytes, src_suffix=".mp4", max_frames=3, max_width=512):
-    frames = []
-    if not video_bytes or max_frames <= 0:
-        return frames, None
-    suffix = src_suffix if src_suffix.startswith('.') else f".{src_suffix}"
-    with tempfile.NamedTemporaryFile(suffix=suffix) as in_f:
-        in_f.write(video_bytes)
-        in_f.flush()
-        duration = _ffprobe_duration_seconds(in_f.name)
-        times = [0.0]
-        if duration and duration > 1:
-            times.extend([duration * 0.5, duration * 0.9])
-        seen = set()
-        ordered = []
-        for t in times:
-            try:
-                t = max(0.0, float(t))
-            except Exception:
-                t = 0.0
-            key = round(t, 2)
-            if key in seen:
-                continue
-            seen.add(key)
-            ordered.append(t)
-        times = ordered[:max_frames]
-        for t in times:
-            try:
-                with tempfile.NamedTemporaryFile(suffix=".jpg") as out_f:
-                    cmd = [
-                        "ffmpeg", "-y",
-                        "-ss", str(t),
-                        "-i", in_f.name,
-                        "-frames:v", "1",
-                        "-vf", f"scale='min({_MEDIA_FRAME_MAX_WIDTH},iw)':-2",
-                        "-q:v", "4",
-                        out_f.name
-                    ]
-                    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    out_f.seek(0)
-                    data = out_f.read()
-                    if data:
-                        frames.append(data)
-            except Exception:
-                continue
-    return frames, duration
-
-def _normalize_stt_model(model):
-    allowed = {
-        "gpt-4o-mini-transcribe",
-        "gpt-4o-transcribe",
-        "gpt-4o-transcribe-diarize",
-        "whisper-1"
-    }
-    if model in allowed:
-        return model
-    return "gpt-4o-mini-transcribe"
-
-def _trim_transcript(text):
-    if not text:
-        return text
-    limit = _MEDIA_TRANSCRIPT_CHAR_LIMIT
-    if limit and len(text) > limit:
-        return text[:limit] + "\n...(truncated)"
-    return text
-
-def _transcribe_audio_bytes(audio_bytes, filename, openai_key, model=None):
-    if not audio_bytes or not openai_key:
-        return None
-    if _MEDIA_TRANSCRIBE_MAX_BYTES and len(audio_bytes) > _MEDIA_TRANSCRIBE_MAX_BYTES:
-        return None
-    try:
-        client = _get_openai_client(openai_key, base_url=None)
-        audio_file = BytesIO(audio_bytes)
-        audio_file.name = filename or "audio.wav"
-        model = _normalize_stt_model(model or "")
-        kwargs = {"model": model, "file": audio_file}
-        if model == "gpt-4o-transcribe-diarize":
-            kwargs["response_format"] = "diarized_json"
-            kwargs["chunking_strategy"] = "auto"
-        transcription = client.audio.transcriptions.create(**kwargs)
-        transcript = ""
-        segments = None
-        if isinstance(transcription, dict):
-            transcript = transcription.get("text") or ""
-            segments = transcription.get("segments")
-        else:
-            transcript = getattr(transcription, "text", "") or ""
-            segments = getattr(transcription, "segments", None)
-        if model == "gpt-4o-transcribe-diarize" and segments:
-            lines = []
-            for seg in segments:
-                if isinstance(seg, dict):
-                    speaker = seg.get("speaker") or "Speaker"
-                    text = seg.get("text") or ""
-                else:
-                    speaker = getattr(seg, "speaker", None) or "Speaker"
-                    text = getattr(seg, "text", "") or ""
-                if text:
-                    lines.append(f"{speaker}: {text}")
-            if lines:
-                transcript = "\n".join(lines)
-        transcript = transcript.strip()
-        return transcript or None
-    except Exception as e:
-        log_force(f"Transcription failed: {e}")
-        return None
-
-def _expand_audio_file(fi, openai_key=None, stt_model=None):
-    out = []
-    if fi.get('bytes'):
-        out.append(fi)
-    name = fi.get('name') or 'audio'
-    mime = (fi.get('mime') or 'audio').lower()
-    note_lines = [f"[Audio Attachment: {name}]", f"- MIME: {mime}"]
-    transcript = None
-    if fi.get('bytes'):
-        if _MEDIA_TRANSCRIBE_MAX_BYTES and len(fi['bytes']) > _MEDIA_TRANSCRIBE_MAX_BYTES:
-            note_lines.append("- Transcript: skipped (audio too large)")
-        else:
-            transcript = _transcribe_audio_bytes(fi['bytes'], os.path.basename(name), openai_key, stt_model)
-            if transcript:
-                transcript = _trim_transcript(transcript)
-                note_lines.append("Transcript:\n" + transcript)
-            else:
-                note_lines.append("- Transcript: unavailable")
-    else:
-        note_lines.append("- Transcript: unavailable")
-    out.append({'name': name, 'text': "\n".join(note_lines), 'bytes': None, 'mime': 'text/plain'})
-    return out
-
-def _expand_video_file(fi, openai_key=None, stt_model=None):
-    out = []
-    name = fi.get('name') or 'video'
-    base = os.path.basename(name)
-    mime = (fi.get('mime') or 'video').lower()
-    note_lines = [f"[Video Attachment: {name}]", f"- MIME: {mime}"]
-    data = fi.get('bytes')
-    duration = None
-    if data:
-        try:
-            ext = os.path.splitext(base)[1] or ".mp4"
-            frames, duration = _extract_video_frames(
-                data,
-                src_suffix=ext,
-                max_frames=_MEDIA_FRAME_COUNT,
-                max_width=_MEDIA_FRAME_MAX_WIDTH
-            )
-            if duration:
-                note_lines.append(f"- Duration: {duration:.1f}s")
-            if frames:
-                note_lines.append(f"- Frames extracted: {len(frames)} (attached as images)")
-                for idx, frame in enumerate(frames, start=1):
-                    out.append({'name': f"{name}#frame{idx}.jpg", 'text': None, 'bytes': frame, 'mime': 'image/jpeg'})
-            else:
-                note_lines.append("- Frames extracted: 0")
-        except Exception as e:
-            log_force(f"Video frame extraction failed ({name}): {e}")
-            note_lines.append("- Frames extracted: failed")
-        audio_bytes = None
-        try:
-            ext = os.path.splitext(base)[1] or ".mp4"
-            audio_bytes = _extract_audio_from_video_bytes(
-                data,
-                src_suffix=ext,
-                rate=_MEDIA_AUDIO_SAMPLE_RATE,
-                max_seconds=_MEDIA_TRANSCRIBE_MAX_SECONDS if _MEDIA_TRANSCRIBE_MAX_SECONDS else None
-            )
-        except Exception as e:
-            log_force(f"Video audio extraction failed ({name}): {e}")
-            audio_bytes = None
-        if audio_bytes:
-            out.append({'name': f"{name}#audio.wav", 'text': None, 'bytes': audio_bytes, 'mime': 'audio/wav'})
-            if _MEDIA_TRANSCRIBE_MAX_SECONDS and duration and duration > _MEDIA_TRANSCRIBE_MAX_SECONDS:
-                note_lines.append(f"- Audio extracted: first {_MEDIA_TRANSCRIBE_MAX_SECONDS}s")
-            else:
-                note_lines.append("- Audio extracted: yes")
-            if _MEDIA_TRANSCRIBE_MAX_BYTES and len(audio_bytes) > _MEDIA_TRANSCRIBE_MAX_BYTES:
-                note_lines.append("- Audio transcript: skipped (audio too large)")
-            else:
-                transcript = _transcribe_audio_bytes(audio_bytes, f"{base}.wav", openai_key, stt_model)
-                if transcript:
-                    transcript = _trim_transcript(transcript)
-                    note_lines.append("Audio Transcript:\n" + transcript)
-                else:
-                    note_lines.append("- Audio transcript: unavailable")
-        else:
-            note_lines.append("- Audio extracted: none")
-    else:
-        note_lines.append("- Video bytes unavailable")
-    out.append({'name': name, 'text': "\n".join(note_lines), 'bytes': None, 'mime': 'text/plain'})
-    return out
-
-def _expand_media_inputs(files, openai_key=None, stt_model=None):
-    if not files:
-        return []
-    expanded = []
-    for fi in files:
-        if not isinstance(fi, dict):
-            expanded.append(fi)
-            continue
-        mime = (fi.get('mime') or '').lower()
-        if mime.startswith('video/'):
-            expanded.extend(_expand_video_file(fi, openai_key=openai_key, stt_model=stt_model))
-        elif mime.startswith('audio/'):
-            expanded.extend(_expand_audio_file(fi, openai_key=openai_key, stt_model=stt_model))
-        else:
-            expanded.append(fi)
-    return expanded
 
 def _save_user_audio(user_id, data, suffix, encrypt):
     user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
@@ -2102,6 +1837,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             grok_reasoning_supported = ("grok-3-mini" in model_key_l) or ("reasoning" in model_key_l and "non-reasoning" not in model_key_l)
             grok_reasoning_effort_supported = "grok-3-mini" in model_key_l
 
+            def _is_gemini_text_model(m):
+                if "gemini" not in m:
+                    return False
+                if any(x in m for x in ("image", "nano", "tts", "native-audio")):
+                    return False
+                return True
+
+            supports_audio_inputs = _is_gemini_text_model(model_key_l)
+            supports_video_inputs = supports_audio_inputs
+
             def _grok_reasoning_effort():
                 raw = (options.get('reasoning_effort') or "").lower().strip()
                 if raw in ("low", "high"):
@@ -2174,14 +1919,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         else: loaded_files.append({'name': fn, 'text': None, 'bytes': data, 'mime': mime})
                 except: pass
 
-            try:
-                loaded_files = _expand_media_inputs(
-                    loaded_files,
-                    openai_key=api_keys.get('openai'),
-                    stt_model=getattr(user, "stt_model", None)
-                )
-            except Exception as e:
-                log_force(f"Media expansion failed: {e}")
+            has_audio = any(fi.get('bytes') and str(fi.get('mime', '')).startswith('audio/') for fi in loaded_files)
+            has_video = any(fi.get('bytes') and str(fi.get('mime', '')).startswith('video/') for fi in loaded_files)
+            if (has_audio and not supports_audio_inputs) or (has_video and not supports_video_inputs):
+                pub("error", "This model does not support audio/video inputs. Please remove them and retry.")
+                return
 
             full_res, thought_accumulated, generated_images = "", "", []
             signature_parts = []
@@ -2467,7 +2209,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                     curr_parts = [types.Part(text=final_message_text)]
                     use_raw_parts = False
-                    audio_inline_limit = 20 * 1024 * 1024  # 20MiB limit for inline audio
+                    media_inline_limit = 20 * 1024 * 1024  # 20MiB limit for inline audio/video
 
                     def _normalize_gemini_audio(data, mime, name=""):
                         if not data or not mime:
@@ -2498,7 +2240,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if mime.startswith('audio/'):
                             try:
                                 audio_bytes, audio_mime, audio_name = _normalize_gemini_audio(fi['bytes'], fi.get('mime') or mime, fi.get('name') or "")
-                                if len(audio_bytes) <= audio_inline_limit:
+                                if len(audio_bytes) <= media_inline_limit:
                                     curr_parts.append(types.Part.from_bytes(data=audio_bytes, mime_type=audio_mime))
                                 else:
                                     with tempfile.NamedTemporaryFile(suffix=os.path.splitext(audio_name or '')[1] or '.bin') as tmp:
@@ -2514,6 +2256,28 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         curr_parts.append(up)
                             except Exception as e:
                                 log_force(f"Gemini audio upload failed: {e}")
+                            continue
+                        if mime.startswith('video/'):
+                            try:
+                                video_bytes = fi['bytes']
+                                video_mime = fi.get('mime') or mime
+                                video_name = fi.get('name') or "video"
+                                if len(video_bytes) <= media_inline_limit:
+                                    curr_parts.append(types.Part.from_bytes(data=video_bytes, mime_type=video_mime))
+                                else:
+                                    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(video_name or '')[1] or '.bin') as tmp:
+                                        tmp.write(video_bytes)
+                                        tmp.flush()
+                                        up = g_client.files.upload(file=tmp.name, config={"mimeType": video_mime})
+                                    uri = getattr(up, "uri", None) or getattr(up, "name", None) or (up.get("uri") if isinstance(up, dict) else None)
+                                    up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or video_mime
+                                    if uri and hasattr(types.Part, "from_uri"):
+                                        curr_parts.append(types.Part.from_uri(uri=uri, mime_type=up_mime))
+                                    else:
+                                        use_raw_parts = True
+                                        curr_parts.append(up)
+                            except Exception as e:
+                                log_force(f"Gemini video upload failed: {e}")
                             continue
                         # Skip unsupported binary inputs for Gemini text models
                         pass

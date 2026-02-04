@@ -5083,6 +5083,14 @@
             const support = getModelMediaSupport(get('model-select').value);
             const hasAudio = imageUrlsToSend.some((fp) => isAudioPath(fp));
             const hasVideo = imageUrlsToSend.some((fp) => isVideoPath(fp));
+            const modelId = (get('model-select').value || '').toLowerCase();
+            const pyChk = get('enable-python');
+            if (modelId.includes('gemini') && !modelId.includes('image') && !modelId.includes('nano') && !modelId.includes('tts') && !modelId.includes('native-audio')) {
+                if ((hasAudio || hasVideo) && pyChk && pyChk.checked) {
+                    pyChk.checked = false;
+                    showToast("GeminiのPython実行は音声/動画入力と併用できないため、PythonをOFFにしました", "error", true);
+                }
+            }
             if ((hasAudio && !support.audio) || (hasVideo && !support.video)) {
                 showToast("このモデルは音声/動画入力に対応していません", "error", true);
                 purgeUnsupportedAttachments(true);

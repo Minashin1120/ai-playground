@@ -1921,6 +1921,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
             has_audio = any(fi.get('bytes') and str(fi.get('mime', '')).startswith('audio/') for fi in loaded_files)
             has_video = any(fi.get('bytes') and str(fi.get('mime', '')).startswith('video/') for fi in loaded_files)
+            if is_gem and (has_audio or has_video) and options.get('enable_python'):
+                # Gemini code_execution does not accept audio/video inputs.
+                log_force("Gemini: disable code_execution due to audio/video input")
+                options['enable_python'] = False
             if (has_audio and not supports_audio_inputs) or (has_video and not supports_video_inputs):
                 pub("error", "This model does not support audio/video inputs. Please remove them and retry.")
                 return

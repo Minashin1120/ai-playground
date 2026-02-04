@@ -323,6 +323,10 @@
         #marker-viewport { position: relative; transform-origin: 0 0; }
         #marker-image { display: block; max-width: 100%; max-height: 58vh; height: auto; border-radius: 10px; pointer-events: none; z-index: 1; }
         #marker-canvas { position: absolute; top: 0; left: 0; touch-action: none; z-index: 2; }
+        #marker-crop-canvas { position: absolute; top: 0; left: 0; touch-action: none; z-index: 3; pointer-events: none; }
+        .marker-tool-btn { background: rgba(55,65,81,0.9); color: #e5e7eb; border: 1px solid rgba(107,114,128,0.6); }
+        .marker-tool-btn:hover { background: rgba(75,85,99,0.95); }
+        .marker-tool-btn.active { background: rgba(250,204,21,0.25); color: #fde68a; border-color: rgba(250,204,21,0.6); }
         #marker-toolbar input[type="range"] { accent-color: #facc15; }
         @media (max-width: 768px) {
             #lib-modal.lib-selecting #lib-grid .lib-open-btn,
@@ -780,14 +784,20 @@
                 <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-highlighter text-yellow-300"></i> マーカー</h2>
                 <button id="marker-modal-close" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
             </div>
-            <div class="text-xs text-gray-400 mb-3">マーカーで指示してください。送信時に「マーカーを見てください」を自動で追加します。</div>
+            <div class="text-xs text-gray-400 mb-3">マーカー・モザイク・トリミングが可能です。送信時に編集済み画像の確認を促します。</div>
             <div id="marker-stage" class="marker-stage mb-4">
                 <div id="marker-viewport">
                     <img id="marker-image" alt="marker target">
                     <canvas id="marker-canvas"></canvas>
+                    <canvas id="marker-crop-canvas"></canvas>
                 </div>
             </div>
             <div id="marker-toolbar" class="flex flex-wrap items-center gap-3 text-xs text-gray-300">
+                <div class="flex items-center gap-2">
+                    <button id="marker-tool-draw" class="marker-tool-btn px-3 py-1 rounded text-[11px]">マーカー</button>
+                    <button id="marker-tool-mosaic" class="marker-tool-btn px-3 py-1 rounded text-[11px]">モザイク</button>
+                    <button id="marker-tool-crop" class="marker-tool-btn px-3 py-1 rounded text-[11px]">トリミング</button>
+                </div>
                 <label class="flex items-center gap-2">
                     <span class="text-gray-400">太さ</span>
                     <input id="marker-size" type="range" min="1" max="40" value="16">
@@ -796,8 +806,9 @@
                     <input type="checkbox" id="marker-attach-original" class="accent-yellow-400 w-3 h-3">
                     <span>元画像も添付</span>
                 </label>
-                <span class="text-[10px] text-gray-500">黄色マーカー（半透明） / 二本指で拡大</span>
+                <span id="marker-tool-hint" class="text-[10px] text-gray-500">黄色マーカー（半透明） / 二本指で拡大</span>
                 <div class="ml-auto flex items-center gap-2">
+                    <button id="marker-crop-reset" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white btn-hover hidden">トリミングリセット</button>
                     <button id="marker-undo" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white btn-hover">戻す</button>
                     <button id="marker-clear" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white btn-hover">消去</button>
                     <button id="marker-save" class="px-4 py-1 rounded bg-yellow-500 hover:bg-yellow-400 text-black font-bold btn-hover">保存して反映</button>
@@ -1165,8 +1176,20 @@
                 let activeGem = null, editingGemId = null, currentImageUrls = [], currentMaskImage = null, abortController = null, userAutoScroll = true, searchTimeout;
          
         const markerAppliedUploads = new Set();
-        const MARKER_HINT_TEXT = "画像のマーカー部分を見てください。";
-        const markerState = { row: null, filename: '', hasStroke: false, naturalWidth: 0, naturalHeight: 0, color: 'rgba(250,204,21,0.6)', history: [] };
+        const MARKER_HINT_TEXT = "編集済みの画像を見てください。";
+        const markerState = {
+            row: null,
+            filename: '',
+            hasStroke: false,
+            naturalWidth: 0,
+            naturalHeight: 0,
+            color: 'rgba(250,204,21,0.6)',
+            history: [],
+            mode: 'draw',
+            cropRect: null,
+            baseCanvas: null,
+            baseImageData: null
+        };
         const markerView = { scale: 1, offsetX: 0, offsetY: 0, minScale: 1, maxScale: 4 };
         const threadGemMap = {};
         let pendingGemForNewThread = null;
@@ -3095,10 +3118,15 @@
                     markerState.row = null;
                 };
             }
+            if (get('marker-tool-draw')) get('marker-tool-draw').onclick = () => setMarkerMode('draw');
+            if (get('marker-tool-mosaic')) get('marker-tool-mosaic').onclick = () => setMarkerMode('mosaic');
+            if (get('marker-tool-crop')) get('marker-tool-crop').onclick = () => setMarkerMode('crop');
+            if (get('marker-crop-reset')) get('marker-crop-reset').onclick = () => clearCropRect();
             if (get('marker-undo')) get('marker-undo').onclick = () => undoMarkerCanvas();
             if (get('marker-clear')) get('marker-clear').onclick = () => clearMarkerCanvas();
             if (get('marker-save')) get('marker-save').onclick = () => saveMarkerToRow();
             initMarkerCanvas();
+            initCropCanvas();
             const dropzone = get('upload-dropzone');
             if (dropzone) {
                 dropzone.addEventListener('dragover', (e) => {
@@ -3696,6 +3724,33 @@
                 nameEl.innerText = '';
             }
         }
+        const markerToolHints = {
+            draw: '黄色マーカー（半透明） / 二本指で拡大',
+            mosaic: 'ブラシでモザイク / 二本指で拡大',
+            crop: 'ドラッグで範囲選択 / 二本指で拡大'
+        };
+        function setMarkerMode(mode) {
+            markerState.mode = mode;
+            const btnDraw = get('marker-tool-draw');
+            const btnMosaic = get('marker-tool-mosaic');
+            const btnCrop = get('marker-tool-crop');
+            if (btnDraw) btnDraw.classList.toggle('active', mode === 'draw');
+            if (btnMosaic) btnMosaic.classList.toggle('active', mode === 'mosaic');
+            if (btnCrop) btnCrop.classList.toggle('active', mode === 'crop');
+            const hint = get('marker-tool-hint');
+            if (hint) hint.textContent = markerToolHints[mode] || '';
+            const cropReset = get('marker-crop-reset');
+            if (cropReset) cropReset.classList.toggle('hidden', mode !== 'crop');
+            const drawCanvas = get('marker-canvas');
+            if (drawCanvas) drawCanvas.style.pointerEvents = (mode === 'crop') ? 'none' : 'auto';
+            const cropCanvas = get('marker-crop-canvas');
+            if (cropCanvas) cropCanvas.style.pointerEvents = (mode === 'crop') ? 'auto' : 'none';
+            renderCropOverlay();
+        }
+        function clearCropRect() {
+            markerState.cropRect = null;
+            renderCropOverlay();
+        }
         function applyMarkerTransform() {
             const viewport = get('marker-viewport');
             if (!viewport) return;
@@ -3722,6 +3777,40 @@
         }
         function hasMarkerHint() {
             return markerAppliedUploads.size > 0;
+        }
+        function prepareMarkerBaseCanvas(img, width, height) {
+            const base = document.createElement('canvas');
+            base.width = width;
+            base.height = height;
+            const bctx = base.getContext('2d');
+            if (bctx) {
+                bctx.drawImage(img, 0, 0, width, height);
+                markerState.baseImageData = bctx.getImageData(0, 0, width, height);
+                markerState.baseCanvas = base;
+            } else {
+                markerState.baseImageData = null;
+                markerState.baseCanvas = null;
+            }
+        }
+        function renderCropOverlay() {
+            const cropCanvas = get('marker-crop-canvas');
+            if (!cropCanvas) return;
+            const ctx = cropCanvas.getContext('2d');
+            if (!ctx) return;
+            ctx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+            if (markerState.mode !== 'crop') return;
+            const rect = markerState.cropRect;
+            ctx.fillStyle = 'rgba(0,0,0,0.35)';
+            ctx.fillRect(0, 0, cropCanvas.width, cropCanvas.height);
+            if (!rect) return;
+            const x = Math.max(0, rect.x);
+            const y = Math.max(0, rect.y);
+            const w = Math.max(1, rect.w);
+            const h = Math.max(1, rect.h);
+            ctx.clearRect(x, y, w, h);
+            ctx.strokeStyle = 'rgba(250,204,21,0.9)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
         }
         function collectImageUrlsForSend() {
             const urls = [];
@@ -3773,15 +3862,24 @@
             markerState.history = [];
             markerState.naturalWidth = 0;
             markerState.naturalHeight = 0;
+            markerState.cropRect = null;
+            markerState.baseCanvas = null;
+            markerState.baseImageData = null;
+            setMarkerMode('draw');
             const attachOriginal = get('marker-attach-original');
             if (attachOriginal) {
                 attachOriginal.checked = row.dataset.attachOriginal === '1';
             }
             const img = get('marker-image');
             const canvas = get('marker-canvas');
+            const cropCanvas = get('marker-crop-canvas');
             if (canvas) {
                 const ctx = canvas.getContext('2d');
                 if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+            if (cropCanvas) {
+                const cctx = cropCanvas.getContext('2d');
+                if (cctx) cctx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
             }
             resetMarkerTransform();
             showModal('marker-modal');
@@ -3797,11 +3895,21 @@
                     canvas.style.height = `${height}px`;
                     canvas.style.left = '0px';
                     canvas.style.top = '0px';
+                    if (cropCanvas) {
+                        cropCanvas.width = width;
+                        cropCanvas.height = height;
+                        cropCanvas.style.width = `${width}px`;
+                        cropCanvas.style.height = `${height}px`;
+                        cropCanvas.style.left = '0px';
+                        cropCanvas.style.top = '0px';
+                    }
                     markerState.naturalWidth = img.naturalWidth || width;
                     markerState.naturalHeight = img.naturalHeight || height;
                     const ctx = canvas.getContext('2d');
                     if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    prepareMarkerBaseCanvas(img, width, height);
                     saveMarkerHistory();
+                    renderCropOverlay();
                     resetMarkerTransform();
                 };
                 img.src = src;
@@ -4282,6 +4390,31 @@
             const getMid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
             const getDist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
             let drawing = false;
+            const applyMosaicAt = (p) => {
+                if (!ctx || !markerState.baseImageData) return;
+                const size = sizeInput ? Number(sizeInput.value || 16) : 16;
+                const block = Math.max(4, Math.floor(size / 2));
+                const half = Math.max(2, Math.floor(size / 2));
+                const w = canvas.width;
+                const h = canvas.height;
+                const data = markerState.baseImageData.data;
+                const startX = Math.max(0, Math.floor(p.x - half));
+                const startY = Math.max(0, Math.floor(p.y - half));
+                const endX = Math.min(w - 1, Math.floor(p.x + half));
+                const endY = Math.min(h - 1, Math.floor(p.y + half));
+                for (let y = startY; y <= endY; y += block) {
+                    for (let x = startX; x <= endX; x += block) {
+                        const cx = Math.min(w - 1, Math.max(0, x + Math.floor(block / 2)));
+                        const cy = Math.min(h - 1, Math.max(0, y + Math.floor(block / 2)));
+                        const idx = (cy * w + cx) * 4;
+                        const r = data[idx];
+                        const g = data[idx + 1];
+                        const b = data[idx + 2];
+                        ctx.fillStyle = `rgb(${r},${g},${b})`;
+                        ctx.fillRect(x, y, Math.min(block, w - x), Math.min(block, h - y));
+                    }
+                }
+            };
             const start = (e) => {
                 if (!ctx) return;
                 activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -4300,18 +4433,24 @@
                     return;
                 }
                 if (pinching) return;
+                if (markerState.mode === 'crop') return;
                 drawing = true;
-                const size = sizeInput ? Number(sizeInput.value || 16) : 16;
-                ctx.strokeStyle = markerState.color;
-                ctx.lineWidth = size;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
                 const p = getPoint(e);
-                ctx.beginPath();
-                ctx.moveTo(p.x, p.y);
-                ctx.lineTo(p.x, p.y);
-                ctx.stroke();
-                markerState.hasStroke = true;
+                if (markerState.mode === 'mosaic') {
+                    applyMosaicAt(p);
+                    markerState.hasStroke = true;
+                } else {
+                    const size = sizeInput ? Number(sizeInput.value || 16) : 16;
+                    ctx.strokeStyle = markerState.color;
+                    ctx.lineWidth = size;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                    ctx.lineTo(p.x, p.y);
+                    ctx.stroke();
+                    markerState.hasStroke = true;
+                }
                 if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
                 e.preventDefault();
             };
@@ -4335,8 +4474,12 @@
                 }
                 if (!drawing || !ctx) return;
                 const p = getPoint(e);
-                ctx.lineTo(p.x, p.y);
-                ctx.stroke();
+                if (markerState.mode === 'mosaic') {
+                    applyMosaicAt(p);
+                } else {
+                    ctx.lineTo(p.x, p.y);
+                    ctx.stroke();
+                }
                 e.preventDefault();
             };
             const end = (e) => {
@@ -4360,6 +4503,106 @@
             canvas.addEventListener('pointercancel', end);
             canvas.addEventListener('pointerleave', end);
         }
+        function initCropCanvas() {
+            const cropCanvas = get('marker-crop-canvas');
+            if (!cropCanvas) return;
+            const ctx = cropCanvas.getContext('2d');
+            const activePointers = new Map();
+            let dragging = false;
+            let dragStart = null;
+            let pinching = false;
+            let pinchStartDist = 0;
+            let pinchStartScale = markerView.scale;
+            let pinchStartOffset = { x: 0, y: 0 };
+            let pinchStartMid = { x: 0, y: 0 };
+            const getPoint = (e) => {
+                const rect = cropCanvas.getBoundingClientRect();
+                const x = (e.clientX - rect.left) * (cropCanvas.width / rect.width);
+                const y = (e.clientY - rect.top) * (cropCanvas.height / rect.height);
+                return { x, y };
+            };
+            const getMid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+            const getDist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+            const start = (e) => {
+                if (markerState.mode !== 'crop') return;
+                activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                if (activePointers.size >= 2) {
+                    const pts = Array.from(activePointers.values());
+                    const p1 = pts[0];
+                    const p2 = pts[1];
+                    pinching = true;
+                    dragging = false;
+                    pinchStartDist = getDist(p1, p2) || 1;
+                    pinchStartScale = markerView.scale;
+                    pinchStartOffset = { x: markerView.offsetX, y: markerView.offsetY };
+                    pinchStartMid = getMid(p1, p2);
+                    if (cropCanvas.setPointerCapture) cropCanvas.setPointerCapture(e.pointerId);
+                    e.preventDefault();
+                    return;
+                }
+                if (pinching) return;
+                dragging = true;
+                dragStart = getPoint(e);
+                markerState.cropRect = { x: dragStart.x, y: dragStart.y, w: 1, h: 1 };
+                renderCropOverlay();
+                if (cropCanvas.setPointerCapture) cropCanvas.setPointerCapture(e.pointerId);
+                e.preventDefault();
+            };
+            const move = (e) => {
+                if (markerState.mode !== 'crop') return;
+                if (activePointers.has(e.pointerId)) {
+                    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                }
+                if (pinching && activePointers.size >= 2) {
+                    const pts = Array.from(activePointers.values());
+                    const p1 = pts[0];
+                    const p2 = pts[1];
+                    const mid = getMid(p1, p2);
+                    const dist = getDist(p1, p2) || 1;
+                    const nextScale = pinchStartScale * (dist / pinchStartDist);
+                    markerView.scale = Math.min(markerView.maxScale, Math.max(markerView.minScale, nextScale));
+                    markerView.offsetX = pinchStartOffset.x + (mid.x - pinchStartMid.x);
+                    markerView.offsetY = pinchStartOffset.y + (mid.y - pinchStartMid.y);
+                    applyMarkerTransform();
+                    renderCropOverlay();
+                    e.preventDefault();
+                    return;
+                }
+                if (!dragging || !dragStart) return;
+                const p = getPoint(e);
+                const x = Math.min(dragStart.x, p.x);
+                const y = Math.min(dragStart.y, p.y);
+                const w = Math.abs(p.x - dragStart.x);
+                const h = Math.abs(p.y - dragStart.y);
+                markerState.cropRect = { x, y, w, h };
+                renderCropOverlay();
+                e.preventDefault();
+            };
+            const end = (e) => {
+                activePointers.delete(e.pointerId);
+                if (activePointers.size < 2) {
+                    pinching = false;
+                }
+                if (activePointers.size === 0) {
+                    if (dragging && markerState.cropRect) {
+                        const minSize = 8;
+                        if (markerState.cropRect.w < minSize || markerState.cropRect.h < minSize) {
+                            markerState.cropRect = null;
+                        }
+                        renderCropOverlay();
+                    }
+                    dragging = false;
+                    dragStart = null;
+                }
+                if (cropCanvas.releasePointerCapture) cropCanvas.releasePointerCapture(e.pointerId);
+                e.preventDefault();
+            };
+            cropCanvas.addEventListener('pointerdown', start);
+            cropCanvas.addEventListener('pointermove', move);
+            cropCanvas.addEventListener('pointerup', end);
+            cropCanvas.addEventListener('pointercancel', end);
+            cropCanvas.addEventListener('pointerleave', end);
+        }
         async function saveMarkerToRow() {
             const row = markerState.row;
             const img = get('marker-image');
@@ -4369,7 +4612,7 @@
             if (attachOriginal) {
                 row.dataset.attachOriginal = attachOriginal.checked ? '1' : '';
             }
-            const out = document.createElement('canvas');
+            let out = document.createElement('canvas');
             const w = markerState.naturalWidth || img.naturalWidth || canvas.width;
             const h = markerState.naturalHeight || img.naturalHeight || canvas.height;
             out.width = w;
@@ -4378,6 +4621,22 @@
             if (!octx) return;
             octx.drawImage(img, 0, 0, w, h);
             octx.drawImage(canvas, 0, 0, w, h);
+            if (markerState.cropRect) {
+                const scaleX = w / canvas.width;
+                const scaleY = h / canvas.height;
+                const cx = Math.max(0, Math.floor(markerState.cropRect.x * scaleX));
+                const cy = Math.max(0, Math.floor(markerState.cropRect.y * scaleY));
+                const cw = Math.min(w, Math.max(1, Math.floor(markerState.cropRect.w * scaleX)));
+                const ch = Math.min(h, Math.max(1, Math.floor(markerState.cropRect.h * scaleY)));
+                const cropped = document.createElement('canvas');
+                cropped.width = cw;
+                cropped.height = ch;
+                const cctx = cropped.getContext('2d');
+                if (cctx) {
+                    cctx.drawImage(out, cx, cy, cw, ch, 0, 0, cw, ch);
+                    out = cropped;
+                }
+            }
             const blob = await new Promise((resolve) => out.toBlob(resolve, 'image/png', 0.92));
             if (!blob) {
                 showToast("マーカー画像の生成に失敗しました", "error", true);

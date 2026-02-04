@@ -4380,7 +4380,7 @@ def handle_threads():
         q = request.args.get('q', '').strip()
         page = request.args.get('page', 1, type=int)
         per_page = 20
-        query = Thread.query.filter_by(user_id=current_user.id)
+        query = Thread.query.filter_by(user_id=current_user.id).filter(~Thread.title.startswith("[LIBRARY]"))
         if q: 
             if current_user.enable_e2ee: query = query.filter(Thread.title.contains(q))
             else: query = query.join(Message).filter(or_(Thread.title.contains(q), Message.content.contains(q))).distinct()
@@ -4629,6 +4629,112 @@ def get_files_lib():
                 })
         return jsonify(files)
     except: return jsonify([])
+
+def _auto_link_orphan_uploads_once():
+    marker = os.path.join(app.config['UPLOAD_FOLDER'], '.auto_link_orphans_done')
+    lock = marker + '.lock'
+    if os.path.exists(marker):
+        return
+    try:
+        if os.path.exists(lock):
+            try:
+                if time.time() - os.path.getmtime(lock) > 3600:
+                    os.remove(lock)
+            except Exception:
+                pass
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except Exception:
+        return
+    try:
+        try:
+            os.write(fd, str(time.time()).encode('utf-8'))
+        except Exception:
+            pass
+        title = "[LIBRARY] Auto-linked Uploads"
+        allowed_exts = {'.txt', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm', '.mp4', '.mov', '.mkv', '.avi', '.m4v'}
+        users = User.query.all()
+        for u in users:
+            try:
+                ud = os.path.join(app.config['UPLOAD_FOLDER'], str(u.id))
+                if not os.path.isdir(ud):
+                    continue
+                referenced = set()
+                msgs = Message.query.join(Thread).filter(Thread.user_id == u.id, Message.image_url != None).all()
+                for m in msgs:
+                    if not m.image_url:
+                        continue
+                    try:
+                        l = json.loads(m.image_url)
+                        if not isinstance(l, list):
+                            l = [m.image_url]
+                    except Exception:
+                        l = [m.image_url]
+                    for p in l:
+                        if p:
+                            referenced.add(p)
+                unlinked = []
+                seen_names = set()
+                for entry in os.scandir(ud):
+                    if not entry.is_file():
+                        continue
+                    name = entry.name
+                    if name.startswith('.'):
+                        continue
+                    if name.endswith('.enc'):
+                        base_name = name[:-4]
+                    else:
+                        base_name = name
+                    if not base_name or base_name in seen_names:
+                        continue
+                    seen_names.add(base_name)
+                    ext = os.path.splitext(base_name)[1].lower()
+                    if not ext or ext not in allowed_exts:
+                        continue
+                    rel_path = f"{u.id}/{base_name}"
+                    if rel_path in referenced:
+                        continue
+                    unlinked.append(rel_path)
+                if not unlinked:
+                    continue
+                thread = Thread.query.filter_by(user_id=u.id, title=title).first()
+                if not thread:
+                    thread = Thread(user_id=u.id, title=title, public_id=generate_thread_public_id())
+                    db.session.add(thread)
+                    safe_db_commit()
+                chunk_size = 40
+                for i in range(0, len(unlinked), chunk_size):
+                    chunk = unlinked[i:i + chunk_size]
+                    content = "Auto-linked uploads (one-time scan)"
+                    msg_content = encrypt_val(content) if u.enable_e2ee else content
+                    m = Message(
+                        thread_id=thread.id,
+                        role='user',
+                        content=msg_content,
+                        image_url=json.dumps(chunk),
+                        is_encrypted=u.enable_e2ee,
+                        tokens=0,
+                        tokens_in=0
+                    )
+                    db.session.add(m)
+                thread.updated_at = datetime.utcnow()
+                safe_db_commit()
+            except Exception:
+                continue
+        try:
+            with open(marker, 'w', encoding='utf-8') as f:
+                f.write(f"done {datetime.utcnow().isoformat()}Z\n")
+        except Exception:
+            pass
+    finally:
+        try:
+            os.close(fd)
+        except Exception:
+            pass
+        try:
+            if os.path.exists(lock):
+                os.remove(lock)
+        except Exception:
+            pass
 
 @app.route('/api/files/delete', methods=['POST'])
 @login_required
@@ -5907,6 +6013,10 @@ with app.app_context():
             logger.error(f"db.create_all failed: {e}")
         except Exception:
             pass
+    try:
+        _auto_link_orphan_uploads_once()
+    except Exception:
+        pass
     try:
         ensure_thread_last_model_column()
     except Exception:

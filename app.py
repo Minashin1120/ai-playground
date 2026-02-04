@@ -166,6 +166,24 @@ _OPENAI_IMAGE_OUTPUT_FORMAT = _env_choice(
 _OPENAI_IMAGE_OUTPUT_COMPRESSION = _env_int("OPENAI_IMAGE_OUTPUT_COMPRESSION", 85)
 if _OPENAI_IMAGE_OUTPUT_COMPRESSION < 0 or _OPENAI_IMAGE_OUTPUT_COMPRESSION > 100:
     _OPENAI_IMAGE_OUTPUT_COMPRESSION = 85
+_MEDIA_FRAME_COUNT = _env_int("MEDIA_FRAME_COUNT", 3)
+_MEDIA_FRAME_MAX_WIDTH = _env_int("MEDIA_FRAME_MAX_WIDTH", 512)
+_MEDIA_AUDIO_SAMPLE_RATE = _env_int("MEDIA_AUDIO_SAMPLE_RATE", 16000)
+_MEDIA_TRANSCRIBE_MAX_SECONDS = _env_int("MEDIA_TRANSCRIBE_MAX_SECONDS", 600)
+_MEDIA_TRANSCRIBE_MAX_BYTES = _env_int("MEDIA_TRANSCRIBE_MAX_BYTES", 25 * 1024 * 1024)
+_MEDIA_TRANSCRIPT_CHAR_LIMIT = _env_int("MEDIA_TRANSCRIPT_CHAR_LIMIT", 20000)
+if _MEDIA_FRAME_COUNT < 0:
+    _MEDIA_FRAME_COUNT = 0
+if _MEDIA_FRAME_MAX_WIDTH < 64:
+    _MEDIA_FRAME_MAX_WIDTH = 64
+if _MEDIA_AUDIO_SAMPLE_RATE <= 0:
+    _MEDIA_AUDIO_SAMPLE_RATE = 16000
+if _MEDIA_TRANSCRIBE_MAX_SECONDS < 0:
+    _MEDIA_TRANSCRIBE_MAX_SECONDS = 0
+if _MEDIA_TRANSCRIBE_MAX_BYTES < 0:
+    _MEDIA_TRANSCRIBE_MAX_BYTES = 0
+if _MEDIA_TRANSCRIPT_CHAR_LIMIT < 0:
+    _MEDIA_TRANSCRIPT_CHAR_LIMIT = 0
 RUN_SCHEMA_MIGRATIONS = _env_bool("RUN_SCHEMA_MIGRATIONS", False)
 
 _XAI_API_HOST = os.getenv("XAI_API_HOST", "api.x.ai").strip() or "api.x.ai"
@@ -541,6 +559,253 @@ def _pcm_to_wav_bytes(pcm_bytes, rate=24000):
         wf.setframerate(rate)
         wf.writeframes(pcm_bytes)
     return buf.getvalue()
+
+def _ffprobe_duration_seconds(path):
+    try:
+        out = subprocess.check_output(
+            [
+                "ffprobe",
+                "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=nw=1:nk=1",
+                path
+            ],
+            stderr=subprocess.DEVNULL
+        )
+        val = float(out.decode("utf-8", errors="ignore").strip())
+        return val if val > 0 else None
+    except Exception:
+        return None
+
+def _extract_audio_from_video_bytes(video_bytes, src_suffix=".mp4", rate=16000, max_seconds=None):
+    if not video_bytes:
+        return None
+    suffix = src_suffix if src_suffix.startswith('.') else f".{src_suffix}"
+    with tempfile.NamedTemporaryFile(suffix=suffix) as in_f, tempfile.NamedTemporaryFile(suffix=".wav") as out_f:
+        in_f.write(video_bytes)
+        in_f.flush()
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", in_f.name,
+            "-vn",
+            "-ac", "1",
+            "-ar", str(rate)
+        ]
+        if max_seconds and max_seconds > 0:
+            cmd += ["-t", str(max_seconds)]
+        cmd += ["-f", "wav", out_f.name]
+        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        out_f.seek(0)
+        return out_f.read()
+
+def _extract_video_frames(video_bytes, src_suffix=".mp4", max_frames=3, max_width=512):
+    frames = []
+    if not video_bytes or max_frames <= 0:
+        return frames, None
+    suffix = src_suffix if src_suffix.startswith('.') else f".{src_suffix}"
+    with tempfile.NamedTemporaryFile(suffix=suffix) as in_f:
+        in_f.write(video_bytes)
+        in_f.flush()
+        duration = _ffprobe_duration_seconds(in_f.name)
+        times = [0.0]
+        if duration and duration > 1:
+            times.extend([duration * 0.5, duration * 0.9])
+        seen = set()
+        ordered = []
+        for t in times:
+            try:
+                t = max(0.0, float(t))
+            except Exception:
+                t = 0.0
+            key = round(t, 2)
+            if key in seen:
+                continue
+            seen.add(key)
+            ordered.append(t)
+        times = ordered[:max_frames]
+        for t in times:
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".jpg") as out_f:
+                    cmd = [
+                        "ffmpeg", "-y",
+                        "-ss", str(t),
+                        "-i", in_f.name,
+                        "-frames:v", "1",
+                        "-vf", f"scale='min({_MEDIA_FRAME_MAX_WIDTH},iw)':-2",
+                        "-q:v", "4",
+                        out_f.name
+                    ]
+                    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    out_f.seek(0)
+                    data = out_f.read()
+                    if data:
+                        frames.append(data)
+            except Exception:
+                continue
+    return frames, duration
+
+def _normalize_stt_model(model):
+    allowed = {
+        "gpt-4o-mini-transcribe",
+        "gpt-4o-transcribe",
+        "gpt-4o-transcribe-diarize",
+        "whisper-1"
+    }
+    if model in allowed:
+        return model
+    return "gpt-4o-mini-transcribe"
+
+def _trim_transcript(text):
+    if not text:
+        return text
+    limit = _MEDIA_TRANSCRIPT_CHAR_LIMIT
+    if limit and len(text) > limit:
+        return text[:limit] + "\n...(truncated)"
+    return text
+
+def _transcribe_audio_bytes(audio_bytes, filename, openai_key, model=None):
+    if not audio_bytes or not openai_key:
+        return None
+    if _MEDIA_TRANSCRIBE_MAX_BYTES and len(audio_bytes) > _MEDIA_TRANSCRIBE_MAX_BYTES:
+        return None
+    try:
+        client = _get_openai_client(openai_key, base_url=None)
+        audio_file = BytesIO(audio_bytes)
+        audio_file.name = filename or "audio.wav"
+        model = _normalize_stt_model(model or "")
+        kwargs = {"model": model, "file": audio_file}
+        if model == "gpt-4o-transcribe-diarize":
+            kwargs["response_format"] = "diarized_json"
+            kwargs["chunking_strategy"] = "auto"
+        transcription = client.audio.transcriptions.create(**kwargs)
+        transcript = ""
+        segments = None
+        if isinstance(transcription, dict):
+            transcript = transcription.get("text") or ""
+            segments = transcription.get("segments")
+        else:
+            transcript = getattr(transcription, "text", "") or ""
+            segments = getattr(transcription, "segments", None)
+        if model == "gpt-4o-transcribe-diarize" and segments:
+            lines = []
+            for seg in segments:
+                if isinstance(seg, dict):
+                    speaker = seg.get("speaker") or "Speaker"
+                    text = seg.get("text") or ""
+                else:
+                    speaker = getattr(seg, "speaker", None) or "Speaker"
+                    text = getattr(seg, "text", "") or ""
+                if text:
+                    lines.append(f"{speaker}: {text}")
+            if lines:
+                transcript = "\n".join(lines)
+        transcript = transcript.strip()
+        return transcript or None
+    except Exception as e:
+        log_force(f"Transcription failed: {e}")
+        return None
+
+def _expand_audio_file(fi, openai_key=None, stt_model=None):
+    out = []
+    if fi.get('bytes'):
+        out.append(fi)
+    name = fi.get('name') or 'audio'
+    mime = (fi.get('mime') or 'audio').lower()
+    note_lines = [f"[Audio Attachment: {name}]", f"- MIME: {mime}"]
+    transcript = None
+    if fi.get('bytes'):
+        if _MEDIA_TRANSCRIBE_MAX_BYTES and len(fi['bytes']) > _MEDIA_TRANSCRIBE_MAX_BYTES:
+            note_lines.append("- Transcript: skipped (audio too large)")
+        else:
+            transcript = _transcribe_audio_bytes(fi['bytes'], os.path.basename(name), openai_key, stt_model)
+            if transcript:
+                transcript = _trim_transcript(transcript)
+                note_lines.append("Transcript:\n" + transcript)
+            else:
+                note_lines.append("- Transcript: unavailable")
+    else:
+        note_lines.append("- Transcript: unavailable")
+    out.append({'name': name, 'text': "\n".join(note_lines), 'bytes': None, 'mime': 'text/plain'})
+    return out
+
+def _expand_video_file(fi, openai_key=None, stt_model=None):
+    out = []
+    name = fi.get('name') or 'video'
+    base = os.path.basename(name)
+    mime = (fi.get('mime') or 'video').lower()
+    note_lines = [f"[Video Attachment: {name}]", f"- MIME: {mime}"]
+    data = fi.get('bytes')
+    duration = None
+    if data:
+        try:
+            ext = os.path.splitext(base)[1] or ".mp4"
+            frames, duration = _extract_video_frames(
+                data,
+                src_suffix=ext,
+                max_frames=_MEDIA_FRAME_COUNT,
+                max_width=_MEDIA_FRAME_MAX_WIDTH
+            )
+            if duration:
+                note_lines.append(f"- Duration: {duration:.1f}s")
+            if frames:
+                note_lines.append(f"- Frames extracted: {len(frames)} (attached as images)")
+                for idx, frame in enumerate(frames, start=1):
+                    out.append({'name': f"{name}#frame{idx}.jpg", 'text': None, 'bytes': frame, 'mime': 'image/jpeg'})
+            else:
+                note_lines.append("- Frames extracted: 0")
+        except Exception as e:
+            log_force(f"Video frame extraction failed ({name}): {e}")
+            note_lines.append("- Frames extracted: failed")
+        audio_bytes = None
+        try:
+            ext = os.path.splitext(base)[1] or ".mp4"
+            audio_bytes = _extract_audio_from_video_bytes(
+                data,
+                src_suffix=ext,
+                rate=_MEDIA_AUDIO_SAMPLE_RATE,
+                max_seconds=_MEDIA_TRANSCRIBE_MAX_SECONDS if _MEDIA_TRANSCRIBE_MAX_SECONDS else None
+            )
+        except Exception as e:
+            log_force(f"Video audio extraction failed ({name}): {e}")
+            audio_bytes = None
+        if audio_bytes:
+            out.append({'name': f"{name}#audio.wav", 'text': None, 'bytes': audio_bytes, 'mime': 'audio/wav'})
+            if _MEDIA_TRANSCRIBE_MAX_SECONDS and duration and duration > _MEDIA_TRANSCRIBE_MAX_SECONDS:
+                note_lines.append(f"- Audio extracted: first {_MEDIA_TRANSCRIBE_MAX_SECONDS}s")
+            else:
+                note_lines.append("- Audio extracted: yes")
+            if _MEDIA_TRANSCRIBE_MAX_BYTES and len(audio_bytes) > _MEDIA_TRANSCRIBE_MAX_BYTES:
+                note_lines.append("- Audio transcript: skipped (audio too large)")
+            else:
+                transcript = _transcribe_audio_bytes(audio_bytes, f"{base}.wav", openai_key, stt_model)
+                if transcript:
+                    transcript = _trim_transcript(transcript)
+                    note_lines.append("Audio Transcript:\n" + transcript)
+                else:
+                    note_lines.append("- Audio transcript: unavailable")
+        else:
+            note_lines.append("- Audio extracted: none")
+    else:
+        note_lines.append("- Video bytes unavailable")
+    out.append({'name': name, 'text': "\n".join(note_lines), 'bytes': None, 'mime': 'text/plain'})
+    return out
+
+def _expand_media_inputs(files, openai_key=None, stt_model=None):
+    if not files:
+        return []
+    expanded = []
+    for fi in files:
+        if not isinstance(fi, dict):
+            expanded.append(fi)
+            continue
+        mime = (fi.get('mime') or '').lower()
+        if mime.startswith('video/'):
+            expanded.extend(_expand_video_file(fi, openai_key=openai_key, stt_model=stt_model))
+        elif mime.startswith('audio/'):
+            expanded.extend(_expand_audio_file(fi, openai_key=openai_key, stt_model=stt_model))
+        else:
+            expanded.append(fi)
+    return expanded
 
 def _save_user_audio(user_id, data, suffix, encrypt):
     user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
@@ -1908,6 +2173,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             loaded_files.append({'name': fn, 'text': extracted[:50000], 'bytes': None, 'mime': 'application/pdf'})
                         else: loaded_files.append({'name': fn, 'text': None, 'bytes': data, 'mime': mime})
                 except: pass
+
+            try:
+                loaded_files = _expand_media_inputs(
+                    loaded_files,
+                    openai_key=api_keys.get('openai'),
+                    stt_model=getattr(user, "stt_model", None)
+                )
+            except Exception as e:
+                log_force(f"Media expansion failed: {e}")
 
             full_res, thought_accumulated, generated_images = "", "", []
             signature_parts = []

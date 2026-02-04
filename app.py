@@ -1835,6 +1835,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             is_gem = 'gemini' in model_key_l or 'nano' in model_key_l
             is_grok = 'grok' in model_key_l and 'gpt' not in model_key_l
             grok_reasoning_supported = ("grok-3-mini" in model_key_l) or ("reasoning" in model_key_l and "non-reasoning" not in model_key_l)
+            grok_reasoning_effort_supported = "grok-3-mini" in model_key_l
 
             def _grok_reasoning_effort():
                 raw = (options.get('reasoning_effort') or "").lower().strip()
@@ -2667,8 +2668,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 if search_params: create_kwargs["search_parameters"] = search_params
                 if tools: create_kwargs["tools"] = tools
                 if include: create_kwargs["include"] = include
-                if options.get('enable_thinking') and grok_reasoning_supported:
+                if options.get('enable_thinking') and grok_reasoning_effort_supported:
                     create_kwargs["reasoning_effort"] = _grok_reasoning_effort()
+                elif options.get('enable_thinking') and grok_reasoning_supported:
+                    log_force("Grok reasoning_effort not supported for this model; skipping parameter")
                 create_kwargs["use_encrypted_content"] = True # Request encrypted reasoning if available
                 if options.get('enable_python') and XAI_SDK_AVAILABLE:
                     create_kwargs["tools"] = [x_code_execution()]
@@ -3160,9 +3163,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if "gpt-5-mini" in model_key_l and effort == "none":
                         return "minimal"
                     return effort
-                if is_grok and enable_reasoning and grok_reasoning_supported:
+                if is_grok and enable_reasoning and grok_reasoning_effort_supported:
                     kwargs['reasoning'] = {"effort": _grok_reasoning_effort()}
                     log_force(f"Grok reasoning config: {kwargs['reasoning']}")
+                elif is_grok and enable_reasoning and grok_reasoning_supported:
+                    log_force("Grok reasoning_effort not supported for this model; skipping reasoning param")
                 elif is_reasoning_model and enable_reasoning:
                     effort = req_reasoning_effort
                     if not effort:

@@ -4588,6 +4588,7 @@ def get_files_lib():
         msgs = Message.query.join(Thread).filter(Thread.user_id == current_user.id, Message.image_url != None).order_by(Message.timestamp.desc()).all()
         files = []
         seen = set()
+        image_exts = {'png','jpg','jpeg','webp','gif'}
         for m in msgs:
             if not m.image_url: continue
             try:
@@ -4600,7 +4601,7 @@ def get_files_lib():
                     if os.path.exists(fp) or os.path.exists(fp + '.enc'):
                         seen.add(p)
                         ext = os.path.splitext(p)[1].lower().replace('.', '')
-                        files.append({'filename': os.path.basename(p), 'filepath': p, 'url': url_for('serve_file', filename=p), 'type': 'image' if ext in ['png','jpg','webp'] else 'file', 'ext': ext})
+                        files.append({'filename': os.path.basename(p), 'filepath': p, 'url': url_for('serve_file', filename=p), 'type': 'image' if ext in image_exts else 'file', 'ext': ext})
         # Include uploaded files that are not yet attached to any message
         ud = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
         if os.path.isdir(ud):
@@ -4608,6 +4609,8 @@ def get_files_lib():
                 if not entry.is_file():
                     continue
                 name = entry.name
+                if name.startswith('.'):
+                    continue
                 is_enc = name.endswith('.enc')
                 base_name = name[:-4] if is_enc else name
                 if not base_name:
@@ -4616,14 +4619,12 @@ def get_files_lib():
                 if rel_path in seen:
                     continue
                 ext = os.path.splitext(base_name)[1].lower().replace('.', '')
-                if not ext:
-                    continue
                 seen.add(rel_path)
                 files.append({
                     'filename': os.path.basename(rel_path),
                     'filepath': rel_path,
                     'url': url_for('serve_file', filename=rel_path),
-                    'type': 'image' if ext in ['png','jpg','webp','jpeg','gif'] else 'file',
+                    'type': 'image' if ext in image_exts else 'file',
                     'ext': ext
                 })
         return jsonify(files)

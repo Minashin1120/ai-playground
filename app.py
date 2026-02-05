@@ -1740,6 +1740,38 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             except Exception:
                 return sample.decode('utf-8', errors='replace')
 
+        _AUDIO_MIME_BY_EXT = {
+            ".wav": "audio/wav",
+            ".mp3": "audio/mpeg",
+            ".m4a": "audio/mp4",
+            ".ogg": "audio/ogg",
+            ".flac": "audio/flac",
+            ".webm": "audio/webm"
+        }
+        _VIDEO_MIME_BY_EXT = {
+            ".mp4": "video/mp4",
+            ".m4v": "video/mp4",
+            ".mov": "video/quicktime",
+            ".mkv": "video/x-matroska",
+            ".avi": "video/x-msvideo",
+            ".webm": "video/webm"
+        }
+
+        def _normalize_media_mime(filename, mime_guess):
+            ext = os.path.splitext(filename or "")[1].lower()
+            mg = (mime_guess or "").lower()
+            if ext in _VIDEO_MIME_BY_EXT:
+                if (not mg) or (not mg.startswith("video/")) or ("text" in mg):
+                    return _VIDEO_MIME_BY_EXT[ext]
+            if ext in _AUDIO_MIME_BY_EXT:
+                if (not mg) or (not mg.startswith("audio/")) or ("text" in mg):
+                    return _AUDIO_MIME_BY_EXT[ext]
+            if ext == ".pdf":
+                return "application/pdf"
+            if ext == ".txt":
+                return "text/plain"
+            return mime_guess or "application/octet-stream"
+
         try:
             log_force(f"Task Start: model={model_key}, user={user_id}")
             user = User.query.get(user_id)
@@ -1947,14 +1979,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 ep = bp + '.enc'
                 data = None
                 is_pdf = fn.lower().endswith('.pdf')
-                mime_guess = mimetypes.guess_type(bp)[0] or 'application/octet-stream'
-                is_text = mime_guess.startswith('text/') or fn.lower().endswith('.txt')
+                mime_guess = mimetypes.guess_type(bp)[0]
+                mime = _normalize_media_mime(fn, mime_guess)
+                is_text = (mime or '').startswith('text/') or fn.lower().endswith('.txt')
                 if is_pdf:
                     mime = 'application/pdf'
                 elif is_text:
                     mime = 'text/plain'
-                else:
-                    mime = mime_guess
                 try:
                     if os.path.exists(bp):
                         with open(bp, 'rb') as f: data = f.read()
@@ -2289,7 +2320,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                     curr_parts = [types.Part(text=final_message_text)]
                     use_raw_parts = False
-                    media_inline_limit = 20 * 1024 * 1024  # 20MiB limit for inline audio/video
+                    media_inline_limit = 20 * 1024 * 1024  # 20MiB limit for inline audio
 
                     def _normalize_gemini_audio(data, mime, name=""):
                         if not data or not mime:
@@ -2391,20 +2422,17 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 video_bytes = fi['bytes']
                                 video_mime = fi.get('mime') or mime
                                 video_name = fi.get('name') or "video"
-                                if len(video_bytes) <= media_inline_limit:
-                                    curr_parts.append(types.Part.from_bytes(data=video_bytes, mime_type=video_mime))
+                                with tempfile.NamedTemporaryFile(suffix=os.path.splitext(video_name or '')[1] or '.bin') as tmp:
+                                    tmp.write(video_bytes)
+                                    tmp.flush()
+                                    up = g_client.files.upload(file=tmp.name, config={"mimeType": video_mime})
+                                uri = getattr(up, "uri", None) or getattr(up, "name", None) or (up.get("uri") if isinstance(up, dict) else None)
+                                up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or video_mime
+                                if uri and hasattr(types.Part, "from_uri"):
+                                    curr_parts.append(types.Part.from_uri(uri=uri, mime_type=up_mime))
                                 else:
-                                    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(video_name or '')[1] or '.bin') as tmp:
-                                        tmp.write(video_bytes)
-                                        tmp.flush()
-                                        up = g_client.files.upload(file=tmp.name, config={"mimeType": video_mime})
-                                    uri = getattr(up, "uri", None) or getattr(up, "name", None) or (up.get("uri") if isinstance(up, dict) else None)
-                                    up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or video_mime
-                                    if uri and hasattr(types.Part, "from_uri"):
-                                        curr_parts.append(types.Part.from_uri(uri=uri, mime_type=up_mime))
-                                    else:
-                                        use_raw_parts = True
-                                        curr_parts.append(up)
+                                    use_raw_parts = True
+                                    curr_parts.append(up)
                             except Exception as e:
                                 log_force(f"Gemini video upload failed: {e}")
                             continue

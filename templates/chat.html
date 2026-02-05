@@ -4241,7 +4241,8 @@
                 bar: row.querySelector('.upload-progress > div')
             };
         }
-        const CHUNK_THRESHOLD_BYTES = 80 * 1024 * 1024;
+        // Use chunked upload for medium/large files to avoid proxy/body size limits.
+        const CHUNK_THRESHOLD_BYTES = 20 * 1024 * 1024;
         async function uploadFileChunked(file, row) {
             if (!file) return false;
             try {

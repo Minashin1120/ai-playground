@@ -19,6 +19,7 @@ import qrcode
 import wave
 import asyncio
 import tempfile
+from urllib.parse import urlparse, unquote
 import threading
 import hashlib
 import httpx
@@ -1772,6 +1773,36 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 return "text/plain"
             return mime_guess or "application/octet-stream"
 
+        def _normalize_upload_ref(ref):
+            if not ref:
+                return None
+            try:
+                val = str(ref).strip()
+            except Exception:
+                return None
+            if not val:
+                return None
+            if "://" in val:
+                try:
+                    val = urlparse(val).path or ""
+                except Exception:
+                    pass
+            if "?" in val:
+                val = val.split("?", 1)[0]
+            if "#" in val:
+                val = val.split("#", 1)[0]
+            val = val.lstrip("/")
+            if val.startswith("files/"):
+                val = val[len("files/"):]
+            try:
+                val = unquote(val)
+            except Exception:
+                pass
+            norm = os.path.normpath(val)
+            if norm.startswith("..") or os.path.isabs(norm):
+                return None
+            return norm
+
         try:
             log_force(f"Task Start: model={model_key}, user={user_id}")
             user = User.query.get(user_id)
@@ -1974,14 +2005,18 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             else: o_client = _get_openai_client(key, base_url=None)
 
             loaded_files = []
+            missing_files = []
             for fn in img_list:
-                bp = os.path.join(app.config['UPLOAD_FOLDER'], fn)
+                clean_fn = _normalize_upload_ref(fn)
+                if not clean_fn:
+                    continue
+                bp = os.path.join(app.config['UPLOAD_FOLDER'], clean_fn)
                 ep = bp + '.enc'
                 data = None
-                is_pdf = fn.lower().endswith('.pdf')
+                is_pdf = clean_fn.lower().endswith('.pdf')
                 mime_guess = mimetypes.guess_type(bp)[0]
-                mime = _normalize_media_mime(fn, mime_guess)
-                is_text = (mime or '').startswith('text/') or fn.lower().endswith('.txt')
+                mime = _normalize_media_mime(clean_fn, mime_guess)
+                is_text = (mime or '').startswith('text/') or clean_fn.lower().endswith('.txt')
                 if is_pdf:
                     mime = 'application/pdf'
                 elif is_text:
@@ -2000,7 +2035,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             except Exception:
                                 extracted = None
                             loaded_files.append({
-                                'name': fn,
+                                'name': clean_fn,
                                 'text': extracted[:50000] if extracted else None,
                                 'bytes': data,
                                 'mime': mime,
@@ -2010,7 +2045,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         elif is_text:
                             extracted = _decode_text_bytes(data)
                             loaded_files.append({
-                                'name': fn,
+                                'name': clean_fn,
                                 'text': extracted[:50000] if extracted else None,
                                 'bytes': data,
                                 'mime': mime,
@@ -2018,8 +2053,17 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 'is_text': True
                             })
                         else:
-                            loaded_files.append({'name': fn, 'text': None, 'bytes': data, 'mime': mime, 'is_pdf': False, 'is_text': False})
-                except: pass
+                            loaded_files.append({'name': clean_fn, 'text': None, 'bytes': data, 'mime': mime, 'is_pdf': False, 'is_text': False})
+                    else:
+                        missing_files.append(clean_fn)
+                except:
+                    missing_files.append(clean_fn)
+
+            if img_list and not loaded_files:
+                pub("error", "添付ファイルを読み込めませんでした。再アップロードしてから再送してください。")
+                return
+            if missing_files:
+                log_force(f"Missing attachments: {missing_files}")
 
             has_audio = any(fi.get('bytes') and str(fi.get('mime', '')).startswith('audio/') for fi in loaded_files)
             has_video = any(fi.get('bytes') and str(fi.get('mime', '')).startswith('video/') for fi in loaded_files)
@@ -2319,7 +2363,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if parts: contents.append(types.Content(role='model' if m['role'] == 'assistant' else 'user', parts=parts))
 
                     curr_parts = [types.Part(text=final_message_text)]
-                    use_raw_parts = False
                     media_inline_limit = 20 * 1024 * 1024  # 20MiB limit for inline audio
                     pending_file_error = None
 
@@ -2335,6 +2378,45 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if not fobj:
                             return None
                         return fobj.get("name") if isinstance(fobj, dict) else getattr(fobj, "name", None)
+
+                    def _gemini_file_uri(fobj):
+                        if not fobj:
+                            return None
+                        if isinstance(fobj, dict):
+                            return fobj.get("uri") or fobj.get("file_uri") or fobj.get("fileUri") or fobj.get("name")
+                        return (
+                            getattr(fobj, "uri", None)
+                            or getattr(fobj, "file_uri", None)
+                            or getattr(fobj, "fileUri", None)
+                            or getattr(fobj, "name", None)
+                        )
+
+                    def _make_gemini_uri_part(file_uri, mime):
+                        if not file_uri:
+                            return None
+                        if hasattr(types.Part, "from_uri"):
+                            try:
+                                return types.Part.from_uri(file_uri, mime_type=mime)
+                            except TypeError:
+                                try:
+                                    return types.Part.from_uri(file_uri, mime)
+                                except Exception:
+                                    try:
+                                        return types.Part.from_uri(file_uri=file_uri, mime_type=mime)
+                                    except Exception:
+                                        try:
+                                            return types.Part.from_uri(uri=file_uri, mime_type=mime)
+                                        except Exception:
+                                            return None
+                        if hasattr(types, "FileData"):
+                            try:
+                                return types.Part(file_data=types.FileData(file_uri=file_uri, mime_type=mime))
+                            except Exception:
+                                try:
+                                    return types.Part(file_data=types.FileData(file_uri=file_uri))
+                                except Exception:
+                                    return None
+                        return None
 
                     def _wait_gemini_file_active(fobj, label=""):
                         state = _gemini_file_state_name(fobj)
@@ -2390,13 +2472,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     if up_state and up_state != "ACTIVE":
                                         pending_file_error = f"PDFファイルの処理が完了していません（{up_state}）。少し待って再送してください。"
                                         break
-                                    uri = getattr(up, "uri", None) or getattr(up, "name", None) or (up.get("uri") if isinstance(up, dict) else None)
+                                    file_uri = _gemini_file_uri(up)
                                     up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or pdf_mime
-                                    if uri and hasattr(types.Part, "from_uri"):
-                                        curr_parts.append(types.Part.from_uri(uri=uri, mime_type=up_mime))
+                                    part = _make_gemini_uri_part(file_uri, up_mime)
+                                    if part:
+                                        curr_parts.append(part)
                                     else:
-                                        use_raw_parts = True
-                                        curr_parts.append(up)
+                                        pending_file_error = "PDFファイル参照の生成に失敗しました。再送してください。"
+                                        break
                             except Exception as e:
                                 log_force(f"Gemini PDF upload failed: {e}")
                                 if fi.get('text'):
@@ -2419,13 +2502,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     if up_state and up_state != "ACTIVE":
                                         pending_file_error = f"テキストファイルの処理が完了していません（{up_state}）。少し待って再送してください。"
                                         break
-                                    uri = getattr(up, "uri", None) or getattr(up, "name", None) or (up.get("uri") if isinstance(up, dict) else None)
+                                    file_uri = _gemini_file_uri(up)
                                     up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or txt_mime
-                                    if uri and hasattr(types.Part, "from_uri"):
-                                        curr_parts.append(types.Part.from_uri(uri=uri, mime_type=up_mime))
+                                    part = _make_gemini_uri_part(file_uri, up_mime)
+                                    if part:
+                                        curr_parts.append(part)
                                     else:
-                                        use_raw_parts = True
-                                        curr_parts.append(up)
+                                        pending_file_error = "テキストファイル参照の生成に失敗しました。再送してください。"
+                                        break
                                 attached = True
                             except Exception as e:
                                 log_force(f"Gemini text file upload failed: {e}")
@@ -2454,15 +2538,18 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     if up_state and up_state != "ACTIVE":
                                         pending_file_error = f"音声ファイルの処理が完了していません（{up_state}）。少し待って再送してください。"
                                         break
-                                    uri = getattr(up, "uri", None) or getattr(up, "name", None) or (up.get("uri") if isinstance(up, dict) else None)
+                                    file_uri = _gemini_file_uri(up)
                                     up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or audio_mime
-                                    if uri and hasattr(types.Part, "from_uri"):
-                                        curr_parts.append(types.Part.from_uri(uri=uri, mime_type=up_mime))
+                                    part = _make_gemini_uri_part(file_uri, up_mime)
+                                    if part:
+                                        curr_parts.append(part)
                                     else:
-                                        use_raw_parts = True
-                                        curr_parts.append(up)
+                                        pending_file_error = "音声ファイル参照の生成に失敗しました。再送してください。"
+                                        break
                             except Exception as e:
                                 log_force(f"Gemini audio upload failed: {e}")
+                                pending_file_error = "音声ファイルのアップロードに失敗しました。再送してください。"
+                                break
                             continue
                         if mime.startswith('video/'):
                             try:
@@ -2477,15 +2564,18 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 if up_state and up_state != "ACTIVE":
                                     pending_file_error = f"動画の処理が完了していません（{up_state}）。少し待って再送してください。"
                                     break
-                                uri = getattr(up, "uri", None) or getattr(up, "name", None) or (up.get("uri") if isinstance(up, dict) else None)
+                                file_uri = _gemini_file_uri(up)
                                 up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or video_mime
-                                if uri and hasattr(types.Part, "from_uri"):
-                                    curr_parts.append(types.Part.from_uri(uri=uri, mime_type=up_mime))
+                                part = _make_gemini_uri_part(file_uri, up_mime)
+                                if part:
+                                    curr_parts.append(part)
                                 else:
-                                    use_raw_parts = True
-                                    curr_parts.append(up)
+                                    pending_file_error = "動画ファイル参照の生成に失敗しました。再送してください。"
+                                    break
                             except Exception as e:
                                 log_force(f"Gemini video upload failed: {e}")
+                                pending_file_error = "動画ファイルのアップロードに失敗しました。再送してください。"
+                                break
                             continue
                         # Skip unsupported binary inputs for Gemini text models
                         pass
@@ -2494,10 +2584,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         pub("error", pending_file_error)
                         return
 
-                    if use_raw_parts:
-                        contents.extend(curr_parts)
-                    else:
-                        contents.append(types.Content(role='user', parts=curr_parts))
+                    contents.append(types.Content(role='user', parts=curr_parts))
 
                     grounding_chunks = None
                     grounding_supports = None

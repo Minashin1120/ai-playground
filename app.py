@@ -3154,6 +3154,26 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 text = text[:end_index] + "".join(citation_links) + text[end_index:]
                         return text
 
+                    def _extract_gemini_thought_text(part):
+                        if not part:
+                            return ""
+                        thought_val = getattr(part, 'thought', None)
+                        text_val = getattr(part, 'text', None)
+                        if isinstance(thought_val, str):
+                            return thought_val
+                        if isinstance(thought_val, dict):
+                            t_val = thought_val.get("text") or thought_val.get("content") or thought_val.get("value")
+                            if t_val is not None:
+                                return str(t_val)
+                        if thought_val is not None and not isinstance(thought_val, bool):
+                            for key in ("text", "content", "value"):
+                                t_val = getattr(thought_val, key, None)
+                                if t_val:
+                                    return str(t_val)
+                        if text_val:
+                            return str(text_val)
+                        return ""
+
                     stream = g_client.models.generate_content_stream(model=rm, contents=contents, config=types.GenerateContentConfig(**conf))
                     current_py_id = None
                     current_py_code = None
@@ -3169,7 +3189,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     if hasattr(part, 'thought_signature') and part.thought_signature:
                                         signature_parts.append(base64.b64encode(part.thought_signature).decode('utf-8'))
                                     if hasattr(part, 'thought') and part.thought:
-                                        thought_text = part.text or ""
+                                        thought_text = _extract_gemini_thought_text(part)
                                         if thought_text:
                                             thought_accumulated += thought_text
                                             pub("thought", thought_text)

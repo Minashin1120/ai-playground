@@ -1,5 +1,4 @@
 .env
-.env.backup.*
 secret.key
 virtualenv/
 __pycache__/

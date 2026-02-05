@@ -377,6 +377,165 @@ def _get_filestorage_size(fs):
         except Exception:
             return None
 
+def _normalize_upload_ref(ref):
+    if not ref:
+        return None
+    val = None
+    if isinstance(ref, dict):
+        for k in ("path", "filepath", "file", "url", "name"):
+            if ref.get(k):
+                val = ref.get(k)
+                break
+        if val is None:
+            return None
+    else:
+        val = ref
+    try:
+        val = str(val).strip()
+    except Exception:
+        return None
+    if not val:
+        return None
+    if "://" in val:
+        try:
+            val = urlparse(val).path or ""
+        except Exception:
+            pass
+    if "?" in val:
+        val = val.split("?", 1)[0]
+    if "#" in val:
+        val = val.split("#", 1)[0]
+    val = val.lstrip("/")
+    if val.startswith("files/"):
+        val = val[len("files/"):]
+    try:
+        val = unquote(val)
+    except Exception:
+        pass
+    norm = os.path.normpath(val)
+    if norm.startswith("..") or os.path.isabs(norm):
+        return None
+    return norm
+
+def _normalize_attachment_list(raw_list, user_id=None):
+    if not raw_list:
+        return []
+    normalized = []
+    seen = set()
+    for item in raw_list:
+        ref = _normalize_upload_ref(item)
+        if not ref:
+            continue
+        if user_id is not None and not str(ref).startswith(f"{user_id}/"):
+            continue
+        if ref in seen:
+            continue
+        seen.add(ref)
+        normalized.append(ref)
+    return normalized
+
+_AUDIO_MIME_BY_EXT = {
+    ".wav": "audio/wav",
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
+    ".ogg": "audio/ogg",
+    ".flac": "audio/flac",
+    ".webm": "audio/webm"
+}
+_VIDEO_MIME_BY_EXT = {
+    ".mp4": "video/mp4",
+    ".m4v": "video/mp4",
+    ".mov": "video/quicktime",
+    ".mkv": "video/x-matroska",
+    ".avi": "video/x-msvideo",
+    ".webm": "video/webm"
+}
+
+def _normalize_media_mime(filename, mime_guess):
+    ext = os.path.splitext(filename or "")[1].lower()
+    mg = (mime_guess or "").lower()
+    if ext in _VIDEO_MIME_BY_EXT:
+        if (not mg) or (not mg.startswith("video/")) or ("text" in mg):
+            return _VIDEO_MIME_BY_EXT[ext]
+    if ext in _AUDIO_MIME_BY_EXT:
+        if (not mg) or (not mg.startswith("audio/")) or ("text" in mg):
+            return _AUDIO_MIME_BY_EXT[ext]
+    if ext == ".pdf":
+        return "application/pdf"
+    if ext == ".txt":
+        return "text/plain"
+    return mime_guess or "application/octet-stream"
+
+def _get_file_disk_info(rel_path):
+    if not rel_path:
+        return {"exists": False}
+    base = os.path.join(app.config['UPLOAD_FOLDER'], rel_path)
+    try:
+        if not os.path.realpath(base).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])):
+            return {"exists": False}
+    except Exception:
+        return {"exists": False}
+    enc = base + '.enc'
+    path = None
+    is_encrypted = False
+    if os.path.exists(base):
+        path = base
+    elif os.path.exists(enc):
+        path = enc
+        is_encrypted = True
+    if not path:
+        return {"exists": False}
+    size = None
+    mtime = None
+    try:
+        size = os.path.getsize(path)
+    except Exception:
+        size = None
+    try:
+        mtime = int(os.path.getmtime(path))
+    except Exception:
+        mtime = None
+    return {
+        "exists": True,
+        "path": base,
+        "enc_path": enc,
+        "disk_path": path,
+        "is_encrypted": is_encrypted,
+        "size": size,
+        "mtime": mtime
+    }
+
+def _get_file_cache(user_id, rel_path, provider):
+    if not user_id or not rel_path or not provider:
+        return None
+    try:
+        return FileCache.query.filter_by(user_id=user_id, rel_path=rel_path, provider=provider).order_by(FileCache.id.desc()).first()
+    except Exception:
+        return None
+
+def _upsert_file_cache(user_id, rel_path, provider, **fields):
+    if not user_id or not rel_path or not provider:
+        return None
+    cache = _get_file_cache(user_id, rel_path, provider)
+    if not cache:
+        cache = FileCache(user_id=user_id, rel_path=rel_path, provider=provider)
+        db.session.add(cache)
+    for k, v in fields.items():
+        try:
+            setattr(cache, k, v)
+        except Exception:
+            pass
+    cache.updated_at = datetime.utcnow()
+    return cache
+
+def _delete_file_cache_for_path(user_id, rel_path):
+    if not user_id or not rel_path:
+        return
+    try:
+        FileCache.query.filter_by(user_id=user_id, rel_path=rel_path).delete()
+    except Exception:
+        pass
+
 def _check_storage_capacity(user, additional_bytes):
     limit = _get_user_storage_limit_bytes(user)
     if not limit:
@@ -839,6 +998,23 @@ class Message(db.Model):
     thought_signature = db.Column(db.Text, nullable=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('message.id'), nullable=True)
     children = db.relationship('Message', backref=db.backref('parent', remote_side=[id]), lazy=True)
+
+class FileCache(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    rel_path = db.Column(db.Text, nullable=False, index=True)
+    provider = db.Column(db.String(32), nullable=False, index=True)
+    size_bytes = db.Column(db.Integer, nullable=True)
+    mtime = db.Column(db.Integer, nullable=True)
+    mime_type = db.Column(db.String(128), nullable=True)
+    file_id = db.Column(db.String(256), nullable=True)
+    file_uri = db.Column(db.Text, nullable=True)
+    state = db.Column(db.String(32), default="unknown")
+    last_error = db.Column(db.Text, nullable=True)
+    retries = db.Column(db.Integer, default=0)
+    last_checked_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Gem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1741,68 +1917,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             except Exception:
                 return sample.decode('utf-8', errors='replace')
 
-        _AUDIO_MIME_BY_EXT = {
-            ".wav": "audio/wav",
-            ".mp3": "audio/mpeg",
-            ".m4a": "audio/mp4",
-            ".ogg": "audio/ogg",
-            ".flac": "audio/flac",
-            ".webm": "audio/webm"
-        }
-        _VIDEO_MIME_BY_EXT = {
-            ".mp4": "video/mp4",
-            ".m4v": "video/mp4",
-            ".mov": "video/quicktime",
-            ".mkv": "video/x-matroska",
-            ".avi": "video/x-msvideo",
-            ".webm": "video/webm"
-        }
-
-        def _normalize_media_mime(filename, mime_guess):
-            ext = os.path.splitext(filename or "")[1].lower()
-            mg = (mime_guess or "").lower()
-            if ext in _VIDEO_MIME_BY_EXT:
-                if (not mg) or (not mg.startswith("video/")) or ("text" in mg):
-                    return _VIDEO_MIME_BY_EXT[ext]
-            if ext in _AUDIO_MIME_BY_EXT:
-                if (not mg) or (not mg.startswith("audio/")) or ("text" in mg):
-                    return _AUDIO_MIME_BY_EXT[ext]
-            if ext == ".pdf":
-                return "application/pdf"
-            if ext == ".txt":
-                return "text/plain"
-            return mime_guess or "application/octet-stream"
-
-        def _normalize_upload_ref(ref):
-            if not ref:
-                return None
-            try:
-                val = str(ref).strip()
-            except Exception:
-                return None
-            if not val:
-                return None
-            if "://" in val:
-                try:
-                    val = urlparse(val).path or ""
-                except Exception:
-                    pass
-            if "?" in val:
-                val = val.split("?", 1)[0]
-            if "#" in val:
-                val = val.split("#", 1)[0]
-            val = val.lstrip("/")
-            if val.startswith("files/"):
-                val = val[len("files/"):]
-            try:
-                val = unquote(val)
-            except Exception:
-                pass
-            norm = os.path.normpath(val)
-            if norm.startswith("..") or os.path.isabs(norm):
-                return None
-            return norm
-
         try:
             log_force(f"Task Start: model={model_key}, user={user_id}")
             user = User.query.get(user_id)
@@ -1951,6 +2065,88 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             supports_pdf_inputs = supports_audio_inputs
             supports_text_file_inputs = supports_audio_inputs
 
+            def _openai_cache_fresh(cache, size, mtime, mime):
+                if not cache or not cache.file_id:
+                    return False
+                if size is not None and cache.size_bytes is not None and cache.size_bytes != size:
+                    return False
+                if mtime is not None and cache.mtime is not None and cache.mtime != mtime:
+                    return False
+                if mime and cache.mime_type and cache.mime_type != mime:
+                    return False
+                ttl_hours = 24
+                try:
+                    ttl_val = os.getenv("OPENAI_FILE_CACHE_TTL_HOURS")
+                    if ttl_val and str(ttl_val).strip():
+                        ttl_hours = int(ttl_val)
+                except Exception:
+                    ttl_hours = 24
+                try:
+                    if ttl_hours > 0 and cache.updated_at:
+                        age = (datetime.utcnow() - cache.updated_at).total_seconds()
+                        if age > ttl_hours * 3600:
+                            return False
+                except Exception:
+                    pass
+                return True
+
+            def _openai_upload_with_retry(client, data, suffix, rel_path, mime=None, size=None, mtime=None):
+                max_attempts = 2
+                try:
+                    max_attempts = int(os.getenv("OPENAI_FILE_UPLOAD_RETRIES", "2") or "2")
+                except Exception:
+                    max_attempts = 2
+                last_err = None
+                for attempt in range(max_attempts):
+                    try:
+                        _upsert_file_cache(
+                            user_id,
+                            rel_path,
+                            "openai",
+                            state="UPLOADING",
+                            last_error=None,
+                            retries=attempt + 1
+                        )
+                        safe_db_commit()
+                        with tempfile.NamedTemporaryFile(suffix=suffix or '.bin') as tmp:
+                            tmp.write(data)
+                            tmp.flush()
+                            tmp.seek(0)
+                            up = client.files.create(file=tmp, purpose="user_data")
+                        file_id = getattr(up, "id", None) or (up.get("id") if isinstance(up, dict) else None)
+                        if not file_id:
+                            last_err = "file_id missing"
+                            time.sleep(1)
+                            continue
+                        _upsert_file_cache(
+                            user_id,
+                            rel_path,
+                            "openai",
+                            file_id=file_id,
+                            file_uri=None,
+                            state="ACTIVE",
+                            last_error=None,
+                            size_bytes=size if size is not None else (len(data) if data is not None else None),
+                            mtime=mtime,
+                            mime_type=mime,
+                            last_checked_at=datetime.utcnow()
+                        )
+                        safe_db_commit()
+                        return file_id, None
+                    except Exception as e:
+                        last_err = str(e)
+                        time.sleep(1)
+                        continue
+                _upsert_file_cache(
+                    user_id,
+                    rel_path,
+                    "openai",
+                    state="FAILED",
+                    last_error=last_err
+                )
+                safe_db_commit()
+                return None, last_err
+
             def _grok_reasoning_effort():
                 raw = (options.get('reasoning_effort') or "").lower().strip()
                 if raw in ("low", "high"):
@@ -2005,65 +2201,147 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             else: o_client = _get_openai_client(key, base_url=None)
 
             loaded_files = []
-            missing_files = []
+            file_errors = []
+            cache_updated = False
+            total_loaded_bytes = 0
+            try:
+                max_single_mb = int(os.getenv("ATTACHMENT_MAX_MB", str(_upload_max_mb)) or _upload_max_mb)
+            except Exception:
+                max_single_mb = _upload_max_mb
+            max_single_bytes = max_single_mb * 1024 * 1024 if max_single_mb else 0
+            max_total_bytes = 0
+            try:
+                max_total_mb = os.getenv("ATTACHMENT_TOTAL_MAX_MB")
+                if max_total_mb and str(max_total_mb).strip():
+                    max_total_bytes = int(max_total_mb) * 1024 * 1024
+            except Exception:
+                max_total_bytes = 0
+
             for fn in img_list:
                 clean_fn = _normalize_upload_ref(fn)
                 if not clean_fn:
+                    file_errors.append({"name": str(fn)[:80], "reason": "無効な参照"})
                     continue
-                bp = os.path.join(app.config['UPLOAD_FOLDER'], clean_fn)
-                ep = bp + '.enc'
+                if not clean_fn.startswith(f"{user_id}/"):
+                    file_errors.append({"name": clean_fn, "reason": "権限外のパス"})
+                    continue
+                info = _get_file_disk_info(clean_fn)
+                if not info.get("exists"):
+                    file_errors.append({"name": clean_fn, "reason": "見つかりません"})
+                    continue
+                if max_single_bytes and info.get("size") and info["size"] > max_single_bytes:
+                    size_mb = info["size"] // (1024 * 1024)
+                    file_errors.append({"name": clean_fn, "reason": f"サイズ超過({size_mb}MB)"})
+                    continue
                 data = None
+                try:
+                    if info.get("is_encrypted"):
+                        with open(info["disk_path"], 'rb') as f:
+                            data = decrypt_bytes(f.read())
+                    else:
+                        with open(info["disk_path"], 'rb') as f:
+                            data = f.read()
+                except Exception:
+                    data = None
+                if data is None:
+                    file_errors.append({"name": clean_fn, "reason": "読み込み失敗"})
+                    continue
+                if len(data) == 0:
+                    file_errors.append({"name": clean_fn, "reason": "空ファイル"})
+                    continue
+                if max_total_bytes:
+                    total_loaded_bytes += len(data)
+                    if total_loaded_bytes > max_total_bytes:
+                        file_errors.append({"name": clean_fn, "reason": "合計サイズ超過"})
+                        break
+
                 is_pdf = clean_fn.lower().endswith('.pdf')
-                mime_guess = mimetypes.guess_type(bp)[0]
+                mime_guess = mimetypes.guess_type(clean_fn)[0]
                 mime = _normalize_media_mime(clean_fn, mime_guess)
                 is_text = (mime or '').startswith('text/') or clean_fn.lower().endswith('.txt')
                 if is_pdf:
                     mime = 'application/pdf'
                 elif is_text:
                     mime = 'text/plain'
+
+                if is_pdf:
+                    extracted = None
+                    try:
+                        reader = pypdf.PdfReader(BytesIO(data))
+                        extracted = "".join([p.extract_text() + "\n" for p in reader.pages])
+                    except Exception:
+                        extracted = None
+                    loaded_files.append({
+                        'name': clean_fn,
+                        'path': clean_fn,
+                        'text': extracted[:50000] if extracted else None,
+                        'bytes': data,
+                        'mime': mime,
+                        'is_pdf': True,
+                        'is_text': False,
+                        'size': len(data),
+                        'mtime': info.get("mtime")
+                    })
+                elif is_text:
+                    extracted = _decode_text_bytes(data)
+                    loaded_files.append({
+                        'name': clean_fn,
+                        'path': clean_fn,
+                        'text': extracted[:50000] if extracted else None,
+                        'bytes': data,
+                        'mime': mime,
+                        'is_pdf': False,
+                        'is_text': True,
+                        'size': len(data),
+                        'mtime': info.get("mtime")
+                    })
+                else:
+                    loaded_files.append({
+                        'name': clean_fn,
+                        'path': clean_fn,
+                        'text': None,
+                        'bytes': data,
+                        'mime': mime,
+                        'is_pdf': False,
+                        'is_text': False,
+                        'size': len(data),
+                        'mtime': info.get("mtime")
+                    })
                 try:
-                    if os.path.exists(bp):
-                        with open(bp, 'rb') as f: data = f.read()
-                    elif os.path.exists(ep):
-                        with open(ep, 'rb') as f: data = decrypt_bytes(f.read())
-                    if data:
-                        if is_pdf:
-                            extracted = None
-                            try:
-                                reader = pypdf.PdfReader(BytesIO(data))
-                                extracted = "".join([p.extract_text() + "\n" for p in reader.pages])
-                            except Exception:
-                                extracted = None
-                            loaded_files.append({
-                                'name': clean_fn,
-                                'text': extracted[:50000] if extracted else None,
-                                'bytes': data,
-                                'mime': mime,
-                                'is_pdf': True,
-                                'is_text': False
-                            })
-                        elif is_text:
-                            extracted = _decode_text_bytes(data)
-                            loaded_files.append({
-                                'name': clean_fn,
-                                'text': extracted[:50000] if extracted else None,
-                                'bytes': data,
-                                'mime': mime,
-                                'is_pdf': False,
-                                'is_text': True
-                            })
-                        else:
-                            loaded_files.append({'name': clean_fn, 'text': None, 'bytes': data, 'mime': mime, 'is_pdf': False, 'is_text': False})
-                    else:
-                        missing_files.append(clean_fn)
-                except:
-                    missing_files.append(clean_fn)
+                    _upsert_file_cache(
+                        user_id,
+                        clean_fn,
+                        "local",
+                        size_bytes=len(data),
+                        mtime=info.get("mtime"),
+                        mime_type=mime,
+                        state="loaded",
+                        last_error=None
+                    )
+                    cache_updated = True
+                except Exception:
+                    pass
+
+            if cache_updated:
+                try:
+                    safe_db_commit()
+                except Exception:
+                    pass
+
+            if file_errors:
+                parts = []
+                for e in file_errors[:5]:
+                    nm = e.get("name") or "file"
+                    rs = e.get("reason") or "error"
+                    parts.append(f"{nm}({rs})")
+                if len(file_errors) > 5:
+                    parts.append(f"...他{len(file_errors) - 5}件")
+                pub("error", "添付ファイルの検証に失敗しました: " + " / ".join(parts))
+                return
 
             if img_list and not loaded_files:
                 pub("error", "添付ファイルを読み込めませんでした。再アップロードしてから再送してください。")
                 return
-            if missing_files:
-                log_force(f"Missing attachments: {missing_files}")
 
             has_audio = any(fi.get('bytes') and str(fi.get('mime', '')).startswith('audio/') for fi in loaded_files)
             has_video = any(fi.get('bytes') and str(fi.get('mime', '')).startswith('video/') for fi in loaded_files)
@@ -2348,7 +2626,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if m['image_url']:
                             try:
                                 for h_img in json.loads(m['image_url']):
-                                    bp2 = os.path.join(app.config['UPLOAD_FOLDER'], h_img)
+                                    norm_h = _normalize_upload_ref(h_img)
+                                    if not norm_h:
+                                        continue
+                                    bp2 = os.path.join(app.config['UPLOAD_FOLDER'], norm_h)
                                     ep2 = bp2 + '.enc'
                                     d2 = None
                                     if os.path.exists(bp2):
@@ -2455,31 +2736,163 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 log_force(f"Gemini audio convert failed: {e}")
                         return data, mime, name
 
+                    def _gemini_cache_matches(cache, size, mtime, mime):
+                        if not cache or not cache.file_uri:
+                            return False
+                        if size is not None and cache.size_bytes is not None and cache.size_bytes != size:
+                            return False
+                        if mtime is not None and cache.mtime is not None and cache.mtime != mtime:
+                            return False
+                        if mime and cache.mime_type and cache.mime_type != mime:
+                            return False
+                        return True
+
+                    def _gemini_get_cached_part(rel_path, mime, size=None, mtime=None, label=""):
+                        cache = _get_file_cache(user_id, rel_path, "gemini")
+                        if not _gemini_cache_matches(cache, size, mtime, mime):
+                            return None
+                        try:
+                            if cache.file_id:
+                                fobj = g_client.files.get(name=cache.file_id)
+                                state = _gemini_file_state_name(fobj)
+                                cache.file_uri = _gemini_file_uri(fobj) or cache.file_uri
+                                cache.state = state or cache.state
+                                cache.last_checked_at = datetime.utcnow()
+                                if state and state != "ACTIVE":
+                                    if state == "PROCESSING":
+                                        fobj, state = _wait_gemini_file_active(fobj, label=label)
+                                        cache.file_uri = _gemini_file_uri(fobj) or cache.file_uri
+                                        cache.state = state or cache.state
+                                    if state and state != "ACTIVE":
+                                        _upsert_file_cache(
+                                            user_id,
+                                            rel_path,
+                                            "gemini",
+                                            state=state,
+                                            last_error=f"state:{state}",
+                                            size_bytes=size,
+                                            mtime=mtime,
+                                            mime_type=mime,
+                                            last_checked_at=datetime.utcnow()
+                                        )
+                                        safe_db_commit()
+                                        return None
+                            part = _make_gemini_uri_part(cache.file_uri, mime)
+                            if part:
+                                _upsert_file_cache(
+                                    user_id,
+                                    rel_path,
+                                    "gemini",
+                                    state="ACTIVE",
+                                    last_error=None,
+                                    size_bytes=size,
+                                    mtime=mtime,
+                                    mime_type=mime,
+                                    last_checked_at=datetime.utcnow()
+                                )
+                                safe_db_commit()
+                                return part
+                        except Exception as e:
+                            _upsert_file_cache(
+                                user_id,
+                                rel_path,
+                                "gemini",
+                                state="FAILED",
+                                last_error=str(e),
+                                size_bytes=size,
+                                mtime=mtime,
+                                mime_type=mime,
+                                last_checked_at=datetime.utcnow()
+                            )
+                            safe_db_commit()
+                        return None
+
+                    def _gemini_upload_with_retry(data, mime, suffix, rel_path, label=""):
+                        max_attempts = 2
+                        try:
+                            max_attempts = int(os.getenv("GEMINI_FILE_UPLOAD_RETRIES", "2") or "2")
+                        except Exception:
+                            max_attempts = 2
+                        last_err = None
+                        for attempt in range(max_attempts):
+                            try:
+                                _upsert_file_cache(
+                                    user_id,
+                                    rel_path,
+                                    "gemini",
+                                    state="UPLOADING",
+                                    last_error=None,
+                                    retries=attempt + 1
+                                )
+                                safe_db_commit()
+                                with tempfile.NamedTemporaryFile(suffix=suffix or '.bin') as tmp:
+                                    tmp.write(data)
+                                    tmp.flush()
+                                    up = g_client.files.upload(file=tmp.name, config={"mimeType": mime})
+                                up, up_state = _wait_gemini_file_active(up, label=label)
+                                if up_state and up_state != "ACTIVE":
+                                    last_err = f"state:{up_state}"
+                                    time.sleep(1)
+                                    continue
+                                return up, up_state, None
+                            except Exception as e:
+                                last_err = str(e)
+                                time.sleep(1)
+                                continue
+                        return None, None, last_err
+
                     for fi in loaded_files:
                         if fi.get('is_pdf') and supports_pdf_inputs and fi.get('bytes'):
                             try:
                                 pdf_bytes = fi['bytes']
                                 pdf_mime = fi.get('mime') or 'application/pdf'
                                 pdf_name = os.path.basename(fi.get('name') or 'document.pdf')
+                                rel_path = fi.get('path') or fi.get('name') or pdf_name
                                 if len(pdf_bytes) <= media_inline_limit:
                                     curr_parts.append(types.Part.from_bytes(data=pdf_bytes, mime_type=pdf_mime))
                                 else:
-                                    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(pdf_name)[1] or '.pdf') as tmp:
-                                        tmp.write(pdf_bytes)
-                                        tmp.flush()
-                                        up = g_client.files.upload(file=tmp.name, config={"mimeType": pdf_mime})
-                                    up, up_state = _wait_gemini_file_active(up, label=f"pdf:{pdf_name}")
-                                    if up_state and up_state != "ACTIVE":
-                                        pending_file_error = f"PDFファイルの処理が完了していません（{up_state}）。少し待って再送してください。"
-                                        break
-                                    file_uri = _gemini_file_uri(up)
-                                    up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or pdf_mime
-                                    part = _make_gemini_uri_part(file_uri, up_mime)
-                                    if part:
-                                        curr_parts.append(part)
+                                    cached_part = _gemini_get_cached_part(
+                                        rel_path,
+                                        pdf_mime,
+                                        size=fi.get('size'),
+                                        mtime=fi.get('mtime'),
+                                        label=f"pdf:{pdf_name}"
+                                    )
+                                    if cached_part:
+                                        curr_parts.append(cached_part)
                                     else:
-                                        pending_file_error = "PDFファイル参照の生成に失敗しました。再送してください。"
-                                        break
+                                        up, up_state, up_err = _gemini_upload_with_retry(
+                                            pdf_bytes,
+                                            pdf_mime,
+                                            os.path.splitext(pdf_name)[1] or '.pdf',
+                                            rel_path,
+                                            label=f"pdf:{pdf_name}"
+                                        )
+                                        if not up or up_err:
+                                            pending_file_error = f"PDF({pdf_name})のアップロードに失敗しました: {up_err or 'unknown error'}"
+                                            break
+                                        file_uri = _gemini_file_uri(up)
+                                        up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or pdf_mime
+                                        part = _make_gemini_uri_part(file_uri, up_mime)
+                                        if part:
+                                            curr_parts.append(part)
+                                            _upsert_file_cache(
+                                                user_id,
+                                                rel_path,
+                                                "gemini",
+                                                file_id=_gemini_file_name(up),
+                                                file_uri=file_uri,
+                                                state=up_state or "ACTIVE",
+                                                last_error=None,
+                                                size_bytes=fi.get('size'),
+                                                mtime=fi.get('mtime'),
+                                                mime_type=up_mime,
+                                                last_checked_at=datetime.utcnow()
+                                            )
+                                            safe_db_commit()
+                                        else:
+                                            pending_file_error = f"PDF({pdf_name})参照の生成に失敗しました。再送してください。"
+                                            break
                             except Exception as e:
                                 log_force(f"Gemini PDF upload failed: {e}")
                                 if fi.get('text'):
@@ -2491,25 +2904,52 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 txt_bytes = fi['bytes']
                                 txt_mime = fi.get('mime') or 'text/plain'
                                 txt_name = os.path.basename(fi.get('name') or 'document.txt')
+                                rel_path = fi.get('path') or fi.get('name') or txt_name
                                 if len(txt_bytes) <= media_inline_limit:
                                     curr_parts.append(types.Part.from_bytes(data=txt_bytes, mime_type=txt_mime))
                                 else:
-                                    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(txt_name)[1] or '.txt') as tmp:
-                                        tmp.write(txt_bytes)
-                                        tmp.flush()
-                                        up = g_client.files.upload(file=tmp.name, config={"mimeType": txt_mime})
-                                    up, up_state = _wait_gemini_file_active(up, label=f"text:{txt_name}")
-                                    if up_state and up_state != "ACTIVE":
-                                        pending_file_error = f"テキストファイルの処理が完了していません（{up_state}）。少し待って再送してください。"
-                                        break
-                                    file_uri = _gemini_file_uri(up)
-                                    up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or txt_mime
-                                    part = _make_gemini_uri_part(file_uri, up_mime)
-                                    if part:
-                                        curr_parts.append(part)
+                                    cached_part = _gemini_get_cached_part(
+                                        rel_path,
+                                        txt_mime,
+                                        size=fi.get('size'),
+                                        mtime=fi.get('mtime'),
+                                        label=f"text:{txt_name}"
+                                    )
+                                    if cached_part:
+                                        curr_parts.append(cached_part)
                                     else:
-                                        pending_file_error = "テキストファイル参照の生成に失敗しました。再送してください。"
-                                        break
+                                        up, up_state, up_err = _gemini_upload_with_retry(
+                                            txt_bytes,
+                                            txt_mime,
+                                            os.path.splitext(txt_name)[1] or '.txt',
+                                            rel_path,
+                                            label=f"text:{txt_name}"
+                                        )
+                                        if not up or up_err:
+                                            pending_file_error = f"テキスト({txt_name})のアップロードに失敗しました: {up_err or 'unknown error'}"
+                                            break
+                                        file_uri = _gemini_file_uri(up)
+                                        up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or txt_mime
+                                        part = _make_gemini_uri_part(file_uri, up_mime)
+                                        if part:
+                                            curr_parts.append(part)
+                                            _upsert_file_cache(
+                                                user_id,
+                                                rel_path,
+                                                "gemini",
+                                                file_id=_gemini_file_name(up),
+                                                file_uri=file_uri,
+                                                state=up_state or "ACTIVE",
+                                                last_error=None,
+                                                size_bytes=fi.get('size'),
+                                                mtime=fi.get('mtime'),
+                                                mime_type=up_mime,
+                                                last_checked_at=datetime.utcnow()
+                                            )
+                                            safe_db_commit()
+                                        else:
+                                            pending_file_error = f"テキスト({txt_name})参照の生成に失敗しました。再送してください。"
+                                            break
                                 attached = True
                             except Exception as e:
                                 log_force(f"Gemini text file upload failed: {e}")
@@ -2527,28 +2967,56 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if mime.startswith('audio/'):
                             try:
                                 audio_bytes, audio_mime, audio_name = _normalize_gemini_audio(fi['bytes'], fi.get('mime') or mime, fi.get('name') or "")
+                                rel_path = fi.get('path') or fi.get('name') or audio_name
+                                audio_size = len(audio_bytes) if audio_bytes is not None else fi.get('size')
                                 if len(audio_bytes) <= media_inline_limit:
                                     curr_parts.append(types.Part.from_bytes(data=audio_bytes, mime_type=audio_mime))
                                 else:
-                                    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(audio_name or '')[1] or '.bin') as tmp:
-                                        tmp.write(audio_bytes)
-                                        tmp.flush()
-                                        up = g_client.files.upload(file=tmp.name, config={"mimeType": audio_mime})
-                                    up, up_state = _wait_gemini_file_active(up, label=f"audio:{audio_name}")
-                                    if up_state and up_state != "ACTIVE":
-                                        pending_file_error = f"音声ファイルの処理が完了していません（{up_state}）。少し待って再送してください。"
-                                        break
-                                    file_uri = _gemini_file_uri(up)
-                                    up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or audio_mime
-                                    part = _make_gemini_uri_part(file_uri, up_mime)
-                                    if part:
-                                        curr_parts.append(part)
+                                    cached_part = _gemini_get_cached_part(
+                                        rel_path,
+                                        audio_mime,
+                                        size=audio_size,
+                                        mtime=fi.get('mtime'),
+                                        label=f"audio:{audio_name}"
+                                    )
+                                    if cached_part:
+                                        curr_parts.append(cached_part)
                                     else:
-                                        pending_file_error = "音声ファイル参照の生成に失敗しました。再送してください。"
-                                        break
+                                        up, up_state, up_err = _gemini_upload_with_retry(
+                                            audio_bytes,
+                                            audio_mime,
+                                            os.path.splitext(audio_name or '')[1] or '.bin',
+                                            rel_path,
+                                            label=f"audio:{audio_name}"
+                                        )
+                                        if not up or up_err:
+                                            pending_file_error = f"音声({audio_name})のアップロードに失敗しました: {up_err or 'unknown error'}"
+                                            break
+                                        file_uri = _gemini_file_uri(up)
+                                        up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or audio_mime
+                                        part = _make_gemini_uri_part(file_uri, up_mime)
+                                        if part:
+                                            curr_parts.append(part)
+                                            _upsert_file_cache(
+                                                user_id,
+                                                rel_path,
+                                                "gemini",
+                                                file_id=_gemini_file_name(up),
+                                                file_uri=file_uri,
+                                                state=up_state or "ACTIVE",
+                                                last_error=None,
+                                                size_bytes=fi.get('size'),
+                                                mtime=fi.get('mtime'),
+                                                mime_type=up_mime,
+                                                last_checked_at=datetime.utcnow()
+                                            )
+                                            safe_db_commit()
+                                        else:
+                                            pending_file_error = f"音声({audio_name})参照の生成に失敗しました。再送してください。"
+                                            break
                             except Exception as e:
                                 log_force(f"Gemini audio upload failed: {e}")
-                                pending_file_error = "音声ファイルのアップロードに失敗しました。再送してください。"
+                                pending_file_error = f"音声({fi.get('name') or 'file'})のアップロードに失敗しました。再送してください。"
                                 break
                             continue
                         if mime.startswith('video/'):
@@ -2556,25 +3024,52 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 video_bytes = fi['bytes']
                                 video_mime = fi.get('mime') or mime
                                 video_name = fi.get('name') or "video"
-                                with tempfile.NamedTemporaryFile(suffix=os.path.splitext(video_name or '')[1] or '.bin') as tmp:
-                                    tmp.write(video_bytes)
-                                    tmp.flush()
-                                    up = g_client.files.upload(file=tmp.name, config={"mimeType": video_mime})
-                                up, up_state = _wait_gemini_file_active(up, label=f"video:{video_name}")
-                                if up_state and up_state != "ACTIVE":
-                                    pending_file_error = f"動画の処理が完了していません（{up_state}）。少し待って再送してください。"
-                                    break
-                                file_uri = _gemini_file_uri(up)
-                                up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or video_mime
-                                part = _make_gemini_uri_part(file_uri, up_mime)
-                                if part:
-                                    curr_parts.append(part)
+                                rel_path = fi.get('path') or fi.get('name') or video_name
+                                cached_part = _gemini_get_cached_part(
+                                    rel_path,
+                                    video_mime,
+                                    size=fi.get('size'),
+                                    mtime=fi.get('mtime'),
+                                    label=f"video:{video_name}"
+                                )
+                                if cached_part:
+                                    curr_parts.append(cached_part)
                                 else:
-                                    pending_file_error = "動画ファイル参照の生成に失敗しました。再送してください。"
-                                    break
+                                    up, up_state, up_err = _gemini_upload_with_retry(
+                                        video_bytes,
+                                        video_mime,
+                                        os.path.splitext(video_name or '')[1] or '.bin',
+                                        rel_path,
+                                        label=f"video:{video_name}"
+                                    )
+                                    if not up or up_err:
+                                        pending_file_error = f"動画({video_name})のアップロードに失敗しました: {up_err or 'unknown error'}"
+                                        break
+                                    file_uri = _gemini_file_uri(up)
+                                    up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or video_mime
+                                    part = _make_gemini_uri_part(file_uri, up_mime)
+                                    if part:
+                                        curr_parts.append(part)
+                                        _upsert_file_cache(
+                                            user_id,
+                                            rel_path,
+                                            "gemini",
+                                            file_id=_gemini_file_name(up),
+                                            file_uri=file_uri,
+                                            state=up_state or "ACTIVE",
+                                            last_error=None,
+                                            size_bytes=audio_size,
+                                            mtime=fi.get('mtime'),
+                                            mime_type=up_mime,
+                                            last_checked_at=datetime.utcnow()
+                                        )
+                                        safe_db_commit()
+                                    else:
+                                        pending_file_error = f"動画({video_name})参照の生成に失敗しました。再送してください。"
+                                        break
                             except Exception as e:
                                 log_force(f"Gemini video upload failed: {e}")
-                                pending_file_error = "動画ファイルのアップロードに失敗しました。再送してください。"
+                                pending_file_error = f"動画({fi.get('name') or 'file'})のアップロードに失敗しました。再送してください。"
                                 break
                             continue
                         # Skip unsupported binary inputs for Gemini text models
@@ -3057,7 +3552,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if m['image_url']:
                             try:
                                 for h_img in json.loads(m['image_url']):
-                                    bp2 = os.path.join(app.config['UPLOAD_FOLDER'], h_img)
+                                    norm_h = _normalize_upload_ref(h_img)
+                                    if not norm_h:
+                                        continue
+                                    bp2 = os.path.join(app.config['UPLOAD_FOLDER'], norm_h)
                                     ep2 = bp2 + '.enc'
                                     d2 = None
                                     if os.path.exists(bp2):
@@ -3366,6 +3864,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         user_text += f"User Quote:\n{quote_text}\n---\n"
                     user_text += message_text
                     file_parts = []
+                    file_attach_errors = []
                     file_inline_limit = 20 * 1024 * 1024  # 20MiB inline limit for file inputs
                     for fi in loaded_files:
                         if (fi.get('is_pdf') or fi.get('is_text')) and fi.get('bytes'):
@@ -3377,23 +3876,48 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     b64 = base64.b64encode(f_bytes).decode('utf-8')
                                     file_parts.append({"type": "file", "file": {"file_data": b64, "filename": f_name}})
                                 else:
-                                    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(f_name)[1] or ('.pdf' if fi.get('is_pdf') else '.txt')) as tmp:
-                                        tmp.write(f_bytes)
-                                        tmp.flush()
-                                        tmp.seek(0)
-                                        up = client.files.create(file=tmp, purpose="user_data")
-                                    file_id = getattr(up, "id", None) or (up.get("id") if isinstance(up, dict) else None)
-                                    if file_id:
-                                        file_parts.append({"type": "file", "file": {"file_id": file_id, "filename": f_name}})
-                                    else:
-                                        raise RuntimeError("file_id missing from upload response")
+                                    rel_path = fi.get('path') or fi.get('name') or f_name
+                                    cache = _get_file_cache(user_id, rel_path, "openai")
+                                    file_id = None
+                                    if _openai_cache_fresh(cache, fi.get('size'), fi.get('mtime'), fi.get('mime')):
+                                        file_id = cache.file_id
+                                        _upsert_file_cache(
+                                            user_id,
+                                            rel_path,
+                                            "openai",
+                                            state="ACTIVE",
+                                            last_error=None,
+                                            last_checked_at=datetime.utcnow()
+                                        )
+                                        safe_db_commit()
+                                    if not file_id:
+                                        suffix = os.path.splitext(f_name)[1] or ('.pdf' if fi.get('is_pdf') else '.txt')
+                                        file_id, up_err = _openai_upload_with_retry(
+                                            client,
+                                            f_bytes,
+                                            suffix,
+                                            rel_path,
+                                            mime=fi.get('mime'),
+                                            size=fi.get('size'),
+                                            mtime=fi.get('mtime')
+                                        )
+                                        if not file_id:
+                                            raise RuntimeError(up_err or "file upload failed")
+                                    file_parts.append({"type": "file", "file": {"file_id": file_id, "filename": f_name}})
                                 attached = True
                             except Exception as e:
                                 log_force(f"OpenAI Search file attach failed: {e}")
+                                file_attach_errors.append(f"{f_name}({str(e)[:120]})")
                             if attached:
                                 continue
                         if fi.get('text'):
                             user_text += f"\n\n[File: {fi['name']}]\n{fi['text']}"
+                    if file_attach_errors:
+                        parts = file_attach_errors[:5]
+                        if len(file_attach_errors) > 5:
+                            parts.append(f"...他{len(file_attach_errors)-5}件")
+                        pub("error", "ファイル添付に失敗しました: " + " / ".join(parts))
+                        return
                     if file_parts:
                         user_parts = [{"type": "text", "text": user_text}]
                         user_parts.extend(file_parts)
@@ -3491,6 +4015,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 if quote_text: curr_content.append({"type": text_type, "text": f"User Quote:\n{quote_text}\n---"})
                 curr_content.append({"type": text_type, "text": message_text})
                 file_inline_limit = 20 * 1024 * 1024  # 20MiB inline limit for file inputs
+                file_attach_errors = []
 
                 for fi in loaded_files:
                     if (fi.get('is_pdf') or fi.get('is_text')) and fi.get('bytes') and not is_grok:
@@ -3502,19 +4027,38 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 b64 = base64.b64encode(f_bytes).decode('utf-8')
                                 curr_content.append({"type": "input_file", "file_data": b64, "filename": f_name})
                             else:
-                                with tempfile.NamedTemporaryFile(suffix=os.path.splitext(f_name)[1] or ('.pdf' if fi.get('is_pdf') else '.txt')) as tmp:
-                                    tmp.write(f_bytes)
-                                    tmp.flush()
-                                    tmp.seek(0)
-                                    up = client.files.create(file=tmp, purpose="user_data")
-                                file_id = getattr(up, "id", None) or (up.get("id") if isinstance(up, dict) else None)
-                                if file_id:
-                                    curr_content.append({"type": "input_file", "file_id": file_id, "filename": f_name})
-                                else:
-                                    raise RuntimeError("file_id missing from upload response")
+                                rel_path = fi.get('path') or fi.get('name') or f_name
+                                cache = _get_file_cache(user_id, rel_path, "openai")
+                                file_id = None
+                                if _openai_cache_fresh(cache, fi.get('size'), fi.get('mtime'), fi.get('mime')):
+                                    file_id = cache.file_id
+                                    _upsert_file_cache(
+                                        user_id,
+                                        rel_path,
+                                        "openai",
+                                        state="ACTIVE",
+                                        last_error=None,
+                                        last_checked_at=datetime.utcnow()
+                                    )
+                                    safe_db_commit()
+                                if not file_id:
+                                    suffix = os.path.splitext(f_name)[1] or ('.pdf' if fi.get('is_pdf') else '.txt')
+                                    file_id, up_err = _openai_upload_with_retry(
+                                        client,
+                                        f_bytes,
+                                        suffix,
+                                        rel_path,
+                                        mime=fi.get('mime'),
+                                        size=fi.get('size'),
+                                        mtime=fi.get('mtime')
+                                    )
+                                    if not file_id:
+                                        raise RuntimeError(up_err or "file upload failed")
+                                curr_content.append({"type": "input_file", "file_id": file_id, "filename": f_name})
                             attached = True
                         except Exception as e:
                             log_force(f"OpenAI file attach failed: {e}")
+                            file_attach_errors.append(f"{f_name}({str(e)[:120]})")
                         if attached:
                             continue
                     if fi.get('text'):
@@ -3538,7 +4082,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 pass
                         b64 = base64.b64encode(img_bytes).decode('utf-8')
                         curr_content.append({"type": image_type, "image_url": f"data:{img_mime};base64,{b64}"})
-                
+                if file_attach_errors:
+                    parts = file_attach_errors[:5]
+                    if len(file_attach_errors) > 5:
+                        parts.append(f"...他{len(file_attach_errors)-5}件")
+                    pub("error", "ファイル添付に失敗しました: " + " / ".join(parts))
+                    return
+
                 input_data.append({"role": "user", "content": curr_content})
                 
                 # OpenAI/xAI Responses API
@@ -4490,6 +5040,10 @@ def chat_stream():
         raw_msg_content = data.get('message')
         msg_content = raw_msg_content
         if user_config['enable_e2ee']: msg_content = encrypt_val(msg_content)
+        raw_image_urls = data.get('image_urls') or []
+        if not isinstance(raw_image_urls, list):
+            raw_image_urls = [raw_image_urls]
+        norm_image_urls = _normalize_attachment_list(raw_image_urls, current_user.id)
         
         parent_id = data.get('parent_id')
         if parent_id:
@@ -4513,7 +5067,7 @@ def chat_stream():
             role='user',
             content=msg_content,
             model=data.get('model'),
-            image_url=json.dumps(data.get('image_urls', [])) if data.get('image_urls') else None,
+            image_url=json.dumps(norm_image_urls) if norm_image_urls else None,
             quote_text=data.get('quote_text'),
             is_encrypted=user_config['enable_e2ee'],
             parent_id=parent_id,
@@ -4908,13 +5462,16 @@ def handle_thread_item(thread_id):
                 paths = json.loads(m.image_url)
                 if not isinstance(paths, list): paths = [paths]
                 for p in paths:
-                    norm = os.path.normpath(p)
+                    norm = _normalize_upload_ref(p)
+                    if not norm:
+                        continue
                     if norm.startswith("..") or os.path.isabs(norm): continue
                     if not norm.startswith(f"{current_user.id}/"): continue
                     fp = os.path.join(app.config['UPLOAD_FOLDER'], norm)
                     if not os.path.realpath(fp).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])): continue
                     secure_delete(fp)
                     secure_delete(fp + '.enc')
+                    _delete_file_cache_for_path(current_user.id, norm)
             except: pass
 
     db.session.delete(t)
@@ -4999,13 +5556,16 @@ def delete_message(mid):
                 paths = json.loads(m.image_url)
                 if not isinstance(paths, list): paths = [paths]
                 for p in paths:
-                    norm = os.path.normpath(p)
+                    norm = _normalize_upload_ref(p)
+                    if not norm:
+                        continue
                     if norm.startswith("..") or os.path.isabs(norm): continue
                     if not norm.startswith(f"{current_user.id}/"): continue
                     fp = os.path.join(app.config['UPLOAD_FOLDER'], norm)
                     if not os.path.realpath(fp).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])): continue
                     secure_delete(fp)
                     secure_delete(fp + '.enc')
+                    _delete_file_cache_for_path(current_user.id, norm)
             except: pass
 
     Message.query.filter(Message.thread_id == msg.thread_id, Message.timestamp >= msg.timestamp).delete()
@@ -5032,12 +5592,13 @@ def get_files_lib():
             except:
                 msg_ts = None
             for p in l:
-                if p and p not in seen:
-                    fp = os.path.join(app.config['UPLOAD_FOLDER'], p)
+                norm = _normalize_upload_ref(p)
+                if norm and norm not in seen:
+                    fp = os.path.join(app.config['UPLOAD_FOLDER'], norm)
                     if os.path.exists(fp) or os.path.exists(fp + '.enc'):
-                        seen.add(p)
-                        ext = os.path.splitext(p)[1].lower().replace('.', '')
-                        files.append({'filename': os.path.basename(p), 'filepath': p, 'url': url_for('serve_file', filename=p), 'type': 'image' if ext in image_exts else 'file', 'ext': ext, 'ts': msg_ts})
+                        seen.add(norm)
+                        ext = os.path.splitext(norm)[1].lower().replace('.', '')
+                        files.append({'filename': os.path.basename(norm), 'filepath': norm, 'url': url_for('serve_file', filename=norm), 'type': 'image' if ext in image_exts else 'file', 'ext': ext, 'ts': msg_ts})
         # Include uploaded files that are not yet attached to any message
         ud = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
         if os.path.isdir(ud):
@@ -5077,13 +5638,16 @@ def get_files_lib():
 @login_required
 def delete_files_batch():
     for f in request.json.get('filenames', []):
-        norm = os.path.normpath(f)
+        norm = _normalize_upload_ref(f)
+        if not norm:
+            continue
         if norm.startswith("..") or os.path.isabs(norm): continue
         if norm.startswith(f"{current_user.id}/"):
             fp = os.path.join(app.config['UPLOAD_FOLDER'], norm)
             if not os.path.realpath(fp).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])): continue
             secure_delete(fp)
             secure_delete(fp + '.enc')
+            _delete_file_cache_for_path(current_user.id, norm)
     return jsonify({'status': 'ok'})
 
 @app.route('/api/account/delete', methods=['POST'])
@@ -5100,6 +5664,10 @@ def delete_account():
                 for name in files: secure_delete(os.path.join(root, name))
                 for name in dirs: os.rmdir(os.path.join(root, name))
             os.rmdir(user_dir)
+        try:
+            FileCache.query.filter_by(user_id=current_user.id).delete()
+        except Exception:
+            pass
         # Clear migration status/progress
         redis_conn.delete(f"migration_status:{current_user.id}")
         redis_conn.delete(f"migration_progress:{current_user.id}")
@@ -6134,6 +6702,7 @@ def upload():
         try: os.chmod(ud, 0o700)
         except: pass
     res = []
+    cache_updated = False
     for f in files:
         if f.filename:
             orig_name = secure_filename(f.filename)
@@ -6168,7 +6737,40 @@ def upload():
                         f.seek(0)
                         f.save(save_path)
                 else: f.save(save_path)
-            res.append(f"{current_user.id}/{fname}")
+            rel_path = f"{current_user.id}/{fname}"
+            res.append(rel_path)
+            try:
+                disk_path = os.path.join(ud, fname + '.enc') if current_user.enable_e2ee else os.path.join(ud, fname)
+                size = None
+                mtime = None
+                try:
+                    size = os.path.getsize(disk_path)
+                except Exception:
+                    size = None
+                try:
+                    mtime = int(os.path.getmtime(disk_path))
+                except Exception:
+                    mtime = None
+                mime_guess = mimetypes.guess_type(fname)[0]
+                mime = _normalize_media_mime(fname, mime_guess)
+                _upsert_file_cache(
+                    current_user.id,
+                    rel_path,
+                    "local",
+                    size_bytes=size,
+                    mtime=mtime,
+                    mime_type=mime,
+                    state="stored",
+                    last_error=None
+                )
+                cache_updated = True
+            except Exception:
+                pass
+    if cache_updated:
+        try:
+            safe_db_commit()
+        except Exception:
+            pass
     return jsonify({'filename': res[0] if res else '', 'filenames': res})
 
 @app.route('/upload/init', methods=['POST'])
@@ -6277,6 +6879,7 @@ def upload_complete():
     fname = f"{fname_base}{ext}"
     save_path = os.path.join(ud, fname)
     res = []
+    cache_updated = False
     try:
         if current_user.enable_e2ee:
             is_image = ext in ['.jpg', '.jpeg', '.png']
@@ -6306,6 +6909,34 @@ def upload_complete():
             else:
                 os.replace(part_path, save_path)
         res.append(f"{current_user.id}/{fname}")
+        rel_path = f"{current_user.id}/{fname}"
+        try:
+            disk_path = os.path.join(ud, fname + '.enc') if current_user.enable_e2ee else os.path.join(ud, fname)
+            size = None
+            mtime = None
+            try:
+                size = os.path.getsize(disk_path)
+            except Exception:
+                size = None
+            try:
+                mtime = int(os.path.getmtime(disk_path))
+            except Exception:
+                mtime = None
+            mime_guess = mimetypes.guess_type(fname)[0]
+            mime = _normalize_media_mime(fname, mime_guess)
+            _upsert_file_cache(
+                current_user.id,
+                rel_path,
+                "local",
+                size_bytes=size,
+                mtime=mtime,
+                mime_type=mime,
+                state="stored",
+                last_error=None
+            )
+            cache_updated = True
+        except Exception:
+            pass
     except Exception as e:
         logger.error(f"Chunk finalize failed: {e}")
         return jsonify({'error': 'Finalize failed'}), 500
@@ -6319,6 +6950,11 @@ def upload_complete():
             if os.path.exists(meta_path):
                 os.remove(meta_path)
             os.rmdir(session_dir)
+        except Exception:
+            pass
+    if cache_updated:
+        try:
+            safe_db_commit()
         except Exception:
             pass
     return jsonify({'filename': res[0] if res else '', 'filenames': res})

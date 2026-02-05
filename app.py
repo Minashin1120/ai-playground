@@ -5065,17 +5065,31 @@ def chat_stream():
             raw_image_urls = [raw_image_urls]
         norm_image_urls = _normalize_attachment_list(raw_image_urls, current_user.id)
         
-        parent_id = data.get('parent_id')
-        if parent_id:
+        parent_id = data.get('parent_id', None)
+        parent_explicit = data.get('parent_id_explicit', False)
+        if isinstance(parent_explicit, str):
+            parent_explicit = parent_explicit.strip().lower() in ("1", "true", "yes", "on")
+        else:
+            parent_explicit = bool(parent_explicit)
+
+        if parent_id is not None and parent_id != "":
             try:
-                pm = Message.query.get(int(parent_id))
-                if not pm or pm.thread_id != thread_id or pm.thread.user_id != current_user.id:
+                if isinstance(parent_id, str) and parent_id.strip().lower() in ("null", "none", "root"):
                     parent_id = None
                 else:
-                    parent_id = pm.id
+                    parent_id_int = int(parent_id)
+                    if parent_id_int <= 0:
+                        parent_id = None
+                    else:
+                        pm = Message.query.get(parent_id_int)
+                        if not pm or pm.thread_id != thread_id or pm.thread.user_id != current_user.id:
+                            parent_id = None
+                        else:
+                            parent_id = pm.id
             except Exception:
                 parent_id = None
-        if not parent_id:
+
+        if parent_id is None and not parent_explicit:
             # Default to the last message in the thread
             last_msg = Message.query.filter_by(thread_id=thread_id).order_by(Message.id.desc()).first()
             if last_msg:

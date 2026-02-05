@@ -1451,7 +1451,7 @@
             input.style.height = input.scrollHeight + 'px';
             const msg = allMessages.find(m => m.id == id);
             if (msg) {
-                currentParentId = msg.parent_id;
+                currentParentId = (msg.parent_id === undefined ? null : msg.parent_id);
                 editingMessageId = id;
                 setEditUi(true);
                 if (msg.image_url) {
@@ -5398,6 +5398,7 @@
                 return;
             }
             const editingId = editingMessageId;
+            const parentIdExplicit = (editingId !== null && editingId !== undefined);
             if (editingId) {
                 editingMessageId = null;
                 setEditUi(false);
@@ -5510,6 +5511,7 @@
                 grok_video_resolution: isGrokVideoModel() && get('grok-video-resolution') ? get('grok-video-resolution').value : null,
                 quote_text: currentQuote,
                 parent_id: currentParentId,
+                parent_id_explicit: parentIdExplicit,
                 disable_auto_search: disableAutoSearch
             }; 
             if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; } 

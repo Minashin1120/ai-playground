@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.131)</title>
+    <title>AI Playground (V4.8.132)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -118,11 +118,28 @@
         .search-box i { width: 16px; text-align: center; }
 
         /* Python Execution UI */
-        .python-box { margin: 0.6rem 0 1rem; border: 1px solid var(--line); border-radius: 0.7rem; background: #0b121a; overflow: hidden; box-shadow: var(--shadow); }
-        .python-header { background: rgba(245,158,11,0.12); padding: 0.45rem 0.8rem; font-size: 0.75rem; color: #fde68a; display: flex; align-items: center; gap: 0.5rem; font-weight: 600; border-bottom: 1px solid rgba(148,163,184,0.2); }
-        .python-body { padding: 0.7rem 0.85rem; font-size: 0.85rem; color: #e2e8f0; }
-        .python-body pre { background: #0a0f16; padding: 0.6rem; border-radius: 0.5rem; overflow-x: auto; border: 1px solid rgba(148,163,184,0.2); }
-        .python-label { font-size: 0.7rem; color: #a3b3c5; margin: 0.4rem 0 0.2rem; text-transform: uppercase; letter-spacing: 0.04em; }
+        .python-box { margin: 0.6rem 0 1rem; }
+        .python-box .code-header { background: rgba(245,158,11,0.12); color: #fde68a; }
+        .python-box .code-lang { color: #fde68a; font-weight: 600; display: inline-flex; align-items: center; gap: 0.4rem; }
+        .python-box .code-actions .copy-btn,
+        .python-box .code-actions .code-toggle { color: #cbd5f5; }
+        .python-box .code-actions .copy-btn:hover,
+        .python-box .code-actions .code-toggle:hover { color: #fff7ed; }
+        .python-box .code-body { padding: 0.7rem 0.85rem; display: grid; gap: 0.6rem; }
+        .python-box .python-section { display: grid; gap: 0.35rem; }
+        .python-box .python-label { font-size: 0.7rem; color: #a3b3c5; text-transform: uppercase; letter-spacing: 0.04em; }
+        .python-box pre { margin: 0; background: #0a0f16; border: 1px solid rgba(148,163,184,0.2); border-radius: 0.5rem; overflow-x: auto; }
+        .python-box code {
+            font-family: "JetBrains Mono", "Noto Sans Mono CJK JP", "Noto Sans Mono", "Noto Sans JP",
+                         ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.9em;
+            background: transparent !important;
+            padding: 1em;
+            display: block;
+            line-height: 1.55;
+            font-variant-ligatures: none;
+            color: #e5e7eb;
+        }
         
         /* Quote UI */
         #quote-popover { background: #0b121a; color: #e2e8f0; border: 1px solid var(--line); padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; display: none; z-index: 100; box-shadow: var(--shadow); }
@@ -2647,7 +2664,46 @@
                     get('sts-speed-label').textContent = `${Number(get('sts-speed').value || 1).toFixed(2)}x`;
                 });
             }
-            marked.use({ renderer: { code(c, i, e) { const l = (i || '').match(/\S*/)[0]; if(l === 'pyexec'){ try { const obj = JSON.parse(c); const code = escapeHtml(obj.code || ''); const output = escapeHtml(obj.output || ''); return `<div class="python-box"><div class="python-header"><i class="fas fa-terminal"></i> Python Execution</div><div class="python-body"><div class="python-label">Code</div><pre class="python-code">${code}</pre><div class="python-label">Output</div><pre class="python-output">${output}</pre></div></div>`; } catch(e2){} } const raw = c || ''; let h = ''; try { const lang = hljs.getLanguage(l) ? l : 'plaintext'; h = hljs.highlight(raw, { language: lang }).value; } catch (err) { h = escapeHtml(raw); } const enc = encodeURIComponent(raw).replace(/'/g, "%27"); const codeKey = hashString(`${l||'TEXT'}\n${raw||''}`); return `<div class="code-wrapper" data-collapsed="false" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${l||'TEXT'}</span><div class="code-actions"><button class="code-toggle" aria-expanded="true"><i class="fas fa-chevron-up"></i> Collapse</button><button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`; }, link(h, t, x) { return `<a href="${h}" title="${t||''}" target="_blank">${x}</a>`; }, image(h, t, x) { const alt = escapeHtml(x||''); const title = t ? ` title="${escapeHtml(t)}"` : ''; return `<img src="${h}" alt="${alt}"${title} class="chat-image" loading="lazy" width="320" height="320">`; } }, breaks: true, gfm: true });
+            marked.use({
+                renderer: {
+                    code(c, i, e) {
+                        const l = (i || '').match(/\S*/)[0];
+                        if (l === 'pyexec') {
+                            try {
+                                const obj = JSON.parse(c);
+                                const codeRaw = obj.code == null ? '' : String(obj.code);
+                                const outputRaw = obj.output == null ? '' : String(obj.output);
+                                let codeHtml = '';
+                                try {
+                                    codeHtml = hljs.highlight(codeRaw, { language: 'python' }).value;
+                                } catch (e3) {
+                                    codeHtml = escapeHtml(codeRaw);
+                                }
+                                const outputHtml = escapeHtml(outputRaw);
+                                const encCode = encodeURIComponent(codeRaw).replace(/'/g, "%27");
+                                const encOut = encodeURIComponent(outputRaw).replace(/'/g, "%27");
+                                const codeKey = hashString(`pyexec\n${codeRaw}\n${outputRaw}`);
+                                return `<div class="code-wrapper python-box" data-collapsed="false" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="true"><i class="fas fa-chevron-up"></i> Collapse</button><button class="copy-btn" data-copy="code" data-code="${encCode}"><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code="${encOut}"><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code">${codeHtml}</code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output">${outputHtml}</code></pre></div></div></div>`;
+                            } catch (e2) {}
+                        }
+                        const raw = c || '';
+                        let h = '';
+                        try {
+                            const lang = hljs.getLanguage(l) ? l : 'plaintext';
+                            h = hljs.highlight(raw, { language: lang }).value;
+                        } catch (err) {
+                            h = escapeHtml(raw);
+                        }
+                        const enc = encodeURIComponent(raw).replace(/'/g, "%27");
+                        const codeKey = hashString(`${l || 'TEXT'}\n${raw || ''}`);
+                        return `<div class="code-wrapper" data-collapsed="false" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${l || 'TEXT'}</span><div class="code-actions"><button class="code-toggle" aria-expanded="true"><i class="fas fa-chevron-up"></i> Collapse</button><button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`;
+                    },
+                    link(h, t, x) { return `<a href="${h}" title="${t || ''}" target="_blank">${x}</a>`; },
+                    image(h, t, x) { const alt = escapeHtml(x || ''); const title = t ? ` title="${escapeHtml(t)}"` : ''; return `<img src="${h}" alt="${alt}"${title} class="chat-image" loading="lazy" width="320" height="320">`; }
+                },
+                breaks: true,
+                gfm: true
+            });
             
             // Infinite Scroll Observer
             threadObserver = new IntersectionObserver((entries) => {
@@ -5410,15 +5466,31 @@
                                 const py = j.content || {}; 
                                 const pyId = py.id || `py_${Date.now()}`; 
                                 if(!pyBoxes[pyId]){ 
-                                    const boxHtml = `<div class="python-box" data-py-id="${pyId}"><div class="python-header"><i class="fas fa-terminal"></i> Python Execution</div><div class="python-body"><div class="python-label">Code</div><pre class="python-code"></pre><div class="python-label">Output</div><pre class="python-output"></pre></div></div>`; 
+                                    const boxHtml = `<div class="code-wrapper python-box" data-py-id="${pyId}" data-collapsed="false" data-code-key="${pyId}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="true"><i class="fas fa-chevron-up"></i> Collapse</button><button class="copy-btn" data-copy="code" data-code=""><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code=""><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output"></code></pre></div></div></div>`; 
                                     if(searchBox) searchBox.insertAdjacentHTML('afterend', boxHtml); 
                                     else adiv.insertAdjacentHTML('afterbegin', boxHtml); 
                                     pyBoxes[pyId] = adiv.querySelector(`[data-py-id="${pyId}"]`); 
                                 } 
                                 const box = pyBoxes[pyId]; 
                                 if(box){ 
-                                    if(py.code){ box.querySelector('.python-code').textContent = py.code; } 
-                                    if(py.output !== undefined){ box.querySelector('.python-output').textContent = py.output; } 
+                                    if(py.code !== undefined){ 
+                                        const codeText = py.code == null ? '' : String(py.code);
+                                        const codeEl = box.querySelector('.python-code');
+                                        if (codeEl) {
+                                            codeEl.textContent = codeText;
+                                            codeEl.removeAttribute('data-highlighted');
+                                            if (window.hljs) { try { hljs.highlightElement(codeEl); } catch (e) {} }
+                                        }
+                                        const codeBtn = box.querySelector('.copy-btn[data-copy="code"]');
+                                        if (codeBtn) codeBtn.setAttribute('data-code', encodeURIComponent(codeText).replace(/'/g, "%27"));
+                                    } 
+                                    if(py.output !== undefined){ 
+                                        const outText = py.output == null ? '' : String(py.output);
+                                        const outEl = box.querySelector('.python-output');
+                                        if (outEl) outEl.textContent = outText;
+                                        const outBtn = box.querySelector('.copy-btn[data-copy="output"]');
+                                        if (outBtn) outBtn.setAttribute('data-code', encodeURIComponent(outText).replace(/'/g, "%27"));
+                                    } 
                                 } 
                             } else if(j.type==='content'){ 
                                 acc+=j.content; 
@@ -5541,15 +5613,31 @@
                                 const py = j.content || {};
                                 const pyId = py.id || `py_${Date.now()}`;
                                 if (!pyBoxes[pyId]) {
-                                    const boxHtml = `<div class="python-box" data-py-id="${pyId}"><div class="python-header"><i class="fas fa-terminal"></i> Python Execution</div><div class="python-body"><div class="python-label">Code</div><pre class="python-code"></pre><div class="python-label">Output</div><pre class="python-output"></pre></div></div>`;
+                                    const boxHtml = `<div class="code-wrapper python-box" data-py-id="${pyId}" data-collapsed="false" data-code-key="${pyId}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="true"><i class="fas fa-chevron-up"></i> Collapse</button><button class="copy-btn" data-copy="code" data-code=""><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code=""><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output"></code></pre></div></div></div>`;
                                     if (searchBox) searchBox.insertAdjacentHTML('afterend', boxHtml);
                                     else adiv.insertAdjacentHTML('afterbegin', boxHtml);
                                     pyBoxes[pyId] = adiv.querySelector(`[data-py-id="${pyId}"]`);
                                 }
                                 const box = pyBoxes[pyId];
                                 if (box) {
-                                    if (py.code) box.querySelector('.python-code').textContent = py.code;
-                                    if (py.output !== undefined) box.querySelector('.python-output').textContent = py.output;
+                                    if (py.code !== undefined) {
+                                        const codeText = py.code == null ? '' : String(py.code);
+                                        const codeEl = box.querySelector('.python-code');
+                                        if (codeEl) {
+                                            codeEl.textContent = codeText;
+                                            codeEl.removeAttribute('data-highlighted');
+                                            if (window.hljs) { try { hljs.highlightElement(codeEl); } catch (e) {} }
+                                        }
+                                        const codeBtn = box.querySelector('.copy-btn[data-copy="code"]');
+                                        if (codeBtn) codeBtn.setAttribute('data-code', encodeURIComponent(codeText).replace(/'/g, "%27"));
+                                    }
+                                    if (py.output !== undefined) {
+                                        const outText = py.output == null ? '' : String(py.output);
+                                        const outEl = box.querySelector('.python-output');
+                                        if (outEl) outEl.textContent = outText;
+                                        const outBtn = box.querySelector('.copy-btn[data-copy="output"]');
+                                        if (outBtn) outBtn.setAttribute('data-code', encodeURIComponent(outText).replace(/'/g, "%27"));
+                                    }
                                 }
                             } else if (j.type === 'content') {
                                 acc += j.content;

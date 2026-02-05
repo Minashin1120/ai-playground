@@ -1711,6 +1711,25 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 log_force(f"Job {job_id} stopped by user.")
                 return True
             return False
+        
+        def _decode_text_bytes(raw):
+            if not raw:
+                return None
+            sample = raw[:2 * 1024 * 1024]  # Avoid large decode for huge text files
+            try:
+                from charset_normalizer import from_bytes
+                match = from_bytes(sample).best()
+                if match and match.output():
+                    try:
+                        return match.output().decode('utf-8', errors='replace')
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            try:
+                return sample.decode('utf-8')
+            except Exception:
+                return sample.decode('utf-8', errors='replace')
 
         try:
             log_force(f"Task Start: model={model_key}, user={user_id}")
@@ -1907,9 +1926,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 ep = bp + '.enc'
                 data = None
                 is_pdf = fn.lower().endswith('.pdf')
-                mime = mimetypes.guess_type(bp)[0] or 'application/octet-stream'
+                mime_guess = mimetypes.guess_type(bp)[0] or 'application/octet-stream'
+                is_text = mime_guess.startswith('text/') or fn.lower().endswith('.txt')
                 if is_pdf:
                     mime = 'application/pdf'
+                elif is_text:
+                    mime = 'text/plain'
+                else:
+                    mime = mime_guess
                 try:
                     if os.path.exists(bp):
                         with open(bp, 'rb') as f: data = f.read()
@@ -1929,6 +1953,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 'bytes': data,
                                 'mime': mime,
                                 'is_pdf': True
+                            })
+                        elif is_text:
+                            extracted = _decode_text_bytes(data)
+                            loaded_files.append({
+                                'name': fn,
+                                'text': extracted[:50000] if extracted else None,
+                                'bytes': data,
+                                'mime': mime,
+                                'is_pdf': False
                             })
                         else:
                             loaded_files.append({'name': fn, 'text': None, 'bytes': data, 'mime': mime, 'is_pdf': False})

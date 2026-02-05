@@ -1293,10 +1293,7 @@ def resolve_thread_for_user(identifier, user_id):
         t = Thread.query.get(int(ident_str))
         if t and t.user_id == user_id and not t.public_id:
             return t
-    t = Thread.query.filter_by(public_id=ident_str).first()
-    if t and t.user_id == user_id:
-        return t
-    return None
+    return Thread.query.filter_by(public_id=ident_str, user_id=user_id).first()
 
 def create_user_session(user):
     sid = secrets.token_urlsafe(32)
@@ -1441,6 +1438,46 @@ def cleanup_user_temp_system_prompt_columns():
     except Exception:
         pass
 
+def ensure_db_index(table_name, index_name, ddl):
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.STATISTICS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME=:table_name "
+                "AND INDEX_NAME=:index_name"
+            ), {
+                "table_name": table_name,
+                "index_name": index_name
+            }).scalar()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text(ddl))
+    except Exception:
+        pass
+
+def ensure_performance_indexes():
+    ensure_db_index(
+        "thread",
+        "idx_thread_public_id",
+        "CREATE INDEX idx_thread_public_id ON thread (public_id)"
+    )
+    ensure_db_index(
+        "thread",
+        "idx_thread_user_bookmark_updated",
+        "CREATE INDEX idx_thread_user_bookmark_updated ON thread (user_id, is_bookmarked, bookmarked_at, updated_at)"
+    )
+    ensure_db_index(
+        "message",
+        "idx_message_thread_ts_id",
+        "CREATE INDEX idx_message_thread_ts_id ON message (thread_id, timestamp, id)"
+    )
+    ensure_db_index(
+        "message",
+        "idx_message_thread_id",
+        "CREATE INDEX idx_message_thread_id ON message (thread_id, id)"
+    )
+
 def get_bool_app_setting(key, default=False):
     val = get_app_setting(key, None)
     if val is None:
@@ -1558,9 +1595,17 @@ def rate_limit(key, limit, window_seconds):
     except Exception:
         return True
 
+_TOKEN_ENCODER = None
+
+def _get_token_encoder():
+    global _TOKEN_ENCODER
+    if _TOKEN_ENCODER is None:
+        _TOKEN_ENCODER = tiktoken.get_encoding("cl100k_base")
+    return _TOKEN_ENCODER
+
 def count_tokens(text, model="gpt-4"):
     try:
-        enc = tiktoken.get_encoding("cl100k_base")
+        enc = _get_token_encoder()
         return len(enc.encode(text or ""))
     except:
         return len(text or "") // 4
@@ -2021,7 +2066,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             # Reconstruct history by traversing UP the tree (parent_id)
             # The current message (msg) is the User's new prompt. We need its ancestors.
             
-            history = []
+            history_rev = []
             total_history_tokens = 0
             MAX_CONTEXT_TOKENS = 60000
             
@@ -2030,10 +2075,20 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 current_node = None
             while current_node:
                 cnt = decrypt_val(current_node.content) if current_node.is_encrypted else current_node.content
-                t_len = count_tokens(cnt)
+                cached_tokens = None
+                try:
+                    if current_node.tokens and current_node.tokens > 0:
+                        cached_tokens = int(current_node.tokens)
+                    elif current_node.role == 'user' and current_node.tokens_in and current_node.tokens_in > 0:
+                        cached_tokens = int(current_node.tokens_in)
+                    elif current_node.role == 'assistant' and current_node.tokens_out and current_node.tokens_out > 0:
+                        cached_tokens = int(current_node.tokens_out)
+                except Exception:
+                    cached_tokens = None
+                t_len = cached_tokens if cached_tokens is not None else count_tokens(cnt)
                 
                 if total_history_tokens + t_len <= MAX_CONTEXT_TOKENS:
-                    history.insert(0, {
+                    history_rev.append({
                         'role': current_node.role, 
                         'content': cnt, 
                         'image_url': current_node.image_url, 
@@ -2044,6 +2099,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     break
                 
                 current_node = current_node.parent
+            history = list(reversed(history_rev))
 
             model_key = model_key.strip()
             model_key_l = model_key.lower()
@@ -5449,7 +5505,7 @@ def handle_thread_item(thread_id):
                 else:
                     token_out = m.tokens
                 token_total = m.tokens
-            if should_count_tokens_for_display(m.model):
+            if token_total is None and should_count_tokens_for_display(m.model):
                 details = build_message_token_details(m.role, cnt, thought_text, m.model, token_in, token_out)
                 token_in = details["tokens_in"] if details["tokens_in"] is not None else token_in
                 token_out = details["tokens_out"] if details["tokens_out"] is not None else token_out
@@ -7038,6 +7094,10 @@ with app.app_context():
         pass
     try:
         cleanup_user_temp_system_prompt_columns()
+    except Exception:
+        pass
+    try:
+        ensure_performance_indexes()
     except Exception:
         pass
     try:

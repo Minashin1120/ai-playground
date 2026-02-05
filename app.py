@@ -729,8 +729,6 @@ class User(UserMixin, db.Model):
     system_prompt = db.Column(db.Text, default="")
     system_prompt_enabled = db.Column(db.Boolean, default=True)
     apply_global_system_prompt = db.Column(db.Boolean, default=True)
-    temp_system_prompt = db.Column(db.Text, default="")
-    temp_system_prompt_enabled = db.Column(db.Boolean, default=False)
     openai_api_key = db.Column(db.Text, nullable=True)
     gemini_api_key = db.Column(db.Text, nullable=True)
     xai_api_key = db.Column(db.Text, nullable=True)
@@ -1236,8 +1234,6 @@ def ensure_user_system_prompt_columns():
             columns = [
                 ("system_prompt_enabled", "ALTER TABLE user ADD COLUMN system_prompt_enabled BOOLEAN DEFAULT 1"),
                 ("apply_global_system_prompt", "ALTER TABLE user ADD COLUMN apply_global_system_prompt BOOLEAN DEFAULT 1"),
-                ("temp_system_prompt", "ALTER TABLE user ADD COLUMN temp_system_prompt TEXT"),
-                ("temp_system_prompt_enabled", "ALTER TABLE user ADD COLUMN temp_system_prompt_enabled BOOLEAN DEFAULT 0"),
             ]
             for column_name, ddl in columns:
                 res = conn.execute(text(
@@ -1249,6 +1245,22 @@ def ensure_user_system_prompt_columns():
                 if not res:
                     conn.execute(text("SET SESSION lock_wait_timeout=1"))
                     conn.execute(text(ddl))
+    except Exception:
+        pass
+
+def cleanup_user_temp_system_prompt_columns():
+    try:
+        with db.engine.connect() as conn:
+            for column_name in ("temp_system_prompt", "temp_system_prompt_enabled"):
+                res = conn.execute(text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA=DATABASE() "
+                    "AND TABLE_NAME='user' "
+                    "AND COLUMN_NAME=:column_name"
+                ), {"column_name": column_name}).scalar()
+                if res:
+                    conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                    conn.execute(text(f"ALTER TABLE user DROP COLUMN {column_name}"))
     except Exception:
         pass
 
@@ -1573,9 +1585,6 @@ def migrate_e2ee_task(user_id, target_enable):
             if user.system_prompt:
                 if target_enable: user.system_prompt = encrypt_val(user.system_prompt)
                 else: user.system_prompt = decrypt_val(user.system_prompt)
-            if user.temp_system_prompt:
-                if target_enable: user.temp_system_prompt = encrypt_val(user.temp_system_prompt)
-                else: user.temp_system_prompt = decrypt_val(user.temp_system_prompt)
             for t in threads:
                 for m in t.messages:
                     if m.content:
@@ -1760,7 +1769,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             forced_prompt = base_sys_prompt or ""
             global_prompt = None
             user_prompt = None
-            temp_prompt = None
             use_time_notice = False
             apply_global_prompt = True
             try:
@@ -1768,23 +1776,19 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     apply_global_prompt = False
             except Exception:
                 apply_global_prompt = True
+            if apply_global_prompt:
+                global_enabled = get_bool_app_setting("global_system_prompt_enabled", True)
+                global_value = get_app_setting("global_system_prompt", "") or ""
+                if global_enabled:
+                    if global_value.strip():
+                        global_prompt = global_value
+                    else:
+                        use_time_notice = True
             if options.get('enable_system_prompt'):
-                if apply_global_prompt:
-                    global_enabled = get_bool_app_setting("global_system_prompt_enabled", True)
-                    global_value = get_app_setting("global_system_prompt", "") or ""
-                    if global_enabled:
-                        if global_value.strip():
-                            global_prompt = global_value
-                        else:
-                            use_time_notice = True
                 if user.system_prompt and (user.system_prompt_enabled is None or user.system_prompt_enabled):
                     sp = user.system_prompt
                     if user.enable_e2ee: sp = decrypt_val(sp)
                     user_prompt = sp
-                if user.temp_system_prompt_enabled and user.temp_system_prompt:
-                    tp = user.temp_system_prompt
-                    if user.enable_e2ee: tp = decrypt_val(tp)
-                    temp_prompt = tp
 
             # Thread specific prompt
             th = Thread.query.get(thread_id)
@@ -1797,11 +1801,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         combined_prompt = f"{combined_prompt}\n\n{part}"
                     else:
                         combined_prompt = str(part).strip()
-            if temp_prompt:
-                if combined_prompt:
-                    combined_prompt = f"{combined_prompt}\n\n[Temporary Instructions]:\n{temp_prompt}"
-                else:
-                    combined_prompt = temp_prompt
             if local_sys_prompt:
                 if combined_prompt:
                     combined_prompt = f"{combined_prompt}\n\n[Chat Specific Instructions]:\n{local_sys_prompt}"
@@ -5269,9 +5268,6 @@ def handle_settings():
         mig_progress = prog.decode() if prog else ""
         sp = current_user.system_prompt
         if current_user.enable_e2ee and sp: sp = decrypt_val(sp)
-        tp = current_user.temp_system_prompt
-        if current_user.enable_e2ee and tp: tp = decrypt_val(tp)
-        
         # 2FA Status
         has_totp = bool(current_user.totp_secret)
         has_webauthn = bool(current_user.webauthn_credentials and json.loads(current_user.webauthn_credentials))
@@ -5280,8 +5276,6 @@ def handle_settings():
             'system_prompt': sp or "",
             'system_prompt_enabled': current_user.system_prompt_enabled if current_user.system_prompt_enabled is not None else True,
             'apply_global_system_prompt': current_user.apply_global_system_prompt if current_user.apply_global_system_prompt is not None else True,
-            'temp_system_prompt': tp or "",
-            'temp_system_prompt_enabled': current_user.temp_system_prompt_enabled,
             'username': current_user.username, 
             'openai_key': decrypt_val(current_user.openai_api_key) or "", 
             'gemini_key': decrypt_val(current_user.gemini_api_key) or "", 
@@ -5334,11 +5328,6 @@ def handle_settings():
         current_user.system_prompt_enabled = bool(d['system_prompt_enabled'])
     if 'apply_global_system_prompt' in d:
         current_user.apply_global_system_prompt = bool(d['apply_global_system_prompt'])
-    if 'temp_system_prompt' in d:
-        if current_user.enable_e2ee: current_user.temp_system_prompt = encrypt_val(d['temp_system_prompt'])
-        else: current_user.temp_system_prompt = d['temp_system_prompt']
-    if 'temp_system_prompt_enabled' in d:
-        current_user.temp_system_prompt_enabled = bool(d['temp_system_prompt_enabled'])
     if 'openai_key' in d: current_user.openai_api_key = encrypt_val(d['openai_key'])
     if 'gemini_key' in d: current_user.gemini_api_key = encrypt_val(d['gemini_key'])
     if 'xai_key' in d: current_user.xai_api_key = encrypt_val(d['xai_key'])
@@ -6208,6 +6197,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        cleanup_user_temp_system_prompt_columns()
+    except Exception:
+        pass
+    try:
         ensure_app_setting("bot_detection_global_enabled", "1")
     except Exception:
         pass
@@ -6299,12 +6292,6 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN apply_global_system_prompt BOOLEAN DEFAULT 1")
-        except: pass
-        try:
-            try_alter("ALTER TABLE user ADD COLUMN temp_system_prompt TEXT")
-        except: pass
-        try:
-            try_alter("ALTER TABLE user ADD COLUMN temp_system_prompt_enabled BOOLEAN DEFAULT 0")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN default_safety_setting VARCHAR(16) DEFAULT 'default'")

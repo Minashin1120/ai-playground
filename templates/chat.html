@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.133)</title>
+    <title>AI Playground (V4.8.134)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -3867,7 +3867,7 @@
         const markerToolHints = {
             draw: '黄色マーカー（半透明） / 二本指で拡大',
             mosaic: 'ブラシでモザイク / 二本指で拡大',
-            crop: 'ドラッグで範囲選択 / 二本指で拡大'
+            crop: '外側をドラッグして切り取り / 二本指で拡大'
         };
         function setMarkerMode(mode) {
             markerState.mode = mode;
@@ -3885,11 +3885,22 @@
             if (drawCanvas) drawCanvas.style.pointerEvents = (mode === 'crop') ? 'none' : 'auto';
             const cropCanvas = get('marker-crop-canvas');
             if (cropCanvas) cropCanvas.style.pointerEvents = (mode === 'crop') ? 'auto' : 'none';
+            if (mode === 'crop' && (!markerState.cropRect || markerState.cropRect.w <= 1 || markerState.cropRect.h <= 1)) {
+                resetCropRectToFull();
+            }
             renderCropOverlay();
         }
         function clearCropRect() {
-            markerState.cropRect = null;
+            resetCropRectToFull();
             renderCropOverlay();
+        }
+        function resetCropRectToFull() {
+            const cropCanvas = get('marker-crop-canvas');
+            if (!cropCanvas) return;
+            const w = Math.max(1, cropCanvas.width || 0);
+            const h = Math.max(1, cropCanvas.height || 0);
+            if (w <= 1 || h <= 1) return;
+            markerState.cropRect = { x: 0, y: 0, w, h };
         }
         function applyMarkerTransform() {
             const viewport = get('marker-viewport');
@@ -4107,6 +4118,9 @@
                     if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
                     prepareMarkerBaseCanvas(img, width, height);
                     saveMarkerHistory();
+                    if (markerState.mode === 'crop' && !markerState.cropRect) {
+                        resetCropRectToFull();
+                    }
                     renderCropOverlay();
                     resetMarkerTransform();
                 };
@@ -4720,11 +4734,16 @@
             const activePointers = new Map();
             let dragging = false;
             let dragStart = null;
+            let dragMode = null;
+            let startRect = null;
             let pinching = false;
             let pinchStartDist = 0;
             let pinchStartScale = markerView.scale;
             let pinchStartOffset = { x: 0, y: 0 };
             let pinchStartMid = { x: 0, y: 0 };
+            const MIN_CROP_SIZE = 8;
+            const HANDLE_RADIUS = 14;
+            const clamp = (val, min, max) => Math.min(max, Math.max(min, val));
             const getPoint = (e) => {
                 const rect = cropCanvas.getBoundingClientRect();
                 const x = (e.clientX - rect.left) * (cropCanvas.width / rect.width);
@@ -4733,6 +4752,44 @@
             };
             const getMid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
             const getDist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+            const ensureCropRect = () => {
+                if (!markerState.cropRect) {
+                    resetCropRectToFull();
+                }
+                return markerState.cropRect;
+            };
+            const hitTest = (p, rect) => {
+                if (!rect) return 'move';
+                const x1 = rect.x;
+                const y1 = rect.y;
+                const x2 = rect.x + rect.w;
+                const y2 = rect.y + rect.h;
+                const nearLeft = Math.abs(p.x - x1) <= HANDLE_RADIUS;
+                const nearRight = Math.abs(p.x - x2) <= HANDLE_RADIUS;
+                const nearTop = Math.abs(p.y - y1) <= HANDLE_RADIUS;
+                const nearBottom = Math.abs(p.y - y2) <= HANDLE_RADIUS;
+                if (nearLeft && nearTop) return 'nw';
+                if (nearRight && nearTop) return 'ne';
+                if (nearLeft && nearBottom) return 'sw';
+                if (nearRight && nearBottom) return 'se';
+                if (nearTop) return 'n';
+                if (nearBottom) return 's';
+                if (nearLeft) return 'w';
+                if (nearRight) return 'e';
+                const inside = (p.x > x1 + HANDLE_RADIUS && p.x < x2 - HANDLE_RADIUS && p.y > y1 + HANDLE_RADIUS && p.y < y2 - HANDLE_RADIUS);
+                if (inside) return 'move';
+                const outsideX = p.x < x1 ? 'left' : (p.x > x2 ? 'right' : null);
+                const outsideY = p.y < y1 ? 'top' : (p.y > y2 ? 'bottom' : null);
+                if (outsideX && outsideY) {
+                    if (outsideX === 'left' && outsideY === 'top') return 'nw';
+                    if (outsideX === 'right' && outsideY === 'top') return 'ne';
+                    if (outsideX === 'left' && outsideY === 'bottom') return 'sw';
+                    if (outsideX === 'right' && outsideY === 'bottom') return 'se';
+                }
+                if (outsideX) return outsideX === 'left' ? 'w' : 'e';
+                if (outsideY) return outsideY === 'top' ? 'n' : 's';
+                return 'move';
+            };
             const start = (e) => {
                 if (markerState.mode !== 'crop') return;
                 activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -4752,8 +4809,11 @@
                 }
                 if (pinching) return;
                 dragging = true;
-                dragStart = getPoint(e);
-                markerState.cropRect = { x: dragStart.x, y: dragStart.y, w: 1, h: 1 };
+                const p = getPoint(e);
+                const rect = ensureCropRect();
+                dragMode = hitTest(p, rect);
+                dragStart = p;
+                startRect = rect ? { x: rect.x, y: rect.y, w: rect.w, h: rect.h } : null;
                 renderCropOverlay();
                 if (cropCanvas.setPointerCapture) cropCanvas.setPointerCapture(e.pointerId);
                 e.preventDefault();
@@ -4778,13 +4838,71 @@
                     e.preventDefault();
                     return;
                 }
-                if (!dragging || !dragStart) return;
+                if (!dragging || !dragStart || !startRect) return;
                 const p = getPoint(e);
-                const x = Math.min(dragStart.x, p.x);
-                const y = Math.min(dragStart.y, p.y);
-                const w = Math.abs(p.x - dragStart.x);
-                const h = Math.abs(p.y - dragStart.y);
-                markerState.cropRect = { x, y, w, h };
+                const maxW = cropCanvas.width;
+                const maxH = cropCanvas.height;
+                const rect = { x: startRect.x, y: startRect.y, w: startRect.w, h: startRect.h };
+                const right = startRect.x + startRect.w;
+                const bottom = startRect.y + startRect.h;
+                const applyW = () => {
+                    const nx = clamp(p.x, 0, right - MIN_CROP_SIZE);
+                    rect.x = nx;
+                    rect.w = right - nx;
+                };
+                const applyE = () => {
+                    rect.w = clamp(p.x - startRect.x, MIN_CROP_SIZE, maxW - startRect.x);
+                };
+                const applyN = () => {
+                    const ny = clamp(p.y, 0, bottom - MIN_CROP_SIZE);
+                    rect.y = ny;
+                    rect.h = bottom - ny;
+                };
+                const applyS = () => {
+                    rect.h = clamp(p.y - startRect.y, MIN_CROP_SIZE, maxH - startRect.y);
+                };
+                switch (dragMode) {
+                    case 'move': {
+                        const dx = p.x - dragStart.x;
+                        const dy = p.y - dragStart.y;
+                        rect.x = clamp(startRect.x + dx, 0, maxW - startRect.w);
+                        rect.y = clamp(startRect.y + dy, 0, maxH - startRect.h);
+                        break;
+                    }
+                    case 'w':
+                        applyW();
+                        break;
+                    case 'e':
+                        applyE();
+                        break;
+                    case 'n':
+                        applyN();
+                        break;
+                    case 's':
+                        applyS();
+                        break;
+                    case 'nw':
+                        applyN();
+                        applyW();
+                        break;
+                    case 'ne':
+                        applyN();
+                        applyE();
+                        break;
+                    case 'sw':
+                        applyS();
+                        applyW();
+                        break;
+                    case 'se':
+                        applyS();
+                        applyE();
+                        break;
+                    default:
+                        break;
+                }
+                rect.x = clamp(rect.x, 0, maxW - rect.w);
+                rect.y = clamp(rect.y, 0, maxH - rect.h);
+                markerState.cropRect = rect;
                 renderCropOverlay();
                 e.preventDefault();
             };
@@ -4794,15 +4912,11 @@
                     pinching = false;
                 }
                 if (activePointers.size === 0) {
-                    if (dragging && markerState.cropRect) {
-                        const minSize = 8;
-                        if (markerState.cropRect.w < minSize || markerState.cropRect.h < minSize) {
-                            markerState.cropRect = null;
-                        }
-                        renderCropOverlay();
-                    }
+                    renderCropOverlay();
                     dragging = false;
                     dragStart = null;
+                    dragMode = null;
+                    startRect = null;
                 }
                 if (cropCanvas.releasePointerCapture) cropCanvas.releasePointerCapture(e.pointerId);
                 e.preventDefault();

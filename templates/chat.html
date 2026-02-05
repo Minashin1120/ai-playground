@@ -1443,9 +1443,9 @@
         }
         function beginEditMessage(id, autoSend = false) {
             const text = messageStore[id];
-            if (!text) return;
+            if (text === undefined || text === null) return;
             const input = get('prompt-input');
-            input.value = text;
+            input.value = text || '';
             input.focus();
             input.style.height = 'auto';
             input.style.height = input.scrollHeight + 'px';

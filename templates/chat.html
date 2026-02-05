@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.132)</title>
+    <title>AI Playground (V4.8.133)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -798,7 +798,7 @@
     <div id="marker-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
         <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh] modal-panel">
             <div class="flex items-center justify-between mb-2">
-                <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-highlighter text-yellow-300"></i> マーカー</h2>
+                <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-highlighter text-yellow-300"></i> 画像編集</h2>
                 <button id="marker-modal-close" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
             </div>
             <div class="text-xs text-gray-400 mb-3">マーカー・モザイク・トリミングが可能です。送信時に編集済み画像の確認を促します。</div>
@@ -4186,7 +4186,7 @@
             row.setAttribute('data-filename', filepath);
             const safeName = escapeHtml(filename);
             const markerBtnHtml = isImage
-                ? `<button class="upload-marker text-[10px] border rounded px-2 py-1">マーカー</button>`
+                ? `<button class="upload-marker text-[10px] border rounded px-2 py-1">画像編集</button>`
                 : '';
             const previewHtml = isImage
                 ? `<img src="${url}" class="upload-preview w-12 h-12 object-cover rounded border border-gray-700 cursor-pointer" alt="${safeName}">`
@@ -4198,7 +4198,7 @@
                         <div class="truncate text-xs text-gray-200">${safeName}</div>
                         <div class="flex items-center gap-2">
                             <div class="upload-status text-[10px] text-gray-400">ready</div>
-                            <span class="upload-marker-tag hidden">MARKED</span>
+                            <span class="upload-marker-tag hidden">編集済み</span>
                         </div>
                     </div>
                     <div class="flex items-center gap-1">
@@ -4249,7 +4249,7 @@
             const isImage = file && file.type && file.type.startsWith('image/');
             let previewHtml = '<div class="upload-preview w-12 h-12 bg-gray-800 rounded border border-gray-700 flex items-center justify-center text-gray-400 text-sm">FILE</div>';
             const markerBtnHtml = isImage
-                ? `<button class="upload-marker text-[10px] border rounded px-2 py-1">マーカー</button>`
+                ? `<button class="upload-marker text-[10px] border rounded px-2 py-1">画像編集</button>`
                 : '';
             let previewUrl = '';
             if (isImage) {
@@ -4266,7 +4266,7 @@
                         <div class="truncate text-xs text-gray-200">${safeName}</div>
                         <div class="flex items-center gap-2">
                             <div class="upload-status text-[10px] text-gray-400">待機中</div>
-                            <span class="upload-marker-tag hidden">MARKED</span>
+                            <span class="upload-marker-tag hidden">編集済み</span>
                         </div>
                     </div>
                     <div class="flex items-center gap-1">
@@ -4849,7 +4849,7 @@
             }
             const blob = await new Promise((resolve) => out.toBlob(resolve, 'image/png', 0.92));
             if (!blob) {
-                showToast("マーカー画像の生成に失敗しました", "error", true);
+                showToast("編集画像の生成に失敗しました", "error", true);
                 return;
             }
             const originalName = markerState.filename || 'marked.png';
@@ -4861,7 +4861,7 @@
                 status: row.querySelector('.upload-status'),
                 bar: row.querySelector('.upload-progress > div')
             };
-            if (rowObj.status) rowObj.status.textContent = 'マーカー反映中...';
+            if (rowObj.status) rowObj.status.textContent = '編集反映中...';
             updateUploadRowFile(rowObj, file);
             const prevFilename = row.getAttribute('data-filename');
             if (prevFilename && !row.dataset.originalFilename) {
@@ -4872,7 +4872,7 @@
                 if (prevFilename) currentImageUrls = currentImageUrls.filter(x => x !== prevFilename);
                 setRowMarkerState(row, true);
             } else {
-                showToast("マーカー画像のアップロードに失敗しました", "error", true);
+                showToast("編集画像のアップロードに失敗しました", "error", true);
             }
             updateFilePreview();
             hideModal('marker-modal');

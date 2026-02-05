@@ -1866,6 +1866,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             supports_audio_inputs = _is_gemini_text_model(model_key_l)
             supports_video_inputs = supports_audio_inputs
             supports_pdf_inputs = supports_audio_inputs
+            supports_text_file_inputs = supports_audio_inputs
 
             def _grok_reasoning_effort():
                 raw = (options.get('reasoning_effort') or "").lower().strip()
@@ -1952,7 +1953,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 'text': extracted[:50000] if extracted else None,
                                 'bytes': data,
                                 'mime': mime,
-                                'is_pdf': True
+                                'is_pdf': True,
+                                'is_text': False
                             })
                         elif is_text:
                             extracted = _decode_text_bytes(data)
@@ -1961,10 +1963,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 'text': extracted[:50000] if extracted else None,
                                 'bytes': data,
                                 'mime': mime,
-                                'is_pdf': False
+                                'is_pdf': False,
+                                'is_text': True
                             })
                         else:
-                            loaded_files.append({'name': fn, 'text': None, 'bytes': data, 'mime': mime, 'is_pdf': False})
+                            loaded_files.append({'name': fn, 'text': None, 'bytes': data, 'mime': mime, 'is_pdf': False, 'is_text': False})
                 except: pass
 
             has_audio = any(fi.get('bytes') and str(fi.get('mime', '')).startswith('audio/') for fi in loaded_files)
@@ -2309,6 +2312,31 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 if fi.get('text'):
                                     curr_parts.append(types.Part(text=f"\nFile: {fi['name']}\n{fi['text']}"))
                             continue
+                        if fi.get('is_text') and supports_text_file_inputs and fi.get('bytes'):
+                            attached = False
+                            try:
+                                txt_bytes = fi['bytes']
+                                txt_mime = fi.get('mime') or 'text/plain'
+                                txt_name = os.path.basename(fi.get('name') or 'document.txt')
+                                if len(txt_bytes) <= media_inline_limit:
+                                    curr_parts.append(types.Part.from_bytes(data=txt_bytes, mime_type=txt_mime))
+                                else:
+                                    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(txt_name)[1] or '.txt') as tmp:
+                                        tmp.write(txt_bytes)
+                                        tmp.flush()
+                                        up = g_client.files.upload(file=tmp.name, config={"mimeType": txt_mime})
+                                    uri = getattr(up, "uri", None) or getattr(up, "name", None) or (up.get("uri") if isinstance(up, dict) else None)
+                                    up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or txt_mime
+                                    if uri and hasattr(types.Part, "from_uri"):
+                                        curr_parts.append(types.Part.from_uri(uri=uri, mime_type=up_mime))
+                                    else:
+                                        use_raw_parts = True
+                                        curr_parts.append(up)
+                                attached = True
+                            except Exception as e:
+                                log_force(f"Gemini text file upload failed: {e}")
+                            if attached:
+                                continue
                         if fi.get('text'):
                             curr_parts.append(types.Part(text=f"\nFile: {fi['name']}\n{fi['text']}"))
                             continue
@@ -3147,38 +3175,38 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if quote_text:
                         user_text += f"User Quote:\n{quote_text}\n---\n"
                     user_text += message_text
-                    pdf_parts = []
-                    pdf_inline_limit = 20 * 1024 * 1024  # 20MiB inline limit for PDF inputs
+                    file_parts = []
+                    file_inline_limit = 20 * 1024 * 1024  # 20MiB inline limit for file inputs
                     for fi in loaded_files:
-                        if fi.get('is_pdf') and fi.get('bytes'):
+                        if (fi.get('is_pdf') or fi.get('is_text')) and fi.get('bytes'):
                             attached = False
                             try:
-                                pdf_bytes = fi['bytes']
-                                pdf_name = os.path.basename(fi.get('name') or 'document.pdf')
-                                if len(pdf_bytes) <= pdf_inline_limit:
-                                    b64 = base64.b64encode(pdf_bytes).decode('utf-8')
-                                    pdf_parts.append({"type": "file", "file": {"file_data": b64, "filename": pdf_name}})
+                                f_bytes = fi['bytes']
+                                f_name = os.path.basename(fi.get('name') or ('document.pdf' if fi.get('is_pdf') else 'document.txt'))
+                                if len(f_bytes) <= file_inline_limit:
+                                    b64 = base64.b64encode(f_bytes).decode('utf-8')
+                                    file_parts.append({"type": "file", "file": {"file_data": b64, "filename": f_name}})
                                 else:
-                                    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(pdf_name)[1] or '.pdf') as tmp:
-                                        tmp.write(pdf_bytes)
+                                    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(f_name)[1] or ('.pdf' if fi.get('is_pdf') else '.txt')) as tmp:
+                                        tmp.write(f_bytes)
                                         tmp.flush()
                                         tmp.seek(0)
                                         up = client.files.create(file=tmp, purpose="user_data")
                                     file_id = getattr(up, "id", None) or (up.get("id") if isinstance(up, dict) else None)
                                     if file_id:
-                                        pdf_parts.append({"type": "file", "file": {"file_id": file_id, "filename": pdf_name}})
+                                        file_parts.append({"type": "file", "file": {"file_id": file_id, "filename": f_name}})
                                     else:
                                         raise RuntimeError("file_id missing from upload response")
                                 attached = True
                             except Exception as e:
-                                log_force(f"OpenAI Search PDF attach failed: {e}")
+                                log_force(f"OpenAI Search file attach failed: {e}")
                             if attached:
                                 continue
                         if fi.get('text'):
                             user_text += f"\n\n[File: {fi['name']}]\n{fi['text']}"
-                    if pdf_parts:
+                    if file_parts:
                         user_parts = [{"type": "text", "text": user_text}]
-                        user_parts.extend(pdf_parts)
+                        user_parts.extend(file_parts)
                         messages.append({"role": "user", "content": user_parts})
                     else:
                         messages.append({"role": "user", "content": user_text})
@@ -3272,31 +3300,31 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 image_type = "input_image"
                 if quote_text: curr_content.append({"type": text_type, "text": f"User Quote:\n{quote_text}\n---"})
                 curr_content.append({"type": text_type, "text": message_text})
-                pdf_inline_limit = 20 * 1024 * 1024  # 20MiB inline limit for PDF inputs
+                file_inline_limit = 20 * 1024 * 1024  # 20MiB inline limit for file inputs
 
                 for fi in loaded_files:
-                    if fi.get('is_pdf') and fi.get('bytes') and not is_grok:
+                    if (fi.get('is_pdf') or fi.get('is_text')) and fi.get('bytes') and not is_grok:
                         attached = False
                         try:
-                            pdf_bytes = fi['bytes']
-                            pdf_name = os.path.basename(fi.get('name') or 'document.pdf')
-                            if len(pdf_bytes) <= pdf_inline_limit:
-                                b64 = base64.b64encode(pdf_bytes).decode('utf-8')
-                                curr_content.append({"type": "input_file", "file_data": b64, "filename": pdf_name})
+                            f_bytes = fi['bytes']
+                            f_name = os.path.basename(fi.get('name') or ('document.pdf' if fi.get('is_pdf') else 'document.txt'))
+                            if len(f_bytes) <= file_inline_limit:
+                                b64 = base64.b64encode(f_bytes).decode('utf-8')
+                                curr_content.append({"type": "input_file", "file_data": b64, "filename": f_name})
                             else:
-                                with tempfile.NamedTemporaryFile(suffix=os.path.splitext(pdf_name)[1] or '.pdf') as tmp:
-                                    tmp.write(pdf_bytes)
+                                with tempfile.NamedTemporaryFile(suffix=os.path.splitext(f_name)[1] or ('.pdf' if fi.get('is_pdf') else '.txt')) as tmp:
+                                    tmp.write(f_bytes)
                                     tmp.flush()
                                     tmp.seek(0)
                                     up = client.files.create(file=tmp, purpose="user_data")
                                 file_id = getattr(up, "id", None) or (up.get("id") if isinstance(up, dict) else None)
                                 if file_id:
-                                    curr_content.append({"type": "input_file", "file_id": file_id, "filename": pdf_name})
+                                    curr_content.append({"type": "input_file", "file_id": file_id, "filename": f_name})
                                 else:
                                     raise RuntimeError("file_id missing from upload response")
                             attached = True
                         except Exception as e:
-                            log_force(f"OpenAI PDF attach failed: {e}")
+                            log_force(f"OpenAI file attach failed: {e}")
                         if attached:
                             continue
                     if fi.get('text'):

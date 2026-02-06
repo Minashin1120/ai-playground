@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.150)</title>
+    <title>AI Playground (V4.8.151)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -6462,7 +6462,15 @@
                 showToast("ライブラリから添付しました", "success");
             }
         }
-        window.showLegal = async (t) => { showModal('legal-modal'); const res = await apiFetch("/static/legal/" + t + ".md?t=" + Date.now()); if(!res.ok) return; const text = await res.text(); get('legal-content').innerHTML = DOMPurify.sanitize(marked.parse(text)); }
+        window.showLegal = async (t) => { 
+            const title = t === 'terms' ? '利用規約' : 'プライバシーポリシー';
+            get('legal-title').innerText = title;
+            showModal('legal-modal'); 
+            const res = await apiFetch("/static/legal/" + t + ".md?t=" + Date.now()); 
+            if(!res.ok) return; 
+            const text = await res.text(); 
+            get('legal-content').innerHTML = DOMPurify.sanitize(marked.parse(text)); 
+        }
         window.copyCode = (btn, code) => { 
             const text = decodeURIComponent(code);
             copyToClipboard(text, 

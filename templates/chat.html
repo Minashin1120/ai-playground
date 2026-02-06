@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.149)</title>
+    <title>AI Playground (V4.8.150)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -183,7 +183,7 @@
         .model-list-animate { animation: modelListEnter 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
         
         @keyframes slideInLeft { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
-        .slide-in-animate { animation: slideInLeft 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+        .slide-in-animate { animation: slideInLeft 2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
         
         .modal-overlay { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.3s ease, visibility 0.3s ease; }
         .modal-overlay .modal-panel { opacity: 0; transform: translateY(16px) scale(0.96); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease; }

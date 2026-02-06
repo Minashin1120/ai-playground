@@ -2032,6 +2032,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     _append_limited(f"stream_acc:{job_id}:content", d)
                 elif dt == "thought":
                     _append_limited(f"stream_acc:{job_id}:thought", d)
+                elif dt == "status":
+                    r.setex(f"stream_acc:{job_id}:status", 600, d)
                 elif dt == "python":
                     py = d if isinstance(d, dict) else {}
                     py_id = py.get("id") or "default"
@@ -2071,6 +2073,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
         try:
             log_force(f"Task Start: model={model_key}, user={user_id}")
+            pub("status", "ワーカーがジョブを受信しました。入力を処理中です...")
             user = User.query.get(user_id)
             msg = Message.query.get(message_id)
             if not msg or msg.thread_id != thread_id or msg.thread.user_id != user_id:
@@ -2215,6 +2218,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             is_grok = 'grok' in model_key_l and 'gpt' not in model_key_l
             grok_reasoning_supported = ("grok-3-mini" in model_key_l) or ("reasoning" in model_key_l and "non-reasoning" not in model_key_l)
             grok_reasoning_effort_supported = "grok-3-mini" in model_key_l
+            req_reasoning_effort = (options.get('reasoning_effort') or "").lower().strip()
+            reasoning_requested = bool(options.get('enable_thinking')) or (req_reasoning_effort and req_reasoning_effort != "none")
+            if reasoning_requested:
+                pub("status", "推論プロセスを準備中です。モデルの初回トークンを待機しています...")
+            else:
+                pub("status", "モデルに接続中です。初回トークンを待機しています...")
 
             def _is_gemini_text_model(m):
                 if "gemini" not in m:
@@ -4361,6 +4370,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     log_force(f"Reasoning config: {kwargs['reasoning']}")
 
                 log_force(f"Responses API Params: {kwargs.keys()}")
+                pub("status", "APIへ送信完了。モデルが応答を生成中です...")
                 stream = client.responses.create(**kwargs)
                 search_reported = False
                 saw_reasoning_summary_delta = False
@@ -5379,6 +5389,10 @@ def chat_stream():
         )
     except Exception:
         pass
+    try:
+        redis_conn.setex(f"stream_acc:{job_id}:status", 600, "キューに投入しました。ワーカー待機中です...")
+    except Exception:
+        pass
     
     def generate():
         pubsub = redis_conn.pubsub()
@@ -5388,6 +5402,12 @@ def chat_stream():
         if thread_stream_id:
             yield json.dumps({"type": "thread_id", "content": thread_stream_id}) + "\n"
         yield json.dumps({"type": "job_id", "content": job_id}) + "\n"
+        try:
+            cached_status = redis_conn.get(f"stream_acc:{job_id}:status")
+            if cached_status:
+                yield json.dumps({"type": "status", "content": cached_status.decode("utf-8", "ignore")}) + "\n"
+        except Exception:
+            pass
         try:
             for message in pubsub.listen():
                 if time.time() - start_time > 600: break
@@ -5437,6 +5457,9 @@ def chat_stream_resume():
         start_time = time.time()
         yield json.dumps({"type": "job_id", "content": job_id}) + "\n"
         try:
+            cached_status = redis_conn.get(f"stream_acc:{job_id}:status")
+            if cached_status:
+                yield json.dumps({"type": "status", "content": cached_status.decode("utf-8", "ignore")}) + "\n"
             cached_thought = redis_conn.get(f"stream_acc:{job_id}:thought")
             if cached_thought:
                 yield json.dumps({"type": "thought", "content": cached_thought.decode("utf-8", "ignore")}) + "\n"

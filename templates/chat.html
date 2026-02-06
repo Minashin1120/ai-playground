@@ -5504,10 +5504,41 @@
             }; 
             if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; } 
             resetUploadState(); get('send-btn').disabled = true; get('stop-container').classList.remove('hidden'); userAutoScroll = true; const aid = 'ai-' + Date.now(); clearQuote(); 
+            const modelLower = String(p.model || '').toLowerCase();
+            const effortLower = String(p.reasoning_effort || '').toLowerCase();
+            const reasoningRequested = !!p.enable_thinking || (!!effortLower && effortLower !== 'none');
+            const reasoningCapableModel =
+                modelLower.includes('gemini') ||
+                modelLower.includes('o1') ||
+                modelLower.includes('o3') ||
+                modelLower.includes('gpt-5') ||
+                (modelLower.includes('reasoning') && !modelLower.includes('non-reasoning'));
+            const shouldShowReasoningProgress = reasoningRequested && reasoningCapableModel;
         
             let initialHtml = '<div class="content-area"><span class="animate-pulse">APIに送信中...</span><div class="text-xs text-gray-300/80 mt-2">回答を待機中...</div></div>';
             get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aid}" class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${initialHtml}</div></div>`); 
             scrollToBottom(); 
+            const adiv = get(aid);
+            let thoughtPlaceholderEl = null;
+            const ensureThoughtPlaceholder = (text) => {
+                if (!shouldShowReasoningProgress || !adiv) return null;
+                if (!thoughtPlaceholderEl || !adiv.contains(thoughtPlaceholderEl)) {
+                    thoughtPlaceholderEl = adiv.querySelector('.thought-content');
+                }
+                if (!thoughtPlaceholderEl) {
+                    const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content" data-placeholder="1"></div></div>`;
+                    adiv.insertAdjacentHTML('afterbegin', tHtml);
+                    thoughtPlaceholderEl = adiv.querySelector('.thought-content');
+                }
+                if (thoughtPlaceholderEl) {
+                    thoughtPlaceholderEl.setAttribute('data-placeholder', '1');
+                    thoughtPlaceholderEl.textContent = text || '推論プロセスを準備中...';
+                }
+                return thoughtPlaceholderEl;
+            };
+            if (shouldShowReasoningProgress) {
+                ensureThoughtPlaceholder('推論プロセスを準備中...');
+            }
             
             abortController = new AbortController(); 
             try { 
@@ -5516,7 +5547,6 @@
                     pendingGemForNewThread = null;
                 }
                 const r = await apiFetch("{{ url_for('chat_stream') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p), signal:abortController.signal}); 
-                const adiv = get(aid); 
                 const markApiAccepted = () => {
                     if (!adiv) return;
                     const ca = adiv.querySelector('.content-area');
@@ -5568,12 +5598,28 @@
                                 }
                                 continue;
                             }
+                            if (j.type === 'status') {
+                                markApiAccepted();
+                                const statusText = (j.content === null || j.content === undefined) ? '' : String(j.content);
+                                const ca = adiv ? adiv.querySelector('.content-area') : null;
+                                if (ca && first) {
+                                    const headline = escapeHtml(statusText || 'モデル処理中...');
+                                    ca.innerHTML = `<span class="animate-pulse">${headline}</span><div class="text-xs text-gray-300/80 mt-2">応答開始までの進捗を表示しています</div>`;
+                                }
+                                if (shouldShowReasoningProgress) {
+                                    ensureThoughtPlaceholder(statusText || '推論プロセスを準備中...');
+                                }
+                                continue;
+                            }
                             if(first){ 
                                  const ca = adiv.querySelector('.content-area');
                                  if(ca) ca.innerHTML = '';
                                  first=false; 
                             }
                             if(j.type==='thought'){ 
+                                if(!thEl){
+                                    thEl = adiv.querySelector('.thought-content');
+                                }
                                 tht+=j.content; 
                                 if(!thEl){ 
                                     const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>`; 
@@ -5581,6 +5627,11 @@
                                     else adiv.insertAdjacentHTML('afterbegin', tHtml); 
                                     thEl=adiv.querySelector('.thought-content'); 
                                 } 
+                                if (thEl && thEl.getAttribute('data-placeholder') === '1') {
+                                    thEl.textContent = '';
+                                    thEl.removeAttribute('data-placeholder');
+                                    tht = j.content;
+                                }
                                 thEl.textContent=tht; 
                                 if(userAutoScroll) thEl.scrollTop=thEl.scrollHeight; 
                             } else if(j.type==='python'){ 
@@ -5679,6 +5730,33 @@
             get('send-btn').disabled = true;
             get('stop-container').classList.remove('hidden');
             abortController = new AbortController();
+            const pendingModel = String((pending && pending.model) || '').toLowerCase();
+            const pendingReasoningModel =
+                pendingModel.includes('gemini') ||
+                pendingModel.includes('o1') ||
+                pendingModel.includes('o3') ||
+                pendingModel.includes('gpt-5') ||
+                (pendingModel.includes('reasoning') && !pendingModel.includes('non-reasoning'));
+            let thoughtPlaceholderEl = null;
+            const ensureThoughtPlaceholder = (text) => {
+                if (!pendingReasoningModel || !adiv) return null;
+                if (!thoughtPlaceholderEl || !adiv.contains(thoughtPlaceholderEl)) {
+                    thoughtPlaceholderEl = adiv.querySelector('.thought-content');
+                }
+                if (!thoughtPlaceholderEl) {
+                    const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content" data-placeholder="1"></div></div>`;
+                    adiv.insertAdjacentHTML('afterbegin', tHtml);
+                    thoughtPlaceholderEl = adiv.querySelector('.thought-content');
+                }
+                if (thoughtPlaceholderEl) {
+                    thoughtPlaceholderEl.setAttribute('data-placeholder', '1');
+                    thoughtPlaceholderEl.textContent = text || '推論プロセスを準備中...';
+                }
+                return thoughtPlaceholderEl;
+            };
+            if (pendingReasoningModel) {
+                ensureThoughtPlaceholder('推論プロセスを準備中...');
+            }
             let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null, hadError=false;
             const pyBoxes = {};
             try {
@@ -5715,18 +5793,38 @@
                                 }
                                 continue;
                             }
+                            if (j.type === 'status') {
+                                const statusText = (j.content === null || j.content === undefined) ? '' : String(j.content);
+                                const ca = adiv ? adiv.querySelector('.content-area') : null;
+                                if (ca && first) {
+                                    const headline = escapeHtml(statusText || 'モデル処理中...');
+                                    ca.innerHTML = `<span class="animate-pulse">${headline}</span><div class="text-xs text-gray-300/80 mt-2">応答開始までの進捗を表示しています</div>`;
+                                }
+                                if (pendingReasoningModel) {
+                                    ensureThoughtPlaceholder(statusText || '推論プロセスを準備中...');
+                                }
+                                continue;
+                            }
                             if (first) {
                                 const ca = adiv.querySelector('.content-area');
                                 if (ca) ca.innerHTML = '';
                                 first = false;
                             }
                             if (j.type === 'thought') {
+                                if (!thEl) {
+                                    thEl = adiv.querySelector('.thought-content');
+                                }
                                 tht += j.content;
                                 if (!thEl) {
                                     const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>`;
                                     if (searchBox) searchBox.insertAdjacentHTML('afterend', tHtml);
                                     else adiv.insertAdjacentHTML('afterbegin', tHtml);
                                     thEl = adiv.querySelector('.thought-content');
+                                }
+                                if (thEl && thEl.getAttribute('data-placeholder') === '1') {
+                                    thEl.textContent = '';
+                                    thEl.removeAttribute('data-placeholder');
+                                    tht = j.content;
                                 }
                                 thEl.textContent = tht;
                                 if (userAutoScroll) thEl.scrollTop = thEl.scrollHeight;

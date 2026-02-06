@@ -5229,17 +5229,23 @@ def logout():
 @app.route('/chat_stream', methods=['POST'])
 @login_required
 def chat_stream():
-    data = request.json
+    data = request.json or {}
     user_config = {'enable_e2ee': current_user.enable_e2ee}
     job_id = f"job_{int(time.time())}_{current_user.id}"
 
-    thread_id = data.get('thread_id')
-    if not thread_id:
-        return jsonify({'error': 'thread_id required'}), 400
-    t = resolve_thread_for_user(thread_id, current_user.id)
-    if not t:
-        return jsonify({'error': 'Invalid thread'}), 403
+    thread_ref = data.get('thread_id')
+    thread_was_created = False
+    if thread_ref:
+        t = resolve_thread_for_user(thread_ref, current_user.id)
+        if not t:
+            return jsonify({'error': 'Invalid thread'}), 403
+    else:
+        # Avoid a separate round trip on first send; create the thread in the same transaction.
+        t = Thread(user_id=current_user.id, public_id=generate_thread_public_id())
+        db.session.add(t)
+        thread_was_created = True
     thread_id = t.id
+    thread_stream_id = t.public_id if t and t.public_id else None
     
     user_msg = None
     try:
@@ -5275,15 +5281,16 @@ def chat_stream():
             except Exception:
                 parent_id = None
 
-        if parent_id is None and not parent_explicit:
+        if parent_id is None and not parent_explicit and not thread_was_created and t.id is not None:
             # Default to the last message in the thread
-            last_msg = Message.query.filter_by(thread_id=thread_id).order_by(Message.id.desc()).first()
+            last_msg = Message.query.filter_by(thread_id=t.id).order_by(Message.id.desc()).first()
             if last_msg:
                 parent_id = last_msg.id
 
-        user_tokens_in = count_tokens_for_display(raw_msg_content, data.get('model'))
+        # Defer user token counting to read-time fallbacks to reduce send-path latency.
+        user_tokens_in = None
         user_msg = Message(
-            thread_id=thread_id,
+            thread=t,
             role='user',
             content=msg_content,
             model=data.get('model'),
@@ -5295,7 +5302,23 @@ def chat_stream():
             tokens=sum_token_counts(user_tokens_in, None)
         )
         db.session.add(user_msg)
+        if current_user.use_last_chat_settings:
+            current_user.last_enable_search = bool(data.get('enable_search'))
+            current_user.last_enable_python = bool(data.get('enable_python'))
+            current_user.last_enable_thinking = bool(data.get('enable_thinking'))
+            current_user.last_thinking_level = (data.get('thinking_level') or current_user.last_thinking_level or "high")
+            tb = data.get('thinking_budget')
+            try:
+                if tb is not None and str(tb).strip() != "":
+                    current_user.last_thinking_budget = int(tb)
+            except Exception:
+                pass
+            current_user.last_reasoning_effort = (data.get('reasoning_effort') or current_user.last_reasoning_effort or "medium")
+            current_user.last_enable_system_prompt = bool(data.get('enable_system_prompt'))
+            current_user.last_safety_setting = (data.get('safety_setting') or current_user.last_safety_setting or "default")
         safe_db_commit()
+        thread_id = t.id
+        thread_stream_id = t.public_id if t and t.public_id else str(thread_id)
     except Exception as e:
         logger.error(f"Failed to save user msg: {e}")
         return jsonify({'error': 'Failed to save message'}), 500
@@ -5342,22 +5365,6 @@ def chat_stream():
         'grok_video_resolution': data.get('grok_video_resolution'),
     }
 
-    if current_user.use_last_chat_settings:
-        current_user.last_enable_search = bool(data.get('enable_search'))
-        current_user.last_enable_python = bool(data.get('enable_python'))
-        current_user.last_enable_thinking = bool(data.get('enable_thinking'))
-        current_user.last_thinking_level = (data.get('thinking_level') or current_user.last_thinking_level or "high")
-        tb = data.get('thinking_budget')
-        try:
-            if tb is not None and str(tb).strip() != "":
-                current_user.last_thinking_budget = int(tb)
-        except Exception:
-            pass
-        current_user.last_reasoning_effort = (data.get('reasoning_effort') or current_user.last_reasoning_effort or "medium")
-        current_user.last_enable_system_prompt = bool(data.get('enable_system_prompt'))
-        current_user.last_safety_setting = (data.get('safety_setting') or current_user.last_safety_setting or "default")
-        safe_db_commit()
-
     task_queue.enqueue(background_chat_task, job_id, thread_id, data.get('model'), user_msg.id, options, current_user.id, user_config, job_timeout=600)
     try:
         redis_conn.setex(
@@ -5378,6 +5385,8 @@ def chat_stream():
         channel = f"ai_chat:channel:{job_id}"
         pubsub.subscribe(channel)
         start_time = time.time()
+        if thread_stream_id:
+            yield json.dumps({"type": "thread_id", "content": thread_stream_id}) + "\n"
         yield json.dumps({"type": "job_id", "content": job_id}) + "\n"
         try:
             for message in pubsub.listen():

@@ -5459,18 +5459,6 @@
                 }
             }
             
-            // Create thread in parallel when needed.
-            let threadPromise = null;
-            if(!currentThreadId) {
-                threadPromise = apiFetch("{{ url_for('handle_threads') }}", {method:'POST'})
-                    .then(r => r.json())
-                    .then(d => {
-                        currentThreadId = d.id !== null && d.id !== undefined ? String(d.id) : d.id;
-                        history.pushState({}, '', '/c/' + d.id);
-                        return currentThreadId;
-                    });
-            }
-            
             // If editing, hide the old message to avoid duplication
             if (editingId) {
                 const oldMsgEl = document.getElementById(`msg-${editingId}`);
@@ -5523,13 +5511,6 @@
             
             abortController = new AbortController(); 
             try { 
-                if (threadPromise) {
-                    try { 
-                        p.thread_id = await threadPromise; 
-                    } catch (e) {
-                        throw new Error("Thread create failed");
-                    }
-                }
                 if (p.thread_id && activeGem) {
                     threadGemMap[p.thread_id] = activeGem;
                     pendingGemForNewThread = null;
@@ -5551,6 +5532,20 @@
                         if(!l.trim()) continue; 
                         try { 
                             const j = JSON.parse(l); 
+                            if (j.type === 'thread_id') {
+                                const streamThreadId = j.content !== null && j.content !== undefined ? String(j.content) : j.content;
+                                if (streamThreadId) {
+                                    if (currentThreadId !== streamThreadId) {
+                                        currentThreadId = streamThreadId;
+                                        history.pushState({}, '', '/c/' + streamThreadId);
+                                    }
+                                    if (activeGem) {
+                                        threadGemMap[streamThreadId] = activeGem;
+                                        pendingGemForNewThread = null;
+                                    }
+                                }
+                                continue;
+                            }
                             if (j.type === 'job_id') { currentJobId = j.content; continue; }
                             if (j.type === 'search_status') {
                                 if (j.content === 'searching' && !searchBox) {

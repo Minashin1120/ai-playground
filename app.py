@@ -3204,11 +3204,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 video_bytes = fi['bytes']
                                 video_mime = fi.get('mime') or mime
                                 video_name = fi.get('name') or "video"
+                                video_size = len(video_bytes) if video_bytes is not None else fi.get('size')
                                 rel_path = fi.get('path') or fi.get('name') or video_name
                                 cached_part = _gemini_get_cached_part(
                                     rel_path,
                                     video_mime,
-                                    size=fi.get('size'),
+                                    size=video_size,
                                     mtime=fi.get('mtime'),
                                     label=f"video:{video_name}"
                                 )
@@ -3238,7 +3239,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             file_uri=file_uri,
                                             state=up_state or "ACTIVE",
                                             last_error=None,
-                                            size_bytes=audio_size,
+                                            size_bytes=video_size,
                                             mtime=fi.get('mtime'),
                                             mime_type=up_mime,
                                             last_checked_at=datetime.utcnow()

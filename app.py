@@ -2178,13 +2178,28 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             
             history_rev = []
             total_history_tokens = 0
-            MAX_CONTEXT_TOKENS = 60000
+            try:
+                MAX_CONTEXT_TOKENS = int(os.getenv("MAX_CONTEXT_TOKENS", "60000") or "60000")
+            except Exception:
+                MAX_CONTEXT_TOKENS = 60000
+            if MAX_CONTEXT_TOKENS <= 0:
+                MAX_CONTEXT_TOKENS = 60000
+            try:
+                # Hard cap keeps parent-chain traversal/decoding from dominating pre-first-token latency.
+                MAX_CONTEXT_MESSAGES = int(os.getenv("MAX_CONTEXT_MESSAGES", "120") or "120")
+            except Exception:
+                MAX_CONTEXT_MESSAGES = 120
+            if MAX_CONTEXT_MESSAGES < 0:
+                MAX_CONTEXT_MESSAGES = 120
+            history_count = 0
             
             current_node = msg.parent # Start from the parent of the current message
             if current_node and (current_node.thread_id != thread_id or current_node.thread.user_id != user_id):
                 current_node = None
             while current_node:
-                cnt = decrypt_val(current_node.content) if current_node.is_encrypted else current_node.content
+                if MAX_CONTEXT_MESSAGES and history_count >= MAX_CONTEXT_MESSAGES:
+                    break
+                raw_cnt = current_node.content or ""
                 cached_tokens = None
                 try:
                     if current_node.tokens and current_node.tokens > 0:
@@ -2195,9 +2210,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         cached_tokens = int(current_node.tokens_out)
                 except Exception:
                     cached_tokens = None
-                t_len = cached_tokens if cached_tokens is not None else count_tokens(cnt)
+                if cached_tokens is not None:
+                    t_len = cached_tokens
+                else:
+                    # Fast approximation avoids expensive tokenization on every ancestor.
+                    t_len = max(1, len(raw_cnt) // 4)
                 
                 if total_history_tokens + t_len <= MAX_CONTEXT_TOKENS:
+                    cnt = decrypt_val(raw_cnt) if current_node.is_encrypted else raw_cnt
                     history_rev.append({
                         'role': current_node.role, 
                         'content': cnt, 
@@ -2205,6 +2225,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         'signature': current_node.thought_signature
                     })
                     total_history_tokens += t_len
+                    history_count += 1
                 else:
                     break
                 

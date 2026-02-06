@@ -22,6 +22,7 @@ import tempfile
 from urllib.parse import urlparse, unquote
 import threading
 import hashlib
+from collections import OrderedDict
 import httpx
 from webauthn import (
     generate_registration_options, verify_registration_response,
@@ -102,6 +103,12 @@ def _env_bool(name, default=False):
 def _env_choice(name, default, allowed):
     val = (os.getenv(name) or "").strip()
     return val if val in allowed else default
+
+_DECRYPT_TEXT_CACHE_MAX = max(0, _env_int("DECRYPT_TEXT_CACHE_MAX", 4096))
+_MEDIA_BYTES_CACHE_MAX = max(0, _env_int("MEDIA_BYTES_CACHE_MAX_MB", 128)) * 1024 * 1024
+_MEDIA_BYTES_CACHE_ITEM_MAX = max(0, _env_int("MEDIA_BYTES_CACHE_ITEM_MAX_MB", 12)) * 1024 * 1024
+_HISTORY_IMAGE_MAX_ITEMS = max(0, _env_int("HISTORY_IMAGE_MAX_ITEMS", 8))
+_HISTORY_IMAGE_MAX_BYTES = max(0, _env_int("HISTORY_IMAGE_MAX_MB", 8)) * 1024 * 1024
 
 def _key_sig(key, extra=""):
     if not key:
@@ -505,6 +512,85 @@ def _get_file_disk_info(rel_path):
         "mtime": mtime
     }
 
+_MEDIA_BYTES_CACHE_LOCK = threading.Lock()
+_MEDIA_BYTES_CACHE = OrderedDict()
+_MEDIA_BYTES_CACHE_SIZE = 0
+
+def _media_bytes_cache_get(key):
+    if _MEDIA_BYTES_CACHE_MAX <= 0:
+        return None
+    with _MEDIA_BYTES_CACHE_LOCK:
+        hit = _MEDIA_BYTES_CACHE.get(key)
+        if hit is None:
+            return None
+        _MEDIA_BYTES_CACHE.move_to_end(key)
+        return hit
+
+def _media_bytes_cache_put(key, data):
+    global _MEDIA_BYTES_CACHE_SIZE
+    if _MEDIA_BYTES_CACHE_MAX <= 0:
+        return
+    if data is None:
+        return
+    size = len(data)
+    if size <= 0:
+        return
+    if _MEDIA_BYTES_CACHE_ITEM_MAX and size > _MEDIA_BYTES_CACHE_ITEM_MAX:
+        return
+    if size > _MEDIA_BYTES_CACHE_MAX:
+        return
+    with _MEDIA_BYTES_CACHE_LOCK:
+        prev = _MEDIA_BYTES_CACHE.pop(key, None)
+        if prev is not None:
+            _MEDIA_BYTES_CACHE_SIZE -= len(prev)
+        _MEDIA_BYTES_CACHE[key] = data
+        _MEDIA_BYTES_CACHE_SIZE += size
+        while _MEDIA_BYTES_CACHE_SIZE > _MEDIA_BYTES_CACHE_MAX and _MEDIA_BYTES_CACHE:
+            _, ev = _MEDIA_BYTES_CACHE.popitem(last=False)
+            _MEDIA_BYTES_CACHE_SIZE -= len(ev)
+
+def _media_bytes_cache_evict_path(rel_path):
+    global _MEDIA_BYTES_CACHE_SIZE
+    if not rel_path:
+        return
+    with _MEDIA_BYTES_CACHE_LOCK:
+        to_del = [k for k in _MEDIA_BYTES_CACHE.keys() if isinstance(k, tuple) and len(k) > 0 and k[0] == rel_path]
+        for k in to_del:
+            prev = _MEDIA_BYTES_CACHE.pop(k, None)
+            if prev is not None:
+                _MEDIA_BYTES_CACHE_SIZE -= len(prev)
+
+def _load_user_file_bytes(rel_path, info=None):
+    if not rel_path:
+        return None
+    if info is None:
+        info = _get_file_disk_info(rel_path)
+    if not info or not info.get("exists"):
+        return None
+    key = (
+        rel_path,
+        info.get("mtime"),
+        info.get("size"),
+        1 if info.get("is_encrypted") else 0
+    )
+    cached = _media_bytes_cache_get(key)
+    if cached is not None:
+        return cached
+    data = None
+    try:
+        with open(info["disk_path"], 'rb') as f:
+            raw = f.read()
+        if info.get("is_encrypted"):
+            data = decrypt_bytes(raw)
+        else:
+            data = raw
+    except Exception:
+        data = None
+    if data is None:
+        return None
+    _media_bytes_cache_put(key, data)
+    return data
+
 def _get_file_cache(user_id, rel_path, provider):
     if not user_id or not rel_path or not provider:
         return None
@@ -533,6 +619,10 @@ def _delete_file_cache_for_path(user_id, rel_path):
         return
     try:
         FileCache.query.filter_by(user_id=user_id, rel_path=rel_path).delete()
+    except Exception:
+        pass
+    try:
+        _media_bytes_cache_evict_path(rel_path)
     except Exception:
         pass
 
@@ -580,6 +670,10 @@ try:
         cipher = Fernet(key)
 except Exception as e: logger.error(f'Encryption setup failed: {e}')
 
+_DECRYPT_CACHE_LOCK = threading.Lock()
+_DECRYPT_CACHE = OrderedDict()
+_DECRYPT_CACHE_MISS = object()
+
 def encrypt_val(val):
     if not val or not cipher: return val
     try: return cipher.encrypt(val.encode()).decode()
@@ -587,8 +681,23 @@ def encrypt_val(val):
 
 def decrypt_val(val):
     if not val or not cipher: return val
-    try: return cipher.decrypt(val.encode()).decode()
-    except: return val
+    if _DECRYPT_TEXT_CACHE_MAX > 0 and isinstance(val, str):
+        with _DECRYPT_CACHE_LOCK:
+            hit = _DECRYPT_CACHE.get(val, _DECRYPT_CACHE_MISS)
+            if hit is not _DECRYPT_CACHE_MISS:
+                _DECRYPT_CACHE.move_to_end(val)
+                return hit
+    try:
+        plain = cipher.decrypt(val.encode()).decode()
+        if _DECRYPT_TEXT_CACHE_MAX > 0 and isinstance(val, str):
+            with _DECRYPT_CACHE_LOCK:
+                _DECRYPT_CACHE[val] = plain
+                _DECRYPT_CACHE.move_to_end(val)
+                while len(_DECRYPT_CACHE) > _DECRYPT_TEXT_CACHE_MAX:
+                    _DECRYPT_CACHE.popitem(last=False)
+        return plain
+    except:
+        return val
 
 def encrypt_bytes(data):
     if not cipher: return data
@@ -1786,7 +1895,6 @@ def evaluate_bot_score(payload):
 
 def migrate_e2ee_task(user_id, target_enable):
     with app.app_context():
-        db.engine.dispose()
         r = redis.from_url(REDIS_URL)
         r.set(f"migration_status:{user_id}", "processing")
         try:
@@ -1900,7 +2008,6 @@ def safe_execute_python(code):
 
 def background_chat_task(job_id, thread_id, model_key, message_id, options, user_id, user_config):
     with app.app_context():
-        db.engine.dispose()
         channel = f"ai_chat:channel:{job_id}"
         r = redis.from_url(REDIS_URL)
         def _append_limited(key, chunk, limit=1_000_000):
@@ -2289,16 +2396,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     size_mb = info["size"] // (1024 * 1024)
                     file_errors.append({"name": clean_fn, "reason": f"サイズ超過({size_mb}MB)"})
                     continue
-                data = None
-                try:
-                    if info.get("is_encrypted"):
-                        with open(info["disk_path"], 'rb') as f:
-                            data = decrypt_bytes(f.read())
-                    else:
-                        with open(info["disk_path"], 'rb') as f:
-                            data = f.read()
-                except Exception:
-                    data = None
+                data = _load_user_file_bytes(clean_fn, info)
                 if data is None:
                     file_errors.append({"name": clean_fn, "reason": "読み込み失敗"})
                     continue
@@ -2656,6 +2754,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         conf['system_instruction'] = options.get('system_prompt')
                     
                     contents = []
+                    history_img_seen = set()
+                    history_img_count = 0
+                    history_img_bytes = 0
                     for m in history:
                         parts = []
                         if m.get('signature'):
@@ -2678,24 +2779,38 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         parts.append(types.Part(thought_signature=base64.b64decode(s)))
                                     except Exception:
                                         pass
-                        if m['content']: parts.append(types.Part(text=m['content']))
-                        if m['image_url']:
+                        if m['content']:
+                            parts.append(types.Part(text=m['content']))
+                        # Only include historical user images. Assistant-generated images can explode latency.
+                        if m['role'] == 'user' and m['image_url']:
                             try:
-                                for h_img in json.loads(m['image_url']):
+                                h_list = json.loads(m['image_url'])
+                                if not isinstance(h_list, list):
+                                    h_list = [h_list]
+                                for h_img in h_list:
+                                    if _HISTORY_IMAGE_MAX_ITEMS and history_img_count >= _HISTORY_IMAGE_MAX_ITEMS:
+                                        break
                                     norm_h = _normalize_upload_ref(h_img)
                                     if not norm_h:
                                         continue
-                                    bp2 = os.path.join(app.config['UPLOAD_FOLDER'], norm_h)
-                                    ep2 = bp2 + '.enc'
-                                    d2 = None
-                                    if os.path.exists(bp2):
-                                        with open(bp2, 'rb') as f: d2 = f.read()
-                                    elif os.path.exists(ep2):
-                                        with open(ep2, 'rb') as f: d2 = decrypt_bytes(f.read())
+                                    if norm_h in history_img_seen:
+                                        continue
+                                    info_h = _get_file_disk_info(norm_h)
+                                    if not info_h.get("exists"):
+                                        continue
+                                    est_size = info_h.get("size") or 0
+                                    if _HISTORY_IMAGE_MAX_BYTES and est_size and (history_img_bytes + est_size > _HISTORY_IMAGE_MAX_BYTES):
+                                        continue
+                                    d2 = _load_user_file_bytes(norm_h, info_h)
                                     if d2:
-                                        mime2 = mimetypes.guess_type(bp2)[0] or 'application/octet-stream'
+                                        if _HISTORY_IMAGE_MAX_BYTES and (history_img_bytes + len(d2) > _HISTORY_IMAGE_MAX_BYTES):
+                                            continue
+                                        mime2 = mimetypes.guess_type(norm_h)[0] or 'application/octet-stream'
                                         if mime2.startswith('image/'):
                                             parts.append(types.Part.from_bytes(data=d2, mime_type=mime2))
+                                            history_img_seen.add(norm_h)
+                                            history_img_count += 1
+                                            history_img_bytes += len(d2)
                             except: pass
                         if parts: contents.append(types.Content(role='model' if m['role'] == 'assistant' else 'user', parts=parts))
 
@@ -3622,26 +3737,41 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 grok_sys = _grok_system_prompt(options.get('system_prompt'), grok_enable_search)
                 if grok_sys: chat_session.append(x_system(grok_sys))
                 
+                history_img_seen = set()
+                history_img_count = 0
+                history_img_bytes = 0
                 for m in history:
                     if m['role'] == 'user':
                         content_parts = [m['content']]
                         if m['image_url']:
                             try:
-                                for h_img in json.loads(m['image_url']):
+                                h_list = json.loads(m['image_url'])
+                                if not isinstance(h_list, list):
+                                    h_list = [h_list]
+                                for h_img in h_list:
+                                    if _HISTORY_IMAGE_MAX_ITEMS and history_img_count >= _HISTORY_IMAGE_MAX_ITEMS:
+                                        break
                                     norm_h = _normalize_upload_ref(h_img)
                                     if not norm_h:
                                         continue
-                                    bp2 = os.path.join(app.config['UPLOAD_FOLDER'], norm_h)
-                                    ep2 = bp2 + '.enc'
-                                    d2 = None
-                                    if os.path.exists(bp2):
-                                        with open(bp2, 'rb') as f: d2 = f.read()
-                                    elif os.path.exists(ep2):
-                                        with open(ep2, 'rb') as f: d2 = decrypt_bytes(f.read())
+                                    if norm_h in history_img_seen:
+                                        continue
+                                    info_h = _get_file_disk_info(norm_h)
+                                    if not info_h.get("exists"):
+                                        continue
+                                    est_size = info_h.get("size") or 0
+                                    if _HISTORY_IMAGE_MAX_BYTES and est_size and (history_img_bytes + est_size > _HISTORY_IMAGE_MAX_BYTES):
+                                        continue
+                                    d2 = _load_user_file_bytes(norm_h, info_h)
                                     if d2:
-                                        mime = mimetypes.guess_type(bp2)[0] or 'image/webp'
+                                        if _HISTORY_IMAGE_MAX_BYTES and (history_img_bytes + len(d2) > _HISTORY_IMAGE_MAX_BYTES):
+                                            continue
+                                        mime = mimetypes.guess_type(norm_h)[0] or 'image/webp'
                                         d_uri = f"data:{mime};base64,{base64.b64encode(d2).decode('utf-8')}"
                                         content_parts.append(x_image(d_uri))
+                                        history_img_seen.add(norm_h)
+                                        history_img_count += 1
+                                        history_img_bytes += len(d2)
                             except: pass
                         chat_session.append(x_user(*content_parts))
                     else: chat_session.append(x_assistant(m['content']))
@@ -5426,8 +5556,10 @@ def serve_file(filename):
         resp.headers.setdefault("Accept-Ranges", "bytes")
         return resp
     elif os.path.exists(enc_path):
-        with open(enc_path, 'rb') as f:
-            data = decrypt_bytes(f.read())
+        info = _get_file_disk_info(norm)
+        data = _load_user_file_bytes(norm, info)
+        if data is None:
+            abort(404)
         range_header = request.headers.get('Range')
         if range_header:
             m = re.match(r"bytes=(\d*)-(\d*)", range_header)

@@ -7,6 +7,8 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script type="module">
         import { get } from 'https://esm.sh/@github/webauthn-json@2.1.1';
         window.webauthnJSON = { get };
@@ -75,6 +77,14 @@
             background: rgba(15,23,32,0.8);
             border: 1px solid rgba(148,163,184,0.2);
         }
+        .modal-overlay { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.3s ease, visibility 0.3s ease; }
+        .modal-overlay.modal-open { opacity: 1; visibility: visible; pointer-events: auto; }
+        .modal-panel { transform: translateY(16px) scale(0.96); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease; }
+        .modal-overlay.modal-open .modal-panel { transform: translateY(0) scale(1); }
+        .prose h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem; color: white; }
+        .prose h2 { font-size: 1.25rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.75rem; color: #5eead4; }
+        .prose ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+        .prose li { margin-bottom: 0.5rem; }
     </style>
 </head>
 <body class="text-white h-screen flex flex-col items-center justify-center p-4">
@@ -119,7 +129,59 @@
             <a href="/signup" class="inline-block w-full text-white font-bold py-2 rounded-xl transition text-sm ghost-btn">新規アカウント作成</a>
         </div>
     </div>
+
+    <footer class="mt-8 text-center text-xs text-slate-500 space-y-2">
+        <div class="flex justify-center gap-4">
+            <button onclick="showLegal('terms')" class="hover:text-white transition">利用規約</button>
+            <button onclick="showLegal('privacy')" class="hover:text-white transition">プライバシーポリシー</button>
+        </div>
+        <p>&copy; 2026 AI Chat Playground</p>
+    </footer>
+
+    <!-- Legal Modal -->
+    <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm modal-overlay">
+        <div class="bg-slate-900 rounded-2xl w-full max-w-3xl p-6 shadow-2xl border border-slate-700 m-4 flex flex-col max-h-[85vh] modal-panel text-left">
+            <h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-slate-700 pb-2">利用規約</h2>
+            <div id="legal-content" class="overflow-y-auto pr-2 flex-1 text-sm text-slate-300 leading-relaxed space-y-4 prose max-w-none"></div>
+            <div class="flex justify-end mt-4 shrink-0">
+                <button onclick="hideLegal()" class="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl border border-slate-700 transition">閉じる</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        const showModal = (id) => {
+            const el = document.getElementById(id);
+            el.classList.remove('hidden');
+            el.style.display = 'flex';
+            void el.offsetHeight;
+            el.classList.add('modal-open');
+        };
+        const hideModal = (id) => {
+            const el = document.getElementById(id);
+            el.classList.remove('modal-open');
+            setTimeout(() => {
+                el.style.display = 'none';
+                el.classList.add('hidden');
+            }, 300);
+        };
+
+        window.showLegal = async (t) => {
+            const title = t === 'terms' ? '利用規約' : 'プライバシーポリシー';
+            document.getElementById('legal-title').innerText = title;
+            showModal('legal-modal');
+            const res = await fetch("/static/legal/" + t + ".md?t=" + Date.now());
+            if(!res.ok) return;
+            const text = await res.text();
+            document.getElementById('legal-content').innerHTML = DOMPurify.sanitize(marked.parse(text));
+        };
+        window.hideLegal = () => hideModal('legal-modal');
+
+        // Close on overlay click
+        document.getElementById('legal-modal').onclick = (e) => {
+            if (e.target.id === 'legal-modal') hideLegal();
+        };
+
         const getTurnstileToken = () => {
             const el = document.querySelector('[name="cf-turnstile-response"]');
             return el ? el.value : '';

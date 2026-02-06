@@ -3840,7 +3840,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     r_content = getattr(chunk, 'reasoning_content', None)
                     if r_content:
                         thought_accumulated += r_content
-                        pub("thought", r_content)
+                        if grok_reasoning_supported:
+                            pub("thought", r_content)
                     
                     # Also log encrypted content presence for debugging
                     if getattr(chunk, 'encrypted_content', None):

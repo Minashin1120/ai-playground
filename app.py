@@ -4794,6 +4794,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 r.delete(f"stream_acc:{job_id}:content")
                 r.delete(f"stream_acc:{job_id}:thought")
                 r.delete(f"stream_acc:{job_id}:search")
+                r.delete(f"stream_acc:{job_id}:status")
                 r.delete(f"stream_acc:{job_id}:final")
                 r.delete(f"stream_acc:{job_id}:python")
             except Exception:

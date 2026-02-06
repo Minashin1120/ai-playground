@@ -5396,7 +5396,10 @@ def chat_stream():
                     yield json.dumps(data) + "\n"
                     if data['type'] in ['done', 'error']: break
         finally: pubsub.unsubscribe()
-    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+    resp = Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+    resp.headers['Cache-Control'] = 'no-cache, no-transform'
+    resp.headers['X-Accel-Buffering'] = 'no'
+    return resp
 
 @app.route('/chat_stream_resume', methods=['POST'])
 @login_required
@@ -5462,7 +5465,10 @@ def chat_stream_resume():
                     if data.get('type') in ['done', 'error']: break
         finally:
             pubsub.unsubscribe()
-    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+    resp = Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+    resp.headers['Cache-Control'] = 'no-cache, no-transform'
+    resp.headers['X-Accel-Buffering'] = 'no'
+    return resp
 
 @app.route('/api/stop_chat', methods=['POST'])
 @login_required

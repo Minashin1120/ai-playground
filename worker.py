@@ -2,6 +2,10 @@ import os
 import redis
 from rq import SimpleWorker, Queue
 
+# Preload app module at process start so first user job does not pay import cost.
+from app import app as flask_app  # noqa: F401
+from app import background_chat_task  # noqa: F401
+
 listen = ['ai_chat_queue']
 
 if __name__ == '__main__':

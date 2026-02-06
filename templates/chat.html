@@ -5516,9 +5516,18 @@
                     pendingGemForNewThread = null;
                 }
                 const r = await apiFetch("{{ url_for('chat_stream') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p), signal:abortController.signal}); 
+                const adiv = get(aid); 
+                const markApiAccepted = () => {
+                    if (!adiv) return;
+                    const ca = adiv.querySelector('.content-area');
+                    if (!ca) return;
+                    if (ca.getAttribute('data-api-accepted') === '1') return;
+                    ca.setAttribute('data-api-accepted', '1');
+                    ca.innerHTML = '<span class="animate-pulse">接続完了。モデル応答を待機中...</span><div class="text-xs text-gray-300/80 mt-2">キュー待機や初期化中の可能性があります</div>';
+                };
+                markApiAccepted();
                 const reader = r.body.getReader(); 
                 const dec = new TextDecoder(); 
-                const adiv = get(aid); 
                 let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null, hadError=false; 
                 const pyBoxes = {}; 
             
@@ -5533,6 +5542,7 @@
                         try { 
                             const j = JSON.parse(l); 
                             if (j.type === 'thread_id') {
+                                markApiAccepted();
                                 const streamThreadId = j.content !== null && j.content !== undefined ? String(j.content) : j.content;
                                 if (streamThreadId) {
                                     if (currentThreadId !== streamThreadId) {
@@ -5546,7 +5556,7 @@
                                 }
                                 continue;
                             }
-                            if (j.type === 'job_id') { currentJobId = j.content; continue; }
+                            if (j.type === 'job_id') { markApiAccepted(); currentJobId = j.content; continue; }
                             if (j.type === 'search_status') {
                                 if (j.content === 'searching' && !searchBox) {
                                      adiv.insertAdjacentHTML('afterbegin', `<div class="search-box visible animate-pulse mb-2"><i class="fas fa-globe"></i> Searching web...</div>`);

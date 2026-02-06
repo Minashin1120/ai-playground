@@ -5578,7 +5578,7 @@ def generate_title_api():
             try:
                 g_client = _get_gemini_client(g_key)
                 resp = g_client.models.generate_content(
-                    model="gemini-3-flash-preview",
+                    model="gemini-2.5-flash-lite",
                     contents=[types.Part(text=f"Generate a short title (max 6 words) for this chat. JSON: {{'title': '...'}}\n\nChat: {content[:500]}")],
                     config=types.GenerateContentConfig(response_mime_type="application/json")
                 )

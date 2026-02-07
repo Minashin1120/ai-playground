@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.156)</title>
+    <title>AI Playground (V4.8.157)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -802,7 +802,12 @@
                 </label>
                 <span class="text-[10px] text-gray-500">動画ファイルは音声のみ抽出してアップロードします。</span>
             </div>
-            <div class="text-xs text-gray-400 mb-2">進行状況</div>
+            <div class="flex items-center justify-between mb-2">
+                <div class="text-xs text-gray-400">進行状況 <span id="upload-modal-status-text"></span></div>
+                <div id="upload-modal-total-progress" class="hidden h-1.5 w-32 bg-gray-900 rounded-full overflow-hidden">
+                    <div id="upload-modal-total-progress-bar" class="h-full bg-blue-500 transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
             <div id="upload-list" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
         </div>
     </div>
@@ -3857,6 +3862,11 @@
             const nameEl = get('file-name');
             const progressContainer = get('upload-total-progress');
             const progressBar = get('upload-total-progress-bar');
+
+            const modalStatusText = get('upload-modal-status-text');
+            const modalProgressContainer = get('upload-modal-total-progress');
+            const modalProgressBar = get('upload-modal-total-progress-bar');
+
             if (!preview || !nameEl) return;
             
             const pendingUrls = collectImageUrlsForSend();
@@ -3865,28 +3875,41 @@
             const active = uploadProgressState.active;
 
             if (active > 0) {
+                const statusStr = `Preparing... (${completed}/${total})`;
                 preview.classList.remove('hidden');
-                nameEl.innerText = `Preparing... (${completed}/${total})`;
+                nameEl.innerText = statusStr;
+                if (modalStatusText) modalStatusText.innerText = `(${completed}/${total})`;
+
+                let sumPct = completed * 100;
+                let countActive = 0;
+                for (let id in uploadProgressState.perFilePct) {
+                    sumPct += uploadProgressState.perFilePct[id];
+                    countActive++;
+                }
+                const pct = total > 0 ? (sumPct / (total * 100)) * 100 : 0;
+                const pctStr = `${Math.min(100, pct)}%`;
+
                 if (progressContainer && progressBar) {
                     progressContainer.classList.remove('hidden');
-                    let sumPct = completed * 100;
-                    let countActive = 0;
-                    for (let id in uploadProgressState.perFilePct) {
-                        sumPct += uploadProgressState.perFilePct[id];
-                        countActive++;
-                    }
-                    const totalForAvg = completed + countActive;
-                    const pct = totalForAvg > 0 ? (sumPct / (total * 100)) * 100 : 0;
-                    progressBar.style.width = `${Math.min(100, pct)}%`;
+                    progressBar.style.width = pctStr;
                 }
-            } else if (pendingUrls.length > 0) {
-                preview.classList.remove('hidden');
-                nameEl.innerText = `${pendingUrls.length} files ready`;
-                if (progressContainer) progressContainer.classList.add('hidden');
+                if (modalProgressContainer && modalProgressBar) {
+                    modalProgressContainer.classList.remove('hidden');
+                    modalProgressBar.style.width = pctStr;
+                }
             } else {
-                preview.classList.add('hidden');
-                nameEl.innerText = '';
-                if (progressContainer) progressContainer.classList.add('hidden');
+                if (modalStatusText) modalStatusText.innerText = '';
+                if (modalProgressContainer) modalProgressContainer.classList.add('hidden');
+
+                if (pendingUrls.length > 0) {
+                    preview.classList.remove('hidden');
+                    nameEl.innerText = `${pendingUrls.length} files ready`;
+                    if (progressContainer) progressContainer.classList.add('hidden');
+                } else {
+                    preview.classList.add('hidden');
+                    nameEl.innerText = '';
+                    if (progressContainer) progressContainer.classList.add('hidden');
+                }
             }
         }
         function updateMaskPreview() {

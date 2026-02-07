@@ -6246,6 +6246,7 @@ def bot_update():
     user = User.query.filter_by(username=username).first()
     if not user:
         return jsonify({'error': 'not_found'}), 404
+    
     if action == 'toggle_detection':
         enabled = bool(data.get('enabled'))
         user.bot_detection_enabled = enabled
@@ -6261,6 +6262,7 @@ def bot_update():
         unban_linked_accounts(user)
     else:
         return jsonify({'error': 'bad_action'}), 400
+    
     safe_db_commit()
     return jsonify({'status': 'ok', 'username': username, 'action': action})
 

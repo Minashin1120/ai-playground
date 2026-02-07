@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.158)</title>
+    <title>AI Playground (V4.8.159)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -3388,22 +3388,31 @@
                     if (!btn) return;
                     const username = btn.getAttribute('data-user');
                     if (!username) return;
+
+                    let res;
                     if (btn.classList.contains('bot-toggle-detect')) {
                         const enabled = btn.getAttribute('data-enabled') !== '1';
-                        await apiFetch('/api/bot/update', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username, action:'toggle_detection', enabled})});
-                        await loadBotUsers(get('bot-admin-search') ? get('bot-admin-search').value.trim() : '');
+                        res = await apiFetch('/api/bot/update', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username, action:'toggle_detection', enabled})});
                     } else if (btn.classList.contains('bot-toggle-ban')) {
                         const banned = btn.getAttribute('data-banned') === '1';
                         if (banned) {
-                            await apiFetch('/api/bot/update', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username, action:'unban'})});
+                            res = await apiFetch('/api/bot/update', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username, action:'unban'})});
                         } else {
                             if (!confirm(`ユーザー ${username} をBANしますか？`)) return;
-                            await apiFetch('/api/bot/update', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username, action:'ban', reason:'Admin ban'})});
+                            res = await apiFetch('/api/bot/update', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username, action:'ban', reason:'Admin ban'})});
                         }
-                        await loadBotUsers(get('bot-admin-search') ? get('bot-admin-search').value.trim() : '');
                     } else if (btn.classList.contains('bot-toggle-unban-linked')) {
                         if (!confirm(`ユーザー ${username} の連鎖BANを解除しますか？`)) return;
-                        await apiFetch('/api/bot/update', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username, action:'unban_linked'})});
+                        res = await apiFetch('/api/bot/update', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username, action:'unban_linked'})});
+                    }
+
+                    if (res) {
+                        if (res.status === 404) {
+                            showToast(`ユーザー ${username} は既に見つかりません（削除された可能性があります）`, 'error', true);
+                        } else if (!res.ok) {
+                            const d = await res.json();
+                            showToast(d.error || 'エラーが発生しました', 'error', true);
+                        }
                         await loadBotUsers(get('bot-admin-search') ? get('bot-admin-search').value.trim() : '');
                     }
                 };

@@ -7,11 +7,17 @@
     const DISPLAY_DELAY_MS = 500;
     const USER_ACTION_WINDOW_MS = 1200;
     const FORM_FALLBACK_MS = 15000;
+    const EXPECTED_SLOW_FALLBACK_MS = 4000;
+
+    const ENGLISH_SLOW_HINT_RE = /(send|submit|save|upload|generate|login|signup|verify|revoke|refresh|delete|remove|regenerate|create|setup|appeal|ban|sync|migrate|export|import)/i;
+    const JAPANESE_SLOW_HINT_RE = /(送信|保存|アップロード|生成|ログイン|認証|削除|更新|作成|再生成|同期|設定|申し立て)/;
 
     let pendingCount = 0;
     let showTimer = null;
     let spinnerEl = null;
     let lastUserActionAt = 0;
+    let expectedSlowRelease = null;
+    let expectedSlowTimer = null;
 
     function ensureSpinnerElement() {
         if (spinnerEl) {
@@ -106,20 +112,67 @@
         showTimer = null;
     }
 
-    function beginPending() {
+    function acquirePending(options) {
+        const immediate = !!(options && options.immediate);
         pendingCount += 1;
-        scheduleShowIfNeeded();
+        if (immediate) {
+            clearShowTimer();
+            showSpinner();
+        } else {
+            scheduleShowIfNeeded();
+        }
+
+        let released = false;
+        return function releasePending() {
+            if (released) {
+                return;
+            }
+            released = true;
+            if (pendingCount > 0) {
+                pendingCount -= 1;
+            }
+            if (pendingCount <= 0) {
+                pendingCount = 0;
+                clearShowTimer();
+                hideSpinner();
+            }
+        };
     }
 
-    function endPending() {
-        if (pendingCount > 0) {
-            pendingCount -= 1;
+    function clearExpectedSlowPending() {
+        if (expectedSlowTimer) {
+            window.clearTimeout(expectedSlowTimer);
+            expectedSlowTimer = null;
         }
-        if (pendingCount <= 0) {
-            pendingCount = 0;
-            clearShowTimer();
-            hideSpinner();
+        if (expectedSlowRelease) {
+            expectedSlowRelease();
+            expectedSlowRelease = null;
         }
+    }
+
+    function startExpectedSlowPending() {
+        clearExpectedSlowPending();
+        expectedSlowRelease = acquirePending({ immediate: true });
+        expectedSlowTimer = window.setTimeout(function () {
+            clearExpectedSlowPending();
+        }, EXPECTED_SLOW_FALLBACK_MS);
+    }
+
+    function startTrackedPending() {
+        if (!expectedSlowRelease) {
+            return acquirePending();
+        }
+
+        const releaseExpected = expectedSlowRelease;
+        expectedSlowRelease = null;
+        if (expectedSlowTimer) {
+            window.clearTimeout(expectedSlowTimer);
+            expectedSlowTimer = null;
+        }
+
+        const trackedRelease = acquirePending({ immediate: true });
+        releaseExpected();
+        return trackedRelease;
     }
 
     function markUserAction() {
@@ -133,6 +186,49 @@
         return (Date.now() - lastUserActionAt) <= USER_ACTION_WINDOW_MS;
     }
 
+    function isExpectedSlowButton(buttonLike) {
+        if (!(buttonLike instanceof Element)) {
+            return false;
+        }
+
+        const noSpinner = (buttonLike.getAttribute('data-progress-no-spinner') || '').toLowerCase();
+        if (noSpinner === '1' || noSpinner === 'true' || noSpinner === 'yes') {
+            return false;
+        }
+
+        const expectedAttr = (buttonLike.getAttribute('data-progress-expected-slow') || '').toLowerCase();
+        if (expectedAttr === '1' || expectedAttr === 'true' || expectedAttr === 'yes') {
+            return true;
+        }
+        if (expectedAttr === '0' || expectedAttr === 'false' || expectedAttr === 'no') {
+            return false;
+        }
+
+        if (buttonLike.closest('[data-progress-no-spinner="true"]')) {
+            return false;
+        }
+
+        if (buttonLike.matches('button[type="submit"], input[type="submit"]')) {
+            return true;
+        }
+        if (buttonLike.closest('form')) {
+            return true;
+        }
+
+        const identity = [
+            buttonLike.id || '',
+            buttonLike.getAttribute('name') || '',
+            typeof buttonLike.className === 'string' ? buttonLike.className : ''
+        ].join(' ');
+
+        if (ENGLISH_SLOW_HINT_RE.test(identity)) {
+            return true;
+        }
+
+        const label = (buttonLike.textContent || '').trim();
+        return JAPANESE_SLOW_HINT_RE.test(label);
+    }
+
     function installInteractionTracking() {
         document.addEventListener('click', function (event) {
             const target = event.target;
@@ -142,6 +238,9 @@
             const buttonLike = target.closest('button, input[type="submit"], input[type="button"], [role="button"]');
             if (buttonLike) {
                 markUserAction();
+                if (isExpectedSlowButton(buttonLike)) {
+                    startExpectedSlowPending();
+                }
             }
         }, true);
 
@@ -150,9 +249,9 @@
                 return;
             }
             markUserAction();
-            beginPending();
-            window.setTimeout(endPending, FORM_FALLBACK_MS);
-        }, true);
+            const release = startTrackedPending();
+            window.setTimeout(release, FORM_FALLBACK_MS);
+        });
 
         document.addEventListener('keydown', function (event) {
             if (event.key !== 'Enter' && event.key !== ' ') {
@@ -162,12 +261,21 @@
             if (!(target instanceof Element)) {
                 return;
             }
-            if (target.closest('button, [role="button"], input, textarea, select')) {
+            const buttonLike = target.closest('button, input[type="submit"], [role="button"]');
+            if (buttonLike) {
+                markUserAction();
+                if (isExpectedSlowButton(buttonLike)) {
+                    startExpectedSlowPending();
+                }
+                return;
+            }
+            if (target.closest('input, textarea, select')) {
                 markUserAction();
             }
         }, true);
 
         window.addEventListener('pagehide', function () {
+            clearExpectedSlowPending();
             pendingCount = 0;
             clearShowTimer();
             hideSpinner();
@@ -181,22 +289,20 @@
         const originalFetch = window.fetch.bind(window);
         window.fetch = function () {
             const tracked = isLikelyUserInitiated();
-            if (tracked) {
-                beginPending();
-            }
+            const release = tracked ? startTrackedPending() : null;
 
             let result;
             try {
                 result = originalFetch.apply(window, arguments);
             } catch (err) {
-                if (tracked) {
-                    endPending();
+                if (release) {
+                    release();
                 }
                 throw err;
             }
 
-            if (tracked && result && typeof result.finally === 'function') {
-                return result.finally(endPending);
+            if (release && result && typeof result.finally === 'function') {
+                return result.finally(release);
             }
             return result;
         };
@@ -209,11 +315,12 @@
 
         const originalSend = window.XMLHttpRequest.prototype.send;
         window.XMLHttpRequest.prototype.send = function () {
-            const tracked = isLikelyUserInitiated();
-            if (tracked) {
-                beginPending();
-                this.addEventListener('loadend', endPending, { once: true });
+            if (!isLikelyUserInitiated()) {
+                return originalSend.apply(this, arguments);
             }
+
+            const release = startTrackedPending();
+            this.addEventListener('loadend', release, { once: true });
             return originalSend.apply(this, arguments);
         };
     }

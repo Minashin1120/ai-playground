@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.155)</title>
+    <title>AI Playground (V4.8.156)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -3869,8 +3869,15 @@
                 nameEl.innerText = `Preparing... (${completed}/${total})`;
                 if (progressContainer && progressBar) {
                     progressContainer.classList.remove('hidden');
-                    const pct = total > 0 ? (completed / total) * 100 : 0;
-                    progressBar.style.width = `${pct}%`;
+                    let sumPct = completed * 100;
+                    let countActive = 0;
+                    for (let id in uploadProgressState.perFilePct) {
+                        sumPct += uploadProgressState.perFilePct[id];
+                        countActive++;
+                    }
+                    const totalForAvg = completed + countActive;
+                    const pct = totalForAvg > 0 ? (sumPct / (total * 100)) * 100 : 0;
+                    progressBar.style.width = `${Math.min(100, pct)}%`;
                 }
             } else if (pendingUrls.length > 0) {
                 preview.classList.remove('hidden');
@@ -4157,8 +4164,15 @@
                 img.src = src;
             }
         }
-        let uploadProgressState = { total: 0, completed: 0, active: 0 };
+        let uploadProgressState = { total: 0, completed: 0, active: 0, perFilePct: {} };
         const uploadCancelTokens = new Set();
+
+        function updateGlobalUploadProgress(uploadId, pct) {
+            if (uploadProgressState.perFilePct.hasOwnProperty(uploadId)) {
+                uploadProgressState.perFilePct[uploadId] = pct;
+                updateFilePreview();
+            }
+        }
         function resetUploadState() {
             currentImageUrls = [];
             currentMaskImage = null;
@@ -4212,8 +4226,17 @@
                 list.innerHTML = '<div class="text-xs text-gray-500">まだアップロードがありません。</div>';
             }
         }
-        function decrementUploadTotal() {
+        function decrementUploadTotal(uploadId) {
             if (uploadProgressState.total > 0) uploadProgressState.total--;
+            if (uploadProgressState.perFilePct.hasOwnProperty(uploadId)) {
+                delete uploadProgressState.perFilePct[uploadId];
+                if (uploadProgressState.active > 0) uploadProgressState.active--;
+            }
+            if (uploadProgressState.active <= 0) {
+                uploadProgressState.total = 0;
+                uploadProgressState.completed = 0;
+                uploadProgressState.perFilePct = {};
+            }
             updateFilePreview();
         }
         function addStoredUploadRow(filepath) {
@@ -4268,7 +4291,7 @@
             if (removeBtn) {
                 removeBtn.onclick = () => {
                     uploadCancelTokens.add(uploadId);
-                    decrementUploadTotal();
+                    decrementUploadTotal(uploadId);
                     const stored = row.getAttribute('data-filename');
                     if (stored) currentImageUrls = currentImageUrls.filter(x => x !== stored);
                     setRowMarkerState(row, false);
@@ -4342,7 +4365,7 @@
             if (removeBtn) {
                 removeBtn.onclick = () => {
                     uploadCancelTokens.add(uploadId);
-                    decrementUploadTotal();
+                    decrementUploadTotal(uploadId);
                     const localUrl = row.getAttribute('data-local-url');
                     if (localUrl) URL.revokeObjectURL(localUrl);
                     const stored = row.getAttribute('data-filename');
@@ -4401,6 +4424,7 @@
                                 const pct = Math.min(100, Math.floor((done / file.size) * 100));
                                 row.bar.style.width = `${pct}%`;
                                 if (row.status) row.status.textContent = `${pct}%`;
+                                if (row.uploadId) updateGlobalUploadProgress(row.uploadId, pct);
                             }
                         };
                         xhr.onload = () => {
@@ -4471,6 +4495,7 @@
                         const pct = Math.min(100, Math.floor((e.loaded / e.total) * 100));
                         row.bar.style.width = `${pct}%`;
                         if (row.status) row.status.textContent = `${pct}%`;
+                        if (row.uploadId) updateGlobalUploadProgress(row.uploadId, pct);
                     }
                 };
                 xhr.onload = () => {
@@ -5122,25 +5147,33 @@
             const audioOnly = !!(get('upload-audio-only') && get('upload-audio-only').checked);
             const support = getModelMediaSupport(get('model-select').value);
             const tasks = Array.from(fs).map(async (f) => {
+                let currentUploadId = null;
                 try {
                     if (isAudioFile(f) && !support.audio) {
                         showToast("このモデルは音声入力に対応していません", "error", true);
+                        if (uploadProgressState.total > 0) uploadProgressState.total--;
+                        if (uploadProgressState.active > 0) uploadProgressState.active--;
                         return false;
                     }
                     if (isVideoFile(f) && !support.video) {
                         showToast("このモデルは動画入力に対応していません", "error", true);
+                        if (uploadProgressState.total > 0) uploadProgressState.total--;
+                        if (uploadProgressState.active > 0) uploadProgressState.active--;
                         return false;
                     }
-                    const row = addUploadRow(f);
+                    const rowObj = addUploadRow(f);
+                    currentUploadId = rowObj.uploadId;
+                    uploadProgressState.perFilePct[currentUploadId] = 0;
+
                     let t = f;
                     if (audioOnly && isVideoFile(f)) {
-                        const audioFile = await extractAudioFromVideo(f, row);
+                        const audioFile = await extractAudioFromVideo(f, rowObj);
                         if (audioFile) {
                             t = audioFile;
-                            updateUploadRowFile(row, audioFile);
-                            if (row && row.status) row.status.textContent = '音声のみ';
+                            updateUploadRowFile(rowObj, audioFile);
+                            if (rowObj && rowObj.status) rowObj.status.textContent = '音声のみ';
                         } else {
-                            if (row && row.status) row.status.textContent = '抽出失敗: 動画送信';
+                            if (rowObj && rowObj.status) rowObj.status.textContent = '抽出失敗: 動画送信';
                             showToast("音声抽出に失敗しました。動画のまま送信します。", "error", true);
                         }
                     }
@@ -5151,14 +5184,20 @@
                             t = new File([c], f.name, { type: c.type });
                         } catch(e){}
                     }
-                    return await uploadFileWithProgress(t, row);
+                    return await uploadFileWithProgress(t, rowObj);
                 } finally {
-                    uploadProgressState.completed++;
-                    uploadProgressState.active--;
+                    if (currentUploadId) {
+                        if (uploadProgressState.perFilePct.hasOwnProperty(currentUploadId)) {
+                            delete uploadProgressState.perFilePct[currentUploadId];
+                            uploadProgressState.completed++;
+                            uploadProgressState.active--;
+                        }
+                    }
                     if (uploadProgressState.active <= 0) {
                         uploadProgressState.total = 0;
                         uploadProgressState.completed = 0;
                         uploadProgressState.active = 0;
+                        uploadProgressState.perFilePct = {};
                     }
                     updateFilePreview();
                 }

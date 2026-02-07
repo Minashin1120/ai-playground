@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.163)</title>
+    <title>AI Playground (V4.8.164)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -1286,6 +1286,7 @@
         const appVersion = "{{ app_version }}";
         const botConfig = {{ bot_config|tojson if bot_config is defined else 'null' }};
         const isAdminUser = botConfig && botConfig.isAdmin;
+        const currentUsername = {{ current_user.username|tojson }};
         let turnstileWidgetId = null;
         let turnstileToken = null;
         let turnstilePending = false;
@@ -3358,6 +3359,7 @@
                         </div>
                         <button class="bot-toggle-detect bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded" data-user="${escapeHtml(u.username)}" data-enabled="${detOn ? '1' : '0'}">${detOn ? '検出ON' : '検出OFF'}</button>
                         <button class="bot-toggle-ban ${isBanned ? 'bg-green-600 hover:bg-green-500' : 'bg-red-600 hover:bg-red-500'} text-white px-2 py-1 rounded" data-user="${escapeHtml(u.username)}" data-banned="${isBanned ? '1' : '0'}">${isBanned ? '単独解除' : 'BAN'}</button>                        ${isBanned ? `<button class=\"bot-toggle-unban-linked bg-rose-600 hover:bg-rose-500 text-white px-2 py-1 rounded\" data-user=\"${escapeHtml(u.username)}\">連鎖解除</button>` : ''}
+                        <button class="bot-delete-account bg-red-800 hover:bg-red-700 text-white px-2 py-1 rounded" data-progress-expected-slow="true" data-user="${escapeHtml(u.username)}">削除</button>
                     `;
                     list.appendChild(row);
                 });
@@ -3412,6 +3414,9 @@
                     } else if (btn.classList.contains('bot-toggle-unban-linked')) {
                         if (!confirm(`ユーザー ${username} の連鎖BANを解除しますか？`)) return;
                         res = await apiFetch('/api/bot/update', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username, action:'unban_linked'})});
+                    } else if (btn.classList.contains('bot-delete-account')) {
+                        if (!confirm(`ユーザー ${username} のアカウントを完全削除しますか？\n関連データも即時削除され、この操作は取り消せません。`)) return;
+                        res = await apiFetch('/api/bot/update', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username, action:'delete_account'})});
                     }
 
                     if (res) {
@@ -3420,6 +3425,12 @@
                         } else if (!res.ok) {
                             const d = await res.json();
                             showToast(d.error || 'エラーが発生しました', 'error', true);
+                        } else if (btn.classList.contains('bot-delete-account')) {
+                            showToast(`ユーザー ${username} を削除しました`, 'success');
+                            if (username === currentUsername) {
+                                location.href = '/';
+                                return;
+                            }
                         }
                         await loadBotUsers(get('bot-admin-search') ? get('bot-admin-search').value.trim() : '');
                     }

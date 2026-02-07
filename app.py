@@ -1442,6 +1442,57 @@ def unban_linked_accounts(user):
     _unblock_identifiers(ips, tokens)
     safe_db_commit()
 
+def _secure_delete_tree(path):
+    if not path or not os.path.exists(path):
+        return
+    try:
+        for root, dirs, files in os.walk(path, topdown=False):
+            for name in files:
+                secure_delete(os.path.join(root, name))
+            for name in dirs:
+                try:
+                    os.rmdir(os.path.join(root, name))
+                except Exception:
+                    pass
+        try:
+            os.rmdir(path)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+def _delete_user_account_immediately(user):
+    if not user:
+        raise ValueError("user_required")
+    user_id = int(user.id)
+
+    try:
+        ips, tokens = _get_user_identifiers(user)
+    except Exception:
+        ips, tokens = set(), set()
+
+    Feedback.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    BanAppeal.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    UserClientToken.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    UserSession.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    FileCache.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    BannedIdentifier.query.filter_by(source_user_id=user_id).delete(synchronize_session=False)
+    _unblock_identifiers(ips, tokens)
+
+    user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
+    _secure_delete_tree(user_dir)
+    _secure_delete_tree(_chunk_user_dir(user_id))
+
+    try:
+        redis_conn.delete(f"migration_status:{user_id}")
+        redis_conn.delete(f"migration_progress:{user_id}")
+        redis_conn.delete(f"bot:score:{user_id}")
+    except Exception:
+        pass
+
+    db.session.delete(user)
+    safe_db_commit()
+
 def generate_thread_public_id():
     for _ in range(8):
         candidate = secrets.token_urlsafe(32)
@@ -6042,25 +6093,7 @@ def rename_library_file():
 @login_required
 def delete_account():
     try:
-        # Remove feedback records first (no cascade)
-        Feedback.query.filter_by(user_id=current_user.id).delete()
-        BanAppeal.query.filter_by(user_id=current_user.id).delete()
-
-        user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
-        if os.path.exists(user_dir):
-            for root, dirs, files in os.walk(user_dir, topdown=False):
-                for name in files: secure_delete(os.path.join(root, name))
-                for name in dirs: os.rmdir(os.path.join(root, name))
-            os.rmdir(user_dir)
-        try:
-            FileCache.query.filter_by(user_id=current_user.id).delete()
-        except Exception:
-            pass
-        # Clear migration status/progress
-        redis_conn.delete(f"migration_status:{current_user.id}")
-        redis_conn.delete(f"migration_progress:{current_user.id}")
-        db.session.delete(current_user)
-        safe_db_commit()
+        _delete_user_account_immediately(current_user)
         logout_user()
         return jsonify({'status': 'ok'})
     except Exception as e: return jsonify({'error': str(e)}), 500
@@ -6364,6 +6397,9 @@ def bot_update():
         unban_single_account(user)
     elif action == 'unban_linked':
         unban_linked_accounts(user)
+    elif action == 'delete_account':
+        _delete_user_account_immediately(user)
+        return jsonify({'status': 'ok', 'username': username, 'action': action})
     else:
         return jsonify({'error': 'bad_action'}), 400
     

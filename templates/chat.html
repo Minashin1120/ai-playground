@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.154)</title>
+    <title>AI Playground (V4.8.155)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -3862,13 +3862,14 @@
             const pendingUrls = collectImageUrlsForSend();
             const total = uploadProgressState.total;
             const completed = uploadProgressState.completed;
+            const active = uploadProgressState.active;
 
-            if (total > 0 && completed < total) {
+            if (active > 0) {
                 preview.classList.remove('hidden');
                 nameEl.innerText = `Preparing... (${completed}/${total})`;
                 if (progressContainer && progressBar) {
                     progressContainer.classList.remove('hidden');
-                    const pct = (completed / total) * 100;
+                    const pct = total > 0 ? (completed / total) * 100 : 0;
                     progressBar.style.width = `${pct}%`;
                 }
             } else if (pendingUrls.length > 0) {
@@ -4156,7 +4157,7 @@
                 img.src = src;
             }
         }
-        let uploadProgressState = { total: 0, completed: 0 };
+        let uploadProgressState = { total: 0, completed: 0, active: 0 };
         const uploadCancelTokens = new Set();
         function resetUploadState() {
             currentImageUrls = [];
@@ -4211,6 +4212,10 @@
                 list.innerHTML = '<div class="text-xs text-gray-500">まだアップロードがありません。</div>';
             }
         }
+        function decrementUploadTotal() {
+            if (uploadProgressState.total > 0) uploadProgressState.total--;
+            updateFilePreview();
+        }
         function addStoredUploadRow(filepath) {
             if (!filepath) return null;
             filepath = normalizeAttachmentPath(filepath);
@@ -4263,6 +4268,7 @@
             if (removeBtn) {
                 removeBtn.onclick = () => {
                     uploadCancelTokens.add(uploadId);
+                    decrementUploadTotal();
                     const stored = row.getAttribute('data-filename');
                     if (stored) currentImageUrls = currentImageUrls.filter(x => x !== stored);
                     setRowMarkerState(row, false);
@@ -4336,6 +4342,7 @@
             if (removeBtn) {
                 removeBtn.onclick = () => {
                     uploadCancelTokens.add(uploadId);
+                    decrementUploadTotal();
                     const localUrl = row.getAttribute('data-local-url');
                     if (localUrl) URL.revokeObjectURL(localUrl);
                     const stored = row.getAttribute('data-filename');
@@ -5109,6 +5116,7 @@
             if (shouldOpenModal) openUploadModal();
             
             uploadProgressState.total += fs.length;
+            uploadProgressState.active += fs.length;
             updateFilePreview();
 
             const audioOnly = !!(get('upload-audio-only') && get('upload-audio-only').checked);
@@ -5146,15 +5154,16 @@
                     return await uploadFileWithProgress(t, row);
                 } finally {
                     uploadProgressState.completed++;
+                    uploadProgressState.active--;
+                    if (uploadProgressState.active <= 0) {
+                        uploadProgressState.total = 0;
+                        uploadProgressState.completed = 0;
+                        uploadProgressState.active = 0;
+                    }
                     updateFilePreview();
                 }
             });
             await Promise.all(tasks);
-            // After all finished, if nothing pending reset state
-            if (uploadProgressState.completed >= uploadProgressState.total) {
-                uploadProgressState = { total: 0, completed: 0 };
-                updateFilePreview();
-            }
         }
         get('clear-file-btn').onclick = () => { resetUploadState(); };
         if (get('clear-mask-btn')) {

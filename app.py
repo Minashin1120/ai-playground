@@ -107,8 +107,8 @@ def _env_choice(name, default, allowed):
 _DECRYPT_TEXT_CACHE_MAX = max(0, _env_int("DECRYPT_TEXT_CACHE_MAX", 4096))
 _MEDIA_BYTES_CACHE_MAX = max(0, _env_int("MEDIA_BYTES_CACHE_MAX_MB", 128)) * 1024 * 1024
 _MEDIA_BYTES_CACHE_ITEM_MAX = max(0, _env_int("MEDIA_BYTES_CACHE_ITEM_MAX_MB", 12)) * 1024 * 1024
-_HISTORY_IMAGE_MAX_ITEMS = max(0, _env_int("HISTORY_IMAGE_MAX_ITEMS", 8))
-_HISTORY_IMAGE_MAX_BYTES = max(0, _env_int("HISTORY_IMAGE_MAX_MB", 8)) * 1024 * 1024
+_HISTORY_IMAGE_MAX_ITEMS = max(0, _env_int("HISTORY_IMAGE_MAX_ITEMS", 0))
+_HISTORY_IMAGE_MAX_BYTES = max(0, _env_int("HISTORY_IMAGE_MAX_MB", 0)) * 1024 * 1024
 
 def _key_sig(key, extra=""):
     if not key:
@@ -2288,18 +2288,19 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             history_rev = []
             total_history_tokens = 0
             try:
-                MAX_CONTEXT_TOKENS = int(os.getenv("MAX_CONTEXT_TOKENS", "60000") or "60000")
+                # 0 means unlimited.
+                MAX_CONTEXT_TOKENS = int(os.getenv("MAX_CONTEXT_TOKENS", "0") or "0")
             except Exception:
-                MAX_CONTEXT_TOKENS = 60000
-            if MAX_CONTEXT_TOKENS <= 0:
-                MAX_CONTEXT_TOKENS = 60000
+                MAX_CONTEXT_TOKENS = 0
+            if MAX_CONTEXT_TOKENS < 0:
+                MAX_CONTEXT_TOKENS = 0
             try:
-                # Hard cap keeps parent-chain traversal/decoding from dominating pre-first-token latency.
-                MAX_CONTEXT_MESSAGES = int(os.getenv("MAX_CONTEXT_MESSAGES", "120") or "120")
+                # 0 means unlimited.
+                MAX_CONTEXT_MESSAGES = int(os.getenv("MAX_CONTEXT_MESSAGES", "0") or "0")
             except Exception:
-                MAX_CONTEXT_MESSAGES = 120
+                MAX_CONTEXT_MESSAGES = 0
             if MAX_CONTEXT_MESSAGES < 0:
-                MAX_CONTEXT_MESSAGES = 120
+                MAX_CONTEXT_MESSAGES = 0
             history_count = 0
             
             current_node = msg.parent # Start from the parent of the current message
@@ -2325,7 +2326,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     # Fast approximation avoids expensive tokenization on every ancestor.
                     t_len = max(1, len(raw_cnt) // 4)
                 
-                if total_history_tokens + t_len <= MAX_CONTEXT_TOKENS:
+                if (not MAX_CONTEXT_TOKENS) or (total_history_tokens + t_len <= MAX_CONTEXT_TOKENS):
                     cnt = decrypt_val(raw_cnt) if current_node.is_encrypted else raw_cnt
                     history_rev.append({
                         'role': current_node.role, 
@@ -2567,7 +2568,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     loaded_files.append({
                         'name': clean_fn,
                         'path': clean_fn,
-                        'text': extracted[:50000] if extracted else None,
+                        'text': extracted if extracted else None,
                         'bytes': data,
                         'mime': mime,
                         'is_pdf': True,
@@ -2580,7 +2581,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     loaded_files.append({
                         'name': clean_fn,
                         'path': clean_fn,
-                        'text': extracted[:50000] if extracted else None,
+                        'text': extracted if extracted else None,
                         'bytes': data,
                         'mime': mime,
                         'is_pdf': False,

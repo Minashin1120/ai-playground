@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.162)</title>
+    <title>AI Playground (V4.8.163)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -286,7 +286,7 @@
         #upload-btn, #mic-btn { border: 1px solid var(--line); }
         #send-btn, #new-chat-btn, #upload-select-btn, #save-gem-btn, #save-settings-btn,
         #fb-submit, #session-refresh-btn, #session-revoke-others-btn, #session-revoke-all-btn,
-        #bot-unban-btn, #bot-admin-open, #easy-login-generate, #easy-login-cancel, #lib-del-btn,
+        #bot-unban-btn, #bot-admin-open, #easy-login-generate, #easy-login-cancel, #lib-del-btn, #lib-rename-btn,
         #auto-search-on-btn, #auto-search-off-btn, #sts-cancel-btn, #upload-clear-btn {
             border-radius: 14px;
             border: 1px solid rgba(148,163,184,0.28);
@@ -1047,8 +1047,11 @@
     <div id="lib-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
         <div class="w-full h-full flex flex-col modal-panel">
             <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button onclick="hideModal('lib-modal')" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div>
-            <div class="p-2 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center shrink-0">
+            <div class="p-2 border-b border-gray-700 bg-gray-800/50 flex flex-wrap justify-between items-center gap-2 shrink-0">
                 <span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span>
+                <div class="flex items-center gap-2 flex-1 min-w-[200px] max-w-md">
+                    <input id="lib-search" type="text" class="w-full bg-gray-800 border border-gray-600 text-xs text-gray-200 rounded px-2 py-1" placeholder="ファイル名検索">
+                </div>
                 <div class="flex items-center gap-2">
                     <label class="text-[11px] text-gray-400">表示順</label>
                     <select id="lib-sort" class="bg-gray-800 border border-gray-600 text-xs text-gray-200 rounded px-2 py-1">
@@ -1058,6 +1061,7 @@
                         <option value="name_desc">名前順 (Z→A)</option>
                     </select>
                     <button id="lib-attach-btn" class="bg-blue-600 text-white px-4 py-1.5 rounded text-xs btn-hover" disabled>添付</button>
+                    <button id="lib-rename-btn" class="bg-emerald-600 text-white px-4 py-1.5 rounded text-xs btn-hover" disabled>名前変更</button>
                     <button id="lib-del-btn" class="bg-red-600 text-white px-4 py-1.5 rounded text-xs btn-hover" disabled>削除</button>
                 </div>
             </div>
@@ -1271,7 +1275,7 @@
         let currentJobId = null; 
         let currentThreadPending = null;
         let editingMessageId = null; // Track message being edited
-        const messageStore = {}, lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), attachMode: false };
+        const messageStore = {}, lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), attachMode: false, searchQuery: '' };
         const LIB_SORT_KEY = 'lib_sort_order';
         let threadPage = 1, threadLoading = false, hasMoreThreads = true;
         let threadObserver = null;
@@ -3780,6 +3784,7 @@
             const count = lib.selected.size;
             const delBtn = get('lib-del-btn');
             const attachBtn = get('lib-attach-btn');
+            const renameBtn = get('lib-rename-btn');
             if (delBtn) {
                 delBtn.disabled = count === 0;
                 delBtn.innerText = count ? `削除 (${count})` : "削除";
@@ -3787,6 +3792,10 @@
             if (attachBtn) {
                 attachBtn.disabled = count === 0;
                 attachBtn.innerText = count ? `添付 (${count})` : "添付";
+            }
+            if (renameBtn) {
+                renameBtn.disabled = count !== 1;
+                renameBtn.innerText = "名前変更";
             }
             if (lib.modal) {
                 const isMobile = window.matchMedia('(max-width: 768px)').matches;
@@ -3799,7 +3808,14 @@
         get('lib-btn').onclick = () => { setLibAttachMode(false); showModal('lib-modal'); loadLibraryFiles(); };
         get('lib-del-btn').onclick = deleteSelectedFiles;
         if (get('lib-attach-btn')) get('lib-attach-btn').onclick = () => attachSelectedLibraryFiles();
+        if (get('lib-rename-btn')) get('lib-rename-btn').onclick = () => renameSelectedLibraryFile();
         if (get('upload-lib-btn')) get('upload-lib-btn').onclick = () => { setLibAttachMode(true); showModal('lib-modal'); loadLibraryFiles(); };
+        if (get('lib-search')) {
+            get('lib-search').oninput = () => {
+                lib.searchQuery = (get('lib-search').value || '').trim();
+                renderLibraryGrid();
+            };
+        }
         if (get('lib-sort')) {
             const storedSort = localStorage.getItem(LIB_SORT_KEY) || 'newest';
             get('lib-sort').value = storedSort;
@@ -6396,17 +6412,37 @@
             else files.sort((a, b) => tsDesc(a, b) || nameAsc(a, b));
             return files;
         }
+        function getLibSearchQuery() {
+            const q = lib.searchQuery || (get('lib-search') ? get('lib-search').value : '') || '';
+            return String(q).trim().toLocaleLowerCase();
+        }
+        function fileNameForSearch(item) {
+            return String((item && item.filename) || '').toLocaleLowerCase();
+        }
         function renderLibraryGrid() {
             const grid = get('lib-grid');
             if (!grid) return;
             grid.innerHTML = '';
             if (!lib.files || !lib.files.length) {
                 grid.innerHTML = '<div class="text-xs text-gray-500">ファイルがありません。</div>';
+                const countEl = get('lib-total-count');
+                if (countEl) countEl.innerText = "0 files";
                 return;
             }
             const ordered = sortLibraryFiles(lib.files);
+            const q = getLibSearchQuery();
+            const filtered = q ? ordered.filter((f) => fileNameForSearch(f).includes(q)) : ordered;
+            const countEl = get('lib-total-count');
+            if (countEl) {
+                if (q) countEl.innerText = `${filtered.length} / ${lib.files.length} files`;
+                else countEl.innerText = `${lib.files.length} files`;
+            }
+            if (!filtered.length) {
+                grid.innerHTML = '<div class="text-xs text-gray-500">一致するファイルがありません。</div>';
+                return;
+            }
             let idx = 0;
-            ordered.forEach((f) => {
+            filtered.forEach((f) => {
                 try {
                     const el = renderLibraryItem(f, idx++);
                     grid.appendChild(el);
@@ -6463,16 +6499,46 @@
             const ext = (filename.split('.').pop() || '').toLowerCase();
             const type = ['png','jpg','jpeg','webp','gif'].includes(ext) ? 'image' : 'file';
             const url = "{{ url_for('serve_file', filename='') }}" + filepath;
-            const f = { filename, filepath, url, type, ext, ts: Math.floor(Date.now() / 1000) };
+            const f = { filename, original_filename: filename, filepath, url, type, ext, ts: Math.floor(Date.now() / 1000) };
             lib.fileSet.add(filepath);
             if (!lib.files) lib.files = [];
             lib.files.unshift(f);
-            const count = lib.files.length;
-            const countEl = get('lib-total-count');
-            if (countEl) countEl.innerText = count + " files";
             const grid = get('lib-grid');
             if (grid && lib.modal && lib.modal.classList.contains('modal-open')) {
                 renderLibraryGrid();
+            }
+        }
+        async function renameSelectedLibraryFile() {
+            if (!lib.selected || lib.selected.size !== 1) return;
+            const filepath = Array.from(lib.selected)[0];
+            const item = (lib.files || []).find((f) => f.filepath === filepath);
+            const currentName = (item && item.filename) || (filepath.split('/').pop() || filepath);
+            const nextNameRaw = prompt('新しいファイル名を入力してください', currentName);
+            if (nextNameRaw === null) return;
+            const nextName = (nextNameRaw || '').trim();
+            if (!nextName) {
+                showToast('ファイル名を入力してください', 'error', true);
+                return;
+            }
+            try {
+                const r = await apiFetch("{{ url_for('rename_library_file') }}", {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ filepath, filename: nextName })
+                });
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok) {
+                    showToast(d.error || '名前変更に失敗しました', 'error', true);
+                    return;
+                }
+                if (item) {
+                    item.filename = d.filename || nextName;
+                }
+                renderLibraryGrid();
+                window.updateLibSelectionUi();
+                showToast('ファイル名を変更しました', 'success');
+            } catch (e) {
+                showToast('名前変更に失敗しました', 'error', true);
             }
         }
         async function deleteSingleLibraryFile(filepath, el) {
@@ -6484,9 +6550,7 @@
                 if (lib.files) lib.files = lib.files.filter(f => f.filepath !== filepath);
                 if (lib.fileSet) lib.fileSet.delete(filepath);
                 lib.selected.delete(filepath);
-                const count = lib.files ? lib.files.length : 0;
-                const countEl = get('lib-total-count');
-                if (countEl) countEl.innerText = count + " files";
+                renderLibraryGrid();
                 window.updateLibSelectionUi();
             } catch(e) {
                 showToast("削除に失敗しました", "error", true);
@@ -6525,14 +6589,12 @@
                     const filename = fp.split('/').pop() || fp;
                     const ext = (filename.split('.').pop() || '').toLowerCase();
                     const type = ['png','jpg','jpeg','webp','gif'].includes(ext) ? 'image' : 'file';
-                    files.unshift({ filename, filepath: fp, url: base + fp, type, ext, ts: Math.floor(Date.now() / 1000) });
+                    files.unshift({ filename, original_filename: filename, filepath: fp, url: base + fp, type, ext, ts: Math.floor(Date.now() / 1000) });
                     seenPaths.add(fp);
                 });
             } catch (e) {}
             try {
                 if (grid) grid.innerHTML = '';
-                const countEl = get('lib-total-count');
-                if (countEl) countEl.innerText = files.length + " files"; 
                 if (!lib.selected) lib.selected = new Set();
                 lib.selected.clear(); 
                 lib.files = files.filter(f => f && f.filepath && f.url);

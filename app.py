@@ -626,6 +626,64 @@ def _delete_file_cache_for_path(user_id, rel_path):
     except Exception:
         pass
 
+def _sanitize_file_display_name(raw_name):
+    if raw_name is None:
+        return None
+    try:
+        name = str(raw_name).strip()
+    except Exception:
+        return None
+    if not name:
+        return None
+    name = name.replace("\x00", "")
+    name = name.replace("\r", " ").replace("\n", " ").replace("\t", " ")
+    name = name.split("/")[-1].split("\\")[-1].strip()
+    name = re.sub(r"\s{2,}", " ", name)
+    name = re.sub(r'[<>:"/\\|?*]+', "_", name)
+    if not name or name in {".", ".."}:
+        return None
+    if len(name) > 180:
+        name = name[:180].rstrip()
+    return name or None
+
+def _normalize_display_name_for_path(rel_path, raw_name):
+    base = os.path.basename(rel_path or "")
+    if not base:
+        return None
+    safe = _sanitize_file_display_name(raw_name)
+    if not safe:
+        return None
+    stem, ext = os.path.splitext(base)
+    cand_stem, cand_ext = os.path.splitext(safe)
+    if ext:
+        if not cand_ext:
+            safe = safe + ext
+        elif cand_ext.lower() != ext.lower():
+            safe = (cand_stem or safe) + ext
+    if len(safe) > 180:
+        base_stem, base_ext = os.path.splitext(safe)
+        keep = max(1, 180 - len(base_ext))
+        safe = base_stem[:keep].rstrip() + base_ext
+    return safe or None
+
+def _get_user_file_label_map(user_id):
+    labels = {}
+    if not user_id:
+        return labels
+    try:
+        rows = FileCache.query.filter_by(user_id=user_id, provider="label").all()
+    except Exception:
+        rows = []
+    for row in rows:
+        try:
+            rel = (row.rel_path or "").strip()
+            name = _sanitize_file_display_name(row.file_uri or "")
+            if rel and name:
+                labels[rel] = name
+        except Exception:
+            continue
+    return labels
+
 def _check_storage_capacity(user, additional_bytes):
     limit = _get_user_storage_limit_bytes(user)
     if not limit:
@@ -5860,6 +5918,7 @@ def delete_message(mid):
 @login_required
 def get_files_lib():
     try:
+        label_map = _get_user_file_label_map(current_user.id)
         msgs = Message.query.join(Thread).filter(Thread.user_id == current_user.id, Message.image_url != None).order_by(Message.timestamp.desc()).all()
         files = []
         seen = set()
@@ -5882,7 +5941,17 @@ def get_files_lib():
                     if os.path.exists(fp) or os.path.exists(fp + '.enc'):
                         seen.add(norm)
                         ext = os.path.splitext(norm)[1].lower().replace('.', '')
-                        files.append({'filename': os.path.basename(norm), 'filepath': norm, 'url': url_for('serve_file', filename=norm), 'type': 'image' if ext in image_exts else 'file', 'ext': ext, 'ts': msg_ts})
+                        base_name = os.path.basename(norm)
+                        display_name = label_map.get(norm) or base_name
+                        files.append({
+                            'filename': display_name,
+                            'original_filename': base_name,
+                            'filepath': norm,
+                            'url': url_for('serve_file', filename=norm),
+                            'type': 'image' if ext in image_exts else 'file',
+                            'ext': ext,
+                            'ts': msg_ts
+                        })
         # Include uploaded files that are not yet attached to any message
         ud = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
         if os.path.isdir(ud):
@@ -5906,8 +5975,10 @@ def get_files_lib():
                     ts = int(entry.stat().st_mtime)
                 except:
                     ts = None
+                display_name = label_map.get(rel_path) or os.path.basename(rel_path)
                 files.append({
-                    'filename': os.path.basename(rel_path),
+                    'filename': display_name,
+                    'original_filename': os.path.basename(rel_path),
                     'filepath': rel_path,
                     'url': url_for('serve_file', filename=rel_path),
                     'type': 'image' if ext in image_exts else 'file',
@@ -5933,6 +6004,39 @@ def delete_files_batch():
             secure_delete(fp + '.enc')
             _delete_file_cache_for_path(current_user.id, norm)
     return jsonify({'status': 'ok'})
+
+@app.route('/api/files/rename', methods=['POST'])
+@login_required
+def rename_library_file():
+    data = request.json or {}
+    rel_path = _normalize_upload_ref(data.get('filepath') or data.get('path'))
+    if not rel_path:
+        return jsonify({'error': 'invalid filepath'}), 400
+    if rel_path.startswith("..") or os.path.isabs(rel_path) or not rel_path.startswith(f"{current_user.id}/"):
+        return jsonify({'error': 'forbidden'}), 403
+    info = _get_file_disk_info(rel_path)
+    if not info or not info.get("exists"):
+        return jsonify({'error': 'file not found'}), 404
+    base_name = os.path.basename(rel_path)
+    display_name = _normalize_display_name_for_path(rel_path, data.get('filename') or data.get('name'))
+    if not display_name:
+        return jsonify({'error': 'invalid filename'}), 400
+    try:
+        if display_name == base_name:
+            FileCache.query.filter_by(user_id=current_user.id, rel_path=rel_path, provider="label").delete()
+        else:
+            _upsert_file_cache(
+                current_user.id,
+                rel_path,
+                "label",
+                file_uri=display_name,
+                state="ready",
+                last_error=None
+            )
+        safe_db_commit()
+        return jsonify({'status': 'ok', 'filepath': rel_path, 'filename': display_name, 'original_filename': base_name})
+    except Exception:
+        return jsonify({'error': 'rename failed'}), 500
 
 @app.route('/api/account/delete', methods=['POST'])
 @login_required

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.153)</title>
+    <title>AI Playground (V4.8.154)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -584,7 +584,17 @@
                         <label class="flex items-center gap-1 cursor-pointer select-none ml-2" title="Client-side Compression"><input type="checkbox" id="enable-compression" class="accent-blue-500 w-3 h-3" checked><span class="text-gray-400 text-[10px]">Compress</span></label>
                     </div>
                 </div>
-                <div id="file-preview" class="hidden px-3 py-2 bg-gray-700/50 rounded text-xs text-blue-300 flex justify-between items-center"><span id="file-name" class="truncate"></span><button id="clear-file-btn" class="text-gray-400 hover:text-white ml-2">✕</button></div>
+                <div id="file-preview" class="hidden flex-col gap-1">
+                    <div class="px-3 py-2 bg-gray-700/50 rounded text-xs text-blue-300 flex justify-between items-center cursor-pointer hover:bg-gray-700/70 transition" onclick="openUploadModal()">
+                        <span id="file-name" class="truncate"></span>
+                        <div class="flex items-center gap-2">
+                            <button id="clear-file-btn" class="text-gray-400 hover:text-white ml-2" onclick="event.stopPropagation(); resetUploadState();">✕</button>
+                        </div>
+                    </div>
+                    <div id="upload-total-progress" class="hidden h-1 w-full bg-gray-800 rounded-full overflow-hidden">
+                        <div id="upload-total-progress-bar" class="h-full bg-blue-500 transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
                 <div id="mask-preview" class="hidden px-3 py-2 bg-gray-700/40 rounded text-[10px] text-amber-200 flex justify-between items-center"><span id="mask-name" class="truncate"></span><button id="clear-mask-btn" class="text-gray-400 hover:text-white ml-2">✕</button></div>
                 <div id="gpt-image-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
                     <div class="flex items-center gap-2">
@@ -3845,14 +3855,30 @@
         function updateFilePreview() {
             const preview = get('file-preview');
             const nameEl = get('file-name');
+            const progressContainer = get('upload-total-progress');
+            const progressBar = get('upload-total-progress-bar');
             if (!preview || !nameEl) return;
+            
             const pendingUrls = collectImageUrlsForSend();
-            if (pendingUrls.length > 0) {
+            const total = uploadProgressState.total;
+            const completed = uploadProgressState.completed;
+
+            if (total > 0 && completed < total) {
+                preview.classList.remove('hidden');
+                nameEl.innerText = `Preparing... (${completed}/${total})`;
+                if (progressContainer && progressBar) {
+                    progressContainer.classList.remove('hidden');
+                    const pct = (completed / total) * 100;
+                    progressBar.style.width = `${pct}%`;
+                }
+            } else if (pendingUrls.length > 0) {
                 preview.classList.remove('hidden');
                 nameEl.innerText = `${pendingUrls.length} files ready`;
+                if (progressContainer) progressContainer.classList.add('hidden');
             } else {
                 preview.classList.add('hidden');
                 nameEl.innerText = '';
+                if (progressContainer) progressContainer.classList.add('hidden');
             }
         }
         function updateMaskPreview() {
@@ -4130,10 +4156,12 @@
                 img.src = src;
             }
         }
+        let uploadProgressState = { total: 0, completed: 0 };
         const uploadCancelTokens = new Set();
         function resetUploadState() {
             currentImageUrls = [];
             currentMaskImage = null;
+            uploadProgressState = { total: 0, completed: 0 };
             uploadCancelTokens.clear();
             markerAppliedUploads.clear();
             updateFilePreview();
@@ -5079,41 +5107,54 @@
             if(!fs || !fs.length) return;
             const shouldOpenModal = opts.openModal !== false;
             if (shouldOpenModal) openUploadModal();
+            
+            uploadProgressState.total += fs.length;
+            updateFilePreview();
+
             const audioOnly = !!(get('upload-audio-only') && get('upload-audio-only').checked);
             const support = getModelMediaSupport(get('model-select').value);
             const tasks = Array.from(fs).map(async (f) => {
-                if (isAudioFile(f) && !support.audio) {
-                    showToast("このモデルは音声入力に対応していません", "error", true);
-                    return false;
-                }
-                if (isVideoFile(f) && !support.video) {
-                    showToast("このモデルは動画入力に対応していません", "error", true);
-                    return false;
-                }
-                const row = addUploadRow(f);
-                let t = f;
-                if (audioOnly && isVideoFile(f)) {
-                    const audioFile = await extractAudioFromVideo(f, row);
-                    if (audioFile) {
-                        t = audioFile;
-                        updateUploadRowFile(row, audioFile);
-                        if (row && row.status) row.status.textContent = '音声のみ';
-                    } else {
-                        if (row && row.status) row.status.textContent = '抽出失敗: 動画送信';
-                        showToast("音声抽出に失敗しました。動画のまま送信します。", "error", true);
+                try {
+                    if (isAudioFile(f) && !support.audio) {
+                        showToast("このモデルは音声入力に対応していません", "error", true);
+                        return false;
                     }
+                    if (isVideoFile(f) && !support.video) {
+                        showToast("このモデルは動画入力に対応していません", "error", true);
+                        return false;
+                    }
+                    const row = addUploadRow(f);
+                    let t = f;
+                    if (audioOnly && isVideoFile(f)) {
+                        const audioFile = await extractAudioFromVideo(f, row);
+                        if (audioFile) {
+                            t = audioFile;
+                            updateUploadRowFile(row, audioFile);
+                            if (row && row.status) row.status.textContent = '音声のみ';
+                        } else {
+                            if (row && row.status) row.status.textContent = '抽出失敗: 動画送信';
+                            showToast("音声抽出に失敗しました。動画のまま送信します。", "error", true);
+                        }
+                    }
+                    if (get('enable-compression').checked && f.type.startsWith('image/')) {
+                        try {
+                            const o = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true };
+                            const c = await imageCompression(f, o);
+                            t = new File([c], f.name, { type: c.type });
+                        } catch(e){}
+                    }
+                    return await uploadFileWithProgress(t, row);
+                } finally {
+                    uploadProgressState.completed++;
+                    updateFilePreview();
                 }
-                if (get('enable-compression').checked && f.type.startsWith('image/')) {
-                    try {
-                        const o = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true };
-                        const c = await imageCompression(f, o);
-                        t = new File([c], f.name, { type: c.type });
-                    } catch(e){}
-                }
-                return uploadFileWithProgress(t, row);
             });
             await Promise.all(tasks);
-            updateFilePreview();
+            // After all finished, if nothing pending reset state
+            if (uploadProgressState.completed >= uploadProgressState.total) {
+                uploadProgressState = { total: 0, completed: 0 };
+                updateFilePreview();
+            }
         }
         get('clear-file-btn').onclick = () => { resetUploadState(); };
         if (get('clear-mask-btn')) {

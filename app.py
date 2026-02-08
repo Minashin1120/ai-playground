@@ -4321,8 +4321,45 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     messages = []
                     if sys_prompt:
                         messages.append({"role": "system", "content": sys_prompt})
+                    
+                    history_img_seen = set()
+                    history_img_count = 0
+                    history_img_bytes = 0
+
                     for m in history:
-                        messages.append({"role": m['role'], "content": m['content']})
+                        if m['role'] == 'user' and m.get('image_url'):
+                            try:
+                                h_list = json.loads(m['image_url'])
+                                if not isinstance(h_list, list): h_list = [h_list]
+                                content_parts = [{"type": "text", "text": m['content']}]
+                                for h_img in h_list:
+                                    if _HISTORY_IMAGE_MAX_ITEMS and history_img_count >= _HISTORY_IMAGE_MAX_ITEMS:
+                                        break
+                                    norm_h = _normalize_upload_ref(h_img)
+                                    if not norm_h or norm_h in history_img_seen:
+                                        continue
+                                    info_h = _get_file_disk_info(norm_h)
+                                    if not info_h.get("exists"):
+                                        continue
+                                    est_size = info_h.get("size") or 0
+                                    if _HISTORY_IMAGE_MAX_BYTES and est_size and (history_img_bytes + est_size > _HISTORY_IMAGE_MAX_BYTES):
+                                        continue
+                                    d2 = _load_user_file_bytes(norm_h, info_h)
+                                    if d2:
+                                        if _HISTORY_IMAGE_MAX_BYTES and (history_img_bytes + len(d2) > _HISTORY_IMAGE_MAX_BYTES):
+                                            continue
+                                        mime = mimetypes.guess_type(norm_h)[0] or 'image/jpeg'
+                                        b64 = base64.b64encode(d2).decode('utf-8')
+                                        content_parts.append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}})
+                                        history_img_seen.add(norm_h)
+                                        history_img_count += 1
+                                        history_img_bytes += len(d2)
+                                messages.append({"role": m['role'], "content": content_parts})
+                            except Exception as e:
+                                log_force(f"Error processing history image in search branch: {e}")
+                                messages.append({"role": m['role'], "content": m['content']})
+                        else:
+                            messages.append({"role": m['role'], "content": m['content']})
 
                     user_text = ""
                     if quote_text:
@@ -4470,13 +4507,48 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 sys_prompt = _grok_system_prompt(options.get('system_prompt'), grok_enable_search) if is_grok else _openai_system_prompt(options.get('system_prompt'), auto_enable_search)
                 if sys_prompt: input_data.append({"role": "system", "content": sys_prompt})
                 
-                for m in history:
-                    content_block = m['content']
-                    input_data.append({"role": m['role'], "content": content_block})
-
-                curr_content = []
+                history_img_seen = set()
+                history_img_count = 0
+                history_img_bytes = 0
                 text_type = "input_text"
                 image_type = "input_image"
+
+                for m in history:
+                    if m['role'] == 'user' and m.get('image_url'):
+                        try:
+                            h_list = json.loads(m['image_url'])
+                            if not isinstance(h_list, list): h_list = [h_list]
+                            content_parts = [{"type": text_type, "text": m['content']}]
+                            for h_img in h_list:
+                                if _HISTORY_IMAGE_MAX_ITEMS and history_img_count >= _HISTORY_IMAGE_MAX_ITEMS:
+                                    break
+                                norm_h = _normalize_upload_ref(h_img)
+                                if not norm_h or norm_h in history_img_seen:
+                                    continue
+                                info_h = _get_file_disk_info(norm_h)
+                                if not info_h.get("exists"):
+                                    continue
+                                est_size = info_h.get("size") or 0
+                                if _HISTORY_IMAGE_MAX_BYTES and est_size and (history_img_bytes + est_size > _HISTORY_IMAGE_MAX_BYTES):
+                                    continue
+                                d2 = _load_user_file_bytes(norm_h, info_h)
+                                if d2:
+                                    if _HISTORY_IMAGE_MAX_BYTES and (history_img_bytes + len(d2) > _HISTORY_IMAGE_MAX_BYTES):
+                                        continue
+                                    mime = mimetypes.guess_type(norm_h)[0] or 'image/jpeg'
+                                    b64 = base64.b64encode(d2).decode('utf-8')
+                                    content_parts.append({"type": image_type, "image_url": f"data:{mime};base64,{b64}"})
+                                    history_img_seen.add(norm_h)
+                                    history_img_count += 1
+                                    history_img_bytes += len(d2)
+                            input_data.append({"role": m['role'], "content": content_parts})
+                        except Exception as e:
+                            log_force(f"Error processing history image: {e}")
+                            input_data.append({"role": m['role'], "content": m['content']})
+                    else:
+                        input_data.append({"role": m['role'], "content": m['content']})
+
+                curr_content = []
                 if quote_text: curr_content.append({"type": text_type, "text": f"User Quote:\n{quote_text}\n---"})
                 curr_content.append({"type": text_type, "text": message_text})
                 file_inline_limit = 20 * 1024 * 1024  # 20MiB inline limit for file inputs

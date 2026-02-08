@@ -2793,7 +2793,9 @@
                 updateImageInputLimits();
                 purgeUnsupportedAttachments(true);
             }
-            get('model-select').addEventListener('change', toggleOptions); toggleOptions();
+            get('model-select').addEventListener('change', toggleOptions);
+            get('model-select').addEventListener('change', () => schedulePromptTokenEstimate(true));
+            toggleOptions();
             if (get('tts-voice')) get('tts-voice').addEventListener('change', updateTtsUi);
             if (get('gpt-image-format')) get('gpt-image-format').addEventListener('change', () => updateGptImageUi());
             if (get('gemini-image-size')) get('gemini-image-size').addEventListener('change', () => updateGeminiImageUi());

@@ -1957,13 +1957,10 @@ def count_tokens(text, model="gpt-4"):
     for model_hint in (model, "gpt-4o", "gpt-4"):
         try:
             enc = _get_token_encoder(model_hint)
-            return len(enc.encode(raw))
+            return len(enc.encode(raw, disallowed_special=()))
         except Exception:
             continue
-    try:
-        return len(raw.encode("utf-8", errors="ignore"))
-    except Exception:
-        return 0
+    return 0
 
 NON_COUNTABLE_TOKEN_MARKERS = (
     "transcribe",
@@ -2433,9 +2430,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 raw_cnt = current_node.content or ""
                 cached_tokens = None
                 try:
-                    if current_node.tokens and current_node.tokens > 0:
-                        cached_tokens = int(current_node.tokens)
-                    elif current_node.role == 'user' and current_node.tokens_in and current_node.tokens_in > 0:
+                    if current_node.role == 'user' and current_node.tokens_in and current_node.tokens_in > 0:
                         cached_tokens = int(current_node.tokens_in)
                     elif current_node.role == 'assistant' and current_node.tokens_out and current_node.tokens_out > 0:
                         cached_tokens = int(current_node.tokens_out)
@@ -5995,16 +5990,19 @@ def handle_thread_item(thread_id):
             token_total = None
             tokens_content = None
             tokens_thought = None
+            legacy_token_total = None
+            legacy_token_in = None
+            legacy_token_out = None
             if (m.tokens_in and m.tokens_in > 0) or (m.tokens_out and m.tokens_out > 0):
                 token_in = m.tokens_in if m.tokens_in and m.tokens_in > 0 else None
                 token_out = m.tokens_out if m.tokens_out and m.tokens_out > 0 else None
                 token_total = sum_token_counts(token_in, token_out)
             elif m.tokens is not None and m.tokens > 0 and (should_count_tokens_for_display(m.model) or not m.model):
                 if m.role == 'user':
-                    token_in = m.tokens
+                    legacy_token_in = m.tokens
                 else:
-                    token_out = m.tokens
-                token_total = m.tokens
+                    legacy_token_out = m.tokens
+                legacy_token_total = m.tokens
             if token_total is None and should_count_tokens_for_display(m.model):
                 details = build_message_token_details(m.role, cnt, thought_text, m.model, token_in, token_out)
                 token_in = details["tokens_in"] if details["tokens_in"] is not None else token_in
@@ -6012,6 +6010,10 @@ def handle_thread_item(thread_id):
                 token_total = details["tokens_total"] if details["tokens_total"] is not None else token_total
                 tokens_content = details["tokens_content"]
                 tokens_thought = details["tokens_thought"]
+            if token_total is None and legacy_token_total is not None:
+                token_in = token_in if token_in is not None else legacy_token_in
+                token_out = token_out if token_out is not None else legacy_token_out
+                token_total = legacy_token_total
             res.append({
                 'id': m.id, 
                 'role': m.role, 

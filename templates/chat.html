@@ -772,6 +772,7 @@
                     </div>
                 </div>
                 <div id="input-row" class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><input type="file" id="mask-input" class="hidden" accept="image/*"><button id="upload-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="mask-btn" class="hidden bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Mask (GPT-Image)"><i class="fas fa-mask"></i></button><button id="mic-btn" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
+                <div id="prompt-token-estimate" class="hidden mt-1 px-1 text-[10px] text-gray-400"></div>
             </div>
         </div>
     </div>
@@ -1397,6 +1398,118 @@
                 count.onclick = null;
             }
         }
+        const PROMPT_TOKEN_ESTIMATE_DEBOUNCE_MS = 300;
+        let promptTokenEstimateTimer = null;
+        let promptTokenEstimateAbort = null;
+        let promptTokenEstimateSeq = 0;
+        let promptTokenEstimateLastKey = '';
+        let promptTokenEstimateLastData = null;
+        function setPromptTokenEstimateText(text, colorClass = 'text-gray-400') {
+            const el = get('prompt-token-estimate');
+            if (!el) return;
+            if (!text) {
+                el.classList.add('hidden');
+                el.innerText = '';
+                return;
+            }
+            el.className = `mt-1 px-1 text-[10px] ${colorClass}`;
+            el.classList.remove('hidden');
+            el.innerText = text;
+        }
+        function buildPromptTokenEstimatePayload() {
+            return {
+                model: (get('model-select') && get('model-select').value) ? get('model-select').value : '',
+                message: (get('prompt-input') && get('prompt-input').value) ? get('prompt-input').value : '',
+                quote_text: currentQuote || '',
+                image_urls: collectImageUrlsForSend()
+            };
+        }
+        function renderPromptTokenEstimate(data, payload = null) {
+            const p = payload || buildPromptTokenEstimatePayload();
+            const hasPrompt = !!((p.message || '').trim() || (p.quote_text || '').trim());
+            const hasFiles = Array.isArray(p.image_urls) && p.image_urls.length > 0;
+            if (!hasPrompt && !hasFiles) {
+                setPromptTokenEstimateText('');
+                return;
+            }
+            if (data && data.pending) {
+                setPromptTokenEstimateText('入力トークンを計算中...', 'text-gray-500');
+                return;
+            }
+            if (!data) {
+                setPromptTokenEstimateText('入力トークンを計算できませんでした', 'text-red-300');
+                return;
+            }
+            if (!data.countable) {
+                setPromptTokenEstimateText('このモデルは入力トークン表示対象外です', 'text-gray-500');
+                return;
+            }
+            const total = Number(data.tokens_total || 0);
+            const prompt = Number(data.tokens_prompt || 0);
+            const files = Number(data.tokens_files || 0);
+            const notes = [];
+            if (Number(data.files_non_text || 0) > 0) notes.push(`非テキスト${data.files_non_text}件は0換算`);
+            if (Number(data.files_missing || 0) > 0) notes.push(`未検出${data.files_missing}件`);
+            if (Number(data.files_error || 0) > 0) notes.push(`失敗${data.files_error}件`);
+            const noteText = notes.length ? ` ・ ${notes.join(' / ')}` : '';
+            setPromptTokenEstimateText(`入力見積: ${total} tokens (本文 ${prompt} / ファイル ${files})${noteText}`, 'text-cyan-300');
+        }
+        function schedulePromptTokenEstimate(immediate = false) {
+            const payload = buildPromptTokenEstimatePayload();
+            const hasPrompt = !!((payload.message || '').trim() || (payload.quote_text || '').trim());
+            const hasFiles = Array.isArray(payload.image_urls) && payload.image_urls.length > 0;
+            if (!hasPrompt && !hasFiles) {
+                promptTokenEstimateLastKey = '';
+                promptTokenEstimateLastData = null;
+                if (promptTokenEstimateTimer) {
+                    clearTimeout(promptTokenEstimateTimer);
+                    promptTokenEstimateTimer = null;
+                }
+                if (promptTokenEstimateAbort) {
+                    promptTokenEstimateAbort.abort();
+                    promptTokenEstimateAbort = null;
+                }
+                renderPromptTokenEstimate(null, payload);
+                return;
+            }
+            const key = JSON.stringify([payload.model || '', payload.message || '', payload.quote_text || '', payload.image_urls || []]);
+            if (key === promptTokenEstimateLastKey && promptTokenEstimateLastData) {
+                renderPromptTokenEstimate(promptTokenEstimateLastData, payload);
+                return;
+            }
+            if (promptTokenEstimateTimer) {
+                clearTimeout(promptTokenEstimateTimer);
+                promptTokenEstimateTimer = null;
+            }
+            const run = async () => {
+                if (promptTokenEstimateAbort) promptTokenEstimateAbort.abort();
+                promptTokenEstimateAbort = new AbortController();
+                const seq = ++promptTokenEstimateSeq;
+                renderPromptTokenEstimate({ pending: true }, payload);
+                try {
+                    const r = await apiFetch("{{ url_for('estimate_prompt_tokens_api') }}", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                        signal: promptTokenEstimateAbort.signal
+                    });
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    const d = await r.json();
+                    if (seq !== promptTokenEstimateSeq) return;
+                    promptTokenEstimateLastKey = key;
+                    promptTokenEstimateLastData = d;
+                    renderPromptTokenEstimate(d, payload);
+                } catch (e) {
+                    if (e && e.name === 'AbortError') return;
+                    if (seq !== promptTokenEstimateSeq) return;
+                    promptTokenEstimateLastKey = '';
+                    promptTokenEstimateLastData = null;
+                    renderPromptTokenEstimate(null, payload);
+                }
+            };
+            if (immediate) run();
+            else promptTokenEstimateTimer = setTimeout(run, PROMPT_TOKEN_ESTIMATE_DEBOUNCE_MS);
+        }
         function updatePromptPlaceholder() {
             const input = get('prompt-input');
             if (!input) return;
@@ -1511,6 +1624,7 @@
                     clearQuote();
                 }
             }
+            schedulePromptTokenEstimate(true);
             if (autoSend) sendMessage();
         }
         function playSendAnimation() {
@@ -1924,6 +2038,7 @@
                 get('quote-bar').classList.add('visible');
                 get('prompt-input').focus();
             }
+            schedulePromptTokenEstimate();
             get('quote-popover').style.display = 'none';
         };
 
@@ -1931,6 +2046,7 @@
             currentQuote = "";
             get('quote-bar').classList.remove('visible');
             get('quote-text-display').innerText = "";
+            schedulePromptTokenEstimate();
         };
 
         const MODELS = [
@@ -3586,7 +3702,11 @@
                     sendMessage();
                 }
             };
-            get('prompt-input').addEventListener('input', function() { this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px'; });
+            get('prompt-input').addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+                schedulePromptTokenEstimate();
+            });
             get('cancel-edit-btn').onclick = cancelEdit;
             updatePromptPlaceholder();
             get('menu-btn').onclick = () => { get('sidebar').classList.toggle('open'); get('overlay').classList.toggle('active'); }; get('overlay').onclick = () => { get('sidebar').classList.remove('open'); get('overlay').classList.remove('active'); };
@@ -3902,6 +4022,7 @@
 
             // Initial Load Logic for Permalink
             if(currentThreadId) { loadMessages(currentThreadId); }
+            else { schedulePromptTokenEstimate(true); }
         });
         
         function updateFilePreview() {
@@ -3958,6 +4079,7 @@
                     if (progressContainer) progressContainer.classList.add('hidden');
                 }
             }
+            schedulePromptTokenEstimate();
         }
         function updateMaskPreview() {
             const preview = get('mask-preview');
@@ -5571,6 +5693,7 @@
             // Render UI immediately to reduce perceived latency.
             renderMessage(Date.now(), 'user', t, JSON.stringify(imageUrlsToSend), null, null, null, true, currentQuote, null, null, null, null, null, null); 
             get('prompt-input').value = ''; get('prompt-input').style.height = 'auto'; 
+            schedulePromptTokenEstimate(true);
 
             let disableAutoSearch = false;
             const xLinkPattern = /(https?:\/\/)?(x\.com|twitter\.com)\//i;
@@ -6166,7 +6289,9 @@
                 } else {
                     get('file-preview').classList.add('hidden');
                 }
+                schedulePromptTokenEstimate(true);
             }
+            if (!preserveDraft) schedulePromptTokenEstimate(true);
             if(window.innerWidth < 768) get('overlay').click(); 
         }
 

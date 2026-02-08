@@ -515,6 +515,9 @@ def _get_file_disk_info(rel_path):
 _MEDIA_BYTES_CACHE_LOCK = threading.Lock()
 _MEDIA_BYTES_CACHE = OrderedDict()
 _MEDIA_BYTES_CACHE_SIZE = 0
+_TOKEN_FILE_TOKENS_CACHE_MAX = max(0, _env_int("TOKEN_FILE_TOKENS_CACHE_MAX", 512))
+_TOKEN_FILE_TOKENS_CACHE_LOCK = threading.Lock()
+_TOKEN_FILE_TOKENS_CACHE = OrderedDict()
 
 def _media_bytes_cache_get(key):
     if _MEDIA_BYTES_CACHE_MAX <= 0:
@@ -560,6 +563,29 @@ def _media_bytes_cache_evict_path(rel_path):
             if prev is not None:
                 _MEDIA_BYTES_CACHE_SIZE -= len(prev)
 
+
+def _token_file_tokens_cache_get(key):
+    if _TOKEN_FILE_TOKENS_CACHE_MAX <= 0:
+        return None
+    with _TOKEN_FILE_TOKENS_CACHE_LOCK:
+        hit = _TOKEN_FILE_TOKENS_CACHE.get(key)
+        if hit is None:
+            return None
+        _TOKEN_FILE_TOKENS_CACHE.move_to_end(key)
+        return hit
+
+
+def _token_file_tokens_cache_put(key, value):
+    if _TOKEN_FILE_TOKENS_CACHE_MAX <= 0:
+        return
+    if key is None or value is None:
+        return
+    with _TOKEN_FILE_TOKENS_CACHE_LOCK:
+        _TOKEN_FILE_TOKENS_CACHE[key] = value
+        _TOKEN_FILE_TOKENS_CACHE.move_to_end(key)
+        while len(_TOKEN_FILE_TOKENS_CACHE) > _TOKEN_FILE_TOKENS_CACHE_MAX:
+            _TOKEN_FILE_TOKENS_CACHE.popitem(last=False)
+
 def _load_user_file_bytes(rel_path, info=None):
     if not rel_path:
         return None
@@ -590,6 +616,73 @@ def _load_user_file_bytes(rel_path, info=None):
         return None
     _media_bytes_cache_put(key, data)
     return data
+
+
+def _decode_text_bytes_for_prompt(raw):
+    if not raw:
+        return None
+    sample = raw[:2 * 1024 * 1024]  # Avoid large decode for huge text files
+    try:
+        from charset_normalizer import from_bytes
+        match = from_bytes(sample).best()
+        if match and match.output():
+            try:
+                return match.output().decode('utf-8', errors='replace')
+            except Exception:
+                pass
+    except Exception:
+        pass
+    try:
+        return sample.decode('utf-8')
+    except Exception:
+        return sample.decode('utf-8', errors='replace')
+
+
+def _estimate_attachment_prompt_tokens(rel_path):
+    info = _get_file_disk_info(rel_path)
+    if not info.get("exists"):
+        return {"tokens": 0, "countable": False, "reason": "missing"}
+    cache_key = (
+        rel_path,
+        info.get("mtime"),
+        info.get("size"),
+        1 if info.get("is_encrypted") else 0
+    )
+    cached = _token_file_tokens_cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    data = _load_user_file_bytes(rel_path, info)
+    if data is None:
+        result = {"tokens": 0, "countable": False, "reason": "read_error"}
+        _token_file_tokens_cache_put(cache_key, result)
+        return result
+
+    clean_fn = os.path.basename(rel_path or "")
+    mime_guess = mimetypes.guess_type(clean_fn)[0]
+    mime = _normalize_media_mime(clean_fn, mime_guess)
+    is_pdf = clean_fn.lower().endswith('.pdf')
+    is_text = (mime or '').startswith('text/') or clean_fn.lower().endswith('.txt')
+
+    extracted = None
+    if is_pdf:
+        try:
+            reader = pypdf.PdfReader(BytesIO(data))
+            extracted = "".join([(p.extract_text() or "") + "\n" for p in reader.pages])
+        except Exception:
+            extracted = None
+    elif is_text:
+        extracted = _decode_text_bytes_for_prompt(data)
+
+    if extracted:
+        result = {"tokens": count_tokens(extracted), "countable": True, "reason": "ok"}
+    elif is_pdf or is_text:
+        result = {"tokens": 0, "countable": False, "reason": "no_text"}
+    else:
+        result = {"tokens": 0, "countable": False, "reason": "non_text"}
+
+    _token_file_tokens_cache_put(cache_key, result)
+    return result
 
 def _get_file_cache(user_id, rel_path, provider):
     if not user_id or not rel_path or not provider:
@@ -2162,23 +2255,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             return False
         
         def _decode_text_bytes(raw):
-            if not raw:
-                return None
-            sample = raw[:2 * 1024 * 1024]  # Avoid large decode for huge text files
-            try:
-                from charset_normalizer import from_bytes
-                match = from_bytes(sample).best()
-                if match and match.output():
-                    try:
-                        return match.output().decode('utf-8', errors='replace')
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-            try:
-                return sample.decode('utf-8')
-            except Exception:
-                return sample.decode('utf-8', errors='replace')
+            return _decode_text_bytes_for_prompt(raw)
 
         try:
             log_force(f"Task Start: model={model_key}, user={user_id}")
@@ -5554,6 +5631,80 @@ def chat_stream():
     resp.headers['Cache-Control'] = 'no-cache, no-transform'
     resp.headers['X-Accel-Buffering'] = 'no'
     return resp
+
+
+@app.route('/api/token_estimate', methods=['POST'])
+@login_required
+def estimate_prompt_tokens_api():
+    data = request.get_json(silent=True) or {}
+    model_key = str(data.get('model') or '')
+    message_text = data.get('message')
+    quote_text = data.get('quote_text')
+    raw_image_urls = data.get('image_urls') or []
+    if not isinstance(raw_image_urls, list):
+        raw_image_urls = [raw_image_urls]
+
+    if message_text is None:
+        message_text = ''
+    else:
+        message_text = str(message_text)
+    if quote_text is None:
+        quote_text = ''
+    else:
+        quote_text = str(quote_text)
+
+    norm_image_urls = _normalize_attachment_list(raw_image_urls, current_user.id)
+    if quote_text:
+        message_for_count = f"Context (User Quote):\n\"\"\"\n{quote_text}\n\"\"\"\n\nUser Message:\n{message_text}"
+    else:
+        message_for_count = message_text
+
+    if not should_count_tokens_for_display(model_key):
+        return jsonify({
+            'countable': False,
+            'tokens_total': None,
+            'tokens_prompt': None,
+            'tokens_files': None,
+            'files_total': len(norm_image_urls),
+            'files_counted': 0,
+            'files_non_text': 0,
+            'files_missing': 0,
+            'files_error': 0
+        })
+
+    prompt_tokens = count_tokens(message_for_count or "")
+    file_tokens = 0
+    files_counted = 0
+    files_non_text = 0
+    files_missing = 0
+    files_error = 0
+
+    for rel_path in norm_image_urls:
+        est = _estimate_attachment_prompt_tokens(rel_path)
+        tok = int(est.get("tokens") or 0)
+        file_tokens += tok
+        reason = est.get("reason")
+        if est.get("countable"):
+            files_counted += 1
+        elif reason == "missing":
+            files_missing += 1
+        elif reason in ("non_text", "no_text"):
+            files_non_text += 1
+        else:
+            files_error += 1
+
+    return jsonify({
+        'countable': True,
+        'tokens_total': prompt_tokens + file_tokens,
+        'tokens_prompt': prompt_tokens,
+        'tokens_files': file_tokens,
+        'files_total': len(norm_image_urls),
+        'files_counted': files_counted,
+        'files_non_text': files_non_text,
+        'files_missing': files_missing,
+        'files_error': files_error
+    })
+
 
 @app.route('/chat_stream_resume', methods=['POST'])
 @login_required

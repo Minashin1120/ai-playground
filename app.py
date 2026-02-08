@@ -638,15 +638,17 @@ def _decode_text_bytes_for_prompt(raw):
         return sample.decode('utf-8', errors='replace')
 
 
-def _estimate_attachment_prompt_tokens(rel_path):
+def _estimate_attachment_prompt_tokens(rel_path, model_key=None):
     info = _get_file_disk_info(rel_path)
     if not info.get("exists"):
         return {"tokens": 0, "countable": False, "reason": "missing"}
+    tokenizer_name = _select_tokenizer_name(model_key)
     cache_key = (
         rel_path,
         info.get("mtime"),
         info.get("size"),
-        1 if info.get("is_encrypted") else 0
+        1 if info.get("is_encrypted") else 0,
+        tokenizer_name
     )
     cached = _token_file_tokens_cache_get(cache_key)
     if cached is not None:
@@ -675,7 +677,7 @@ def _estimate_attachment_prompt_tokens(rel_path):
         extracted = _decode_text_bytes_for_prompt(data)
 
     if extracted:
-        result = {"tokens": count_tokens(extracted), "countable": True, "reason": "ok"}
+        result = {"tokens": count_tokens(extracted, model_key), "countable": True, "reason": "ok"}
     elif is_pdf or is_text:
         result = {"tokens": 0, "countable": False, "reason": "no_text"}
     else:
@@ -1906,20 +1908,62 @@ def rate_limit(key, limit, window_seconds):
     except Exception:
         return True
 
-_TOKEN_ENCODER = None
+_TOKEN_ENCODER_BY_NAME = {}
+_TOKEN_ENCODER_BY_MODEL = {}
+_TOKEN_ENCODER_LOCK = threading.Lock()
 
-def _get_token_encoder():
-    global _TOKEN_ENCODER
-    if _TOKEN_ENCODER is None:
-        _TOKEN_ENCODER = tiktoken.get_encoding("cl100k_base")
-    return _TOKEN_ENCODER
+def _select_tokenizer_name(model_key):
+    mk = str(model_key or "").strip().lower()
+    if not mk:
+        return "o200k_base"
+    if "grok" in mk or "gemini" in mk:
+        return "o200k_base"
+    if any(x in mk for x in ("gpt-4o", "gpt-4.1", "gpt-5", "o1", "o3", "o4")):
+        return "o200k_base"
+    return "cl100k_base"
+
+def _get_token_encoder(model_key=""):
+    model_key = str(model_key or "").strip().lower()
+    with _TOKEN_ENCODER_LOCK:
+        enc = _TOKEN_ENCODER_BY_MODEL.get(model_key)
+        if enc is not None:
+            return enc
+    chosen_name = None
+    enc = None
+    if model_key:
+        try:
+            enc = tiktoken.encoding_for_model(model_key)
+            chosen_name = getattr(enc, "name", None)
+        except Exception:
+            enc = None
+    if enc is None:
+        chosen_name = _select_tokenizer_name(model_key)
+        with _TOKEN_ENCODER_LOCK:
+            enc = _TOKEN_ENCODER_BY_NAME.get(chosen_name)
+        if enc is None:
+            enc = tiktoken.get_encoding(chosen_name)
+            with _TOKEN_ENCODER_LOCK:
+                _TOKEN_ENCODER_BY_NAME[chosen_name] = enc
+    with _TOKEN_ENCODER_LOCK:
+        _TOKEN_ENCODER_BY_MODEL[model_key] = enc
+        if chosen_name:
+            _TOKEN_ENCODER_BY_NAME[chosen_name] = enc
+    return enc
 
 def count_tokens(text, model="gpt-4"):
+    raw = text or ""
+    if not raw:
+        return 0
+    for model_hint in (model, "gpt-4o", "gpt-4"):
+        try:
+            enc = _get_token_encoder(model_hint)
+            return len(enc.encode(raw))
+        except Exception:
+            continue
     try:
-        enc = _get_token_encoder()
-        return len(enc.encode(text or ""))
-    except:
-        return len(text or "") // 4
+        return len(raw.encode("utf-8", errors="ignore"))
+    except Exception:
+        return 0
 
 NON_COUNTABLE_TOKEN_MARKERS = (
     "transcribe",
@@ -1995,9 +2039,9 @@ def count_tokens_for_display(text, model_key, thought_text=None):
         return None
     total = 0
     if text:
-        total += count_tokens(text)
+        total += count_tokens(text, model_key)
     if thought_text:
-        total += count_tokens(thought_text)
+        total += count_tokens(thought_text, model_key)
     return total
 
 def sum_token_counts(tokens_in, tokens_out):
@@ -2022,7 +2066,7 @@ def build_message_token_details(role, content, thought_text, model_key, tokens_i
     if role == "user":
         if tokens_in is None:
             tokens_in = count_tokens_for_display(content, model_key)
-        tokens_content = count_tokens(content or "")
+        tokens_content = count_tokens(content or "", model_key)
         return {
             "tokens_in": tokens_in,
             "tokens_out": None,
@@ -2030,8 +2074,8 @@ def build_message_token_details(role, content, thought_text, model_key, tokens_i
             "tokens_content": tokens_content,
             "tokens_thought": None,
         }
-    tokens_content = count_tokens(content or "")
-    tokens_thought = count_tokens(thought_text or "") if thought_text else 0
+    tokens_content = count_tokens(content or "", model_key)
+    tokens_thought = count_tokens(thought_text or "", model_key) if thought_text else 0
     if tokens_out is None:
         tokens_out = sum_token_counts(tokens_content, tokens_thought)
     return {
@@ -2400,8 +2444,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 if cached_tokens is not None:
                     t_len = cached_tokens
                 else:
-                    # Fast approximation avoids expensive tokenization on every ancestor.
-                    t_len = max(1, len(raw_cnt) // 4)
+                    token_src = decrypt_val(raw_cnt) if current_node.is_encrypted else raw_cnt
+                    token_model = current_node.model or model_key
+                    t_len = max(1, count_tokens(token_src or "", token_model))
                 
                 if (not MAX_CONTEXT_TOKENS) or (total_history_tokens + t_len <= MAX_CONTEXT_TOKENS):
                     cnt = decrypt_val(raw_cnt) if current_node.is_encrypted else raw_cnt
@@ -5672,7 +5717,7 @@ def estimate_prompt_tokens_api():
             'files_error': 0
         })
 
-    prompt_tokens = count_tokens(message_for_count or "")
+    prompt_tokens = count_tokens(message_for_count or "", model_key)
     file_tokens = 0
     files_counted = 0
     files_non_text = 0
@@ -5680,7 +5725,7 @@ def estimate_prompt_tokens_api():
     files_error = 0
 
     for rel_path in norm_image_urls:
-        est = _estimate_attachment_prompt_tokens(rel_path)
+        est = _estimate_attachment_prompt_tokens(rel_path, model_key=model_key)
         tok = int(est.get("tokens") or 0)
         file_tokens += tok
         reason = est.get("reason")

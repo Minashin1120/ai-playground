@@ -433,12 +433,24 @@ def _normalize_attachment_list(raw_list, user_id=None):
         ref = _normalize_upload_ref(item)
         if not ref:
             continue
-        if user_id is not None and not str(ref).startswith(f"{user_id}/"):
+        
+        ref_str = str(ref)
+        # Security: If user_id is provided, ensure the ref belongs to them.
+        if user_id is not None:
+            prefix = f"{user_id}/"
+            if not ref_str.startswith(prefix):
+                # If it doesn't start with any user ID prefix, prepend current user's.
+                parts = ref_str.split('/')
+                if not (len(parts) > 1 and parts[0].isdigit()):
+                    ref_str = prefix + ref_str
+                else:
+                    # Belongs to another user or invalid format.
+                    continue
+        
+        if ref_str in seen:
             continue
-        if ref in seen:
-            continue
-        seen.add(ref)
-        normalized.append(ref)
+        seen.add(ref_str)
+        normalized.append(ref_str)
     return normalized
 
 _AUDIO_MIME_BY_EXT = {
@@ -5976,23 +5988,45 @@ def generate_title_api():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/robots.txt')
+def robots_txt():
+    return Response("User-agent: *\nDisallow: /", mimetype="text/plain")
+
 @app.route('/files/<path:filename>')
 @login_required
 def serve_file(filename):
     norm = os.path.normpath(filename)
     if norm.startswith("..") or os.path.isabs(norm): abort(403)
-    if not norm.startswith(f"{current_user.id}/"): abort(403)
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], norm)
+    
+    # URL Privacy: Support both legacy "uid/file" and new "file" formats.
+    # If the path starts with a number followed by a slash, we check if it matches current_user.
+    parts = norm.split(os.sep)
+    if len(parts) > 1 and parts[0].isdigit():
+        if int(parts[0]) != current_user.id:
+            abort(403)
+        actual_rel_path = norm
+    else:
+        # User ID is hidden from URL, prepend it internally
+        actual_rel_path = os.path.join(str(current_user.id), norm)
+    
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], actual_rel_path)
     if not os.path.realpath(file_path).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])): abort(403)
+    
     enc_path = file_path + '.enc'
     mtype = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
+    
+    def add_privacy_headers(resp):
+        resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+        resp.headers["Cache-Control"] = "private, no-cache, no-store, must-revalidate"
+        return resp
+
     if os.path.exists(file_path):
         resp = send_file(file_path, mimetype=mtype, conditional=True)
         resp.headers.setdefault("Accept-Ranges", "bytes")
-        return resp
+        return add_privacy_headers(resp)
     elif os.path.exists(enc_path):
-        info = _get_file_disk_info(norm)
-        data = _load_user_file_bytes(norm, info)
+        info = _get_file_disk_info(actual_rel_path)
+        data = _load_user_file_bytes(actual_rel_path, info)
         if data is None:
             abort(404)
         range_header = request.headers.get('Range')
@@ -6010,8 +6044,9 @@ def serve_file(filename):
                 resp.headers["Content-Range"] = f"bytes {start}-{end}/{size}"
                 resp.headers["Accept-Ranges"] = "bytes"
                 resp.headers["Content-Length"] = str(end - start + 1)
-                return resp
-        return send_file(BytesIO(data), download_name=os.path.basename(filename), as_attachment=False, mimetype=mtype)
+                return add_privacy_headers(resp)
+        resp = send_file(BytesIO(data), download_name=os.path.basename(filename), as_attachment=False, mimetype=mtype)
+        return add_privacy_headers(resp)
     else:
         abort(404)
 

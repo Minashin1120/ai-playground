@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>AI Playground (V4.8.170)</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -5623,7 +5624,8 @@
                             }
                             path = normalizeAttachmentPath(path) || path;
                             if (!path) return;
-                            const url = "{{ url_for('serve_file', filename='') }}" + path; 
+                            const displayPath = path.replace(/^\d+\//, '');
+                            const url = "{{ url_for('serve_file', filename='') }}" + displayPath; 
                             const fn = path.split('/').pop(); 
                             const ext = fn.split('.').pop().toLowerCase(); 
                             if(['jpg','jpeg','png','webp','gif'].includes(ext)) {

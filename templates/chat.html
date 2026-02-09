@@ -276,6 +276,17 @@
         .image-grid.grid-multi { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 4px; background: transparent; }
         .image-grid.grid-multi img { aspect-ratio: 1/1; border-radius: 6px !important; }
         
+        /* File Preview Thumbnails */
+        #file-preview-thumbs .thumb-item {
+            width: 48px; height: 48px; border-radius: 6px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2);
+            animation: thumb-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            background-color: #1f2937;
+        }
+        @keyframes thumb-pop {
+            0% { opacity: 0; transform: scale(0.5) translateY(10px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        
         /* File Viewer */
         #file-viewer { position: fixed; inset: 0; background: rgba(2,6,16,0.92); display: none; align-items: center; justify-content: center; z-index: 140; }
         #file-viewer.visible { display: flex; }
@@ -622,7 +633,8 @@
                         <label class="flex items-center gap-1 cursor-pointer select-none ml-2" title="Client-side Compression"><input type="checkbox" id="enable-compression" class="accent-blue-500 w-3 h-3" checked><span class="text-gray-400 text-[10px]">Compress</span></label>
                     </div>
                 </div>
-                <div id="file-preview" class="hidden flex-col gap-1">
+                <div id="file-preview" class="hidden flex-col gap-2 transition-all duration-300">
+                    <div id="file-preview-thumbs" class="flex flex-wrap gap-2 empty:hidden pl-1"></div>
                     <div class="px-3 py-2 bg-gray-700/50 rounded text-xs text-blue-300 flex justify-between items-center cursor-pointer hover:bg-gray-700/70 transition" onclick="openUploadModal()">
                         <span id="file-name" class="truncate"></span>
                         <div class="flex items-center gap-2">
@@ -3883,7 +3895,7 @@
                 }
                 if (files.length > 0) {
                     e.preventDefault();
-                    await handleFiles(files, { openModal: true });
+                    await handleFiles(files, { openModal: false });
                 }
             });
             get('chat-container').addEventListener('click', (e) => {
@@ -4205,12 +4217,36 @@
             const nameEl = get('file-name');
             const progressContainer = get('upload-total-progress');
             const progressBar = get('upload-total-progress-bar');
+            const thumbContainer = get('file-preview-thumbs');
 
             const modalStatusText = get('upload-modal-status-text');
             const modalProgressContainer = get('upload-modal-total-progress');
             const modalProgressBar = get('upload-modal-total-progress-bar');
 
             if (!preview || !nameEl) return;
+            
+            // Sync Thumbnails
+            if (thumbContainer) {
+                thumbContainer.innerHTML = '';
+                const uploadRows = document.querySelectorAll('#upload-list .upload-row');
+                uploadRows.forEach((row, index) => {
+                    const img = row.querySelector('img.upload-preview');
+                    let el;
+                    if (img) {
+                        el = document.createElement('img');
+                        el.src = img.src;
+                        el.className = 'thumb-item shadow-sm';
+                    } else {
+                        el = document.createElement('div');
+                        el.className = 'thumb-item bg-gray-800 flex items-center justify-center text-gray-500 text-[9px] shadow-sm';
+                        el.innerText = 'FILE';
+                    }
+                    el.style.animationDelay = `${index * 50}ms`;
+                    thumbContainer.appendChild(el);
+                });
+                if (uploadRows.length > 0) thumbContainer.classList.remove('hidden');
+                else thumbContainer.classList.add('hidden');
+            }
             
             const pendingUrls = collectImageUrlsForSend();
             const total = uploadProgressState.total;

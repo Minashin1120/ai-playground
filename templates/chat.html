@@ -249,10 +249,33 @@
         .toast button:hover { opacity: 1; }
         #offline-banner { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #0b121a; color: #fef3c7; border: 1px solid rgba(245,158,11,0.5); padding: 8px 14px; border-radius: 999px; font-size: 12px; display: none; align-items: center; gap: 8px; z-index: 130; box-shadow: var(--shadow); }
         #offline-banner.visible { display: flex; }
-        #image-viewer { position: fixed; inset: 0; background: rgba(2,6,16,0.92); display: none; align-items: center; justify-content: center; z-index: 140; }
+        #image-viewer { position: fixed; inset: 0; background: rgba(2,6,16,0.95); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 140; user-select: none; }
         #image-viewer.visible { display: flex; }
-        #image-viewer img { max-width: min(92vw, 1200px); max-height: 88vh; border-radius: 12px; border: 1px solid rgba(148,163,184,0.2); box-shadow: var(--shadow); cursor: zoom-out; background: #0b121a; }
-        #image-viewer .close-btn { position: absolute; top: 14px; right: 14px; width: 36px; height: 36px; border-radius: 999px; background: rgba(11,18,26,0.8); border: 1px solid var(--line); color: #e5e7eb; display: grid; place-items: center; }
+        .viewer-content { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; }
+        #image-viewer-img { max-width: 96vw; max-height: 85vh; border-radius: 8px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); object-fit: contain; transition: transform 0.2s; }
+        .viewer-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; z-index: 10; }
+        .viewer-nav:hover { background: rgba(255,255,255,0.2); }
+        .viewer-nav.prev { left: 16px; }
+        .viewer-nav.next { right: 16px; }
+        .viewer-toolbar { position: absolute; bottom: 24px; display: flex; gap: 12px; background: rgba(15,23,42,0.8); padding: 8px 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(10px); z-index: 10; }
+        .viewer-toolbar button { width: 40px; height: 40px; border-radius: 50%; border: none; background: transparent; color: #cbd5e1; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.2s; }
+        .viewer-toolbar button:hover { background: rgba(255,255,255,0.1); color: #fff; transform: translateY(-2px); }
+        .viewer-meta { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); padding: 6px 12px; border-radius: 20px; font-size: 12px; color: #e2e8f0; pointer-events: none; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(4px); max-width: 80%; text-align: center; }
+        
+        /* Image Grid System */
+        .image-grid { display: grid; gap: 4px; width: 100%; max-width: 400px; margin-top: 8px; border-radius: 12px; overflow: hidden; background: #000; }
+        .image-grid img, .image-grid .file-thumb { width: 100%; height: 100%; object-fit: cover; cursor: pointer; transition: filter 0.2s; display: block; border: none !important; margin: 0 !important; border-radius: 0 !important; background: #111; }
+        .image-grid img:hover, .image-grid .file-thumb:hover { filter: brightness(1.1); }
+        .image-grid.grid-1 { grid-template-columns: 1fr; }
+        .image-grid.grid-1 img { max-height: 400px; object-fit: contain; background: transparent; }
+        .image-grid.grid-2 { grid-template-columns: 1fr 1fr; aspect-ratio: 2/1; }
+        .image-grid.grid-3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; aspect-ratio: 1/1; }
+        .image-grid.grid-3 *:first-child { grid-row: 1 / span 2; }
+        .image-grid.grid-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; aspect-ratio: 1/1; }
+        .image-grid.grid-multi { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 4px; background: transparent; }
+        .image-grid.grid-multi img { aspect-ratio: 1/1; border-radius: 6px !important; }
+        
+        /* File Viewer */
         #file-viewer { position: fixed; inset: 0; background: rgba(2,6,16,0.92); display: none; align-items: center; justify-content: center; z-index: 140; }
         #file-viewer.visible { display: flex; }
         #file-viewer .panel { width: min(92vw, 980px); max-height: 86vh; background: #0b121a; border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; }
@@ -456,8 +479,18 @@
     <div id="turnstile-container" class="hidden turnstile-box"></div>
     <div id="offline-banner"><i class="fas fa-wifi"></i> オフラインです（ネットワークが切断されています）</div>
     <div id="image-viewer">
-        <button class="close-btn" onclick="closeImageViewer()" aria-label="close"><i class="fas fa-times"></i></button>
-        <img id="image-viewer-img" alt="image preview">
+        <button class="viewer-nav prev" onclick="navImage(-1)"><i class="fas fa-chevron-left"></i></button>
+        <div class="viewer-content">
+            <img id="image-viewer-img" alt="image preview">
+            <div id="image-viewer-meta" class="viewer-meta"></div>
+        </div>
+        <button class="viewer-nav next" onclick="navImage(1)"><i class="fas fa-chevron-right"></i></button>
+        <div class="viewer-toolbar">
+            <button onclick="downloadCurrentImage()" title="Download"><i class="fas fa-download"></i></button>
+            <button onclick="copyCurrentImageUrl()" title="Copy URL"><i class="fas fa-link"></i></button>
+            <button onclick="reuseCurrentImage()" title="Reuse as Attachment"><i class="fas fa-reply"></i></button>
+            <button onclick="closeImageViewer()" title="Close"><i class="fas fa-times"></i></button>
+        </div>
     </div>
     <div id="file-viewer">
         <div class="panel">
@@ -1975,6 +2008,129 @@
         get('chat-container').addEventListener('scroll', function() { userAutoScroll = (this.scrollHeight - this.scrollTop - this.clientHeight) < 50; });
         function scrollToBottom() { if(userAutoScroll) { const c = get('chat-container'); c.scrollTop = c.scrollHeight; } }
         
+        // Image Viewer Logic
+        let viewerImages = [];
+        let viewerIndex = 0;
+
+        function openImageViewer(startUrl, groupSelector = '.chat-image') {
+            const allImgs = Array.from(document.querySelectorAll(groupSelector));
+            // Filter out duplicate sources if needed, but keep DOM order
+            viewerImages = allImgs.map(img => ({
+                url: img.src,
+                filename: img.title || img.src.split('/').pop(),
+                element: img
+            }));
+            
+            // Find index of startUrl
+            viewerIndex = viewerImages.findIndex(item => item.url === startUrl);
+            if (viewerIndex === -1) {
+                // Fallback if not found in DOM list (single view)
+                viewerImages = [{ url: startUrl, filename: startUrl.split('/').pop() }];
+                viewerIndex = 0;
+            }
+            
+            updateViewerState();
+            get('image-viewer').classList.add('visible');
+            document.addEventListener('keydown', handleViewerKeydown);
+        }
+
+        function closeImageViewer() {
+            get('image-viewer').classList.remove('visible');
+            document.removeEventListener('keydown', handleViewerKeydown);
+            viewerImages = [];
+        }
+
+        function updateViewerState() {
+            if (!viewerImages.length) return;
+            const item = viewerImages[viewerIndex];
+            const img = get('image-viewer-img');
+            const meta = get('image-viewer-meta');
+            const prevBtn = document.querySelector('.viewer-nav.prev');
+            const nextBtn = document.querySelector('.viewer-nav.next');
+
+            // Preload next image
+            if (viewerIndex < viewerImages.length - 1) {
+                const preload = new Image();
+                preload.src = viewerImages[viewerIndex + 1].url;
+            }
+
+            img.style.opacity = '0.5';
+            img.style.transform = 'scale(0.95)';
+            
+            setTimeout(() => {
+                img.src = item.url;
+                img.onload = () => {
+                    img.style.opacity = '1';
+                    img.style.transform = 'scale(1)';
+                };
+                meta.innerText = `${viewerIndex + 1} / ${viewerImages.length} • ${item.filename}`;
+            }, 150);
+
+            prevBtn.style.display = viewerImages.length > 1 ? 'flex' : 'none';
+            nextBtn.style.display = viewerImages.length > 1 ? 'flex' : 'none';
+            prevBtn.style.opacity = viewerIndex > 0 ? '1' : '0.3';
+            nextBtn.style.opacity = viewerIndex < viewerImages.length - 1 ? '1' : '0.3';
+            prevBtn.style.pointerEvents = viewerIndex > 0 ? 'auto' : 'none';
+            nextBtn.style.pointerEvents = viewerIndex < viewerImages.length - 1 ? 'auto' : 'none';
+        }
+
+        function navImage(dir) {
+            const newIndex = viewerIndex + dir;
+            if (newIndex >= 0 && newIndex < viewerImages.length) {
+                viewerIndex = newIndex;
+                updateViewerState();
+            }
+        }
+
+        function handleViewerKeydown(e) {
+            if (e.key === 'ArrowLeft') navImage(-1);
+            if (e.key === 'ArrowRight') navImage(1);
+            if (e.key === 'Escape') closeImageViewer();
+        }
+
+        function downloadCurrentImage() {
+            if (!viewerImages.length) return;
+            const item = viewerImages[viewerIndex];
+            const a = document.createElement('a');
+            a.href = item.url;
+            a.download = item.filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function copyCurrentImageUrl() {
+            if (!viewerImages.length) return;
+            const url = viewerImages[viewerIndex].url;
+            // Try to resolve full URL if relative
+            const fullUrl = new URL(url, window.location.origin).href;
+            copyToClipboard(fullUrl, () => showToast("画像URLをコピーしました", "success"), () => showToast("コピーに失敗しました"));
+        }
+
+        function reuseCurrentImage() {
+            if (!viewerImages.length) return;
+            const item = viewerImages[viewerIndex];
+            let path = item.url;
+            try {
+                // Extract relative path from URL: /files/user/filename -> user/filename
+                const urlObj = new URL(path, window.location.origin);
+                if (urlObj.pathname.startsWith('/files/')) {
+                    path = decodeURIComponent(urlObj.pathname.replace('/files/', ''));
+                }
+            } catch(e) {}
+            
+            if (path) {
+                if (!currentImageUrls.includes(path)) {
+                    currentImageUrls.push(path);
+                    updateFilePreview();
+                    showToast("画像を添付ファイルに追加しました", "success");
+                    closeImageViewer();
+                } else {
+                    showToast("この画像は既に添付されています", "info");
+                }
+            }
+        }
+
         // Robust Copy Function with Fallback
         async function copyToClipboard(text, successCallback, errorCallback) {
             try {
@@ -5459,7 +5615,7 @@
                 try { 
                     const imgs = JSON.parse(imgUrl); 
                     if(imgs.length) { 
-                        at = '<div class="flex flex-wrap gap-2 mt-2">'; 
+                        const items = [];
                         imgs.forEach(u => { 
                             let path = u;
                             if (path && typeof path === 'object') {
@@ -5470,10 +5626,22 @@
                             const url = "{{ url_for('serve_file', filename='') }}" + path; 
                             const fn = path.split('/').pop(); 
                             const ext = fn.split('.').pop().toLowerCase(); 
-                            if(['jpg','jpeg','png','webp','gif'].includes(ext)) at += `<img src="${url}" class="h-24 w-24 object-cover rounded border border-gray-600 cursor-pointer chat-image" onclick="openImageViewer('${url}')" title="${fn}">`; 
-                            else at += `<div class="h-24 w-24 bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700" onclick="window.open('${url}')" title="${fn}"><i class="fas fa-file text-2xl text-gray-400 mb-1"></i><span class="text-[9px] truncate w-20 text-center">${fn}</span></div>`; 
+                            if(['jpg','jpeg','png','webp','gif'].includes(ext)) {
+                                items.push(`<img src="${url}" class="chat-image" loading="lazy" onclick="openImageViewer('${url}')" title="${fn}">`);
+                            } else {
+                                items.push(`<div class="file-thumb bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700" onclick="window.open('${url}')" title="${fn}"><i class="fas fa-file text-2xl text-gray-400 mb-1"></i><span class="text-[9px] truncate w-20 text-center">${fn}</span></div>`);
+                            }
                         }); 
-                        at += '</div>'; 
+                        
+                        if (items.length > 0) {
+                            let gridClass = 'grid-multi';
+                            if (items.length === 1) gridClass = 'grid-1';
+                            else if (items.length === 2) gridClass = 'grid-2';
+                            else if (items.length === 3) gridClass = 'grid-3';
+                            else if (items.length === 4) gridClass = 'grid-4';
+                            
+                            at = `<div class="image-grid ${gridClass}">${items.join('')}</div>`;
+                        }
                     } 
                 } catch(e){} 
             } 

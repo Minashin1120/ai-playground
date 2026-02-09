@@ -281,6 +281,7 @@
             width: 48px; height: 48px; border-radius: 6px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2);
             animation: thumb-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
             background-color: #1f2937;
+            display: flex;
         }
         @keyframes thumb-pop {
             0% { opacity: 0; transform: scale(0.5) translateY(10px); }
@@ -4225,27 +4226,54 @@
 
             if (!preview || !nameEl) return;
             
-            // Sync Thumbnails
+            // Sync Thumbnails from the upload list (modal)
             if (thumbContainer) {
-                thumbContainer.innerHTML = '';
                 const uploadRows = document.querySelectorAll('#upload-list .upload-row');
+                
+                // Rebuild thumbnail list
+                thumbContainer.innerHTML = '';
                 uploadRows.forEach((row, index) => {
-                    const img = row.querySelector('img.upload-preview');
+                    const localUrl = row.getAttribute('data-local-url');
+                    const filename = row.getAttribute('data-filename');
+                    // Check if it's meant to be an image
+                    const isImage = row.querySelector('img.upload-preview') !== null;
+                    
                     let el;
-                    if (img) {
-                        el = document.createElement('img');
-                        el.src = img.src;
-                        el.className = 'thumb-item shadow-sm';
-                    } else {
-                        el = document.createElement('div');
-                        el.className = 'thumb-item bg-gray-800 flex items-center justify-center text-gray-500 text-[9px] shadow-sm';
-                        el.innerText = 'FILE';
+                    if (isImage) {
+                        let src = localUrl;
+                        if (!src && filename) {
+                            const displayPath = filename.replace(/^\d+\//, '');
+                            src = "{{ url_for('serve_file', filename='') }}" + displayPath;
+                        }
+                        
+                        if (src) {
+                            el = document.createElement('img');
+                            el.src = src;
+                            el.className = 'thumb-item shadow-sm';
+                            el.onerror = function() {
+                                // Fallback if image fails to load (e.g. revoked URL)
+                                this.parentElement.replaceChild(createFileThumb('ERR'), this);
+                            };
+                        }
                     }
-                    el.style.animationDelay = `${index * 50}ms`;
+                    
+                    if (!el) {
+                        el = createFileThumb('FILE');
+                    }
+                    
+                    el.style.animationDelay = `${index * 40}ms`;
                     thumbContainer.appendChild(el);
                 });
+                
                 if (uploadRows.length > 0) thumbContainer.classList.remove('hidden');
                 else thumbContainer.classList.add('hidden');
+            }
+
+            function createFileThumb(text) {
+                const el = document.createElement('div');
+                el.className = 'thumb-item bg-gray-800 flex items-center justify-center text-gray-500 text-[9px] shadow-sm font-bold';
+                el.innerText = text;
+                return el;
             }
             
             const pendingUrls = collectImageUrlsForSend();
@@ -4638,6 +4666,7 @@
             if (uploadProgressState.active <= 0) {
                 uploadProgressState.total = 0;
                 uploadProgressState.completed = 0;
+                uploadProgressState.active = 0;
                 uploadProgressState.perFilePct = {};
             }
             updateFilePreview();
@@ -4710,7 +4739,12 @@
                 markerBtn.onclick = () => openMarkerModalForRow(row);
             }
             list.prepend(row);
-            return row;
+            return {
+                row: row,
+                bar: row.querySelector('.upload-progress > div'),
+                status: row.querySelector('.upload-status'),
+                uploadId: uploadId
+            };
         }
         function addUploadRow(file) {
             const list = get('upload-list');
@@ -4864,6 +4898,13 @@
                         const localUrl = row.row.getAttribute('data-local-url');
                         if (localUrl) URL.revokeObjectURL(localUrl);
                         row.row.removeAttribute('data-local-url');
+                        
+                        // Update source to server URL
+                        const img = row.row.querySelector('img.upload-preview');
+                        if (img) {
+                            const displayPath = doneData.filename.replace(/^\d+\//, '');
+                            img.src = "{{ url_for('serve_file', filename='') }}" + displayPath;
+                        }
                     }
                     const normPath = normalizeAttachmentPath(doneData.filename);
                     if (normPath) currentImageUrls.push(normPath);
@@ -4914,6 +4955,13 @@
                             const localUrl = row.row.getAttribute('data-local-url');
                             if (localUrl) URL.revokeObjectURL(localUrl);
                             row.row.removeAttribute('data-local-url');
+
+                            // Update source to server URL
+                            const img = row.row.querySelector('img.upload-preview');
+                            if (img) {
+                                const displayPath = d.filename.replace(/^\d+\//, '');
+                                img.src = "{{ url_for('serve_file', filename='') }}" + displayPath;
+                            }
                         }
                         const normPath = normalizeAttachmentPath(d.filename);
                         if (normPath) currentImageUrls.push(normPath);
@@ -5565,6 +5613,7 @@
                         return false;
                     }
                     const rowObj = addUploadRow(f);
+                    updateFilePreview(); // Immediate feedback
                     currentUploadId = rowObj.uploadId;
                     uploadProgressState.perFilePct[currentUploadId] = 0;
 
@@ -7002,8 +7051,8 @@
                 const norm = normalizeAttachmentPath(fp);
                 if (norm && !currentImageUrls.includes(norm)) currentImageUrls.push(norm);
             });
-            updateFilePreview();
             syncUploadRowsFromCurrent();
+            updateFilePreview();
             lib.selected.clear();
             window.updateLibSelectionUi();
             hideModal('lib-modal');

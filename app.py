@@ -5990,7 +5990,19 @@ def generate_title_api():
 
 @app.route('/robots.txt')
 def robots_txt():
-    return Response("User-agent: *\nDisallow: /", mimetype="text/plain")
+    # Allow landing and auth pages, but disallow private/API paths
+    lines = [
+        "User-agent: *",
+        "Disallow: /files/",
+        "Disallow: /api/",
+        "Disallow: /thread/",
+        "Disallow: /chat/",
+        "Allow: /login",
+        "Allow: /signup",
+        "Allow: /landing",
+        "Allow: /"
+    ]
+    return Response("\n".join(lines), mimetype="text/plain")
 
 @app.route('/files/<path:filename>')
 @login_required

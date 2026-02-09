@@ -3872,7 +3872,20 @@
             get('search-box').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => { threadPage=1; get('thread-list').innerHTML='<div id="scroll-sentinel"></div>'; loadThreads(); }, 300); }); get('mobile-new-chat-btn').onclick = () => startNewChat();
             if (get('sts-mic-btn')) get('sts-mic-btn').onclick = () => { if (isStsModel()) get('mic-btn').click(); };
             if (get('sts-cancel-btn')) get('sts-cancel-btn').onclick = () => { if (isStsModel()) cancelRecording(); };
-            get('prompt-input').addEventListener('paste', async (e) => { const items = (e.clipboardData || window.clipboardData).items; const files = []; for (let i = 0; i < items.length; i++) { if (items[i].kind === 'file') { files.push(items[i].getAsFile()); } } if (files.length > 0) { e.preventDefault(); await handleFiles(files, { openModal: false }); } });
+            get('prompt-input').addEventListener('paste', async (e) => {
+                const items = (e.clipboardData || window.clipboardData).items;
+                const files = [];
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].kind === 'file') {
+                        const file = items[i].getAsFile();
+                        if (file) files.push(file);
+                    }
+                }
+                if (files.length > 0) {
+                    e.preventDefault();
+                    await handleFiles(files, { openModal: true });
+                }
+            });
             get('chat-container').addEventListener('click', (e) => {
                 const img = e.target.closest('img.chat-image');
                 if (img && img.src) {
@@ -3881,7 +3894,10 @@
                 }
             });
             get('image-viewer').addEventListener('click', (e) => {
-                if (e.target.id === 'image-viewer' || e.target.id === 'image-viewer-img') closeImageViewer();
+                // Close if clicking the background area, but not the image or UI controls
+                if (e.target.id === 'image-viewer' || e.target.classList.contains('viewer-content')) {
+                    closeImageViewer();
+                }
             });
             get('file-viewer').addEventListener('click', (e) => {
                 if (e.target.id === 'file-viewer') closeFileViewer();

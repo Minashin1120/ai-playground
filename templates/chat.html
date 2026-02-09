@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.170)</title>
+    <title>AI Playground (V4.8.171)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -3175,7 +3175,12 @@
                 e.target.value = '';
                 if (files.length) handleFiles(files); 
             }; 
-            get('stop-btn').onclick = async () => { if(abortController) abortController.abort(); if(currentJobId) await apiFetch("/api/stop_chat", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({job_id: currentJobId})}); get('send-btn').disabled=false; get('stop-container').classList.add('hidden'); };
+            get('stop-btn').onclick = async () => { 
+                if(abortController) abortController.abort(); 
+                if(currentJobId) await apiFetch("/api/stop_chat", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({job_id: currentJobId})}); 
+                get('stop-container').classList.add('hidden'); 
+                updateFilePreview();
+            };
             const renderBanAppeals = (items) => {
                 const box = get('ban-appeal-list');
                 if (!box) return;
@@ -3998,6 +4003,10 @@
                 }
             }
             get('mic-btn').onclick = async () => {
+                if (uploadProgressState.active > 0) {
+                    showToast("ファイルの送信・処理中です。しばらくお待ちください。", "warning", true);
+                    return;
+                }
                 if (mediaRecorder && mediaRecorder.state === "recording") {
                     mediaRecorder.stop();
                     get('mic-btn').classList.remove('bg-red-600', 'animate-pulse');
@@ -4280,6 +4289,20 @@
             const total = uploadProgressState.total;
             const completed = uploadProgressState.completed;
             const active = uploadProgressState.active;
+
+            const sendBtn = get('send-btn');
+            const micBtn = get('mic-btn');
+            const maskBtn = get('mask-btn');
+            const isAiThinking = get('stop-container') && !get('stop-container').classList.contains('hidden');
+            if (active > 0) {
+                if (sendBtn) sendBtn.disabled = true;
+                if (micBtn) micBtn.disabled = true;
+                if (maskBtn) maskBtn.disabled = true;
+            } else if (!isAiThinking) {
+                if (sendBtn) sendBtn.disabled = false;
+                if (micBtn) micBtn.disabled = false;
+                if (maskBtn) maskBtn.disabled = false;
+            }
 
             if (active > 0) {
                 const statusStr = `Preparing... (${completed}/${total})`;
@@ -4607,7 +4630,7 @@
         function resetUploadState() {
             currentImageUrls = [];
             currentMaskImage = null;
-            uploadProgressState = { total: 0, completed: 0 };
+            uploadProgressState = { total: 0, completed: 0, active: 0, perFilePct: {} };
             uploadCancelTokens.clear();
             markerAppliedUploads.clear();
             updateFilePreview();
@@ -5930,6 +5953,10 @@
         }
         
         async function sendMessage() { 
+            if (uploadProgressState.active > 0) {
+                showToast("ファイルの送信・処理中です。しばらくお待ちください。", "warning", true);
+                return;
+            }
             const rawText = get('prompt-input').value; // RAW INPUT (No trim)
             const imageUrlsToSend = collectImageUrlsForSend();
             const support = getModelMediaSupport(get('model-select').value);
@@ -6272,7 +6299,11 @@
                      const oldMsgEl = document.getElementById(`msg-${editingId}`);
                      if (oldMsgEl) oldMsgEl.style.display = 'flex';
                 }
-            } finally { get('send-btn').disabled=false; get('stop-container').classList.add('hidden'); abortController=null; currentJobId=null; editingMessageId=null; setEditUi(false); } 
+            } finally { 
+                get('stop-container').classList.add('hidden'); 
+                updateFilePreview();
+                abortController=null; currentJobId=null; editingMessageId=null; setEditUi(false); 
+            } 
         }
 
         async function resumePendingStream(pending) {
@@ -6448,8 +6479,8 @@
                     showToast(msg, "error", true);
                 }
             } finally {
-                get('send-btn').disabled = false;
                 get('stop-container').classList.add('hidden');
+                updateFilePreview();
                 abortController = null;
                 currentJobId = null;
                 currentThreadPending = null;

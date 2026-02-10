@@ -270,6 +270,16 @@ app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'instance/
 app.config['CHANGELOG_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static/changelogs')
 _upload_max_mb = int(os.getenv('UPLOAD_MAX_MB', '512') or '512')
 app.config['MAX_CONTENT_LENGTH'] = _upload_max_mb * 1024 * 1024
+try:
+    _attachment_max_files = int(os.getenv('ATTACHMENT_MAX_FILES', '30') or '30')
+except Exception:
+    _attachment_max_files = 30
+app.config['ATTACHMENT_MAX_FILES'] = max(1, _attachment_max_files)
+try:
+    _upload_concurrency = int(os.getenv('UPLOAD_CONCURRENCY', '3') or '3')
+except Exception:
+    _upload_concurrency = 3
+app.config['UPLOAD_CONCURRENCY'] = max(1, min(8, _upload_concurrency))
 _user_storage_limit_mb = int(os.getenv('USER_STORAGE_LIMIT_MB', '100') or '100')
 app.config['USER_STORAGE_LIMIT_MB'] = _user_storage_limit_mb
 _primary_admin_username = (os.getenv('PRIMARY_ADMIN_USERNAME') or '').strip()
@@ -1669,7 +1679,13 @@ def revoke_user_sessions(user_id, exclude_session_id=None):
 @app.context_processor
 def inject_csrf():
     is_admin = current_user.is_authenticated and bool(getattr(current_user, "is_admin", False))
-    return {'csrf_token': get_csrf_token(), 'app_version': app.config.get('APP_VERSION'), 'is_admin': is_admin}
+    return {
+        'csrf_token': get_csrf_token(),
+        'app_version': app.config.get('APP_VERSION'),
+        'is_admin': is_admin,
+        'attachment_max_files': app.config.get('ATTACHMENT_MAX_FILES', 30),
+        'upload_concurrency': app.config.get('UPLOAD_CONCURRENCY', 3),
+    }
 
 def validate_csrf():
     token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token')
@@ -2349,6 +2365,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if not isinstance(img_list, list):
                         img_list = [img_list]
                 except: pass
+            max_files = int(app.config.get('ATTACHMENT_MAX_FILES') or 30)
+            if len(img_list) > max_files:
+                pub("error", f"添付ファイルは最大{max_files}件です。ファイル数を減らして再送してください。")
+                return
             # System Prompt Construction
             base_sys_prompt = options.get('system_prompt')
             if not base_sys_prompt:
@@ -5711,6 +5731,9 @@ def chat_stream():
         if not isinstance(raw_image_urls, list):
             raw_image_urls = [raw_image_urls]
         norm_image_urls = _normalize_attachment_list(raw_image_urls, current_user.id)
+        max_files = int(app.config.get('ATTACHMENT_MAX_FILES') or 30)
+        if len(norm_image_urls) > max_files:
+            return jsonify({'error': f'Too many attachments. Max {max_files} files per message.'}), 400
         
         parent_id = data.get('parent_id', None)
         parent_explicit = data.get('parent_id_explicit', False)
@@ -5888,6 +5911,9 @@ def estimate_prompt_tokens_api():
         quote_text = str(quote_text)
 
     norm_image_urls = _normalize_attachment_list(raw_image_urls, current_user.id)
+    max_files = int(app.config.get('ATTACHMENT_MAX_FILES') or 30)
+    if len(norm_image_urls) > max_files:
+        norm_image_urls = norm_image_urls[:max_files]
     if quote_text:
         message_for_count = f"Context (User Quote):\n\"\"\"\n{quote_text}\n\"\"\"\n\nUser Message:\n{message_text}"
     else:

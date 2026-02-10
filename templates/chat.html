@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.179)</title>
+    <title>AI Playground (V4.8.180)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -1311,6 +1311,8 @@
         if (currentThreadId !== null && currentThreadId !== undefined) {
             currentThreadId = String(currentThreadId);
         }
+        const ATTACHMENT_MAX_FILES = Number({{ attachment_max_files|default(30)|tojson }}) || 30;
+        const UPLOAD_CONCURRENCY = Math.max(1, Number({{ upload_concurrency|default(3)|tojson }}) || 3);
                 let activeGem = null, editingGemId = null, currentImageUrls = [], currentMaskImage = null, abortController = null, userAutoScroll = true, searchTimeout;
          
         const markerAppliedUploads = new Set();
@@ -5638,16 +5640,29 @@
         }
         async function handleFiles(fs, opts = {}) {
             if(!fs || !fs.length) return;
+            const incoming = Array.from(fs).filter(Boolean);
+            if (!incoming.length) return;
+            const existingAttachments = collectImageUrlsForSend().length + Math.max(0, Number(uploadProgressState.active) || 0);
+            let allowedIncoming = incoming;
+            if (existingAttachments + incoming.length > ATTACHMENT_MAX_FILES) {
+                const remain = Math.max(0, ATTACHMENT_MAX_FILES - existingAttachments);
+                if (remain <= 0) {
+                    showToast(`添付は最大${ATTACHMENT_MAX_FILES}件です`, "error", true);
+                    return;
+                }
+                allowedIncoming = incoming.slice(0, remain);
+                showToast(`添付は最大${ATTACHMENT_MAX_FILES}件です。先頭${remain}件のみ追加します。`, "warning", true);
+            }
             const shouldOpenModal = opts.openModal !== false;
             if (shouldOpenModal) openUploadModal();
             
-            uploadProgressState.total += fs.length;
-            uploadProgressState.active += fs.length;
+            uploadProgressState.total += allowedIncoming.length;
+            uploadProgressState.active += allowedIncoming.length;
             updateFilePreview();
 
             const audioOnly = !!(get('upload-audio-only') && get('upload-audio-only').checked);
             const support = getModelMediaSupport(get('model-select').value);
-            const tasks = Array.from(fs).map(async (f) => {
+            const processOne = async (f) => {
                 let currentUploadId = null;
                 try {
                     if (isAudioFile(f) && !support.audio) {
@@ -5703,8 +5718,17 @@
                     }
                     updateFilePreview();
                 }
+            };
+            let cursor = 0;
+            const workerCount = Math.min(UPLOAD_CONCURRENCY, allowedIncoming.length);
+            const workers = Array.from({ length: workerCount }).map(async () => {
+                while (true) {
+                    const idx = cursor++;
+                    if (idx >= allowedIncoming.length) break;
+                    await processOne(allowedIncoming[idx]);
+                }
             });
-            await Promise.all(tasks);
+            await Promise.all(workers);
         }
         get('clear-file-btn').onclick = () => { resetUploadState(); };
         if (get('clear-mask-btn')) {
@@ -6004,6 +6028,10 @@
             }
             const rawText = get('prompt-input').value; // RAW INPUT (No trim)
             const imageUrlsToSend = collectImageUrlsForSend();
+            if (imageUrlsToSend.length > ATTACHMENT_MAX_FILES) {
+                showToast(`添付は最大${ATTACHMENT_MAX_FILES}件です。添付を減らして再送してください。`, "error", true);
+                return;
+            }
             const support = getModelMediaSupport(get('model-select').value);
             const hasAudio = imageUrlsToSend.some((fp) => isAudioPath(fp));
             const hasVideo = imageUrlsToSend.some((fp) => isVideoPath(fp));

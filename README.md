@@ -96,6 +96,8 @@ GOOGLE_CLOUD_PROJECT=your_gcp_project
 RUN_SCHEMA_MIGRATIONS=0
 UPLOAD_MAX_MB=512
 USER_STORAGE_LIMIT_MB=100
+ATTACHMENT_MAX_FILES=30
+UPLOAD_CONCURRENCY=3
 XAI_API_HOST=https://api.x.ai
 ```
 
@@ -168,7 +170,8 @@ Worker services can use the provided templates in `app/ai-chat-worker@.service`.
 
 - **DB locks on startup**: set `RUN_SCHEMA_MIGRATIONS=0` to skip ALTER during startup.
 - **Redis errors**: confirm Redis is running and `REDIS_URL` is correct.
-- **Upload limits**: adjust `UPLOAD_MAX_MB` and `USER_STORAGE_LIMIT_MB`.
+- **Upload limits**: adjust `UPLOAD_MAX_MB`, `USER_STORAGE_LIMIT_MB`, and `ATTACHMENT_MAX_FILES`.
+- **Too many parallel uploads in browser**: lower `UPLOAD_CONCURRENCY` (default: `3`).
 - **ffmpeg not found**: ensure `ffmpeg` is installed and in PATH.
 
 ---

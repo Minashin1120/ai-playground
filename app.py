@@ -3833,7 +3833,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             log_force(f"Gemini local python failed: {e}")
 
             # --- 1.5 Grok Imagine Image Generation ---
-            elif model_key == "grok-imagine-image":
+            elif model_key in ("grok-imagine-image", "grok-imagine-image-pro"):
                 log_force("Routing: Grok Imagine Branch")
                 try:
                     pub("content", "**Generating Image (Grok)...**\n")
@@ -3842,7 +3842,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     
                     img_response_format = "b64_json"
                     img_kwargs = {
-                        "model": "grok-imagine-image",
+                        "model": model_key,
                         "prompt": final_message_text,
                         "n": 1,
                         "response_format": img_response_format
@@ -3887,7 +3887,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             "Accept": "application/json"
                         }
                         payload = {
-                            "model": "grok-imagine-image",
+                            "model": model_key,
                             "prompt": final_message_text,
                             "image": {"url": img_data_url},
                             "response_format": img_response_format

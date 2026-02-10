@@ -3932,7 +3932,19 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         pub("error", "Grok Image Gen Error: No data returned.")
                 except Exception as e:
                     logger.exception("Grok Imagine Error")
-                    pub("error", f"Grok Imagine Error: {str(e)}")
+                    err_body = ""
+                    if hasattr(e, 'response') and hasattr(e.response, 'text'):
+                        err_body = e.response.text
+                    elif hasattr(e, 'body'): # OpenAI SDK errors
+                        err_body = str(e.body)
+                    
+                    err_msg = str(e)
+                    if "content moderation" in err_msg.lower() or "content moderation" in err_body.lower():
+                        err_msg = "不適切な内容が含まれている可能性があるため、xAIの安全フィルタにより画像生成が拒否されました。プロンプトをより一般的な表現に変更して、再度お試しください。"
+                    elif err_body:
+                        err_msg = f"{err_msg} - {err_body}"
+                    
+                    pub("error", f"Grok Imagine Error: {err_msg}")
 
             # --- 1.6 Grok Imagine Video Generation ---
             elif model_key == "grok-imagine-video":

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.176)</title>
+    <title>AI Playground (V4.8.177)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -6006,6 +6006,31 @@
             playSendAnimation();
             get('welcome-screen').classList.add('hidden'); 
 
+            const hiddenBranch = [];
+            const hideRenderedBranchFrom = (startId) => {
+                if (startId === null || startId === undefined) return;
+                let node = document.getElementById(`msg-${startId}`);
+                while (node) {
+                    if (node.classList && node.classList.contains('message-group')) {
+                        hiddenBranch.push({ node, prevDisplay: node.style.display });
+                        node.style.display = 'none';
+                    }
+                    node = node.nextElementSibling;
+                }
+            };
+            const restoreHiddenBranch = () => {
+                hiddenBranch.forEach(({ node, prevDisplay }) => {
+                    if (!node) return;
+                    node.style.display = prevDisplay || '';
+                });
+                hiddenBranch.length = 0;
+            };
+
+            // If editing/regenerating, hide the current branch before optimistic render.
+            if (editingId) {
+                hideRenderedBranchFrom(editingId);
+            }
+
             // Render UI immediately to reduce perceived latency.
             renderMessage(Date.now(), 'user', t, JSON.stringify(imageUrlsToSend), null, null, null, true, currentQuote, null, null, null, null, null, null); 
             get('prompt-input').value = ''; get('prompt-input').style.height = 'auto'; 
@@ -6060,15 +6085,6 @@
                 }
             }
             
-            // If editing, hide the old message to avoid duplication
-            if (editingId) {
-                const oldMsgEl = document.getElementById(`msg-${editingId}`);
-                if (oldMsgEl) oldMsgEl.style.display = 'none';
-                // Also hide the AI response associated with it if possible? 
-                // Actually, just hiding the user message is enough to prevent "two prompts".
-                // The tree structure will handle the rest on reload.
-            }
-
             const p = { 
                 thread_id: currentThreadId, 
                 message: t, 
@@ -6311,10 +6327,7 @@
                     showToast(msg, "error", true);
                 }
                 // Restore old message if error occurred during edit
-                if(editingId) {
-                     const oldMsgEl = document.getElementById(`msg-${editingId}`);
-                     if (oldMsgEl) oldMsgEl.style.display = 'flex';
-                }
+                if (editingId) restoreHiddenBranch();
             } finally { 
                 get('stop-container').classList.add('hidden'); 
                 updateFilePreview();

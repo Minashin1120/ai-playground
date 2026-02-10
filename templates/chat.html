@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.171)</title>
+    <title>AI Playground (V4.8.173)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -4651,11 +4651,6 @@
             updateMaskPreview();
             const list = get('upload-list');
             if (list) list.innerHTML = '<div class="text-xs text-gray-500">まだアップロードがありません。</div>';
-            // Also need to clear thumbnails and preview bar explicitly if needed
-            const thumbContainer = get('file-preview-thumbs');
-            if (thumbContainer) thumbContainer.innerHTML = '';
-            const previewBar = get('file-preview');
-            if (previewBar) previewBar.classList.add('hidden');
             
             const input = get('file-input');
             if (input) input.value = '';
@@ -5792,8 +5787,8 @@
                 } catch(e){} 
             } 
             
-            const regenBtn = !isUser ? `<button class="ctrl-btn" onclick="regenerateMessage(${id})"><i class="fas fa-rotate-right"></i></button>` : '';
-            const ctrl = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${isUser?`<button class="ctrl-btn edit-btn" data-id="${id}"><i class="fas fa-pen"></i></button>`:''}${regenBtn}<button class="ctrl-btn" onclick="deleteMessage(${id})"><i class="fas fa-trash"></i></button></div>`; 
+            const regenBtn = !isUser ? `<button class="ctrl-btn" onclick="regenerateMessage('${id}')"><i class="fas fa-rotate-right"></i></button>` : '';
+            const ctrl = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${isUser?`<button class="ctrl-btn edit-btn" data-id="${id}"><i class="fas fa-pen"></i></button>`:''}${regenBtn}<button class="ctrl-btn" onclick="deleteMessage('${id}')"><i class="fas fa-trash"></i></button></div>`; 
             const footerParts = [];
             if (!isUser && modelName) footerParts.push(modelName);
             const tokenParts = [];
@@ -5801,12 +5796,12 @@
             if (tokenOut !== null && tokenOut !== undefined) tokenParts.push(`Out ${tokenOut}`);
             if (tokenParts.length || (tokenCount !== null && tokenCount !== undefined)) {
                 const tLabel = tokenParts.length ? tokenParts.join(' / ') : `${tokenCount} tokens`;
-                footerParts.push(`<button class="underline decoration-dotted hover:text-white token-detail-btn" onclick="openTokenDetail(${id})">${tLabel}</button>`);
+                footerParts.push(`<button class="underline decoration-dotted hover:text-white token-detail-btn" onclick="openTokenDetail('${id}')">${tLabel}</button>`);
             }
             if (isEncrypted !== null && isEncrypted !== undefined) {
                 const lockIcon = isEncrypted ? 'fa-lock' : 'fa-lock-open';
                 const lockTitle = isEncrypted ? 'Encrypted' : 'Plain';
-                footerParts.push(`<button class="text-slate-300/80 hover:text-white" title="${lockTitle}" onclick="openEncryptionSettings(${id})"><i class="fas ${lockIcon}"></i></button>`);
+                footerParts.push(`<button class="text-slate-300/80 hover:text-white" title="${lockTitle}" onclick="openEncryptionSettings('${id}')"><i class="fas ${lockIcon}"></i></button>`);
             }
             const mHtml = footerParts.length ? `<div class="text-[10px] text-slate-300/90 mt-2 text-right font-mono">${footerParts.join(' • ')}</div>` : ''; 
             

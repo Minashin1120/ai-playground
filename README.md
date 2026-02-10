@@ -1,7 +1,7 @@
-# AI Chat Playground (V4.8.56)
+# AI Chat Playground (V4.8.174)
 
 ![Status](https://img.shields.io/badge/Status-Stable-green)
-![Version](https://img.shields.io/badge/Version-4.8.56-blue)
+![Version](https://img.shields.io/badge/Version-4.8.174-blue)
 ![License](https://img.shields.io/badge/License-MIT-orange)
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 

@@ -19,6 +19,8 @@ import qrcode
 import wave
 import asyncio
 import tempfile
+import zipfile
+import xml.etree.ElementTree as ET
 from urllib.parse import urlparse, unquote
 import threading
 import hashlib
@@ -481,9 +483,27 @@ def _normalize_media_mime(filename, mime_guess):
             return _AUDIO_MIME_BY_EXT[ext]
     if ext == ".pdf":
         return "application/pdf"
+    if ext == ".docx":
+        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     if ext == ".txt":
         return "text/plain"
     return mime_guess or "application/octet-stream"
+
+def _extract_text_from_docx(data):
+    try:
+        from io import BytesIO
+        with zipfile.ZipFile(BytesIO(data)) as zf:
+            xml_content = zf.read('word/document.xml')
+        tree = ET.fromstring(xml_content)
+        namespace = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+        paragraphs = []
+        for paragraph in tree.findall('.//w:p', namespace):
+            texts = [node.text for node in paragraph.findall('.//w:t', namespace) if node.text]
+            if texts:
+                paragraphs.append("".join(texts))
+        return "\n".join(paragraphs)
+    except Exception:
+        return None
 
 def _get_file_disk_info(rel_path):
     if not rel_path:
@@ -676,6 +696,7 @@ def _estimate_attachment_prompt_tokens(rel_path, model_key=None):
     mime_guess = mimetypes.guess_type(clean_fn)[0]
     mime = _normalize_media_mime(clean_fn, mime_guess)
     is_pdf = clean_fn.lower().endswith('.pdf')
+    is_docx = clean_fn.lower().endswith('.docx')
     is_text = (mime or '').startswith('text/') or clean_fn.lower().endswith('.txt')
 
     extracted = None
@@ -685,12 +706,14 @@ def _estimate_attachment_prompt_tokens(rel_path, model_key=None):
             extracted = "".join([(p.extract_text() or "") + "\n" for p in reader.pages])
         except Exception:
             extracted = None
+    elif is_docx:
+        extracted = _extract_text_from_docx(data)
     elif is_text:
         extracted = _decode_text_bytes_for_prompt(data)
 
     if extracted:
         result = {"tokens": count_tokens(extracted, model_key), "countable": True, "reason": "ok"}
-    elif is_pdf or is_text:
+    elif is_pdf or is_docx or is_text:
         result = {"tokens": 0, "countable": False, "reason": "no_text"}
     else:
         result = {"tokens": 0, "countable": False, "reason": "non_text"}
@@ -2495,6 +2518,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             supports_audio_inputs = _is_gemini_text_model(model_key_l)
             supports_video_inputs = supports_audio_inputs
             supports_pdf_inputs = supports_audio_inputs
+            supports_docx_inputs = supports_audio_inputs
             supports_text_file_inputs = supports_audio_inputs
 
             def _openai_cache_fresh(cache, size, mtime, mime):
@@ -2679,11 +2703,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         break
 
                 is_pdf = clean_fn.lower().endswith('.pdf')
+                is_docx = clean_fn.lower().endswith('.docx')
                 mime_guess = mimetypes.guess_type(clean_fn)[0]
                 mime = _normalize_media_mime(clean_fn, mime_guess)
                 is_text = (mime or '').startswith('text/') or clean_fn.lower().endswith('.txt')
                 if is_pdf:
                     mime = 'application/pdf'
+                elif is_docx:
+                    mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
                 elif is_text:
                     mime = 'text/plain'
 
@@ -2701,6 +2728,21 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         'bytes': data,
                         'mime': mime,
                         'is_pdf': True,
+                        'is_docx': False,
+                        'is_text': False,
+                        'size': len(data),
+                        'mtime': info.get("mtime")
+                    })
+                elif is_docx:
+                    extracted = _extract_text_from_docx(data)
+                    loaded_files.append({
+                        'name': clean_fn,
+                        'path': clean_fn,
+                        'text': extracted if extracted else None,
+                        'bytes': data,
+                        'mime': mime,
+                        'is_pdf': False,
+                        'is_docx': True,
                         'is_text': False,
                         'size': len(data),
                         'mtime': info.get("mtime")
@@ -3335,6 +3377,62 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             break
                             except Exception as e:
                                 log_force(f"Gemini PDF upload failed: {e}")
+                                if fi.get('text'):
+                                    curr_parts.append(types.Part(text=f"\nFile: {fi['name']}\n{fi['text']}"))
+                            continue
+                        if fi.get('is_docx') and supports_docx_inputs and fi.get('bytes'):
+                            try:
+                                docx_bytes = fi['bytes']
+                                docx_mime = fi.get('mime') or 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                                docx_name = os.path.basename(fi.get('name') or 'document.docx')
+                                rel_path = fi.get('path') or fi.get('name') or docx_name
+                                if len(docx_bytes) <= media_inline_limit:
+                                    curr_parts.append(types.Part.from_bytes(data=docx_bytes, mime_type=docx_mime))
+                                else:
+                                    cached_part = _gemini_get_cached_part(
+                                        rel_path,
+                                        docx_mime,
+                                        size=fi.get('size'),
+                                        mtime=fi.get('mtime'),
+                                        label=f"docx:{docx_name}"
+                                    )
+                                    if cached_part:
+                                        curr_parts.append(cached_part)
+                                    else:
+                                        up, up_state, up_err = _gemini_upload_with_retry(
+                                            docx_bytes,
+                                            docx_mime,
+                                            os.path.splitext(docx_name)[1] or '.docx',
+                                            rel_path,
+                                            label=f"docx:{docx_name}"
+                                        )
+                                        if not up or up_err:
+                                            pending_file_error = f"Word({docx_name})のアップロードに失敗しました: {up_err or 'unknown error'}"
+                                            break
+                                        file_uri = _gemini_file_uri(up)
+                                        up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or docx_mime
+                                        part = _make_gemini_uri_part(file_uri, up_mime)
+                                        if part:
+                                            curr_parts.append(part)
+                                            _upsert_file_cache(
+                                                user_id,
+                                                rel_path,
+                                                "gemini",
+                                                file_id=_gemini_file_name(up),
+                                                file_uri=file_uri,
+                                                state=up_state or "ACTIVE",
+                                                last_error=None,
+                                                size_bytes=fi.get('size'),
+                                                mtime=fi.get('mtime'),
+                                                mime_type=up_mime,
+                                                last_checked_at=datetime.utcnow()
+                                            )
+                                            safe_db_commit()
+                                        else:
+                                            pending_file_error = f"Word({docx_name})参照の生成に失敗しました。再送してください。"
+                                            break
+                            except Exception as e:
+                                log_force(f"Gemini docx upload failed: {e}")
                                 if fi.get('text'):
                                     curr_parts.append(types.Part(text=f"\nFile: {fi['name']}\n{fi['text']}"))
                             continue
@@ -4381,11 +4479,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     file_attach_errors = []
                     file_inline_limit = 20 * 1024 * 1024  # 20MiB inline limit for file inputs
                     for fi in loaded_files:
-                        if (fi.get('is_pdf') or fi.get('is_text')) and fi.get('bytes'):
+                        if (fi.get('is_pdf') or fi.get('is_docx') or fi.get('is_text')) and fi.get('bytes'):
                             attached = False
                             try:
                                 f_bytes = fi['bytes']
-                                f_name = os.path.basename(fi.get('name') or ('document.pdf' if fi.get('is_pdf') else 'document.txt'))
+                                f_name = os.path.basename(fi.get('name') or ('document.pdf' if fi.get('is_pdf') else 'document.docx' if fi.get('is_docx') else 'document.txt'))
                                 if len(f_bytes) <= file_inline_limit:
                                     b64 = base64.b64encode(f_bytes).decode('utf-8')
                                     file_parts.append({"type": "file", "file": {"file_data": b64, "filename": f_name}})
@@ -4405,7 +4503,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         )
                                         safe_db_commit()
                                     if not file_id:
-                                        suffix = os.path.splitext(f_name)[1] or ('.pdf' if fi.get('is_pdf') else '.txt')
+                                        suffix = os.path.splitext(f_name)[1] or ('.pdf' if fi.get('is_pdf') else '.docx' if fi.get('is_docx') else '.txt')
                                         file_id, up_err = _openai_upload_with_retry(
                                             client,
                                             f_bytes,
@@ -4567,11 +4665,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 file_attach_errors = []
 
                 for fi in loaded_files:
-                    if (fi.get('is_pdf') or fi.get('is_text')) and fi.get('bytes') and not is_grok:
+                    if (fi.get('is_pdf') or fi.get('is_docx') or fi.get('is_text')) and fi.get('bytes') and not is_grok:
                         attached = False
                         try:
                             f_bytes = fi['bytes']
-                            f_name = os.path.basename(fi.get('name') or ('document.pdf' if fi.get('is_pdf') else 'document.txt'))
+                            f_name = os.path.basename(fi.get('name') or ('document.pdf' if fi.get('is_pdf') else 'document.docx' if fi.get('is_docx') else 'document.txt'))
                             if len(f_bytes) <= file_inline_limit:
                                 b64 = base64.b64encode(f_bytes).decode('utf-8')
                                 curr_content.append({"type": "input_file", "file_data": b64, "filename": f_name})
@@ -4591,7 +4689,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     )
                                     safe_db_commit()
                                 if not file_id:
-                                    suffix = os.path.splitext(f_name)[1] or ('.pdf' if fi.get('is_pdf') else '.txt')
+                                    suffix = os.path.splitext(f_name)[1] or ('.pdf' if fi.get('is_pdf') else '.docx' if fi.get('is_docx') else '.txt')
                                     file_id, up_err = _openai_upload_with_retry(
                                         client,
                                         f_bytes,
@@ -7412,7 +7510,7 @@ def speech_to_speech():
 @app.route('/upload', methods=['POST'])
 @login_required
 def upload():
-    ALLOWED_EXTENSIONS = {'.txt', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm', '.mp4', '.mov', '.mkv', '.avi', '.m4v'}
+    ALLOWED_EXTENSIONS = {'.txt', '.pdf', '.docx', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm', '.mp4', '.mov', '.mkv', '.avi', '.m4v'}
     files = request.files.getlist('file')
     if not files: return jsonify({'error': 'No file'}), 400
     try:
@@ -7526,7 +7624,7 @@ def upload_init():
     if not filename or total_size <= 0:
         return jsonify({'error': 'Invalid upload'}), 400
 
-    allowed = {'.txt', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm', '.mp4', '.mov', '.mkv', '.avi', '.m4v'}
+    allowed = {'.txt', '.pdf', '.docx', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm', '.mp4', '.mov', '.mkv', '.avi', '.m4v'}
     ext = os.path.splitext(filename)[1].lower()
     if ext not in allowed:
         return jsonify({'error': f'File type {ext} not allowed'}), 400

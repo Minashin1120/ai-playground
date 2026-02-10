@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.178)</title>
+    <title>AI Playground (V4.8.179)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -176,6 +176,17 @@
             100% { opacity: 1; transform: translateY(0) scale(1); } 
         }
         .fade-in { animation: messagePop 0.4s cubic-bezier(0.21, 1.02, 0.48, 1) forwards; }
+        @keyframes pendingToStreamBubble {
+            0% { opacity: 0.92; transform: translateY(4px) scale(0.995); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes pendingToStreamContent {
+            0% { opacity: 0.15; transform: translateY(4px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .ai-pending-bubble { will-change: transform, opacity; }
+        .ai-stream-transition { animation: pendingToStreamBubble 0.2s cubic-bezier(0.25, 0.9, 0.3, 1) both; }
+        .ai-stream-content-transition { animation: pendingToStreamContent 0.2s ease-out both; }
         
         @keyframes tabEnter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes tabExit { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-4px); } }
@@ -5962,10 +5973,28 @@
         function renderPendingMessage(target = null, animate = true, doScroll = true, pendingId = null) {
             const fadeClass = animate ? 'fade-in' : '';
             const idAttr = pendingId ? ` id="${pendingId}"` : '';
-            const html = `<div class="flex justify-start mb-4 ${fadeClass}"><div${idAttr} class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative"><div class="content-area"><span class="animate-pulse">APIに送信中...</span><div class="text-xs text-gray-300/80 mt-2">回答を待機中...</div></div></div></div>`;
+            const html = `<div class="flex justify-start mb-4 ${fadeClass}"><div${idAttr} class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative"><div class="content-area"><span class="animate-pulse">APIに送信中...</span><div class="text-xs text-gray-300/80 mt-2">回答を待機中...</div></div></div></div>`;
             const container = target || get('chat-container');
             container.insertAdjacentHTML('beforeend', html);
             if (doScroll) scrollToBottom();
+        }
+
+        function beginPendingToStreamTransition(bubbleEl) {
+            if (!bubbleEl) return;
+            if (bubbleEl.getAttribute('data-stream-transition') === '1') return;
+            bubbleEl.setAttribute('data-stream-transition', '1');
+            bubbleEl.classList.remove('ai-pending-bubble');
+            bubbleEl.classList.add('ai-stream-transition');
+            const contentArea = bubbleEl.querySelector('.content-area');
+            if (contentArea) {
+                contentArea.classList.add('ai-stream-content-transition');
+                setTimeout(() => {
+                    if (contentArea) contentArea.classList.remove('ai-stream-content-transition');
+                }, 240);
+            }
+            setTimeout(() => {
+                if (bubbleEl) bubbleEl.classList.remove('ai-stream-transition');
+            }, 260);
         }
         
         async function sendMessage() { 
@@ -6133,7 +6162,7 @@
             const shouldShowReasoningProgress = reasoningRequested && reasoningCapableModel;
         
             let initialHtml = '<div class="content-area"><span class="animate-pulse">APIに送信中...</span><div class="text-xs text-gray-300/80 mt-2">回答を待機中...</div></div>';
-            get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aid}" class="message-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${initialHtml}</div></div>`); 
+            get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aid}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${initialHtml}</div></div>`); 
             scrollToBottom(); 
             const adiv = get(aid);
             let thoughtPlaceholderEl = null;
@@ -6229,6 +6258,7 @@
                                 continue;
                             }
                             if(first){ 
+                                 beginPendingToStreamTransition(adiv);
                                  const ca = adiv.querySelector('.content-area');
                                  if(ca) ca.innerHTML = '';
                                  first=false; 
@@ -6344,6 +6374,7 @@
             }
             const adiv = get(bubbleId);
             if (!adiv) return;
+            adiv.classList.add('ai-pending-bubble');
             currentJobId = jobId;
             get('send-btn').disabled = true;
             get('stop-container').classList.remove('hidden');
@@ -6424,6 +6455,7 @@
                                 continue;
                             }
                             if (first) {
+                                beginPendingToStreamTransition(adiv);
                                 const ca = adiv.querySelector('.content-area');
                                 if (ca) ca.innerHTML = '';
                                 first = false;

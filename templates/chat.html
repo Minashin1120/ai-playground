@@ -4290,6 +4290,13 @@
             const completed = uploadProgressState.completed;
             const active = uploadProgressState.active;
 
+            if (total === 0) {
+                preview.classList.add('hidden');
+                if (progressContainer) progressContainer.classList.add('hidden');
+                if (modalProgressContainer) modalProgressContainer.classList.add('hidden');
+                if (thumbContainer) thumbContainer.classList.add('hidden');
+            }
+
             const sendBtn = get('send-btn');
             const micBtn = get('mic-btn');
             const maskBtn = get('mask-btn');
@@ -4633,10 +4640,23 @@
             uploadProgressState = { total: 0, completed: 0, active: 0, perFilePct: {} };
             uploadCancelTokens.clear();
             markerAppliedUploads.clear();
+            const previewBar = get('file-preview');
+            if (previewBar) previewBar.classList.add('hidden');
+            const thumbContainer = get('file-preview-thumbs');
+            if (thumbContainer) {
+                thumbContainer.innerHTML = '';
+                thumbContainer.classList.add('hidden');
+            }
             updateFilePreview();
             updateMaskPreview();
             const list = get('upload-list');
             if (list) list.innerHTML = '<div class="text-xs text-gray-500">まだアップロードがありません。</div>';
+            // Also need to clear thumbnails and preview bar explicitly if needed
+            const thumbContainer = get('file-preview-thumbs');
+            if (thumbContainer) thumbContainer.innerHTML = '';
+            const previewBar = get('file-preview');
+            if (previewBar) previewBar.classList.add('hidden');
+            
             const input = get('file-input');
             if (input) input.value = '';
             const maskInput = get('mask-input');

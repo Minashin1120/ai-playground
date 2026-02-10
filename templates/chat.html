@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.177)</title>
+    <title>AI Playground (V4.8.178)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -6630,6 +6630,7 @@
 
         function renderThreadTree(opts = {}) {
             const silent = !!opts.silent;
+            const animateMessages = !!opts.animate && !silent;
             const container = get('chat-container');
             const target = silent ? document.createElement('div') : container;
             if (!silent) container.innerHTML = '';
@@ -6684,7 +6685,25 @@
                     siblings: siblings
                 } : null;
                 
-                renderMessage(m.id, m.role, m.content, m.image_url, m.thought_data, m.model, versionInfo, false, m.quote_text, m.tokens, m.tokens_in, m.tokens_out, m.is_encrypted, m.tokens_content, m.tokens_thought, target, false);
+                renderMessage(
+                    m.id,
+                    m.role,
+                    m.content,
+                    m.image_url,
+                    m.thought_data,
+                    m.model,
+                    versionInfo,
+                    animateMessages,
+                    m.quote_text,
+                    m.tokens,
+                    m.tokens_in,
+                    m.tokens_out,
+                    m.is_encrypted,
+                    m.tokens_content,
+                    m.tokens_thought,
+                    target,
+                    false
+                );
             });
             const pending = currentThreadPending;
             if (pending) {
@@ -6695,7 +6714,7 @@
                     || (!pendingId && lastMsg && lastMsg.role === 'user');
                 if (shouldRender) {
                     const bubbleId = pending.job_id ? `pending-${pending.job_id}` : null;
-                    renderPendingMessage(target, !silent, false, bubbleId);
+                    renderPendingMessage(target, animateMessages, false, bubbleId);
                 }
             }
             if (silent) container.innerHTML = target.innerHTML;
@@ -6726,7 +6745,7 @@
             let currId = targetId;
             if (!msgMap[currId]) {
                 currentLeafId = allMessages.length > 0 ? allMessages[allMessages.length - 1].id : null;
-                renderThreadTree();
+                renderThreadTree({ animate: true });
                 return;
             }
             while (msgMap[currId] && msgMap[currId].childrenIds.length > 0) {
@@ -6735,7 +6754,7 @@
                 currId = Math.max(...children);
             }
             currentLeafId = currId;
-            renderThreadTree();
+            renderThreadTree({ animate: true });
         }
         async function loadGems() { 
             const r = await apiFetch("{{ url_for('handle_gems') }}"); 

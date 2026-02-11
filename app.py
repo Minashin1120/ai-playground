@@ -1870,6 +1870,27 @@ def ensure_user_system_prompt_columns():
     except Exception:
         pass
 
+def ensure_user_gemini_backend_columns():
+    try:
+        with db.engine.connect() as conn:
+            columns = [
+                ("gemini_backend", "ALTER TABLE user ADD COLUMN gemini_backend VARCHAR(24) DEFAULT 'gemini_api'"),
+                ("gemini_vertex_project", "ALTER TABLE user ADD COLUMN gemini_vertex_project TEXT"),
+                ("gemini_vertex_location", "ALTER TABLE user ADD COLUMN gemini_vertex_location VARCHAR(64) DEFAULT 'global'"),
+            ]
+            for column_name, ddl in columns:
+                res = conn.execute(text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA=DATABASE() "
+                    "AND TABLE_NAME='user' "
+                    "AND COLUMN_NAME=:column_name"
+                ), {"column_name": column_name}).scalar()
+                if not res:
+                    conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                    conn.execute(text(ddl))
+    except Exception:
+        pass
+
 def cleanup_user_temp_system_prompt_columns():
     try:
         with db.engine.connect() as conn:
@@ -8022,6 +8043,10 @@ with app.app_context():
         pass
     try:
         ensure_user_system_prompt_columns()
+    except Exception:
+        pass
+    try:
+        ensure_user_gemini_backend_columns()
     except Exception:
         pass
     try:

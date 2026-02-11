@@ -72,6 +72,24 @@
                         <input type="password" name="gemini_key" class="w-full bg-[#0b121a] border border-slate-700 rounded-xl p-3 text-white text-sm outline-none focus:border-teal-500 transition" placeholder="AIza...">
                     </div>
                     <div class="relative group">
+                        <label class="block text-xs text-slate-400 mb-1">Gemini Backend</label>
+                        <select name="gemini_backend" id="setup-gemini-backend" class="w-full bg-[#0b121a] border border-slate-700 rounded-xl p-3 text-white text-sm outline-none focus:border-teal-500 transition">
+                            <option value="gemini_api">Gemini API</option>
+                            <option value="vertex_ai">Vertex AI</option>
+                        </select>
+                        <div class="text-[10px] text-slate-500 mt-1">Vertex AI を使う場合は Project ID と Location を入力してください。</div>
+                    </div>
+                    <div id="setup-vertex-fields" class="space-y-4 hidden">
+                        <div class="relative group">
+                            <label class="block text-xs text-slate-400 mb-1">Vertex AI Project ID</label>
+                            <input type="text" name="gemini_vertex_project" class="w-full bg-[#0b121a] border border-slate-700 rounded-xl p-3 text-white text-sm outline-none focus:border-teal-500 transition" placeholder="my-gcp-project">
+                        </div>
+                        <div class="relative group">
+                            <label class="block text-xs text-slate-400 mb-1">Vertex AI Location</label>
+                            <input type="text" name="gemini_vertex_location" class="w-full bg-[#0b121a] border border-slate-700 rounded-xl p-3 text-white text-sm outline-none focus:border-teal-500 transition" placeholder="global">
+                        </div>
+                    </div>
+                    <div class="relative group">
                         <label class="block text-xs text-slate-400 mb-1">xAI API Key</label>
                         <input type="password" name="xai_key" class="w-full bg-[#0b121a] border border-slate-700 rounded-xl p-3 text-white text-sm outline-none focus:border-teal-500 transition" placeholder="xai-...">
                     </div>
@@ -117,8 +135,23 @@
         function skipKeys() {
             const inputs = document.querySelectorAll('#step-2 input[type="password"], #step-2 input[type="text"]');
             inputs.forEach(i => i.value = '');
+            const backend = document.getElementById('setup-gemini-backend');
+            if (backend) backend.value = 'gemini_api';
+            toggleSetupGeminiBackend();
             document.getElementById('setup-form').submit();
         }
+        function toggleSetupGeminiBackend() {
+            const backend = document.getElementById('setup-gemini-backend');
+            const wrap = document.getElementById('setup-vertex-fields');
+            if (!backend || !wrap) return;
+            const mode = String(backend.value || '').toLowerCase();
+            wrap.classList.toggle('hidden', mode !== 'vertex_ai');
+        }
+        const backendEl = document.getElementById('setup-gemini-backend');
+        if (backendEl) {
+            backendEl.addEventListener('change', toggleSetupGeminiBackend);
+        }
+        toggleSetupGeminiBackend();
     </script>
 </body>
 </html>

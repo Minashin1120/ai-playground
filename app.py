@@ -118,6 +118,52 @@ def _key_sig(key, extra=""):
     h = hashlib.sha256(key.encode()).hexdigest()
     return f"{h}:{extra}" if extra else h
 
+def _normalize_gemini_backend(value):
+    raw = str(value or "").strip().lower().replace("-", "_")
+    if raw in ("vertex_ai", "vertex", "vertexai"):
+        return "vertex_ai"
+    return "gemini_api"
+
+def _normalize_gemini_vertex_location(value):
+    v = str(value or "").strip()
+    return v or "global"
+
+def _resolve_gemini_runtime(user):
+    backend_raw = getattr(user, "gemini_backend", None) if user else None
+    backend = _normalize_gemini_backend(backend_raw)
+    api_key = decrypt_val(getattr(user, "gemini_api_key", None)) if user else None
+    vertex_project = decrypt_val(getattr(user, "gemini_vertex_project", None)) if user else None
+    vertex_location_raw = getattr(user, "gemini_vertex_location", None) if user else None
+    vertex_location = _normalize_gemini_vertex_location(vertex_location_raw)
+    if user and getattr(user, "is_admin", False):
+        env_backend = os.getenv("GEMINI_BACKEND")
+        if env_backend and (not backend_raw or not str(backend_raw).strip()):
+            backend = _normalize_gemini_backend(env_backend)
+        if not api_key:
+            api_key = os.getenv("GEMINI_API_KEY")
+        if not vertex_project:
+            vertex_project = (
+                os.getenv("GEMINI_VERTEX_PROJECT")
+                or os.getenv("GOOGLE_CLOUD_PROJECT")
+                or ""
+            ).strip() or None
+        if not vertex_location_raw or not str(vertex_location_raw).strip():
+            env_loc = os.getenv("GEMINI_VERTEX_LOCATION") or os.getenv("GOOGLE_CLOUD_LOCATION")
+            if env_loc:
+                vertex_location = _normalize_gemini_vertex_location(env_loc)
+    if vertex_project and str(vertex_project).strip():
+        vertex_project = str(vertex_project).strip()
+    else:
+        vertex_project = None
+    if api_key and not str(api_key).strip():
+        api_key = None
+    return {
+        "backend": backend,
+        "api_key": api_key,
+        "vertex_project": vertex_project,
+        "vertex_location": vertex_location,
+    }
+
 def _closest_aspect_ratio(width, height, allowed):
     try:
         if not width or not height:
@@ -222,10 +268,18 @@ def _get_openai_client(api_key, base_url=None):
         _OPENAI_CLIENT_CACHE[sig] = client
         return client
 
-def _get_gemini_client(api_key):
-    sig = _key_sig(api_key, "gemini")
-    if not sig:
-        return None
+def _get_gemini_client(api_key=None, backend="gemini_api", vertex_project=None, vertex_location=None):
+    backend = _normalize_gemini_backend(backend)
+    vertex_project = (vertex_project or "").strip() if vertex_project else ""
+    vertex_location = _normalize_gemini_vertex_location(vertex_location)
+    if backend == "vertex_ai":
+        if not vertex_project:
+            return None
+        sig = f"vertex:{vertex_project}:{vertex_location}:{_key_sig(api_key, 'gemini_vertex') or 'no_api_key'}"
+    else:
+        sig = _key_sig(api_key, "gemini_api")
+        if not sig:
+            return None
     with _CLIENT_CACHE_LOCK:
         client = _GEMINI_CLIENT_CACHE.get(sig)
         if client:
@@ -235,7 +289,18 @@ def _get_gemini_client(api_key):
             timeout=_GEMINI_TIMEOUT_MS,
             httpx_client=_GEMINI_HTTPX_CLIENT
         )
-        client = genai.Client(api_key=api_key, http_options=http_options)
+        if backend == "vertex_ai":
+            kwargs = {
+                "vertexai": True,
+                "project": vertex_project,
+                "location": vertex_location,
+                "http_options": http_options,
+            }
+            if api_key and str(api_key).strip():
+                kwargs["api_key"] = api_key
+            client = genai.Client(**kwargs)
+        else:
+            client = genai.Client(api_key=api_key, http_options=http_options)
         _GEMINI_CLIENT_CACHE[sig] = client
         return client
 
@@ -1155,8 +1220,24 @@ async def _xai_sts_realtime(pcm_bytes, api_key, model_key="grok-voice-agent", vo
                 break
     return bytes(audio_out), transcript_out
 
-async def _google_sts_live(pcm_bytes, api_key, model_key, rate=16000, voice="Kore"):
-    client = _get_gemini_client(api_key)
+async def _google_sts_live(
+    pcm_bytes,
+    model_key,
+    gemini_api_key=None,
+    gemini_backend="gemini_api",
+    gemini_vertex_project=None,
+    gemini_vertex_location=None,
+    rate=16000,
+    voice="Kore",
+):
+    client = _get_gemini_client(
+        api_key=gemini_api_key,
+        backend=gemini_backend,
+        vertex_project=gemini_vertex_project,
+        vertex_location=gemini_vertex_location,
+    )
+    if not client:
+        raise ValueError("Gemini client not configured")
     audio_out = bytearray()
     transcript_out = ""
     input_transcript = ""
@@ -1198,6 +1279,9 @@ class User(UserMixin, db.Model):
     apply_global_system_prompt = db.Column(db.Boolean, default=True)
     openai_api_key = db.Column(db.Text, nullable=True)
     gemini_api_key = db.Column(db.Text, nullable=True)
+    gemini_backend = db.Column(db.String(24), default="gemini_api")
+    gemini_vertex_project = db.Column(db.Text, nullable=True)
+    gemini_vertex_location = db.Column(db.String(64), default="global")
     xai_api_key = db.Column(db.Text, nullable=True)
     google_api_key = db.Column(db.Text, nullable=True)
     google_cloud_project = db.Column(db.Text, nullable=True)
@@ -2654,9 +2738,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     return os.getenv(env_key)
                 return None
 
+            gemini_runtime = _resolve_gemini_runtime(user)
+
             api_keys = {
                 'openai': get_k(user.openai_api_key, 'OPENAI_API_KEY'),
-                'gemini': get_k(user.gemini_api_key, 'GEMINI_API_KEY'),
+                'gemini': gemini_runtime.get('api_key'),
                 'xai': get_k(user.xai_api_key, 'XAI_API_KEY')
             }
 
@@ -2665,12 +2751,30 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             elif is_grok: key = api_keys.get('xai')
             else: key = api_keys.get('openai') 
 
-            if not key:
+            if is_gem:
+                if gemini_runtime.get("backend") == "vertex_ai":
+                    if not gemini_runtime.get("vertex_project"):
+                        pub("error", "Vertex AI Project ID が未設定です。設定で Gemini Backend を Vertex AI にした場合は Project ID を入力してください。")
+                        return
+                elif not key:
+                    pub("error", "Gemini API Key missing")
+                    return
+            elif not key:
                 pub("error", "API Key missing")
                 return
 
             g_client = None; o_client = None; x_client = None
-            if is_gem: g_client = _get_gemini_client(key)
+            gemini_backend_mode = gemini_runtime.get("backend") if is_gem else "gemini_api"
+            if is_gem:
+                g_client = _get_gemini_client(
+                    api_key=key,
+                    backend=gemini_backend_mode,
+                    vertex_project=gemini_runtime.get("vertex_project"),
+                    vertex_location=gemini_runtime.get("vertex_location"),
+                )
+                if not g_client:
+                    pub("error", "Gemini client initialization failed. Gemini設定を確認してください。")
+                    return
             elif is_grok:
                 x_client = _get_xai_client(key)
                 o_client = _get_openai_client(key, base_url=f"https://{_XAI_API_HOST}/v1")
@@ -2881,6 +2985,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             # --- 1. GEMINI & GEMINI IMAGE ---
             if is_gem:
                 log_force("Routing: Gemini Branch")
+                gemini_files_api_enabled = (gemini_backend_mode != "vertex_ai")
                 
                 # Gemini TTS (Preview)
                 if "tts" in model_key:
@@ -3250,6 +3355,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         return True
 
                     def _gemini_get_cached_part(rel_path, mime, size=None, mtime=None, label=""):
+                        if not gemini_files_api_enabled:
+                            return None
                         cache = _get_file_cache(user_id, rel_path, "gemini")
                         if not _gemini_cache_matches(cache, size, mtime, mime):
                             return None
@@ -3310,6 +3417,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         return None
 
                     def _gemini_upload_with_retry(data, mime, suffix, rel_path, label=""):
+                        if not gemini_files_api_enabled:
+                            return None, None, "Vertex AI モードではこのアプリの Files API 経路を利用できません（20MB以下にするか Gemini API モードへ切替してください）。"
                         max_attempts = 2
                         try:
                             max_attempts = int(os.getenv("GEMINI_FILE_UPLOAD_RETRIES", "2") or "2")
@@ -5671,6 +5780,9 @@ def setup():
     if request.method == 'POST':
         current_user.openai_api_key = encrypt_val(request.form.get('openai_key'))
         current_user.gemini_api_key = encrypt_val(request.form.get('gemini_key'))
+        current_user.gemini_backend = _normalize_gemini_backend(request.form.get('gemini_backend'))
+        current_user.gemini_vertex_project = encrypt_val(request.form.get('gemini_vertex_project'))
+        current_user.gemini_vertex_location = _normalize_gemini_vertex_location(request.form.get('gemini_vertex_location'))
         current_user.xai_api_key = encrypt_val(request.form.get('xai_key'))
         current_user.google_api_key = encrypt_val(request.form.get('google_key'))
         current_user.google_cloud_project = encrypt_val(request.form.get('google_project'))
@@ -6066,7 +6178,8 @@ def generate_title_api():
         # [FIX] Multi-model fallback logic
         title = "New Chat"
         o_key = decrypt_val(current_user.openai_api_key) or (os.getenv('OPENAI_API_KEY') if getattr(current_user, 'is_admin', False) else None)
-        g_key = decrypt_val(current_user.gemini_api_key) or (os.getenv('GEMINI_API_KEY') if getattr(current_user, 'is_admin', False) else None)
+        gemini_runtime = _resolve_gemini_runtime(current_user)
+        g_key = gemini_runtime.get("api_key")
         x_key = decrypt_val(current_user.xai_api_key) or (os.getenv('XAI_API_KEY') if getattr(current_user, 'is_admin', False) else None)
 
         # Try OpenAI (gpt-4o-mini)
@@ -6095,15 +6208,27 @@ def generate_title_api():
             except: pass
         
         # Try Gemini (flash)
-        elif g_key and title == "New Chat":
+        elif title == "New Chat":
             try:
-                g_client = _get_gemini_client(g_key)
-                resp = g_client.models.generate_content(
-                    model="gemini-2.5-flash-lite",
-                    contents=[types.Part(text=f"Generate a short title (max 6 words) for this chat. JSON: {{'title': '...'}}\n\nChat: {content[:500]}")],
-                    config=types.GenerateContentConfig(response_mime_type="application/json")
+                backend = gemini_runtime.get("backend")
+                can_use_gemini = (
+                    (backend == "gemini_api" and bool(g_key))
+                    or (backend == "vertex_ai" and bool(gemini_runtime.get("vertex_project")))
                 )
-                title = json.loads(resp.text).get('title', 'New Chat')
+                if can_use_gemini:
+                    g_client = _get_gemini_client(
+                        api_key=g_key,
+                        backend=backend,
+                        vertex_project=gemini_runtime.get("vertex_project"),
+                        vertex_location=gemini_runtime.get("vertex_location"),
+                    )
+                    if g_client:
+                        resp = g_client.models.generate_content(
+                            model="gemini-2.5-flash-lite",
+                            contents=[types.Part(text=f"Generate a short title (max 6 words) for this chat. JSON: {{'title': '...'}}\n\nChat: {content[:500]}")],
+                            config=types.GenerateContentConfig(response_mime_type="application/json")
+                        )
+                        title = json.loads(resp.text).get('title', 'New Chat')
             except: pass
 
         # Try xAI (grok-fast)
@@ -6897,6 +7022,9 @@ def handle_settings():
             'username': current_user.username, 
             'openai_key': decrypt_val(current_user.openai_api_key) or "", 
             'gemini_key': decrypt_val(current_user.gemini_api_key) or "", 
+            'gemini_backend': _normalize_gemini_backend(current_user.gemini_backend),
+            'gemini_vertex_project': decrypt_val(current_user.gemini_vertex_project) or "",
+            'gemini_vertex_location': _normalize_gemini_vertex_location(current_user.gemini_vertex_location),
             'xai_key': decrypt_val(current_user.xai_api_key) or "",
             'google_key': decrypt_val(current_user.google_api_key) or "",
             'google_project': decrypt_val(current_user.google_cloud_project) or "",
@@ -6948,6 +7076,9 @@ def handle_settings():
         current_user.apply_global_system_prompt = bool(d['apply_global_system_prompt'])
     if 'openai_key' in d: current_user.openai_api_key = encrypt_val(d['openai_key'])
     if 'gemini_key' in d: current_user.gemini_api_key = encrypt_val(d['gemini_key'])
+    if 'gemini_backend' in d: current_user.gemini_backend = _normalize_gemini_backend(d['gemini_backend'])
+    if 'gemini_vertex_project' in d: current_user.gemini_vertex_project = encrypt_val(d['gemini_vertex_project'])
+    if 'gemini_vertex_location' in d: current_user.gemini_vertex_location = _normalize_gemini_vertex_location(d['gemini_vertex_location'])
     if 'xai_key' in d: current_user.xai_api_key = encrypt_val(d['xai_key'])
     if 'google_key' in d: current_user.google_api_key = encrypt_val(d['google_key'])
     if 'google_project' in d: current_user.google_cloud_project = encrypt_val(d['google_project'])
@@ -7454,13 +7585,24 @@ def speech_to_speech():
                 _xai_sts_realtime(pcm_bytes, key, model_key=model_key, voice=sts_voice, rate_in=rate_in, rate_out=rate_out)
             )
         elif provider == "google":
-            key = decrypt_val(current_user.gemini_api_key)
-            if not key and getattr(current_user, 'is_admin', False):
-                key = os.getenv('GEMINI_API_KEY')
-            if not key:
+            gemini_runtime = _resolve_gemini_runtime(current_user)
+            key = gemini_runtime.get("api_key")
+            if gemini_runtime.get("backend") == "vertex_ai":
+                if not gemini_runtime.get("vertex_project"):
+                    return jsonify({'error': 'Vertex AI Project ID not configured'}), 400
+            elif not key:
                 return jsonify({'error': 'Gemini API Key not configured'}), 400
             assistant_audio, assistant_text, input_text = asyncio.run(
-                _google_sts_live(pcm_bytes, key, model_key, rate=rate_in, voice=sts_voice)
+                _google_sts_live(
+                    pcm_bytes,
+                    model_key,
+                    gemini_api_key=key,
+                    gemini_backend=gemini_runtime.get("backend"),
+                    gemini_vertex_project=gemini_runtime.get("vertex_project"),
+                    gemini_vertex_location=gemini_runtime.get("vertex_location"),
+                    rate=rate_in,
+                    voice=sts_voice
+                )
             )
         else:
             return jsonify({'error': 'Unsupported provider'}), 400
@@ -7925,6 +8067,15 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN xai_api_key TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN gemini_backend VARCHAR(24) DEFAULT 'gemini_api'")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN gemini_vertex_project TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN gemini_vertex_location VARCHAR(64) DEFAULT 'global'")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN is_2fa_enabled BOOLEAN DEFAULT 0")

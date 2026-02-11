@@ -77,7 +77,7 @@
                             <option value="gemini_api">Gemini API</option>
                             <option value="vertex_ai">Vertex AI</option>
                         </select>
-                        <div class="text-[10px] text-slate-500 mt-1">Vertex AI を使う場合は Project ID と Location を入力してください。</div>
+                        <div class="text-[10px] text-slate-500 mt-1">Vertex AI を使う場合は Project ID / Location に加えて ADC (Application Default Credentials) の設定が必要です。</div>
                     </div>
                     <div id="setup-vertex-fields" class="space-y-4 hidden">
                         <div class="relative group">
@@ -88,6 +88,7 @@
                             <label class="block text-xs text-slate-400 mb-1">Vertex AI Location</label>
                             <input type="text" name="gemini_vertex_location" class="w-full bg-[#0b121a] border border-slate-700 rounded-xl p-3 text-white text-sm outline-none focus:border-teal-500 transition" placeholder="global">
                         </div>
+                        <div class="text-[10px] text-slate-500">例: サーバー上で <code class="text-slate-300">gcloud auth application-default login</code> を実行するか、<code class="text-slate-300">GOOGLE_APPLICATION_CREDENTIALS</code> を設定してください。</div>
                     </div>
                     <div class="relative group">
                         <label class="block text-xs text-slate-400 mb-1">xAI API Key</label>

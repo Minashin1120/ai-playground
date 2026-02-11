@@ -128,6 +128,34 @@ def _normalize_gemini_vertex_location(value):
     v = str(value or "").strip()
     return v or "global"
 
+def _is_missing_google_adc_error(err):
+    msg = str(err or "")
+    if not msg:
+        return False
+    lower_msg = msg.lower()
+    if "application default credentials" in lower_msg and ("not found" in lower_msg or "not available" in lower_msg):
+        return True
+    if "default credentials were not found" in lower_msg:
+        return True
+    if "set up application default credentials" in lower_msg:
+        return True
+    if "google_application_credentials" in lower_msg and "credential" in lower_msg:
+        return True
+    return False
+
+def _gemini_vertex_auth_error_message():
+    return (
+        "Vertex AI の認証情報 (Application Default Credentials) が見つかりません。"
+        "サーバーで gcloud auth application-default login を実行するか、"
+        "GOOGLE_APPLICATION_CREDENTIALS にサービスアカウント JSON を設定してください。"
+        "Gemini API を使う場合は設定画面で Gemini Backend を Gemini API に変更してください。"
+    )
+
+def _format_gemini_runtime_error(err, backend="gemini_api"):
+    if _normalize_gemini_backend(backend) == "vertex_ai" and _is_missing_google_adc_error(err):
+        return _gemini_vertex_auth_error_message()
+    return str(err)
+
 def _resolve_gemini_runtime(user):
     backend_raw = getattr(user, "gemini_backend", None) if user else None
     backend = _normalize_gemini_backend(backend_raw)
@@ -2624,6 +2652,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             is_openai_search_model = model_key_l in ("gpt-5-search-api", "gpt-4o-search-preview", "gpt-4o-mini-search-preview")
             is_gem = 'gemini' in model_key_l or 'nano' in model_key_l
             is_grok = 'grok' in model_key_l and 'gpt' not in model_key_l
+            gemini_backend_mode = "gemini_api"
             grok_reasoning_supported = ("grok-3-mini" in model_key_l) or ("reasoning" in model_key_l and "non-reasoning" not in model_key_l)
             grok_reasoning_effort_supported = "grok-3-mini" in model_key_l
             req_reasoning_effort = (options.get('reasoning_effort') or "").lower().strip()
@@ -2785,16 +2814,23 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 return
 
             g_client = None; o_client = None; x_client = None
-            gemini_backend_mode = gemini_runtime.get("backend") if is_gem else "gemini_api"
+            gemini_backend_mode = _normalize_gemini_backend(gemini_runtime.get("backend")) if is_gem else "gemini_api"
             if is_gem:
-                g_client = _get_gemini_client(
-                    api_key=key,
-                    backend=gemini_backend_mode,
-                    vertex_project=gemini_runtime.get("vertex_project"),
-                    vertex_location=gemini_runtime.get("vertex_location"),
-                )
+                try:
+                    g_client = _get_gemini_client(
+                        api_key=key,
+                        backend=gemini_backend_mode,
+                        vertex_project=gemini_runtime.get("vertex_project"),
+                        vertex_location=gemini_runtime.get("vertex_location"),
+                    )
+                except Exception as e:
+                    pub("error", _format_gemini_runtime_error(e, gemini_backend_mode))
+                    return
                 if not g_client:
-                    pub("error", "Gemini client initialization failed. Gemini設定を確認してください。")
+                    if gemini_backend_mode == "vertex_ai":
+                        pub("error", _gemini_vertex_auth_error_message())
+                    else:
+                        pub("error", "Gemini client initialization failed. Gemini設定を確認してください。")
                     return
             elif is_grok:
                 x_client = _get_xai_client(key)
@@ -5377,7 +5413,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
         except Exception as e:
             logger.exception("Worker Error")
             log_force(f"Worker Exception: {e}")
-            pub("error", str(e))
+            err_msg = str(e)
+            try:
+                if is_gem:
+                    err_msg = _format_gemini_runtime_error(e, gemini_backend_mode)
+            except Exception:
+                pass
+            pub("error", err_msg)
         finally:
             r.delete(f"stop_job:{job_id}")
             try:
@@ -7586,6 +7628,7 @@ def speech_to_speech():
     assistant_audio = b""
     assistant_text = ""
     input_text = ""
+    gemini_runtime = None
     try:
         if provider == "openai":
             key = decrypt_val(current_user.openai_api_key)
@@ -7629,7 +7672,11 @@ def speech_to_speech():
             return jsonify({'error': 'Unsupported provider'}), 400
     except Exception as e:
         logger.error(f"STS failed: {e}")
-        return jsonify({'error': str(e)}), 500
+        err_msg = str(e)
+        if provider == "google":
+            backend = gemini_runtime.get("backend") if isinstance(gemini_runtime, dict) else "gemini_api"
+            err_msg = _format_gemini_runtime_error(e, backend)
+        return jsonify({'error': err_msg}), 500
 
     if not assistant_audio:
         return jsonify({'error': 'No audio response'}), 500

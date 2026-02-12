@@ -42,6 +42,9 @@
         </div>
         <form method="POST" id="setup-form" class="p-6">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            {% if error %}
+            <div class="mb-4 rounded border border-red-500/50 bg-red-900/30 px-3 py-2 text-xs text-red-200">{{ error }}</div>
+            {% endif %}
             <!-- Step 1: Welcome -->
             <div id="step-1" class="space-y-6 text-center">
                 <h2 class="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-teal-300 to-amber-300">AI Chat Playground</h2>
@@ -77,7 +80,7 @@
                             <option value="gemini_api">Gemini API</option>
                             <option value="vertex_ai">Vertex AI</option>
                         </select>
-                        <div class="text-[10px] text-slate-500 mt-1">Vertex AI を使う場合は Project ID / Location に加えて ADC (Application Default Credentials) の設定が必要です。</div>
+                        <div class="text-[10px] text-slate-500 mt-1">Vertex AI を使う場合は Project ID / Location と認証情報（ADC またはサービスアカウントJSON）が必要です。</div>
                     </div>
                     <div id="setup-vertex-fields" class="space-y-4 hidden">
                         <div class="relative group">
@@ -88,7 +91,11 @@
                             <label class="block text-xs text-slate-400 mb-1">Vertex AI Location</label>
                             <input type="text" name="gemini_vertex_location" class="w-full bg-[#0b121a] border border-slate-700 rounded-xl p-3 text-white text-sm outline-none focus:border-teal-500 transition" placeholder="global">
                         </div>
-                        <div class="text-[10px] text-slate-500">例: サーバー上で <code class="text-slate-300">gcloud auth application-default login</code> を実行するか、<code class="text-slate-300">GOOGLE_APPLICATION_CREDENTIALS</code> を設定してください。</div>
+                        <div class="relative group">
+                            <label class="block text-xs text-slate-400 mb-1">Vertex Service Account JSON (任意)</label>
+                            <textarea name="gemini_vertex_credentials_json" class="w-full h-28 bg-[#0b121a] border border-slate-700 rounded-xl p-3 text-white text-[11px] font-mono outline-none focus:border-teal-500 transition" placeholder='{"type":"service_account", ...}'></textarea>
+                        </div>
+                        <div class="text-[10px] text-slate-500">JSONを入力するとこのユーザー設定だけでVertex認証できます。未入力時はサーバー側のADC（例: <code class="text-slate-300">gcloud auth application-default login</code> / <code class="text-slate-300">GOOGLE_APPLICATION_CREDENTIALS</code>）を使用します。</div>
                     </div>
                     <div class="relative group">
                         <label class="block text-xs text-slate-400 mb-1">xAI API Key</label>
@@ -134,7 +141,7 @@
             document.getElementById('step-num').innerText = n;
         }
         function skipKeys() {
-            const inputs = document.querySelectorAll('#step-2 input[type="password"], #step-2 input[type="text"]');
+            const inputs = document.querySelectorAll('#step-2 input[type="password"], #step-2 input[type="text"], #step-2 textarea');
             inputs.forEach(i => i.value = '');
             const backend = document.getElementById('setup-gemini-backend');
             if (backend) backend.value = 'gemini_api';

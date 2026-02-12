@@ -52,6 +52,7 @@ from dotenv import load_dotenv
 from openai import OpenAI, APITimeoutError, APIError, APIConnectionError, RateLimitError
 from google import genai
 from google.genai import types
+from google.oauth2 import service_account
 from google.cloud import texttospeech
 from google.api_core.client_options import ClientOptions
 import websockets
@@ -128,6 +129,36 @@ def _normalize_gemini_vertex_location(value):
     v = str(value or "").strip()
     return v or "global"
 
+def _normalize_gemini_vertex_credentials_json(value):
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    try:
+        info = json.loads(raw)
+    except Exception:
+        raise ValueError("Vertex AI サービスアカウント JSON の形式が不正です。")
+    if not isinstance(info, dict):
+        raise ValueError("Vertex AI サービスアカウント JSON はオブジェクト形式で入力してください。")
+    if str(info.get("type") or "").strip() != "service_account":
+        raise ValueError("Vertex AI サービスアカウント JSON の type は service_account である必要があります。")
+    if not str(info.get("client_email") or "").strip() or not str(info.get("private_key") or "").strip():
+        raise ValueError("Vertex AI サービスアカウント JSON に client_email / private_key がありません。")
+    try:
+        return json.dumps(info, sort_keys=True, separators=(",", ":"))
+    except Exception:
+        raise ValueError("Vertex AI サービスアカウント JSON の正規化に失敗しました。")
+
+def _load_gemini_vertex_credentials(vertex_credentials_json):
+    normalized = _normalize_gemini_vertex_credentials_json(vertex_credentials_json)
+    if not normalized:
+        return None, None
+    try:
+        info = json.loads(normalized)
+        creds = service_account.Credentials.from_service_account_info(info)
+    except Exception:
+        raise ValueError("Vertex AI サービスアカウント JSON から認証情報を読み込めませんでした。")
+    return creds, _key_sig(normalized, "gemini_vertex_sa")
+
 def _is_missing_google_adc_error(err):
     msg = str(err or "")
     if not msg:
@@ -146,8 +177,9 @@ def _is_missing_google_adc_error(err):
 def _gemini_vertex_auth_error_message():
     return (
         "Vertex AI の認証情報 (Application Default Credentials) が見つかりません。"
+        "設定画面で Vertex AI サービスアカウント JSON を入力するか、"
         "サーバーで gcloud auth application-default login を実行するか、"
-        "GOOGLE_APPLICATION_CREDENTIALS にサービスアカウント JSON を設定してください。"
+        "GOOGLE_APPLICATION_CREDENTIALS を設定してください。"
         "Gemini API を使う場合は設定画面で Gemini Backend を Gemini API に変更してください。"
     )
 
@@ -162,6 +194,7 @@ def _resolve_gemini_runtime(user):
     api_key = decrypt_val(getattr(user, "gemini_api_key", None)) if user else None
     vertex_project = decrypt_val(getattr(user, "gemini_vertex_project", None)) if user else None
     vertex_location_raw = getattr(user, "gemini_vertex_location", None) if user else None
+    vertex_credentials_json = decrypt_val(getattr(user, "gemini_vertex_credentials_json", None)) if user else None
     vertex_location = _normalize_gemini_vertex_location(vertex_location_raw)
     if user and getattr(user, "is_admin", False):
         env_backend = os.getenv("GEMINI_BACKEND")
@@ -179,17 +212,24 @@ def _resolve_gemini_runtime(user):
             env_loc = os.getenv("GEMINI_VERTEX_LOCATION") or os.getenv("GOOGLE_CLOUD_LOCATION")
             if env_loc:
                 vertex_location = _normalize_gemini_vertex_location(env_loc)
+        if not vertex_credentials_json:
+            env_vertex_json = os.getenv("GEMINI_VERTEX_SERVICE_ACCOUNT_JSON")
+            if env_vertex_json and str(env_vertex_json).strip():
+                vertex_credentials_json = str(env_vertex_json).strip()
     if vertex_project and str(vertex_project).strip():
         vertex_project = str(vertex_project).strip()
     else:
         vertex_project = None
     if api_key and not str(api_key).strip():
         api_key = None
+    if vertex_credentials_json and not str(vertex_credentials_json).strip():
+        vertex_credentials_json = None
     return {
         "backend": backend,
         "api_key": api_key,
         "vertex_project": vertex_project,
         "vertex_location": vertex_location,
+        "vertex_credentials_json": vertex_credentials_json,
     }
 
 def _closest_aspect_ratio(width, height, allowed):
@@ -296,14 +336,24 @@ def _get_openai_client(api_key, base_url=None):
         _OPENAI_CLIENT_CACHE[sig] = client
         return client
 
-def _get_gemini_client(api_key=None, backend="gemini_api", vertex_project=None, vertex_location=None):
+def _get_gemini_client(
+    api_key=None,
+    backend="gemini_api",
+    vertex_project=None,
+    vertex_location=None,
+    vertex_credentials_json=None,
+):
     backend = _normalize_gemini_backend(backend)
     vertex_project = (vertex_project or "").strip() if vertex_project else ""
     vertex_location = _normalize_gemini_vertex_location(vertex_location)
+    vertex_creds = None
+    vertex_creds_sig = "adc"
     if backend == "vertex_ai":
         if not vertex_project:
             return None
-        sig = f"vertex:{vertex_project}:{vertex_location}:{_key_sig(api_key, 'gemini_vertex') or 'no_api_key'}"
+        if vertex_credentials_json and str(vertex_credentials_json).strip():
+            vertex_creds, vertex_creds_sig = _load_gemini_vertex_credentials(vertex_credentials_json)
+        sig = f"vertex:{vertex_project}:{vertex_location}:{vertex_creds_sig}"
     else:
         sig = _key_sig(api_key, "gemini_api")
         if not sig:
@@ -324,8 +374,8 @@ def _get_gemini_client(api_key=None, backend="gemini_api", vertex_project=None, 
                 "location": vertex_location,
                 "http_options": http_options,
             }
-            if api_key and str(api_key).strip():
-                kwargs["api_key"] = api_key
+            if vertex_creds is not None:
+                kwargs["credentials"] = vertex_creds
             client = genai.Client(**kwargs)
         else:
             client = genai.Client(api_key=api_key, http_options=http_options)
@@ -1255,6 +1305,7 @@ async def _google_sts_live(
     gemini_backend="gemini_api",
     gemini_vertex_project=None,
     gemini_vertex_location=None,
+    gemini_vertex_credentials_json=None,
     rate=16000,
     voice="Kore",
 ):
@@ -1263,6 +1314,7 @@ async def _google_sts_live(
         backend=gemini_backend,
         vertex_project=gemini_vertex_project,
         vertex_location=gemini_vertex_location,
+        vertex_credentials_json=gemini_vertex_credentials_json,
     )
     if not client:
         raise ValueError("Gemini client not configured")
@@ -1310,6 +1362,7 @@ class User(UserMixin, db.Model):
     gemini_backend = db.Column(db.String(24), default="gemini_api")
     gemini_vertex_project = db.Column(db.Text, nullable=True)
     gemini_vertex_location = db.Column(db.String(64), default="global")
+    gemini_vertex_credentials_json = db.Column(db.Text, nullable=True)
     xai_api_key = db.Column(db.Text, nullable=True)
     google_api_key = db.Column(db.Text, nullable=True)
     google_cloud_project = db.Column(db.Text, nullable=True)
@@ -1905,6 +1958,7 @@ def ensure_user_gemini_backend_columns():
                 ("gemini_backend", "ALTER TABLE user ADD COLUMN gemini_backend VARCHAR(24) DEFAULT 'gemini_api'"),
                 ("gemini_vertex_project", "ALTER TABLE user ADD COLUMN gemini_vertex_project TEXT"),
                 ("gemini_vertex_location", "ALTER TABLE user ADD COLUMN gemini_vertex_location VARCHAR(64) DEFAULT 'global'"),
+                ("gemini_vertex_credentials_json", "ALTER TABLE user ADD COLUMN gemini_vertex_credentials_json TEXT"),
             ]
             for column_name, ddl in columns:
                 res = conn.execute(text(
@@ -2822,6 +2876,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         backend=gemini_backend_mode,
                         vertex_project=gemini_runtime.get("vertex_project"),
                         vertex_location=gemini_runtime.get("vertex_location"),
+                        vertex_credentials_json=gemini_runtime.get("vertex_credentials_json"),
                     )
                 except Exception as e:
                     pub("error", _format_gemini_runtime_error(e, gemini_backend_mode))
@@ -5841,11 +5896,16 @@ def signup():
 def setup():
     if current_user.is_setup_completed: return redirect(url_for('index'))
     if request.method == 'POST':
+        try:
+            vertex_credentials_json = _normalize_gemini_vertex_credentials_json(request.form.get('gemini_vertex_credentials_json'))
+        except ValueError as e:
+            return render_template('setup.html', error=str(e))
         current_user.openai_api_key = encrypt_val(request.form.get('openai_key'))
         current_user.gemini_api_key = encrypt_val(request.form.get('gemini_key'))
         current_user.gemini_backend = _normalize_gemini_backend(request.form.get('gemini_backend'))
         current_user.gemini_vertex_project = encrypt_val(request.form.get('gemini_vertex_project'))
         current_user.gemini_vertex_location = _normalize_gemini_vertex_location(request.form.get('gemini_vertex_location'))
+        current_user.gemini_vertex_credentials_json = encrypt_val(vertex_credentials_json)
         current_user.xai_api_key = encrypt_val(request.form.get('xai_key'))
         current_user.google_api_key = encrypt_val(request.form.get('google_key'))
         current_user.google_cloud_project = encrypt_val(request.form.get('google_project'))
@@ -6284,6 +6344,7 @@ def generate_title_api():
                         backend=backend,
                         vertex_project=gemini_runtime.get("vertex_project"),
                         vertex_location=gemini_runtime.get("vertex_location"),
+                        vertex_credentials_json=gemini_runtime.get("vertex_credentials_json"),
                     )
                     if g_client:
                         resp = g_client.models.generate_content(
@@ -7088,6 +7149,7 @@ def handle_settings():
             'gemini_backend': _normalize_gemini_backend(current_user.gemini_backend),
             'gemini_vertex_project': decrypt_val(current_user.gemini_vertex_project) or "",
             'gemini_vertex_location': _normalize_gemini_vertex_location(current_user.gemini_vertex_location),
+            'gemini_vertex_credentials_json': decrypt_val(current_user.gemini_vertex_credentials_json) or "",
             'xai_key': decrypt_val(current_user.xai_api_key) or "",
             'google_key': decrypt_val(current_user.google_api_key) or "",
             'google_project': decrypt_val(current_user.google_cloud_project) or "",
@@ -7142,6 +7204,12 @@ def handle_settings():
     if 'gemini_backend' in d: current_user.gemini_backend = _normalize_gemini_backend(d['gemini_backend'])
     if 'gemini_vertex_project' in d: current_user.gemini_vertex_project = encrypt_val(d['gemini_vertex_project'])
     if 'gemini_vertex_location' in d: current_user.gemini_vertex_location = _normalize_gemini_vertex_location(d['gemini_vertex_location'])
+    if 'gemini_vertex_credentials_json' in d:
+        try:
+            normalized_vertex_json = _normalize_gemini_vertex_credentials_json(d['gemini_vertex_credentials_json'])
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        current_user.gemini_vertex_credentials_json = encrypt_val(normalized_vertex_json)
     if 'xai_key' in d: current_user.xai_api_key = encrypt_val(d['xai_key'])
     if 'google_key' in d: current_user.google_api_key = encrypt_val(d['google_key'])
     if 'google_project' in d: current_user.google_cloud_project = encrypt_val(d['google_project'])
@@ -7664,6 +7732,7 @@ def speech_to_speech():
                     gemini_backend=gemini_runtime.get("backend"),
                     gemini_vertex_project=gemini_runtime.get("vertex_project"),
                     gemini_vertex_location=gemini_runtime.get("vertex_location"),
+                    gemini_vertex_credentials_json=gemini_runtime.get("vertex_credentials_json"),
                     rate=rate_in,
                     voice=sts_voice
                 )
@@ -8148,6 +8217,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN gemini_vertex_location VARCHAR(64) DEFAULT 'global'")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN gemini_vertex_credentials_json TEXT")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN is_2fa_enabled BOOLEAN DEFAULT 0")

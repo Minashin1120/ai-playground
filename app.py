@@ -125,6 +125,17 @@ def _normalize_gemini_backend(value):
         return "vertex_ai"
     return "gemini_api"
 
+def _normalize_admin_api_key_mode(value):
+    raw = str(value or "").strip().lower().replace("-", "_")
+    if raw in ("user_only", "user", "settings", "user_settings"):
+        return "user_only"
+    return "env_fallback"
+
+def _admin_env_fallback_enabled(user):
+    if not user or not getattr(user, "is_admin", False):
+        return False
+    return _normalize_admin_api_key_mode(getattr(user, "admin_api_key_mode", None)) == "env_fallback"
+
 def _normalize_gemini_vertex_location(value):
     v = str(value or "").strip()
     return v or "global"
@@ -196,7 +207,7 @@ def _resolve_gemini_runtime(user):
     vertex_location_raw = getattr(user, "gemini_vertex_location", None) if user else None
     vertex_credentials_json = decrypt_val(getattr(user, "gemini_vertex_credentials_json", None)) if user else None
     vertex_location = _normalize_gemini_vertex_location(vertex_location_raw)
-    if user and getattr(user, "is_admin", False):
+    if _admin_env_fallback_enabled(user):
         env_backend = os.getenv("GEMINI_BACKEND")
         if env_backend and (not backend_raw or not str(backend_raw).strip()):
             backend = _normalize_gemini_backend(env_backend)
@@ -1353,6 +1364,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True)
     is_admin = db.Column(db.Boolean, default=False)
+    admin_api_key_mode = db.Column(db.String(24), default="env_fallback")
     password_hash = db.Column(db.String(255))
     system_prompt = db.Column(db.Text, default="")
     system_prompt_enabled = db.Column(db.Boolean, default=True)
@@ -1970,6 +1982,21 @@ def ensure_user_gemini_backend_columns():
                 if not res:
                     conn.execute(text("SET SESSION lock_wait_timeout=1"))
                     conn.execute(text(ddl))
+    except Exception:
+        pass
+
+def ensure_user_admin_api_key_mode_column():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='user' "
+                "AND COLUMN_NAME='admin_api_key_mode'"
+            )).scalar()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN admin_api_key_mode VARCHAR(24) DEFAULT 'env_fallback'"))
     except Exception:
         pass
 
@@ -2838,7 +2865,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 k = decrypt_val(db_val)
                 if k and str(k).strip():
                     return k
-                if user and getattr(user, 'is_admin', False):
+                if _admin_env_fallback_enabled(user):
                     return os.getenv(env_key)
                 return None
 
@@ -4488,12 +4515,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if 'google-tts' in model_key:
                         # Google Cloud TTS (requires Google Cloud API key, not Gemini API key)
                         g_key = decrypt_val(current_user.google_api_key)
-                        if not g_key and getattr(current_user, 'is_admin', False):
+                        if not g_key and _admin_env_fallback_enabled(current_user):
                             g_key = os.getenv('GOOGLE_API_KEY')
                         if not g_key:
                             raise RuntimeError("Google API Key is not configured for Google TTS.")
                         g_project = decrypt_val(current_user.google_cloud_project)
-                        if not g_project and getattr(current_user, 'is_admin', False):
+                        if not g_project and _admin_env_fallback_enabled(current_user):
                             g_project = os.getenv('GOOGLE_CLOUD_PROJECT')
                         opts = {"api_key": g_key}
                         if g_project: opts["quota_project_id"] = g_project
@@ -6300,10 +6327,10 @@ def generate_title_api():
         
         # [FIX] Multi-model fallback logic
         title = "New Chat"
-        o_key = decrypt_val(current_user.openai_api_key) or (os.getenv('OPENAI_API_KEY') if getattr(current_user, 'is_admin', False) else None)
+        o_key = decrypt_val(current_user.openai_api_key) or (os.getenv('OPENAI_API_KEY') if _admin_env_fallback_enabled(current_user) else None)
         gemini_runtime = _resolve_gemini_runtime(current_user)
         g_key = gemini_runtime.get("api_key")
-        x_key = decrypt_val(current_user.xai_api_key) or (os.getenv('XAI_API_KEY') if getattr(current_user, 'is_admin', False) else None)
+        x_key = decrypt_val(current_user.xai_api_key) or (os.getenv('XAI_API_KEY') if _admin_env_fallback_enabled(current_user) else None)
 
         # Try OpenAI (gpt-4o-mini)
         if o_key:
@@ -7190,6 +7217,7 @@ def handle_settings():
         if getattr(current_user, 'is_admin', False):
             payload['global_system_prompt'] = get_app_setting("global_system_prompt", "") or ""
             payload['global_system_prompt_enabled'] = get_bool_app_setting("global_system_prompt_enabled", True)
+            payload['admin_api_key_mode'] = _normalize_admin_api_key_mode(current_user.admin_api_key_mode)
         return jsonify(payload)
     d = request.json
     if 'system_prompt' in d: 
@@ -7245,6 +7273,8 @@ def handle_settings():
         current_user.passkey_only_login = target
     if 'bot_detection_enabled' in d and d['bot_detection_enabled'] is not None:
         current_user.bot_detection_enabled = bool(d['bot_detection_enabled'])
+    if getattr(current_user, 'is_admin', False) and 'admin_api_key_mode' in d:
+        current_user.admin_api_key_mode = _normalize_admin_api_key_mode(d['admin_api_key_mode'])
     if getattr(current_user, 'is_admin', False) and 'bot_detection_global_enabled' in d:
         set_app_setting("bot_detection_global_enabled", "1" if d['bot_detection_global_enabled'] else "0")
     if getattr(current_user, 'is_admin', False):
@@ -7479,13 +7509,13 @@ def synthesize():
     
     try:
         g_key = decrypt_val(current_user.google_api_key)
-        if not g_key and getattr(current_user, 'is_admin', False):
+        if not g_key and _admin_env_fallback_enabled(current_user):
             g_key = os.getenv('GOOGLE_API_KEY')
         if not g_key:
             return jsonify({'error': 'Google API Key not configured (Google Cloud API key required)'}), 400
         
         g_project = decrypt_val(current_user.google_cloud_project)
-        if not g_project and getattr(current_user, 'is_admin', False):
+        if not g_project and _admin_env_fallback_enabled(current_user):
             g_project = os.getenv('GOOGLE_CLOUD_PROJECT')
         opts = {"api_key": g_key}
         if g_project: opts["quota_project_id"] = g_project
@@ -7577,7 +7607,7 @@ def transcribe():
     # OpenAI STT Implementation
     try:
         key = decrypt_val(current_user.openai_api_key)
-        if not key and getattr(current_user, 'is_admin', False):
+        if not key and _admin_env_fallback_enabled(current_user):
             key = os.getenv('OPENAI_API_KEY')
         if not key:
             return jsonify({'error': 'OpenAI API Key not configured'}), 400
@@ -7700,7 +7730,7 @@ def speech_to_speech():
     try:
         if provider == "openai":
             key = decrypt_val(current_user.openai_api_key)
-            if not key and getattr(current_user, 'is_admin', False):
+            if not key and _admin_env_fallback_enabled(current_user):
                 key = os.getenv('OPENAI_API_KEY')
             if not key:
                 return jsonify({'error': 'OpenAI API Key not configured'}), 400
@@ -7709,7 +7739,7 @@ def speech_to_speech():
             )
         elif provider == "xai":
             key = decrypt_val(current_user.xai_api_key)
-            if not key and getattr(current_user, 'is_admin', False):
+            if not key and _admin_env_fallback_enabled(current_user):
                 key = os.getenv('XAI_API_KEY')
             if not key:
                 return jsonify({'error': 'xAI API Key not configured'}), 400
@@ -8166,6 +8196,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_user_admin_api_key_mode_column()
+    except Exception:
+        pass
+    try:
         cleanup_user_temp_system_prompt_columns()
     except Exception:
         pass
@@ -8220,6 +8254,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN gemini_vertex_credentials_json TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN admin_api_key_mode VARCHAR(24) DEFAULT 'env_fallback'")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN is_2fa_enabled BOOLEAN DEFAULT 0")

@@ -107,6 +107,20 @@ def _env_choice(name, default, allowed):
     val = (os.getenv(name) or "").strip()
     return val if val in allowed else default
 
+def _coerce_bool_or_none(value):
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    raw = str(value).strip().lower()
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    if raw in ("0", "false", "no", "off", ""):
+        return False
+    return None
+
 _DECRYPT_TEXT_CACHE_MAX = max(0, _env_int("DECRYPT_TEXT_CACHE_MAX", 4096))
 _MEDIA_BYTES_CACHE_MAX = max(0, _env_int("MEDIA_BYTES_CACHE_MAX_MB", 128)) * 1024 * 1024
 _MEDIA_BYTES_CACHE_ITEM_MAX = max(0, _env_int("MEDIA_BYTES_CACHE_ITEM_MAX_MB", 12)) * 1024 * 1024
@@ -443,6 +457,20 @@ app.config['MAINTENANCE_MODE'] = os.path.exists(os.path.join(os.path.dirname(__f
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/10')
 redis_conn = redis.from_url(REDIS_URL)
 task_queue = Queue('ai_chat_queue', connection=redis_conn)
+
+_TEMP_CHAT_STALE_SECONDS = max(30, _env_int("TEMP_CHAT_STALE_SECONDS", 90))
+_TEMP_CHAT_MONITOR_INTERVAL = max(5, _env_int("TEMP_CHAT_MONITOR_INTERVAL_SECONDS", 15))
+_TEMP_CHAT_TRACK_TTL_SECONDS = max(_TEMP_CHAT_STALE_SECONDS * 20, 3600)
+_TEMP_CHAT_LAST_SEEN_ZSET = "temp_chat:last_seen"
+_TEMP_CHAT_STATE_PREFIX = "temp_chat:state:"
+_TEMP_CHAT_UPLOADS_PREFIX = "temp_chat:uploads:"
+_TEMP_CHAT_MONITOR_LEADER_KEY = "temp_chat:monitor:leader"
+_TEMP_CHAT_MONITOR_LEASE_SECONDS = max(15, _TEMP_CHAT_MONITOR_INTERVAL * 3)
+
+_TEMP_CHAT_MONITOR_LOCK = threading.Lock()
+_TEMP_CHAT_MONITOR_THREAD = None
+_TEMP_CHAT_MONITOR_PID = None
+_TEMP_CHAT_MONITOR_TOKEN = None
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
@@ -1459,6 +1487,7 @@ class Thread(db.Model):
     title = db.Column(db.String(200), default="New Chat")
     is_bookmarked = db.Column(db.Boolean, default=False)
     bookmarked_at = db.Column(db.DateTime, nullable=True)
+    is_temporary = db.Column(db.Boolean, default=False)
     custom_instruction = db.Column(db.Text, nullable=True)
     include_global_instruction = db.Column(db.Boolean, default=True)
     last_model = db.Column(db.String(64), nullable=True)
@@ -1919,6 +1948,21 @@ def ensure_thread_last_model_column():
     except Exception:
         pass
 
+def ensure_thread_temporary_column():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='thread' "
+                "AND COLUMN_NAME='is_temporary'"
+            )).scalar()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE thread ADD COLUMN is_temporary BOOLEAN DEFAULT 0"))
+    except Exception:
+        pass
+
 def ensure_message_token_io_columns():
     try:
         with db.engine.connect() as conn:
@@ -2056,6 +2100,253 @@ def ensure_performance_indexes():
         "CREATE INDEX idx_message_thread_id ON message (thread_id, id)"
     )
 
+def _normalize_attachment_source(value):
+    raw = str(value or "").strip().lower()
+    if raw in ("library", "lib", "library_attach"):
+        return "library"
+    if raw in ("upload", "uploaded", "new_upload"):
+        return "upload"
+    return "unknown"
+
+def _iter_message_attachment_refs(raw_value):
+    if not raw_value:
+        return []
+    try:
+        parsed = json.loads(raw_value)
+    except Exception:
+        parsed = [raw_value]
+    if not isinstance(parsed, list):
+        parsed = [parsed]
+    return parsed
+
+def _delete_user_upload_ref(user_id, ref):
+    norm = _normalize_upload_ref(ref)
+    if not norm:
+        return False
+    if norm.startswith("..") or os.path.isabs(norm):
+        return False
+    if not norm.startswith(f"{user_id}/"):
+        return False
+    fp = os.path.join(app.config['UPLOAD_FOLDER'], norm)
+    if not os.path.realpath(fp).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])):
+        return False
+    secure_delete(fp)
+    secure_delete(fp + '.enc')
+    _delete_file_cache_for_path(user_id, norm)
+    return True
+
+def _temp_chat_member(thread):
+    if not thread:
+        return None
+    return str(thread.public_id or thread.id)
+
+def _temp_chat_state_key(member):
+    return f"{_TEMP_CHAT_STATE_PREFIX}{member}"
+
+def _temp_chat_uploads_key(member):
+    return f"{_TEMP_CHAT_UPLOADS_PREFIX}{member}"
+
+def _decode_redis_value(v):
+    if isinstance(v, bytes):
+        return v.decode("utf-8", "ignore")
+    return str(v) if v is not None else None
+
+def _resolve_temp_chat_thread(member):
+    if not member:
+        return None
+    ident = str(member).strip()
+    if not ident:
+        return None
+    t = Thread.query.filter_by(public_id=ident).first()
+    if t:
+        return t
+    if ident.isdigit():
+        return Thread.query.get(int(ident))
+    return None
+
+def _clear_temp_chat_tracking(member):
+    if not member:
+        return
+    try:
+        pipe = redis_conn.pipeline()
+        pipe.zrem(_TEMP_CHAT_LAST_SEEN_ZSET, member)
+        pipe.delete(_temp_chat_state_key(member))
+        pipe.delete(_temp_chat_uploads_key(member))
+        pipe.execute()
+    except Exception:
+        pass
+
+def _clear_temp_chat_tracking_for_thread(thread):
+    member = _temp_chat_member(thread)
+    if member:
+        _clear_temp_chat_tracking(member)
+
+def _mark_temp_chat_presence(thread, user_id=None):
+    if not thread:
+        return
+    member = _temp_chat_member(thread)
+    if not member:
+        return
+    uid = user_id if user_id is not None else thread.user_id
+    now_ts = int(time.time())
+    try:
+        pipe = redis_conn.pipeline()
+        pipe.zadd(_TEMP_CHAT_LAST_SEEN_ZSET, {member: now_ts})
+        pipe.hset(_temp_chat_state_key(member), mapping={
+            "user_id": str(uid or ""),
+            "thread_id": str(thread.id or ""),
+            "thread_public_id": str(thread.public_id or ""),
+            "last_seen": str(now_ts),
+        })
+        pipe.expire(_temp_chat_state_key(member), _TEMP_CHAT_TRACK_TTL_SECONDS)
+        pipe.execute()
+    except Exception:
+        pass
+
+def _track_temp_chat_uploaded_refs(thread, user_id, refs):
+    if not thread or not bool(getattr(thread, "is_temporary", False)):
+        return
+    if not refs:
+        return
+    member = _temp_chat_member(thread)
+    if not member:
+        return
+    normalized = _normalize_attachment_list(refs, user_id)
+    if not normalized:
+        return
+    try:
+        pipe = redis_conn.pipeline()
+        pipe.sadd(_temp_chat_uploads_key(member), *normalized)
+        pipe.expire(_temp_chat_uploads_key(member), _TEMP_CHAT_TRACK_TTL_SECONDS)
+        pipe.execute()
+    except Exception:
+        pass
+
+def _cleanup_temp_chat_member(member, stale_before=None, force=False):
+    if not member:
+        return False
+    member = str(member).strip()
+    if not member:
+        return False
+    if stale_before is not None and not force:
+        try:
+            score = redis_conn.zscore(_TEMP_CHAT_LAST_SEEN_ZSET, member)
+            if score is not None and float(score) > float(stale_before):
+                return False
+        except Exception:
+            pass
+
+    thread = _resolve_temp_chat_thread(member)
+    if not thread:
+        _clear_temp_chat_tracking(member)
+        return False
+    if not bool(getattr(thread, "is_temporary", False)) and not force:
+        _clear_temp_chat_tracking(member)
+        return False
+
+    user_id = thread.user_id
+    uploaded_paths = []
+    try:
+        raw_paths = redis_conn.smembers(_temp_chat_uploads_key(member)) or set()
+        for raw in raw_paths:
+            val = _decode_redis_value(raw)
+            if val:
+                uploaded_paths.append(val)
+    except Exception:
+        uploaded_paths = []
+
+    for p in uploaded_paths:
+        _delete_user_upload_ref(user_id, p)
+
+    try:
+        redis_conn.delete(f"pending_job:{user_id}:{thread.id}")
+    except Exception:
+        pass
+
+    try:
+        db.session.delete(thread)
+        safe_db_commit()
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        logger.error(f"Temporary chat cleanup failed ({member}): {e}")
+        return False
+
+    _clear_temp_chat_tracking(member)
+    log_force(
+        f"Temporary chat auto-deleted: member={member}, user_id={user_id}, "
+        f"deleted_uploads={len(uploaded_paths)}"
+    )
+    return True
+
+def _cleanup_stale_temp_chats():
+    cutoff = int(time.time()) - _TEMP_CHAT_STALE_SECONDS
+    while True:
+        try:
+            stale_members = redis_conn.zrangebyscore(
+                _TEMP_CHAT_LAST_SEEN_ZSET,
+                "-inf",
+                cutoff,
+                start=0,
+                num=50,
+            )
+        except Exception:
+            return
+        if not stale_members:
+            return
+        for raw_member in stale_members:
+            member = _decode_redis_value(raw_member)
+            if member:
+                _cleanup_temp_chat_member(member, stale_before=cutoff)
+
+def _temp_chat_monitor_has_lead():
+    global _TEMP_CHAT_MONITOR_TOKEN
+    if not _TEMP_CHAT_MONITOR_TOKEN:
+        _TEMP_CHAT_MONITOR_TOKEN = f"{os.getpid()}:{threading.get_ident()}"
+    token = _TEMP_CHAT_MONITOR_TOKEN
+    try:
+        if redis_conn.set(_TEMP_CHAT_MONITOR_LEADER_KEY, token, nx=True, ex=_TEMP_CHAT_MONITOR_LEASE_SECONDS):
+            return True
+        cur = redis_conn.get(_TEMP_CHAT_MONITOR_LEADER_KEY)
+        cur_val = _decode_redis_value(cur)
+        if cur_val == token:
+            redis_conn.expire(_TEMP_CHAT_MONITOR_LEADER_KEY, _TEMP_CHAT_MONITOR_LEASE_SECONDS)
+            return True
+        return False
+    except Exception:
+        return True
+
+def _temp_chat_monitor_loop():
+    while True:
+        try:
+            if _temp_chat_monitor_has_lead():
+                with app.app_context():
+                    _cleanup_stale_temp_chats()
+        except Exception as e:
+            logger.error(f"Temporary chat monitor error: {e}")
+        time.sleep(_TEMP_CHAT_MONITOR_INTERVAL)
+
+def _ensure_temp_chat_monitor_running():
+    global _TEMP_CHAT_MONITOR_THREAD, _TEMP_CHAT_MONITOR_PID
+    pid = os.getpid()
+    with _TEMP_CHAT_MONITOR_LOCK:
+        if (
+            _TEMP_CHAT_MONITOR_THREAD
+            and _TEMP_CHAT_MONITOR_THREAD.is_alive()
+            and _TEMP_CHAT_MONITOR_PID == pid
+        ):
+            return
+        th = threading.Thread(
+            target=_temp_chat_monitor_loop,
+            name=f"temp-chat-monitor-{pid}",
+            daemon=True,
+        )
+        _TEMP_CHAT_MONITOR_THREAD = th
+        _TEMP_CHAT_MONITOR_PID = pid
+        th.start()
+
 def get_bool_app_setting(key, default=False):
     val = get_app_setting(key, None)
     if val is None:
@@ -2074,6 +2365,13 @@ def build_global_system_prompt(now=None):
 def ensure_client_token():
     try:
         get_client_token()
+    except Exception:
+        pass
+
+@app.before_request
+def ensure_temp_chat_monitor():
+    try:
+        _ensure_temp_chat_monitor_running()
     except Exception:
         pass
 
@@ -5970,15 +6268,22 @@ def chat_stream():
     user_config = {'enable_e2ee': current_user.enable_e2ee}
     job_id = f"job_{int(time.time())}_{current_user.id}"
 
+    temporary_requested = _coerce_bool_or_none(data.get('temporary_chat'))
     thread_ref = data.get('thread_id')
     thread_was_created = False
     if thread_ref:
         t = resolve_thread_for_user(thread_ref, current_user.id)
         if not t:
             return jsonify({'error': 'Invalid thread'}), 403
+        if temporary_requested is not None:
+            t.is_temporary = bool(temporary_requested)
     else:
         # Avoid a separate round trip on first send; create the thread in the same transaction.
-        t = Thread(user_id=current_user.id, public_id=generate_thread_public_id())
+        t = Thread(
+            user_id=current_user.id,
+            public_id=generate_thread_public_id(),
+            is_temporary=bool(temporary_requested)
+        )
         db.session.add(t)
         thread_was_created = True
     thread_id = t.id
@@ -5993,6 +6298,24 @@ def chat_stream():
         if not isinstance(raw_image_urls, list):
             raw_image_urls = [raw_image_urls]
         norm_image_urls = _normalize_attachment_list(raw_image_urls, current_user.id)
+        raw_image_items = data.get('image_items') or []
+        if not isinstance(raw_image_items, list):
+            raw_image_items = [raw_image_items]
+        uploaded_image_refs = []
+        for item in raw_image_items:
+            if not isinstance(item, dict):
+                continue
+            source = _normalize_attachment_source(item.get('source'))
+            if source != "upload":
+                continue
+            ref = item.get('path') or item.get('filepath') or item.get('url') or item.get('file')
+            if ref:
+                uploaded_image_refs.append(ref)
+        explicit_uploaded_refs = data.get('uploaded_image_urls') or []
+        if isinstance(explicit_uploaded_refs, list):
+            uploaded_image_refs.extend(explicit_uploaded_refs)
+        elif explicit_uploaded_refs:
+            uploaded_image_refs.append(explicit_uploaded_refs)
         max_files = int(app.config.get('ATTACHMENT_MAX_FILES') or 30)
         if len(norm_image_urls) > max_files:
             return jsonify({'error': f'Too many attachments. Max {max_files} files per message.'}), 400
@@ -6059,6 +6382,11 @@ def chat_stream():
         safe_db_commit()
         thread_id = t.id
         thread_stream_id = t.public_id if t and t.public_id else str(thread_id)
+        if bool(getattr(t, "is_temporary", False)):
+            _mark_temp_chat_presence(t, current_user.id)
+            _track_temp_chat_uploaded_refs(t, current_user.id, uploaded_image_refs)
+        elif temporary_requested is False:
+            _clear_temp_chat_tracking_for_thread(t)
     except Exception as e:
         logger.error(f"Failed to save user msg: {e}")
         return jsonify({'error': 'Failed to save message'}), 500
@@ -6309,6 +6637,25 @@ def stop_chat():
         return jsonify({'status': 'stopped'})
     return jsonify({'error': 'no job_id'}), 400
 
+@app.route('/api/temporary_chat/heartbeat', methods=['POST'])
+@login_required
+def temporary_chat_heartbeat():
+    data = request.json or {}
+    thread_ref = data.get('thread_id')
+    t = resolve_thread_for_user(thread_ref, current_user.id)
+    if not t:
+        return jsonify({'error': 'Invalid thread'}), 404
+    active = _coerce_bool_or_none(data.get('active'))
+    if active is None:
+        active = True
+    if active and bool(getattr(t, "is_temporary", False)):
+        _mark_temp_chat_presence(t, current_user.id)
+    return jsonify({
+        'status': 'ok',
+        'thread_id': t.public_id or t.id,
+        'is_temporary': bool(getattr(t, "is_temporary", False))
+    })
+
 @app.route('/api/generate_title', methods=['POST'])
 @login_required
 def generate_title_api():
@@ -6491,17 +6838,26 @@ def handle_threads():
             'id': t.public_id or t.id,
             'title': t.title,
             'is_bookmarked': bool(t.is_bookmarked),
-            'last_model': t.last_model
+            'last_model': t.last_model,
+            'is_temporary': bool(getattr(t, "is_temporary", False))
         } for t in pagination.items]
         return jsonify({
             'threads': threads,
             'has_next': pagination.has_next,
             'next_page': pagination.next_num
         })
-    t = Thread(user_id=current_user.id, public_id=generate_thread_public_id())
+    payload = request.get_json(silent=True) or {}
+    requested_temp = _coerce_bool_or_none(payload.get('is_temporary'))
+    t = Thread(
+        user_id=current_user.id,
+        public_id=generate_thread_public_id(),
+        is_temporary=bool(requested_temp)
+    )
     db.session.add(t)
     safe_db_commit()
-    return jsonify({'id': t.public_id, 'title': t.title})
+    if bool(t.is_temporary):
+        _mark_temp_chat_presence(t, current_user.id)
+    return jsonify({'id': t.public_id, 'title': t.title, 'is_temporary': bool(t.is_temporary)})
 
 @app.route('/api/threads/<thread_id>', methods=['GET', 'DELETE'])
 @login_required
@@ -6576,29 +6932,26 @@ def handle_thread_item(thread_id):
             'custom_instruction': t.custom_instruction,
             'include_global_instruction': t.include_global_instruction if t.include_global_instruction is not None else True,
             'last_model': t.last_model,
+            'is_temporary': bool(getattr(t, "is_temporary", False)),
             'pending_job': pending_job
         })
-    
+
+    temp_member = _temp_chat_member(t)
     for m in t.messages:
         if m.image_url:
             try:
-                paths = json.loads(m.image_url)
-                if not isinstance(paths, list): paths = [paths]
-                for p in paths:
-                    norm = _normalize_upload_ref(p)
-                    if not norm:
-                        continue
-                    if norm.startswith("..") or os.path.isabs(norm): continue
-                    if not norm.startswith(f"{current_user.id}/"): continue
-                    fp = os.path.join(app.config['UPLOAD_FOLDER'], norm)
-                    if not os.path.realpath(fp).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])): continue
-                    secure_delete(fp)
-                    secure_delete(fp + '.enc')
-                    _delete_file_cache_for_path(current_user.id, norm)
-            except: pass
+                for p in _iter_message_attachment_refs(m.image_url):
+                    _delete_user_upload_ref(current_user.id, p)
+            except Exception:
+                pass
 
     db.session.delete(t)
     safe_db_commit()
+    _clear_temp_chat_tracking(temp_member)
+    try:
+        redis_conn.delete(f"pending_job:{current_user.id}:{t.id}")
+    except Exception:
+        pass
     return jsonify({'status': 'deleted'})
 
 @app.route('/api/encryption_scan', methods=['GET'])
@@ -6639,13 +6992,20 @@ def encryption_scan():
 def update_thread_settings(thread_id):
     t = resolve_thread_for_user(thread_id, current_user.id)
     if not t: return jsonify({'error': '403'}), 403
-    d = request.json
+    d = request.json or {}
     if 'custom_instruction' in d:
         t.custom_instruction = d['custom_instruction']
     if 'include_global_instruction' in d:
         t.include_global_instruction = bool(d['include_global_instruction'])
+    if 'is_temporary' in d:
+        requested_temp = _coerce_bool_or_none(d.get('is_temporary'))
+        t.is_temporary = bool(requested_temp)
     safe_db_commit()
-    return jsonify({'status': 'ok'})
+    if bool(getattr(t, "is_temporary", False)):
+        _mark_temp_chat_presence(t, current_user.id)
+    else:
+        _clear_temp_chat_tracking_for_thread(t)
+    return jsonify({'status': 'ok', 'is_temporary': bool(getattr(t, "is_temporary", False))})
 
 @app.route('/api/threads/<thread_id>/title', methods=['PUT'])
 @login_required
@@ -6676,20 +7036,10 @@ def delete_message(mid):
     for m in msgs_to_delete:
         if m.image_url:
             try:
-                paths = json.loads(m.image_url)
-                if not isinstance(paths, list): paths = [paths]
-                for p in paths:
-                    norm = _normalize_upload_ref(p)
-                    if not norm:
-                        continue
-                    if norm.startswith("..") or os.path.isabs(norm): continue
-                    if not norm.startswith(f"{current_user.id}/"): continue
-                    fp = os.path.join(app.config['UPLOAD_FOLDER'], norm)
-                    if not os.path.realpath(fp).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])): continue
-                    secure_delete(fp)
-                    secure_delete(fp + '.enc')
-                    _delete_file_cache_for_path(current_user.id, norm)
-            except: pass
+                for p in _iter_message_attachment_refs(m.image_url):
+                    _delete_user_upload_ref(current_user.id, p)
+            except Exception:
+                pass
 
     Message.query.filter(Message.thread_id == msg.thread_id, Message.timestamp >= msg.timestamp).delete()
     safe_db_commit()
@@ -8184,6 +8534,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_thread_temporary_column()
+    except Exception:
+        pass
+    try:
         ensure_message_token_io_columns()
     except Exception:
         pass
@@ -8404,6 +8758,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE thread ADD COLUMN last_model VARCHAR(64)")
+        except: pass
+        try:
+            try_alter("ALTER TABLE thread ADD COLUMN is_temporary BOOLEAN DEFAULT 0")
         except: pass
 
 @app.errorhandler(403)

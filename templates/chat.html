@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.180)</title>
+    <title>AI Playground (V4.8.187)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -98,8 +98,8 @@
         .code-wrapper { margin: 1em 0; border-radius: 0.75rem; border: 1px solid var(--line); background: var(--panel-2); box-shadow: var(--shadow); position: relative; }
         .code-header { display: flex; justify-content: space-between; align-items: center; background: #0f1722; padding: 0.35rem 0.85rem; font-size: 0.75rem; color: #9aa3b2; border-bottom: 1px solid rgba(148,163,184,0.15); position: sticky; top: 6px; z-index: 2; }
         .code-actions { display: flex; align-items: center; gap: 0.6rem; }
-        .copy-btn, .code-toggle { background: transparent; border: none; color: #9aa3b2; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s; }
-        .copy-btn:hover, .code-toggle:hover { color: #e2e8f0; }
+        .copy-btn, .code-toggle, .html-preview-btn { background: transparent; border: none; color: #9aa3b2; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s; }
+        .copy-btn:hover, .code-toggle:hover, .html-preview-btn:hover { color: #e2e8f0; }
         .code-body { border-bottom-left-radius: 0.75rem; border-bottom-right-radius: 0.75rem; overflow: hidden; transition: max-height 0.28s ease, opacity 0.2s ease, padding 0.2s ease; }
         .code-body pre { margin: 0; }
         .code-wrapper.collapsed .code-body { max-height: 0; opacity: 0; padding: 0; overflow: hidden; }
@@ -124,9 +124,11 @@
         .python-box .code-header { background: rgba(245,158,11,0.12); color: #fde68a; }
         .python-box .code-lang { color: #fde68a; font-weight: 600; display: inline-flex; align-items: center; gap: 0.4rem; }
         .python-box .code-actions .copy-btn,
-        .python-box .code-actions .code-toggle { color: #cbd5f5; }
+        .python-box .code-actions .code-toggle,
+        .python-box .code-actions .html-preview-btn { color: #cbd5f5; }
         .python-box .code-actions .copy-btn:hover,
-        .python-box .code-actions .code-toggle:hover { color: #fff7ed; }
+        .python-box .code-actions .code-toggle:hover,
+        .python-box .code-actions .html-preview-btn:hover { color: #fff7ed; }
         .python-box .code-body { padding: 0.7rem 0.85rem; display: grid; gap: 0.6rem; }
         .python-box .python-section { display: grid; gap: 0.35rem; }
         .python-box .python-label { font-size: 0.7rem; color: #a3b3c5; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -1501,6 +1503,31 @@
                 h |= 0;
             }
             return Math.abs(h).toString(36);
+        }
+        function isHtmlPreviewCandidate(lang, codeRaw) {
+            const token = String(lang || '').trim().toLowerCase();
+            if (token === 'html' || token === 'htm' || token === 'xhtml') return true;
+            if (token) return false;
+            return /<!doctype\s+html/i.test(codeRaw || '');
+        }
+        function openHtmlCodePreview(encodedCode) {
+            if (!encodedCode) return;
+            let html = '';
+            try {
+                html = decodeURIComponent(encodedCode);
+            } catch (e) {
+                showToast('HTMLプレビューの読み込みに失敗しました', 'error', true);
+                return;
+            }
+            const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const tab = window.open(url, '_blank', 'noopener,noreferrer');
+            if (!tab) {
+                URL.revokeObjectURL(url);
+                showToast('ポップアップがブロックされました', 'error', true);
+                return;
+            }
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
         }
         function snapshotCodeCollapse(container) {
             if (!container) return [];
@@ -3150,6 +3177,7 @@
                             } catch (e2) {}
                         }
                         const raw = c || '';
+                        const lowerLang = (l || '').toLowerCase();
                         let h = '';
                         try {
                             const lang = hljs.getLanguage(l) ? l : 'plaintext';
@@ -3158,8 +3186,11 @@
                             h = escapeHtml(raw);
                         }
                         const enc = encodeURIComponent(raw).replace(/'/g, "%27");
+                        const previewBtn = isHtmlPreviewCandidate(lowerLang, raw)
+                            ? `<button class="html-preview-btn" data-code="${enc}"><i class="fas fa-up-right-from-square"></i> Preview</button>`
+                            : '';
                         const codeKey = hashString(`${l || 'TEXT'}\n${raw || ''}`);
-                        return `<div class="code-wrapper" data-collapsed="false" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${l || 'TEXT'}</span><div class="code-actions"><button class="code-toggle" aria-expanded="true"><i class="fas fa-chevron-up"></i> Collapse</button><button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`;
+                        return `<div class="code-wrapper" data-collapsed="false" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${l || 'TEXT'}</span><div class="code-actions"><button class="code-toggle" aria-expanded="true"><i class="fas fa-chevron-up"></i> Collapse</button>${previewBtn}<button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`;
                     },
                     link(h, t, x) { return `<a href="${h}" title="${t || ''}" target="_blank">${x}</a>`; },
                     image(h, t, x) { const alt = escapeHtml(x || ''); const title = t ? ` title="${escapeHtml(t)}"` : ''; return `<img src="${h}" alt="${alt}"${title} class="chat-image" loading="lazy" width="320" height="320">`; }
@@ -4380,6 +4411,11 @@
                     const btn = e.target.closest('.copy-btn');
                     const code = btn.getAttribute('data-code');
                     if (code) window.copyCode(btn, code);
+                }
+                if (e.target.closest('.html-preview-btn')) {
+                    const btn = e.target.closest('.html-preview-btn');
+                    const code = btn.getAttribute('data-code');
+                    if (code) openHtmlCodePreview(code);
                 }
             });
             document.querySelectorAll('.modal-overlay').forEach((overlay) => {

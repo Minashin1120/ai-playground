@@ -121,6 +121,26 @@ def _coerce_bool_or_none(value):
         return False
     return None
 
+def _coerce_int_or_none(value):
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        try:
+            return int(value)
+        except Exception:
+            return None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except Exception:
+        return None
+
 _DECRYPT_TEXT_CACHE_MAX = max(0, _env_int("DECRYPT_TEXT_CACHE_MAX", 4096))
 _MEDIA_BYTES_CACHE_MAX = max(0, _env_int("MEDIA_BYTES_CACHE_MAX_MB", 128)) * 1024 * 1024
 _MEDIA_BYTES_CACHE_ITEM_MAX = max(0, _env_int("MEDIA_BYTES_CACHE_ITEM_MAX_MB", 12)) * 1024 * 1024
@@ -458,9 +478,15 @@ REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/10')
 redis_conn = redis.from_url(REDIS_URL)
 task_queue = Queue('ai_chat_queue', connection=redis_conn)
 
-_TEMP_CHAT_STALE_SECONDS = max(30, _env_int("TEMP_CHAT_STALE_SECONDS", 90))
+_TEMP_CHAT_TIMEOUT_MIN_SECONDS = max(10, _env_int("TEMP_CHAT_TIMEOUT_MIN_SECONDS", 30))
+_TEMP_CHAT_TIMEOUT_MAX_SECONDS = max(_TEMP_CHAT_TIMEOUT_MIN_SECONDS, _env_int("TEMP_CHAT_TIMEOUT_MAX_SECONDS", 3600))
+_TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS = _env_int("TEMP_CHAT_STALE_SECONDS", 90)
+if _TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS < _TEMP_CHAT_TIMEOUT_MIN_SECONDS:
+    _TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS = _TEMP_CHAT_TIMEOUT_MIN_SECONDS
+if _TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS > _TEMP_CHAT_TIMEOUT_MAX_SECONDS:
+    _TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS = _TEMP_CHAT_TIMEOUT_MAX_SECONDS
 _TEMP_CHAT_MONITOR_INTERVAL = max(5, _env_int("TEMP_CHAT_MONITOR_INTERVAL_SECONDS", 15))
-_TEMP_CHAT_TRACK_TTL_SECONDS = max(_TEMP_CHAT_STALE_SECONDS * 20, 3600)
+_TEMP_CHAT_TRACK_TTL_SECONDS = max(_TEMP_CHAT_TIMEOUT_MAX_SECONDS * 20, 3600)
 _TEMP_CHAT_LAST_SEEN_ZSET = "temp_chat:last_seen"
 _TEMP_CHAT_STATE_PREFIX = "temp_chat:state:"
 _TEMP_CHAT_UPLOADS_PREFIX = "temp_chat:uploads:"
@@ -1412,6 +1438,7 @@ class User(UserMixin, db.Model):
     theme_color = db.Column(db.String(16), default="")
     auto_search_on_links = db.Column(db.Boolean, default=True)
     use_last_chat_settings = db.Column(db.Boolean, default=False)
+    temp_chat_timeout_seconds = db.Column(db.Integer, default=_TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS)
     default_enable_search = db.Column(db.Boolean, default=False)
     default_enable_python = db.Column(db.Boolean, default=True)
     default_enable_thinking = db.Column(db.Boolean, default=False)
@@ -2044,6 +2071,23 @@ def ensure_user_admin_api_key_mode_column():
     except Exception:
         pass
 
+def ensure_user_temp_chat_timeout_column():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='user' "
+                "AND COLUMN_NAME='temp_chat_timeout_seconds'"
+            )).scalar()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text(
+                    f"ALTER TABLE user ADD COLUMN temp_chat_timeout_seconds INTEGER DEFAULT {_TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS}"
+                ))
+    except Exception:
+        pass
+
 def cleanup_user_temp_system_prompt_columns():
     try:
         with db.engine.connect() as conn:
@@ -2181,14 +2225,65 @@ def _clear_temp_chat_tracking_for_thread(thread):
     if member:
         _clear_temp_chat_tracking(member)
 
-def _mark_temp_chat_presence(thread, user_id=None):
+def _normalize_temp_chat_timeout_seconds(value, fallback=None):
+    base = _TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS if fallback is None else fallback
+    sec = _coerce_int_or_none(value)
+    if sec is None:
+        sec = base
+    if sec < _TEMP_CHAT_TIMEOUT_MIN_SECONDS:
+        sec = _TEMP_CHAT_TIMEOUT_MIN_SECONDS
+    if sec > _TEMP_CHAT_TIMEOUT_MAX_SECONDS:
+        sec = _TEMP_CHAT_TIMEOUT_MAX_SECONDS
+    return int(sec)
+
+def _get_user_temp_chat_timeout_seconds(user):
+    if not user:
+        return _TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS
+    return _normalize_temp_chat_timeout_seconds(getattr(user, "temp_chat_timeout_seconds", None))
+
+def _resolve_temp_chat_timeout_seconds(thread=None, user_id=None, timeout_seconds=None):
+    if timeout_seconds is not None:
+        return _normalize_temp_chat_timeout_seconds(timeout_seconds)
+    if thread is not None:
+        try:
+            if getattr(thread, "user", None) is not None:
+                return _get_user_temp_chat_timeout_seconds(thread.user)
+        except Exception:
+            pass
+        if user_id is None:
+            user_id = thread.user_id
+    uid = _coerce_int_or_none(user_id)
+    if uid is not None:
+        try:
+            u = User.query.get(int(uid))
+        except Exception:
+            u = None
+        if u:
+            return _get_user_temp_chat_timeout_seconds(u)
+    return _TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS
+
+def _resolve_temp_chat_member_timeout_seconds(member, thread=None):
+    raw = None
+    try:
+        raw = redis_conn.hget(_temp_chat_state_key(member), "timeout_seconds")
+    except Exception:
+        raw = None
+    parsed = _coerce_int_or_none(_decode_redis_value(raw))
+    if parsed is not None:
+        return _normalize_temp_chat_timeout_seconds(parsed)
+    uid = thread.user_id if thread is not None else None
+    return _resolve_temp_chat_timeout_seconds(thread=thread, user_id=uid)
+
+def _mark_temp_chat_presence(thread, user_id=None, timeout_seconds=None):
     if not thread:
         return
     member = _temp_chat_member(thread)
     if not member:
         return
     uid = user_id if user_id is not None else thread.user_id
+    timeout_val = _resolve_temp_chat_timeout_seconds(thread=thread, user_id=uid, timeout_seconds=timeout_seconds)
     now_ts = int(time.time())
+    expires_at = now_ts + int(timeout_val)
     try:
         pipe = redis_conn.pipeline()
         pipe.zadd(_TEMP_CHAT_LAST_SEEN_ZSET, {member: now_ts})
@@ -2197,6 +2292,8 @@ def _mark_temp_chat_presence(thread, user_id=None):
             "thread_id": str(thread.id or ""),
             "thread_public_id": str(thread.public_id or ""),
             "last_seen": str(now_ts),
+            "timeout_seconds": str(timeout_val),
+            "expires_at": str(expires_at),
         })
         pipe.expire(_temp_chat_state_key(member), _TEMP_CHAT_TRACK_TTL_SECONDS)
         pipe.execute()
@@ -2222,19 +2319,12 @@ def _track_temp_chat_uploaded_refs(thread, user_id, refs):
     except Exception:
         pass
 
-def _cleanup_temp_chat_member(member, stale_before=None, force=False):
+def _cleanup_temp_chat_member(member, now_ts=None, force=False):
     if not member:
         return False
     member = str(member).strip()
     if not member:
         return False
-    if stale_before is not None and not force:
-        try:
-            score = redis_conn.zscore(_TEMP_CHAT_LAST_SEEN_ZSET, member)
-            if score is not None and float(score) > float(stale_before):
-                return False
-        except Exception:
-            pass
 
     thread = _resolve_temp_chat_thread(member)
     if not thread:
@@ -2243,6 +2333,17 @@ def _cleanup_temp_chat_member(member, stale_before=None, force=False):
     if not bool(getattr(thread, "is_temporary", False)) and not force:
         _clear_temp_chat_tracking(member)
         return False
+    if now_ts is not None and not force:
+        try:
+            score = redis_conn.zscore(_TEMP_CHAT_LAST_SEEN_ZSET, member)
+        except Exception:
+            score = None
+        if score is None:
+            return False
+        timeout_seconds = _resolve_temp_chat_member_timeout_seconds(member, thread=thread)
+        expires_at = float(score) + float(timeout_seconds)
+        if expires_at > float(now_ts):
+            return False
 
     user_id = thread.user_id
     uploaded_paths = []
@@ -2282,8 +2383,9 @@ def _cleanup_temp_chat_member(member, stale_before=None, force=False):
     return True
 
 def _cleanup_stale_temp_chats():
-    cutoff = int(time.time()) - _TEMP_CHAT_STALE_SECONDS
     while True:
+        now_ts = int(time.time())
+        cutoff = now_ts - _TEMP_CHAT_TIMEOUT_MIN_SECONDS
         try:
             stale_members = redis_conn.zrangebyscore(
                 _TEMP_CHAT_LAST_SEEN_ZSET,
@@ -2299,7 +2401,7 @@ def _cleanup_stale_temp_chats():
         for raw_member in stale_members:
             member = _decode_redis_value(raw_member)
             if member:
-                _cleanup_temp_chat_member(member, stale_before=cutoff)
+                _cleanup_temp_chat_member(member, now_ts=now_ts)
 
 def _temp_chat_monitor_has_lead():
     global _TEMP_CHAT_MONITOR_TOKEN
@@ -6383,7 +6485,11 @@ def chat_stream():
         thread_id = t.id
         thread_stream_id = t.public_id if t and t.public_id else str(thread_id)
         if bool(getattr(t, "is_temporary", False)):
-            _mark_temp_chat_presence(t, current_user.id)
+            _mark_temp_chat_presence(
+                t,
+                current_user.id,
+                timeout_seconds=_get_user_temp_chat_timeout_seconds(current_user)
+            )
             _track_temp_chat_uploaded_refs(t, current_user.id, uploaded_image_refs)
         elif temporary_requested is False:
             _clear_temp_chat_tracking_for_thread(t)
@@ -6649,11 +6755,16 @@ def temporary_chat_heartbeat():
     if active is None:
         active = True
     if active and bool(getattr(t, "is_temporary", False)):
-        _mark_temp_chat_presence(t, current_user.id)
+        _mark_temp_chat_presence(
+            t,
+            current_user.id,
+            timeout_seconds=_get_user_temp_chat_timeout_seconds(current_user)
+        )
     return jsonify({
         'status': 'ok',
         'thread_id': t.public_id or t.id,
-        'is_temporary': bool(getattr(t, "is_temporary", False))
+        'is_temporary': bool(getattr(t, "is_temporary", False)),
+        'timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user)
     })
 
 @app.route('/api/generate_title', methods=['POST'])
@@ -6856,8 +6967,17 @@ def handle_threads():
     db.session.add(t)
     safe_db_commit()
     if bool(t.is_temporary):
-        _mark_temp_chat_presence(t, current_user.id)
-    return jsonify({'id': t.public_id, 'title': t.title, 'is_temporary': bool(t.is_temporary)})
+        _mark_temp_chat_presence(
+            t,
+            current_user.id,
+            timeout_seconds=_get_user_temp_chat_timeout_seconds(current_user)
+        )
+    return jsonify({
+        'id': t.public_id,
+        'title': t.title,
+        'is_temporary': bool(t.is_temporary),
+        'timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user)
+    })
 
 @app.route('/api/threads/<thread_id>', methods=['GET', 'DELETE'])
 @login_required
@@ -6933,6 +7053,7 @@ def handle_thread_item(thread_id):
             'include_global_instruction': t.include_global_instruction if t.include_global_instruction is not None else True,
             'last_model': t.last_model,
             'is_temporary': bool(getattr(t, "is_temporary", False)),
+            'timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user),
             'pending_job': pending_job
         })
 
@@ -7002,10 +7123,18 @@ def update_thread_settings(thread_id):
         t.is_temporary = bool(requested_temp)
     safe_db_commit()
     if bool(getattr(t, "is_temporary", False)):
-        _mark_temp_chat_presence(t, current_user.id)
+        _mark_temp_chat_presence(
+            t,
+            current_user.id,
+            timeout_seconds=_get_user_temp_chat_timeout_seconds(current_user)
+        )
     else:
         _clear_temp_chat_tracking_for_thread(t)
-    return jsonify({'status': 'ok', 'is_temporary': bool(getattr(t, "is_temporary", False))})
+    return jsonify({
+        'status': 'ok',
+        'is_temporary': bool(getattr(t, "is_temporary", False)),
+        'timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user)
+    })
 
 @app.route('/api/threads/<thread_id>/title', methods=['PUT'])
 @login_required
@@ -7536,6 +7665,7 @@ def handle_settings():
             'theme_color': current_user.theme_color or "",
             'auto_search_on_links': current_user.auto_search_on_links,
             'use_last_chat_settings': current_user.use_last_chat_settings,
+            'temp_chat_timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user),
             'default_enable_search': current_user.default_enable_search,
             'default_enable_python': current_user.default_enable_python,
             'default_enable_thinking': current_user.default_enable_thinking,
@@ -7597,6 +7727,10 @@ def handle_settings():
     if 'theme_color' in d: current_user.theme_color = normalize_theme_color(d.get('theme_color'))
     if 'auto_search_on_links' in d: current_user.auto_search_on_links = bool(d['auto_search_on_links'])
     if 'use_last_chat_settings' in d: current_user.use_last_chat_settings = bool(d['use_last_chat_settings'])
+    if 'temp_chat_timeout_seconds' in d:
+        current_user.temp_chat_timeout_seconds = _normalize_temp_chat_timeout_seconds(
+            d.get('temp_chat_timeout_seconds')
+        )
     if 'default_enable_search' in d: current_user.default_enable_search = bool(d['default_enable_search'])
     if 'default_enable_python' in d: current_user.default_enable_python = bool(d['default_enable_python'])
     if 'default_enable_thinking' in d: current_user.default_enable_thinking = bool(d['default_enable_thinking'])
@@ -8554,6 +8688,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_user_temp_chat_timeout_column()
+    except Exception:
+        pass
+    try:
         cleanup_user_temp_system_prompt_columns()
     except Exception:
         pass
@@ -8641,6 +8779,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN use_last_chat_settings BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter(f"ALTER TABLE user ADD COLUMN temp_chat_timeout_seconds INTEGER DEFAULT {_TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS}")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN default_enable_search BOOLEAN DEFAULT 0")

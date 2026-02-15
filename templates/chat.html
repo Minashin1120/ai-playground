@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.190)</title>
+    <title>AI Playground (V4.8.191)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -664,12 +664,6 @@
                         <div id="reasoning-effort-container" class="hidden flex items-center gap-1"><span class="text-gray-400">Effort:</span><select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="none">None</option><option value="low">Low</option><option value="medium" selected>Med</option><option value="high">High</option><option value="xhigh">XHigh</option></select></div>
                         <div class="flex items-center gap-1 border-l border-gray-600 pl-2 ml-2"><span class="text-gray-400">Safety:</span><select id="safety-setting" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="default">Default</option><option value="none" class="text-red-300">None</option></select></div>
                         <label class="flex items-center gap-1 cursor-pointer select-none ml-2" title="Client-side Compression"><input type="checkbox" id="enable-compression" class="accent-blue-500 w-3 h-3" checked><span class="text-gray-400 text-[10px]">Compress</span></label>
-                    </div>
-                    <div class="flex items-center gap-2 ml-1">
-                        <label id="temporary-chat-container" class="flex items-center gap-1 cursor-pointer select-none" title="切断後にこのチャットとアップロード添付を自動削除"><input type="checkbox" id="enable-temporary-chat" class="accent-amber-500 w-3 h-3"><span class="text-amber-300 text-[10px]">一時チャット</span></label>
-                        <button type="button" onclick="openTemporaryChatSettings()" class="text-[10px] text-amber-300 hover:text-amber-200 border border-amber-500/40 rounded px-1.5 py-0.5 transition btn-hover" title="一時チャット設定を開く">
-                            設定
-                        </button>
                     </div>
                 </div>
                 <div id="file-preview" class="hidden flex-col gap-2 transition-all duration-300">
@@ -3362,9 +3356,11 @@
             get('send-btn').onclick = sendMessage; 
             get('new-chat-btn').onclick = () => startNewChat(); 
             get('upload-btn').onclick = () => openUploadModal(); 
-            const temporaryChatChk = get('enable-temporary-chat');
-            if (temporaryChatChk) {
-                temporaryChatChk.checked = false;
+            const bindTemporaryChatToggle = () => {
+                const temporaryChatChk = get('enable-temporary-chat');
+                if (!temporaryChatChk || temporaryChatChk.dataset.bound === '1') return;
+                temporaryChatChk.dataset.bound = '1';
+                temporaryChatChk.checked = !!temporaryChatEnabled;
                 temporaryChatChk.onchange = async () => {
                     const prev = temporaryChatEnabled;
                     const ok = await applyTemporaryChatSetting(temporaryChatChk.checked);
@@ -3373,7 +3369,8 @@
                         ensureTemporaryChatHeartbeat(false);
                     }
                 };
-            }
+            };
+            bindTemporaryChatToggle();
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible') {
                     ensureTemporaryChatHeartbeat(true);
@@ -3525,7 +3522,11 @@
                 card.className = 'bg-gray-900 p-4 rounded border border-gray-700';
                 card.innerHTML = `
                     <h3 class="text-sm font-bold text-amber-300 mb-2">一時チャット</h3>
-                    <div class="space-y-2 text-xs text-gray-300">
+                    <div class="space-y-3 text-xs text-gray-300">
+                        <label id="temporary-chat-container" class="flex items-center gap-2 cursor-pointer select-none" title="切断後にこのチャットとアップロード添付を自動削除">
+                            <input type="checkbox" id="enable-temporary-chat" class="accent-amber-500 w-3.5 h-3.5">
+                            <span class="text-amber-200">このチャットを一時チャットにする</span>
+                        </label>
                         <label class="text-xs text-gray-500 block">切断タイムアウト（秒）</label>
                         <input id="set-temp-chat-timeout-seconds" type="number" min="${TEMP_CHAT_TIMEOUT_MIN_SECONDS}" max="${TEMP_CHAT_TIMEOUT_MAX_SECONDS}" step="1" class="w-28 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white">
                         <div class="text-[10px] text-gray-500">一時チャットでページの表示/接続が途切れた状態がこの秒数を超えると、自動削除されます。</div>
@@ -3534,6 +3535,7 @@
                 tab.appendChild(card);
             };
             ensureTemporaryChatSettingsCard();
+            bindTemporaryChatToggle();
             window.openSettingsModal = () => {
                 showModal('settings-modal');
                 loadStorageUsage();

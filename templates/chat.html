@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.189)</title>
+    <title>AI Playground (V4.8.190)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -594,6 +594,11 @@
                     <div class="rounded-xl border border-amber-500/50 bg-amber-900/20 p-4 text-left">
                         <div class="text-amber-300 text-sm font-bold flex items-center gap-2"><i class="fas fa-user-secret"></i> 一時チャットモード</div>
                         <div id="temporary-chat-welcome-desc" class="text-xs text-amber-100/90 mt-2 leading-relaxed"></div>
+                        <div class="mt-3 flex justify-end">
+                            <button type="button" onclick="openTemporaryChatSettings()" class="px-3 py-1.5 rounded border border-amber-400/50 bg-amber-950/30 text-amber-200 hover:bg-amber-900/40 text-[11px] font-bold transition btn-hover">
+                                <i class="fas fa-cog mr-1"></i>一時チャット設定
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -660,11 +665,12 @@
                         <div class="flex items-center gap-1 border-l border-gray-600 pl-2 ml-2"><span class="text-gray-400">Safety:</span><select id="safety-setting" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="default">Default</option><option value="none" class="text-red-300">None</option></select></div>
                         <label class="flex items-center gap-1 cursor-pointer select-none ml-2" title="Client-side Compression"><input type="checkbox" id="enable-compression" class="accent-blue-500 w-3 h-3" checked><span class="text-gray-400 text-[10px]">Compress</span></label>
                     </div>
-                    <label id="temporary-chat-container" class="flex items-center gap-1 cursor-pointer select-none ml-1" title="切断後にこのチャットとアップロード添付を自動削除"><input type="checkbox" id="enable-temporary-chat" class="accent-amber-500 w-3 h-3"><span class="text-amber-300 text-[10px]">一時チャット</span></label>
-                </div>
-                <div id="temporary-chat-notice" class="hidden rounded border border-amber-500/50 bg-amber-900/20 px-3 py-2 text-[11px] text-amber-100">
-                    <div class="font-bold text-amber-300">一時チャットが有効です</div>
-                    <div id="temporary-chat-notice-desc" class="mt-1"></div>
+                    <div class="flex items-center gap-2 ml-1">
+                        <label id="temporary-chat-container" class="flex items-center gap-1 cursor-pointer select-none" title="切断後にこのチャットとアップロード添付を自動削除"><input type="checkbox" id="enable-temporary-chat" class="accent-amber-500 w-3 h-3"><span class="text-amber-300 text-[10px]">一時チャット</span></label>
+                        <button type="button" onclick="openTemporaryChatSettings()" class="text-[10px] text-amber-300 hover:text-amber-200 border border-amber-500/40 rounded px-1.5 py-0.5 transition btn-hover" title="一時チャット設定を開く">
+                            設定
+                        </button>
+                    </div>
                 </div>
                 <div id="file-preview" class="hidden flex-col gap-2 transition-all duration-300">
                     <div id="file-preview-thumbs" class="flex flex-wrap gap-2 empty:hidden pl-1"></div>
@@ -6313,6 +6319,18 @@
                 }, 150);
             }
         }
+        function openTemporaryChatSettings() {
+            if (typeof openSettingsModal !== 'function') return;
+            openSettingsModal();
+            switchTab('general');
+            setTimeout(() => {
+                const card = get('temp-chat-settings-card');
+                if (!card) return;
+                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                card.classList.add('ring-1', 'ring-amber-400/70');
+                setTimeout(() => card.classList.remove('ring-1', 'ring-amber-400/70'), 1400);
+            }, 150);
+        }
         
         const isGeminiLocalPythonMode = (modelId, hasAudio, hasVideo, pyEnabled) => {
             const m = (modelId || '').toLowerCase();
@@ -7259,9 +7277,7 @@
         function updateTemporaryChatDescriptionText() {
             const sec = normalizeTemporaryChatTimeoutSeconds(temporaryChatTimeoutSeconds);
             const desc = `このページが非表示/切断の状態で ${sec} 秒経過すると、この一時チャットとこのチャットでアップロードした添付を自動削除します（ライブラリ添付は除外）。`;
-            const notice = get('temporary-chat-notice-desc');
             const welcome = get('temporary-chat-welcome-desc');
-            if (notice) notice.textContent = desc;
             if (welcome) welcome.textContent = desc;
             const tempToggle = get('temporary-chat-container');
             if (tempToggle) tempToggle.title = `切断後 ${sec} 秒で、このチャットとアップロード添付を自動削除`;
@@ -7290,8 +7306,6 @@
             if (welcomeDefault) welcomeDefault.classList.toggle('hidden', temporaryChatEnabled);
             const welcomeTemporary = get('welcome-temporary-content');
             if (welcomeTemporary) welcomeTemporary.classList.toggle('hidden', !temporaryChatEnabled);
-            const tempNotice = get('temporary-chat-notice');
-            if (tempNotice) tempNotice.classList.toggle('hidden', !temporaryChatEnabled);
             updateTemporaryChatDescriptionText();
         }
         function stopTemporaryChatHeartbeat() {

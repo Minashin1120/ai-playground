@@ -7645,10 +7645,24 @@ def handle_settings():
         has_totp = bool(current_user.totp_secret)
         has_webauthn = bool(current_user.webauthn_credentials and json.loads(current_user.webauthn_credentials))
         
+        global_prompt_value = get_app_setting("global_system_prompt", "") or ""
+        global_prompt_enabled = get_bool_app_setting("global_system_prompt_enabled", True)
+        global_prompt_uses_time_fallback = bool(global_prompt_enabled and not str(global_prompt_value).strip())
+        global_prompt_effective = ""
+        if global_prompt_enabled:
+            if str(global_prompt_value).strip():
+                global_prompt_effective = str(global_prompt_value)
+            else:
+                global_prompt_effective = build_global_system_prompt()
+
         payload = {
             'system_prompt': sp or "",
             'system_prompt_enabled': current_user.system_prompt_enabled if current_user.system_prompt_enabled is not None else True,
             'apply_global_system_prompt': current_user.apply_global_system_prompt if current_user.apply_global_system_prompt is not None else True,
+            'global_system_prompt': global_prompt_value,
+            'global_system_prompt_enabled': global_prompt_enabled,
+            'global_system_prompt_effective': global_prompt_effective,
+            'global_system_prompt_uses_time_fallback': global_prompt_uses_time_fallback,
             'username': current_user.username, 
             'openai_key': decrypt_val(current_user.openai_api_key) or "", 
             'gemini_key': decrypt_val(current_user.gemini_api_key) or "", 
@@ -7695,8 +7709,6 @@ def handle_settings():
             'bot_ban_reason': current_user.bot_ban_reason
         }
         if getattr(current_user, 'is_admin', False):
-            payload['global_system_prompt'] = get_app_setting("global_system_prompt", "") or ""
-            payload['global_system_prompt_enabled'] = get_bool_app_setting("global_system_prompt_enabled", True)
             payload['admin_api_key_mode'] = _normalize_admin_api_key_mode(current_user.admin_api_key_mode)
         return jsonify(payload)
     d = request.json

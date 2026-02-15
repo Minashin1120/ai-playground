@@ -7773,11 +7773,6 @@ def handle_settings():
         current_user.admin_api_key_mode = _normalize_admin_api_key_mode(d['admin_api_key_mode'])
     if getattr(current_user, 'is_admin', False) and 'bot_detection_global_enabled' in d:
         set_app_setting("bot_detection_global_enabled", "1" if d['bot_detection_global_enabled'] else "0")
-    if getattr(current_user, 'is_admin', False):
-        if 'global_system_prompt' in d:
-            set_app_setting("global_system_prompt", d['global_system_prompt'])
-        if 'global_system_prompt_enabled' in d:
-            set_app_setting("global_system_prompt_enabled", "1" if d['global_system_prompt_enabled'] else "0")
     if d.get('new_password'): current_user.set_password(d['new_password'])
     if d.get('new_username') and d['new_username'] != current_user.username:
         if _is_primary_admin_username(d['new_username']) and not getattr(current_user, "is_admin", False):

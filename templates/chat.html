@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.200)</title>
+    <title>AI Playground (V4.8.201)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -297,6 +297,11 @@
             color: #fef3c7;
             border-color: rgba(245, 158, 11, 0.55);
             background: rgba(54, 32, 0, 0.92);
+        }
+        #offline-banner.online {
+            color: #d1fae5;
+            border-color: rgba(52, 211, 153, 0.58);
+            background: rgba(4, 44, 34, 0.92);
         }
         body.network-banner-visible #global-progress-spinner {
             bottom: 64px !important;
@@ -1530,6 +1535,7 @@
         const CONNECTION_UNSTABLE_LATENCY_MS = 1800;
         const CONNECTION_FAIL_TO_OFFLINE = 2;
         const CONNECTION_UNSTABLE_HOLD_MS = 45000;
+        const CONNECTION_RECOVERED_BANNER_MS = 5000;
         let activeGem = null, editingGemId = null, currentImageUrls = [], currentMaskImage = null, abortController = null, userAutoScroll = true, searchTimeout;
          
         const markerAppliedUploads = new Set();
@@ -1568,6 +1574,8 @@
         let connectionCheckInFlight = false;
         let connectionConsecutiveFail = 0;
         let connectionUnstableUntil = 0;
+        let connectionStatus = 'unknown';
+        let connectionRecoveredHideTimer = null;
         let enterToSend = {{ 'true' if current_user.is_authenticated and current_user.enter_to_send else 'false' }};
         let autoSearchOnLinks = {{ 'true' if current_user.is_authenticated and current_user.auto_search_on_links else 'false' }};
         let useSwCache = {{ 'true' if current_user.is_authenticated and current_user.use_sw_cache else 'false' }};
@@ -1999,8 +2007,12 @@
             const icon = get('offline-banner-icon');
             const text = get('offline-banner-text');
             if (!b || !icon || !text) return;
+            if (mode !== 'online' && connectionRecoveredHideTimer) {
+                window.clearTimeout(connectionRecoveredHideTimer);
+                connectionRecoveredHideTimer = null;
+            }
             if (mode === 'hidden') {
-                b.classList.remove('visible', 'offline', 'unstable');
+                b.classList.remove('visible', 'offline', 'unstable', 'online');
                 document.body.classList.remove('network-banner-visible');
                 return;
             }
@@ -2008,20 +2020,37 @@
             document.body.classList.add('network-banner-visible');
             if (mode === 'offline') {
                 b.classList.add('offline');
-                b.classList.remove('unstable');
+                b.classList.remove('unstable', 'online');
                 icon.className = 'fas fa-wifi';
                 text.textContent = message || 'サーバーとの通信が切断されています';
                 return;
             }
+            if (mode === 'online') {
+                b.classList.add('online');
+                b.classList.remove('offline', 'unstable');
+                icon.className = 'fas fa-check-circle';
+                text.textContent = message || 'サーバーとの通信が復帰しました';
+                return;
+            }
             b.classList.add('unstable');
-            b.classList.remove('offline');
+            b.classList.remove('offline', 'online');
             icon.className = 'fas fa-exclamation-triangle';
             text.textContent = message || 'サーバーとの通信が不安定です';
+        }
+        function showConnectionRecoveredBanner(message = 'サーバーとの通信が復帰しました') {
+            setConnectionBanner('online', message);
+            connectionRecoveredHideTimer = window.setTimeout(() => {
+                connectionRecoveredHideTimer = null;
+                if (connectionStatus === 'online') {
+                    setConnectionBanner('hidden');
+                }
+            }, CONNECTION_RECOVERED_BANNER_MS);
         }
         async function probeServerConnection() {
             if (!navigator.onLine) {
                 connectionConsecutiveFail = CONNECTION_FAIL_TO_OFFLINE;
                 connectionUnstableUntil = 0;
+                connectionStatus = 'offline';
                 setConnectionBanner('offline');
                 return;
             }
@@ -2031,33 +2060,44 @@
             const ctrl = new AbortController();
             const timeoutId = window.setTimeout(() => ctrl.abort(), CONNECTION_CHECK_TIMEOUT_MS);
             try {
-                await fetch(`/api/version?heartbeat=${Date.now()}`, {
+                const heartbeatRes = await fetch(`/api/version?heartbeat=${Date.now()}`, {
                     method: 'GET',
                     cache: 'no-store',
                     credentials: 'include',
                     signal: ctrl.signal,
                     headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' }
                 });
+                if (!heartbeatRes.ok) throw new Error(`heartbeat ${heartbeatRes.status}`);
                 const latencyMs = Math.round(performance.now() - startedAt);
                 const now = Date.now();
                 const hadFailure = connectionConsecutiveFail > 0;
+                const wasDisconnected = connectionStatus === 'offline' || connectionStatus === 'unstable';
                 connectionConsecutiveFail = 0;
                 if (latencyMs >= CONNECTION_UNSTABLE_LATENCY_MS || hadFailure) {
                     connectionUnstableUntil = now + CONNECTION_UNSTABLE_HOLD_MS;
+                    connectionStatus = 'unstable';
                     setConnectionBanner('unstable', `サーバーとの通信が不安定です（遅延 ${latencyMs}ms）`);
                 } else if (now < connectionUnstableUntil) {
+                    connectionStatus = 'unstable';
                     setConnectionBanner('unstable', 'サーバーとの通信が不安定です（回復確認中）');
                 } else {
                     connectionUnstableUntil = 0;
-                    setConnectionBanner('hidden');
+                    connectionStatus = 'online';
+                    if (wasDisconnected) {
+                        showConnectionRecoveredBanner();
+                    } else {
+                        setConnectionBanner('hidden');
+                    }
                 }
             } catch (e) {
                 const now = Date.now();
                 connectionConsecutiveFail += 1;
                 connectionUnstableUntil = now + CONNECTION_UNSTABLE_HOLD_MS;
                 if (!navigator.onLine || connectionConsecutiveFail >= CONNECTION_FAIL_TO_OFFLINE) {
+                    connectionStatus = 'offline';
                     setConnectionBanner('offline');
                 } else {
+                    connectionStatus = 'unstable';
                     setConnectionBanner('unstable', 'サーバーとの通信が不安定です（再接続を試行中）');
                 }
             } finally {
@@ -2074,6 +2114,10 @@
             if (!connectionCheckTimer) return;
             window.clearInterval(connectionCheckTimer);
             connectionCheckTimer = null;
+            if (connectionRecoveredHideTimer) {
+                window.clearTimeout(connectionRecoveredHideTimer);
+                connectionRecoveredHideTimer = null;
+            }
         }
         window.initTurnstileWidget = () => {
             if (!botConfig || !botConfig.turnstileSiteKey || !window.turnstile) return;
@@ -3386,7 +3430,10 @@
             checkVersion();
             startConnectionMonitor();
             window.addEventListener('online', probeServerConnection);
-            window.addEventListener('offline', () => setConnectionBanner('offline'));
+            window.addEventListener('offline', () => {
+                connectionStatus = 'offline';
+                setConnectionBanner('offline');
+            });
             window.addEventListener('pagehide', stopConnectionMonitor);
             applyCacheMode(useSwCache);
             if (window.__turnstileApiLoaded && window.initTurnstileWidget) window.initTurnstileWidget();

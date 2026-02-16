@@ -7468,11 +7468,18 @@ def encryption_scan():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/threads/<thread_id>/settings', methods=['PUT'])
+@app.route('/api/threads/<thread_id>/settings', methods=['GET', 'PUT'])
 @login_required
 def update_thread_settings(thread_id):
     t = resolve_thread_for_user(thread_id, current_user.id)
     if not t: return jsonify({'error': '403'}), 403
+    if request.method == 'GET':
+        return jsonify({
+            'custom_instruction': t.custom_instruction,
+            'include_global_instruction': t.include_global_instruction if t.include_global_instruction is not None else True,
+            'is_temporary': bool(getattr(t, "is_temporary", False)),
+            'timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user)
+        })
     d = request.json or {}
     if 'custom_instruction' in d:
         t.custom_instruction = d['custom_instruction']

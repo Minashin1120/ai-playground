@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.213)</title>
+    <title>AI Playground (V4.8.214)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -8051,6 +8051,7 @@
             if(window.innerWidth < 768) get('overlay').click(); 
         }
 
+        let threadModalLoadSeq = 0;
         window.openThreadModal = async () => {
             if (!currentThreadId) {
                 try {
@@ -8071,33 +8072,54 @@
                     return;
                 }
             }
+            const modalLoadSeq = ++threadModalLoadSeq;
+            const targetThreadId = String(currentThreadId);
             showModal('thread-modal');
             ensureThreadAutoSystemPromptCard();
-            apiFetch("{{ url_for('handle_settings', _=1) }}").then(r=>r.json()).then(d=>{ 
-                const threadGlobalPreview = get('thread-app-global-sys-prompt-preview');
-                if (threadGlobalPreview) {
-                    threadGlobalPreview.value = d.global_system_prompt_effective || '';
-                }
-                const threadGlobalPreviewStatus = get('thread-app-global-sys-prompt-preview-status');
-                if (threadGlobalPreviewStatus) {
-                    if (d.global_system_prompt_enabled === false) {
-                        threadGlobalPreviewStatus.textContent = '現在は無効化されています。';
-                    } else if (d.global_system_prompt_uses_time_fallback) {
-                        threadGlobalPreviewStatus.textContent = '管理者設定が空欄のため、時刻の既定プロンプトが適用されています。';
-                    } else {
-                        threadGlobalPreviewStatus.textContent = '管理者が設定した全体システムプロンプトが適用されています。';
+            try {
+                const [settingsRes, threadSettingsRes] = await Promise.all([
+                    apiFetch("{{ url_for('handle_settings', _=1) }}"),
+                    apiFetch(`/api/threads/${targetThreadId}/settings`)
+                ]);
+                if (modalLoadSeq !== threadModalLoadSeq) return;
+                if (String(currentThreadId) !== targetThreadId) return;
+                if (settingsRes.ok) {
+                    const d = await settingsRes.json();
+                    const threadGlobalPreview = get('thread-app-global-sys-prompt-preview');
+                    if (threadGlobalPreview) {
+                        threadGlobalPreview.value = d.global_system_prompt_effective || '';
                     }
+                    const threadGlobalPreviewStatus = get('thread-app-global-sys-prompt-preview-status');
+                    if (threadGlobalPreviewStatus) {
+                        if (d.global_system_prompt_enabled === false) {
+                            threadGlobalPreviewStatus.textContent = '現在は無効化されています。';
+                        } else if (d.global_system_prompt_uses_time_fallback) {
+                            threadGlobalPreviewStatus.textContent = '管理者設定が空欄のため、時刻の既定プロンプトが適用されています。';
+                        } else {
+                            threadGlobalPreviewStatus.textContent = '管理者が設定した全体システムプロンプトが適用されています。';
+                        }
+                    }
+                    if (get('thread-global-sys-prompt')) get('thread-global-sys-prompt').value = d.system_prompt || '';
+                    if (get('thread-global-sys-prompt-enabled')) get('thread-global-sys-prompt-enabled').checked = d.system_prompt_enabled !== false;
+                    if (get('thread-apply-auto-sys-prompt-notices')) get('thread-apply-auto-sys-prompt-notices').checked = d.apply_auto_system_prompt_notices !== false;
+                    applyAutoSystemPromptConfigToForm('thread', d.auto_system_prompt_notices_config || {});
                 }
-                if (get('thread-global-sys-prompt')) get('thread-global-sys-prompt').value = d.system_prompt || '';
-                if (get('thread-global-sys-prompt-enabled')) get('thread-global-sys-prompt-enabled').checked = d.system_prompt_enabled !== false;
-                if (get('thread-apply-auto-sys-prompt-notices')) get('thread-apply-auto-sys-prompt-notices').checked = d.apply_auto_system_prompt_notices !== false;
-                applyAutoSystemPromptConfigToForm('thread', d.auto_system_prompt_notices_config || {});
-            });
+                if (threadSettingsRes.ok) {
+                    const threadSettings = await threadSettingsRes.json();
+                    if (modalLoadSeq !== threadModalLoadSeq) return;
+                    if (String(currentThreadId) !== targetThreadId) return;
+                    const customInstructionEl = get('thread-custom-instruction');
+                    if (customInstructionEl) customInstructionEl.value = threadSettings.custom_instruction || '';
+                }
+            } catch (err) {
+                showToast("チャット設定の読み込みに失敗しました", "error", true);
+            }
         };
 
         get('save-thread-settings-btn').onclick = async () => {
             if (!currentThreadId) return;
-            const custom_instruction = get('thread-custom-instruction').value;
+            const customInstructionEl = get('thread-custom-instruction');
+            const custom_instruction = customInstructionEl ? customInstructionEl.value : '';
             const globalPromptEl = get('thread-global-sys-prompt');
             const globalEnabledEl = get('thread-global-sys-prompt-enabled');
             const userPromptPayload = (globalPromptEl || globalEnabledEl) ? {

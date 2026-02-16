@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.207)</title>
+    <title>AI Playground (V4.8.208)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -5212,12 +5212,14 @@
         }
         function getRowAttachmentName(row) {
             if (!row) return '';
+            const path = row.getAttribute('data-filename');
+            const fromPath = getAttachmentNameForPath(path);
+            if (fromPath) return fromPath;
             const fromRow = normalizeAttachmentDisplayName(row.dataset.displayName);
             if (fromRow) return fromRow;
             const nameEl = row.querySelector('.truncate');
             const fromText = normalizeAttachmentDisplayName(nameEl ? nameEl.textContent : '');
             if (fromText) return fromText;
-            const path = row.getAttribute('data-filename');
             return getAttachmentNameForPath(path);
         }
         function setAttachmentSourceForPath(path, source) {
@@ -5815,7 +5817,7 @@
                     if (row && row.row) {
                         row.row.setAttribute('data-filename', normPath || doneData.filename);
                         setRowAttachmentSource(row.row, 'upload');
-                        if (normPath) setAttachmentNameForPath(normPath, row.row.dataset.displayName || file.name || normPath);
+                        if (normPath) setAttachmentNameForPath(normPath, defaultAttachmentDisplayName(normPath));
                     }
                     if (normPath) setAttachmentSourceForPath(normPath, 'upload');
                     if (row && row.status) row.status.textContent = '完了';
@@ -5877,7 +5879,7 @@
                         if (row && row.row) {
                             row.row.setAttribute('data-filename', normPath || d.filename);
                             setRowAttachmentSource(row.row, 'upload');
-                            if (normPath) setAttachmentNameForPath(normPath, row.row.dataset.displayName || file.name || normPath);
+                            if (normPath) setAttachmentNameForPath(normPath, defaultAttachmentDisplayName(normPath));
                         }
                         if (normPath) setAttachmentSourceForPath(normPath, 'upload');
                         if (row && row.status) row.status.textContent = '完了';
@@ -5993,8 +5995,6 @@
                 row.row.dataset.originalSource = '';
                 row.row.dataset.attachOriginal = '';
             }
-            const filepath = row.row.getAttribute('data-filename');
-            if (filepath) setAttachmentNameForPath(filepath, displayName);
         }
         function saveMarkerHistory() {
             const canvas = get('marker-canvas');

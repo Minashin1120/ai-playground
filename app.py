@@ -3558,34 +3558,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if norm_name:
                         attachment_name_map[norm_path] = norm_name
             label_name_map = _get_user_file_label_map(user_id)
-            auto_image_name_seq = 0
-            auto_file_name_seq = 0
-
-            def _guess_ext_from_mime(mime):
-                m = str(mime or "").lower()
-                if m == "image/jpeg":
-                    return ".jpg"
-                if m == "image/png":
-                    return ".png"
-                if m == "image/webp":
-                    return ".webp"
-                if m == "application/pdf":
-                    return ".pdf"
-                if m == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                    return ".docx"
-                if m.startswith("text/"):
-                    return ".txt"
-                if m.startswith("audio/"):
-                    guessed = mimetypes.guess_extension(m)
-                    return guessed if guessed else ".audio"
-                if m.startswith("video/"):
-                    guessed = mimetypes.guess_extension(m)
-                    return guessed if guessed else ".video"
-                guessed = mimetypes.guess_extension(m)
-                return guessed if guessed else ""
 
             def _resolve_send_name(rel_path, mime):
-                nonlocal auto_image_name_seq, auto_file_name_seq
                 norm_rel = _normalize_upload_ref(rel_path)
                 base_name = os.path.basename(norm_rel or "") or "file"
                 explicit = attachment_name_map.get(norm_rel) if norm_rel else None
@@ -3595,25 +3569,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     fixed = _normalize_display_name_for_path(norm_rel, explicit)
                     if fixed:
                         return fixed
-                _, ext = os.path.splitext(base_name)
-                if not ext:
-                    ext = _guess_ext_from_mime(mime)
-                mime_l = str(mime or "").lower()
-                if mime_l.startswith("image/"):
-                    auto_image_name_seq += 1
-                    auto_name = f"画像{auto_image_name_seq}{ext}"
-                    if norm_rel:
-                        fixed = _normalize_display_name_for_path(norm_rel, auto_name)
-                        if fixed:
-                            return fixed
-                    return auto_name
-                auto_file_name_seq += 1
-                auto_name = f"ファイル{auto_file_name_seq}{ext}"
                 if norm_rel:
-                    fixed = _normalize_display_name_for_path(norm_rel, auto_name)
+                    fixed = _normalize_display_name_for_path(norm_rel, base_name)
                     if fixed:
                         return fixed
-                return auto_name
+                return _sanitize_file_display_name(base_name) or "file"
             try:
                 max_single_mb = int(os.getenv("ATTACHMENT_MAX_MB", str(_upload_max_mb)) or _upload_max_mb)
             except Exception:

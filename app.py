@@ -7881,6 +7881,11 @@ def _normalize_webauthn_credentials(raw):
         if not cred_id or not public_key or cred_id in seen_ids:
             continue
         try:
+            base64url_to_bytes(cred_id)
+            base64url_to_bytes(public_key)
+        except Exception:
+            continue
+        try:
             sign_count = int(item.get('sign_count', 0) or 0)
         except Exception:
             sign_count = 0

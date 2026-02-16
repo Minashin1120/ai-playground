@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.197)</title>
+    <title>AI Playground (V4.8.198)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -3541,6 +3541,54 @@
                 `;
                 tab.appendChild(card);
             };
+            const AUTO_SYS_PROMPT_ITEMS = [
+                { key: 'python', label: 'Python 実行案内' },
+                { key: 'gemini_local_python', label: 'Gemini 音声/動画 + Python（ローカル実行）' },
+                { key: 'grok_search', label: 'Search補助（Grok）' },
+                { key: 'openai_search', label: 'Search補助（OpenAI/xAI Responses）' },
+                { key: 'marker', label: 'Marker編集時' }
+            ];
+            const buildAutoSystemPromptRows = (prefix, compact = false) => {
+                const textClass = compact
+                    ? 'w-full h-14 bg-gray-950 border border-gray-700 rounded p-2 text-[11px] text-gray-200'
+                    : 'w-full h-20 bg-gray-950 border border-gray-700 rounded p-2 text-xs text-gray-200';
+                return AUTO_SYS_PROMPT_ITEMS.map((item) => `
+                    <div class="rounded border border-gray-700 p-2 bg-gray-950/40">
+                        <div class="flex items-center justify-between mb-1">
+                            <div class="text-[11px] text-gray-300">${item.label}</div>
+                            <label class="flex items-center gap-1 text-[10px] text-gray-500">
+                                <input type="checkbox" id="${prefix}-auto-sys-${item.key}-enabled" class="accent-yellow-500 w-3 h-3">
+                                <span>適用</span>
+                            </label>
+                        </div>
+                        <textarea id="${prefix}-auto-sys-${item.key}-text" class="${textClass}" placeholder="自動注入文言"></textarea>
+                    </div>
+                `).join('');
+            };
+            const applyAutoSystemPromptConfigToForm = (prefix, cfg = {}) => {
+                AUTO_SYS_PROMPT_ITEMS.forEach((item) => {
+                    const row = cfg && typeof cfg === 'object' ? (cfg[item.key] || {}) : {};
+                    const enabledEl = get(`${prefix}-auto-sys-${item.key}-enabled`);
+                    const textEl = get(`${prefix}-auto-sys-${item.key}-text`);
+                    if (enabledEl) enabledEl.checked = row.enabled !== false;
+                    if (textEl) {
+                        textEl.value = row.text || '';
+                        textEl.placeholder = row.default_text || '自動注入文言';
+                    }
+                });
+            };
+            const collectAutoSystemPromptConfigFromForm = (prefix) => {
+                const cfg = {};
+                AUTO_SYS_PROMPT_ITEMS.forEach((item) => {
+                    const enabledEl = get(`${prefix}-auto-sys-${item.key}-enabled`);
+                    const textEl = get(`${prefix}-auto-sys-${item.key}-text`);
+                    cfg[item.key] = {
+                        enabled: enabledEl ? enabledEl.checked : true,
+                        text: textEl ? textEl.value : ''
+                    };
+                });
+                return cfg;
+            };
             const ensureAutoSystemPromptSettingsCard = () => {
                 const promptToggle = get('set-global-sys-prompt-enabled');
                 const wrapHost = promptToggle ? promptToggle.closest('.space-y-4') : null;
@@ -3549,15 +3597,15 @@
                 box.id = 'auto-sys-prompt-settings';
                 box.className = 'border-t border-gray-700 pt-3';
                 box.innerHTML = `
-                    <div class="flex items-center justify-between mb-1">
-                        <label class="text-xs text-gray-500 block">自動注入システムプロンプト（Python/Search/Marker）</label>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-xs text-gray-500 block">自動注入システムプロンプト（ユーザー単位）</label>
                         <label class="flex items-center gap-1 text-[10px] text-gray-400">
                             <input type="checkbox" id="set-apply-auto-sys-prompt-notices" class="accent-yellow-500 w-3 h-3">
-                            <span>適用</span>
+                            <span>全体適用</span>
                         </label>
                     </div>
-                    <textarea id="auto-sys-prompt-preview" readonly class="w-full h-28 bg-gray-950 border border-gray-700 rounded p-2 text-xs text-gray-200" placeholder="自動注入プロンプト"></textarea>
-                    <div class="text-[10px] text-gray-500 mt-2">OFFにすると、自動補助文言（Python有効時・検索ツール有効時・Marker利用時など）だけを自分のチャットで無効化します。</div>
+                    <div id="set-auto-sys-prompt-items" class="space-y-2">${buildAutoSystemPromptRows('set', false)}</div>
+                    <div class="text-[10px] text-gray-500 mt-2">各文面はユーザー単位で編集されます。空欄で保存すると既定文面に戻ります。</div>
                 `;
                 wrapHost.appendChild(box);
             };
@@ -3569,14 +3617,14 @@
                 box.id = 'thread-auto-sys-prompt-settings';
                 box.className = 'border-t border-gray-700 pt-3';
                 box.innerHTML = `
-                    <div class="text-xs text-gray-400 mb-1">自動注入システムプロンプト（参照 + ユーザー単位ON/OFF）</div>
-                    <div class="flex items-center justify-end mb-1">
+                    <div class="text-xs text-gray-400 mb-2">自動注入システムプロンプト（ユーザー単位）</div>
+                    <div class="flex items-center justify-end mb-2">
                         <label class="flex items-center gap-1 text-[10px] text-gray-500">
                             <input type="checkbox" id="thread-apply-auto-sys-prompt-notices" class="accent-yellow-500 w-3 h-3">
-                            <span>適用</span>
+                            <span>全体適用</span>
                         </label>
                     </div>
-                    <textarea id="thread-auto-sys-prompt-preview" readonly class="w-full h-20 bg-gray-950 border border-gray-700 rounded p-2 text-[11px] text-gray-200" placeholder="自動注入プロンプト"></textarea>
+                    <div id="thread-auto-sys-prompt-items" class="space-y-2">${buildAutoSystemPromptRows('thread', true)}</div>
                 `;
                 wrapHost.appendChild(box);
             };
@@ -3610,7 +3658,7 @@
                         }
                         if(get('set-apply-global-sys-prompt')) get('set-apply-global-sys-prompt').checked = d.apply_global_system_prompt !== false;
                         if(get('set-apply-auto-sys-prompt-notices')) get('set-apply-auto-sys-prompt-notices').checked = d.apply_auto_system_prompt_notices !== false;
-                        if(get('auto-sys-prompt-preview')) get('auto-sys-prompt-preview').value = d.auto_system_prompt_notices_preview || '';
+                        applyAutoSystemPromptConfigToForm('set', d.auto_system_prompt_notices_config || {});
                         get('sys-prompt-text').value = d.system_prompt; 
                         if(get('set-global-sys-prompt-enabled')) get('set-global-sys-prompt-enabled').checked = d.system_prompt_enabled !== false;
                         if(get('set-openai')) get('set-openai').value = d.openai_key || ''; 
@@ -3798,6 +3846,7 @@
                     system_prompt_enabled: get('set-global-sys-prompt-enabled') ? get('set-global-sys-prompt-enabled').checked : true,
                     apply_global_system_prompt: get('set-apply-global-sys-prompt') ? get('set-apply-global-sys-prompt').checked : true,
                     apply_auto_system_prompt_notices: get('set-apply-auto-sys-prompt-notices') ? get('set-apply-auto-sys-prompt-notices').checked : true,
+                    auto_system_prompt_notices_config: collectAutoSystemPromptConfigFromForm('set'),
                     theme_color: normalizeHex(get('set-theme-color-text') ? get('set-theme-color-text').value : '') || THEME_DEFAULT,
                     stt_model: get('set-stt-model') ? get('set-stt-model').value : null,
                     enter_to_send: get('set-enter-to-send') ? get('set-enter-to-send').checked : false,
@@ -7500,7 +7549,7 @@
                 if (get('thread-global-sys-prompt')) get('thread-global-sys-prompt').value = d.system_prompt || '';
                 if (get('thread-global-sys-prompt-enabled')) get('thread-global-sys-prompt-enabled').checked = d.system_prompt_enabled !== false;
                 if (get('thread-apply-auto-sys-prompt-notices')) get('thread-apply-auto-sys-prompt-notices').checked = d.apply_auto_system_prompt_notices !== false;
-                if (get('thread-auto-sys-prompt-preview')) get('thread-auto-sys-prompt-preview').value = d.auto_system_prompt_notices_preview || '';
+                applyAutoSystemPromptConfigToForm('thread', d.auto_system_prompt_notices_config || {});
             });
         };
 
@@ -7512,7 +7561,8 @@
             const userPromptPayload = (globalPromptEl || globalEnabledEl) ? {
                 system_prompt: globalPromptEl ? globalPromptEl.value : '',
                 system_prompt_enabled: globalEnabledEl ? globalEnabledEl.checked : true,
-                apply_auto_system_prompt_notices: get('thread-apply-auto-sys-prompt-notices') ? get('thread-apply-auto-sys-prompt-notices').checked : true
+                apply_auto_system_prompt_notices: get('thread-apply-auto-sys-prompt-notices') ? get('thread-apply-auto-sys-prompt-notices').checked : true,
+                auto_system_prompt_notices_config: collectAutoSystemPromptConfigFromForm('thread')
             } : null;
             
             try {

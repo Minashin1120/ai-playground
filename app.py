@@ -1424,6 +1424,7 @@ class User(UserMixin, db.Model):
     system_prompt_enabled = db.Column(db.Boolean, default=True)
     apply_global_system_prompt = db.Column(db.Boolean, default=True)
     apply_auto_system_prompt_notices = db.Column(db.Boolean, default=True)
+    auto_system_prompt_notices_config = db.Column(db.Text, nullable=True)
     openai_api_key = db.Column(db.Text, nullable=True)
     gemini_api_key = db.Column(db.Text, nullable=True)
     gemini_backend = db.Column(db.String(24), default="gemini_api")
@@ -2022,6 +2023,7 @@ def ensure_user_system_prompt_columns():
                 ("system_prompt_enabled", "ALTER TABLE user ADD COLUMN system_prompt_enabled BOOLEAN DEFAULT 1"),
                 ("apply_global_system_prompt", "ALTER TABLE user ADD COLUMN apply_global_system_prompt BOOLEAN DEFAULT 1"),
                 ("apply_auto_system_prompt_notices", "ALTER TABLE user ADD COLUMN apply_auto_system_prompt_notices BOOLEAN DEFAULT 1"),
+                ("auto_system_prompt_notices_config", "ALTER TABLE user ADD COLUMN auto_system_prompt_notices_config TEXT"),
             ]
             for column_name, ddl in columns:
                 res = conn.execute(text(
@@ -2474,6 +2476,124 @@ AUTO_SYSTEM_PROMPT_NOTICE_OPENAI_SEARCH = (
 )
 AUTO_SYSTEM_PROMPT_NOTICE_MARKER = "編集済みの画像を見てください。"
 
+AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
+    "python",
+    "gemini_local_python",
+    "grok_search",
+    "openai_search",
+    "marker",
+)
+
+AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
+    "python": "Python",
+    "gemini_local_python": "Gemini 音声/動画 + Python (ローカル実行時)",
+    "grok_search": "Search補助 (Grok)",
+    "openai_search": "Search補助 (OpenAI/xAI Responses)",
+    "marker": "Marker編集時",
+}
+
+AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS = {
+    "python": AUTO_SYSTEM_PROMPT_NOTICE_PYTHON,
+    "gemini_local_python": AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON,
+    "grok_search": AUTO_SYSTEM_PROMPT_NOTICE_GROK_SEARCH,
+    "openai_search": AUTO_SYSTEM_PROMPT_NOTICE_OPENAI_SEARCH,
+    "marker": AUTO_SYSTEM_PROMPT_NOTICE_MARKER,
+}
+
+AUTO_SYSTEM_PROMPT_NOTICE_MAX_CHARS = 4000
+
+
+def _coerce_bool_like(value, default=True):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    s = str(value).strip().lower()
+    if s in ("1", "true", "yes", "on"):
+        return True
+    if s in ("0", "false", "no", "off"):
+        return False
+    return default
+
+
+def _normalize_auto_notice_text(raw_text, default_text):
+    if raw_text is None:
+        return default_text
+    text = str(raw_text).replace("\r\n", "\n").strip()
+    if not text:
+        return default_text
+    if len(text) > AUTO_SYSTEM_PROMPT_NOTICE_MAX_CHARS:
+        text = text[:AUTO_SYSTEM_PROMPT_NOTICE_MAX_CHARS]
+    return text
+
+
+def _build_default_auto_system_prompt_notices_config():
+    config = {}
+    for key in AUTO_SYSTEM_PROMPT_NOTICE_KEYS:
+        default_text = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get(key, "")
+        config[key] = {
+            "label": AUTO_SYSTEM_PROMPT_NOTICE_LABELS.get(key, key),
+            "enabled": True,
+            "text": default_text,
+            "default_text": default_text,
+        }
+    return config
+
+
+def get_user_auto_system_prompt_notices_config(user):
+    config = _build_default_auto_system_prompt_notices_config()
+    raw = None
+    try:
+        raw = getattr(user, "auto_system_prompt_notices_config", None)
+    except Exception:
+        raw = None
+    if not raw:
+        return config
+    parsed = None
+    if isinstance(raw, dict):
+        parsed = raw
+    else:
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            parsed = None
+    if not isinstance(parsed, dict):
+        return config
+    for key in AUTO_SYSTEM_PROMPT_NOTICE_KEYS:
+        item = parsed.get(key)
+        if not isinstance(item, dict):
+            continue
+        default_text = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get(key, "")
+        config[key]["enabled"] = _coerce_bool_like(item.get("enabled"), True)
+        config[key]["text"] = _normalize_auto_notice_text(item.get("text"), default_text)
+    return config
+
+
+def set_user_auto_system_prompt_notices_config(user, new_config):
+    current = get_user_auto_system_prompt_notices_config(user)
+    if not isinstance(new_config, dict):
+        new_config = {}
+    for key in AUTO_SYSTEM_PROMPT_NOTICE_KEYS:
+        item = new_config.get(key)
+        if not isinstance(item, dict):
+            continue
+        if "enabled" in item:
+            current[key]["enabled"] = _coerce_bool_like(item.get("enabled"), True)
+        if "text" in item:
+            default_text = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get(key, "")
+            current[key]["text"] = _normalize_auto_notice_text(item.get("text"), default_text)
+    stored = {
+        key: {
+            "enabled": bool(current[key]["enabled"]),
+            "text": current[key]["text"],
+        }
+        for key in AUTO_SYSTEM_PROMPT_NOTICE_KEYS
+    }
+    user.auto_system_prompt_notices_config = json.dumps(stored, ensure_ascii=False)
+    return current
+
 
 def get_user_auto_system_prompt_notices_enabled(user):
     try:
@@ -2482,23 +2602,52 @@ def get_user_auto_system_prompt_notices_enabled(user):
         return True
 
 
-def build_auto_system_prompt_notices_preview():
-    lines = [
-        "[Python]",
-        AUTO_SYSTEM_PROMPT_NOTICE_PYTHON,
-        "",
-        "[Gemini 音声/動画 + Python (ローカル実行時)]",
-        AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON,
-        "",
-        "[Search補助 (Grok)]",
-        AUTO_SYSTEM_PROMPT_NOTICE_GROK_SEARCH,
-        "",
-        "[Search補助 (OpenAI/xAI Responses)]",
-        AUTO_SYSTEM_PROMPT_NOTICE_OPENAI_SEARCH,
-        "",
-        "[Marker編集時]",
-        AUTO_SYSTEM_PROMPT_NOTICE_MARKER,
-    ]
+def get_user_auto_system_prompt_notice_enabled(user, notice_key, config=None):
+    if notice_key not in AUTO_SYSTEM_PROMPT_NOTICE_KEYS:
+        return False
+    if not get_user_auto_system_prompt_notices_enabled(user):
+        return False
+    if config is None:
+        config = get_user_auto_system_prompt_notices_config(user)
+    try:
+        item = config.get(notice_key) or {}
+        return bool(item.get("enabled", True))
+    except Exception:
+        return True
+
+
+def get_user_auto_system_prompt_notice_text(user, notice_key, config=None):
+    default_text = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get(notice_key, "")
+    if notice_key not in AUTO_SYSTEM_PROMPT_NOTICE_KEYS:
+        return default_text
+    if config is None:
+        config = get_user_auto_system_prompt_notices_config(user)
+    try:
+        item = config.get(notice_key) or {}
+        text = str(item.get("text") or "").strip()
+        return text if text else default_text
+    except Exception:
+        return default_text
+
+
+def build_auto_system_prompt_notices_preview(user=None):
+    if user is None:
+        config = _build_default_auto_system_prompt_notices_config()
+        global_enabled = True
+    else:
+        config = get_user_auto_system_prompt_notices_config(user)
+        global_enabled = get_user_auto_system_prompt_notices_enabled(user)
+    lines = []
+    for key in AUTO_SYSTEM_PROMPT_NOTICE_KEYS:
+        item = config.get(key) or {}
+        label = AUTO_SYSTEM_PROMPT_NOTICE_LABELS.get(key, key)
+        enabled = bool(global_enabled and item.get("enabled", True))
+        text = str(item.get("text") or AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get(key, "")).strip()
+        lines.append(f"[{label}] {'ON' if enabled else 'OFF'}")
+        lines.append(text)
+        lines.append("")
+    if lines:
+        lines.pop()
     return "\n".join(lines)
 
 
@@ -3044,6 +3193,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             use_time_notice = False
             apply_global_prompt = True
             apply_auto_prompt_notices = get_user_auto_system_prompt_notices_enabled(user)
+            auto_notice_config = get_user_auto_system_prompt_notices_config(user)
+            def _auto_notice_enabled(notice_key):
+                return bool(
+                    apply_auto_prompt_notices
+                    and get_user_auto_system_prompt_notice_enabled(user, notice_key, auto_notice_config)
+                )
+            def _auto_notice_text(notice_key):
+                return get_user_auto_system_prompt_notice_text(user, notice_key, auto_notice_config)
             try:
                 if getattr(user, "apply_global_system_prompt", None) is False:
                     apply_global_prompt = False
@@ -3082,23 +3239,24 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             
             options['system_prompt'] = combined_prompt
 
-            if apply_auto_prompt_notices and options.get('enable_python'):
-                python_notice = AUTO_SYSTEM_PROMPT_NOTICE_PYTHON
+            if _auto_notice_enabled("python") and options.get('enable_python'):
+                python_notice = _auto_notice_text("python")
                 curr_p = options.get('system_prompt')
                 if curr_p and str(curr_p).strip():
                     if python_notice.lower() not in str(curr_p).lower():
                         options['system_prompt'] = f"{python_notice}\n\n{curr_p}"
                 else:
                     options['system_prompt'] = python_notice
-            if apply_auto_prompt_notices:
+            if _auto_notice_enabled("marker"):
                 marker_prompt = options.get('marker_system_prompt')
                 if marker_prompt and str(marker_prompt).strip():
+                    marker_notice = _auto_notice_text("marker")
                     curr_p = options.get('system_prompt') or ""
                     if curr_p.strip():
-                        if str(marker_prompt).strip() not in str(curr_p):
-                            options['system_prompt'] = f"{curr_p}\n\n{marker_prompt}"
+                        if str(marker_notice).strip() not in str(curr_p):
+                            options['system_prompt'] = f"{curr_p}\n\n{marker_notice}"
                     else:
-                        options['system_prompt'] = marker_prompt
+                        options['system_prompt'] = marker_notice
             if use_time_notice:
                 time_notice = build_global_system_prompt()
                 curr_p = options.get('system_prompt') or ""
@@ -3294,9 +3452,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             def _grok_system_prompt(base_prompt, enable_search):
                 if not enable_search:
                     return base_prompt
-                if not get_user_auto_system_prompt_notices_enabled(user):
+                if not _auto_notice_enabled("grok_search"):
                     return base_prompt
-                notice = AUTO_SYSTEM_PROMPT_NOTICE_GROK_SEARCH
+                notice = _auto_notice_text("grok_search")
                 if base_prompt and str(base_prompt).strip():
                     return f"{notice}\n\n{base_prompt}"
                 return notice
@@ -3304,9 +3462,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             def _openai_system_prompt(base_prompt, enable_search):
                 if not enable_search:
                     return base_prompt
-                if not get_user_auto_system_prompt_notices_enabled(user):
+                if not _auto_notice_enabled("openai_search"):
                     return base_prompt
-                notice = AUTO_SYSTEM_PROMPT_NOTICE_OPENAI_SEARCH
+                notice = _auto_notice_text("openai_search")
                 if base_prompt and str(base_prompt).strip():
                     return f"{notice}\n\n{base_prompt}"
                 return notice
@@ -3528,8 +3686,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 # Gemini code_execution does not accept audio/video inputs; fall back to local exec.
                 gemini_local_python = True
                 log_force("Gemini: local python mode for audio/video inputs")
-                if get_user_auto_system_prompt_notices_enabled(user):
-                    local_py_notice = AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON
+                if _auto_notice_enabled("gemini_local_python"):
+                    local_py_notice = _auto_notice_text("gemini_local_python")
                     curr_p = options.get('system_prompt') or ""
                     if local_py_notice not in str(curr_p):
                         options['system_prompt'] = f"{local_py_notice}\n\n{curr_p}" if str(curr_p).strip() else local_py_notice
@@ -7705,13 +7863,15 @@ def handle_settings():
                 global_prompt_effective = str(global_prompt_value)
             else:
                 global_prompt_effective = build_global_system_prompt()
+        auto_notices_config = get_user_auto_system_prompt_notices_config(current_user)
 
         payload = {
             'system_prompt': sp or "",
             'system_prompt_enabled': current_user.system_prompt_enabled if current_user.system_prompt_enabled is not None else True,
             'apply_global_system_prompt': current_user.apply_global_system_prompt if current_user.apply_global_system_prompt is not None else True,
             'apply_auto_system_prompt_notices': get_user_auto_system_prompt_notices_enabled(current_user),
-            'auto_system_prompt_notices_preview': build_auto_system_prompt_notices_preview(),
+            'auto_system_prompt_notices_preview': build_auto_system_prompt_notices_preview(current_user),
+            'auto_system_prompt_notices_config': auto_notices_config,
             'global_system_prompt': global_prompt_value,
             'global_system_prompt_enabled': global_prompt_enabled,
             'global_system_prompt_effective': global_prompt_effective,
@@ -7774,6 +7934,8 @@ def handle_settings():
         current_user.apply_global_system_prompt = bool(d['apply_global_system_prompt'])
     if 'apply_auto_system_prompt_notices' in d:
         current_user.apply_auto_system_prompt_notices = bool(d['apply_auto_system_prompt_notices'])
+    if 'auto_system_prompt_notices_config' in d:
+        set_user_auto_system_prompt_notices_config(current_user, d.get('auto_system_prompt_notices_config'))
     if 'openai_key' in d: current_user.openai_api_key = encrypt_val(d['openai_key'])
     if 'gemini_key' in d: current_user.gemini_api_key = encrypt_val(d['gemini_key'])
     if 'gemini_backend' in d: current_user.gemini_backend = _normalize_gemini_backend(d['gemini_backend'])
@@ -8874,6 +9036,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN apply_auto_system_prompt_notices BOOLEAN DEFAULT 1")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN auto_system_prompt_notices_config TEXT")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN default_safety_setting VARCHAR(16) DEFAULT 'default'")

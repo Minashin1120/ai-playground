@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.216)</title>
+    <title>AI Playground (V4.8.217)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -1015,7 +1015,7 @@
                 </label>
                 <label class="flex items-center gap-2">
                     <span class="text-gray-400">透明度</span>
-                    <input id="marker-opacity" type="range" min="10" max="100" value="60">
+                    <input id="marker-opacity" type="range" min="1" max="100" value="60">
                     <span id="marker-opacity-value">60%</span>
                 </label>
                 <label class="flex items-center gap-2 text-[10px] text-gray-400">
@@ -5265,13 +5265,13 @@
         }
         function getMarkerStrokeStyle() {
             const rgb = markerHexToRgb(markerState.colorHex);
-            const alpha = Math.max(0.1, Math.min(1, Number(markerState.opacity) || 0.6));
+            const alpha = Math.max(0.01, Math.min(1, Number(markerState.opacity) || 0.6));
             return `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`;
         }
         function syncMarkerColorControls() {
             const colorHex = normalizeMarkerHexColor(markerState.colorHex);
             markerState.colorHex = colorHex;
-            const alpha = Math.max(0.1, Math.min(1, Number(markerState.opacity) || 0.6));
+            const alpha = Math.max(0.01, Math.min(1, Number(markerState.opacity) || 0.6));
             markerState.opacity = alpha;
             const colorPicker = get('marker-color-picker');
             if (colorPicker && colorPicker.value !== colorHex) colorPicker.value = colorHex;
@@ -5290,7 +5290,7 @@
             syncMarkerColorControls();
         }
         function setMarkerOpacity(pctValue) {
-            const pct = Math.max(10, Math.min(100, Number(pctValue) || 60));
+            const pct = Math.max(1, Math.min(100, Number(pctValue) || 60));
             markerState.opacity = pct / 100;
             syncMarkerColorControls();
         }

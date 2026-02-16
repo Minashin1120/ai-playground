@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.203)</title>
+    <title>AI Playground (V4.8.204)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -421,6 +421,8 @@
         #gem-list .gem-item { border: 1px solid var(--line); background: rgba(11,18,26,0.7); }
         #gem-list .gem-item:hover { background: rgba(var(--theme-rgb),0.1); }
         #model-selector-btn { border: 1px solid var(--line); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02); }
+        #prompt-controls-row.compact-collapsed { justify-content: center; }
+        #prompt-controls-row.compact-collapsed #prompt-primary-controls { margin-inline: auto; }
         #file-preview { border: 1px solid var(--line); background: rgba(11,18,26,0.7); }
         #drop-overlay { background: rgba(11,18,26,0.92); border: 2px dashed rgba(var(--theme-rgb),0.6); }
         #upload-dropzone { border: 1px dashed rgba(148,163,184,0.5); background: rgba(11,18,26,0.6); }
@@ -676,7 +678,7 @@
                 </div>
 
                 <div id="prompt-controls-row" class="flex flex-wrap justify-between items-center text-xs text-gray-400 gap-2">
-                    <div class="flex items-center gap-2 min-w-0">
+                    <div id="prompt-primary-controls" class="flex items-center gap-2 min-w-0">
                         <input type="hidden" id="model-select" value="gemini-3-flash-preview">
                         <button id="model-selector-btn" onclick="openModelModal()" class="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-white text-xs hover:bg-gray-600 transition flex items-center gap-2 max-w-[200px] truncate">
                             <i class="fas fa-robot text-blue-400"></i>
@@ -1856,8 +1858,10 @@
             const toggleBtn = get('prompt-controls-toggle-btn');
             const toggleText = get('prompt-controls-toggle-text');
             const toggleIcon = get('prompt-controls-toggle-icon');
+            const row = get('prompt-controls-row');
             if (!details || !toggleBtn) return;
             const showDetails = !compactPromptMode || promptControlsExpanded;
+            if (row) row.classList.toggle('compact-collapsed', compactPromptMode && !showDetails);
             if (showDetails) details.classList.remove('hidden');
             else details.classList.add('hidden');
             if (compactPromptMode) {

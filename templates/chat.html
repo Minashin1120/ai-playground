@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.205)</title>
+    <title>AI Playground (V4.8.206)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -1161,8 +1161,17 @@
             <!-- WebAuthn -->
             <div class="bg-gray-900 p-4 rounded border border-gray-700">
                 <h3 class="text-sm font-bold text-green-400 mb-2"><i class="fas fa-key mr-2"></i> Security Key / Passkey</h3>
-                <p class="text-xs text-gray-400 mb-3">YubiKey, Touch ID, Windows Hello.</p>
-                <button onclick="registerWebAuthn()" class="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded text-xs font-bold w-full">Register Key</button>
+                <p class="text-xs text-gray-400 mb-3">YubiKey, Touch ID, Windows Hello. 複数のパスキーを登録できます。</p>
+                <div class="space-y-2">
+                    <input type="text" id="webauthn-name" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white" placeholder="パスキー名 (例: MacBook Touch ID)">
+                    <button id="register-webauthn-btn" onclick="registerWebAuthn()" class="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded text-xs font-bold w-full">Register Key</button>
+                </div>
+                <div class="mt-3">
+                    <div class="text-[11px] text-gray-400 mb-2">登録済みパスキー: <span id="passkey-count">0</span></div>
+                    <div id="passkey-list" class="space-y-2">
+                        <div class="text-[11px] text-gray-500">読み込み中...</div>
+                    </div>
+                </div>
             </div>
 
             <div class="bg-gray-900 p-4 rounded border border-gray-700">
@@ -3505,6 +3514,44 @@
                 if (Number.isNaN(d.getTime())) return val;
                 return d.toLocaleString();
             };
+            const renderPasskeyList = (items) => {
+                const list = Array.isArray(items) ? items : [];
+                const wrap = get('passkey-list');
+                const countEl = get('passkey-count');
+                if (countEl) countEl.innerText = String(list.length);
+                if (!wrap) return;
+                if (!list.length) {
+                    wrap.innerHTML = '<div class="text-[11px] text-gray-500">登録済みのパスキーはありません。</div>';
+                    return;
+                }
+                wrap.innerHTML = '';
+                list.forEach((item, idx) => {
+                    const credId = item && item.id ? String(item.id) : '';
+                    const row = document.createElement('div');
+                    row.className = 'bg-gray-800/60 border border-gray-700 rounded p-2 flex items-center justify-between gap-2';
+                    const left = document.createElement('div');
+                    left.className = 'min-w-0';
+                    const nameEl = document.createElement('div');
+                    nameEl.className = 'text-xs text-gray-200 truncate';
+                    nameEl.innerText = (item && item.name) ? String(item.name) : `Security Key ${idx + 1}`;
+                    const metaEl = document.createElement('div');
+                    metaEl.className = 'text-[10px] text-gray-500 mt-1';
+                    metaEl.innerText = item && item.created_at ? `登録日時: ${formatSessionTime(item.created_at)}` : '登録日時: 不明';
+                    left.appendChild(nameEl);
+                    left.appendChild(metaEl);
+                    row.appendChild(left);
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px] font-bold btn-hover shrink-0';
+                    btn.innerText = '削除';
+                    btn.disabled = !credId;
+                    if (credId) {
+                        btn.onclick = () => window.removeWebAuthnCredential(credId);
+                    }
+                    row.appendChild(btn);
+                    wrap.appendChild(row);
+                });
+            };
             const renderSessions = (sessions) => {
                 const list = get('session-list');
                 if (!list) return;
@@ -3959,9 +4006,11 @@
                     }
                     const pkOnly = get('set-passkey-only-login');
                     const pkNote = get('passkey-only-note');
+                    const passkeys = Array.isArray(d.passkey_credentials) ? d.passkey_credentials : [];
+                    renderPasskeyList(passkeys);
                     if (pkOnly) {
                         pkOnly.checked = !!d.passkey_only_login;
-                        const hasKey = !!d.has_webauthn;
+                        const hasKey = passkeys.length > 0 || !!d.has_webauthn;
                         pkOnly.disabled = !hasKey;
                         if (!hasKey) pkOnly.checked = false;
                         if (pkNote) {
@@ -4484,18 +4533,52 @@
             };
             
             window.registerWebAuthn = async () => {
+                const btn = get('register-webauthn-btn');
+                const nameInput = get('webauthn-name');
+                const passkeyName = nameInput ? String(nameInput.value || '').trim() : '';
                 try {
+                    if (btn) btn.disabled = true;
                     const optsRes = await apiFetch('/api/2fa/webauthn/register/options', {method:'POST'});
                     const options = await optsRes.json();
+                    if (!optsRes.ok) {
+                        showToast(options.error || 'パスキー登録の準備に失敗しました', 'error', true);
+                        return;
+                    }
                     const credential = await window.webauthnJSON.create({ publicKey: options });
                     const verifyRes = await apiFetch('/api/2fa/webauthn/register/verify', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify(credential)
+                        body: JSON.stringify(Object.assign({}, credential, { name: passkeyName }))
                     });
-                    if(verifyRes.ok) { alert("Passkey Registered!"); location.reload(); }
-                    else { const d=await verifyRes.json(); alert("Error: "+d.error); }
-                } catch(e) { alert("WebAuthn Error: "+e); }
+                    const d = await verifyRes.json().catch(() => ({}));
+                    if (verifyRes.ok) {
+                        if (nameInput) nameInput.value = '';
+                        showToast('パスキーを登録しました', 'success');
+                        openSettingsModal();
+                    } else {
+                        showToast(d.error || 'パスキー登録に失敗しました', 'error', true);
+                    }
+                } catch(e) {
+                    showToast(`WebAuthn Error: ${e}`, 'error', true);
+                } finally {
+                    if (btn) btn.disabled = false;
+                }
+            };
+            window.removeWebAuthnCredential = async (credId) => {
+                if (!credId) return;
+                if (!confirm('このパスキーを削除しますか？')) return;
+                const res = await apiFetch('/api/2fa/webauthn/remove', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ id: credId })
+                });
+                const d = await res.json().catch(() => ({}));
+                if (res.ok) {
+                    showToast('パスキーを削除しました', 'success');
+                    openSettingsModal();
+                    return;
+                }
+                showToast(d.error || 'パスキー削除に失敗しました', 'error', true);
             };
 
             if (get('delete-account-btn')) {

@@ -6375,12 +6375,7 @@ def login_passkey_options():
     # Allow passkey login even if IP/Cookie is banned; ban screen will handle after login.
     if not rate_limit(f"rl:login:user:{user.id}", 10, 300):
         return jsonify({'error': 'Too many attempts. Try again later.'}), 429
-    creds = []
-    if user.webauthn_credentials:
-        try:
-            creds = json.loads(user.webauthn_credentials)
-        except Exception:
-            creds = []
+    creds = _load_user_webauthn_credentials(user)
     if not creds:
         return jsonify({'error': 'No credentials'}), 400
     options = generate_authentication_options(
@@ -6408,12 +6403,13 @@ def login_passkey_verify():
     if not user:
         return jsonify({'error': 'Invalid user'}), 400
     try:
-        data = request.json
+        data = request.json or {}
         challenge = session.get('webauthn_login_challenge')
         if not challenge:
             return jsonify({'error': 'Challenge missing'}), 400
-        creds = json.loads(user.webauthn_credentials) if user.webauthn_credentials else []
-        current_cred = next((c for c in creds if c['id'] == data['id']), None)
+        creds = _load_user_webauthn_credentials(user)
+        credential_id = str(data.get('id') or '').strip()
+        current_cred = next((c for c in creds if c['id'] == credential_id), None)
         if not current_cred:
             return jsonify({'error': 'Credential not found'}), 400
         verification = verify_authentication_response(
@@ -6426,7 +6422,7 @@ def login_passkey_verify():
             require_user_verification=False
         )
         current_cred['sign_count'] = verification.new_sign_count
-        user.webauthn_credentials = json.dumps(creds)
+        _save_user_webauthn_credentials(user, creds)
         db.session.commit()
         session.pop('passkey_login_user_id', None)
         session.pop('webauthn_login_challenge', None)
@@ -6472,10 +6468,7 @@ def verify_2fa_webauthn_options():
     if not user_id: return jsonify({'error': 'Session expired'}), 401
     user = User.query.get(user_id)
     
-    creds = []
-    if user.webauthn_credentials:
-        try: creds = json.loads(user.webauthn_credentials)
-        except Exception as e: logger.error(f"JSON Parse Error: {e}")
+    creds = _load_user_webauthn_credentials(user)
     
     logger.info(f"User Creds Count: {len(creds)}")
     if not creds: return jsonify({'error': 'No credentials'}), 400
@@ -6500,12 +6493,13 @@ def verify_2fa_webauthn_verify():
         return jsonify({'error': 'Too many attempts'}), 429
     
     try:
-        data = request.json
+        data = request.json or {}
         challenge = session.get('webauthn_challenge')
         if not challenge: return jsonify({'error': 'Challenge missing'}), 400
         
-        creds = json.loads(user.webauthn_credentials) if user.webauthn_credentials else []
-        current_cred = next((c for c in creds if c['id'] == data['id']), None)
+        creds = _load_user_webauthn_credentials(user)
+        credential_id = str(data.get('id') or '').strip()
+        current_cred = next((c for c in creds if c['id'] == credential_id), None)
         if not current_cred: return jsonify({'error': 'Credential not found'}), 400
 
         verification = verify_authentication_response(
@@ -6519,7 +6513,7 @@ def verify_2fa_webauthn_verify():
         )
         
         current_cred['sign_count'] = verification.new_sign_count
-        user.webauthn_credentials = json.dumps(creds)
+        _save_user_webauthn_credentials(user, creds)
         db.session.commit()
         
         session.pop('pre_2fa_user_id', None)
@@ -7864,6 +7858,80 @@ def normalize_theme_color(value):
         return ""
     return v.lower()
 
+def _normalize_webauthn_credentials(raw):
+    if not raw:
+        return []
+    parsed = raw
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            return []
+    if isinstance(parsed, dict):
+        parsed = [parsed]
+    if not isinstance(parsed, list):
+        return []
+    creds = []
+    seen_ids = set()
+    for item in parsed:
+        if not isinstance(item, dict):
+            continue
+        cred_id = str(item.get('id') or '').strip()
+        public_key = str(item.get('public_key') or '').strip()
+        if not cred_id or not public_key or cred_id in seen_ids:
+            continue
+        try:
+            sign_count = int(item.get('sign_count', 0) or 0)
+        except Exception:
+            sign_count = 0
+        if sign_count < 0:
+            sign_count = 0
+        name = str(item.get('name') or '').strip() or 'Security Key'
+        created_at = item.get('created_at')
+        created_at_val = None
+        if created_at is not None:
+            created_at_val = str(created_at).strip() or None
+        creds.append({
+            'id': cred_id,
+            'public_key': public_key,
+            'sign_count': sign_count,
+            'name': name,
+            'created_at': created_at_val
+        })
+        seen_ids.add(cred_id)
+    return creds
+
+def _load_user_webauthn_credentials(user):
+    if not user:
+        return []
+    return _normalize_webauthn_credentials(getattr(user, "webauthn_credentials", None))
+
+def _save_user_webauthn_credentials(user, creds):
+    normalized = _normalize_webauthn_credentials(creds)
+    if not normalized:
+        user.webauthn_credentials = None
+        return []
+    user.webauthn_credentials = json.dumps(normalized, ensure_ascii=False, separators=(",", ":"))
+    return normalized
+
+def _serialize_public_webauthn_credentials(creds):
+    rows = []
+    for c in _normalize_webauthn_credentials(creds):
+        rows.append({
+            'id': c['id'],
+            'name': c.get('name') or 'Security Key',
+            'created_at': c.get('created_at')
+        })
+    return rows
+
+def _refresh_user_2fa_state(user):
+    has_totp = bool(getattr(user, 'totp_secret', None))
+    has_webauthn = bool(_load_user_webauthn_credentials(user))
+    if getattr(user, 'passkey_only_login', False) and not has_webauthn:
+        user.passkey_only_login = False
+    if not has_totp and not has_webauthn:
+        user.is_2fa_enabled = False
+
 @app.route('/api/settings', methods=['GET', 'POST'])
 @login_required
 def handle_settings():
@@ -7876,7 +7944,8 @@ def handle_settings():
         if current_user.enable_e2ee and sp: sp = decrypt_val(sp)
         # 2FA Status
         has_totp = bool(current_user.totp_secret)
-        has_webauthn = bool(current_user.webauthn_credentials and json.loads(current_user.webauthn_credentials))
+        passkeys = _load_user_webauthn_credentials(current_user)
+        has_webauthn = bool(passkeys)
         
         global_prompt_value = get_app_setting("global_system_prompt", "") or ""
         global_prompt_enabled = get_bool_app_setting("global_system_prompt_enabled", True)
@@ -7940,6 +8009,8 @@ def handle_settings():
             'is_2fa_enabled': current_user.is_2fa_enabled,
             'has_totp': has_totp,
             'has_webauthn': has_webauthn,
+            'passkey_credentials': _serialize_public_webauthn_credentials(passkeys),
+            'passkey_count': len(passkeys),
             'passkey_only_login': current_user.passkey_only_login,
             'bot_detection_enabled': current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
             'bot_detection_global_enabled': get_bot_detection_global_enabled(),
@@ -8001,12 +8072,7 @@ def handle_settings():
     if 'passkey_only_login' in d:
         target = bool(d['passkey_only_login'])
         if target:
-            creds = []
-            if current_user.webauthn_credentials:
-                try:
-                    creds = json.loads(current_user.webauthn_credentials)
-                except Exception:
-                    creds = []
+            creds = _load_user_webauthn_credentials(current_user)
             if not creds:
                 return jsonify({'error': 'No passkey registered'}), 400
         current_user.passkey_only_login = target
@@ -8029,6 +8095,7 @@ def handle_settings():
         current_user.is_2fa_enabled = False
         flash("2FAを無効化しました。")
     else:
+        _refresh_user_2fa_state(current_user)
         safe_db_commit()
         flash("設定を保存しました")
     return jsonify({'status': 'ok'})
@@ -8126,15 +8193,21 @@ def totp_enable():
 @app.route('/api/2fa/webauthn/register/options', methods=['POST'])
 @login_required
 def webauthn_reg_options():
-    options = generate_registration_options(
-        rp_name="AI Chat Playground",
-        rp_id=request.host.split(':')[0],
-        user_id=str(current_user.id).encode(),
-        user_name=current_user.username,
-        authenticator_selection=AuthenticatorSelectionCriteria(
+    existing = _load_user_webauthn_credentials(current_user)
+    options_kwargs = {
+        "rp_name": "AI Chat Playground",
+        "rp_id": request.host.split(':')[0],
+        "user_id": str(current_user.id).encode(),
+        "user_name": current_user.username,
+        "authenticator_selection": AuthenticatorSelectionCriteria(
             user_verification=UserVerificationRequirement.PREFERRED
         )
-    )
+    }
+    if existing:
+        options_kwargs["exclude_credentials"] = [
+            PublicKeyCredentialDescriptor(id=base64url_to_bytes(c['id'])) for c in existing
+        ]
+    options = generate_registration_options(**options_kwargs)
     session['webauthn_reg_challenge'] = base64.b64encode(options.challenge).decode('utf-8')
     return options_to_json(options)
 
@@ -8142,7 +8215,7 @@ def webauthn_reg_options():
 @login_required
 def webauthn_reg_verify():
     try:
-        data = request.json
+        data = request.json or {}
         challenge = session.get('webauthn_reg_challenge')
         if not challenge: return jsonify({'error': 'Challenge missing'}), 400
         
@@ -8154,25 +8227,54 @@ def webauthn_reg_verify():
             require_user_verification=False 
         )
         
-        creds = []
-        if current_user.webauthn_credentials:
-            try: creds = json.loads(current_user.webauthn_credentials)
-            except: pass
-            
-        creds.append({
-            'id': base64.b64encode(verification.credential_id).decode('utf-8').replace('+', '-').replace('/', '_').rstrip('='),
-            'public_key': base64.b64encode(verification.credential_public_key).decode('utf-8').replace('+', '-').replace('/', '_').rstrip('='),
-            'sign_count': verification.sign_count,
-            'name': data.get('name', 'Security Key')
-        })
-        
-        current_user.webauthn_credentials = json.dumps(creds)
+        creds = _load_user_webauthn_credentials(current_user)
+        cred_id = base64.b64encode(verification.credential_id).decode('utf-8').replace('+', '-').replace('/', '_').rstrip('=')
+        cred_name = str(data.get('name') or '').strip()
+        if not cred_name:
+            cred_name = f"Security Key {len(creds) + 1}"
+        existing = next((c for c in creds if c['id'] == cred_id), None)
+        if existing:
+            existing['public_key'] = base64.b64encode(verification.credential_public_key).decode('utf-8').replace('+', '-').replace('/', '_').rstrip('=')
+            existing['sign_count'] = verification.sign_count
+            existing['name'] = cred_name
+        else:
+            creds.append({
+                'id': cred_id,
+                'public_key': base64.b64encode(verification.credential_public_key).decode('utf-8').replace('+', '-').replace('/', '_').rstrip('='),
+                'sign_count': verification.sign_count,
+                'name': cred_name,
+                'created_at': datetime.utcnow().isoformat() + "Z"
+            })
+        _save_user_webauthn_credentials(current_user, creds)
         current_user.is_2fa_enabled = True
+        session.pop('webauthn_reg_challenge', None)
         safe_db_commit()
-        return jsonify({'status': 'ok'})
+        return jsonify({'status': 'ok', 'passkey_credentials': _serialize_public_webauthn_credentials(creds)})
     except Exception as e:
         logger.error(f"WebAuthn Reg Error: {e}")
         return jsonify({'error': str(e)}), 400
+
+@app.route('/api/2fa/webauthn/remove', methods=['POST'])
+@login_required
+def webauthn_remove():
+    data = request.json or {}
+    cred_id = str(data.get('id') or '').strip()
+    if not cred_id:
+        return jsonify({'error': 'id_required'}), 400
+    creds = _load_user_webauthn_credentials(current_user)
+    filtered = [c for c in creds if c['id'] != cred_id]
+    if len(filtered) == len(creds):
+        return jsonify({'error': 'not_found'}), 404
+    _save_user_webauthn_credentials(current_user, filtered)
+    _refresh_user_2fa_state(current_user)
+    safe_db_commit()
+    return jsonify({
+        'status': 'ok',
+        'has_webauthn': bool(filtered),
+        'passkey_only_login': bool(current_user.passkey_only_login),
+        'is_2fa_enabled': bool(current_user.is_2fa_enabled),
+        'passkey_count': len(filtered)
+    })
 
 @app.route('/api/gems', methods=['GET', 'POST'])
 @login_required

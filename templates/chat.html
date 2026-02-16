@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.206)</title>
+    <title>AI Playground (V4.8.207)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -1559,6 +1559,7 @@
          
         const markerAppliedUploads = new Set();
         const attachmentSourceByPath = new Map();
+        const attachmentNameByPath = new Map();
         const MARKER_HINT_TEXT = "編集済みの画像を見てください。";
         const markerState = {
             row: null,
@@ -2592,6 +2593,7 @@
             if (path) {
                 if (!currentImageUrls.includes(path)) {
                     currentImageUrls.push(path);
+                    setAttachmentNameForPath(path, item.filename || '');
                     updateFilePreview();
                     showToast("画像を添付ファイルに追加しました", "success");
                     closeImageViewer();
@@ -5167,6 +5169,57 @@
             if (raw === 'upload' || raw === 'uploaded') return 'upload';
             return 'unknown';
         }
+        function normalizeAttachmentDisplayName(name) {
+            if (name === null || name === undefined) return '';
+            let v = String(name).replace(/\u0000/g, '');
+            v = v.replace(/\r/g, ' ').replace(/\n/g, ' ').replace(/\t/g, ' ');
+            v = v.trim();
+            if (!v) return '';
+            v = v.split('/').pop().split('\\').pop().trim();
+            v = v.replace(/\s{2,}/g, ' ');
+            v = v.replace(/[<>:"/\\|?*]+/g, '_');
+            if (!v || v === '.' || v === '..') return '';
+            if (v.length > 180) v = v.slice(0, 180).trim();
+            return v;
+        }
+        function defaultAttachmentDisplayName(path) {
+            const norm = normalizeAttachmentPath(path);
+            if (!norm) return '';
+            return norm.split('/').pop() || norm;
+        }
+        function setAttachmentNameForPath(path, displayName) {
+            const norm = normalizeAttachmentPath(path);
+            if (!norm) return;
+            const next = normalizeAttachmentDisplayName(displayName) || defaultAttachmentDisplayName(norm);
+            if (!next) return;
+            attachmentNameByPath.set(norm, next);
+        }
+        function getAttachmentNameForPath(path) {
+            const norm = normalizeAttachmentPath(path);
+            if (!norm) return '';
+            const named = normalizeAttachmentDisplayName(attachmentNameByPath.get(norm));
+            if (named) return named;
+            return defaultAttachmentDisplayName(norm);
+        }
+        function setRowAttachmentName(row, displayName) {
+            if (!row) return;
+            const next = normalizeAttachmentDisplayName(displayName) || getAttachmentNameForPath(row.getAttribute('data-filename')) || 'file';
+            row.dataset.displayName = next;
+            const nameEl = row.querySelector('.truncate');
+            if (nameEl) nameEl.textContent = next;
+            const path = row.getAttribute('data-filename');
+            if (path) setAttachmentNameForPath(path, next);
+        }
+        function getRowAttachmentName(row) {
+            if (!row) return '';
+            const fromRow = normalizeAttachmentDisplayName(row.dataset.displayName);
+            if (fromRow) return fromRow;
+            const nameEl = row.querySelector('.truncate');
+            const fromText = normalizeAttachmentDisplayName(nameEl ? nameEl.textContent : '');
+            if (fromText) return fromText;
+            const path = row.getAttribute('data-filename');
+            return getAttachmentNameForPath(path);
+        }
         function setAttachmentSourceForPath(path, source) {
             const norm = normalizeAttachmentPath(path);
             if (!norm) return;
@@ -5240,15 +5293,16 @@
         function collectAttachmentItemsForSend() {
             const items = [];
             const indexByPath = new Map();
-            const pushItem = (path, source) => {
+            const pushItem = (path, source, displayName) => {
                 const norm = normalizeAttachmentPath(path);
                 if (!norm) return;
                 const src = normalizeAttachmentSource(source);
+                const name = normalizeAttachmentDisplayName(displayName) || getAttachmentNameForPath(norm);
                 const idx = indexByPath.get(norm);
                 if (idx === undefined) {
                     const nextIndex = items.length;
                     indexByPath.set(norm, nextIndex);
-                    items.push({ path: norm, source: src });
+                    items.push({ path: norm, source: src, name });
                     return;
                 }
                 const prev = items[idx];
@@ -5259,23 +5313,26 @@
                 } else if (prevSrc === 'library' && src === 'upload') {
                     prev.source = src;
                 }
+                if (!normalizeAttachmentDisplayName(prev.name) && name) {
+                    prev.name = name;
+                }
             };
 
             const list = get('upload-list');
             if (list) {
                 list.querySelectorAll('[data-filename]').forEach((row) => {
                     const main = row.getAttribute('data-filename');
-                    pushItem(main, getRowAttachmentSource(row));
+                    pushItem(main, getRowAttachmentSource(row), getRowAttachmentName(row));
                     const original = row.getAttribute('data-original-filename');
                     const attachOriginal = row.dataset.attachOriginal === '1';
                     if (attachOriginal) {
-                        pushItem(original, getRowOriginalAttachmentSource(row));
+                        pushItem(original, getRowOriginalAttachmentSource(row), getAttachmentNameForPath(original));
                     }
                 });
             }
             if (currentImageUrls && currentImageUrls.length) {
                 currentImageUrls.forEach((u) => {
-                    pushItem(u, getAttachmentSourceForPath(u));
+                    pushItem(u, getAttachmentSourceForPath(u), getAttachmentNameForPath(u));
                 });
             }
             return items;
@@ -5483,7 +5540,12 @@
                 if (fp) existing.add(fp);
             });
             currentImageUrls.forEach((fp) => {
-                if (!existing.has(fp)) addStoredUploadRow(fp, { source: getAttachmentSourceForPath(fp) });
+                if (!existing.has(fp)) {
+                    addStoredUploadRow(fp, {
+                        source: getAttachmentSourceForPath(fp),
+                        displayName: getAttachmentNameForPath(fp)
+                    });
+                }
             });
             if (list.children.length === 0) {
                 list.innerHTML = '<div class="text-xs text-gray-500">まだアップロードがありません。</div>';
@@ -5514,6 +5576,7 @@
                 list.innerHTML = '';
             }
             const filename = filepath.split('/').pop() || filepath;
+            const displayName = normalizeAttachmentDisplayName(opts.displayName) || getAttachmentNameForPath(filepath) || filename;
             const ext = (filename.split('.').pop() || '').toLowerCase();
             const isImage = ['png','jpg','jpeg','webp','gif'].includes(ext);
             const url = "{{ url_for('serve_file', filename='') }}" + filepath;
@@ -5523,7 +5586,8 @@
             row.dataset.uploadId = uploadId;
             row.setAttribute('data-filename', filepath);
             row.dataset.fileSource = source;
-            const safeName = escapeHtml(filename);
+            row.dataset.displayName = displayName;
+            const safeName = escapeHtml(displayName);
             const markerBtnHtml = isImage
                 ? `<button class="upload-marker text-[10px] border rounded px-2 py-1">画像編集</button>`
                 : '';
@@ -5551,7 +5615,7 @@
             `;
             const previewEl = row.querySelector('.upload-preview');
             if (previewEl) {
-                previewEl.onclick = () => openFileViewer(url, filename);
+                previewEl.onclick = () => openFileViewer(url, displayName);
             }
             const removeBtn = row.querySelector('.upload-remove');
             if (removeBtn) {
@@ -5573,6 +5637,7 @@
                 markerBtn.onclick = () => openMarkerModalForRow(row);
             }
             setAttachmentSourceForPath(filepath, source);
+            setAttachmentNameForPath(filepath, displayName);
             list.prepend(row);
             return {
                 row: row,
@@ -5592,7 +5657,9 @@
             row.className = 'upload-row bg-gray-900/60 rounded p-2';
             row.dataset.uploadId = uploadId;
             row.dataset.fileSource = 'upload';
-            const safeName = escapeHtml(file.name || 'file');
+            const displayName = normalizeAttachmentDisplayName(file.name || 'file') || 'file';
+            row.dataset.displayName = displayName;
+            const safeName = escapeHtml(displayName);
             const isImage = file && file.type && file.type.startsWith('image/');
             let previewHtml = '<div class="upload-preview w-12 h-12 bg-gray-800 rounded border border-gray-700 flex items-center justify-center text-gray-400 text-sm">FILE</div>';
             const markerBtnHtml = isImage
@@ -5631,7 +5698,8 @@
                 previewEl.onclick = () => {
                     const filepath = row.getAttribute('data-filename');
                     const url = filepath ? ("{{ url_for('serve_file', filename='') }}" + filepath) : row.getAttribute('data-local-url');
-                    openFileViewer(url, file.name || filepath || '');
+                    const openName = normalizeAttachmentDisplayName(row.dataset.displayName) || file.name || filepath || '';
+                    openFileViewer(url, openName);
                 };
             }
             const removeBtn = row.querySelector('.upload-remove');
@@ -5747,6 +5815,7 @@
                     if (row && row.row) {
                         row.row.setAttribute('data-filename', normPath || doneData.filename);
                         setRowAttachmentSource(row.row, 'upload');
+                        if (normPath) setAttachmentNameForPath(normPath, row.row.dataset.displayName || file.name || normPath);
                     }
                     if (normPath) setAttachmentSourceForPath(normPath, 'upload');
                     if (row && row.status) row.status.textContent = '完了';
@@ -5808,6 +5877,7 @@
                         if (row && row.row) {
                             row.row.setAttribute('data-filename', normPath || d.filename);
                             setRowAttachmentSource(row.row, 'upload');
+                            if (normPath) setAttachmentNameForPath(normPath, row.row.dataset.displayName || file.name || normPath);
                         }
                         if (normPath) setAttachmentSourceForPath(normPath, 'upload');
                         if (row && row.status) row.status.textContent = '完了';
@@ -5891,13 +5961,15 @@
         function updateUploadRowFile(row, file) {
             if (!row || !row.row || !file) return;
             const nameEl = row.row.querySelector('.truncate');
-            if (nameEl) nameEl.textContent = file.name || 'file';
+            const displayName = normalizeAttachmentDisplayName(file.name || 'file') || 'file';
+            if (nameEl) nameEl.textContent = displayName;
+            row.row.dataset.displayName = displayName;
             const localUrl = row.row.getAttribute('data-local-url');
             if (localUrl) URL.revokeObjectURL(localUrl);
             const newUrl = URL.createObjectURL(file);
             row.row.setAttribute('data-local-url', newUrl);
             const isImage = file.type && file.type.startsWith('image/');
-            const safeName = escapeHtml(file.name || 'file');
+            const safeName = escapeHtml(displayName);
             const previewHtml = isImage
                 ? `<img src="${newUrl}" class="upload-preview w-12 h-12 object-cover rounded border border-gray-700 cursor-pointer" alt="${safeName}">`
                 : `<div class="upload-preview w-12 h-12 bg-gray-800 rounded border border-gray-700 flex items-center justify-center text-gray-400 text-sm cursor-pointer">FILE</div>`;
@@ -5908,7 +5980,7 @@
                 previewEl.onclick = () => {
                     const filepath = row.row.getAttribute('data-filename');
                     const url = filepath ? ("{{ url_for('serve_file', filename='') }}" + filepath) : row.row.getAttribute('data-local-url');
-                    openFileViewer(url, file.name || filepath || '');
+                    openFileViewer(url, displayName || filepath || '');
                 };
             }
             const markerBtn = row.row.querySelector('.upload-marker');
@@ -5921,6 +5993,8 @@
                 row.row.dataset.originalSource = '';
                 row.row.dataset.attachOriginal = '';
             }
+            const filepath = row.row.getAttribute('data-filename');
+            if (filepath) setAttachmentNameForPath(filepath, displayName);
         }
         function saveMarkerHistory() {
             const canvas = get('marker-canvas');
@@ -8025,6 +8099,7 @@
             const type = ['png','jpg','jpeg','webp','gif'].includes(ext) ? 'image' : 'file';
             const url = "{{ url_for('serve_file', filename='') }}" + filepath;
             const f = { filename, original_filename: filename, filepath, url, type, ext, ts: Math.floor(Date.now() / 1000) };
+            setAttachmentNameForPath(filepath, filename);
             lib.fileSet.add(filepath);
             if (!lib.files) lib.files = [];
             lib.files.unshift(f);
@@ -8058,6 +8133,15 @@
                 }
                 if (item) {
                     item.filename = d.filename || nextName;
+                    setAttachmentNameForPath(filepath, item.filename);
+                }
+                const uploadList = get('upload-list');
+                if (uploadList) {
+                    uploadList.querySelectorAll('[data-filename]').forEach((row) => {
+                        if (row.getAttribute('data-filename') === filepath) {
+                            setRowAttachmentName(row, item ? item.filename : (d.filename || nextName));
+                        }
+                    });
                 }
                 renderLibraryGrid();
                 window.updateLibSelectionUi();
@@ -8111,7 +8195,7 @@
                 const extra = Array.isArray(currentImageUrls) ? currentImageUrls : [];
                 extra.forEach((fp) => {
                     if (!fp || seenPaths.has(fp)) return;
-                    const filename = fp.split('/').pop() || fp;
+                    const filename = getAttachmentNameForPath(fp) || (fp.split('/').pop() || fp);
                     const ext = (filename.split('.').pop() || '').toLowerCase();
                     const type = ['png','jpg','jpeg','webp','gif'].includes(ext) ? 'image' : 'file';
                     files.unshift({ filename, original_filename: filename, filepath: fp, url: base + fp, type, ext, ts: Math.floor(Date.now() / 1000) });
@@ -8123,6 +8207,9 @@
                 if (!lib.selected) lib.selected = new Set();
                 lib.selected.clear(); 
                 lib.files = files.filter(f => f && f.filepath && f.url);
+                lib.files.forEach((f) => {
+                    if (f && f.filepath) setAttachmentNameForPath(f.filepath, f.filename || f.original_filename || '');
+                });
                 lib.fileSet = new Set(lib.files.map(f => f.filepath));
                 window.updateLibSelectionUi();
                 renderLibraryGrid();
@@ -8159,6 +8246,10 @@
                 }
                 const norm = normalizeAttachmentPath(fp);
                 if (!norm) return;
+                const item = (lib.files || []).find((f) => f && f.filepath === fp);
+                if (item && item.filename) {
+                    setAttachmentNameForPath(norm, item.filename);
+                }
                 if (!currentImageUrls.includes(norm)) currentImageUrls.push(norm);
                 setAttachmentSourceForPath(norm, 'library');
             });

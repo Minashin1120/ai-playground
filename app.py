@@ -3547,6 +3547,73 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             file_errors = []
             cache_updated = False
             total_loaded_bytes = 0
+            attachment_name_map = {}
+            raw_attachment_name_map = options.get("attachment_name_map") or {}
+            if isinstance(raw_attachment_name_map, dict):
+                for raw_path, raw_name in raw_attachment_name_map.items():
+                    norm_path = _normalize_upload_ref(raw_path)
+                    if not norm_path or not norm_path.startswith(f"{user_id}/"):
+                        continue
+                    norm_name = _normalize_display_name_for_path(norm_path, raw_name)
+                    if norm_name:
+                        attachment_name_map[norm_path] = norm_name
+            label_name_map = _get_user_file_label_map(user_id)
+            auto_image_name_seq = 0
+            auto_file_name_seq = 0
+
+            def _guess_ext_from_mime(mime):
+                m = str(mime or "").lower()
+                if m == "image/jpeg":
+                    return ".jpg"
+                if m == "image/png":
+                    return ".png"
+                if m == "image/webp":
+                    return ".webp"
+                if m == "application/pdf":
+                    return ".pdf"
+                if m == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                    return ".docx"
+                if m.startswith("text/"):
+                    return ".txt"
+                if m.startswith("audio/"):
+                    guessed = mimetypes.guess_extension(m)
+                    return guessed if guessed else ".audio"
+                if m.startswith("video/"):
+                    guessed = mimetypes.guess_extension(m)
+                    return guessed if guessed else ".video"
+                guessed = mimetypes.guess_extension(m)
+                return guessed if guessed else ""
+
+            def _resolve_send_name(rel_path, mime):
+                nonlocal auto_image_name_seq, auto_file_name_seq
+                norm_rel = _normalize_upload_ref(rel_path)
+                base_name = os.path.basename(norm_rel or "") or "file"
+                explicit = attachment_name_map.get(norm_rel) if norm_rel else None
+                if not explicit and norm_rel:
+                    explicit = label_name_map.get(norm_rel)
+                if explicit and norm_rel:
+                    fixed = _normalize_display_name_for_path(norm_rel, explicit)
+                    if fixed:
+                        return fixed
+                _, ext = os.path.splitext(base_name)
+                if not ext:
+                    ext = _guess_ext_from_mime(mime)
+                mime_l = str(mime or "").lower()
+                if mime_l.startswith("image/"):
+                    auto_image_name_seq += 1
+                    auto_name = f"画像{auto_image_name_seq}{ext}"
+                    if norm_rel:
+                        fixed = _normalize_display_name_for_path(norm_rel, auto_name)
+                        if fixed:
+                            return fixed
+                    return auto_name
+                auto_file_name_seq += 1
+                auto_name = f"ファイル{auto_file_name_seq}{ext}"
+                if norm_rel:
+                    fixed = _normalize_display_name_for_path(norm_rel, auto_name)
+                    if fixed:
+                        return fixed
+                return auto_name
             try:
                 max_single_mb = int(os.getenv("ATTACHMENT_MAX_MB", str(_upload_max_mb)) or _upload_max_mb)
             except Exception:
@@ -3600,6 +3667,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
                 elif is_text:
                     mime = 'text/plain'
+                send_name = _resolve_send_name(clean_fn, mime)
 
                 if is_pdf:
                     extracted = None
@@ -3617,6 +3685,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         'is_pdf': True,
                         'is_docx': False,
                         'is_text': False,
+                        'send_name': send_name,
                         'size': len(data),
                         'mtime': info.get("mtime")
                     })
@@ -3631,6 +3700,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         'is_pdf': False,
                         'is_docx': True,
                         'is_text': False,
+                        'send_name': send_name,
                         'size': len(data),
                         'mtime': info.get("mtime")
                     })
@@ -3644,6 +3714,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         'mime': mime,
                         'is_pdf': False,
                         'is_text': True,
+                        'send_name': send_name,
                         'size': len(data),
                         'mtime': info.get("mtime")
                     })
@@ -3656,6 +3727,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         'mime': mime,
                         'is_pdf': False,
                         'is_text': False,
+                        'send_name': send_name,
                         'size': len(data),
                         'mtime': info.get("mtime")
                     })
@@ -4216,12 +4288,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 continue
                         return None, None, last_err
 
+                    current_image_names = []
                     for fi in loaded_files:
                         if fi.get('is_pdf') and supports_pdf_inputs and fi.get('bytes'):
                             try:
                                 pdf_bytes = fi['bytes']
                                 pdf_mime = fi.get('mime') or 'application/pdf'
-                                pdf_name = os.path.basename(fi.get('name') or 'document.pdf')
+                                pdf_name = os.path.basename(fi.get('send_name') or fi.get('name') or 'document.pdf')
                                 rel_path = fi.get('path') or fi.get('name') or pdf_name
                                 if len(pdf_bytes) <= media_inline_limit:
                                     curr_parts.append(types.Part.from_bytes(data=pdf_bytes, mime_type=pdf_mime))
@@ -4271,13 +4344,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             except Exception as e:
                                 log_force(f"Gemini PDF upload failed: {e}")
                                 if fi.get('text'):
-                                    curr_parts.append(types.Part(text=f"\nFile: {fi['name']}\n{fi['text']}"))
+                                    curr_parts.append(types.Part(text=f"\nFile: {fi.get('send_name') or fi.get('name') or 'file'}\n{fi['text']}"))
                             continue
                         if fi.get('is_docx') and supports_docx_inputs and fi.get('bytes'):
                             try:
                                 docx_bytes = fi['bytes']
                                 docx_mime = fi.get('mime') or 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                                docx_name = os.path.basename(fi.get('name') or 'document.docx')
+                                docx_name = os.path.basename(fi.get('send_name') or fi.get('name') or 'document.docx')
                                 rel_path = fi.get('path') or fi.get('name') or docx_name
                                 if len(docx_bytes) <= media_inline_limit:
                                     curr_parts.append(types.Part.from_bytes(data=docx_bytes, mime_type=docx_mime))
@@ -4327,14 +4400,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             except Exception as e:
                                 log_force(f"Gemini docx upload failed: {e}")
                                 if fi.get('text'):
-                                    curr_parts.append(types.Part(text=f"\nFile: {fi['name']}\n{fi['text']}"))
+                                    curr_parts.append(types.Part(text=f"\nFile: {fi.get('send_name') or fi.get('name') or 'file'}\n{fi['text']}"))
                             continue
                         if fi.get('is_text') and supports_text_file_inputs and fi.get('bytes'):
                             attached = False
                             try:
                                 txt_bytes = fi['bytes']
                                 txt_mime = fi.get('mime') or 'text/plain'
-                                txt_name = os.path.basename(fi.get('name') or 'document.txt')
+                                txt_name = os.path.basename(fi.get('send_name') or fi.get('name') or 'document.txt')
                                 rel_path = fi.get('path') or fi.get('name') or txt_name
                                 if len(txt_bytes) <= media_inline_limit:
                                     curr_parts.append(types.Part.from_bytes(data=txt_bytes, mime_type=txt_mime))
@@ -4387,17 +4460,19 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             if attached:
                                 continue
                         if fi.get('text'):
-                            curr_parts.append(types.Part(text=f"\nFile: {fi['name']}\n{fi['text']}"))
+                            curr_parts.append(types.Part(text=f"\nFile: {fi.get('send_name') or fi.get('name') or 'file'}\n{fi['text']}"))
                             continue
                         if not fi.get('bytes'):
                             continue
                         mime = (fi.get('mime') or 'application/octet-stream').lower()
                         if mime.startswith('image/'):
                             curr_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime']))
+                            img_label = fi.get('send_name') or fi.get('name') or f"画像{len(current_image_names) + 1}"
+                            current_image_names.append(os.path.basename(str(img_label)))
                             continue
                         if mime.startswith('audio/'):
                             try:
-                                audio_bytes, audio_mime, audio_name = _normalize_gemini_audio(fi['bytes'], fi.get('mime') or mime, fi.get('name') or "")
+                                audio_bytes, audio_mime, audio_name = _normalize_gemini_audio(fi['bytes'], fi.get('mime') or mime, fi.get('send_name') or fi.get('name') or "")
                                 rel_path = fi.get('path') or fi.get('name') or audio_name
                                 audio_size = len(audio_bytes) if audio_bytes is not None else fi.get('size')
                                 if len(audio_bytes) <= media_inline_limit:
@@ -4447,14 +4522,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             break
                             except Exception as e:
                                 log_force(f"Gemini audio upload failed: {e}")
-                                pending_file_error = f"音声({fi.get('name') or 'file'})のアップロードに失敗しました。再送してください。"
+                                pending_file_error = f"音声({fi.get('send_name') or fi.get('name') or 'file'})のアップロードに失敗しました。再送してください。"
                                 break
                             continue
                         if mime.startswith('video/'):
                             try:
                                 video_bytes = fi['bytes']
                                 video_mime = fi.get('mime') or mime
-                                video_name = fi.get('name') or "video"
+                                video_name = fi.get('send_name') or fi.get('name') or "video"
                                 video_size = len(video_bytes) if video_bytes is not None else fi.get('size')
                                 rel_path = fi.get('path') or fi.get('name') or video_name
                                 cached_part = _gemini_get_cached_part(
@@ -4501,11 +4576,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         break
                             except Exception as e:
                                 log_force(f"Gemini video upload failed: {e}")
-                                pending_file_error = f"動画({fi.get('name') or 'file'})のアップロードに失敗しました。再送してください。"
+                                pending_file_error = f"動画({fi.get('send_name') or fi.get('name') or 'file'})のアップロードに失敗しました。再送してください。"
                                 break
                             continue
                         # Skip unsupported binary inputs for Gemini text models
                         pass
+
+                    if current_image_names:
+                        name_lines = "\n".join([f"- {n}" for n in current_image_names])
+                        curr_parts.insert(1, types.Part(text=f"添付画像名:\n{name_lines}"))
 
                     if pending_file_error:
                         pub("error", pending_file_error)
@@ -4763,7 +4842,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 img_mime = 'image/png'
                             except Exception:
                                 pass
-                        img_inputs.append((f"input_{len(img_inputs)}", img_bytes, img_mime))
+                        img_name = os.path.basename(fi.get('send_name') or f"input_{len(img_inputs)}")
+                        img_inputs.append((img_name, img_bytes, img_mime))
 
                     img_data_b64 = None
                     if img_inputs:
@@ -5050,12 +5130,18 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     else: chat_session.append(x_assistant(m['content']))
                 
                 curr_user_content = [final_message_text]
+                current_image_names = []
                 for fi in loaded_files:
                     if fi.get('text'): 
-                        curr_user_content[0] += f"\n\n[File: {fi['name']}]\n{fi['text']}"
+                        curr_user_content[0] += f"\n\n[File: {fi.get('send_name') or fi.get('name') or 'file'}]\n{fi['text']}"
                     elif fi.get('bytes') and fi.get('mime', '').startswith('image/'):
                         d_uri = f"data:{fi['mime']};base64,{base64.b64encode(fi['bytes']).decode('utf-8')}"
                         curr_user_content.append(x_image(d_uri))
+                        img_label = fi.get('send_name') or fi.get('name') or f"画像{len(current_image_names) + 1}"
+                        current_image_names.append(os.path.basename(str(img_label)))
+                if current_image_names:
+                    name_lines = "\n".join([f"- {n}" for n in current_image_names])
+                    curr_user_content[0] += f"\n\n添付画像名:\n{name_lines}"
                 
                 chat_session.append(x_user(*curr_user_content))
                 
@@ -5254,7 +5340,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 img_mime = 'image/png'
                             except Exception:
                                 pass
-                        img_inputs.append((f"input_{len(img_inputs)}", img_bytes, img_mime))
+                        img_name = os.path.basename(fi.get('send_name') or f"input_{len(img_inputs)}")
+                        img_inputs.append((img_name, img_bytes, img_mime))
                     mask_file = None
                     mask_name = options.get('image_mask')
                     if mask_name:
@@ -5388,7 +5475,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             attached = False
                             try:
                                 f_bytes = fi['bytes']
-                                f_name = os.path.basename(fi.get('name') or ('document.pdf' if fi.get('is_pdf') else 'document.docx' if fi.get('is_docx') else 'document.txt'))
+                                f_name = os.path.basename(fi.get('send_name') or fi.get('name') or ('document.pdf' if fi.get('is_pdf') else 'document.docx' if fi.get('is_docx') else 'document.txt'))
                                 if len(f_bytes) <= file_inline_limit:
                                     b64 = base64.b64encode(f_bytes).decode('utf-8')
                                     file_parts.append({"type": "file", "file": {"file_data": b64, "filename": f_name}})
@@ -5428,7 +5515,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             if attached:
                                 continue
                         if fi.get('text'):
-                            user_text += f"\n\n[File: {fi['name']}]\n{fi['text']}"
+                            user_text += f"\n\n[File: {fi.get('send_name') or fi.get('name') or 'file'}]\n{fi['text']}"
                     if file_attach_errors:
                         parts = file_attach_errors[:5]
                         if len(file_attach_errors) > 5:
@@ -5568,13 +5655,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 curr_content.append({"type": text_type, "text": message_text})
                 file_inline_limit = 20 * 1024 * 1024  # 20MiB inline limit for file inputs
                 file_attach_errors = []
+                current_image_names = []
 
                 for fi in loaded_files:
                     if (fi.get('is_pdf') or fi.get('is_docx') or fi.get('is_text')) and fi.get('bytes') and not is_grok:
                         attached = False
                         try:
                             f_bytes = fi['bytes']
-                            f_name = os.path.basename(fi.get('name') or ('document.pdf' if fi.get('is_pdf') else 'document.docx' if fi.get('is_docx') else 'document.txt'))
+                            f_name = os.path.basename(fi.get('send_name') or fi.get('name') or ('document.pdf' if fi.get('is_pdf') else 'document.docx' if fi.get('is_docx') else 'document.txt'))
                             if len(f_bytes) <= file_inline_limit:
                                 b64 = base64.b64encode(f_bytes).decode('utf-8')
                                 curr_content.append({"type": "input_file", "file_data": b64, "filename": f_name})
@@ -5616,7 +5704,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if fi.get('text'):
                         for part in reversed(curr_content):
                             if part.get('type') == text_type:
-                                part['text'] += f"\n\n[File: {fi['name']}]\n{fi['text']}"
+                                part['text'] += f"\n\n[File: {fi.get('send_name') or fi.get('name') or 'file'}]\n{fi['text']}"
                                 break
                     elif fi.get('bytes') and fi['mime'].startswith('image/'):
                         img_bytes = fi['bytes']
@@ -5634,6 +5722,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 pass
                         b64 = base64.b64encode(img_bytes).decode('utf-8')
                         curr_content.append({"type": image_type, "image_url": f"data:{img_mime};base64,{b64}"})
+                        img_label = fi.get('send_name') or fi.get('name') or f"画像{len(current_image_names) + 1}"
+                        current_image_names.append(os.path.basename(str(img_label)))
+                if current_image_names:
+                    name_lines = "\n".join([f"- {n}" for n in current_image_names])
+                    for part in reversed(curr_content):
+                        if part.get('type') == text_type:
+                            part['text'] += f"\n\n添付画像名:\n{name_lines}"
+                            break
                 if file_attach_errors:
                     parts = file_attach_errors[:5]
                     if len(file_attach_errors) > 5:
@@ -6619,6 +6715,7 @@ def chat_stream():
     thread_stream_id = t.public_id if t and t.public_id else None
     
     user_msg = None
+    attachment_name_map = {}
     try:
         raw_msg_content = data.get('message')
         msg_content = raw_msg_content
@@ -6634,11 +6731,15 @@ def chat_stream():
         for item in raw_image_items:
             if not isinstance(item, dict):
                 continue
-            source = _normalize_attachment_source(item.get('source'))
-            if source != "upload":
-                continue
             ref = item.get('path') or item.get('filepath') or item.get('url') or item.get('file')
-            if ref:
+            norm_ref = _normalize_upload_ref(ref)
+            if norm_ref and norm_ref.startswith(f"{current_user.id}/"):
+                raw_name = item.get('name') or item.get('filename') or item.get('display_name')
+                norm_name = _normalize_display_name_for_path(norm_ref, raw_name)
+                if norm_name:
+                    attachment_name_map[norm_ref] = norm_name
+            source = _normalize_attachment_source(item.get('source'))
+            if source == "upload" and ref:
                 uploaded_image_refs.append(ref)
         explicit_uploaded_refs = data.get('uploaded_image_urls') or []
         if isinstance(explicit_uploaded_refs, list):
@@ -6764,6 +6865,7 @@ def chat_stream():
         'grok_video_duration': data.get('grok_video_duration'),
         'grok_video_aspect': data.get('grok_video_aspect'),
         'grok_video_resolution': data.get('grok_video_resolution'),
+        'attachment_name_map': attachment_name_map,
     }
 
     task_queue.enqueue(background_chat_task, job_id, thread_id, data.get('model'), user_msg.id, options, current_user.id, user_config, job_timeout=600)

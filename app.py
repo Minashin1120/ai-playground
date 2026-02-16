@@ -2491,6 +2491,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_OPENAI_SEARCH = (
     "You can access external links via the web_search tool. If a URL cannot be accessed, say so clearly."
 )
 AUTO_SYSTEM_PROMPT_NOTICE_MARKER = "編集済みの画像を見てください。"
+AUTO_SYSTEM_PROMPT_NOTICE_ATTACHMENT_NAMES = "添付ファイル名"
 
 AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
     "python",
@@ -2498,6 +2499,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
     "grok_search",
     "openai_search",
     "marker",
+    "attachment_names",
 )
 
 AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
@@ -2506,6 +2508,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
     "grok_search": "Search補助 (Grok)",
     "openai_search": "Search補助 (OpenAI/xAI Responses)",
     "marker": "Marker編集時",
+    "attachment_names": "添付ファイル名 (LLM入力時)",
 }
 
 AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS = {
@@ -2514,6 +2517,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS = {
     "grok_search": AUTO_SYSTEM_PROMPT_NOTICE_GROK_SEARCH,
     "openai_search": AUTO_SYSTEM_PROMPT_NOTICE_OPENAI_SEARCH,
     "marker": AUTO_SYSTEM_PROMPT_NOTICE_MARKER,
+    "attachment_names": AUTO_SYSTEM_PROMPT_NOTICE_ATTACHMENT_NAMES,
 }
 
 AUTO_SYSTEM_PROMPT_NOTICE_MAX_CHARS = 4000
@@ -3217,6 +3221,21 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 )
             def _auto_notice_text(notice_key):
                 return get_user_auto_system_prompt_notice_text(user, notice_key, auto_notice_config)
+            def _build_attachment_name_block(names):
+                if not (is_llm_model and _auto_notice_enabled("attachment_names")):
+                    return ""
+                cleaned = []
+                for name in names or []:
+                    v = os.path.basename(str(name or "").strip())
+                    if v:
+                        cleaned.append(v)
+                if not cleaned:
+                    return ""
+                title = str(_auto_notice_text("attachment_names") or "").strip() or "添付ファイル名"
+                lines = "\n".join([f"- {n}" for n in cleaned])
+                if title.endswith(":") or title.endswith("："):
+                    return f"{title}\n{lines}"
+                return f"{title}:\n{lines}"
             try:
                 if getattr(user, "apply_global_system_prompt", None) is False:
                     apply_global_prompt = False
@@ -3354,6 +3373,22 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             is_gem = 'gemini' in model_key_l or 'nano' in model_key_l
             is_grok = 'grok' in model_key_l and 'gpt' not in model_key_l
             gemini_backend_mode = "gemini_api"
+            def _is_non_llm_model(m):
+                mk = str(m or "").lower().strip()
+                if not mk:
+                    return False
+                if "gpt-image" in mk:
+                    return True
+                if mk in ("grok-imagine-image", "grok-imagine-image-pro", "grok-imagine-video"):
+                    return True
+                if "nano" in mk:
+                    return True
+                if "tts" in mk:
+                    return True
+                if "gemini" in mk and any(x in mk for x in ("image", "nano", "native-audio")):
+                    return True
+                return False
+            is_llm_model = not _is_non_llm_model(model_key_l)
             grok_reasoning_supported = ("grok-3-mini" in model_key_l) or ("reasoning" in model_key_l and "non-reasoning" not in model_key_l)
             grok_reasoning_effort_supported = "grok-3-mini" in model_key_l
             req_reasoning_effort = (options.get('reasoning_effort') or "").lower().strip()
@@ -3627,7 +3662,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
                 elif is_text:
                     mime = 'text/plain'
-                send_name = _resolve_send_name(clean_fn, mime)
+                send_name = _resolve_send_name(clean_fn, mime) if is_llm_model else None
 
                 if is_pdf:
                     extracted = None
@@ -4542,9 +4577,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         # Skip unsupported binary inputs for Gemini text models
                         pass
 
-                    if current_image_names:
-                        name_lines = "\n".join([f"- {n}" for n in current_image_names])
-                        curr_parts.insert(1, types.Part(text=f"添付画像名:\n{name_lines}"))
+                    name_block = _build_attachment_name_block(current_image_names)
+                    if name_block:
+                        curr_parts.insert(1, types.Part(text=name_block))
 
                     if pending_file_error:
                         pub("error", pending_file_error)
@@ -4802,7 +4837,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 img_mime = 'image/png'
                             except Exception:
                                 pass
-                        img_name = os.path.basename(fi.get('send_name') or f"input_{len(img_inputs)}")
+                        img_name = os.path.basename(fi.get('send_name') or fi.get('name') or f"input_{len(img_inputs)}")
                         img_inputs.append((img_name, img_bytes, img_mime))
 
                     img_data_b64 = None
@@ -5099,9 +5134,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         curr_user_content.append(x_image(d_uri))
                         img_label = fi.get('send_name') or fi.get('name') or f"画像{len(current_image_names) + 1}"
                         current_image_names.append(os.path.basename(str(img_label)))
-                if current_image_names:
-                    name_lines = "\n".join([f"- {n}" for n in current_image_names])
-                    curr_user_content[0] += f"\n\n添付画像名:\n{name_lines}"
+                name_block = _build_attachment_name_block(current_image_names)
+                if name_block:
+                    curr_user_content[0] += f"\n\n{name_block}"
                 
                 chat_session.append(x_user(*curr_user_content))
                 
@@ -5300,7 +5335,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 img_mime = 'image/png'
                             except Exception:
                                 pass
-                        img_name = os.path.basename(fi.get('send_name') or f"input_{len(img_inputs)}")
+                        img_name = os.path.basename(fi.get('send_name') or fi.get('name') or f"input_{len(img_inputs)}")
                         img_inputs.append((img_name, img_bytes, img_mime))
                     mask_file = None
                     mask_name = options.get('image_mask')
@@ -5684,11 +5719,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         curr_content.append({"type": image_type, "image_url": f"data:{img_mime};base64,{b64}"})
                         img_label = fi.get('send_name') or fi.get('name') or f"画像{len(current_image_names) + 1}"
                         current_image_names.append(os.path.basename(str(img_label)))
-                if current_image_names:
-                    name_lines = "\n".join([f"- {n}" for n in current_image_names])
+                name_block = _build_attachment_name_block(current_image_names)
+                if name_block:
                     for part in reversed(curr_content):
                         if part.get('type') == text_type:
-                            part['text'] += f"\n\n添付画像名:\n{name_lines}"
+                            part['text'] += f"\n\n{name_block}"
                             break
                 if file_attach_errors:
                     parts = file_attach_errors[:5]

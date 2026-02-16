@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.195)</title>
+    <title>AI Playground (V4.8.196)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -957,6 +957,11 @@
                     </div>
                 </div>
                 <div class="border-t border-gray-700 pt-4">
+                    <div class="text-xs text-gray-400 mb-2">全体システムプロンプト（参照のみ）</div>
+                    <div class="space-y-2 mb-4">
+                        <textarea id="thread-app-global-sys-prompt-preview" readonly class="w-full h-20 bg-gray-950 border border-gray-700 rounded p-2 text-xs text-gray-200" placeholder="全体システムプロンプト"></textarea>
+                        <div id="thread-app-global-sys-prompt-preview-status" class="text-[10px] text-gray-500"></div>
+                    </div>
                     <div class="text-xs text-gray-400 mb-2">ユーザー設定のシステムプロンプト（この歯車からも編集可能）</div>
                     <div class="space-y-3">
                         <div>
@@ -7432,6 +7437,20 @@
             }
             showModal('thread-modal');
             apiFetch("{{ url_for('handle_settings', _=1) }}").then(r=>r.json()).then(d=>{ 
+                const threadGlobalPreview = get('thread-app-global-sys-prompt-preview');
+                if (threadGlobalPreview) {
+                    threadGlobalPreview.value = d.global_system_prompt_effective || '';
+                }
+                const threadGlobalPreviewStatus = get('thread-app-global-sys-prompt-preview-status');
+                if (threadGlobalPreviewStatus) {
+                    if (d.global_system_prompt_enabled === false) {
+                        threadGlobalPreviewStatus.textContent = '現在は無効化されています。';
+                    } else if (d.global_system_prompt_uses_time_fallback) {
+                        threadGlobalPreviewStatus.textContent = '管理者設定が空欄のため、時刻の既定プロンプトが適用されています。';
+                    } else {
+                        threadGlobalPreviewStatus.textContent = '管理者が設定した全体システムプロンプトが適用されています。';
+                    }
+                }
                 if (get('thread-global-sys-prompt')) get('thread-global-sys-prompt').value = d.system_prompt || '';
                 if (get('thread-global-sys-prompt-enabled')) get('thread-global-sys-prompt-enabled').checked = d.system_prompt_enabled !== false;
             });

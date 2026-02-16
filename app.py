@@ -41,7 +41,7 @@ from rq import Queue
 from datetime import datetime, timedelta
 from io import BytesIO
 from PIL import Image
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, make_response, flash, send_file, abort, session, g
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, make_response, flash, send_file, send_from_directory, abort, session, g
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -6278,6 +6278,14 @@ def api_ban_appeal_status():
 def api_version():
     resp = jsonify({'version': app.config.get('APP_VERSION', '')})
     resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+@app.route('/sw.js')
+def service_worker():
+    resp = send_from_directory(app.static_folder, 'sw.js')
+    resp.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+    resp.headers['Cache-Control'] = 'no-cache'
+    resp.headers['Service-Worker-Allowed'] = '/'
     return resp
 
 # -----------------------------------------------------------

@@ -2,8 +2,33 @@
 const VERSION = new URL(self.location).searchParams.get('v') || 'dev';
 const CACHE_NAME = `ai-chat-cache-${VERSION}`;
 const RUNTIME = `ai-chat-runtime-${VERSION}`;
+const OFFLINE_FALLBACK_URL = '/static/offline.html';
 
-const PRECACHE_URLS = [];
+const PRECACHE_URLS = [OFFLINE_FALLBACK_URL];
+
+function isCacheable(res) {
+  if (!res) return false;
+  if (res.status === 200) return true;
+  return res.type === 'opaque';
+}
+
+async function putRuntime(request, res) {
+  if (!isCacheable(res)) return;
+  const cache = await caches.open(RUNTIME);
+  await cache.put(request, res.clone());
+}
+
+async function offlineFallback(request) {
+  const exact = await caches.match(request);
+  if (exact) return exact;
+  const ignoreSearch = await caches.match(request, { ignoreSearch: true });
+  if (ignoreSearch) return ignoreSearch;
+  const root = await caches.match('/');
+  if (root) return root;
+  const offlinePage = await caches.match(OFFLINE_FALLBACK_URL, { ignoreSearch: true });
+  if (offlinePage) return offlinePage;
+  return new Response('Offline', { status: 503, statusText: 'Offline' });
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -25,29 +50,47 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.pathname.startsWith('/api/')) return;
 
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      (async () => {
+        try {
+          const res = await fetch(event.request);
+          putRuntime(event.request, res).catch(() => {});
+          return res;
+        } catch (e) {
+          return offlineFallback(event.request);
+        }
+      })()
+    );
+    return;
+  }
+
   if (url.origin === self.location.origin) {
     event.respondWith(
-      caches.match(event.request).then((cached) => {
+      (async () => {
+        const cached = await caches.match(event.request);
         if (cached) return cached;
-        return fetch(event.request).then((res) => {
-          const copy = res.clone();
-          caches.open(RUNTIME).then((cache) => cache.put(event.request, copy));
+        try {
+          const res = await fetch(event.request);
+          putRuntime(event.request, res).catch(() => {});
           return res;
-        }).catch(() => cached);
-      })
+        } catch (e) {
+          return offlineFallback(event.request);
+        }
+      })()
     );
     return;
   }
 
   // CDN runtime cache (stale-while-revalidate)
   event.respondWith(
-    caches.match(event.request).then((cached) => {
+    (async () => {
+      const cached = await caches.match(event.request);
       const networkFetch = fetch(event.request).then((res) => {
-        const copy = res.clone();
-        caches.open(RUNTIME).then((cache) => cache.put(event.request, copy));
+        putRuntime(event.request, res).catch(() => {});
         return res;
       }).catch(() => cached);
       return cached || networkFetch;
-    })
+    })()
   );
 });

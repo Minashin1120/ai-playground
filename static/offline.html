@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>オフライン | AI Chat Playground</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #1f2937, #0f172a 55%);
+      color: #e5e7eb;
+      font-family: "Segoe UI", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    }
+    .panel {
+      width: min(92vw, 540px);
+      background: rgba(15, 23, 42, 0.82);
+      border: 1px solid rgba(251, 191, 36, 0.35);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+    }
+    .badge {
+      display: inline-block;
+      margin-bottom: 12px;
+      padding: 4px 10px;
+      font-size: 12px;
+      border-radius: 999px;
+      color: #fef3c7;
+      border: 1px solid rgba(251, 191, 36, 0.55);
+      background: rgba(120, 53, 15, 0.45);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 22px;
+      line-height: 1.35;
+    }
+    p {
+      margin: 0;
+      color: #cbd5e1;
+      line-height: 1.65;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <main class="panel" role="main" aria-live="polite">
+    <div class="badge">オフライン</div>
+    <h1>ネットワークに接続されていません</h1>
+    <p>接続が復旧すると通常画面へ戻れます。以前に開いたページは、ブラウザの再読み込みで表示できる場合があります。</p>
+  </main>
+</body>
+</html>

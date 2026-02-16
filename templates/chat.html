@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.208)</title>
+    <title>AI Playground (V4.8.209)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -5210,6 +5210,38 @@
             const path = row.getAttribute('data-filename');
             if (path) setAttachmentNameForPath(path, next);
         }
+        function isRowAttachmentNameCustomized(row) {
+            return !!(row && row.dataset.sendNameCustomized === '1');
+        }
+        function setRowAttachmentNameCustomized(row, customized) {
+            if (!row) return;
+            row.dataset.sendNameCustomized = customized ? '1' : '';
+        }
+        function getRowDefaultAttachmentName(row) {
+            if (!row) return 'file';
+            const path = row.getAttribute('data-filename');
+            if (path) return defaultAttachmentDisplayName(path) || 'file';
+            const localDefault = normalizeAttachmentDisplayName(row.dataset.defaultDisplayName);
+            if (localDefault) return localDefault;
+            return normalizeAttachmentDisplayName(row.dataset.displayName) || 'file';
+        }
+        function promptRowAttachmentName(row) {
+            if (!row) return;
+            const currentName = getRowAttachmentName(row) || getRowDefaultAttachmentName(row) || 'file';
+            const input = prompt('送信時のファイル名を入力してください（空欄でデフォルトに戻す）', currentName);
+            if (input === null) return;
+            const next = normalizeAttachmentDisplayName(input);
+            if (!next) {
+                const fallback = getRowDefaultAttachmentName(row);
+                setRowAttachmentName(row, fallback);
+                setRowAttachmentNameCustomized(row, false);
+                showToast('送信名をデフォルトに戻しました', 'success');
+                return;
+            }
+            setRowAttachmentName(row, next);
+            setRowAttachmentNameCustomized(row, true);
+            showToast('送信名を更新しました', 'success');
+        }
         function getRowAttachmentName(row) {
             if (!row) return '';
             const path = row.getAttribute('data-filename');
@@ -5589,6 +5621,8 @@
             row.setAttribute('data-filename', filepath);
             row.dataset.fileSource = source;
             row.dataset.displayName = displayName;
+            row.dataset.defaultDisplayName = displayName;
+            row.dataset.sendNameCustomized = '';
             const safeName = escapeHtml(displayName);
             const markerBtnHtml = isImage
                 ? `<button class="upload-marker text-[10px] border rounded px-2 py-1">画像編集</button>`
@@ -5608,6 +5642,7 @@
                     </div>
                     <div class="flex items-center gap-1">
                         ${markerBtnHtml}
+                        <button class="upload-send-name text-[10px] text-gray-300 hover:text-white border border-gray-700 rounded px-2 py-1">送信名</button>
                         <button class="upload-remove text-[10px] text-gray-400 hover:text-red-400 border border-gray-700 rounded px-2 py-1">削除</button>
                     </div>
                 </div>
@@ -5617,7 +5652,11 @@
             `;
             const previewEl = row.querySelector('.upload-preview');
             if (previewEl) {
-                previewEl.onclick = () => openFileViewer(url, displayName);
+                previewEl.onclick = () => openFileViewer(url, getRowAttachmentName(row) || displayName);
+            }
+            const sendNameBtn = row.querySelector('.upload-send-name');
+            if (sendNameBtn) {
+                sendNameBtn.onclick = () => promptRowAttachmentName(row);
             }
             const removeBtn = row.querySelector('.upload-remove');
             if (removeBtn) {
@@ -5661,6 +5700,8 @@
             row.dataset.fileSource = 'upload';
             const displayName = normalizeAttachmentDisplayName(file.name || 'file') || 'file';
             row.dataset.displayName = displayName;
+            row.dataset.defaultDisplayName = displayName;
+            row.dataset.sendNameCustomized = '';
             const safeName = escapeHtml(displayName);
             const isImage = file && file.type && file.type.startsWith('image/');
             let previewHtml = '<div class="upload-preview w-12 h-12 bg-gray-800 rounded border border-gray-700 flex items-center justify-center text-gray-400 text-sm">FILE</div>';
@@ -5687,6 +5728,7 @@
                     </div>
                     <div class="flex items-center gap-1">
                         ${markerBtnHtml}
+                        <button class="upload-send-name text-[10px] text-gray-300 hover:text-white border border-gray-700 rounded px-2 py-1">送信名</button>
                         <button class="upload-remove text-[10px] text-gray-400 hover:text-red-400 border border-gray-700 rounded px-2 py-1">削除</button>
                     </div>
                 </div>
@@ -5724,6 +5766,10 @@
             const markerBtn = row.querySelector('.upload-marker');
             if (markerBtn) {
                 markerBtn.onclick = () => openMarkerModalForRow(row);
+            }
+            const sendNameBtn = row.querySelector('.upload-send-name');
+            if (sendNameBtn) {
+                sendNameBtn.onclick = () => promptRowAttachmentName(row);
             }
             list.prepend(row);
             return {
@@ -5817,7 +5863,13 @@
                     if (row && row.row) {
                         row.row.setAttribute('data-filename', normPath || doneData.filename);
                         setRowAttachmentSource(row.row, 'upload');
-                        if (normPath) setAttachmentNameForPath(normPath, defaultAttachmentDisplayName(normPath));
+                        if (normPath) {
+                            const hasCustom = isRowAttachmentNameCustomized(row.row);
+                            const fallbackName = defaultAttachmentDisplayName(normPath);
+                            const nextName = hasCustom ? (normalizeAttachmentDisplayName(row.row.dataset.displayName) || fallbackName) : fallbackName;
+                            row.row.dataset.defaultDisplayName = fallbackName;
+                            setRowAttachmentName(row.row, nextName);
+                        }
                     }
                     if (normPath) setAttachmentSourceForPath(normPath, 'upload');
                     if (row && row.status) row.status.textContent = '完了';
@@ -5879,7 +5931,13 @@
                         if (row && row.row) {
                             row.row.setAttribute('data-filename', normPath || d.filename);
                             setRowAttachmentSource(row.row, 'upload');
-                            if (normPath) setAttachmentNameForPath(normPath, defaultAttachmentDisplayName(normPath));
+                            if (normPath) {
+                                const hasCustom = isRowAttachmentNameCustomized(row.row);
+                                const fallbackName = defaultAttachmentDisplayName(normPath);
+                                const nextName = hasCustom ? (normalizeAttachmentDisplayName(row.row.dataset.displayName) || fallbackName) : fallbackName;
+                                row.row.dataset.defaultDisplayName = fallbackName;
+                                setRowAttachmentName(row.row, nextName);
+                            }
                         }
                         if (normPath) setAttachmentSourceForPath(normPath, 'upload');
                         if (row && row.status) row.status.textContent = '完了';
@@ -5963,9 +6021,13 @@
         function updateUploadRowFile(row, file) {
             if (!row || !row.row || !file) return;
             const nameEl = row.row.querySelector('.truncate');
-            const displayName = normalizeAttachmentDisplayName(file.name || 'file') || 'file';
+            const hasCustomName = isRowAttachmentNameCustomized(row.row);
+            const displayName = hasCustomName
+                ? (normalizeAttachmentDisplayName(row.row.dataset.displayName) || 'file')
+                : (normalizeAttachmentDisplayName(file.name || 'file') || 'file');
             if (nameEl) nameEl.textContent = displayName;
             row.row.dataset.displayName = displayName;
+            if (!hasCustomName) row.row.dataset.defaultDisplayName = displayName;
             const localUrl = row.row.getAttribute('data-local-url');
             if (localUrl) URL.revokeObjectURL(localUrl);
             const newUrl = URL.createObjectURL(file);
@@ -5982,7 +6044,7 @@
                 previewEl.onclick = () => {
                     const filepath = row.row.getAttribute('data-filename');
                     const url = filepath ? ("{{ url_for('serve_file', filename='') }}" + filepath) : row.row.getAttribute('data-local-url');
-                    openFileViewer(url, displayName || filepath || '');
+                    openFileViewer(url, getRowAttachmentName(row.row) || displayName || filepath || '');
                 };
             }
             const markerBtn = row.row.querySelector('.upload-marker');

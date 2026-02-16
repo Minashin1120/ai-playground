@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.199)</title>
+    <title>AI Playground (V4.8.200)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -261,8 +261,46 @@
         .toast.error { border-color: #fb7185; color: #fecaca; }
         .toast button { color: inherit; opacity: 0.7; }
         .toast button:hover { opacity: 1; }
-        #offline-banner { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #0b121a; color: #fef3c7; border: 1px solid rgba(245,158,11,0.5); padding: 8px 14px; border-radius: 999px; font-size: 12px; display: none; align-items: center; gap: 8px; z-index: 130; box-shadow: var(--shadow); }
-        #offline-banner.visible { display: flex; }
+        #offline-banner {
+            position: fixed;
+            right: 16px;
+            bottom: 16px;
+            max-width: min(calc(100vw - 32px), 420px);
+            background: rgba(2, 6, 23, 0.92);
+            color: #fef3c7;
+            border: 1px solid rgba(245, 158, 11, 0.55);
+            padding: 9px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 100000;
+            box-shadow: 0 14px 32px rgba(0, 0, 0, 0.35);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(6px);
+            pointer-events: none;
+            transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s ease;
+        }
+        #offline-banner.visible {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        #offline-banner.offline {
+            color: #fecaca;
+            border-color: rgba(248, 113, 113, 0.6);
+            background: rgba(38, 9, 13, 0.92);
+        }
+        #offline-banner.unstable {
+            color: #fef3c7;
+            border-color: rgba(245, 158, 11, 0.55);
+            background: rgba(54, 32, 0, 0.92);
+        }
+        body.network-banner-visible #global-progress-spinner {
+            bottom: 64px !important;
+        }
         #image-viewer { position: fixed; inset: 0; background: rgba(2,6,16,0.95); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 140; user-select: none; }
         #image-viewer.visible { display: flex; }
         .viewer-content { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; }
@@ -503,7 +541,10 @@
       {% endif %}
     {% endwith %}
     <div id="turnstile-container" class="hidden turnstile-box"></div>
-    <div id="offline-banner"><i class="fas fa-wifi"></i> オフラインです（ネットワークが切断されています）</div>
+    <div id="offline-banner" role="status" aria-live="polite">
+        <i id="offline-banner-icon" class="fas fa-wifi"></i>
+        <span id="offline-banner-text">サーバーとの通信が切断されています</span>
+    </div>
     <div id="image-viewer">
         <button class="viewer-nav prev" data-progress-no-spinner="true" onclick="navImage(-1)"><i class="fas fa-chevron-left"></i></button>
         <div class="viewer-content">
@@ -1484,6 +1525,11 @@
         const TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS = 90;
         const TEMP_CHAT_HEARTBEAT_MIN_MS = 4000;
         const TEMP_CHAT_HEARTBEAT_MAX_MS = 15000;
+        const CONNECTION_CHECK_INTERVAL_MS = 15000;
+        const CONNECTION_CHECK_TIMEOUT_MS = 5000;
+        const CONNECTION_UNSTABLE_LATENCY_MS = 1800;
+        const CONNECTION_FAIL_TO_OFFLINE = 2;
+        const CONNECTION_UNSTABLE_HOLD_MS = 45000;
         let activeGem = null, editingGemId = null, currentImageUrls = [], currentMaskImage = null, abortController = null, userAutoScroll = true, searchTimeout;
          
         const markerAppliedUploads = new Set();
@@ -1518,6 +1564,10 @@
         let tempChatHeartbeatTimer = null;
         let tempChatHeartbeatIntervalMs = 0;
         let tempChatHeartbeatInFlight = false;
+        let connectionCheckTimer = null;
+        let connectionCheckInFlight = false;
+        let connectionConsecutiveFail = 0;
+        let connectionUnstableUntil = 0;
         let enterToSend = {{ 'true' if current_user.is_authenticated and current_user.enter_to_send else 'false' }};
         let autoSearchOnLinks = {{ 'true' if current_user.is_authenticated and current_user.auto_search_on_links else 'false' }};
         let useSwCache = {{ 'true' if current_user.is_authenticated and current_user.use_sw_cache else 'false' }};
@@ -1944,11 +1994,86 @@
                 if (latest && !stored) localStorage.setItem("app_version", latest);
             } catch (e) {}
         }
-        function updateOfflineBanner() {
+        function setConnectionBanner(mode, message = '') {
             const b = get('offline-banner');
-            if (!b) return;
-            if (navigator.onLine) b.classList.remove('visible');
-            else b.classList.add('visible');
+            const icon = get('offline-banner-icon');
+            const text = get('offline-banner-text');
+            if (!b || !icon || !text) return;
+            if (mode === 'hidden') {
+                b.classList.remove('visible', 'offline', 'unstable');
+                document.body.classList.remove('network-banner-visible');
+                return;
+            }
+            b.classList.add('visible');
+            document.body.classList.add('network-banner-visible');
+            if (mode === 'offline') {
+                b.classList.add('offline');
+                b.classList.remove('unstable');
+                icon.className = 'fas fa-wifi';
+                text.textContent = message || 'サーバーとの通信が切断されています';
+                return;
+            }
+            b.classList.add('unstable');
+            b.classList.remove('offline');
+            icon.className = 'fas fa-exclamation-triangle';
+            text.textContent = message || 'サーバーとの通信が不安定です';
+        }
+        async function probeServerConnection() {
+            if (!navigator.onLine) {
+                connectionConsecutiveFail = CONNECTION_FAIL_TO_OFFLINE;
+                connectionUnstableUntil = 0;
+                setConnectionBanner('offline');
+                return;
+            }
+            if (connectionCheckInFlight) return;
+            connectionCheckInFlight = true;
+            const startedAt = performance.now();
+            const ctrl = new AbortController();
+            const timeoutId = window.setTimeout(() => ctrl.abort(), CONNECTION_CHECK_TIMEOUT_MS);
+            try {
+                await fetch(`/api/version?heartbeat=${Date.now()}`, {
+                    method: 'GET',
+                    cache: 'no-store',
+                    credentials: 'include',
+                    signal: ctrl.signal,
+                    headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' }
+                });
+                const latencyMs = Math.round(performance.now() - startedAt);
+                const now = Date.now();
+                const hadFailure = connectionConsecutiveFail > 0;
+                connectionConsecutiveFail = 0;
+                if (latencyMs >= CONNECTION_UNSTABLE_LATENCY_MS || hadFailure) {
+                    connectionUnstableUntil = now + CONNECTION_UNSTABLE_HOLD_MS;
+                    setConnectionBanner('unstable', `サーバーとの通信が不安定です（遅延 ${latencyMs}ms）`);
+                } else if (now < connectionUnstableUntil) {
+                    setConnectionBanner('unstable', 'サーバーとの通信が不安定です（回復確認中）');
+                } else {
+                    connectionUnstableUntil = 0;
+                    setConnectionBanner('hidden');
+                }
+            } catch (e) {
+                const now = Date.now();
+                connectionConsecutiveFail += 1;
+                connectionUnstableUntil = now + CONNECTION_UNSTABLE_HOLD_MS;
+                if (!navigator.onLine || connectionConsecutiveFail >= CONNECTION_FAIL_TO_OFFLINE) {
+                    setConnectionBanner('offline');
+                } else {
+                    setConnectionBanner('unstable', 'サーバーとの通信が不安定です（再接続を試行中）');
+                }
+            } finally {
+                window.clearTimeout(timeoutId);
+                connectionCheckInFlight = false;
+            }
+        }
+        function startConnectionMonitor() {
+            if (connectionCheckTimer) window.clearInterval(connectionCheckTimer);
+            connectionCheckTimer = window.setInterval(probeServerConnection, CONNECTION_CHECK_INTERVAL_MS);
+            probeServerConnection();
+        }
+        function stopConnectionMonitor() {
+            if (!connectionCheckTimer) return;
+            window.clearInterval(connectionCheckTimer);
+            connectionCheckTimer = null;
         }
         window.initTurnstileWidget = () => {
             if (!botConfig || !botConfig.turnstileSiteKey || !window.turnstile) return;
@@ -3259,9 +3384,10 @@
             threadObserver.observe(get('scroll-sentinel'));
             
             checkVersion();
-            updateOfflineBanner();
-            window.addEventListener('online', updateOfflineBanner);
-            window.addEventListener('offline', updateOfflineBanner);
+            startConnectionMonitor();
+            window.addEventListener('online', probeServerConnection);
+            window.addEventListener('offline', () => setConnectionBanner('offline'));
+            window.addEventListener('pagehide', stopConnectionMonitor);
             applyCacheMode(useSwCache);
             if (window.__turnstileApiLoaded && window.initTurnstileWidget) window.initTurnstileWidget();
             if (botConfig && botConfig.globalEnabled && botConfig.accountEnabled && !isAdminUser) {

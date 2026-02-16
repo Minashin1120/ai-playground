@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.211)</title>
+    <title>AI Playground (V4.8.212)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -626,7 +626,10 @@
         {% endif %}
         <div id="total-token-bar" class="hidden bg-gray-900/70 border-b border-gray-700 text-slate-200 text-xs px-4 py-1.5 flex items-center gap-2">
             <i class="fas fa-coins text-amber-300"></i>
-            <span id="total-token-count">Total: 0 tokens</span>
+            <div class="flex flex-wrap items-center gap-3">
+                <span id="total-token-count">Total: 0 tokens</span>
+                <span id="total-token-count-all-branches" class="hidden">All branches: 0 tokens</span>
+            </div>
         </div>
         <div class="flex-1 overflow-hidden relative">
             <div id="chat-container" class="absolute inset-0 overflow-y-auto p-4 space-y-6 scroll-smooth"></div>
@@ -1711,16 +1714,71 @@
                 });
             });
         }
-        function updateTotalTokenBar(total, details = null) {
+        function buildTokenTotals(messages) {
+            const totals = {
+                tokens_total: 0,
+                tokens_in: 0,
+                tokens_out: 0,
+                tokens_content: 0,
+                tokens_thought: 0
+            };
+            let hasTotal = false;
+            let hasIn = false;
+            let hasOut = false;
+            let hasContent = false;
+            let hasThought = false;
+            (messages || []).forEach(m => {
+                if (!m) return;
+                let rowTotal = null;
+                if (m.tokens !== null && m.tokens !== undefined) {
+                    rowTotal = Number(m.tokens || 0);
+                } else if (
+                    (m.tokens_in !== null && m.tokens_in !== undefined) ||
+                    (m.tokens_out !== null && m.tokens_out !== undefined)
+                ) {
+                    rowTotal = Number(m.tokens_in || 0) + Number(m.tokens_out || 0);
+                }
+                if (rowTotal !== null) {
+                    totals.tokens_total += rowTotal;
+                    hasTotal = true;
+                }
+                if (m.tokens_in !== null && m.tokens_in !== undefined) {
+                    totals.tokens_in += Number(m.tokens_in || 0);
+                    hasIn = true;
+                }
+                if (m.tokens_out !== null && m.tokens_out !== undefined) {
+                    totals.tokens_out += Number(m.tokens_out || 0);
+                    hasOut = true;
+                }
+                if (m.tokens_content !== null && m.tokens_content !== undefined) {
+                    totals.tokens_content += Number(m.tokens_content || 0);
+                    hasContent = true;
+                }
+                if (m.tokens_thought !== null && m.tokens_thought !== undefined) {
+                    totals.tokens_thought += Number(m.tokens_thought || 0);
+                    hasThought = true;
+                }
+            });
+            return {
+                tokens_total: hasTotal ? totals.tokens_total : 0,
+                tokens_in: hasIn ? totals.tokens_in : null,
+                tokens_out: hasOut ? totals.tokens_out : null,
+                tokens_content: hasContent ? totals.tokens_content : null,
+                tokens_thought: hasThought ? totals.tokens_thought : null
+            };
+        }
+        function updateTotalTokenBar(total, details = null, allBranchDetails = null) {
             const bar = get('total-token-bar');
             const count = get('total-token-count');
+            const allBranchCount = get('total-token-count-all-branches');
             if (!bar || !count) return;
             const val = Number(total || 0);
-            if (val > 0) {
+            const allBranchVal = Number((allBranchDetails && allBranchDetails.tokens_total) || 0);
+            if (val > 0 || allBranchVal > 0) {
                 bar.classList.remove('hidden');
                 count.innerText = `Total: ${val} tokens`;
-                count.classList.add('cursor-pointer', 'underline', 'decoration-dotted');
                 if (details) {
+                    count.classList.add('cursor-pointer', 'underline', 'decoration-dotted');
                     messageMeta.__total__ = {
                         tokens_total: val,
                         tokens_in: details.tokens_in,
@@ -1732,12 +1790,48 @@
                         model: 'Conversation'
                     };
                     count.onclick = () => openTokenDetail('__total__');
+                } else {
+                    count.classList.remove('cursor-pointer', 'underline', 'decoration-dotted');
+                    count.onclick = null;
+                    delete messageMeta.__total__;
+                }
+                if (allBranchCount) {
+                    if (allBranchDetails && allBranchVal > 0) {
+                        allBranchCount.classList.remove('hidden');
+                        allBranchCount.classList.add('cursor-pointer', 'underline', 'decoration-dotted');
+                        allBranchCount.innerText = `All branches: ${allBranchVal} tokens`;
+                        messageMeta.__total_all_branches__ = {
+                            tokens_total: allBranchVal,
+                            tokens_in: allBranchDetails.tokens_in,
+                            tokens_out: allBranchDetails.tokens_out,
+                            tokens_content: allBranchDetails.tokens_content,
+                            tokens_thought: allBranchDetails.tokens_thought,
+                            is_encrypted: null,
+                            role: 'total',
+                            model: 'Conversation (All branches)'
+                        };
+                        allBranchCount.onclick = () => openTokenDetail('__total_all_branches__');
+                    } else {
+                        allBranchCount.classList.add('hidden');
+                        allBranchCount.classList.remove('cursor-pointer', 'underline', 'decoration-dotted');
+                        allBranchCount.innerText = 'All branches: 0 tokens';
+                        allBranchCount.onclick = null;
+                        delete messageMeta.__total_all_branches__;
+                    }
                 }
             } else {
                 bar.classList.add('hidden');
                 count.innerText = 'Total: 0 tokens';
                 count.classList.remove('cursor-pointer', 'underline', 'decoration-dotted');
                 count.onclick = null;
+                delete messageMeta.__total__;
+                if (allBranchCount) {
+                    allBranchCount.classList.add('hidden');
+                    allBranchCount.classList.remove('cursor-pointer', 'underline', 'decoration-dotted');
+                    allBranchCount.innerText = 'All branches: 0 tokens';
+                    allBranchCount.onclick = null;
+                }
+                delete messageMeta.__total_all_branches__;
             }
         }
         const PROMPT_TOKEN_ESTIMATE_DEBOUNCE_MS = 300;
@@ -7694,17 +7788,9 @@
             }
 
             // Render path
-            let totalTokens = 0;
-            let totalTokensIn = 0;
-            let totalTokensOut = 0;
-            let totalTokensContent = 0;
-            let totalTokensThought = 0;
+            const pathTotals = buildTokenTotals(path);
+            const allBranchTotals = buildTokenTotals(allMessages);
             path.forEach(m => {
-                totalTokens += Number(m.tokens || 0);
-                if (m.tokens_in !== null && m.tokens_in !== undefined) totalTokensIn += Number(m.tokens_in || 0);
-                if (m.tokens_out !== null && m.tokens_out !== undefined) totalTokensOut += Number(m.tokens_out || 0);
-                if (m.tokens_content !== null && m.tokens_content !== undefined) totalTokensContent += Number(m.tokens_content || 0);
-                if (m.tokens_thought !== null && m.tokens_thought !== undefined) totalTokensThought += Number(m.tokens_thought || 0);
                 const parent = m.parent_id ? msgMap[m.parent_id] : null;
                 const siblings = parent ? parent.childrenIds : allMessages.filter(x => !x.parent_id).map(x => x.id);
                 const versionInfo = siblings.length > 1 ? {
@@ -7746,12 +7832,7 @@
                 }
             }
             if (silent) container.innerHTML = target.innerHTML;
-            updateTotalTokenBar(totalTokens, {
-                tokens_in: totalTokensIn || null,
-                tokens_out: totalTokensOut || null,
-                tokens_content: totalTokensContent || null,
-                tokens_thought: totalTokensThought || null
-            });
+            updateTotalTokenBar(pathTotals.tokens_total, pathTotals, allBranchTotals);
             currentParentId = currentLeafId;
             scrollToBottom();
         }

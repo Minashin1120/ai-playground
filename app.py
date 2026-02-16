@@ -2093,6 +2093,21 @@ def ensure_user_temp_chat_timeout_column():
     except Exception:
         pass
 
+def ensure_user_compact_prompt_mode_column():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='user' "
+                "AND COLUMN_NAME='compact_prompt_mode'"
+            )).scalar()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN compact_prompt_mode BOOLEAN DEFAULT 0"))
+    except Exception:
+        pass
+
 def cleanup_user_temp_system_prompt_columns():
     try:
         with db.engine.connect() as conn:
@@ -8924,6 +8939,10 @@ with app.app_context():
         pass
     try:
         ensure_user_temp_chat_timeout_column()
+    except Exception:
+        pass
+    try:
+        ensure_user_compact_prompt_mode_column()
     except Exception:
         pass
     try:

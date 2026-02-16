@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.214)</title>
+    <title>AI Playground (V4.8.215)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -3562,7 +3562,7 @@
                                 const encCode = encodeURIComponent(codeRaw).replace(/'/g, "%27");
                                 const encOut = encodeURIComponent(outputRaw).replace(/'/g, "%27");
                                 const codeKey = hashString(`pyexec\n${codeRaw}\n${outputRaw}`);
-                                return `<div class="code-wrapper python-box" data-collapsed="false" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="true"><i class="fas fa-chevron-up"></i> Collapse</button><button class="copy-btn" data-copy="code" data-code="${encCode}"><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code="${encOut}"><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code">${codeHtml}</code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output">${outputHtml}</code></pre></div></div></div>`;
+                                return `<div class="code-wrapper python-box collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button><button class="copy-btn" data-copy="code" data-code="${encCode}"><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code="${encOut}"><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code">${codeHtml}</code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output">${outputHtml}</code></pre></div></div></div>`;
                             } catch (e2) {}
                         }
                         const raw = c || '';
@@ -3579,7 +3579,7 @@
                             ? `<button class="html-preview-btn" data-code="${enc}"><i class="fas fa-up-right-from-square"></i> Preview</button>`
                             : '';
                         const codeKey = hashString(`${l || 'TEXT'}\n${raw || ''}`);
-                        return `<div class="code-wrapper" data-collapsed="false" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${l || 'TEXT'}</span><div class="code-actions"><button class="code-toggle" aria-expanded="true"><i class="fas fa-chevron-up"></i> Collapse</button>${previewBtn}<button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`;
+                        return `<div class="code-wrapper collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${l || 'TEXT'}</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button>${previewBtn}<button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`;
                     },
                     link(h, t, x) { return `<a href="${h}" title="${t || ''}" target="_blank">${x}</a>`; },
                     image(h, t, x) { const alt = escapeHtml(x || ''); const title = t ? ` title="${escapeHtml(t)}"` : ''; return `<img src="${h}" alt="${alt}"${title} class="chat-image" loading="lazy" width="320" height="320">`; }
@@ -7263,7 +7263,7 @@
                     thoughtPlaceholderEl = adiv.querySelector('.thought-content');
                 }
                 if (!thoughtPlaceholderEl) {
-                    const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content" data-placeholder="1"></div></div>`;
+                    const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content collapsed" data-placeholder="1"></div></div>`;
                     adiv.insertAdjacentHTML('afterbegin', tHtml);
                     thoughtPlaceholderEl = adiv.querySelector('.thought-content');
                 }
@@ -7361,7 +7361,7 @@
                                 }
                                 tht+=j.content; 
                                 if(!thEl){ 
-                                    const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>`; 
+                                    const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content collapsed"></div></div>`; 
                                     if(searchBox) searchBox.insertAdjacentHTML('afterend', tHtml); 
                                     else adiv.insertAdjacentHTML('afterbegin', tHtml); 
                                     thEl=adiv.querySelector('.thought-content'); 
@@ -7377,7 +7377,7 @@
                                 const py = j.content || {}; 
                                 const pyId = py.id || `py_${Date.now()}`; 
                                 if(!pyBoxes[pyId]){ 
-                                    const boxHtml = `<div class="code-wrapper python-box" data-py-id="${pyId}" data-collapsed="false" data-code-key="${pyId}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="true"><i class="fas fa-chevron-up"></i> Collapse</button><button class="copy-btn" data-copy="code" data-code=""><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code=""><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output"></code></pre></div></div></div>`; 
+                                    const boxHtml = `<div class="code-wrapper python-box collapsed" data-py-id="${pyId}" data-collapsed="true" data-code-key="${pyId}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button><button class="copy-btn" data-copy="code" data-code=""><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code=""><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output"></code></pre></div></div></div>`; 
                                     if(searchBox) searchBox.insertAdjacentHTML('afterend', boxHtml); 
                                     else adiv.insertAdjacentHTML('afterbegin', boxHtml); 
                                     pyBoxes[pyId] = adiv.querySelector(`[data-py-id="${pyId}"]`); 
@@ -7412,7 +7412,7 @@
                                 } 
                                 const collapseState = snapshotCodeCollapse(cEl);
                                 cEl.innerHTML=DOMPurify.sanitize(marked.parse(acc)); 
-                                applyCodeCollapse(cEl, collapseState, false);
+                                applyCodeCollapse(cEl, collapseState, true);
                             } else if(j.type==='error'){ 
                                 hadError = true;
                                 adiv.insertAdjacentHTML('beforeend', `<div class="text-red-400 text-xs mt-2 border border-red-500 p-2 rounded">Error: ${j.content}</div>`); 
@@ -7485,7 +7485,7 @@
                     thoughtPlaceholderEl = adiv.querySelector('.thought-content');
                 }
                 if (!thoughtPlaceholderEl) {
-                    const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content" data-placeholder="1"></div></div>`;
+                    const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content collapsed" data-placeholder="1"></div></div>`;
                     adiv.insertAdjacentHTML('afterbegin', tHtml);
                     thoughtPlaceholderEl = adiv.querySelector('.thought-content');
                 }
@@ -7558,7 +7558,7 @@
                                 }
                                 tht += j.content;
                                 if (!thEl) {
-                                    const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>`;
+                                    const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content collapsed"></div></div>`;
                                     if (searchBox) searchBox.insertAdjacentHTML('afterend', tHtml);
                                     else adiv.insertAdjacentHTML('afterbegin', tHtml);
                                     thEl = adiv.querySelector('.thought-content');
@@ -7574,7 +7574,7 @@
                                 const py = j.content || {};
                                 const pyId = py.id || `py_${Date.now()}`;
                                 if (!pyBoxes[pyId]) {
-                                    const boxHtml = `<div class="code-wrapper python-box" data-py-id="${pyId}" data-collapsed="false" data-code-key="${pyId}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="true"><i class="fas fa-chevron-up"></i> Collapse</button><button class="copy-btn" data-copy="code" data-code=""><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code=""><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output"></code></pre></div></div></div>`;
+                                    const boxHtml = `<div class="code-wrapper python-box collapsed" data-py-id="${pyId}" data-collapsed="true" data-code-key="${pyId}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button><button class="copy-btn" data-copy="code" data-code=""><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code=""><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output"></code></pre></div></div></div>`;
                                     if (searchBox) searchBox.insertAdjacentHTML('afterend', boxHtml);
                                     else adiv.insertAdjacentHTML('afterbegin', boxHtml);
                                     pyBoxes[pyId] = adiv.querySelector(`[data-py-id="${pyId}"]`);
@@ -7609,7 +7609,7 @@
                                 }
                                 const collapseState = snapshotCodeCollapse(cEl);
                                 cEl.innerHTML = DOMPurify.sanitize(marked.parse(acc));
-                                applyCodeCollapse(cEl, collapseState, false);
+                                applyCodeCollapse(cEl, collapseState, true);
                             } else if (j.type === 'error') {
                                 hadError = true;
                                 adiv.insertAdjacentHTML('beforeend', `<div class="text-red-400 text-xs mt-2 border border-red-500 p-2 rounded">Error: ${j.content}</div>`);
@@ -7729,7 +7729,7 @@
             
             renderThreadTree({ silent });
             if (silent && codeState) {
-                applyCodeCollapseByMessage(get('chat-container'), codeState, false);
+                applyCodeCollapseByMessage(get('chat-container'), codeState, true);
             } else if (!silent) {
                 applyCodeCollapseByMessage(get('chat-container'), null, true);
             }

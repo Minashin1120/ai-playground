@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.212)</title>
+    <title>AI Playground (V4.8.213)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -454,6 +454,9 @@
             }
         }
         #settings-modal > div { overflow: hidden; }
+        #thread-modal { padding: 16px 0; }
+        #thread-modal > div { max-height: calc(100dvh - 32px); overflow: hidden; }
+        #thread-modal .thread-modal-body { min-height: 0; padding-right: 4px; }
         #settings-modal .settings-header { position: sticky; top: 0; z-index: 8; padding: 6px 0 8px; background: rgba(17,24,39,0.98); }
         #settings-modal .settings-tabs { margin-bottom: 10px; gap: 8px; padding: 6px; background: rgba(15,23,42,0.78); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); }
         #settings-modal .settings-tabs::-webkit-scrollbar { height: 6px; }
@@ -533,6 +536,9 @@
             #settings-modal .bg-gray-800 { max-height: 92vh; padding: 12px; }
             #settings-modal .settings-tabs { margin-bottom: 10px; gap: 8px; }
             #settings-modal .settings-footer button { padding: 10px 14px; }
+            #thread-modal { align-items: flex-start; padding: 8px 0; }
+            #thread-modal > div { width: calc(100% - 16px); max-width: none; margin: 8px; padding: 14px 12px; max-height: calc(100dvh - 16px); border-radius: 14px; }
+            #thread-modal .thread-modal-body { padding-right: 6px; }
         }
     </style>
 </head>
@@ -1003,11 +1009,11 @@
 
     <!-- Thread Settings Modal -->
     <div id="thread-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
-        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-gray-700 m-4 flex flex-col modal-panel">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh] overflow-hidden modal-panel">
             <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <i class="fas fa-comment-dots text-green-400"></i> Chat Instructions
             </h2>
-            <div class="space-y-4">
+            <div class="space-y-4 flex-1 overflow-y-auto thread-modal-body">
                 <div>
                     <label class="text-xs text-gray-400 block mb-1">このチャット専用のシステムプロンプト</label>
                     <textarea id="thread-custom-instruction" class="w-full h-48 bg-gray-900 border border-gray-600 rounded p-3 text-sm text-white focus:ring-1 focus:ring-green-500 outline-none" placeholder="このチャットだけで有効にしたい指示（役割や出力形式など）を入力してください..."></textarea>
@@ -1036,7 +1042,7 @@
                     </div>
                 </div>
             </div>
-            <div class="flex justify-end gap-3 mt-6">
+            <div class="flex justify-end gap-3 mt-6 shrink-0">
                 <button onclick="hideModal('thread-modal')" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white transition">キャンセル</button>
                 <button id="save-thread-settings-btn" class="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded font-bold btn-modern">保存</button>
             </div>

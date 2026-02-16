@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.196)</title>
+    <title>AI Playground (V4.8.197)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -3541,11 +3541,53 @@
                 `;
                 tab.appendChild(card);
             };
+            const ensureAutoSystemPromptSettingsCard = () => {
+                const promptToggle = get('set-global-sys-prompt-enabled');
+                const wrapHost = promptToggle ? promptToggle.closest('.space-y-4') : null;
+                if (!wrapHost || get('auto-sys-prompt-settings')) return;
+                const box = document.createElement('div');
+                box.id = 'auto-sys-prompt-settings';
+                box.className = 'border-t border-gray-700 pt-3';
+                box.innerHTML = `
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs text-gray-500 block">自動注入システムプロンプト（Python/Search/Marker）</label>
+                        <label class="flex items-center gap-1 text-[10px] text-gray-400">
+                            <input type="checkbox" id="set-apply-auto-sys-prompt-notices" class="accent-yellow-500 w-3 h-3">
+                            <span>適用</span>
+                        </label>
+                    </div>
+                    <textarea id="auto-sys-prompt-preview" readonly class="w-full h-28 bg-gray-950 border border-gray-700 rounded p-2 text-xs text-gray-200" placeholder="自動注入プロンプト"></textarea>
+                    <div class="text-[10px] text-gray-500 mt-2">OFFにすると、自動補助文言（Python有効時・検索ツール有効時・Marker利用時など）だけを自分のチャットで無効化します。</div>
+                `;
+                wrapHost.appendChild(box);
+            };
+            const ensureThreadAutoSystemPromptCard = () => {
+                const threadPrompt = get('thread-global-sys-prompt');
+                const wrapHost = threadPrompt ? threadPrompt.closest('.space-y-3') : null;
+                if (!wrapHost || get('thread-auto-sys-prompt-settings')) return;
+                const box = document.createElement('div');
+                box.id = 'thread-auto-sys-prompt-settings';
+                box.className = 'border-t border-gray-700 pt-3';
+                box.innerHTML = `
+                    <div class="text-xs text-gray-400 mb-1">自動注入システムプロンプト（参照 + ユーザー単位ON/OFF）</div>
+                    <div class="flex items-center justify-end mb-1">
+                        <label class="flex items-center gap-1 text-[10px] text-gray-500">
+                            <input type="checkbox" id="thread-apply-auto-sys-prompt-notices" class="accent-yellow-500 w-3 h-3">
+                            <span>適用</span>
+                        </label>
+                    </div>
+                    <textarea id="thread-auto-sys-prompt-preview" readonly class="w-full h-20 bg-gray-950 border border-gray-700 rounded p-2 text-[11px] text-gray-200" placeholder="自動注入プロンプト"></textarea>
+                `;
+                wrapHost.appendChild(box);
+            };
             ensureTemporaryChatSettingsCard();
+            ensureAutoSystemPromptSettingsCard();
+            ensureThreadAutoSystemPromptCard();
             bindTemporaryChatToggle();
             window.openSettingsModal = () => {
                 showModal('settings-modal');
                 loadStorageUsage();
+                ensureAutoSystemPromptSettingsCard();
                 if (location.pathname !== '/settings') {
                     history.pushState({ modal: 'settings', from: location.pathname }, '', '/settings');
                 }
@@ -3567,6 +3609,8 @@
                             }
                         }
                         if(get('set-apply-global-sys-prompt')) get('set-apply-global-sys-prompt').checked = d.apply_global_system_prompt !== false;
+                        if(get('set-apply-auto-sys-prompt-notices')) get('set-apply-auto-sys-prompt-notices').checked = d.apply_auto_system_prompt_notices !== false;
+                        if(get('auto-sys-prompt-preview')) get('auto-sys-prompt-preview').value = d.auto_system_prompt_notices_preview || '';
                         get('sys-prompt-text').value = d.system_prompt; 
                         if(get('set-global-sys-prompt-enabled')) get('set-global-sys-prompt-enabled').checked = d.system_prompt_enabled !== false;
                         if(get('set-openai')) get('set-openai').value = d.openai_key || ''; 
@@ -3753,6 +3797,7 @@
                     system_prompt: get('sys-prompt-text').value,
                     system_prompt_enabled: get('set-global-sys-prompt-enabled') ? get('set-global-sys-prompt-enabled').checked : true,
                     apply_global_system_prompt: get('set-apply-global-sys-prompt') ? get('set-apply-global-sys-prompt').checked : true,
+                    apply_auto_system_prompt_notices: get('set-apply-auto-sys-prompt-notices') ? get('set-apply-auto-sys-prompt-notices').checked : true,
                     theme_color: normalizeHex(get('set-theme-color-text') ? get('set-theme-color-text').value : '') || THEME_DEFAULT,
                     stt_model: get('set-stt-model') ? get('set-stt-model').value : null,
                     enter_to_send: get('set-enter-to-send') ? get('set-enter-to-send').checked : false,
@@ -7436,6 +7481,7 @@
                 }
             }
             showModal('thread-modal');
+            ensureThreadAutoSystemPromptCard();
             apiFetch("{{ url_for('handle_settings', _=1) }}").then(r=>r.json()).then(d=>{ 
                 const threadGlobalPreview = get('thread-app-global-sys-prompt-preview');
                 if (threadGlobalPreview) {
@@ -7453,6 +7499,8 @@
                 }
                 if (get('thread-global-sys-prompt')) get('thread-global-sys-prompt').value = d.system_prompt || '';
                 if (get('thread-global-sys-prompt-enabled')) get('thread-global-sys-prompt-enabled').checked = d.system_prompt_enabled !== false;
+                if (get('thread-apply-auto-sys-prompt-notices')) get('thread-apply-auto-sys-prompt-notices').checked = d.apply_auto_system_prompt_notices !== false;
+                if (get('thread-auto-sys-prompt-preview')) get('thread-auto-sys-prompt-preview').value = d.auto_system_prompt_notices_preview || '';
             });
         };
 
@@ -7463,7 +7511,8 @@
             const globalEnabledEl = get('thread-global-sys-prompt-enabled');
             const userPromptPayload = (globalPromptEl || globalEnabledEl) ? {
                 system_prompt: globalPromptEl ? globalPromptEl.value : '',
-                system_prompt_enabled: globalEnabledEl ? globalEnabledEl.checked : true
+                system_prompt_enabled: globalEnabledEl ? globalEnabledEl.checked : true,
+                apply_auto_system_prompt_notices: get('thread-apply-auto-sys-prompt-notices') ? get('thread-apply-auto-sys-prompt-notices').checked : true
             } : null;
             
             try {

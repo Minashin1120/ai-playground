@@ -1423,6 +1423,7 @@ class User(UserMixin, db.Model):
     system_prompt = db.Column(db.Text, default="")
     system_prompt_enabled = db.Column(db.Boolean, default=True)
     apply_global_system_prompt = db.Column(db.Boolean, default=True)
+    apply_auto_system_prompt_notices = db.Column(db.Boolean, default=True)
     openai_api_key = db.Column(db.Text, nullable=True)
     gemini_api_key = db.Column(db.Text, nullable=True)
     gemini_backend = db.Column(db.String(24), default="gemini_api")
@@ -2020,6 +2021,7 @@ def ensure_user_system_prompt_columns():
             columns = [
                 ("system_prompt_enabled", "ALTER TABLE user ADD COLUMN system_prompt_enabled BOOLEAN DEFAULT 1"),
                 ("apply_global_system_prompt", "ALTER TABLE user ADD COLUMN apply_global_system_prompt BOOLEAN DEFAULT 1"),
+                ("apply_auto_system_prompt_notices", "ALTER TABLE user ADD COLUMN apply_auto_system_prompt_notices BOOLEAN DEFAULT 1"),
             ]
             for column_name, ddl in columns:
                 res = conn.execute(text(
@@ -2457,6 +2459,48 @@ def get_bool_app_setting(key, default=False):
 
 def get_bot_detection_global_enabled():
     return get_bool_app_setting("bot_detection_global_enabled", True)
+
+AUTO_SYSTEM_PROMPT_NOTICE_PYTHON = "Python execution is available; you can run Python code when needed."
+AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON = (
+    "Python execution is available locally. To run code, include a python fenced block "
+    "that starts with '# EXECUTE' on the first line."
+)
+AUTO_SYSTEM_PROMPT_NOTICE_GROK_SEARCH = (
+    "You can access external links (including X posts) via the web_search and x_search tools. "
+    "Use them when the user asks to read URLs or posts."
+)
+AUTO_SYSTEM_PROMPT_NOTICE_OPENAI_SEARCH = (
+    "You can access external links via the web_search tool. If a URL cannot be accessed, say so clearly."
+)
+AUTO_SYSTEM_PROMPT_NOTICE_MARKER = "編集済みの画像を見てください。"
+
+
+def get_user_auto_system_prompt_notices_enabled(user):
+    try:
+        return getattr(user, "apply_auto_system_prompt_notices", None) is not False
+    except Exception:
+        return True
+
+
+def build_auto_system_prompt_notices_preview():
+    lines = [
+        "[Python]",
+        AUTO_SYSTEM_PROMPT_NOTICE_PYTHON,
+        "",
+        "[Gemini 音声/動画 + Python (ローカル実行時)]",
+        AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON,
+        "",
+        "[Search補助 (Grok)]",
+        AUTO_SYSTEM_PROMPT_NOTICE_GROK_SEARCH,
+        "",
+        "[Search補助 (OpenAI/xAI Responses)]",
+        AUTO_SYSTEM_PROMPT_NOTICE_OPENAI_SEARCH,
+        "",
+        "[Marker編集時]",
+        AUTO_SYSTEM_PROMPT_NOTICE_MARKER,
+    ]
+    return "\n".join(lines)
+
 
 def build_global_system_prompt(now=None):
     if now is None:
@@ -2999,6 +3043,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             user_prompt = None
             use_time_notice = False
             apply_global_prompt = True
+            apply_auto_prompt_notices = get_user_auto_system_prompt_notices_enabled(user)
             try:
                 if getattr(user, "apply_global_system_prompt", None) is False:
                     apply_global_prompt = False
@@ -3037,22 +3082,23 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             
             options['system_prompt'] = combined_prompt
 
-            if options.get('enable_python'):
-                python_notice = "Python execution is available; you can run Python code when needed."
+            if apply_auto_prompt_notices and options.get('enable_python'):
+                python_notice = AUTO_SYSTEM_PROMPT_NOTICE_PYTHON
                 curr_p = options.get('system_prompt')
                 if curr_p and str(curr_p).strip():
                     if python_notice.lower() not in str(curr_p).lower():
                         options['system_prompt'] = f"{python_notice}\n\n{curr_p}"
                 else:
                     options['system_prompt'] = python_notice
-            marker_prompt = options.get('marker_system_prompt')
-            if marker_prompt and str(marker_prompt).strip():
-                curr_p = options.get('system_prompt') or ""
-                if curr_p.strip():
-                    if str(marker_prompt).strip() not in str(curr_p):
-                        options['system_prompt'] = f"{curr_p}\n\n{marker_prompt}"
-                else:
-                    options['system_prompt'] = marker_prompt
+            if apply_auto_prompt_notices:
+                marker_prompt = options.get('marker_system_prompt')
+                if marker_prompt and str(marker_prompt).strip():
+                    curr_p = options.get('system_prompt') or ""
+                    if curr_p.strip():
+                        if str(marker_prompt).strip() not in str(curr_p):
+                            options['system_prompt'] = f"{curr_p}\n\n{marker_prompt}"
+                    else:
+                        options['system_prompt'] = marker_prompt
             if use_time_notice:
                 time_notice = build_global_system_prompt()
                 curr_p = options.get('system_prompt') or ""
@@ -3248,7 +3294,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             def _grok_system_prompt(base_prompt, enable_search):
                 if not enable_search:
                     return base_prompt
-                notice = "You can access external links (including X posts) via the web_search and x_search tools. Use them when the user asks to read URLs or posts."
+                if not get_user_auto_system_prompt_notices_enabled(user):
+                    return base_prompt
+                notice = AUTO_SYSTEM_PROMPT_NOTICE_GROK_SEARCH
                 if base_prompt and str(base_prompt).strip():
                     return f"{notice}\n\n{base_prompt}"
                 return notice
@@ -3256,7 +3304,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             def _openai_system_prompt(base_prompt, enable_search):
                 if not enable_search:
                     return base_prompt
-                notice = "You can access external links via the web_search tool. If a URL cannot be accessed, say so clearly."
+                if not get_user_auto_system_prompt_notices_enabled(user):
+                    return base_prompt
+                notice = AUTO_SYSTEM_PROMPT_NOTICE_OPENAI_SEARCH
                 if base_prompt and str(base_prompt).strip():
                     return f"{notice}\n\n{base_prompt}"
                 return notice
@@ -3478,10 +3528,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 # Gemini code_execution does not accept audio/video inputs; fall back to local exec.
                 gemini_local_python = True
                 log_force("Gemini: local python mode for audio/video inputs")
-                local_py_notice = "Python execution is available locally. To run code, include a python fenced block that starts with '# EXECUTE' on the first line."
-                curr_p = options.get('system_prompt') or ""
-                if local_py_notice not in str(curr_p):
-                    options['system_prompt'] = f"{local_py_notice}\n\n{curr_p}" if str(curr_p).strip() else local_py_notice
+                if get_user_auto_system_prompt_notices_enabled(user):
+                    local_py_notice = AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON
+                    curr_p = options.get('system_prompt') or ""
+                    if local_py_notice not in str(curr_p):
+                        options['system_prompt'] = f"{local_py_notice}\n\n{curr_p}" if str(curr_p).strip() else local_py_notice
             if (has_audio and not supports_audio_inputs) or (has_video and not supports_video_inputs):
                 pub("error", "This model does not support audio/video inputs. Please remove them and retry.")
                 return
@@ -7659,6 +7710,8 @@ def handle_settings():
             'system_prompt': sp or "",
             'system_prompt_enabled': current_user.system_prompt_enabled if current_user.system_prompt_enabled is not None else True,
             'apply_global_system_prompt': current_user.apply_global_system_prompt if current_user.apply_global_system_prompt is not None else True,
+            'apply_auto_system_prompt_notices': get_user_auto_system_prompt_notices_enabled(current_user),
+            'auto_system_prompt_notices_preview': build_auto_system_prompt_notices_preview(),
             'global_system_prompt': global_prompt_value,
             'global_system_prompt_enabled': global_prompt_enabled,
             'global_system_prompt_effective': global_prompt_effective,
@@ -7719,6 +7772,8 @@ def handle_settings():
         current_user.system_prompt_enabled = bool(d['system_prompt_enabled'])
     if 'apply_global_system_prompt' in d:
         current_user.apply_global_system_prompt = bool(d['apply_global_system_prompt'])
+    if 'apply_auto_system_prompt_notices' in d:
+        current_user.apply_auto_system_prompt_notices = bool(d['apply_auto_system_prompt_notices'])
     if 'openai_key' in d: current_user.openai_api_key = encrypt_val(d['openai_key'])
     if 'gemini_key' in d: current_user.gemini_api_key = encrypt_val(d['gemini_key'])
     if 'gemini_backend' in d: current_user.gemini_backend = _normalize_gemini_backend(d['gemini_backend'])
@@ -8816,6 +8871,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN apply_global_system_prompt BOOLEAN DEFAULT 1")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN apply_auto_system_prompt_notices BOOLEAN DEFAULT 1")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN default_safety_setting VARCHAR(16) DEFAULT 'default'")

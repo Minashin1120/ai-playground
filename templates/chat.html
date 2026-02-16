@@ -4051,10 +4051,6 @@
             if (localPyDialogSetting) {
                 localPyDialogSetting.onchange = () => setGeminiLocalPyDialogEnabled(localPyDialogSetting.checked);
             }
-            const compactPromptModeSetting = get('set-compact-prompt-mode');
-            if (compactPromptModeSetting) {
-                compactPromptModeSetting.onchange = () => setCompactPromptMode(compactPromptModeSetting.checked);
-            }
             const geminiBackendSetting = get('set-gemini-backend');
             if (geminiBackendSetting) {
                 geminiBackendSetting.onchange = () => syncGeminiBackendUi();

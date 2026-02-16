@@ -2491,7 +2491,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_OPENAI_SEARCH = (
     "You can access external links via the web_search tool. If a URL cannot be accessed, say so clearly."
 )
 AUTO_SYSTEM_PROMPT_NOTICE_MARKER = "編集済みの画像を見てください。"
-AUTO_SYSTEM_PROMPT_NOTICE_ATTACHMENT_NAMES = "添付ファイル名"
+AUTO_SYSTEM_PROMPT_NOTICE_ATTACHMENT_NAMES = "添付ファイル名:\n{{attachment_names}}"
 
 AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
     "python",
@@ -2547,6 +2547,52 @@ def _normalize_auto_notice_text(raw_text, default_text):
     if len(text) > AUTO_SYSTEM_PROMPT_NOTICE_MAX_CHARS:
         text = text[:AUTO_SYSTEM_PROMPT_NOTICE_MAX_CHARS]
     return text
+
+
+def _render_attachment_names_notice(template_text, names):
+    cleaned = []
+    for name in names or []:
+        v = os.path.basename(str(name or "").strip())
+        if v:
+            cleaned.append(v)
+    if not cleaned:
+        return ""
+
+    names_block = "\n".join([f"- {n}" for n in cleaned])
+    rendered = str(template_text or "").replace("\r\n", "\n").strip()
+    if not rendered:
+        rendered = AUTO_SYSTEM_PROMPT_NOTICE_ATTACHMENT_NAMES
+
+    replaced = False
+    for token in ("{{attachment_names}}", "{attachment_names}", "{{attachment_list}}", "{attachment_list}"):
+        if token in rendered:
+            rendered = rendered.replace(token, names_block)
+            replaced = True
+    for token in ("{{attachment_count}}", "{attachment_count}"):
+        if token in rendered:
+            rendered = rendered.replace(token, str(len(cleaned)))
+            replaced = True
+
+    # Accept whitespace variants such as "{{ attachment_names }}".
+    spaced_rendered = re.sub(r"\{\{\s*(attachment_names|attachment_list)\s*\}\}", names_block, rendered)
+    if spaced_rendered != rendered:
+        rendered = spaced_rendered
+        replaced = True
+    spaced_rendered = re.sub(r"\{\{\s*attachment_count\s*\}\}", str(len(cleaned)), rendered)
+    if spaced_rendered != rendered:
+        rendered = spaced_rendered
+        replaced = True
+
+    if not replaced:
+        # Backward-compatible fallback for old one-line title texts.
+        if rendered.endswith(":") or rendered.endswith("："):
+            rendered = f"{rendered}\n{names_block}"
+        elif "\n" in rendered:
+            rendered = f"{rendered}\n{names_block}"
+        else:
+            rendered = f"{rendered}:\n{names_block}"
+
+    return rendered.strip()
 
 
 def _build_default_auto_system_prompt_notices_config():
@@ -3224,18 +3270,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             def _build_attachment_name_block(names):
                 if not (is_llm_model and _auto_notice_enabled("attachment_names")):
                     return ""
-                cleaned = []
-                for name in names or []:
-                    v = os.path.basename(str(name or "").strip())
-                    if v:
-                        cleaned.append(v)
-                if not cleaned:
-                    return ""
-                title = str(_auto_notice_text("attachment_names") or "").strip() or "添付ファイル名"
-                lines = "\n".join([f"- {n}" for n in cleaned])
-                if title.endswith(":") or title.endswith("："):
-                    return f"{title}\n{lines}"
-                return f"{title}:\n{lines}"
+                template_text = _auto_notice_text("attachment_names")
+                return _render_attachment_names_notice(template_text, names)
             try:
                 if getattr(user, "apply_global_system_prompt", None) is False:
                     apply_global_prompt = False

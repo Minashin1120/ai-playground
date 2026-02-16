@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.210)</title>
+    <title>AI Playground (V4.8.211)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -3828,7 +3828,7 @@
                 { key: 'grok_search', label: 'Search補助（Grok）' },
                 { key: 'openai_search', label: 'Search補助（OpenAI/xAI Responses）' },
                 { key: 'marker', label: 'Marker編集時' },
-                { key: 'attachment_names', label: '添付ファイル名（LLM入力時）' }
+                { key: 'attachment_names', label: '添付ファイル名（LLM入力時）', hint: '利用可能変数: {{attachment_names}} / {{attachment_count}}' }
             ];
             const buildAutoSystemPromptRows = (prefix, compact = false) => {
                 const textClass = compact
@@ -3844,6 +3844,7 @@
                             </label>
                         </div>
                         <textarea id="${prefix}-auto-sys-${item.key}-text" class="${textClass}" placeholder="自動注入文言"></textarea>
+                        ${item.hint ? `<div class="text-[10px] text-gray-500 mt-1">${item.hint}</div>` : ''}
                     </div>
                 `).join('');
             };

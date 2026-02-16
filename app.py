@@ -1439,6 +1439,7 @@ class User(UserMixin, db.Model):
     use_sw_cache = db.Column(db.Boolean, default=False)
     theme_color = db.Column(db.String(16), default="")
     auto_search_on_links = db.Column(db.Boolean, default=True)
+    compact_prompt_mode = db.Column(db.Boolean, default=False)
     use_last_chat_settings = db.Column(db.Boolean, default=False)
     temp_chat_timeout_seconds = db.Column(db.Integer, default=_TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS)
     default_enable_search = db.Column(db.Boolean, default=False)
@@ -7899,6 +7900,7 @@ def handle_settings():
             'use_sw_cache': current_user.use_sw_cache,
             'theme_color': current_user.theme_color or "",
             'auto_search_on_links': current_user.auto_search_on_links,
+            'compact_prompt_mode': current_user.compact_prompt_mode if current_user.compact_prompt_mode is not None else False,
             'use_last_chat_settings': current_user.use_last_chat_settings,
             'temp_chat_timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user),
             'default_enable_search': current_user.default_enable_search,
@@ -7961,6 +7963,7 @@ def handle_settings():
     if 'stt_model' in d: current_user.stt_model = d['stt_model']
     if 'enter_to_send' in d: current_user.enter_to_send = bool(d['enter_to_send'])
     if 'use_sw_cache' in d: current_user.use_sw_cache = bool(d['use_sw_cache'])
+    if 'compact_prompt_mode' in d: current_user.compact_prompt_mode = bool(d['compact_prompt_mode'])
     if 'theme_color' in d: current_user.theme_color = normalize_theme_color(d.get('theme_color'))
     if 'auto_search_on_links' in d: current_user.auto_search_on_links = bool(d['auto_search_on_links'])
     if 'use_last_chat_settings' in d: current_user.use_last_chat_settings = bool(d['use_last_chat_settings'])
@@ -9008,6 +9011,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN auto_search_on_links BOOLEAN DEFAULT 1")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN compact_prompt_mode BOOLEAN DEFAULT 0")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN use_last_chat_settings BOOLEAN DEFAULT 0")

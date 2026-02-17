@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.227)</title>
+    <title>AI Playground (V4.8.228)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -8522,6 +8522,12 @@
 
         get('save-thread-settings-btn').onclick = async () => {
             if (!currentThreadId) return;
+            const saveBtn = get('save-thread-settings-btn');
+            const originalLabel = saveBtn ? saveBtn.textContent : '';
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.textContent = '保存中...';
+            }
             const customInstructionEl = get('thread-custom-instruction');
             const custom_instruction = customInstructionEl ? customInstructionEl.value : '';
             const globalPromptEl = get('thread-global-sys-prompt');
@@ -8549,13 +8555,18 @@
                     userResOk = userRes.ok;
                 }
                 if (res.ok && userResOk) {
-                    showToast("チャット設定を保存しました", "success");
                     hideModal('thread-modal');
+                    showToast("保存されました", "success");
                 } else {
                     showToast("保存に失敗しました", "error", true);
                 }
             } catch (err) {
                 showToast("エラー: " + err.message, "error", true);
+            } finally {
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = originalLabel || '保存';
+                }
             }
         };
         async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('handle_gem_item', gid=0) }}".replace('0', id), {method: 'DELETE'}); loadGems(); }

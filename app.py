@@ -3359,8 +3359,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     user_prompt = sp
 
             # Thread specific prompt
-            th = Thread.query.get(thread_id)
-            local_sys_prompt = th.custom_instruction if (th and th.custom_instruction and th.custom_instruction.strip()) else None
+            local_sys_prompt = None
+            if 'thread_custom_instruction' in options:
+                raw_local_sys_prompt = options.get('thread_custom_instruction')
+            else:
+                th = Thread.query.get(thread_id)
+                raw_local_sys_prompt = th.custom_instruction if th else None
+            if raw_local_sys_prompt and str(raw_local_sys_prompt).strip():
+                local_sys_prompt = str(raw_local_sys_prompt).strip()
             
             combined_prompt = ""
             for part in [forced_prompt, global_prompt, user_prompt]:
@@ -6965,6 +6971,8 @@ def chat_stream():
         'grok_video_resolution': data.get('grok_video_resolution'),
         'attachment_name_map': attachment_name_map,
     }
+    if 'thread_custom_instruction' in data:
+        options['thread_custom_instruction'] = data.get('thread_custom_instruction')
 
     task_queue.enqueue(background_chat_task, job_id, thread_id, data.get('model'), user_msg.id, options, current_user.id, user_config, job_timeout=600)
     try:

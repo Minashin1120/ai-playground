@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.226)</title>
+    <title>AI Playground (V4.8.227)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -7639,6 +7639,10 @@
                 parent_id_explicit: parentIdExplicit,
                 disable_auto_search: disableAutoSearch
             }; 
+            const threadCustomInstructionEl = get('thread-custom-instruction');
+            if (threadCustomInstructionEl) {
+                p.thread_custom_instruction = threadCustomInstructionEl.value || '';
+            }
             if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; } 
             resetUploadState(); get('send-btn').disabled = true; get('stop-container').classList.remove('hidden'); userAutoScroll = true; const aid = 'ai-' + Date.now(); clearQuote(); 
             const modelLower = String(p.model || '').toLowerCase();

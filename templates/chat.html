@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.218)</title>
+    <title>AI Playground (V4.8.219)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -6329,6 +6329,7 @@
             let pinchStartScale = markerView.scale;
             let pinchStartOffset = { x: 0, y: 0 };
             let pinchStartMid = { x: 0, y: 0 };
+            let lastDrawPoint = null;
             const getPoint = (e) => {
                 const rect = canvas.getBoundingClientRect();
                 const x = (e.clientX - rect.left) * (canvas.width / rect.width);
@@ -6372,6 +6373,7 @@
                     const p2 = pts[1];
                     pinching = true;
                     drawing = false;
+                    lastDrawPoint = null;
                     pinchStartDist = getDist(p1, p2) || 1;
                     pinchStartScale = markerView.scale;
                     pinchStartOffset = { x: markerView.offsetX, y: markerView.offsetY };
@@ -6397,6 +6399,9 @@
                     ctx.moveTo(p.x, p.y);
                     ctx.lineTo(p.x, p.y);
                     ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                    lastDrawPoint = p;
                     markerState.hasStroke = true;
                 }
                 if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
@@ -6425,8 +6430,12 @@
                 if (markerState.mode === 'mosaic') {
                     applyMosaicAt(p);
                 } else {
+                    if (!lastDrawPoint) lastDrawPoint = p;
+                    ctx.beginPath();
+                    ctx.moveTo(lastDrawPoint.x, lastDrawPoint.y);
                     ctx.lineTo(p.x, p.y);
                     ctx.stroke();
+                    lastDrawPoint = p;
                 }
                 e.preventDefault();
             };
@@ -6438,6 +6447,7 @@
                 }
                 if (activePointers.size === 0) {
                     drawing = false;
+                    lastDrawPoint = null;
                     if (wasDrawing) {
                         saveMarkerHistory();
                     }

@@ -91,41 +91,77 @@
 <body class="text-white h-screen flex flex-col items-center justify-center p-4">
     <div class="auth-card p-8 rounded-2xl w-full max-w-sm">
         <h1 class="text-3xl mb-8 font-bold text-center auth-title">AI Chat Login</h1>
-        {% if error %}
-        <div class="bg-rose-500/15 text-rose-200 p-3 rounded-lg mb-4 text-sm text-center border border-rose-400/40">{{ error }}</div>
-        {% endif %}
-        <form method="POST" action="/login" class="space-y-5">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <div>
-                <label class="block text-[11px] mb-1 font-semibold text-slate-300 uppercase tracking-[0.18em]">ユーザー名</label>
-                <input type="text" name="username" required class="w-full p-3 rounded-xl text-white outline-none input-field">
-            </div>
-            <div>
-                <label class="block text-[11px] mb-1 font-semibold text-slate-300 uppercase tracking-[0.18em]">パスワード</label>
-                <input type="password" name="password" required class="w-full p-3 rounded-xl text-white outline-none input-field">
-            </div>
-            <div class="flex items-center">
-                <input type="checkbox" name="remember" id="remember" class="w-4 h-4 bg-gray-700 border-gray-600 rounded">
-                <label for="remember" class="ml-2 text-sm text-slate-300">ログイン状態を保持</label>
-            </div>
-            {% if site_key %}
-            <div class="flex justify-center"><div class="cf-turnstile" data-sitekey="{{ site_key }}" data-theme="dark"></div></div>
-            {% endif %}
-            <button type="submit" class="w-full font-bold py-3 rounded-xl transition primary-btn">ログイン</button>
-        </form>
-        <div class="mt-6 pt-6 border-t border-slate-700/60">
-            <h2 class="text-sm font-bold text-slate-200 mb-3 text-center">パスキーでログイン</h2>
-            <div id="passkey-error" class="hidden bg-rose-500/15 text-rose-200 p-2 rounded mb-3 text-xs text-center border border-rose-400/40"></div>
-            <div class="space-y-3">
+        
+        <div id="login-error" class="hidden bg-rose-500/15 text-rose-200 p-3 rounded-lg mb-4 text-sm text-center border border-rose-400/40"></div>
+        
+        <div id="login-section">
+            <form id="login-form" class="space-y-5">
                 <div>
                     <label class="block text-[11px] mb-1 font-semibold text-slate-300 uppercase tracking-[0.18em]">ユーザー名</label>
-                    <input type="text" id="passkey-username" class="w-full p-3 rounded-xl text-white outline-none input-field">
+                    <input type="text" name="username" required class="w-full p-3 rounded-xl text-white outline-none input-field">
                 </div>
-                <button id="passkey-login-btn" type="button" class="w-full font-bold py-2.5 rounded-xl transition secondary-btn">パスキーでログイン</button>
-                <div class="text-[11px] text-slate-400 text-center">パスキー登録済みのアカウントで利用できます。</div>
+                <div>
+                    <label class="block text-[11px] mb-1 font-semibold text-slate-300 uppercase tracking-[0.18em]">パスワード</label>
+                    <input type="password" name="password" required class="w-full p-3 rounded-xl text-white outline-none input-field">
+                </div>
+                <div class="flex items-center">
+                    <input type="checkbox" name="remember" id="remember" class="w-4 h-4 bg-gray-700 border-gray-600 rounded">
+                    <label for="remember" class="ml-2 text-sm text-slate-300">ログイン状態を保持</label>
+                </div>
+                {% if site_key %}
+                <div class="flex justify-center"><div class="cf-turnstile" data-sitekey="{{ site_key }}" data-theme="dark"></div></div>
+                {% endif %}
+                <button type="submit" class="w-full font-bold py-3 rounded-xl transition primary-btn">ログイン</button>
+            </form>
+            <div class="mt-6 pt-6 border-t border-slate-700/60">
+                <h2 class="text-sm font-bold text-slate-200 mb-3 text-center">パスキーでログイン</h2>
+                <div id="passkey-error" class="hidden bg-rose-500/15 text-rose-200 p-2 rounded mb-3 text-xs text-center border border-rose-400/40"></div>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-[11px] mb-1 font-semibold text-slate-300 uppercase tracking-[0.18em]">ユーザー名</label>
+                        <input type="text" id="passkey-username" class="w-full p-3 rounded-xl text-white outline-none input-field">
+                    </div>
+                    <button id="passkey-login-btn" type="button" class="w-full font-bold py-2.5 rounded-xl transition secondary-btn">パスキーでログイン</button>
+                    <div class="text-[11px] text-slate-400 text-center">パスキー登録済みのアカウントで利用できます。</div>
+                </div>
             </div>
         </div>
-        <div class="mt-6 pt-6 border-t border-slate-700/60 text-center">
+
+        <div id="totp-section" class="hidden space-y-6">
+            <div class="text-center">
+                <h2 class="text-xl font-bold text-white mb-2">2段階認証</h2>
+                <p class="text-xs text-slate-400">認証コードを入力してください</p>
+            </div>
+            
+            <div class="flex border-b border-slate-700 mb-4">
+                <button onclick="switch2FATab('totp')" id="tab-totp" class="flex-1 py-2 text-sm font-semibold border-b-2 border-teal-400 text-teal-400">App Code</button>
+                <button onclick="switch2FATab('webauthn')" id="tab-webauthn" class="flex-1 py-2 text-sm text-slate-400 hover:text-white border-b-2 border-transparent">Security Key</button>
+            </div>
+
+            <form id="totp-form" class="space-y-5">
+                <div>
+                    <label class="block text-slate-300 text-[11px] font-semibold mb-2 text-center uppercase tracking-[0.1em]">認証コード (6桁)</label>
+                    <input type="text" id="totp-input" name="totp_code" class="w-full bg-[#0b121a] text-white border border-slate-700 rounded-xl py-3 px-3 focus:outline-none focus:border-teal-400 font-mono text-center text-2xl tracking-[0.3em]" placeholder="000000" maxlength="6" autocomplete="one-time-code">
+                </div>
+                <button type="submit" class="w-full font-bold py-3 rounded-xl transition primary-btn">
+                    認証する
+                </button>
+            </form>
+
+            <div id="webauthn-form" class="hidden text-center py-4">
+                <div class="mb-4 text-slate-300">
+                    <i class="fas fa-fingerprint text-4xl mb-2 text-amber-300"></i>
+                    <p class="text-sm">セキュリティキーまたはTouch IDを使用</p>
+                </div>
+                <button onclick="startWebAuthn()" class="w-full font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 secondary-btn">
+                    認証を開始
+                </button>
+            </div>
+
+            <button onclick="backToLogin()" class="w-full text-sm text-slate-400 hover:text-slate-200 transition">ログイン画面に戻る</button>
+        </div>
+
+        <div class="mt-6 pt-6 border-t border-slate-700/60 text-center" id="signup-link-section">
             <p class="text-sm text-slate-400 mb-3">アカウントをお持ちでない方</p>
             <a href="/signup" class="inline-block w-full text-white font-bold py-2 rounded-xl transition text-sm ghost-btn">新規アカウント作成</a>
         </div>
@@ -182,6 +218,149 @@
         document.getElementById('legal-modal').onclick = (e) => {
             if (e.target.id === 'legal-modal') hideLegal();
         };
+
+        const showLoginError = (msg) => {
+            const box = document.getElementById('login-error');
+            if (!box) return;
+            box.textContent = msg;
+            box.classList.remove('hidden');
+        };
+        const clearLoginError = () => {
+            const box = document.getElementById('login-error');
+            if (box) box.classList.add('hidden');
+        };
+
+        window.backToLogin = () => {
+            document.getElementById('login-section').classList.remove('hidden');
+            document.getElementById('totp-section').classList.add('hidden');
+            document.getElementById('signup-link-section').classList.remove('hidden');
+            clearLoginError();
+        };
+
+        window.switch2FATab = (t) => {
+            document.getElementById('totp-form').classList.toggle('hidden', t !== 'totp');
+            document.getElementById('webauthn-form').classList.toggle('hidden', t !== 'webauthn');
+            
+            document.getElementById('tab-totp').className = t === 'totp' 
+                ? "flex-1 py-2 text-sm font-semibold border-b-2 border-teal-400 text-teal-400"
+                : "flex-1 py-2 text-sm text-slate-400 hover:text-white border-b-2 border-transparent";
+            document.getElementById('tab-webauthn').className = t === 'webauthn'
+                ? "flex-1 py-2 text-sm font-semibold border-b-2 border-teal-400 text-teal-400"
+                : "flex-1 py-2 text-sm text-slate-400 hover:text-white border-b-2 border-transparent";
+        };
+
+        document.getElementById('login-form').onsubmit = async (e) => {
+            e.preventDefault();
+            clearLoginError();
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            const originalText = btn.innerText;
+            btn.innerText = "認証中...";
+
+            try {
+                const formData = new FormData(e.target);
+                const data = Object.fromEntries(formData.entries());
+                data['cf-turnstile-response'] = getTurnstileToken();
+                const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+                const res = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrf,
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await res.json();
+                if (res.ok) {
+                    if (result.status === 'ok') {
+                        window.location.href = result.redirect || '/';
+                    } else if (result.status === '2fa_required') {
+                        document.getElementById('login-section').classList.add('hidden');
+                        document.getElementById('signup-link-section').classList.add('hidden');
+                        document.getElementById('totp-section').classList.remove('hidden');
+                        document.getElementById('totp-input').focus();
+                    }
+                } else {
+                    showLoginError(result.error || "ログインに失敗しました");
+                    if (window.turnstile) window.turnstile.reset();
+                }
+            } catch (err) {
+                showLoginError("ネットワークエラーが発生しました");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = originalText;
+            }
+        };
+
+        document.getElementById('totp-form').onsubmit = async (e) => {
+            e.preventDefault();
+            clearLoginError();
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            btn.innerText = "認証中...";
+
+            try {
+                const code = document.getElementById('totp-input').value;
+                const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                
+                const res = await fetch("{{ url_for('verify_2fa') }}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrf,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ totp_code: code })
+                });
+
+                const result = await res.json();
+                if (res.ok && result.status === 'ok') {
+                    window.location.href = result.redirect || '/';
+                } else {
+                    showLoginError(result.error || "認証に失敗しました");
+                }
+            } catch (err) {
+                showLoginError("ネットワークエラーが発生しました");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "認証する";
+            }
+        };
+
+        async function startWebAuthn() {
+            try {
+                clearLoginError();
+                const csrf = document.querySelector('meta[name="csrf-token"]').content;
+                const optsRes = await fetch('/verify-2fa/webauthn/options', {
+                    method: 'POST',
+                    headers: {'X-CSRF-Token': csrf}
+                });
+                if(!optsRes.ok) throw new Error("Failed to get options");
+                const options = await optsRes.json();
+                const credential = await window.webauthnJSON.get({ publicKey: options });
+                const verifyRes = await fetch('/verify-2fa/webauthn/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrf
+                    },
+                    body: JSON.stringify(credential)
+                });
+                const result = await verifyRes.json();
+                if(result.status === 'ok') {
+                    window.location.href = "/";
+                } else {
+                    showLoginError("認証に失敗しました: " + (result.error || "Unknown error"));
+                }
+            } catch(e) {
+                console.error(e);
+                showLoginError("認証エラー: " + e.message);
+            }
+        }
 
         const getTurnstileToken = () => {
             const el = document.querySelector('[name="cf-turnstile-response"]');

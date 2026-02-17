@@ -6512,16 +6512,27 @@ def service_worker():
 def login():
     if current_user.is_authenticated: return redirect(url_for('index'))
     if request.method == 'POST':
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
+                  'application/json' in request.headers.get('Accept', '')
+        
         if not rate_limit(f"rl:login:ip:{request.remote_addr}", 20, 300):
+            if is_ajax: return jsonify({'error': "Too many attempts. Try again later."}), 429
             return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
-        if not verify_turnstile(request.form.get('cf-turnstile-response')): return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Auth Error")
-        username = (request.form.get('username') or '').strip()
+        
+        form_data = request.json if is_ajax else request.form
+        if not verify_turnstile(form_data.get('cf-turnstile-response')):
+            if is_ajax: return jsonify({'error': "Auth Error"}), 401
+            return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Auth Error")
+            
+        username = (form_data.get('username') or '').strip()
         user = User.query.filter_by(username=username).first()
         # Allow login even if IP/Cookie is banned; ban screen will handle after login.
         if user:
             if not rate_limit(f"rl:login:user:{user.id}", 10, 300):
+                if is_ajax: return jsonify({'error': "Too many attempts. Try again later."}), 429
                 return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
-            pw = request.form.get('password') or ""
+            
+            pw = form_data.get('password') or ""
             now = datetime.utcnow()
             easy_ok = False
             try:
@@ -6529,31 +6540,40 @@ def login():
                     easy_ok = check_password_hash(user.easy_login_hash, pw)
             except Exception:
                 easy_ok = False
+                
             if easy_ok:
                 # One-time easy login: disable after first successful use
                 user.easy_login_hash = None
                 user.easy_login_expires_at = None
                 safe_db_commit()
                 session['easy_login_used'] = True
-                remember = bool(request.form.get('remember'))
+                remember = bool(form_data.get('remember'))
                 login_user(user, remember=remember)
                 create_user_session(user)
                 record_user_client_token(user)
+                if is_ajax: return jsonify({'status': 'ok', 'redirect': url_for('index')})
                 return redirect(url_for('index'))
+                
             if user.easy_login_hash and user.easy_login_expires_at and now > user.easy_login_expires_at:
                 user.easy_login_hash = None
                 user.easy_login_expires_at = None
                 safe_db_commit()
+                
             if user.check_password(pw):
                 if user.is_2fa_enabled:
-                    session['remember_me'] = bool(request.form.get('remember'))
+                    session['remember_me'] = bool(form_data.get('remember'))
                     session['pre_2fa_user_id'] = user.id
+                    if is_ajax: return jsonify({'status': '2fa_required'})
                     return redirect(url_for('verify_2fa'))
-                remember = bool(request.form.get('remember'))
+                
+                remember = bool(form_data.get('remember'))
                 login_user(user, remember=remember)
                 create_user_session(user)
                 record_user_client_token(user)
+                if is_ajax: return jsonify({'status': 'ok', 'redirect': url_for('index')})
                 return redirect(url_for('index'))
+                
+        if is_ajax: return jsonify({'error': "Invalid credentials"}), 401
         return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Invalid credentials")
     return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'))
 

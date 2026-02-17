@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.224)</title>
+    <title>AI Playground (V4.8.225)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -2924,6 +2924,9 @@
             'gemini-2.5-flash-native-audio-preview-12-2025',
             'grok-voice-agent'
         ]);
+        const FILE_BASE_URL = "{{ url_for('serve_file', filename='') }}";
+        const FILE_THUMB_BASE_URL = "{{ url_for('serve_file_thumb', filename='') }}";
+        const IMAGE_EXTS = ['png','jpg','jpeg','webp','gif','bmp','avif','heic','heif'];
         const AUDIO_EXTS = ['mp3','wav','aac','ogg','flac','aiff','aif','m4a','opus','oga','weba','webm'];
         const VIDEO_EXTS = ['mp4','mov','avi','mkv','m4v','webm','mpg','mpeg','wmv','3gp','3gpp','flv'];
         const getFileExt = (name) => {
@@ -2942,6 +2945,7 @@
         };
         const supportsAudioInputModel = () => getModelMediaSupport(get('model-select').value).audio;
         const supportsVideoInputModel = () => getModelMediaSupport(get('model-select').value).video;
+        const isImagePath = (path) => IMAGE_EXTS.includes(getFileExt(path || ''));
         const isAudioPath = (path) => AUDIO_EXTS.includes(getFileExt(path || ''));
         const isVideoPath = (path) => VIDEO_EXTS.includes(getFileExt(path || ''));
         const OPENAI_TTS_VOICES = ['alloy','ash','ballad','coral','echo','fable','nova','onyx','sage','shimmer','verse','marin','cedar'];
@@ -5164,7 +5168,7 @@
                         let src = localUrl;
                         if (!src && filename) {
                             const displayPath = filename.replace(/^\d+\//, '');
-                            src = "{{ url_for('serve_file', filename='') }}" + displayPath;
+                            src = buildAttachmentPreviewUrl(displayPath);
                         }
                         
                         if (src) {
@@ -5694,7 +5698,7 @@
             const localUrl = row.getAttribute('data-local-url');
             if (localUrl) return localUrl;
             const filepath = row.getAttribute('data-filename');
-            if (filepath) return "{{ url_for('serve_file', filename='') }}" + filepath;
+            if (filepath) return buildFileUrl(filepath);
             return '';
         }
         function normalizeAttachmentPath(path) {
@@ -5711,6 +5715,17 @@
             if (v.startsWith('files/')) v = v.slice(6);
             try { v = decodeURIComponent(v); } catch (e) {}
             return v;
+        }
+        function buildFileUrl(path) {
+            const norm = normalizeAttachmentPath(path);
+            if (!norm) return '';
+            return FILE_BASE_URL + norm;
+        }
+        function buildAttachmentPreviewUrl(path) {
+            const norm = normalizeAttachmentPath(path);
+            if (!norm) return '';
+            if (isImagePath(norm)) return FILE_THUMB_BASE_URL + norm;
+            return FILE_BASE_URL + norm;
         }
         function openMarkerModalForRow(row) {
             const src = getRowImageSource(row);
@@ -5884,7 +5899,8 @@
             const displayName = normalizeAttachmentDisplayName(opts.displayName) || getAttachmentNameForPath(filepath) || filename;
             const ext = (filename.split('.').pop() || '').toLowerCase();
             const isImage = ['png','jpg','jpeg','webp','gif'].includes(ext);
-            const url = "{{ url_for('serve_file', filename='') }}" + filepath;
+            const fileUrl = buildFileUrl(filepath);
+            const previewUrl = isImage ? buildAttachmentPreviewUrl(filepath) : fileUrl;
             const uploadId = `lib_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
             const row = document.createElement('div');
             row.className = 'upload-row bg-gray-900/60 rounded p-2';
@@ -5899,7 +5915,7 @@
                 ? `<button class="upload-marker text-[10px] border rounded px-2 py-1">画像編集</button>`
                 : '';
             const previewHtml = isImage
-                ? `<img src="${url}" class="upload-preview w-12 h-12 object-cover rounded border border-gray-700 cursor-pointer" alt="${safeName}">`
+                ? `<img src="${previewUrl}" loading="lazy" decoding="async" class="upload-preview w-12 h-12 object-cover rounded border border-gray-700 cursor-pointer" alt="${safeName}">`
                 : `<div class="upload-preview w-12 h-12 bg-gray-800 rounded border border-gray-700 flex items-center justify-center text-gray-400 text-sm cursor-pointer">FILE</div>`;
             row.innerHTML = `
                 <div class="flex items-center gap-3">
@@ -5923,7 +5939,7 @@
             `;
             const previewEl = row.querySelector('.upload-preview');
             if (previewEl) {
-                previewEl.onclick = () => openFileViewer(url, getRowAttachmentName(row) || displayName);
+                previewEl.onclick = () => openFileViewer(fileUrl, getRowAttachmentName(row) || displayName);
             }
             const sendNameBtn = row.querySelector('.upload-send-name');
             if (sendNameBtn) {
@@ -6012,7 +6028,7 @@
             if (previewEl) {
                 previewEl.onclick = () => {
                     const filepath = row.getAttribute('data-filename');
-                    const url = filepath ? ("{{ url_for('serve_file', filename='') }}" + filepath) : row.getAttribute('data-local-url');
+                    const url = filepath ? buildFileUrl(filepath) : row.getAttribute('data-local-url');
                     const openName = normalizeAttachmentDisplayName(row.dataset.displayName) || file.name || filepath || '';
                     openFileViewer(url, openName);
                 };
@@ -6126,7 +6142,7 @@
                         const img = row.row.querySelector('img.upload-preview');
                         if (img) {
                             const displayPath = doneData.filename.replace(/^\d+\//, '');
-                            img.src = "{{ url_for('serve_file', filename='') }}" + displayPath;
+                            img.src = buildAttachmentPreviewUrl(displayPath);
                         }
                     }
                     const normPath = normalizeAttachmentPath(doneData.filename);
@@ -6194,7 +6210,7 @@
                             const img = row.row.querySelector('img.upload-preview');
                             if (img) {
                                 const displayPath = d.filename.replace(/^\d+\//, '');
-                                img.src = "{{ url_for('serve_file', filename='') }}" + displayPath;
+                                img.src = buildAttachmentPreviewUrl(displayPath);
                             }
                         }
                         const normPath = normalizeAttachmentPath(d.filename);
@@ -6314,7 +6330,7 @@
             if (previewEl) {
                 previewEl.onclick = () => {
                     const filepath = row.row.getAttribute('data-filename');
-                    const url = filepath ? ("{{ url_for('serve_file', filename='') }}" + filepath) : row.row.getAttribute('data-local-url');
+                    const url = filepath ? buildFileUrl(filepath) : row.row.getAttribute('data-local-url');
                     openFileViewer(url, getRowAttachmentName(row.row) || displayName || filepath || '');
                 };
             }
@@ -7123,11 +7139,12 @@
                             if (!path) return;
                             setAttachmentSourceForPath(path, source);
                             const displayPath = path.replace(/^\d+\//, '');
-                            const url = "{{ url_for('serve_file', filename='') }}" + displayPath; 
+                            const url = buildFileUrl(displayPath);
+                            const previewUrl = buildAttachmentPreviewUrl(displayPath);
                             const fn = path.split('/').pop(); 
                             const ext = fn.split('.').pop().toLowerCase(); 
                             if(['jpg','jpeg','png','webp','gif'].includes(ext)) {
-                                items.push(`<img src="${url}" class="chat-image" loading="lazy" onclick="openImageViewer('${url}')" title="${fn}">`);
+                                items.push(`<img src="${previewUrl}" class="chat-image" loading="lazy" onclick="openImageViewer('${url}')" title="${fn}">`);
                             } else {
                                 items.push(`<div class="file-thumb bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700" onclick="window.open('${url}')" title="${fn}"><i class="fas fa-file text-2xl text-gray-400 mb-1"></i><span class="text-[9px] truncate w-20 text-center">${fn}</span></div>`);
                             }
@@ -8506,7 +8523,8 @@
             const el = document.createElement('div'); 
             el.className = "relative group bg-gray-700 h-24 rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400 model-list-animate"; 
             if (i !== null && i !== undefined) el.style.animationDelay = `${i * 0.03}s`;
-            const content = f.type==='image' ? `<img src="${f.url}" class="h-full w-full object-cover rounded">` : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`; 
+            const thumbSrc = f.thumbnail_url || f.thumb_url || f.url;
+            const content = f.type==='image' ? `<img src="${thumbSrc}" loading="lazy" decoding="async" class="h-full w-full object-cover rounded">` : `<div class="flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-20 text-center">${f.filename}</span></div>`; 
             const overlay = `<div class="lib-overlay absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${f.url}" download="${f.filename}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><button class="lib-open-btn p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-eye"></i></button></div>`; 
             const actions = `<div class="absolute top-1 right-1 flex gap-1 z-20"><button class="lib-open-btn w-7 h-7 rounded-full bg-gray-900/70 border border-gray-600 text-gray-200 text-[10px]" title="開く"><i class="fas fa-eye"></i></button><button class="lib-del-btn w-7 h-7 rounded-full bg-gray-900/70 border border-gray-600 text-red-300 text-[10px]" title="削除"><i class="fas fa-trash"></i></button></div>`;
             el.innerHTML = content + overlay + actions; 
@@ -8549,8 +8567,9 @@
             const filename = filepath.split('/').pop() || filepath;
             const ext = (filename.split('.').pop() || '').toLowerCase();
             const type = ['png','jpg','jpeg','webp','gif'].includes(ext) ? 'image' : 'file';
-            const url = "{{ url_for('serve_file', filename='') }}" + filepath;
-            const f = { filename, original_filename: filename, filepath, url, type, ext, ts: Math.floor(Date.now() / 1000) };
+            const url = FILE_BASE_URL + filepath;
+            const thumbnail_url = type === 'image' ? (FILE_THUMB_BASE_URL + filepath) : null;
+            const f = { filename, original_filename: filename, filepath, url, thumbnail_url, type, ext, ts: Math.floor(Date.now() / 1000) };
             setAttachmentNameForPath(filepath, filename);
             lib.fileSet.add(filepath);
             if (!lib.files) lib.files = [];
@@ -8642,7 +8661,8 @@
             }
             if (!Array.isArray(files)) files = [];
             try {
-                const base = "{{ url_for('serve_file', filename='') }}";
+                const base = FILE_BASE_URL;
+                const thumbBase = FILE_THUMB_BASE_URL;
                 const seenPaths = new Set(files.map(f => f && f.filepath).filter(Boolean));
                 const extra = Array.isArray(currentImageUrls) ? currentImageUrls : [];
                 extra.forEach((fp) => {
@@ -8650,7 +8670,8 @@
                     const filename = getAttachmentNameForPath(fp) || (fp.split('/').pop() || fp);
                     const ext = (filename.split('.').pop() || '').toLowerCase();
                     const type = ['png','jpg','jpeg','webp','gif'].includes(ext) ? 'image' : 'file';
-                    files.unshift({ filename, original_filename: filename, filepath: fp, url: base + fp, type, ext, ts: Math.floor(Date.now() / 1000) });
+                    const thumbUrl = type === 'image' ? (thumbBase + fp) : null;
+                    files.unshift({ filename, original_filename: filename, filepath: fp, url: base + fp, thumbnail_url: thumbUrl, type, ext, ts: Math.floor(Date.now() / 1000) });
                     seenPaths.add(fp);
                 });
             } catch (e) {}

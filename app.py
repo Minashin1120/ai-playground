@@ -146,6 +146,10 @@ _MEDIA_BYTES_CACHE_MAX = max(0, _env_int("MEDIA_BYTES_CACHE_MAX_MB", 128)) * 102
 _MEDIA_BYTES_CACHE_ITEM_MAX = max(0, _env_int("MEDIA_BYTES_CACHE_ITEM_MAX_MB", 12)) * 1024 * 1024
 _HISTORY_IMAGE_MAX_ITEMS = max(0, _env_int("HISTORY_IMAGE_MAX_ITEMS", 0))
 _HISTORY_IMAGE_MAX_BYTES = max(0, _env_int("HISTORY_IMAGE_MAX_MB", 0)) * 1024 * 1024
+_THUMBNAIL_CACHE_MAX = max(0, _env_int("THUMBNAIL_CACHE_MAX_MB", 48)) * 1024 * 1024
+_THUMBNAIL_CACHE_ITEM_MAX = max(0, _env_int("THUMBNAIL_CACHE_ITEM_MAX_MB", 2)) * 1024 * 1024
+_THUMBNAIL_SIZE = max(64, _env_int("THUMBNAIL_SIZE", 320))
+_THUMBNAIL_QUALITY = min(95, max(50, _env_int("THUMBNAIL_QUALITY", 78)))
 
 def _key_sig(key, extra=""):
     if not key:
@@ -644,6 +648,17 @@ def _normalize_upload_ref(ref):
         return None
     return norm
 
+def _resolve_user_upload_rel_path(filename, user_id):
+    norm = _normalize_upload_ref(filename)
+    if not norm:
+        return None
+    parts = norm.split(os.sep)
+    if len(parts) > 1 and parts[0].isdigit():
+        if int(parts[0]) != int(user_id):
+            return None
+        return norm
+    return os.path.join(str(user_id), norm)
+
 def _normalize_attachment_list(raw_list, user_id=None):
     if not raw_list:
         return []
@@ -689,6 +704,7 @@ _VIDEO_MIME_BY_EXT = {
     ".avi": "video/x-msvideo",
     ".webm": "video/webm"
 }
+_IMAGE_THUMB_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif", ".heic", ".heif"}
 
 def _normalize_media_mime(filename, mime_guess):
     ext = os.path.splitext(filename or "")[1].lower()
@@ -765,6 +781,9 @@ def _get_file_disk_info(rel_path):
 _MEDIA_BYTES_CACHE_LOCK = threading.Lock()
 _MEDIA_BYTES_CACHE = OrderedDict()
 _MEDIA_BYTES_CACHE_SIZE = 0
+_THUMBNAIL_BYTES_CACHE_LOCK = threading.Lock()
+_THUMBNAIL_BYTES_CACHE = OrderedDict()
+_THUMBNAIL_BYTES_CACHE_SIZE = 0
 _TOKEN_FILE_TOKENS_CACHE_MAX = max(0, _env_int("TOKEN_FILE_TOKENS_CACHE_MAX", 512))
 _TOKEN_FILE_TOKENS_CACHE_LOCK = threading.Lock()
 _TOKEN_FILE_TOKENS_CACHE = OrderedDict()
@@ -812,6 +831,50 @@ def _media_bytes_cache_evict_path(rel_path):
             prev = _MEDIA_BYTES_CACHE.pop(k, None)
             if prev is not None:
                 _MEDIA_BYTES_CACHE_SIZE -= len(prev)
+
+def _thumbnail_bytes_cache_get(key):
+    if _THUMBNAIL_CACHE_MAX <= 0:
+        return None
+    with _THUMBNAIL_BYTES_CACHE_LOCK:
+        hit = _THUMBNAIL_BYTES_CACHE.get(key)
+        if hit is None:
+            return None
+        _THUMBNAIL_BYTES_CACHE.move_to_end(key)
+        return hit
+
+def _thumbnail_bytes_cache_put(key, data):
+    global _THUMBNAIL_BYTES_CACHE_SIZE
+    if _THUMBNAIL_CACHE_MAX <= 0:
+        return
+    if data is None:
+        return
+    size = len(data)
+    if size <= 0:
+        return
+    if _THUMBNAIL_CACHE_ITEM_MAX and size > _THUMBNAIL_CACHE_ITEM_MAX:
+        return
+    if size > _THUMBNAIL_CACHE_MAX:
+        return
+    with _THUMBNAIL_BYTES_CACHE_LOCK:
+        prev = _THUMBNAIL_BYTES_CACHE.pop(key, None)
+        if prev is not None:
+            _THUMBNAIL_BYTES_CACHE_SIZE -= len(prev)
+        _THUMBNAIL_BYTES_CACHE[key] = data
+        _THUMBNAIL_BYTES_CACHE_SIZE += size
+        while _THUMBNAIL_BYTES_CACHE_SIZE > _THUMBNAIL_CACHE_MAX and _THUMBNAIL_BYTES_CACHE:
+            _, ev = _THUMBNAIL_BYTES_CACHE.popitem(last=False)
+            _THUMBNAIL_BYTES_CACHE_SIZE -= len(ev)
+
+def _thumbnail_bytes_cache_evict_path(rel_path):
+    global _THUMBNAIL_BYTES_CACHE_SIZE
+    if not rel_path:
+        return
+    with _THUMBNAIL_BYTES_CACHE_LOCK:
+        to_del = [k for k in _THUMBNAIL_BYTES_CACHE.keys() if isinstance(k, tuple) and len(k) > 0 and k[0] == rel_path]
+        for k in to_del:
+            prev = _THUMBNAIL_BYTES_CACHE.pop(k, None)
+            if prev is not None:
+                _THUMBNAIL_BYTES_CACHE_SIZE -= len(prev)
 
 
 def _token_file_tokens_cache_get(key):
@@ -971,6 +1034,10 @@ def _delete_file_cache_for_path(user_id, rel_path):
         pass
     try:
         _media_bytes_cache_evict_path(rel_path)
+    except Exception:
+        pass
+    try:
+        _thumbnail_bytes_cache_evict_path(rel_path)
     except Exception:
         pass
 
@@ -7234,38 +7301,92 @@ def robots_txt():
     ]
     return Response("\n".join(lines), mimetype="text/plain")
 
+def _add_file_privacy_headers(resp):
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+    resp.headers["Cache-Control"] = "private, no-cache, no-store, must-revalidate"
+    resp.headers["Vary"] = "Cookie"
+    return resp
+
+def _add_thumb_cache_headers(resp, etag=None):
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+    resp.headers["Cache-Control"] = "private, max-age=86400, stale-while-revalidate=604800"
+    resp.headers["Vary"] = "Cookie"
+    if etag:
+        resp.headers["ETag"] = f'"{etag}"'
+    return resp
+
+@app.route('/files/thumb/<path:filename>')
+@login_required
+def serve_file_thumb(filename):
+    actual_rel_path = _resolve_user_upload_rel_path(filename, current_user.id)
+    if not actual_rel_path:
+        abort(403)
+    info = _get_file_disk_info(actual_rel_path)
+    if not info or not info.get("exists"):
+        abort(404)
+
+    ext = os.path.splitext(actual_rel_path)[1].lower()
+    if ext not in _IMAGE_THUMB_EXTS:
+        return redirect(url_for('serve_file', filename=filename))
+
+    cache_key = (
+        actual_rel_path,
+        info.get("mtime"),
+        info.get("size"),
+        1 if info.get("is_encrypted") else 0,
+        _THUMBNAIL_SIZE,
+        _THUMBNAIL_QUALITY
+    )
+    etag = hashlib.sha256(repr(cache_key).encode()).hexdigest()
+    request_etag = request.headers.get("If-None-Match") or ""
+    if request_etag:
+        req_tokens = [tok.strip().strip('"') for tok in request_etag.split(",") if tok.strip()]
+        if "*" in req_tokens or etag in req_tokens:
+            resp = Response(status=304)
+            return _add_thumb_cache_headers(resp, etag=etag)
+
+    thumb_bytes = _thumbnail_bytes_cache_get(cache_key)
+    if thumb_bytes is None:
+        data = _load_user_file_bytes(actual_rel_path, info)
+        if data is None:
+            abort(404)
+        try:
+            with Image.open(BytesIO(data)) as im:
+                if hasattr(Image, "Resampling"):
+                    resample_lanczos = Image.Resampling.LANCZOS
+                else:
+                    resample_lanczos = Image.LANCZOS
+                if im.mode not in ("RGB", "RGBA"):
+                    im = im.convert("RGB")
+                im.thumbnail((_THUMBNAIL_SIZE, _THUMBNAIL_SIZE), resample=resample_lanczos)
+                buf = BytesIO()
+                im.save(buf, format="WEBP", quality=_THUMBNAIL_QUALITY, method=4)
+                thumb_bytes = buf.getvalue()
+        except Exception as e:
+            log_force(f"Thumbnail generation failed for {actual_rel_path}: {e}")
+            return redirect(url_for('serve_file', filename=filename))
+        _thumbnail_bytes_cache_put(cache_key, thumb_bytes)
+
+    resp = send_file(BytesIO(thumb_bytes), mimetype="image/webp")
+    return _add_thumb_cache_headers(resp, etag=etag)
+
 @app.route('/files/<path:filename>')
 @login_required
 def serve_file(filename):
-    norm = os.path.normpath(filename)
-    if norm.startswith("..") or os.path.isabs(norm): abort(403)
-    
-    # URL Privacy: Support both legacy "uid/file" and new "file" formats.
-    # If the path starts with a number followed by a slash, we check if it matches current_user.
-    parts = norm.split(os.sep)
-    if len(parts) > 1 and parts[0].isdigit():
-        if int(parts[0]) != current_user.id:
-            abort(403)
-        actual_rel_path = norm
-    else:
-        # User ID is hidden from URL, prepend it internally
-        actual_rel_path = os.path.join(str(current_user.id), norm)
-    
+    actual_rel_path = _resolve_user_upload_rel_path(filename, current_user.id)
+    if not actual_rel_path:
+        abort(403)
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], actual_rel_path)
-    if not os.path.realpath(file_path).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])): abort(403)
+    if not os.path.realpath(file_path).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])):
+        abort(403)
     
     enc_path = file_path + '.enc'
     mtype = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
-    
-    def add_privacy_headers(resp):
-        resp.headers["X-Robots-Tag"] = "noindex, nofollow"
-        resp.headers["Cache-Control"] = "private, no-cache, no-store, must-revalidate"
-        return resp
 
     if os.path.exists(file_path):
         resp = send_file(file_path, mimetype=mtype, conditional=True)
         resp.headers.setdefault("Accept-Ranges", "bytes")
-        return add_privacy_headers(resp)
+        return _add_file_privacy_headers(resp)
     elif os.path.exists(enc_path):
         info = _get_file_disk_info(actual_rel_path)
         data = _load_user_file_bytes(actual_rel_path, info)
@@ -7286,9 +7407,9 @@ def serve_file(filename):
                 resp.headers["Content-Range"] = f"bytes {start}-{end}/{size}"
                 resp.headers["Accept-Ranges"] = "bytes"
                 resp.headers["Content-Length"] = str(end - start + 1)
-                return add_privacy_headers(resp)
-        resp = send_file(BytesIO(data), download_name=os.path.basename(filename), as_attachment=False, mimetype=mtype)
-        return add_privacy_headers(resp)
+                return _add_file_privacy_headers(resp)
+        resp = send_file(BytesIO(data), download_name=os.path.basename(actual_rel_path), as_attachment=False, mimetype=mtype)
+        return _add_file_privacy_headers(resp)
     else:
         abort(404)
 
@@ -7575,6 +7696,7 @@ def get_files_lib():
                             'original_filename': base_name,
                             'filepath': norm,
                             'url': url_for('serve_file', filename=norm),
+                            'thumbnail_url': url_for('serve_file_thumb', filename=norm) if ext in image_exts else None,
                             'type': 'image' if ext in image_exts else 'file',
                             'ext': ext,
                             'ts': msg_ts
@@ -7608,6 +7730,7 @@ def get_files_lib():
                     'original_filename': os.path.basename(rel_path),
                     'filepath': rel_path,
                     'url': url_for('serve_file', filename=rel_path),
+                    'thumbnail_url': url_for('serve_file_thumb', filename=rel_path) if ext in image_exts else None,
                     'type': 'image' if ext in image_exts else 'file',
                     'ext': ext,
                     'ts': ts

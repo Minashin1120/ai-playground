@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.223)</title>
+    <title>AI Playground (V4.8.224)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -1035,6 +1035,7 @@
                 </label>
                 <span id="marker-tool-hint" class="text-[10px] text-gray-500">マーカー（色・透明度変更可） / 二本指で拡大</span>
                 <div class="ml-auto flex items-center gap-2">
+                    <button id="marker-view-reset" data-progress-no-spinner="true" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white btn-hover">位置/倍率リセット</button>
                     <button id="marker-crop-reset" data-progress-no-spinner="true" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white btn-hover hidden">トリミングリセット</button>
                     <button id="marker-undo" data-progress-no-spinner="true" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white btn-hover">戻す</button>
                     <button id="marker-clear" data-progress-no-spinner="true" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white btn-hover">消去</button>
@@ -4429,6 +4430,7 @@
             document.querySelectorAll('#marker-toolbar .marker-color-chip[data-marker-color]').forEach((chip) => {
                 chip.onclick = () => setMarkerColor(chip.getAttribute('data-marker-color'));
             });
+            if (get('marker-view-reset')) get('marker-view-reset').onclick = () => resetMarkerTransform();
             if (get('marker-crop-reset')) get('marker-crop-reset').onclick = () => clearCropRect();
             if (get('marker-undo')) get('marker-undo').onclick = () => undoMarkerCanvas();
             if (get('marker-clear')) get('marker-clear').onclick = () => clearMarkerCanvas();
@@ -4436,6 +4438,12 @@
             syncMarkerColorControls();
             initMarkerCanvas();
             initCropCanvas();
+            window.addEventListener('resize', () => {
+                const markerModal = get('marker-modal');
+                if (!markerModal || markerModal.classList.contains('hidden')) return;
+                applyMarkerTransform();
+                renderCropOverlay();
+            });
             const dropzone = get('upload-dropzone');
             if (dropzone) {
                 dropzone.addEventListener('dragover', (e) => {
@@ -5365,9 +5373,43 @@
             if (w <= 1 || h <= 1) return;
             markerState.cropRect = { x: 0, y: 0, w, h };
         }
+        function clampMarkerViewOffset() {
+            markerView.scale = Math.min(markerView.maxScale, Math.max(markerView.minScale, Number(markerView.scale) || 1));
+            if (markerView.scale <= markerView.minScale + 0.0001) {
+                markerView.offsetX = 0;
+                markerView.offsetY = 0;
+                return;
+            }
+            const stage = get('marker-stage');
+            const viewport = get('marker-viewport');
+            if (!stage || !viewport) return;
+            const stageW = Math.max(1, stage.clientWidth || 0);
+            const stageH = Math.max(1, stage.clientHeight || 0);
+            const baseW = Math.max(1, viewport.offsetWidth || viewport.clientWidth || 0);
+            const baseH = Math.max(1, viewport.offsetHeight || viewport.clientHeight || 0);
+            if (stageW <= 1 || stageH <= 1 || baseW <= 1 || baseH <= 1) return;
+            const baseLeft = (stageW - baseW) / 2;
+            const baseTop = (stageH - baseH) / 2;
+            const scaledW = baseW * markerView.scale;
+            const scaledH = baseH * markerView.scale;
+            const minVisibleX = Math.min(stageW * 0.45, Math.max(24, stageW * 0.12));
+            const minVisibleY = Math.min(stageH * 0.45, Math.max(24, stageH * 0.12));
+            const minOffsetX = minVisibleX - baseLeft - scaledW;
+            const maxOffsetX = stageW - minVisibleX - baseLeft;
+            const minOffsetY = minVisibleY - baseTop - scaledH;
+            const maxOffsetY = stageH - minVisibleY - baseTop;
+            const clampOffset = (value, min, max) => {
+                if (!Number.isFinite(value)) return 0;
+                if (min > max) return (min + max) / 2;
+                return Math.min(max, Math.max(min, value));
+            };
+            markerView.offsetX = clampOffset(markerView.offsetX, minOffsetX, maxOffsetX);
+            markerView.offsetY = clampOffset(markerView.offsetY, minOffsetY, maxOffsetY);
+        }
         function applyMarkerTransform() {
             const viewport = get('marker-viewport');
             if (!viewport) return;
+            clampMarkerViewOffset();
             viewport.style.transform = `translate(${markerView.offsetX}px, ${markerView.offsetY}px) scale(${markerView.scale})`;
         }
         function resetMarkerTransform() {

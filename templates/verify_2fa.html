@@ -82,11 +82,11 @@
             </div>
 
             <!-- TOTP Form -->
-            <form id="form-totp" method="POST" action="{{ url_for('verify_2fa') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <form id="form-totp">
+                <div id="totp-error" class="hidden bg-red-900/50 border border-red-500 text-red-200 px-4 py-2 rounded mb-4 text-sm"></div>
                 <div class="mb-4">
                     <label class="block text-slate-300 text-sm font-semibold mb-2">認証コード (6桁)</label>
-                    <input type="text" name="totp_code" class="w-full bg-[#0b121a] text-white border border-slate-700 rounded-xl py-2.5 px-3 focus:outline-none focus:border-teal-400 font-mono text-center text-xl tracking-widest" placeholder="000000" maxlength="6" autofocus required autocomplete="one-time-code">
+                    <input type="text" id="totp-input" name="totp_code" class="w-full bg-[#0b121a] text-white border border-slate-700 rounded-xl py-2.5 px-3 focus:outline-none focus:border-teal-400 font-mono text-center text-xl tracking-widest" placeholder="000000" maxlength="6" autofocus required autocomplete="one-time-code">
                 </div>
                 <button type="submit" class="w-full font-bold py-2.5 px-4 rounded-xl transition primary-btn">
                     認証する
@@ -121,6 +121,46 @@
 
             document.getElementById('tab-'+t).className = "flex-1 py-2 text-sm font-semibold tab-active border-b-2 cursor-default";
         }
+
+        document.getElementById('form-totp').onsubmit = async (e) => {
+            e.preventDefault();
+            const errEl = document.getElementById('totp-error');
+            const btn = e.target.querySelector('button[type="submit"]');
+            errEl.classList.add('hidden');
+            btn.disabled = true;
+            btn.innerText = "認証中...";
+
+            try {
+                const code = document.getElementById('totp-input').value;
+                const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+                
+                const res = await fetch("{{ url_for('verify_2fa') }}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ totp_code: code })
+                });
+
+                const data = await res.json();
+                if (res.ok && data.status === 'ok') {
+                    window.location.href = data.redirect || "{{ url_for('index') }}";
+                } else {
+                    errEl.innerText = data.error || "認証に失敗しました";
+                    errEl.classList.remove('hidden');
+                    btn.disabled = false;
+                    btn.innerText = "認証する";
+                }
+            } catch (err) {
+                console.error(err);
+                errEl.innerText = "ネットワークエラーが発生しました";
+                errEl.classList.remove('hidden');
+                btn.disabled = false;
+                btn.innerText = "認証する";
+            }
+        };
 
         async function startWebAuthn() {
             try {

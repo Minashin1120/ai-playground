@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.228)</title>
+    <title>AI Playground (V4.8.229)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -606,7 +606,7 @@
     
     <!-- Alpha Bar -->
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-green-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-green-400">
-        <i class="fas fa-check-circle mr-1"></i> System V4.1.0 (Stable)
+        <i class="fas fa-check-circle mr-1"></i> System v4.8.229 (Stable)
     </div>
 
     <!-- Debug Console -->
@@ -636,7 +636,7 @@
             <!-- Threads loaded dynamically -->
             <div id="scroll-sentinel"></div>
         </div>
-        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.1.0 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
+        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.8.229 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
     </div>
     <div id="overlay" class="overlay"></div>
 
@@ -4317,14 +4317,57 @@
                 if (get('set-bot-detect')) b.bot_detection_enabled = get('set-bot-detect').checked;
                 if (get('set-bot-detect-global')) b.bot_detection_global_enabled = get('set-bot-detect-global').checked;
                 const res = await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)});
-                if (res.ok) { location.reload(); }
+                if (res.ok) { 
+                    hideModal('settings-modal');
+                    
+                    const oldUsername = currentUsername;
+                    const oldE2EE = {{ current_user.enable_e2ee|tojson }};
+                    
+                    // Update client-side variables
+                    enterToSend = b.enter_to_send;
+                    autoSearchOnLinks = b.auto_search_on_links;
+                    useSwCache = b.use_sw_cache;
+                    compactPromptMode = b.compact_prompt_mode;
+                    temporaryChatTimeoutSeconds = b.temp_chat_timeout_seconds;
+                    
+                    // Apply theme color
+                    applyThemeColor(b.theme_color, true);
+                    syncThemeInputs(b.theme_color);
+                    
+                    // Update UI components
+                    setCompactPromptMode(compactPromptMode);
+                    
+                    showToast("設定を保存しました", "success");
+
+                    // Critical changes that still might benefit from a reload for full consistency
+                    if (b.new_username && b.new_username !== oldUsername) {
+                        setTimeout(() => location.reload(), 1000);
+                    } else if (b.new_password) {
+                        showToast("パスワードを変更しました。次回ログイン時から有効です。", "info");
+                    }
+                }
                 else {
                     let d = {};
                     try { d = await res.json(); } catch (e) {}
                     showToast(d.error || "設定の保存に失敗しました", "error", true);
                 }
             };
-            get('disable-2fa-btn').onclick = async () => { if(confirm("Disable 2FA?")) { await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({disable_2fa: true})}); location.reload(); } };
+            get('disable-2fa-btn').onclick = async () => { 
+                if(confirm("Disable 2FA?")) { 
+                    const res = await apiFetch("{{ url_for('handle_settings') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({disable_2fa: true})}); 
+                    if (res.ok) {
+                        showToast("2FAを無効化しました", "success");
+                        get('disable-2fa-btn').classList.add('hidden');
+                        const badge = get('2fa-badge');
+                        if (badge) {
+                            badge.innerText = 'DISABLED';
+                            badge.className = 'px-2 py-0.5 rounded text-xs font-bold bg-gray-700 text-gray-400';
+                        }
+                    } else {
+                        showToast("2FAの無効化に失敗しました", "error", true);
+                    }
+                } 
+            };
             if (get('bot-unban-btn')) {
                 get('bot-unban-btn').onclick = async () => {
                     const u = get('bot-unban-username');
@@ -4712,8 +4755,13 @@
                 const c = get('totp-verify-code').value;
                 if(!c) return;
                 const r = await apiFetch("/api/2fa/totp/enable", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:c})});
-                if(r.ok) { alert("TOTP Enabled!"); location.reload(); }
-                else alert("Invalid Code");
+                if(r.ok) { 
+                    showToast("TOTPが有効になりました", "success");
+                    get('totp-setup-area').classList.add('hidden');
+                    get('totp-verify-code').value = '';
+                    openSettingsModal(); // Refresh UI
+                }
+                else showToast("認証コードが正しくありません", "error", true);
             };
             
             window.registerWebAuthn = async () => {

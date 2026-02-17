@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.222)</title>
+    <title>AI Playground (V4.8.223)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -6329,9 +6329,7 @@
             let pinchStartScale = markerView.scale;
             let pinchStartOffset = { x: 0, y: 0 };
             let pinchStartMid = { x: 0, y: 0 };
-            let lastDrawPoint = null;
-            let lastMidPoint = null;
-            let movedInCurrentStroke = false;
+            let strokePoints = [];
             let strokeSize = 16;
             let strokeStyle = '';
             let drawBaseCanvas = null;
@@ -6383,37 +6381,57 @@
                 drawLayerCtx.lineCap = 'round';
                 drawLayerCtx.lineJoin = 'round';
             };
-            const drawMarkerDot = (p) => {
-                if (!drawLayerCtx || !p) return;
-                applyMarkerBrush();
-                drawLayerCtx.beginPath();
-                drawLayerCtx.arc(p.x, p.y, strokeSize / 2, 0, Math.PI * 2);
-                drawLayerCtx.fill();
-            };
-            const drawMarkerTo = (nextPoint) => {
-                if (!drawLayerCtx || !lastDrawPoint || !lastMidPoint || !nextPoint) return false;
-                const from = lastDrawPoint;
-                const dx = nextPoint.x - from.x;
-                const dy = nextPoint.y - from.y;
+            const appendStrokePoint = (point) => {
+                if (!point) return false;
+                if (strokePoints.length === 0) {
+                    strokePoints.push(point);
+                    return true;
+                }
+                const from = strokePoints[strokePoints.length - 1];
+                const dx = point.x - from.x;
+                const dy = point.y - from.y;
                 const dist = Math.hypot(dx, dy);
                 const minStep = Math.max(0.35, strokeSize * 0.04);
                 if (dist < minStep) return false;
-                const maxStep = Math.max(1, strokeSize * 0.35);
+                const maxStep = Math.max(1, strokeSize * 0.25);
                 const steps = Math.max(1, Math.ceil(dist / maxStep));
-                applyMarkerBrush();
                 for (let i = 1; i <= steps; i++) {
                     const t = i / steps;
-                    const p = { x: from.x + dx * t, y: from.y + dy * t };
-                    const mid = getMid(lastDrawPoint, p);
-                    drawLayerCtx.beginPath();
-                    drawLayerCtx.moveTo(lastMidPoint.x, lastMidPoint.y);
-                    drawLayerCtx.quadraticCurveTo(lastDrawPoint.x, lastDrawPoint.y, mid.x, mid.y);
-                    drawLayerCtx.stroke();
-                    lastDrawPoint = p;
-                    lastMidPoint = mid;
+                    strokePoints.push({
+                        x: from.x + dx * t,
+                        y: from.y + dy * t
+                    });
                 }
-                movedInCurrentStroke = true;
                 return true;
+            };
+            const renderStrokeLayer = () => {
+                if (!drawLayerCtx) return;
+                drawLayerCtx.clearRect(0, 0, drawLayerCanvas.width, drawLayerCanvas.height);
+                if (strokePoints.length === 0) return;
+                applyMarkerBrush();
+                if (strokePoints.length === 1) {
+                    const p = strokePoints[0];
+                    drawLayerCtx.beginPath();
+                    drawLayerCtx.arc(p.x, p.y, strokeSize / 2, 0, Math.PI * 2);
+                    drawLayerCtx.fill();
+                    return;
+                }
+                drawLayerCtx.beginPath();
+                drawLayerCtx.moveTo(strokePoints[0].x, strokePoints[0].y);
+                if (strokePoints.length === 2) {
+                    drawLayerCtx.lineTo(strokePoints[1].x, strokePoints[1].y);
+                } else {
+                    for (let i = 1; i < strokePoints.length - 2; i++) {
+                        const p = strokePoints[i];
+                        const n = strokePoints[i + 1];
+                        const mid = getMid(p, n);
+                        drawLayerCtx.quadraticCurveTo(p.x, p.y, mid.x, mid.y);
+                    }
+                    const secondLast = strokePoints[strokePoints.length - 2];
+                    const last = strokePoints[strokePoints.length - 1];
+                    drawLayerCtx.quadraticCurveTo(secondLast.x, secondLast.y, last.x, last.y);
+                }
+                drawLayerCtx.stroke();
             };
             const applyMosaicAt = (p) => {
                 if (!ctx || !markerState.baseImageData) return;
@@ -6449,9 +6467,7 @@
                     const p2 = pts[1];
                     pinching = true;
                     drawing = false;
-                    lastDrawPoint = null;
-                    lastMidPoint = null;
-                    movedInCurrentStroke = false;
+                    strokePoints = [];
                     pinchStartDist = getDist(p1, p2) || 1;
                     pinchStartScale = markerView.scale;
                     pinchStartOffset = { x: markerView.offsetX, y: markerView.offsetY };
@@ -6463,7 +6479,6 @@
                 if (pinching) return;
                 if (markerState.mode === 'crop') return;
                 drawing = true;
-                movedInCurrentStroke = false;
                 const p = getPoint(e);
                 if (markerState.mode === 'mosaic') {
                     applyMosaicAt(p);
@@ -6476,9 +6491,9 @@
                     drawLayerCtx.clearRect(0, 0, drawLayerCanvas.width, drawLayerCanvas.height);
                     strokeSize = sizeInput ? Number(sizeInput.value || 16) : 16;
                     strokeStyle = normalizeMarkerHexColor(markerState.colorHex);
-                    drawMarkerDot(p);
-                    lastDrawPoint = p;
-                    lastMidPoint = { x: p.x, y: p.y };
+                    strokePoints = [];
+                    appendStrokePoint(p);
+                    renderStrokeLayer();
                     markerState.hasStroke = true;
                     renderDrawPreview();
                 }
@@ -6508,12 +6523,11 @@
                 if (markerState.mode === 'mosaic') {
                     applyMosaicAt(p);
                 } else {
-                    if (!lastDrawPoint) {
-                        lastDrawPoint = p;
-                        lastMidPoint = { x: p.x, y: p.y };
+                    const changed = appendStrokePoint(p);
+                    if (changed) {
+                        renderStrokeLayer();
+                        renderDrawPreview();
                     }
-                    const changed = drawMarkerTo(p);
-                    if (changed) renderDrawPreview();
                 }
                 e.preventDefault();
             };
@@ -6529,14 +6543,12 @@
                         wasDrawing &&
                         ctx &&
                         markerState.mode === 'draw' &&
-                        lastDrawPoint
+                        strokePoints.length > 0
                     ) {
-                        drawMarkerDot(lastDrawPoint);
+                        renderStrokeLayer();
                         renderDrawPreview();
                     }
-                    lastDrawPoint = null;
-                    lastMidPoint = null;
-                    movedInCurrentStroke = false;
+                    strokePoints = [];
                     if (wasDrawing) {
                         saveMarkerHistory();
                     }

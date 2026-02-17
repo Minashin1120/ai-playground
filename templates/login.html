@@ -78,6 +78,46 @@
             background: rgba(15,23,32,0.8);
             border: 1px solid rgba(148,163,184,0.2);
         }
+        
+        /* Animations */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-6px); }
+            40%, 80% { transform: translateX(6px); }
+        }
+        .animate-shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 0 0 rgba(20,184,166,0.4); }
+            70% { box-shadow: 0 0 0 12px rgba(20,184,166,0); }
+            100% { box-shadow: 0 0 0 0 rgba(20,184,166,0); }
+        }
+        .btn-loading { animation: pulse-glow 1.5s infinite; pointer-events: none; opacity: 0.8; }
+
+        @keyframes slide-down {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-error { animation: slide-down 0.3s ease-out; }
+
+        .success-overlay {
+            position: fixed; inset: 0; background: var(--bg-1); z-index: 100;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.6s ease;
+        }
+        .success-overlay.active { opacity: 1; pointer-events: auto; }
+
+        @keyframes checkmark {
+            0% { stroke-dashoffset: 48; }
+            100% { stroke-dashoffset: 0; }
+        }
+        .checkmark-svg {
+            width: 80px; height: 80px; stroke: var(--accent);
+            stroke-width: 3; stroke-linecap: round; stroke-linejoin: round;
+            fill: none; stroke-dasharray: 48; stroke-dashoffset: 48;
+        }
+        .active .checkmark-svg { animation: checkmark 0.8s cubic-bezier(0.65, 0, 0.45, 1) forwards 0.2s; }
+
         .modal-overlay { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.3s ease, visibility 0.3s ease; }
         .modal-overlay.modal-open { opacity: 1; visibility: visible; pointer-events: auto; }
         .modal-panel { transform: translateY(16px) scale(0.96); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease; }
@@ -89,7 +129,17 @@
     </style>
 </head>
 <body class="text-white h-screen flex flex-col items-center justify-center p-4">
-    <div class="auth-card p-8 rounded-2xl w-full max-w-sm">
+    <div id="success-screen" class="success-overlay">
+        <div class="text-center">
+            <svg class="checkmark-svg mx-auto mb-4" viewBox="0 0 24 24">
+                <path d="M20 6L9 17L4 12"></path>
+            </svg>
+            <h2 class="text-2xl font-bold auth-title">認証成功</h2>
+            <p class="text-slate-400 mt-2">ダッシュボードへ移動しています...</p>
+        </div>
+    </div>
+
+    <div id="auth-container" class="auth-card p-8 rounded-2xl w-full max-w-sm transition-all duration-500">
         <h1 class="text-3xl mb-8 font-bold text-center auth-title">AI Chat Login</h1>
         
         <div id="login-error" class="hidden bg-rose-500/15 text-rose-200 p-3 rounded-lg mb-4 text-sm text-center border border-rose-400/40"></div>
@@ -221,32 +271,31 @@
 
         const showLoginError = (msg) => {
             const box = document.getElementById('login-error');
+            const container = document.getElementById('auth-container');
             if (!box) return;
             box.textContent = msg;
             box.classList.remove('hidden');
-        };
-        const clearLoginError = () => {
-            const box = document.getElementById('login-error');
-            if (box) box.classList.add('hidden');
-        };
-
-        window.backToLogin = () => {
-            document.getElementById('login-section').classList.remove('hidden');
-            document.getElementById('totp-section').classList.add('hidden');
-            document.getElementById('signup-link-section').classList.remove('hidden');
-            clearLoginError();
-        };
-
-        window.switch2FATab = (t) => {
-            document.getElementById('totp-form').classList.toggle('hidden', t !== 'totp');
-            document.getElementById('webauthn-form').classList.toggle('hidden', t !== 'webauthn');
+            box.classList.add('animate-error');
             
-            document.getElementById('tab-totp').className = t === 'totp' 
-                ? "flex-1 py-2 text-sm font-semibold border-b-2 border-teal-400 text-teal-400"
-                : "flex-1 py-2 text-sm text-slate-400 hover:text-white border-b-2 border-transparent";
-            document.getElementById('tab-webauthn').className = t === 'webauthn'
-                ? "flex-1 py-2 text-sm font-semibold border-b-2 border-teal-400 text-teal-400"
-                : "flex-1 py-2 text-sm text-slate-400 hover:text-white border-b-2 border-transparent";
+            // Shake the container
+            container.classList.remove('animate-shake');
+            void container.offsetWidth; // trigger reflow
+            container.classList.add('animate-shake');
+        };
+
+        const triggerSuccess = (redirectUrl) => {
+            const container = document.getElementById('auth-container');
+            const successScreen = document.getElementById('success-screen');
+            
+            container.style.transform = 'scale(0.95)';
+            container.style.opacity = '0';
+            
+            setTimeout(() => {
+                successScreen.classList.add('active');
+                setTimeout(() => {
+                    window.location.href = redirectUrl || '/';
+                }, 1200);
+            }, 300);
         };
 
         document.getElementById('login-form').onsubmit = async (e) => {
@@ -254,6 +303,7 @@
             clearLoginError();
             const btn = e.target.querySelector('button[type="submit"]');
             btn.disabled = true;
+            btn.classList.add('btn-loading');
             const originalText = btn.innerText;
             btn.innerText = "認証中...";
 
@@ -277,20 +327,28 @@
                 const result = await res.json();
                 if (res.ok) {
                     if (result.status === 'ok') {
-                        window.location.href = result.redirect || '/';
+                        triggerSuccess(result.redirect);
                     } else if (result.status === '2fa_required') {
-                        document.getElementById('login-section').classList.add('hidden');
-                        document.getElementById('signup-link-section').classList.add('hidden');
-                        document.getElementById('totp-section').classList.remove('hidden');
-                        document.getElementById('totp-input').focus();
+                        // Switch to TOTP UI with simple transition
+                        document.getElementById('auth-container').classList.add('opacity-0', 'scale-95');
+                        setTimeout(() => {
+                            document.getElementById('login-section').classList.add('hidden');
+                            document.getElementById('signup-link-section').classList.add('hidden');
+                            document.getElementById('totp-section').classList.remove('hidden');
+                            document.getElementById('auth-container').classList.remove('opacity-0', 'scale-95');
+                            document.getElementById('totp-input').focus();
+                        }, 300);
                     }
                 } else {
                     showLoginError(result.error || "ログインに失敗しました");
                     if (window.turnstile) window.turnstile.reset();
+                    btn.classList.remove('btn-loading');
+                    btn.disabled = false;
+                    btn.innerText = originalText;
                 }
             } catch (err) {
                 showLoginError("ネットワークエラーが発生しました");
-            } finally {
+                btn.classList.remove('btn-loading');
                 btn.disabled = false;
                 btn.innerText = originalText;
             }
@@ -301,6 +359,7 @@
             clearLoginError();
             const btn = e.target.querySelector('button[type="submit"]');
             btn.disabled = true;
+            btn.classList.add('btn-loading');
             btn.innerText = "認証中...";
 
             try {
@@ -319,13 +378,16 @@
 
                 const result = await res.json();
                 if (res.ok && result.status === 'ok') {
-                    window.location.href = result.redirect || '/';
+                    triggerSuccess(result.redirect);
                 } else {
                     showLoginError(result.error || "認証に失敗しました");
+                    btn.classList.remove('btn-loading');
+                    btn.disabled = false;
+                    btn.innerText = "認証する";
                 }
             } catch (err) {
                 showLoginError("ネットワークエラーが発生しました");
-            } finally {
+                btn.classList.remove('btn-loading');
                 btn.disabled = false;
                 btn.innerText = "認証する";
             }
@@ -352,7 +414,7 @@
                 });
                 const result = await verifyRes.json();
                 if(result.status === 'ok') {
-                    window.location.href = "/";
+                    triggerSuccess("/");
                 } else {
                     showLoginError("認証に失敗しました: " + (result.error || "Unknown error"));
                 }

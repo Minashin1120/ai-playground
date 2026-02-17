@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.225)</title>
+    <title>AI Playground (V4.8.226)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -1622,6 +1622,8 @@
             history: [],
             mode: 'draw',
             cropRect: null,
+            mosaicRects: [],
+            mosaicPreviewRect: null,
             baseCanvas: null,
             baseImageData: null
         };
@@ -5280,7 +5282,7 @@
         }
         const markerToolHints = {
             draw: 'マーカー（色・透明度変更可） / 二本指で拡大',
-            mosaic: 'ブラシでモザイク / 二本指で拡大',
+            mosaic: 'ドラッグで範囲モザイク（複数追加可） / 二本指で拡大',
             crop: '外側をドラッグして切り取り / 二本指で拡大'
         };
         function normalizeMarkerHexColor(color) {
@@ -5346,6 +5348,7 @@
         }
         function setMarkerMode(mode) {
             markerState.mode = mode;
+            if (mode !== 'mosaic') markerState.mosaicPreviewRect = null;
             const btnDraw = get('marker-tool-draw');
             const btnMosaic = get('marker-tool-mosaic');
             const btnCrop = get('marker-tool-crop');
@@ -5582,19 +5585,42 @@
             const ctx = cropCanvas.getContext('2d');
             if (!ctx) return;
             ctx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
-            if (markerState.mode !== 'crop') return;
-            const rect = markerState.cropRect;
-            ctx.fillStyle = 'rgba(0,0,0,0.35)';
-            ctx.fillRect(0, 0, cropCanvas.width, cropCanvas.height);
-            if (!rect) return;
-            const x = Math.max(0, rect.x);
-            const y = Math.max(0, rect.y);
-            const w = Math.max(1, rect.w);
-            const h = Math.max(1, rect.h);
-            ctx.clearRect(x, y, w, h);
-            ctx.strokeStyle = 'rgba(250,204,21,0.9)';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+            const drawRect = (rect, stroke, fill = null, dashed = false) => {
+                if (!rect) return;
+                const x = Math.max(0, rect.x);
+                const y = Math.max(0, rect.y);
+                const w = Math.max(1, rect.w);
+                const h = Math.max(1, rect.h);
+                if (fill) {
+                    ctx.fillStyle = fill;
+                    ctx.fillRect(x, y, w, h);
+                }
+                ctx.save();
+                if (dashed) ctx.setLineDash([6, 4]);
+                ctx.strokeStyle = stroke;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x + 0.5, y + 0.5, Math.max(1, w - 1), Math.max(1, h - 1));
+                ctx.restore();
+            };
+            if (markerState.mode === 'crop') {
+                const rect = markerState.cropRect;
+                ctx.fillStyle = 'rgba(0,0,0,0.35)';
+                ctx.fillRect(0, 0, cropCanvas.width, cropCanvas.height);
+                if (!rect) return;
+                const x = Math.max(0, rect.x);
+                const y = Math.max(0, rect.y);
+                const w = Math.max(1, rect.w);
+                const h = Math.max(1, rect.h);
+                ctx.clearRect(x, y, w, h);
+                drawRect(rect, 'rgba(250,204,21,0.9)');
+                return;
+            }
+            if (markerState.mode !== 'mosaic') return;
+            const rects = Array.isArray(markerState.mosaicRects) ? markerState.mosaicRects : [];
+            rects.forEach((rect) => drawRect(rect, 'rgba(250,204,21,0.9)', 'rgba(250,204,21,0.10)'));
+            if (markerState.mosaicPreviewRect) {
+                drawRect(markerState.mosaicPreviewRect, 'rgba(56,189,248,0.95)', 'rgba(56,189,248,0.14)', true);
+            }
         }
         function collectImageUrlsForSend() {
             return collectAttachmentItemsForSend().map((it) => it.path);
@@ -5741,6 +5767,8 @@
             markerState.naturalWidth = 0;
             markerState.naturalHeight = 0;
             markerState.cropRect = null;
+            markerState.mosaicRects = [];
+            markerState.mosaicPreviewRect = null;
             markerState.baseCanvas = null;
             markerState.baseImageData = null;
             setMarkerMode('draw');
@@ -6350,7 +6378,13 @@
             if (!canvas) return;
             const ctx = canvas.getContext('2d');
             if (!ctx) return;
-            markerState.history.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+            const mosaicRects = Array.isArray(markerState.mosaicRects)
+                ? markerState.mosaicRects.map((r) => ({ x: r.x, y: r.y, w: r.w, h: r.h }))
+                : [];
+            markerState.history.push({
+                imageData: ctx.getImageData(0, 0, canvas.width, canvas.height),
+                mosaicRects
+            });
             if (markerState.history.length > 40) markerState.history.shift();
         }
         function undoMarkerCanvas() {
@@ -6362,11 +6396,21 @@
             if (!ctx) return;
             const last = markerState.history[markerState.history.length - 1];
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.putImageData(last, 0, 0);
-            
-            // Check if still has stroke (heuristic)
-            // Or just keep it true if history exists
+            if (last && last.imageData) {
+                ctx.putImageData(last.imageData, 0, 0);
+                markerState.mosaicRects = Array.isArray(last.mosaicRects)
+                    ? last.mosaicRects.map((r) => ({ x: r.x, y: r.y, w: r.w, h: r.h }))
+                    : [];
+            } else if (last) {
+                // Backward compatible fallback for old history snapshots.
+                ctx.putImageData(last, 0, 0);
+                markerState.mosaicRects = [];
+            } else {
+                markerState.mosaicRects = [];
+            }
+            markerState.mosaicPreviewRect = null;
             markerState.hasStroke = markerState.history.length > 1;
+            renderCropOverlay();
         }
         function clearMarkerCanvas() {
             const canvas = get('marker-canvas');
@@ -6374,6 +6418,9 @@
             const ctx = canvas.getContext('2d');
             if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
             markerState.hasStroke = false;
+            markerState.mosaicRects = [];
+            markerState.mosaicPreviewRect = null;
+            renderCropOverlay();
             saveMarkerHistory();
         }
         function initMarkerCanvas() {
@@ -6394,6 +6441,8 @@
             let drawBaseCtx = null;
             let drawLayerCanvas = null;
             let drawLayerCtx = null;
+            let mosaicSelecting = false;
+            let mosaicStartPoint = null;
             const getPoint = (e) => {
                 const rect = canvas.getBoundingClientRect();
                 const x = (e.clientX - rect.left) * (canvas.width / rect.width);
@@ -6491,30 +6540,62 @@
                 }
                 drawLayerCtx.stroke();
             };
-            const applyMosaicAt = (p) => {
-                if (!ctx || !markerState.baseImageData) return;
+            const normalizeMosaicRect = (a, b) => {
+                if (!a || !b) return null;
+                const x = Math.min(a.x, b.x);
+                const y = Math.min(a.y, b.y);
+                const w = Math.abs(a.x - b.x);
+                const h = Math.abs(a.y - b.y);
+                return { x, y, w, h };
+            };
+            const buildMosaicRectFromPoint = (p) => {
+                const size = sizeInput ? Number(sizeInput.value || 16) : 16;
+                const side = Math.max(6, Math.floor(size));
+                const half = Math.floor(side / 2);
+                return { x: p.x - half, y: p.y - half, w: side, h: side };
+            };
+            const getMosaicSourceImageData = () => {
+                const sourceCanvas = document.createElement('canvas');
+                sourceCanvas.width = canvas.width;
+                sourceCanvas.height = canvas.height;
+                const sourceCtx = sourceCanvas.getContext('2d');
+                if (!sourceCtx) return null;
+                if (markerState.baseCanvas) {
+                    sourceCtx.drawImage(markerState.baseCanvas, 0, 0);
+                }
+                sourceCtx.drawImage(canvas, 0, 0);
+                try {
+                    return sourceCtx.getImageData(0, 0, canvas.width, canvas.height);
+                } catch (e) {
+                    return null;
+                }
+            };
+            const applyMosaicRect = (rect) => {
+                if (!ctx || !rect) return false;
+                const source = getMosaicSourceImageData();
+                if (!source) return false;
                 const size = sizeInput ? Number(sizeInput.value || 16) : 16;
                 const block = Math.max(4, Math.floor(size / 2));
-                const half = Math.max(2, Math.floor(size / 2));
-                const w = canvas.width;
-                const h = canvas.height;
-                const data = markerState.baseImageData.data;
-                const startX = Math.max(0, Math.floor(p.x - half));
-                const startY = Math.max(0, Math.floor(p.y - half));
-                const endX = Math.min(w - 1, Math.floor(p.x + half));
-                const endY = Math.min(h - 1, Math.floor(p.y + half));
-                for (let y = startY; y <= endY; y += block) {
-                    for (let x = startX; x <= endX; x += block) {
-                        const cx = Math.min(w - 1, Math.max(0, x + Math.floor(block / 2)));
-                        const cy = Math.min(h - 1, Math.max(0, y + Math.floor(block / 2)));
-                        const idx = (cy * w + cx) * 4;
-                        const r = data[idx];
-                        const g = data[idx + 1];
-                        const b = data[idx + 2];
+                const x1 = Math.max(0, Math.floor(rect.x));
+                const y1 = Math.max(0, Math.floor(rect.y));
+                const x2 = Math.min(canvas.width, Math.ceil(rect.x + rect.w));
+                const y2 = Math.min(canvas.height, Math.ceil(rect.y + rect.h));
+                if (x2 <= x1 || y2 <= y1) return false;
+                for (let y = y1; y < y2; y += block) {
+                    for (let x = x1; x < x2; x += block) {
+                        const sw = Math.min(block, x2 - x);
+                        const sh = Math.min(block, y2 - y);
+                        const cx = Math.min(canvas.width - 1, Math.max(0, x + Math.floor(sw / 2)));
+                        const cy = Math.min(canvas.height - 1, Math.max(0, y + Math.floor(sh / 2)));
+                        const idx = (cy * canvas.width + cx) * 4;
+                        const r = source.data[idx];
+                        const g = source.data[idx + 1];
+                        const b = source.data[idx + 2];
                         ctx.fillStyle = `rgb(${r},${g},${b})`;
-                        ctx.fillRect(x, y, Math.min(block, w - x), Math.min(block, h - y));
+                        ctx.fillRect(x, y, sw, sh);
                     }
                 }
+                return true;
             };
             const start = (e) => {
                 if (!ctx) return;
@@ -6526,10 +6607,14 @@
                     pinching = true;
                     drawing = false;
                     strokePoints = [];
+                    mosaicSelecting = false;
+                    mosaicStartPoint = null;
+                    markerState.mosaicPreviewRect = null;
                     pinchStartDist = getDist(p1, p2) || 1;
                     pinchStartScale = markerView.scale;
                     pinchStartOffset = { x: markerView.offsetX, y: markerView.offsetY };
                     pinchStartMid = getMid(p1, p2);
+                    renderCropOverlay();
                     if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
                     e.preventDefault();
                     return;
@@ -6539,8 +6624,10 @@
                 drawing = true;
                 const p = getPoint(e);
                 if (markerState.mode === 'mosaic') {
-                    applyMosaicAt(p);
-                    markerState.hasStroke = true;
+                    mosaicSelecting = true;
+                    mosaicStartPoint = p;
+                    markerState.mosaicPreviewRect = buildMosaicRectFromPoint(p);
+                    renderCropOverlay();
                 } else {
                     ensureDrawBuffers();
                     if (!drawBaseCtx || !drawLayerCtx) return;
@@ -6579,7 +6666,9 @@
                 if (!drawing || !ctx) return;
                 const p = getPoint(e);
                 if (markerState.mode === 'mosaic') {
-                    applyMosaicAt(p);
+                    if (!mosaicSelecting || !mosaicStartPoint) return;
+                    markerState.mosaicPreviewRect = normalizeMosaicRect(mosaicStartPoint, p) || buildMosaicRectFromPoint(p);
+                    renderCropOverlay();
                 } else {
                     const changed = appendStrokePoint(p);
                     if (changed) {
@@ -6606,7 +6695,22 @@
                         renderStrokeLayer();
                         renderDrawPreview();
                     }
+                    if (wasDrawing && markerState.mode === 'mosaic' && mosaicStartPoint) {
+                        const p = getPoint(e);
+                        let rect = normalizeMosaicRect(mosaicStartPoint, p);
+                        if (!rect || rect.w < 2 || rect.h < 2) {
+                            rect = buildMosaicRectFromPoint(mosaicStartPoint);
+                        }
+                        if (applyMosaicRect(rect)) {
+                            markerState.hasStroke = true;
+                            markerState.mosaicRects.push(rect);
+                        }
+                    }
                     strokePoints = [];
+                    mosaicSelecting = false;
+                    mosaicStartPoint = null;
+                    markerState.mosaicPreviewRect = null;
+                    renderCropOverlay();
                     if (wasDrawing) {
                         saveMarkerHistory();
                     }

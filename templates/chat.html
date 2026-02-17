@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.219)</title>
+    <title>AI Playground (V4.8.220)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -6330,6 +6330,7 @@
             let pinchStartOffset = { x: 0, y: 0 };
             let pinchStartMid = { x: 0, y: 0 };
             let lastDrawPoint = null;
+            let movedInCurrentStroke = false;
             const getPoint = (e) => {
                 const rect = canvas.getBoundingClientRect();
                 const x = (e.clientX - rect.left) * (canvas.width / rect.width);
@@ -6374,6 +6375,7 @@
                     pinching = true;
                     drawing = false;
                     lastDrawPoint = null;
+                    movedInCurrentStroke = false;
                     pinchStartDist = getDist(p1, p2) || 1;
                     pinchStartScale = markerView.scale;
                     pinchStartOffset = { x: markerView.offsetX, y: markerView.offsetY };
@@ -6385,22 +6387,22 @@
                 if (pinching) return;
                 if (markerState.mode === 'crop') return;
                 drawing = true;
+                movedInCurrentStroke = false;
                 const p = getPoint(e);
                 if (markerState.mode === 'mosaic') {
                     applyMosaicAt(p);
                     markerState.hasStroke = true;
                 } else {
                     const size = sizeInput ? Number(sizeInput.value || 16) : 16;
-                    ctx.strokeStyle = getMarkerStrokeStyle();
+                    const strokeStyle = getMarkerStrokeStyle();
+                    ctx.strokeStyle = strokeStyle;
+                    ctx.fillStyle = strokeStyle;
                     ctx.lineWidth = size;
-                    ctx.lineCap = 'round';
+                    ctx.lineCap = 'butt';
                     ctx.lineJoin = 'round';
                     ctx.beginPath();
-                    ctx.moveTo(p.x, p.y);
-                    ctx.lineTo(p.x, p.y);
-                    ctx.stroke();
-                    ctx.beginPath();
-                    ctx.moveTo(p.x, p.y);
+                    ctx.arc(p.x, p.y, size / 2, 0, Math.PI * 2);
+                    ctx.fill();
                     lastDrawPoint = p;
                     markerState.hasStroke = true;
                 }
@@ -6436,6 +6438,7 @@
                     ctx.lineTo(p.x, p.y);
                     ctx.stroke();
                     lastDrawPoint = p;
+                    movedInCurrentStroke = true;
                 }
                 e.preventDefault();
             };
@@ -6447,7 +6450,22 @@
                 }
                 if (activePointers.size === 0) {
                     drawing = false;
+                    if (
+                        wasDrawing &&
+                        ctx &&
+                        markerState.mode === 'marker' &&
+                        movedInCurrentStroke &&
+                        lastDrawPoint
+                    ) {
+                        const size = sizeInput ? Number(sizeInput.value || 16) : 16;
+                        const strokeStyle = getMarkerStrokeStyle();
+                        ctx.fillStyle = strokeStyle;
+                        ctx.beginPath();
+                        ctx.arc(lastDrawPoint.x, lastDrawPoint.y, size / 2, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
                     lastDrawPoint = null;
+                    movedInCurrentStroke = false;
                     if (wasDrawing) {
                         saveMarkerHistory();
                     }
@@ -6459,7 +6477,6 @@
             canvas.addEventListener('pointermove', move);
             canvas.addEventListener('pointerup', end);
             canvas.addEventListener('pointercancel', end);
-            canvas.addEventListener('pointerleave', end);
         }
         function initCropCanvas() {
             const cropCanvas = get('marker-crop-canvas');

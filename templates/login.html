@@ -283,6 +283,16 @@
             container.classList.add('animate-shake');
         };
 
+        const clearLoginError = () => {
+            const box = document.getElementById('login-error');
+            if (box) {
+                box.classList.add('hidden');
+                box.classList.remove('animate-error');
+            }
+            const container = document.getElementById('auth-container');
+            if (container) container.classList.remove('animate-shake');
+        };
+
         const triggerSuccess = (redirectUrl) => {
             const container = document.getElementById('auth-container');
             const successScreen = document.getElementById('success-screen');

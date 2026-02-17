@@ -6515,11 +6515,15 @@ def login():
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
                   'application/json' in request.headers.get('Accept', '')
         
+        if request.is_json:
+            form_data = request.get_json()
+        else:
+            form_data = request.form
+
         if not rate_limit(f"rl:login:ip:{request.remote_addr}", 20, 300):
             if is_ajax: return jsonify({'error': "Too many attempts. Try again later."}), 429
             return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
-        
-        form_data = request.json if is_ajax else request.form
+
         if not verify_turnstile(form_data.get('cf-turnstile-response')):
             if is_ajax: return jsonify({'error': "Auth Error"}), 401
             return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Auth Error")

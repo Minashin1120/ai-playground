@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.221)</title>
+    <title>AI Playground (V4.8.222)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -6334,6 +6334,10 @@
             let movedInCurrentStroke = false;
             let strokeSize = 16;
             let strokeStyle = '';
+            let drawBaseCanvas = null;
+            let drawBaseCtx = null;
+            let drawLayerCanvas = null;
+            let drawLayerCtx = null;
             const getPoint = (e) => {
                 const rect = canvas.getBoundingClientRect();
                 const x = (e.clientX - rect.left) * (canvas.width / rect.width);
@@ -6343,29 +6347,57 @@
             const getMid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
             const getDist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
             let drawing = false;
+            const ensureDrawBuffers = () => {
+                if (!drawBaseCanvas) {
+                    drawBaseCanvas = document.createElement('canvas');
+                    drawBaseCtx = drawBaseCanvas.getContext('2d');
+                }
+                if (!drawLayerCanvas) {
+                    drawLayerCanvas = document.createElement('canvas');
+                    drawLayerCtx = drawLayerCanvas.getContext('2d');
+                }
+                if (drawBaseCanvas.width !== canvas.width || drawBaseCanvas.height !== canvas.height) {
+                    drawBaseCanvas.width = canvas.width;
+                    drawBaseCanvas.height = canvas.height;
+                }
+                if (drawLayerCanvas.width !== canvas.width || drawLayerCanvas.height !== canvas.height) {
+                    drawLayerCanvas.width = canvas.width;
+                    drawLayerCanvas.height = canvas.height;
+                }
+            };
+            const renderDrawPreview = () => {
+                if (!ctx || !drawBaseCanvas || !drawLayerCanvas) return;
+                const alpha = Math.max(MARKER_OPACITY_MIN_ALPHA, Math.min(1, Number(markerState.opacity) || 0.6));
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(drawBaseCanvas, 0, 0);
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.drawImage(drawLayerCanvas, 0, 0);
+                ctx.restore();
+            };
             const applyMarkerBrush = () => {
-                if (!ctx) return;
-                ctx.strokeStyle = strokeStyle;
-                ctx.fillStyle = strokeStyle;
-                ctx.lineWidth = strokeSize;
-                ctx.lineCap = 'butt';
-                ctx.lineJoin = 'round';
+                if (!drawLayerCtx) return;
+                drawLayerCtx.strokeStyle = strokeStyle;
+                drawLayerCtx.fillStyle = strokeStyle;
+                drawLayerCtx.lineWidth = strokeSize;
+                drawLayerCtx.lineCap = 'round';
+                drawLayerCtx.lineJoin = 'round';
             };
             const drawMarkerDot = (p) => {
-                if (!ctx || !p) return;
+                if (!drawLayerCtx || !p) return;
                 applyMarkerBrush();
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, strokeSize / 2, 0, Math.PI * 2);
-                ctx.fill();
+                drawLayerCtx.beginPath();
+                drawLayerCtx.arc(p.x, p.y, strokeSize / 2, 0, Math.PI * 2);
+                drawLayerCtx.fill();
             };
             const drawMarkerTo = (nextPoint) => {
-                if (!ctx || !lastDrawPoint || !lastMidPoint || !nextPoint) return;
+                if (!drawLayerCtx || !lastDrawPoint || !lastMidPoint || !nextPoint) return false;
                 const from = lastDrawPoint;
                 const dx = nextPoint.x - from.x;
                 const dy = nextPoint.y - from.y;
                 const dist = Math.hypot(dx, dy);
                 const minStep = Math.max(0.35, strokeSize * 0.04);
-                if (dist < minStep) return;
+                if (dist < minStep) return false;
                 const maxStep = Math.max(1, strokeSize * 0.35);
                 const steps = Math.max(1, Math.ceil(dist / maxStep));
                 applyMarkerBrush();
@@ -6373,14 +6405,15 @@
                     const t = i / steps;
                     const p = { x: from.x + dx * t, y: from.y + dy * t };
                     const mid = getMid(lastDrawPoint, p);
-                    ctx.beginPath();
-                    ctx.moveTo(lastMidPoint.x, lastMidPoint.y);
-                    ctx.quadraticCurveTo(lastDrawPoint.x, lastDrawPoint.y, mid.x, mid.y);
-                    ctx.stroke();
+                    drawLayerCtx.beginPath();
+                    drawLayerCtx.moveTo(lastMidPoint.x, lastMidPoint.y);
+                    drawLayerCtx.quadraticCurveTo(lastDrawPoint.x, lastDrawPoint.y, mid.x, mid.y);
+                    drawLayerCtx.stroke();
                     lastDrawPoint = p;
                     lastMidPoint = mid;
                 }
                 movedInCurrentStroke = true;
+                return true;
             };
             const applyMosaicAt = (p) => {
                 if (!ctx || !markerState.baseImageData) return;
@@ -6436,12 +6469,18 @@
                     applyMosaicAt(p);
                     markerState.hasStroke = true;
                 } else {
+                    ensureDrawBuffers();
+                    if (!drawBaseCtx || !drawLayerCtx) return;
+                    drawBaseCtx.clearRect(0, 0, drawBaseCanvas.width, drawBaseCanvas.height);
+                    drawBaseCtx.drawImage(canvas, 0, 0);
+                    drawLayerCtx.clearRect(0, 0, drawLayerCanvas.width, drawLayerCanvas.height);
                     strokeSize = sizeInput ? Number(sizeInput.value || 16) : 16;
-                    strokeStyle = getMarkerStrokeStyle();
+                    strokeStyle = normalizeMarkerHexColor(markerState.colorHex);
                     drawMarkerDot(p);
                     lastDrawPoint = p;
                     lastMidPoint = { x: p.x, y: p.y };
                     markerState.hasStroke = true;
+                    renderDrawPreview();
                 }
                 if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
                 e.preventDefault();
@@ -6473,7 +6512,8 @@
                         lastDrawPoint = p;
                         lastMidPoint = { x: p.x, y: p.y };
                     }
-                    drawMarkerTo(p);
+                    const changed = drawMarkerTo(p);
+                    if (changed) renderDrawPreview();
                 }
                 e.preventDefault();
             };
@@ -6489,10 +6529,10 @@
                         wasDrawing &&
                         ctx &&
                         markerState.mode === 'draw' &&
-                        movedInCurrentStroke &&
                         lastDrawPoint
                     ) {
                         drawMarkerDot(lastDrawPoint);
+                        renderDrawPreview();
                     }
                     lastDrawPoint = null;
                     lastMidPoint = null;

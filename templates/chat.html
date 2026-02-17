@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.217)</title>
+    <title>AI Playground (V4.8.218)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -450,6 +450,16 @@
         #marker-color-picker::-webkit-color-swatch { border: none; border-radius: 5px; }
         #marker-color-picker::-moz-color-swatch { border: none; border-radius: 5px; }
         #marker-opacity { width: 90px; }
+        #marker-opacity-number {
+            width: 62px;
+            padding: 2px 6px;
+            border: 1px solid rgba(148,163,184,0.65);
+            border-radius: 6px;
+            background: rgba(15,23,42,0.9);
+            color: #e2e8f0;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
         #marker-opacity-value { min-width: 34px; text-align: right; color: #cbd5e1; font-variant-numeric: tabular-nums; }
         #marker-toolbar input[type="range"] { accent-color: #facc15; }
         @media (max-width: 768px) {
@@ -1015,7 +1025,8 @@
                 </label>
                 <label class="flex items-center gap-2">
                     <span class="text-gray-400">透明度</span>
-                    <input id="marker-opacity" type="range" min="1" max="100" value="60">
+                    <input id="marker-opacity" type="range" min="0.1" max="100" step="0.1" value="60">
+                    <input id="marker-opacity-number" type="number" min="0.1" max="100" step="0.1" value="60" aria-label="マーカー透明度(%)">
                     <span id="marker-opacity-value">60%</span>
                 </label>
                 <label class="flex items-center gap-2 text-[10px] text-gray-400">
@@ -1596,6 +1607,9 @@
         const attachmentSourceByPath = new Map();
         const attachmentNameByPath = new Map();
         const MARKER_HINT_TEXT = "編集済みの画像を見てください。";
+        const MARKER_OPACITY_MIN_PCT = 0.1;
+        const MARKER_OPACITY_MAX_PCT = 100;
+        const MARKER_OPACITY_MIN_ALPHA = MARKER_OPACITY_MIN_PCT / 100;
         const markerState = {
             row: null,
             filename: '',
@@ -4401,6 +4415,17 @@
                 markerOpacity.oninput = (e) => setMarkerOpacity(e.target.value);
                 markerOpacity.onchange = (e) => setMarkerOpacity(e.target.value);
             }
+            const markerOpacityNumber = get('marker-opacity-number');
+            if (markerOpacityNumber) {
+                markerOpacityNumber.onchange = (e) => setMarkerOpacity(e.target.value);
+                markerOpacityNumber.onblur = (e) => setMarkerOpacity(e.target.value);
+                markerOpacityNumber.onkeydown = (e) => {
+                    if (e.key === 'Enter') {
+                        setMarkerOpacity(e.target.value);
+                        e.target.blur();
+                    }
+                };
+            }
             document.querySelectorAll('#marker-toolbar .marker-color-chip[data-marker-color]').forEach((chip) => {
                 chip.onclick = () => setMarkerColor(chip.getAttribute('data-marker-color'));
             });
@@ -5263,22 +5288,35 @@
                 b: parseInt(normalized.slice(5, 7), 16)
             };
         }
+        function clampMarkerOpacityPct(value, fallbackPct = 60) {
+            const parsed = Number(value);
+            const pct = Number.isFinite(parsed) ? parsed : fallbackPct;
+            return Math.max(MARKER_OPACITY_MIN_PCT, Math.min(MARKER_OPACITY_MAX_PCT, pct));
+        }
+        function formatMarkerOpacityPct(pctValue) {
+            const rounded = Math.round(clampMarkerOpacityPct(pctValue) * 10) / 10;
+            return Number.isInteger(rounded) ? String(rounded) : String(rounded).replace(/\.0$/, '');
+        }
         function getMarkerStrokeStyle() {
             const rgb = markerHexToRgb(markerState.colorHex);
-            const alpha = Math.max(0.01, Math.min(1, Number(markerState.opacity) || 0.6));
+            const alpha = Math.max(MARKER_OPACITY_MIN_ALPHA, Math.min(1, Number(markerState.opacity) || 0.6));
             return `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`;
         }
         function syncMarkerColorControls() {
             const colorHex = normalizeMarkerHexColor(markerState.colorHex);
             markerState.colorHex = colorHex;
-            const alpha = Math.max(0.01, Math.min(1, Number(markerState.opacity) || 0.6));
+            const alpha = Math.max(MARKER_OPACITY_MIN_ALPHA, Math.min(1, Number(markerState.opacity) || 0.6));
             markerState.opacity = alpha;
+            const opacityPct = alpha * 100;
+            const opacityPctText = formatMarkerOpacityPct(opacityPct);
             const colorPicker = get('marker-color-picker');
             if (colorPicker && colorPicker.value !== colorHex) colorPicker.value = colorHex;
             const opacityInput = get('marker-opacity');
-            if (opacityInput) opacityInput.value = String(Math.round(alpha * 100));
+            if (opacityInput && opacityInput.value !== opacityPctText) opacityInput.value = opacityPctText;
+            const opacityNumber = get('marker-opacity-number');
+            if (opacityNumber && opacityNumber.value !== opacityPctText) opacityNumber.value = opacityPctText;
             const opacityText = get('marker-opacity-value');
-            if (opacityText) opacityText.textContent = `${Math.round(alpha * 100)}%`;
+            if (opacityText) opacityText.textContent = `${opacityPctText}%`;
             const chips = document.querySelectorAll('#marker-toolbar .marker-color-chip[data-marker-color]');
             chips.forEach((chip) => {
                 const v = normalizeMarkerHexColor(chip.getAttribute('data-marker-color'));
@@ -5290,7 +5328,7 @@
             syncMarkerColorControls();
         }
         function setMarkerOpacity(pctValue) {
-            const pct = Math.max(1, Math.min(100, Number(pctValue) || 60));
+            const pct = clampMarkerOpacityPct(pctValue, 60);
             markerState.opacity = pct / 100;
             syncMarkerColorControls();
         }

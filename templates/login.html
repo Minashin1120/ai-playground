@@ -93,6 +93,34 @@
             100% { box-shadow: 0 0 0 0 rgba(20,184,166,0); }
         }
         .btn-loading { animation: pulse-glow 1.5s infinite; pointer-events: none; opacity: 0.8; }
+        .btn-success {
+            background: linear-gradient(135deg, #34d399, #10b981) !important;
+            box-shadow: 0 14px 30px rgba(16,185,129,0.35);
+        }
+        .btn-success-icon {
+            width: 22px;
+            height: 22px;
+            vertical-align: middle;
+            animation: check-pop 0.28s cubic-bezier(0.2, 0.9, 0.25, 1.2) both;
+        }
+        .btn-success-icon path {
+            stroke: #041014;
+            stroke-width: 3;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            fill: none;
+            stroke-dasharray: 24;
+            stroke-dashoffset: 24;
+            animation: check-draw 0.32s ease-out forwards 0.08s;
+        }
+        @keyframes check-pop {
+            0% { transform: scale(0.4); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes check-draw {
+            0% { stroke-dashoffset: 24; }
+            100% { stroke-dashoffset: 0; }
+        }
 
         @keyframes slide-down {
             from { opacity: 0; transform: translateY(-10px); }
@@ -298,8 +326,22 @@
             if (!btn) return;
             const defaultText = btn.dataset.defaultText || 'ログイン';
             btn.classList.remove('btn-loading');
+            btn.classList.remove('btn-success');
             btn.disabled = false;
             btn.innerText = defaultText;
+        };
+
+        const showLoginButtonSuccess = async (btn) => {
+            if (!btn) return;
+            btn.classList.remove('btn-loading');
+            btn.classList.add('btn-success');
+            btn.disabled = true;
+            btn.innerHTML = `
+                <svg class="btn-success-icon mx-auto" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M20 6L9 17L4 12"></path>
+                </svg>
+            `;
+            await new Promise((resolve) => setTimeout(resolve, 520));
         };
 
         const triggerSuccess = (redirectUrl) => {
@@ -350,6 +392,7 @@
             clearLoginError();
             const btn = e.target.querySelector('button[type="submit"]');
             if (!btn.dataset.defaultText) btn.dataset.defaultText = btn.innerText;
+            btn.classList.remove('btn-success');
             btn.disabled = true;
             btn.classList.add('btn-loading');
             btn.innerText = "認証中...";
@@ -374,6 +417,7 @@
                 const result = await res.json();
                 if (res.ok) {
                     if (result.status === 'ok') {
+                        await showLoginButtonSuccess(btn);
                         triggerSuccess(result.redirect);
                     } else if (result.status === '2fa_required') {
                         resetLoginSubmitButton();

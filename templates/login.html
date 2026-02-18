@@ -431,14 +431,23 @@
         };
 
         async function startWebAuthn() {
+            const btn = document.querySelector('#webauthn-form button');
+            const originalText = btn.innerHTML;
             try {
                 clearLoginError();
+                btn.disabled = true;
+                btn.classList.add('btn-loading');
+                btn.innerText = "認証中...";
+
                 const csrf = document.querySelector('meta[name="csrf-token"]').content;
                 const optsRes = await fetch('/verify-2fa/webauthn/options', {
                     method: 'POST',
                     headers: {'X-CSRF-Token': csrf}
                 });
-                if(!optsRes.ok) throw new Error("Failed to get options");
+                if(!optsRes.ok) {
+                    const errData = await optsRes.json();
+                    throw new Error(errData.error || "Failed to get options");
+                }
                 const options = await optsRes.json();
                 const credential = await window.webauthnJSON.get({ publicKey: options });
                 const verifyRes = await fetch('/verify-2fa/webauthn/verify', {
@@ -454,10 +463,16 @@
                     triggerSuccess("/");
                 } else {
                     showLoginError("認証に失敗しました: " + (result.error || "Unknown error"));
+                    btn.disabled = false;
+                    btn.classList.remove('btn-loading');
+                    btn.innerHTML = originalText;
                 }
             } catch(e) {
                 console.error(e);
                 showLoginError("認証エラー: " + e.message);
+                btn.disabled = false;
+                btn.classList.remove('btn-loading');
+                btn.innerHTML = originalText;
             }
         }
 

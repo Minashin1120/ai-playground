@@ -163,7 +163,12 @@
         };
 
         async function startWebAuthn() {
+            const btn = document.querySelector('#form-webauthn button');
+            const originalText = btn.innerHTML;
             try {
+                btn.disabled = true;
+                btn.innerText = "認証中...";
+
                 const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
                 
                 // 1. Get Options
@@ -171,7 +176,10 @@
                     method: 'POST',
                     headers: {'X-CSRF-Token': csrfToken}
                 });
-                if(!optsRes.ok) throw new Error("Failed to get options");
+                if(!optsRes.ok) {
+                    const errData = await optsRes.json();
+                    throw new Error(errData.error || "Failed to get options");
+                }
                 const options = await optsRes.json();
                 
                 // 2. Browser Verification
@@ -192,10 +200,14 @@
                     window.location.href = "{{ url_for('index') }}";
                 } else {
                     alert("Verification failed: " + (result.error || "Unknown error"));
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
                 }
             } catch(e) {
                 console.error(e);
                 alert("Auth Error: " + e.message);
+                btn.disabled = false;
+                btn.innerHTML = originalText;
             }
         }
     </script>

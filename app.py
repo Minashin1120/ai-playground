@@ -6676,11 +6676,13 @@ def verify_2fa():
             if is_ajax: return jsonify({'error': "Too many attempts. Try again later."}), 429
             return render_template('verify_2fa.html', error="Too many attempts. Try again later.")
             
-        code = request.form.get('totp_code')
-        if not code and is_ajax:
-            # Maybe it's in request.json?
+        code = None
+        if is_ajax:
             data = request.json or {}
             code = data.get('totp_code')
+        
+        if not code:
+            code = request.form.get('totp_code')
             
         if code:
             secret = decrypt_val(user.totp_secret)
@@ -6695,6 +6697,8 @@ def verify_2fa():
             
             if is_ajax: return jsonify({'error': "Invalid Code"}), 400
             return render_template('verify_2fa.html', error="Invalid Code")
+        
+        if is_ajax: return jsonify({'error': "Code required"}), 400
             
     return render_template('verify_2fa.html')
 

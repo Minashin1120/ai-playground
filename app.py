@@ -6821,6 +6821,7 @@ def logout():
                     pass
     logout_user()
     session.pop('session_id', None)
+    session.pop('pre_2fa_user_id', None)
     return redirect(url_for('index'))
 
 # -----------------------------------------------------------

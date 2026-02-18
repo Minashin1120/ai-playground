@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.239)</title>
+    <title>AI Playground (V4.8.240)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -940,7 +940,7 @@
                         <button id="auto-search-off-btn" class="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-[11px] btn-hover">検索OFFで回答</button>
                     </div>
                 </div>
-                <div id="input-row" class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><input type="file" id="mask-input" class="hidden" accept="image/*"><button id="upload-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="mask-btn" data-progress-no-spinner="true" class="hidden bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Mask (GPT-Image)"><i class="fas fa-mask"></i></button><button id="mic-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
+                <div id="input-row" class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><input type="file" id="photo-input" class="hidden" accept="image/*" multiple><input type="file" id="mask-input" class="hidden" accept="image/*"><button id="upload-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="mask-btn" data-progress-no-spinner="true" class="hidden bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Mask (GPT-Image)"><i class="fas fa-mask"></i></button><button id="mic-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
                 <div id="prompt-token-estimate" class="hidden mt-1 px-1 text-[10px] text-gray-400"></div>
             </div>
         </div>
@@ -966,6 +966,7 @@
             </div>
             <div class="flex gap-2 mb-4">
                 <button id="upload-select-btn" data-progress-no-spinner="true" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-bold btn-hover">ファイルを選択</button>
+                <button id="upload-photo-btn" data-progress-no-spinner="true" class="md:hidden px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-sm font-bold btn-hover">写真</button>
                 <button id="upload-lib-btn" data-progress-no-spinner="true" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm btn-hover">ライブラリから選択</button>
                 <button id="upload-clear-btn" data-progress-no-spinner="true" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm btn-hover">リストをクリア</button>
             </div>
@@ -3862,6 +3863,13 @@
                 e.target.value = '';
                 if (files.length) handleFiles(files); 
             }; 
+            if (get('photo-input')) {
+                get('photo-input').onchange = (e) => {
+                    const files = Array.from(e.target.files || []);
+                    e.target.value = '';
+                    if (files.length) handleFiles(files);
+                };
+            }
             get('stop-btn').onclick = async () => { 
                 if(abortController) abortController.abort(); 
                 if(currentJobId) await apiFetch("/api/stop_chat", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({job_id: currentJobId})}); 
@@ -4476,6 +4484,7 @@
             }
             if (get('upload-modal-close')) get('upload-modal-close').onclick = () => closeUploadModal();
             if (get('upload-select-btn')) get('upload-select-btn').onclick = () => get('file-input').click();
+            if (get('upload-photo-btn')) get('upload-photo-btn').onclick = () => get('photo-input').click();
             if (get('upload-clear-btn')) {
                 get('upload-clear-btn').onclick = () => {
                     resetUploadState();
@@ -5936,6 +5945,8 @@
             
             const input = get('file-input');
             if (input) input.value = '';
+            const photoInput = get('photo-input');
+            if (photoInput) photoInput.value = '';
             const maskInput = get('mask-input');
             if (maskInput) maskInput.value = '';
         }

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.238)</title>
+    <title>AI Playground (V4.8.239)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -4008,6 +4008,21 @@
                     }
                 });
             };
+            const resetAutoSystemPromptConfigToCodeDefaults = (prefix, applyToggleId = null) => {
+                if (applyToggleId) {
+                    const applyToggleEl = get(applyToggleId);
+                    if (applyToggleEl) applyToggleEl.checked = true;
+                }
+                AUTO_SYS_PROMPT_ITEMS.forEach((item) => {
+                    const enabledEl = get(`${prefix}-auto-sys-${item.key}-enabled`);
+                    const textEl = get(`${prefix}-auto-sys-${item.key}-text`);
+                    if (enabledEl) enabledEl.checked = true;
+                    if (textEl) {
+                        const defaultText = textEl.placeholder || '';
+                        textEl.value = defaultText;
+                    }
+                });
+            };
             const collectAutoSystemPromptConfigFromForm = (prefix) => {
                 const cfg = {};
                 AUTO_SYS_PROMPT_ITEMS.forEach((item) => {
@@ -4030,10 +4045,13 @@
                 box.innerHTML = `
                     <div class="flex items-center justify-between mb-2">
                         <label class="text-xs text-gray-500 block">自動注入システムプロンプト（ユーザー単位）</label>
-                        <label class="flex items-center gap-1 text-[10px] text-gray-400">
-                            <input type="checkbox" id="set-apply-auto-sys-prompt-notices" class="accent-yellow-500 w-3 h-3">
-                            <span>全体適用</span>
-                        </label>
+                        <div class="flex items-center gap-2">
+                            <button type="button" id="reset-set-auto-sys-prompt-defaults" class="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-[10px] font-bold btn-hover">既定に戻す</button>
+                            <label class="flex items-center gap-1 text-[10px] text-gray-400">
+                                <input type="checkbox" id="set-apply-auto-sys-prompt-notices" class="accent-yellow-500 w-3 h-3">
+                                <span>全体適用</span>
+                            </label>
+                        </div>
                     </div>
                     <div id="set-auto-sys-prompt-items" class="space-y-2">${buildAutoSystemPromptRows('set', false)}</div>
                     <div class="text-[10px] text-gray-500 mt-2">各文面はユーザー単位で編集されます。空欄で保存すると既定文面に戻ります。</div>
@@ -4048,12 +4066,15 @@
                 box.id = 'thread-auto-sys-prompt-settings';
                 box.className = 'border-t border-gray-700 pt-3';
                 box.innerHTML = `
-                    <div class="text-xs text-gray-400 mb-2">自動注入システムプロンプト（ユーザー単位）</div>
-                    <div class="flex items-center justify-end mb-2">
-                        <label class="flex items-center gap-1 text-[10px] text-gray-500">
-                            <input type="checkbox" id="thread-apply-auto-sys-prompt-notices" class="accent-yellow-500 w-3 h-3">
-                            <span>全体適用</span>
-                        </label>
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-xs text-gray-400">自動注入システムプロンプト（ユーザー単位）</div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" id="reset-thread-auto-sys-prompt-defaults" class="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-[10px] font-bold btn-hover">既定に戻す</button>
+                            <label class="flex items-center gap-1 text-[10px] text-gray-500">
+                                <input type="checkbox" id="thread-apply-auto-sys-prompt-notices" class="accent-yellow-500 w-3 h-3">
+                                <span>全体適用</span>
+                            </label>
+                        </div>
                     </div>
                     <div id="thread-auto-sys-prompt-items" class="space-y-2">${buildAutoSystemPromptRows('thread', true)}</div>
                 `;
@@ -4242,6 +4263,20 @@
                         if (get('sys-prompt-text')) get('sys-prompt-text').value = '';
                         if (get('set-global-sys-prompt-enabled')) get('set-global-sys-prompt-enabled').checked = false;
                         showToast('ユーザーシステムプロンプトをリセットしました（保存してください）', 'success');
+                    };
+                }
+                const resetAutoSet = get('reset-set-auto-sys-prompt-defaults');
+                if (resetAutoSet) {
+                    resetAutoSet.onclick = () => {
+                        resetAutoSystemPromptConfigToCodeDefaults('set', 'set-apply-auto-sys-prompt-notices');
+                        showToast('自動注入システムプロンプトを既定値に戻しました（保存してください）', 'success');
+                    };
+                }
+                const resetAutoThread = get('reset-thread-auto-sys-prompt-defaults');
+                if (resetAutoThread) {
+                    resetAutoThread.onclick = () => {
+                        resetAutoSystemPromptConfigToCodeDefaults('thread', 'thread-apply-auto-sys-prompt-notices');
+                        showToast('自動注入システムプロンプトを既定値に戻しました（保存してください）', 'success');
                     };
                 }
             };

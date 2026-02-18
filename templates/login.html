@@ -490,21 +490,34 @@
             const box = document.getElementById('passkey-error');
             if (box) box.classList.add('hidden');
         };
-        document.getElementById('passkey-login-btn').onclick = async () => {
+        document.getElementById('passkey-login-btn').onclick = async (e) => {
+            const btn = e.currentTarget;
+            const originalText = btn.innerHTML;
             clearPasskeyError();
             const usernameInput = document.querySelector('input[name="username"]');
             const username = (document.getElementById('passkey-username').value || (usernameInput ? usernameInput.value : '') || '').trim();
             if (!username) { showPasskeyError('ユーザー名を入力してください'); return; }
             const token = getTurnstileToken();
             const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            
             try {
+                btn.disabled = true;
+                btn.classList.add('btn-loading');
+                btn.innerText = "認証中...";
+
                 const optsRes = await fetch('/login/passkey/options', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},
                     body: JSON.stringify({ username, remember: document.getElementById('remember')?.checked || false, turnstile: token })
                 });
                 const options = await optsRes.json();
-                if (!optsRes.ok) { showPasskeyError(options.error || 'パスキーの準備に失敗しました'); return; }
+                if (!optsRes.ok) { 
+                    showPasskeyError(options.error || 'パスキーの準備に失敗しました');
+                    btn.disabled = false;
+                    btn.classList.remove('btn-loading');
+                    btn.innerHTML = originalText;
+                    return; 
+                }
                 const credential = await window.webauthnJSON.get({ publicKey: options });
                 const verifyRes = await fetch('/login/passkey/verify', {
                     method: 'POST',
@@ -512,10 +525,20 @@
                     body: JSON.stringify(credential)
                 });
                 const verifyData = await verifyRes.json();
-                if (verifyRes.ok) { window.location.href = '/'; }
-                else { showPasskeyError(verifyData.error || 'ログインに失敗しました'); }
+                if (verifyRes.ok) { 
+                    triggerSuccess("/");
+                } else { 
+                    showPasskeyError(verifyData.error || 'ログインに失敗しました');
+                    btn.disabled = false;
+                    btn.classList.remove('btn-loading');
+                    btn.innerHTML = originalText;
+                }
             } catch (e) {
+                console.error(e);
                 showPasskeyError('パスキー認証に失敗しました');
+                btn.disabled = false;
+                btn.classList.remove('btn-loading');
+                btn.innerHTML = originalText;
             }
         };
     </script>

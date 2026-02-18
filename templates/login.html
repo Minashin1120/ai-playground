@@ -293,6 +293,15 @@
             if (container) container.classList.remove('animate-shake');
         };
 
+        const resetLoginSubmitButton = () => {
+            const btn = document.querySelector('#login-form button[type="submit"]');
+            if (!btn) return;
+            const defaultText = btn.dataset.defaultText || 'ログイン';
+            btn.classList.remove('btn-loading');
+            btn.disabled = false;
+            btn.innerText = defaultText;
+        };
+
         const triggerSuccess = (redirectUrl) => {
             const container = document.getElementById('auth-container');
             const successScreen = document.getElementById('success-screen');
@@ -309,6 +318,7 @@
         };
 
         window.backToLogin = () => {
+            resetLoginSubmitButton();
             document.getElementById('auth-container').classList.add('opacity-0', 'scale-95');
             setTimeout(() => {
                 document.getElementById('totp-section').classList.add('hidden');
@@ -339,9 +349,9 @@
             e.preventDefault();
             clearLoginError();
             const btn = e.target.querySelector('button[type="submit"]');
+            if (!btn.dataset.defaultText) btn.dataset.defaultText = btn.innerText;
             btn.disabled = true;
             btn.classList.add('btn-loading');
-            const originalText = btn.innerText;
             btn.innerText = "認証中...";
 
             try {
@@ -366,6 +376,7 @@
                     if (result.status === 'ok') {
                         triggerSuccess(result.redirect);
                     } else if (result.status === '2fa_required') {
+                        resetLoginSubmitButton();
                         // Switch to TOTP UI with simple transition
                         document.getElementById('auth-container').classList.add('opacity-0', 'scale-95');
                         setTimeout(() => {
@@ -379,15 +390,11 @@
                 } else {
                     showLoginError(result.error || "ログインに失敗しました");
                     if (window.turnstile) window.turnstile.reset();
-                    btn.classList.remove('btn-loading');
-                    btn.disabled = false;
-                    btn.innerText = originalText;
+                    resetLoginSubmitButton();
                 }
             } catch (err) {
                 showLoginError("ネットワークエラーが発生しました");
-                btn.classList.remove('btn-loading');
-                btn.disabled = false;
-                btn.innerText = originalText;
+                resetLoginSubmitButton();
             }
         };
 

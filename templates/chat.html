@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.241)</title>
+    <title>AI Playground (V4.8.242)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -1060,6 +1060,13 @@
                         ※ 全体システムプロンプトが有効な場合はその後に追加されます。SysPromptのON/OFFに関わらず、このチャット専用の指示は適用されます。
                     </div>
                 </div>
+                <div class="flex items-center justify-between py-2 px-1 bg-gray-900/50 rounded border border-gray-700/50">
+                    <label class="text-[11px] text-gray-300">全体プロンプトをこのチャットに含める</label>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="thread-include-global-instruction" class="sr-only peer" checked>
+                        <div class="w-8 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                </div>
                 <div class="border-t border-gray-700 pt-4">
                     <div class="text-xs text-gray-400 mb-2">全体システムプロンプト（参照のみ）</div>
                     <div class="space-y-2 mb-4">
@@ -1608,6 +1615,7 @@
         const markerAppliedUploads = new Set();
         const attachmentSourceByPath = new Map();
         const attachmentNameByPath = new Map();
+        let modalThreadId = null;
         const MARKER_HINT_TEXT = "編集済みの画像を見てください。";
         const MARKER_OPACITY_MIN_PCT = 0.1;
         const MARKER_OPACITY_MAX_PCT = 100;
@@ -8572,6 +8580,7 @@
             }
             const modalLoadSeq = ++threadModalLoadSeq;
             const targetThreadId = String(currentThreadId);
+            modalThreadId = targetThreadId;
             showModal('thread-modal');
             ensureThreadAutoSystemPromptCard();
             try {
@@ -8580,7 +8589,7 @@
                     apiFetch(`/api/threads/${targetThreadId}/settings`)
                 ]);
                 if (modalLoadSeq !== threadModalLoadSeq) return;
-                if (String(currentThreadId) !== targetThreadId) return;
+                if (modalThreadId !== targetThreadId) return;
                 if (settingsRes.ok) {
                     const d = await settingsRes.json();
                     const threadGlobalPreview = get('thread-app-global-sys-prompt-preview');
@@ -8605,9 +8614,11 @@
                 if (threadSettingsRes.ok) {
                     const threadSettings = await threadSettingsRes.json();
                     if (modalLoadSeq !== threadModalLoadSeq) return;
-                    if (String(currentThreadId) !== targetThreadId) return;
+                    if (modalThreadId !== targetThreadId) return;
                     const customInstructionEl = get('thread-custom-instruction');
                     if (customInstructionEl) customInstructionEl.value = threadSettings.custom_instruction || '';
+                    const includeGlobalEl = get('thread-include-global-instruction');
+                    if (includeGlobalEl) includeGlobalEl.checked = threadSettings.include_global_instruction !== false;
                 }
             } catch (err) {
                 showToast("チャット設定の読み込みに失敗しました", "error", true);
@@ -8615,7 +8626,8 @@
         };
 
         get('save-thread-settings-btn').onclick = async () => {
-            if (!currentThreadId) return;
+            const targetId = modalThreadId;
+            if (!targetId) return;
             const saveBtn = get('save-thread-settings-btn');
             const originalLabel = saveBtn ? saveBtn.textContent : '';
             if (saveBtn) {
@@ -8624,6 +8636,9 @@
             }
             const customInstructionEl = get('thread-custom-instruction');
             const custom_instruction = customInstructionEl ? customInstructionEl.value : '';
+            const includeGlobalEl = get('thread-include-global-instruction');
+            const include_global_instruction = includeGlobalEl ? includeGlobalEl.checked : true;
+
             const globalPromptEl = get('thread-global-sys-prompt');
             const globalEnabledEl = get('thread-global-sys-prompt-enabled');
             const userPromptPayload = (globalPromptEl || globalEnabledEl) ? {
@@ -8634,10 +8649,10 @@
             } : null;
             
             try {
-                const res = await apiFetch(`/api/threads/${currentThreadId}/settings`, {
+                const res = await apiFetch(`/api/threads/${targetId}/settings`, {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ custom_instruction })
+                    body: JSON.stringify({ custom_instruction, include_global_instruction })
                 });
                 let userResOk = true;
                 if (userPromptPayload) {

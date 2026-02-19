@@ -1949,12 +1949,19 @@ def resolve_thread_for_user(identifier, user_id):
     ident_str = str(identifier).strip()
     if not ident_str:
         return None
-    t = None
+    
+    # Try public_id first
+    t = Thread.query.filter_by(public_id=ident_str, user_id=user_id).first()
+    if t:
+        return t
+        
+    # Try numerical id
     if ident_str.isdigit():
         t = Thread.query.get(int(ident_str))
-        if t and t.user_id == user_id and not t.public_id:
+        if t and t.user_id == user_id:
             return t
-    return Thread.query.filter_by(public_id=ident_str, user_id=user_id).first()
+            
+    return None
 
 def create_user_session(user):
     sid = secrets.token_urlsafe(32)
@@ -3339,12 +3346,17 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     return ""
                 template_text = _auto_notice_text("attachment_names")
                 return _render_attachment_names_notice(template_text, names)
+            # Fetch thread to check instructions
+            th = Thread.query.get(thread_id)
+            include_global = th.include_global_instruction if th and th.include_global_instruction is not None else True
+
             try:
                 if getattr(user, "apply_global_system_prompt", None) is False:
                     apply_global_prompt = False
             except Exception:
                 apply_global_prompt = True
-            if apply_global_prompt:
+            
+            if apply_global_prompt and include_global:
                 global_enabled = get_bool_app_setting("global_system_prompt_enabled", True)
                 global_value = get_app_setting("global_system_prompt", "") or ""
                 if global_enabled:
@@ -3352,7 +3364,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         global_prompt = global_value
                     else:
                         use_time_notice = True
-            if options.get('enable_system_prompt'):
+            
+            if options.get('enable_system_prompt') and include_global:
                 if user.system_prompt and (user.system_prompt_enabled is None or user.system_prompt_enabled):
                     sp = user.system_prompt
                     if user.enable_e2ee: sp = decrypt_val(sp)
@@ -3363,7 +3376,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             if 'thread_custom_instruction' in options:
                 raw_local_sys_prompt = options.get('thread_custom_instruction')
             else:
-                th = Thread.query.get(thread_id)
                 raw_local_sys_prompt = th.custom_instruction if th else None
             if raw_local_sys_prompt and str(raw_local_sys_prompt).strip():
                 local_sys_prompt = str(raw_local_sys_prompt).strip()
@@ -7659,6 +7671,9 @@ def update_thread_settings(thread_id):
     if 'is_temporary' in d:
         requested_temp = _coerce_bool_or_none(d.get('is_temporary'))
         t.is_temporary = bool(requested_temp)
+    
+    t.updated_at = datetime.utcnow()
+    db.session.add(t)
     safe_db_commit()
     if bool(getattr(t, "is_temporary", False)):
         _mark_temp_chat_presence(

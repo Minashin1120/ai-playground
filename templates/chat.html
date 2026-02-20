@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.242)</title>
+    <title>AI Playground (V4.8.243)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -662,8 +662,9 @@
                 <div id="welcome-default-content" class="flex flex-col items-center justify-center space-y-4 w-full">
                     <h2 class="text-2xl font-bold text-white flex items-center gap-2 slide-in-animate opacity-0" style="animation-delay: 0.05s"><i class="fas fa-gem text-blue-500"></i> AI Gems & Chat</h2>
                     <div class="grid grid-cols-1 gap-2 w-full max-w-md px-4">
-                        <button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.1s" onclick="quickStart('gemini-3-flash-preview')">⚡ Gemini 3.0 Flash</button>
-                        <button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.15s" onclick="quickStart('gemini-3-pro-preview')">🧠 Gemini 3.0 Pro</button>
+                        <button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.1s" onclick="quickStart('gemini-3.1-pro-preview')">✨ Gemini 3.1 Pro</button>
+                        <button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.15s" onclick="quickStart('gemini-3-flash-preview')">⚡ Gemini 3.0 Flash</button>
+                        <button class="welcome-btn p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left border border-gray-700 transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.2s" onclick="quickStart('gemini-3-pro-preview')">🧠 Gemini 3.0 Pro</button>
                     </div>
                 </div>
                 <div id="welcome-temporary-content" class="hidden max-w-md px-4">
@@ -2836,6 +2837,7 @@
                 icon: "fas fa-star text-yellow-400",
                 description: "Google's latest multimodal models",
                 items: [
+                    { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro", desc: "Next-gen native multimodal model.", price: "In $2.00/1M, Out $12.00/1M (≤200k)" },
                     { id: "gemini-3-flash-preview", name: "Gemini 3.0 Flash", desc: "Fastest and most cost-efficient.", price: "In $0.50/1M, Out $3.00/1M" },
                     { id: "gemini-3-pro-preview", name: "Gemini 3.0 Pro", desc: "Best performing model for complex tasks.", price: "In $2.00/1M, Out $12.00/1M (≤200k)" }
                 ]
@@ -3497,7 +3499,7 @@
                 } else if(model.includes('gemini') && !isGeminiImage) { 
                     thinkOpts.classList.remove('hidden'); 
                     const isFlash = model.includes('flash');
-                    const isGemini3 = model.includes('gemini-3');
+                    const isGemini3 = model.includes('gemini-3') || model.includes('gemini-3.1');
                     Array.from(thinkLvl.options).forEach(opt => {
                         if(['minimal', 'medium'].includes(opt.value)) { opt.disabled = !isFlash; }
                     });
@@ -8627,6 +8629,7 @@
 
         get('save-thread-settings-btn').onclick = async () => {
             const targetId = modalThreadId;
+            apiFetch('/api/client_log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message: "Save clicked for thread: " + targetId})}).catch(()=>{});
             if (!targetId) return;
             const saveBtn = get('save-thread-settings-btn');
             const originalLabel = saveBtn ? saveBtn.textContent : '';
@@ -8641,27 +8644,36 @@
 
             const globalPromptEl = get('thread-global-sys-prompt');
             const globalEnabledEl = get('thread-global-sys-prompt-enabled');
-            const userPromptPayload = (globalPromptEl || globalEnabledEl) ? {
-                system_prompt: globalPromptEl ? globalPromptEl.value : '',
-                system_prompt_enabled: globalEnabledEl ? globalEnabledEl.checked : true,
-                apply_auto_system_prompt_notices: get('thread-apply-auto-sys-prompt-notices') ? get('thread-apply-auto-sys-prompt-notices').checked : true,
-                auto_system_prompt_notices_config: collectAutoSystemPromptConfigFromForm('thread')
-            } : null;
+            let userPromptPayload = null;
+            try {
+                userPromptPayload = (globalPromptEl || globalEnabledEl) ? {
+                    system_prompt: globalPromptEl ? globalPromptEl.value : '',
+                    system_prompt_enabled: globalEnabledEl ? globalEnabledEl.checked : true,
+                    apply_auto_system_prompt_notices: get('thread-apply-auto-sys-prompt-notices') ? get('thread-apply-auto-sys-prompt-notices').checked : true,
+                    auto_system_prompt_notices_config: collectAutoSystemPromptConfigFromForm('thread')
+                } : null;
+            } catch (payloadErr) {
+                apiFetch('/api/client_log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message: "Payload construction failed: " + payloadErr.message})}).catch(()=>{});
+            }
             
             try {
+                apiFetch('/api/client_log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message: "Starting PUT request for thread: " + targetId})}).catch(()=>{});
                 const res = await apiFetch(`/api/threads/${targetId}/settings`, {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ custom_instruction, include_global_instruction })
                 });
+                apiFetch('/api/client_log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message: "PUT request finished, status: " + res.status})}).catch(()=>{});
                 let userResOk = true;
                 if (userPromptPayload) {
+                    apiFetch('/api/client_log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message: "Starting POST request for user settings"})}).catch(()=>{});
                     const userRes = await apiFetch("{{ url_for('handle_settings') }}", {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify(userPromptPayload)
                     });
                     userResOk = userRes.ok;
+                    apiFetch('/api/client_log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message: "POST request finished, status: " + userRes.status})}).catch(()=>{});
                 }
                 if (res.ok && userResOk) {
                     hideModal('thread-modal');
@@ -8670,6 +8682,7 @@
                     showToast("保存に失敗しました", "error", true);
                 }
             } catch (err) {
+                apiFetch('/api/client_log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message: "Save failed with error: " + err.message})}).catch(()=>{});
                 showToast("エラー: " + err.message, "error", true);
             } finally {
                 if (saveBtn) {

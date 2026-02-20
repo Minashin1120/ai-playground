@@ -76,9 +76,13 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 def log_force(msg):
-    """Force log to stdout/journalctl"""
+    """Force log to file and journalctl"""
     try:
-        print(f"[AI-CHAT-DEBUG] {msg}", file=sys.stdout, flush=True)
+        t = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_msg = f"[{t}] [AI-CHAT-DEBUG] {msg}"
+        with open("/home/ai-chat-minashin1120/app/debug.log", "a") as f:
+            f.write(log_msg + "\n")
+        print(log_msg, file=sys.stdout, flush=True)
         logger.info(msg)
     except:
         pass
@@ -1999,7 +2003,10 @@ def inject_csrf():
 
 def validate_csrf():
     token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token')
-    return token and token == session.get('csrf_token')
+    session_token = session.get('csrf_token')
+    res = bool(token and token == session_token)
+    log_force(f"DEBUG: validate_csrf header_token={token}, session_token={session_token}, result={res}")
+    return res
 
 def get_app_setting(key, default=None):
     try:
@@ -2826,6 +2833,7 @@ def set_client_token_cookie(response):
 
 @app.before_request
 def check_maintenance():
+    log_force(f"DEBUG: request reaching before_request: {request.method} {request.path}")
     if app.config.get('MAINTENANCE_MODE'):
         if request.endpoint in ['static', 'login', 'logout', 'toggle_maintenance', 'login_passkey_options', 'login_passkey_verify']: return
         if current_user.is_authenticated and getattr(current_user, "is_admin", False): return
@@ -4095,7 +4103,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 else:
                     # Text/Chat generation mode
                     rm = model_key
-                    if "gemini-3-flash" in model_key or "gemini-3.0-flash" in model_key:
+                    if "gemini-3.1-pro" in model_key:
+                        rm = "gemini-3.1-pro-preview"
+                    elif "gemini-3-flash" in model_key or "gemini-3.0-flash" in model_key:
                         rm = "gemini-3-flash-preview"
                     elif "gemini-3-pro" in model_key or "gemini-3.0-pro" in model_key:
                         rm = "gemini-3-pro-preview"
@@ -4105,7 +4115,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         rm = "gemini-2.5-flash"
 
                     conf = {'temperature': 0.7}
-                    is_gemini_3 = "gemini-3" in model_key
+                    is_gemini_3 = "gemini-3" in model_key or "gemini-3.1" in model_key
                     if is_gemini_3:
                         # Gemini 3 does not support fully disabling thinking; force enabled.
                         options['enable_thinking'] = True
@@ -7478,49 +7488,66 @@ def serve_file(filename):
 @app.route('/api/threads', methods=['GET', 'POST'])
 @login_required
 def handle_threads():
+    log_force(f"DEBUG: handle_threads started, method={request.method}")
     if request.method == 'GET':
         q = request.args.get('q', '').strip()
         page = request.args.get('page', 1, type=int)
         per_page = 20
-        query = Thread.query.filter_by(user_id=current_user.id).filter(~Thread.title.startswith("[LIBRARY]"))
-        if q: 
-            if current_user.enable_e2ee: query = query.filter(Thread.title.contains(q))
-            else: query = query.join(Message).filter(or_(Thread.title.contains(q), Message.content.contains(q))).distinct()
-        
-        pagination = query.order_by(Thread.is_bookmarked.desc(), Thread.bookmarked_at.desc(), Thread.updated_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
-        threads = [{
-            'id': t.public_id or t.id,
-            'title': t.title,
-            'is_bookmarked': bool(t.is_bookmarked),
-            'last_model': t.last_model,
-            'is_temporary': bool(getattr(t, "is_temporary", False))
-        } for t in pagination.items]
-        return jsonify({
-            'threads': threads,
-            'has_next': pagination.has_next,
-            'next_page': pagination.next_num
-        })
-    payload = request.get_json(silent=True) or {}
-    requested_temp = _coerce_bool_or_none(payload.get('is_temporary'))
-    t = Thread(
-        user_id=current_user.id,
-        public_id=generate_thread_public_id(),
-        is_temporary=bool(requested_temp)
-    )
-    db.session.add(t)
-    safe_db_commit()
-    if bool(t.is_temporary):
-        _mark_temp_chat_presence(
-            t,
-            current_user.id,
-            timeout_seconds=_get_user_temp_chat_timeout_seconds(current_user)
+        log_force(f"DEBUG: handle_threads query q={q}, page={page}")
+        try:
+            query = Thread.query.filter_by(user_id=current_user.id).filter(~Thread.title.startswith("[LIBRARY]"))
+            if q: 
+                if current_user.enable_e2ee: query = query.filter(Thread.title.contains(q))
+                else: query = query.join(Message).filter(or_(Thread.title.contains(q), Message.content.contains(q))).distinct()
+            
+            pagination = query.order_by(Thread.is_bookmarked.desc(), Thread.bookmarked_at.desc(), Thread.updated_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+            threads = []
+            for t in pagination.items:
+                threads.append({
+                    'id': t.public_id or t.id,
+                    'title': t.title,
+                    'is_bookmarked': bool(t.is_bookmarked),
+                    'last_model': t.last_model,
+                    'is_temporary': bool(getattr(t, "is_temporary", False))
+                })
+            log_force(f"DEBUG: handle_threads returning {len(threads)} threads")
+            return jsonify({
+                'threads': threads,
+                'has_next': pagination.has_next,
+                'next_page': pagination.next_num
+            })
+        except Exception as e:
+            log_force(f"DEBUG: handle_threads GET failed: {e}")
+            raise e
+    
+    # POST logic
+    try:
+        payload = request.get_json(silent=True) or {}
+        requested_temp = _coerce_bool_or_none(payload.get('is_temporary'))
+        log_force(f"DEBUG: handle_threads creating new thread, is_temporary={requested_temp}")
+        t = Thread(
+            user_id=current_user.id,
+            public_id=generate_thread_public_id(),
+            is_temporary=bool(requested_temp)
         )
-    return jsonify({
-        'id': t.public_id,
-        'title': t.title,
-        'is_temporary': bool(t.is_temporary),
-        'timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user)
-    })
+        db.session.add(t)
+        safe_db_commit()
+        log_force(f"DEBUG: handle_threads thread created, public_id={t.public_id}")
+        if bool(t.is_temporary):
+            _mark_temp_chat_presence(
+                t,
+                current_user.id,
+                timeout_seconds=_get_user_temp_chat_timeout_seconds(current_user)
+            )
+        return jsonify({
+            'id': t.public_id,
+            'title': t.title,
+            'is_temporary': bool(t.is_temporary),
+            'timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user)
+        })
+    except Exception as e:
+        log_force(f"DEBUG: handle_threads POST failed: {e}")
+        raise e
 
 @app.route('/api/threads/<thread_id>', methods=['GET', 'DELETE'])
 @login_required
@@ -7654,9 +7681,13 @@ def encryption_scan():
 @app.route('/api/threads/<thread_id>/settings', methods=['GET', 'PUT'])
 @login_required
 def update_thread_settings(thread_id):
+    log_force(f"DEBUG: update_thread_settings started for {thread_id}, method={request.method}")
     t = resolve_thread_for_user(thread_id, current_user.id)
-    if not t: return jsonify({'error': '403'}), 403
+    if not t:
+        log_force(f"DEBUG: thread not found for {thread_id}")
+        return jsonify({'error': '403'}), 403
     if request.method == 'GET':
+        log_force(f"DEBUG: update_thread_settings GET returning data for {thread_id}")
         return jsonify({
             'custom_instruction': t.custom_instruction,
             'include_global_instruction': t.include_global_instruction if t.include_global_instruction is not None else True,
@@ -7664,6 +7695,7 @@ def update_thread_settings(thread_id):
             'timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user)
         })
     d = request.json or {}
+    log_force(f"DEBUG: update_thread_settings received json: {d}")
     if 'custom_instruction' in d:
         t.custom_instruction = d['custom_instruction']
     if 'include_global_instruction' in d:
@@ -7674,7 +7706,9 @@ def update_thread_settings(thread_id):
     
     t.updated_at = datetime.utcnow()
     db.session.add(t)
+    log_force(f"DEBUG: calling safe_db_commit")
     safe_db_commit()
+    log_force(f"DEBUG: safe_db_commit finished")
     if bool(getattr(t, "is_temporary", False)):
         _mark_temp_chat_presence(
             t,
@@ -7683,6 +7717,7 @@ def update_thread_settings(thread_id):
         )
     else:
         _clear_temp_chat_tracking_for_thread(t)
+    log_force(f"DEBUG: update_thread_settings returning ok")
     return jsonify({
         'status': 'ok',
         'is_temporary': bool(getattr(t, "is_temporary", False)),
@@ -8415,6 +8450,8 @@ def handle_settings():
         current_user.admin_api_key_mode = _normalize_admin_api_key_mode(d['admin_api_key_mode'])
     if getattr(current_user, 'is_admin', False) and 'bot_detection_global_enabled' in d:
         set_app_setting("bot_detection_global_enabled", "1" if d['bot_detection_global_enabled'] else "0")
+    
+    log_force(f"DEBUG: handle_settings processing extra fields, d={d}")
     if d.get('new_password'): current_user.set_password(d['new_password'])
     if d.get('new_username') and d['new_username'] != current_user.username:
         if _is_primary_admin_username(d['new_username']) and not getattr(current_user, "is_admin", False):
@@ -8428,9 +8465,13 @@ def handle_settings():
         current_user.is_2fa_enabled = False
         flash("2FAを無効化しました。")
     else:
+        log_force("DEBUG: handle_settings calling _refresh_user_2fa_state")
         _refresh_user_2fa_state(current_user)
+        log_force("DEBUG: handle_settings calling safe_db_commit")
         safe_db_commit()
+        log_force("DEBUG: handle_settings safe_db_commit finished")
         flash("設定を保存しました")
+    log_force("DEBUG: handle_settings returning ok")
     return jsonify({'status': 'ok'})
 
 # --- Session Management ---
@@ -9602,6 +9643,16 @@ with app.app_context():
             try_alter("ALTER TABLE thread ADD COLUMN is_temporary BOOLEAN DEFAULT 0")
         except: pass
 
+@app.route('/api/client_log', methods=['POST'])
+def client_log():
+    try:
+        d = request.json or {}
+        msg = d.get('message', '')
+        log_force(f"CLIENT-DEBUG: {msg}")
+        return jsonify({'status': 'ok'})
+    except Exception:
+        return jsonify({'status': 'error'}), 500
+
 @app.errorhandler(403)
 def handle_forbidden(_error):
     return render_template("403.html"), 403
@@ -9611,4 +9662,7 @@ def handle_not_found(_error):
     return render_template("404.html"), 404
 
 if __name__ == '__main__':
+    log_force("DEBUG: App starting in main")
     app.run(debug=True)
+else:
+    log_force("DEBUG: App imported/starting in worker or gunicorn")

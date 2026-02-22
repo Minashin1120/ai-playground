@@ -16,6 +16,20 @@
             ADD_ATTR: ['controls', 'src', 'class', 'autoplay', 'loop', 'muted', 'poster', 'width', 'height', 'allow', 'allowfullscreen', 'frameborder', 'scrolling']
         });
     </script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['\\(', '\\)']],
+                displayMath: [['$$', '$$']],
+                processEscapes: true
+            },
+            options: {
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" id="MathJax-script"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=Noto+Sans+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -7704,6 +7718,10 @@
             const container = target || get('chat-container');
             container.insertAdjacentHTML('beforeend', html); 
             if (doScroll) scrollToBottom(); 
+            if (window.MathJax) {
+                const newMsg = container.lastElementChild;
+                if (newMsg) window.MathJax.typesetPromise([newMsg]).catch(() => {});
+            }
         }
 
         function openTokenDetail(id) {
@@ -8218,6 +8236,10 @@
                     scrollToBottom(); 
                 } 
 
+                if (window.MathJax && adiv) {
+                     window.MathJax.typesetPromise([adiv]).catch(() => {});
+                }
+
                 // Reset editing state
                 editingMessageId = null;
                 setEditUi(false);
@@ -8413,6 +8435,10 @@
                         } catch (e) {}
                     }
                     scrollToBottom();
+                }
+
+                if (window.MathJax && adiv) {
+                     window.MathJax.typesetPromise([adiv]).catch(() => {});
                 }
 
                 if (!hadError) {
@@ -8636,6 +8662,9 @@
             updateTotalTokenBar(pathTotals.tokens_total, pathTotals, allBranchTotals);
             currentParentId = currentLeafId;
             scrollToBottom();
+            if (window.MathJax) {
+                 window.MathJax.typesetPromise([container]).catch(() => {});
+            }
         }
 
         function switchVersion(targetId) {

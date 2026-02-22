@@ -2037,6 +2037,11 @@ def ensure_app_setting(key, default):
         pass
 
 def try_alter(sql):
+    """
+    Executes a raw SQL command.
+    WARNING: This function executes raw SQL and is potentially vulnerable to SQL injection if used with untrusted input.
+    It should ONLY be used for internal schema migrations with hardcoded SQL strings.
+    """
     try:
         with db.engine.connect() as conn:
             conn.execute(text("SET SESSION lock_wait_timeout=1"))
@@ -2574,6 +2579,11 @@ AUTO_SYSTEM_PROMPT_NOTICE_OPENAI_SEARCH = (
 AUTO_SYSTEM_PROMPT_NOTICE_MARKER = "編集済みの画像を見てください。"
 AUTO_SYSTEM_PROMPT_NOTICE_ATTACHMENT_NAMES = "添付ファイル名:\n{{attachment_names}}"
 
+AUTO_SYSTEM_PROMPT_NOTICE_MATHJAX = (
+    "Mathematical formulas should be output in MathJax (LaTeX) format. "
+    "Inline formulas should be enclosed in \\( ... \\) and block formulas in $$ ... $$."
+)
+
 AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
     "python",
     "gemini_local_python",
@@ -2581,6 +2591,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
     "openai_search",
     "marker",
     "attachment_names",
+    "mathjax",
 )
 
 AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
@@ -2590,6 +2601,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
     "openai_search": "Search補助 (OpenAI/xAI Responses)",
     "marker": "Marker編集時",
     "attachment_names": "添付ファイル名 (LLM入力時)",
+    "mathjax": "MathJax (LaTeX数式)",
 }
 
 AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS = {
@@ -2599,6 +2611,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS = {
     "openai_search": AUTO_SYSTEM_PROMPT_NOTICE_OPENAI_SEARCH,
     "marker": AUTO_SYSTEM_PROMPT_NOTICE_MARKER,
     "attachment_names": AUTO_SYSTEM_PROMPT_NOTICE_ATTACHMENT_NAMES,
+    "mathjax": AUTO_SYSTEM_PROMPT_NOTICE_MATHJAX,
 }
 
 AUTO_SYSTEM_PROMPT_NOTICE_MAX_CHARS = 4000
@@ -3428,6 +3441,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     options['system_prompt'] = f"{time_notice}\n\n{curr_p}"
                 else:
                     options['system_prompt'] = time_notice
+            
+            if _auto_notice_enabled("mathjax"):
+                mathjax_notice = _auto_notice_text("mathjax")
+                curr_p = options.get('system_prompt') or ""
+                if "MathJax" not in curr_p:
+                    if curr_p.strip():
+                        options['system_prompt'] = f"{curr_p}\n\n{mathjax_notice}"
+                    else:
+                        options['system_prompt'] = mathjax_notice
+
             quote_text = None
             try:
                 qv = r.get(f"quote:{job_id}")
@@ -9644,7 +9667,10 @@ with app.app_context():
         except: pass
 
 @app.route('/api/client_log', methods=['POST'])
+@login_required
 def client_log():
+    if not rate_limit(f"rl:client_log:user:{current_user.id}", 60, 60):
+        return jsonify({'error': 'rate_limit'}), 429
     try:
         d = request.json or {}
         msg = d.get('message', '')

@@ -967,7 +967,7 @@
             </div>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
                 <button id="upload-select-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-bold btn-hover">ファイルを選択</button>
-                <button id="upload-photo-btn" data-progress-no-spinner="true" class="md:hidden w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-sm font-bold btn-hover">写真</button>
+                <button id="upload-photo-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-sm font-bold btn-hover">カメラで撮影</button>
                 <button id="upload-lib-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">ライブラリから選択</button>
                 <button id="upload-clear-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">リストをクリア</button>
             </div>
@@ -985,6 +985,27 @@
                 </div>
             </div>
             <div id="upload-list" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
+        </div>
+    </div>
+
+    <!-- Camera Capture Modal -->
+    <div id="camera-capture-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay" style="z-index:60;">
+        <div class="bg-gray-800 rounded-lg w-full max-w-xl p-4 shadow-2xl border border-gray-700 m-4 flex flex-col gap-3 modal-panel">
+            <div class="flex items-center justify-between">
+                <h2 class="text-base font-bold text-white flex items-center gap-2"><i class="fas fa-camera text-emerald-400"></i> カメラ撮影</h2>
+                <button id="camera-modal-close" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="rounded-lg border border-gray-700 bg-black overflow-hidden">
+                <video id="camera-video" class="w-full h-auto block" autoplay playsinline muted></video>
+                <canvas id="camera-canvas" class="hidden"></canvas>
+            </div>
+            <div id="camera-status" class="text-xs text-gray-400 min-h-[1rem]">カメラを起動中...</div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <button id="camera-capture-btn" data-progress-no-spinner="true" disabled class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded text-sm font-bold btn-hover">撮影して添付</button>
+                <button id="camera-switch-btn" data-progress-no-spinner="true" disabled class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white rounded text-sm font-bold btn-hover">カメラ切替</button>
+                <button id="camera-fallback-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">写真を選択</button>
+            </div>
+            <div class="text-[11px] text-gray-500">HTTPS または localhost でカメラ起動に対応します。権限拒否時は「写真を選択」を使用してください。</div>
         </div>
     </div>
 
@@ -1568,6 +1589,9 @@
             if (id === 'marker-modal') {
                 markerState.row = null;
             }
+            if (id === 'camera-capture-modal') {
+                stopCameraCaptureStream();
+            }
             if (!el.classList.contains('modal-open')) {
                 el.style.display = 'none';
                 el.classList.remove('modal-close');
@@ -1616,6 +1640,9 @@
         const markerAppliedUploads = new Set();
         const attachmentSourceByPath = new Map();
         const attachmentNameByPath = new Map();
+        let cameraCaptureStream = null;
+        let cameraCaptureFacingMode = 'environment';
+        let cameraCaptureBusy = false;
         let modalThreadId = null;
         const MARKER_HINT_TEXT = "編集済みの画像を見てください。";
         const MARKER_OPACITY_MIN_PCT = 0.1;
@@ -3832,6 +3859,7 @@
             });
             window.addEventListener('beforeunload', () => {
                 stopTemporaryChatHeartbeat();
+                stopCameraCaptureStream();
             });
             const storageRefreshBtn = get('storage-usage-refresh');
             if (storageRefreshBtn) storageRefreshBtn.onclick = () => loadStorageUsage();
@@ -4494,7 +4522,17 @@
             }
             if (get('upload-modal-close')) get('upload-modal-close').onclick = () => closeUploadModal();
             if (get('upload-select-btn')) get('upload-select-btn').onclick = () => get('file-input').click();
-            if (get('upload-photo-btn')) get('upload-photo-btn').onclick = () => get('photo-input').click();
+            if (get('upload-photo-btn')) get('upload-photo-btn').onclick = () => openCameraCaptureModal();
+            if (get('camera-modal-close')) get('camera-modal-close').onclick = () => closeCameraCaptureModal();
+            if (get('camera-capture-btn')) get('camera-capture-btn').onclick = () => captureCameraAndAttach();
+            if (get('camera-switch-btn')) get('camera-switch-btn').onclick = () => toggleCameraCaptureFacing();
+            if (get('camera-fallback-btn')) {
+                get('camera-fallback-btn').onclick = () => {
+                    closeCameraCaptureModal();
+                    const photoInput = get('photo-input');
+                    if (photoInput) photoInput.click();
+                };
+            }
             if (get('upload-clear-btn')) {
                 get('upload-clear-btn').onclick = () => {
                     resetUploadState();
@@ -5976,6 +6014,157 @@
                 }
             } catch (e) {
                 showToast("Mask upload failed", "error", true);
+            }
+        }
+        function setCameraCaptureStatus(text, isError = false) {
+            const el = get('camera-status');
+            if (!el) return;
+            el.textContent = text || '';
+            el.classList.toggle('text-red-300', !!isError);
+            el.classList.toggle('text-gray-400', !isError);
+        }
+        function stopCameraCaptureStream() {
+            const video = get('camera-video');
+            if (video && video.srcObject) {
+                try { video.pause(); } catch (e) {}
+                video.srcObject = null;
+            }
+            if (cameraCaptureStream) {
+                try {
+                    cameraCaptureStream.getTracks().forEach((track) => {
+                        try { track.stop(); } catch (e) {}
+                    });
+                } catch (e) {}
+            }
+            cameraCaptureStream = null;
+            cameraCaptureBusy = false;
+            const captureBtn = get('camera-capture-btn');
+            if (captureBtn) captureBtn.disabled = true;
+        }
+        async function startCameraCaptureStream(preferredFacingMode = 'environment') {
+            const video = get('camera-video');
+            if (!video) throw new Error('camera video element not found');
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error('このブラウザはカメラAPIに対応していません');
+            }
+            stopCameraCaptureStream();
+            setCameraCaptureStatus('カメラを起動中...');
+            const switchBtn = get('camera-switch-btn');
+            if (switchBtn) switchBtn.disabled = true;
+            const candidates = [
+                { video: { facingMode: { ideal: preferredFacingMode }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false },
+                { video: { facingMode: preferredFacingMode }, audio: false },
+                { video: true, audio: false }
+            ];
+            let lastErr = null;
+            for (const constraints of candidates) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    cameraCaptureStream = stream;
+                    video.srcObject = stream;
+                    try { await video.play(); } catch (e) {}
+                    const track = stream.getVideoTracks && stream.getVideoTracks()[0];
+                    const settings = track && track.getSettings ? track.getSettings() : {};
+                    const actualFacing = String(settings.facingMode || '').toLowerCase();
+                    if (actualFacing === 'user' || actualFacing === 'environment') {
+                        cameraCaptureFacingMode = actualFacing;
+                    } else {
+                        cameraCaptureFacingMode = preferredFacingMode;
+                    }
+                    const captureBtn = get('camera-capture-btn');
+                    if (captureBtn) captureBtn.disabled = false;
+                    if (switchBtn) switchBtn.disabled = false;
+                    setCameraCaptureStatus('撮影して添付できます');
+                    return stream;
+                } catch (e) {
+                    lastErr = e;
+                }
+            }
+            throw lastErr || new Error('カメラを起動できませんでした');
+        }
+        async function openCameraCaptureModal() {
+            if (!window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                showToast('カメラ起動は HTTPS / localhost 環境で利用できます。写真選択に切り替えます。', 'warning', true);
+                const photoInput = get('photo-input');
+                if (photoInput) photoInput.click();
+                return;
+            }
+            showModal('camera-capture-modal');
+            try {
+                await startCameraCaptureStream(cameraCaptureFacingMode || 'environment');
+            } catch (e) {
+                const msg = (e && e.message) ? e.message : 'カメラを起動できませんでした';
+                setCameraCaptureStatus(msg, true);
+                showToast(msg, 'error', true);
+                const captureBtn = get('camera-capture-btn');
+                if (captureBtn) captureBtn.disabled = true;
+            }
+        }
+        function closeCameraCaptureModal() {
+            hideModal('camera-capture-modal');
+        }
+        async function toggleCameraCaptureFacing() {
+            if (cameraCaptureBusy) return;
+            const switchBtn = get('camera-switch-btn');
+            if (switchBtn) switchBtn.disabled = true;
+            const next = String(cameraCaptureFacingMode || '').toLowerCase() === 'user' ? 'environment' : 'user';
+            cameraCaptureFacingMode = next;
+            try {
+                await startCameraCaptureStream(next);
+            } catch (e) {
+                const msg = (e && e.message) ? e.message : 'カメラ切替に失敗しました';
+                setCameraCaptureStatus(msg, true);
+                showToast(msg, 'error', true);
+            } finally {
+                if (switchBtn && get('camera-capture-modal') && !get('camera-capture-modal').classList.contains('hidden')) {
+                    switchBtn.disabled = false;
+                }
+            }
+        }
+        function buildCameraCaptureFilename() {
+            const now = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            return `camera_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.jpg`;
+        }
+        async function captureCameraAndAttach() {
+            if (cameraCaptureBusy) return;
+            const video = get('camera-video');
+            const canvas = get('camera-canvas');
+            const modal = get('camera-capture-modal');
+            if (!video || !canvas || !modal) return;
+            if (!video.videoWidth || !video.videoHeight) {
+                showToast('カメラ映像の準備中です。少し待ってから再度お試しください。', 'warning', true);
+                return;
+            }
+            cameraCaptureBusy = true;
+            const captureBtn = get('camera-capture-btn');
+            if (captureBtn) captureBtn.disabled = true;
+            setCameraCaptureStatus('撮影画像を添付中...');
+            try {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) throw new Error('撮影処理に失敗しました');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const blob = await new Promise((resolve, reject) => {
+                    canvas.toBlob((b) => {
+                        if (b) resolve(b);
+                        else reject(new Error('画像の生成に失敗しました'));
+                    }, 'image/jpeg', 0.92);
+                });
+                const file = new File([blob], buildCameraCaptureFilename(), { type: 'image/jpeg', lastModified: Date.now() });
+                await handleFiles([file], { openModal: false });
+                closeCameraCaptureModal();
+                showToast('撮影した画像を添付しました', 'success');
+            } catch (e) {
+                const msg = (e && e.message) ? e.message : '撮影画像の添付に失敗しました';
+                setCameraCaptureStatus(msg, true);
+                showToast(msg, 'error', true);
+            } finally {
+                cameraCaptureBusy = false;
+                if (captureBtn && modal && !modal.classList.contains('hidden')) {
+                    captureBtn.disabled = false;
+                }
             }
         }
         function openUploadModal() {

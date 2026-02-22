@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.243)</title>
+    <title>AI Playground (V4.8.245)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -941,7 +941,7 @@
                         <button id="auto-search-off-btn" class="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-[11px] btn-hover">検索OFFで回答</button>
                     </div>
                 </div>
-                <div id="input-row" class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><input type="file" id="photo-input" class="hidden" accept="image/*" multiple><input type="file" id="mask-input" class="hidden" accept="image/*"><button id="upload-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="mask-btn" data-progress-no-spinner="true" class="hidden bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Mask (GPT-Image)"><i class="fas fa-mask"></i></button><button id="mic-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
+                <div id="input-row" class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><input type="file" id="photo-input" class="hidden" accept="image/*,video/*" multiple><input type="file" id="mask-input" class="hidden" accept="image/*"><button id="upload-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="mask-btn" data-progress-no-spinner="true" class="hidden bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Mask (GPT-Image)"><i class="fas fa-mask"></i></button><button id="mic-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
                 <div id="prompt-token-estimate" class="hidden mt-1 px-1 text-[10px] text-gray-400"></div>
             </div>
         </div>
@@ -967,7 +967,8 @@
             </div>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
                 <button id="upload-select-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-bold btn-hover">ファイルを選択</button>
-                <button id="upload-photo-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-sm font-bold btn-hover">カメラで撮影</button>
+                <button id="upload-camera-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-sm font-bold btn-hover">カメラで撮影</button>
+                <button id="upload-photo-btn" data-progress-no-spinner="true" class="md:hidden w-full px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded text-sm font-bold btn-hover" title="写真/動画を選択">写真</button>
                 <button id="upload-lib-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">ライブラリから選択</button>
                 <button id="upload-clear-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">リストをクリア</button>
             </div>
@@ -1000,12 +1001,15 @@
                 <canvas id="camera-canvas" class="hidden"></canvas>
             </div>
             <div id="camera-status" class="text-xs text-gray-400 min-h-[1rem]">カメラを起動中...</div>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <button id="camera-capture-btn" data-progress-no-spinner="true" disabled class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded text-sm font-bold btn-hover">撮影して添付</button>
+            <div id="camera-capture-preview-list" class="hidden rounded-lg border border-gray-700/80 bg-gray-900/70 p-2 grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-32 overflow-y-auto"></div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <button id="camera-capture-btn" data-progress-no-spinner="true" disabled class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded text-sm font-bold btn-hover">撮影</button>
+                <button id="camera-attach-btn" data-progress-no-spinner="true" disabled class="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded text-sm font-bold btn-hover">添付 (0)</button>
                 <button id="camera-switch-btn" data-progress-no-spinner="true" disabled class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white rounded text-sm font-bold btn-hover">カメラ切替</button>
-                <button id="camera-fallback-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">写真を選択</button>
+                <button id="camera-clear-btn" data-progress-no-spinner="true" disabled class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white rounded text-sm font-bold btn-hover">撮影分をクリア</button>
+                <button id="camera-fallback-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">写真/動画を選択</button>
             </div>
-            <div class="text-[11px] text-gray-500">HTTPS または localhost でカメラ起動に対応します。権限拒否時は「写真を選択」を使用してください。</div>
+            <div class="text-[11px] text-gray-500">複数枚撮影してから「添付」でまとめて追加できます。HTTPS または localhost でカメラ起動に対応します。</div>
         </div>
     </div>
 
@@ -1590,6 +1594,7 @@
                 markerState.row = null;
             }
             if (id === 'camera-capture-modal') {
+                resetCameraCapturePending();
                 stopCameraCaptureStream();
             }
             if (!el.classList.contains('modal-open')) {
@@ -1643,6 +1648,9 @@
         let cameraCaptureStream = null;
         let cameraCaptureFacingMode = 'environment';
         let cameraCaptureBusy = false;
+        let cameraCaptureSequence = 0;
+        const cameraCapturePendingFiles = [];
+        const cameraCapturePendingPreviewUrls = [];
         let modalThreadId = null;
         const MARKER_HINT_TEXT = "編集済みの画像を見てください。";
         const MARKER_OPACITY_MIN_PCT = 0.1;
@@ -4522,10 +4530,13 @@
             }
             if (get('upload-modal-close')) get('upload-modal-close').onclick = () => closeUploadModal();
             if (get('upload-select-btn')) get('upload-select-btn').onclick = () => get('file-input').click();
-            if (get('upload-photo-btn')) get('upload-photo-btn').onclick = () => openCameraCaptureModal();
+            if (get('upload-camera-btn')) get('upload-camera-btn').onclick = () => openCameraCaptureModal();
+            if (get('upload-photo-btn')) get('upload-photo-btn').onclick = () => get('photo-input').click();
             if (get('camera-modal-close')) get('camera-modal-close').onclick = () => closeCameraCaptureModal();
-            if (get('camera-capture-btn')) get('camera-capture-btn').onclick = () => captureCameraAndAttach();
+            if (get('camera-capture-btn')) get('camera-capture-btn').onclick = () => captureCameraShot();
+            if (get('camera-attach-btn')) get('camera-attach-btn').onclick = () => attachCameraCapturedFiles();
             if (get('camera-switch-btn')) get('camera-switch-btn').onclick = () => toggleCameraCaptureFacing();
+            if (get('camera-clear-btn')) get('camera-clear-btn').onclick = () => resetCameraCapturePending();
             if (get('camera-fallback-btn')) {
                 get('camera-fallback-btn').onclick = () => {
                     closeCameraCaptureModal();
@@ -6023,6 +6034,42 @@
             el.classList.toggle('text-red-300', !!isError);
             el.classList.toggle('text-gray-400', !isError);
         }
+        function updateCameraCapturePendingUi() {
+            const count = cameraCapturePendingFiles.length;
+            const attachBtn = get('camera-attach-btn');
+            if (attachBtn) {
+                attachBtn.disabled = count === 0 || cameraCaptureBusy;
+                attachBtn.textContent = count ? `添付 (${count})` : '添付 (0)';
+            }
+            const clearBtn = get('camera-clear-btn');
+            if (clearBtn) clearBtn.disabled = count === 0 || cameraCaptureBusy;
+            const previewList = get('camera-capture-preview-list');
+            if (previewList) {
+                previewList.innerHTML = '';
+                cameraCapturePendingPreviewUrls.forEach((url, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'relative rounded overflow-hidden border border-gray-700 bg-black aspect-square';
+                    item.innerHTML = `
+                        <img src="${url}" alt="capture ${index + 1}" class="w-full h-full object-cover block">
+                        <div class="absolute bottom-0 right-0 text-[10px] px-1 py-0.5 bg-black/70 text-white">${index + 1}</div>
+                    `;
+                    previewList.appendChild(item);
+                });
+                previewList.classList.toggle('hidden', count === 0);
+            }
+        }
+        function resetCameraCapturePending(opts = {}) {
+            while (cameraCapturePendingPreviewUrls.length) {
+                const url = cameraCapturePendingPreviewUrls.pop();
+                try { URL.revokeObjectURL(url); } catch (e) {}
+            }
+            cameraCapturePendingFiles.length = 0;
+            updateCameraCapturePendingUi();
+            if (!opts.keepStatus) {
+                if (cameraCaptureStream) setCameraCaptureStatus('撮影して追加できます。最後に「添付」を押してください。');
+                else setCameraCaptureStatus('カメラを起動中...');
+            }
+        }
         function stopCameraCaptureStream() {
             const video = get('camera-video');
             if (video && video.srcObject) {
@@ -6040,6 +6087,8 @@
             cameraCaptureBusy = false;
             const captureBtn = get('camera-capture-btn');
             if (captureBtn) captureBtn.disabled = true;
+            const switchBtn = get('camera-switch-btn');
+            if (switchBtn) switchBtn.disabled = true;
         }
         async function startCameraCaptureStream(preferredFacingMode = 'environment') {
             const video = get('camera-video');
@@ -6074,7 +6123,10 @@
                     const captureBtn = get('camera-capture-btn');
                     if (captureBtn) captureBtn.disabled = false;
                     if (switchBtn) switchBtn.disabled = false;
-                    setCameraCaptureStatus('撮影して添付できます');
+                    setCameraCaptureStatus(cameraCapturePendingFiles.length > 0
+                        ? `${cameraCapturePendingFiles.length}枚撮影済み。続けて撮影するか「添付」を押してください。`
+                        : '撮影して追加できます。最後に「添付」を押してください。');
+                    updateCameraCapturePendingUi();
                     return stream;
                 } catch (e) {
                     lastErr = e;
@@ -6089,6 +6141,8 @@
                 if (photoInput) photoInput.click();
                 return;
             }
+            resetCameraCapturePending({ keepStatus: true });
+            updateCameraCapturePendingUi();
             showModal('camera-capture-modal');
             try {
                 await startCameraCaptureStream(cameraCaptureFacingMode || 'environment');
@@ -6098,6 +6152,8 @@
                 showToast(msg, 'error', true);
                 const captureBtn = get('camera-capture-btn');
                 if (captureBtn) captureBtn.disabled = true;
+                const attachBtn = get('camera-attach-btn');
+                if (attachBtn) attachBtn.disabled = true;
             }
         }
         function closeCameraCaptureModal() {
@@ -6124,9 +6180,12 @@
         function buildCameraCaptureFilename() {
             const now = new Date();
             const pad = (n) => String(n).padStart(2, '0');
-            return `camera_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.jpg`;
+            const ms = String(now.getMilliseconds()).padStart(3, '0');
+            cameraCaptureSequence = (cameraCaptureSequence + 1) % 1000;
+            const seq = String(cameraCaptureSequence).padStart(3, '0');
+            return `camera_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}_${ms}_${seq}.jpg`;
         }
-        async function captureCameraAndAttach() {
+        async function captureCameraShot() {
             if (cameraCaptureBusy) return;
             const video = get('camera-video');
             const canvas = get('camera-canvas');
@@ -6139,7 +6198,9 @@
             cameraCaptureBusy = true;
             const captureBtn = get('camera-capture-btn');
             if (captureBtn) captureBtn.disabled = true;
-            setCameraCaptureStatus('撮影画像を添付中...');
+            const attachBtn = get('camera-attach-btn');
+            if (attachBtn) attachBtn.disabled = true;
+            setCameraCaptureStatus('撮影中...');
             try {
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
@@ -6153,17 +6214,54 @@
                     }, 'image/jpeg', 0.92);
                 });
                 const file = new File([blob], buildCameraCaptureFilename(), { type: 'image/jpeg', lastModified: Date.now() });
-                await handleFiles([file], { openModal: false });
-                closeCameraCaptureModal();
-                showToast('撮影した画像を添付しました', 'success');
+                cameraCapturePendingFiles.push(file);
+                cameraCapturePendingPreviewUrls.push(URL.createObjectURL(blob));
+                updateCameraCapturePendingUi();
+                setCameraCaptureStatus(`${cameraCapturePendingFiles.length}枚撮影済み。続けて撮影するか「添付」を押してください。`);
             } catch (e) {
-                const msg = (e && e.message) ? e.message : '撮影画像の添付に失敗しました';
+                const msg = (e && e.message) ? e.message : '撮影に失敗しました';
                 setCameraCaptureStatus(msg, true);
                 showToast(msg, 'error', true);
             } finally {
                 cameraCaptureBusy = false;
                 if (captureBtn && modal && !modal.classList.contains('hidden')) {
                     captureBtn.disabled = false;
+                }
+                updateCameraCapturePendingUi();
+            }
+        }
+        async function attachCameraCapturedFiles() {
+            if (cameraCaptureBusy) return;
+            if (!cameraCapturePendingFiles.length) {
+                showToast('先に撮影してください', 'warning', true);
+                return;
+            }
+            const modal = get('camera-capture-modal');
+            cameraCaptureBusy = true;
+            const captureBtn = get('camera-capture-btn');
+            const switchBtn = get('camera-switch-btn');
+            const attachBtn = get('camera-attach-btn');
+            const clearBtn = get('camera-clear-btn');
+            if (captureBtn) captureBtn.disabled = true;
+            if (switchBtn) switchBtn.disabled = true;
+            if (attachBtn) attachBtn.disabled = true;
+            if (clearBtn) clearBtn.disabled = true;
+            const filesToUpload = Array.from(cameraCapturePendingFiles);
+            setCameraCaptureStatus(`${filesToUpload.length}枚を添付中...`);
+            try {
+                await handleFiles(filesToUpload, { openModal: false });
+                closeCameraCaptureModal();
+                showToast(`${filesToUpload.length}枚の画像を添付しました`, 'success');
+            } catch (e) {
+                const msg = (e && e.message) ? e.message : '撮影画像の添付に失敗しました';
+                setCameraCaptureStatus(msg, true);
+                showToast(msg, 'error', true);
+            } finally {
+                cameraCaptureBusy = false;
+                if (modal && !modal.classList.contains('hidden')) {
+                    if (captureBtn) captureBtn.disabled = false;
+                    if (switchBtn) switchBtn.disabled = false;
+                    updateCameraCapturePendingUi();
                 }
             }
         }

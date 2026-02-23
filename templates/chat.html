@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.250)</title>
+    <title>AI Playground (V4.8.251)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -620,7 +620,7 @@
     
     <!-- Alpha Bar -->
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-green-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-green-400">
-        <i class="fas fa-check-circle mr-1"></i> System v4.8.231 (Stable)
+        <i class="fas fa-check-circle mr-1"></i> System v4.8.251 (Stable)
     </div>
 
     <!-- Debug Console -->
@@ -650,7 +650,7 @@
             <!-- Threads loaded dynamically -->
             <div id="scroll-sentinel"></div>
         </div>
-        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.8.231 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
+        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.8.251 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
     </div>
     <div id="overlay" class="overlay"></div>
 
@@ -1660,6 +1660,11 @@
         const CONNECTION_UNSTABLE_HOLD_MS = 45000;
         const CONNECTION_RECOVERED_BANNER_MS = 5000;
         let activeGem = null, editingGemId = null, currentImageUrls = [], currentMaskImage = null, abortController = null, userAutoScroll = true, searchTimeout;
+        
+        // Prompt History
+        let promptHistory = JSON.parse(localStorage.getItem('prompt_history') || '[]');
+        let historyIndex = -1;
+        let tempPrompt = "";
          
         const markerAppliedUploads = new Set();
         const attachmentSourceByPath = new Map();
@@ -4947,6 +4952,33 @@
             }
             get('prompt-input').onkeydown = (e) => {
                 if (e.isComposing) return;
+
+                const input = get('prompt-input');
+                if (e.key === 'ArrowUp' && (input.selectionStart === 0 || e.ctrlKey)) {
+                    if (promptHistory.length > 0) {
+                        if (historyIndex === -1) {
+                            tempPrompt = input.value;
+                        }
+                        if (historyIndex < promptHistory.length - 1) {
+                            e.preventDefault();
+                            historyIndex++;
+                            input.value = promptHistory[historyIndex];
+                            input.dispatchEvent(new Event('input'));
+                        }
+                    }
+                } else if (e.key === 'ArrowDown' && (input.selectionEnd === input.value.length || e.ctrlKey)) {
+                    if (historyIndex > -1) {
+                        e.preventDefault();
+                        historyIndex--;
+                        if (historyIndex === -1) {
+                            input.value = tempPrompt;
+                        } else {
+                            input.value = promptHistory[historyIndex];
+                        }
+                        input.dispatchEvent(new Event('input'));
+                    }
+                }
+
                 if (enterToSend) {
                     if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
@@ -7944,6 +7976,18 @@
                 return;
             }
             const rawText = get('prompt-input').value; // RAW INPUT (No trim)
+            
+            // Save to prompt history
+            if (rawText.trim()) {
+                if (promptHistory.length === 0 || promptHistory[0] !== rawText) {
+                    promptHistory.unshift(rawText);
+                    if (promptHistory.length > 100) promptHistory.pop();
+                    localStorage.setItem('prompt_history', JSON.stringify(promptHistory));
+                }
+            }
+            historyIndex = -1;
+            tempPrompt = "";
+
             const attachmentItemsToSend = collectAttachmentItemsForSend();
             const imageUrlsToSend = attachmentItemsToSend.map((it) => it.path);
             const uploadedImageUrlsToSend = attachmentItemsToSend

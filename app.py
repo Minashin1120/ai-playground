@@ -1235,6 +1235,7 @@ def secure_delete(path):
 
 # Speech-to-Speech (STS) model registry
 STS_MODELS = {
+    "gpt-realtime-1.5": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gpt-realtime": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gpt-realtime-mini": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gemini-2.5-flash-native-audio-preview-12-2025": {"provider": "google", "rate_in": 16000, "rate_out": 24000},

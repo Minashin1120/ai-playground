@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.252)</title>
+    <title>AI Playground (V4.8.253)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -2959,7 +2959,8 @@
                 icon: "fas fa-headset text-cyan-400",
                 description: "Realtime voice models (audio in / audio out)",
                 items: [
-                    { id: "gpt-realtime", name: "OpenAI Realtime", desc: "Latest OpenAI speech-to-speech model." },
+                    { id: "gpt-realtime-1.5", name: "OpenAI Realtime 1.5", desc: "Latest OpenAI speech-to-speech flagship model." },
+                    { id: "gpt-realtime", name: "OpenAI Realtime", desc: "OpenAI realtime speech-to-speech model." },
                     { id: "gpt-realtime-mini", name: "OpenAI Realtime Mini", desc: "Lower-latency, smaller realtime model." },
                     { id: "gemini-2.5-flash-native-audio-preview-12-2025", name: "Gemini 2.5 Flash Native Audio (Live)", desc: "Google Live native audio model." },
                     { id: "grok-voice-agent", name: "Grok Voice Agent", desc: "xAI realtime voice agent API." }
@@ -2991,6 +2992,7 @@
         let activeModelTag = 'all';
         const MODEL_TAGS = ['all','openai','gemini','xai','image','audio','reasoning','fast'];
         const STS_MODELS = new Set([
+            'gpt-realtime-1.5',
             'gpt-realtime',
             'gpt-realtime-mini',
             'gemini-2.5-flash-native-audio-preview-12-2025',

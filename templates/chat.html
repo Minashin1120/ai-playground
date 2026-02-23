@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.251)</title>
+    <title>AI Playground (V4.8.252)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -620,7 +620,7 @@
     
     <!-- Alpha Bar -->
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-green-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-green-400">
-        <i class="fas fa-check-circle mr-1"></i> System v4.8.251 (Stable)
+        <i class="fas fa-check-circle mr-1"></i> System v4.8.252 (Stable)
     </div>
 
     <!-- Debug Console -->
@@ -650,7 +650,7 @@
             <!-- Threads loaded dynamically -->
             <div id="scroll-sentinel"></div>
         </div>
-        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.8.251 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
+        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.8.252 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
     </div>
     <div id="overlay" class="overlay"></div>
 
@@ -8625,6 +8625,22 @@
             const r = await apiFetch("{{ url_for('handle_thread_item', thread_id=0) }}".replace('0', tid)); 
             const threadData = await r.json();
             allMessages = threadData.messages || []; 
+
+            // Load prompt history from thread messages
+            if (allMessages.length > 0) {
+                const threadUserPrompts = allMessages
+                    .filter(m => m.role === 'user' && m.content)
+                    .map(m => m.content);
+                
+                // Add to history if not present (moving to front if already there)
+                threadUserPrompts.forEach(p => {
+                    promptHistory = promptHistory.filter(h => h !== p);
+                    promptHistory.unshift(p);
+                });
+                if (promptHistory.length > 100) promptHistory = promptHistory.slice(0, 100);
+                localStorage.setItem('prompt_history', JSON.stringify(promptHistory));
+            }
+
             currentThreadPending = threadData.pending_job || null;
             applyTemporaryChatTimeoutSeconds(threadData && threadData.timeout_seconds);
             setTemporaryChatUiState(!!(threadData && threadData.is_temporary));

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.253)</title>
+    <title>AI Playground (V4.8.254)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -6346,6 +6346,8 @@
             setCameraCaptureStatus(`${filesToUpload.length}枚を添付中...`);
             try {
                 await handleFiles(filesToUpload, { openModal: false });
+                // 成功時は「未添付確認」の対象外にするため、閉じる前に撮影キューを空にする。
+                resetCameraCapturePending({ keepStatus: true });
                 closeCameraCaptureModal();
                 showToast(`${filesToUpload.length}枚の画像を添付しました`, 'success');
             } catch (e) {

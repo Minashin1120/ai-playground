@@ -1607,6 +1607,7 @@ class Message(db.Model):
     tokens = db.Column(db.Integer, default=0)
     tokens_in = db.Column(db.Integer, default=0)
     tokens_out = db.Column(db.Integer, default=0)
+    tokens_thought = db.Column(db.Integer, default=0)
     thought_data = db.Column(db.Text)
     quote_text = db.Column(db.Text)
     is_encrypted = db.Column(db.Boolean, default=False)
@@ -2101,6 +2102,15 @@ def ensure_message_token_io_columns():
             if not res_out:
                 conn.execute(text("SET SESSION lock_wait_timeout=1"))
                 conn.execute(text("ALTER TABLE message ADD COLUMN tokens_out INTEGER DEFAULT 0"))
+            res_thought = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='message' "
+                "AND COLUMN_NAME='tokens_thought'"
+            )).scalar()
+            if not res_thought:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE message ADD COLUMN tokens_thought INTEGER DEFAULT 0"))
     except Exception:
         pass
 
@@ -5904,7 +5914,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     "input": input_data,
                     "stream": True,
                     "store": store_flag,
-                    "stream_options": {"include_usage": True}
                 }
 
                 if is_grok and grok_enable_search:
@@ -6238,10 +6247,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         resp = chunk.get('response') if isinstance(chunk, dict) else getattr(chunk, 'response', None)
                         if isinstance(resp, dict):
                             response_id = resp.get('id') or response_id
+                            resp_usage = resp.get('usage')
                             output_items = resp.get('output')
                         else:
                             response_id = getattr(resp, 'id', None) or response_id
+                            resp_usage = getattr(resp, 'usage', None) if resp else None
                             output_items = getattr(resp, 'output', None) if resp else None
+                        if resp_usage:
+                            final_openai_usage = resp_usage
                         if output_items:
                             for item in output_items:
                                 if isinstance(item, dict):
@@ -6301,6 +6314,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 if enable_reasoning and not thought_accumulated and response_id:
                     try:
                         resp_full = client.responses.retrieve(response_id)
+                        resp_usage = getattr(resp_full, 'usage', None)
+                        if resp_usage:
+                            final_openai_usage = resp_usage
                         output_items = getattr(resp_full, 'output', None)
                         if output_items:
                             for item in output_items:
@@ -6378,16 +6394,35 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             # OpenAI/xAI Responses: Use official usage if available
             elif (not is_gem) and locals().get('final_openai_usage'):
                 usage = locals().get('final_openai_usage')
+                completion_tokens_val = None
+                output_tokens_val = None
+                reasoning_tokens_val = None
                 if isinstance(usage, dict):
-                    assistant_tokens_out = usage.get('completion_tokens', assistant_tokens_out)
+                    completion_tokens_val = usage.get('completion_tokens')
+                    output_tokens_val = usage.get('output_tokens')
                     details = usage.get('completion_tokens_details')
+                    if not isinstance(details, dict):
+                        details = usage.get('output_tokens_details')
                     if isinstance(details, dict):
-                        tokens_thought_val = details.get('reasoning_tokens', 0)
+                        reasoning_tokens_val = details.get('reasoning_tokens', 0)
                 else:
-                    assistant_tokens_out = getattr(usage, 'completion_tokens', assistant_tokens_out)
-                    details = getattr(usage, 'completion_tokens_details', None)
+                    completion_tokens_val = getattr(usage, 'completion_tokens', None)
+                    output_tokens_val = getattr(usage, 'output_tokens', None)
+                    details = getattr(usage, 'completion_tokens_details', None) or getattr(usage, 'output_tokens_details', None)
                     if details:
-                        tokens_thought_val = getattr(details, 'reasoning_tokens', 0)
+                        reasoning_tokens_val = getattr(details, 'reasoning_tokens', 0)
+
+                if reasoning_tokens_val is not None:
+                    tokens_thought_val = reasoning_tokens_val
+
+                # xAI usage commonly reports completion_tokens (reasoning separate and included in total only).
+                if is_grok and completion_tokens_val is not None:
+                    assistant_tokens_out = int(completion_tokens_val or 0) + int(reasoning_tokens_val or 0)
+                # OpenAI Responses usage reports output_tokens (already total output).
+                elif output_tokens_val is not None:
+                    assistant_tokens_out = output_tokens_val
+                elif completion_tokens_val is not None:
+                    assistant_tokens_out = int(completion_tokens_val or 0) + int(reasoning_tokens_val or 0)
 
             msg_entry = Message(
                 thread_id=thread_id, role='assistant', content=final_content, 
@@ -7640,6 +7675,9 @@ def handle_thread_item(thread_id):
                 token_in = m.tokens_in if m.tokens_in and m.tokens_in > 0 else None
                 token_out = m.tokens_out if m.tokens_out and m.tokens_out > 0 else None
                 token_total = sum_token_counts(token_in, token_out)
+                stored_tokens_thought = getattr(m, 'tokens_thought', None)
+                if stored_tokens_thought is not None and stored_tokens_thought > 0:
+                    tokens_thought = stored_tokens_thought
             elif m.tokens is not None and m.tokens > 0 and (should_count_tokens_for_display(m.model) or not m.model):
                 if m.role == 'user':
                     legacy_token_in = m.tokens
@@ -9521,6 +9559,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE message ADD COLUMN tokens_out INTEGER DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE message ADD COLUMN tokens_thought INTEGER DEFAULT 0")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN enable_e2ee BOOLEAN DEFAULT 0")

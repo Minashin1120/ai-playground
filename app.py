@@ -2977,7 +2977,10 @@ def count_tokens(text, model="gpt-4"):
     for model_hint in (model, "gpt-4o", "gpt-4"):
         try:
             enc = _get_token_encoder(model_hint)
-            return len(enc.encode(raw, disallowed_special=()))
+            c = len(enc.encode(raw, disallowed_special=()))
+            if c == 0 and raw.strip():
+                log_force(f"Token count 0 for non-empty text: {raw[:20]}...")
+            return c
         except Exception:
             continue
     return 0
@@ -4838,8 +4841,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     stream = g_client.models.generate_content_stream(model=rm, contents=contents, config=types.GenerateContentConfig(**conf))
                     current_py_id = None
                     current_py_code = None
+                    final_usage_metadata = None
                     for chunk in stream:
                         if check_stop(): break
+                        if hasattr(chunk, 'usage_metadata') and chunk.usage_metadata:
+                            final_usage_metadata = chunk.usage_metadata
                         if hasattr(chunk, 'candidates') and chunk.candidates:
                             for cand in chunk.candidates:
                                 gm = getattr(cand, 'grounding_metadata', None)
@@ -5893,7 +5899,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 has_image_inputs = any(fi.get('bytes') and str(fi.get('mime', '')).startswith('image/') for fi in loaded_files)
                 # xAI docs: image understanding requests should avoid server-side storage.
                 store_flag = False if (is_grok and has_image_inputs) else True
-                kwargs = {"model": model_key, "input": input_data, "stream": True, "store": store_flag}
+                kwargs = {
+                    "model": model_key,
+                    "input": input_data,
+                    "stream": True,
+                    "store": store_flag,
+                    "stream_options": {"include_usage": True}
+                }
 
                 if is_grok and grok_enable_search:
                     kwargs['tools'] = [{"type": "web_search"}, {"type": "x_search"}]
@@ -5961,6 +5973,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 collected_sources = []
                 seen_source_urls = set()
                 sources_emitted = False
+                final_openai_usage = None
 
                 def _add_source(title, url):
                     if not url or url in seen_source_urls:
@@ -6008,17 +6021,21 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                 for chunk in stream:
                     if check_stop(): break
-                        # log_force(f"Responses Chunk: {chunk}") # Temporarily disabled to avoid log flooding
-                    # Capture response_id from any event type (some streams may skip response.created)
+                    if isinstance(chunk, dict):
+                        event_type = chunk.get('type')
+                        usage = chunk.get('usage')
+                    else:
+                        event_type = getattr(chunk, 'type', None)
+                        usage = getattr(chunk, 'usage', None)
+                    
+                    if usage:
+                        final_openai_usage = usage
+
                     if response_id is None:
                         if isinstance(chunk, dict):
                             response_id = chunk.get('response_id') or response_id
                         else:
                             response_id = getattr(chunk, 'response_id', None) or response_id
-                    if isinstance(chunk, dict):
-                        event_type = chunk.get('type')
-                    else:
-                        event_type = getattr(chunk, 'type', None)
 
                     if event_type == "response.created":
                         resp = chunk.get('response') if isinstance(chunk, dict) else getattr(chunk, 'response', None)
@@ -6348,12 +6365,37 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 if final_thought: final_thought = encrypt_val(final_thought)
             
             assistant_tokens_out = count_tokens_for_display(full_res, model_key, thought_accumulated)
+            tokens_thought_val = count_tokens(thought_accumulated, model_key) if thought_accumulated else 0
+
+            # Gemini Thinking: Use official usage metadata if available
+            if is_gem and locals().get('final_usage_metadata'):
+                meta = locals().get('final_usage_metadata')
+                t_count = getattr(meta, 'thoughts_token_count', 0) or 0
+                c_count = getattr(meta, 'candidates_token_count', 0) or 0
+                # Official billing: Total Output = candidates + thoughts
+                assistant_tokens_out = c_count + t_count
+                tokens_thought_val = t_count
+            # OpenAI/xAI Responses: Use official usage if available
+            elif (not is_gem) and locals().get('final_openai_usage'):
+                usage = locals().get('final_openai_usage')
+                if isinstance(usage, dict):
+                    assistant_tokens_out = usage.get('completion_tokens', assistant_tokens_out)
+                    details = usage.get('completion_tokens_details')
+                    if isinstance(details, dict):
+                        tokens_thought_val = details.get('reasoning_tokens', 0)
+                else:
+                    assistant_tokens_out = getattr(usage, 'completion_tokens', assistant_tokens_out)
+                    details = getattr(usage, 'completion_tokens_details', None)
+                    if details:
+                        tokens_thought_val = getattr(details, 'reasoning_tokens', 0)
+
             msg_entry = Message(
                 thread_id=thread_id, role='assistant', content=final_content, 
                 model=model_key, image_url=json.dumps(generated_images) if generated_images else None, 
                 thought_data=final_thought, tokens_out=assistant_tokens_out, tokens=sum_token_counts(None, assistant_tokens_out), 
                 is_encrypted=is_enc, thought_signature=final_signature,
-                parent_id=message_id
+                parent_id=message_id,
+                tokens_thought=tokens_thought_val
             )
             db.session.add(msg_entry)
             th = Thread.query.get(thread_id)

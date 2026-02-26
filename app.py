@@ -6612,7 +6612,7 @@ def chat_app_js():
     }
     js = render_template('chat_app.js', initial_thread_id=initial_thread_id, bot_config=bot_config)
     resp = Response(js, mimetype="application/javascript")
-    resp.headers["Cache-Control"] = "private, max-age=3600, stale-while-revalidate=86400"
+    resp.headers["Cache-Control"] = "private, no-cache, max-age=0, must-revalidate"
     resp.headers["Vary"] = "Cookie"
     resp.headers["X-Content-Type-Options"] = "nosniff"
     return resp

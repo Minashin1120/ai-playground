@@ -195,8 +195,8 @@
         if (!combined) {
             return '';
         }
-        if (/upload|attachment|file|\/photo/.test(combined)) {
-            return 'アップロード中...';
+        if (/delete|remove/.test(combined) || methodText === 'DELETE') {
+            return '削除中...';
         }
         if (/message|chat|prompt|stream|reply/.test(combined)) {
             return '送信中...';
@@ -210,11 +210,11 @@
         if (/verify|2fa|totp/.test(combined)) {
             return '認証中...';
         }
+        if (/upload|attachment|\/photo/.test(combined)) {
+            return 'アップロード中...';
+        }
         if (/generate|image|imagine/.test(combined)) {
             return '生成中...';
-        }
-        if (/delete|remove/.test(combined) || methodText === 'DELETE') {
-            return '削除中...';
         }
         if (/save|update/.test(combined) || methodText === 'PUT' || methodText === 'PATCH') {
             return '保存中...';

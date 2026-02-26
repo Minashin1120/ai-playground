@@ -8020,29 +8020,14 @@
             if (currentThreadId) return 'No Title';
             return 'AI Chat';
         }
-        function formatTemporaryChatRemainingLabel(totalSeconds) {
-            let sec = Number(totalSeconds);
-            if (!Number.isFinite(sec)) return '';
-            sec = Math.max(0, Math.floor(sec));
-            if (sec >= 3600) {
-                const h = Math.floor(sec / 3600);
-                const m = Math.floor((sec % 3600) / 60);
-                return `残り ${h}時間${m}分`;
-            }
-            if (sec >= 60) {
-                const m = Math.floor(sec / 60);
-                const s = sec % 60;
-                return `残り ${m}分${s}秒`;
-            }
-            return `残り ${sec}秒`;
-        }
-        function getTemporaryChatRemainingSeconds() {
-            if (!temporaryChatEnabled || !currentThreadId || !Number.isFinite(tempChatExpiresAtMs)) return null;
-            return Math.max(0, Math.ceil((tempChatExpiresAtMs - Date.now()) / 1000));
+        function getTemporaryChatTimeoutLabel() {
+            if (!temporaryChatEnabled) return '';
+            const sec = normalizeTemporaryChatTimeoutSeconds(temporaryChatTimeoutSeconds);
+            return `${sec}秒`;
         }
         function updateCurrentChatHeaderUi() {
             const titleText = getCurrentChatHeaderTitleText();
-            const remainingLabel = formatTemporaryChatRemainingLabel(getTemporaryChatRemainingSeconds());
+            const timeoutLabel = getTemporaryChatTimeoutLabel();
             const showTempLabel = !!temporaryChatEnabled;
             const titleTargets = ['sidebar-chat-title', 'mobile-chat-title'];
             const tempLabelTargets = ['sidebar-chat-temporary-label', 'mobile-chat-temporary-label'];
@@ -8058,8 +8043,8 @@
             ttlTargets.forEach((id) => {
                 const el = get(id);
                 if (!el) return;
-                if (remainingLabel) {
-                    el.textContent = remainingLabel;
+                if (showTempLabel && timeoutLabel) {
+                    el.textContent = timeoutLabel;
                     el.classList.remove('hidden');
                 } else {
                     el.textContent = '';
@@ -8097,12 +8082,7 @@
             }
             updateCurrentChatHeaderUi();
         }
-        function ensureCurrentChatHeaderTicker() {
-            if (tempChatHeaderTicker) return;
-            tempChatHeaderTicker = setInterval(() => {
-                updateCurrentChatHeaderUi();
-            }, 1000);
-        }
+        function ensureCurrentChatHeaderTicker() {}
         function normalizeTemporaryChatTimeoutSeconds(value, fallback = TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS) {
             let sec = Number(value);
             if (!Number.isFinite(sec)) sec = Number(fallback);

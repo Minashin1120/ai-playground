@@ -2337,6 +2337,26 @@ def ensure_user_compact_prompt_mode_column():
     except Exception:
         pass
 
+def ensure_user_stt_settings_columns():
+    try:
+        with db.engine.connect() as conn:
+            columns = [
+                ("mic_transcribe_mode", "ALTER TABLE user ADD COLUMN mic_transcribe_mode VARCHAR(16) DEFAULT 'stt_api'"),
+                ("stt_model", "ALTER TABLE user ADD COLUMN stt_model VARCHAR(64)"),
+            ]
+            for column_name, ddl in columns:
+                res = conn.execute(text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA=DATABASE() "
+                    "AND TABLE_NAME='user' "
+                    "AND COLUMN_NAME=:column_name"
+                ), {"column_name": column_name}).scalar()
+                if not res:
+                    conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                    conn.execute(text(ddl))
+    except Exception:
+        pass
+
 def cleanup_user_temp_system_prompt_columns():
     try:
         with db.engine.connect() as conn:
@@ -9944,6 +9964,10 @@ with app.app_context():
         pass
     try:
         ensure_user_compact_prompt_mode_column()
+    except Exception:
+        pass
+    try:
+        ensure_user_stt_settings_columns()
     except Exception:
         pass
     try:

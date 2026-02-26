@@ -3164,6 +3164,7 @@
                         if(get('set-xai')) get('set-xai').value = d.xai_key || ''; 
                     if(get('set-google-key')) get('set-google-key').value = d.google_key || ''; 
                     if(get('set-google-project')) get('set-google-project').value = d.google_project || ''; 
+                    if(get('set-mic-transcribe-mode')) get('set-mic-transcribe-mode').value = d.mic_transcribe_mode || 'stt_api';
                     if(get('set-stt-model')) get('set-stt-model').value = d.stt_model || 'gpt-4o-mini-transcribe';
                     if(get('set-enter-to-send')) get('set-enter-to-send').checked = !!d.enter_to_send;
                     if(get('set-compact-prompt-mode')) get('set-compact-prompt-mode').checked = !!d.compact_prompt_mode;
@@ -3355,6 +3356,7 @@
                     apply_auto_system_prompt_notices: get('set-apply-auto-sys-prompt-notices') ? get('set-apply-auto-sys-prompt-notices').checked : true,
                     auto_system_prompt_notices_config: collectAutoSystemPromptConfigFromForm('set'),
                     theme_color: normalizeHex(get('set-theme-color-text') ? get('set-theme-color-text').value : '') || THEME_DEFAULT,
+                    mic_transcribe_mode: get('set-mic-transcribe-mode') ? get('set-mic-transcribe-mode').value : 'stt_api',
                     stt_model: get('set-stt-model') ? get('set-stt-model').value : null,
                     enter_to_send: get('set-enter-to-send') ? get('set-enter-to-send').checked : false,
                     compact_prompt_mode: get('set-compact-prompt-mode') ? get('set-compact-prompt-mode').checked : false,

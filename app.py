@@ -1337,6 +1337,79 @@ def _save_user_audio(user_id, data, suffix, encrypt):
         with open(fpath, 'wb') as f: f.write(data)
     return fname, fpath
 
+MIC_TRANSCRIBE_MODES = {"stt_api", "llm"}
+
+def _normalize_mic_transcribe_mode(value):
+    v = str(value or "").strip().lower()
+    return v if v in MIC_TRANSCRIBE_MODES else "stt_api"
+
+def _extract_chat_completion_text(resp):
+    try:
+        choices = getattr(resp, "choices", None) or []
+        if not choices:
+            return ""
+        msg = getattr(choices[0], "message", None)
+        if not msg:
+            return ""
+        content = getattr(msg, "content", None)
+        if isinstance(content, str):
+            return content.strip()
+        if isinstance(content, list):
+            texts = []
+            for item in content:
+                if isinstance(item, dict):
+                    text_val = item.get("text")
+                    if isinstance(text_val, str) and text_val:
+                        texts.append(text_val)
+                        continue
+                    if isinstance(text_val, dict) and text_val.get("value"):
+                        texts.append(str(text_val.get("value")))
+                else:
+                    txt = getattr(item, "text", None)
+                    if hasattr(txt, "value"):
+                        txt = getattr(txt, "value", None)
+                    if txt:
+                        texts.append(str(txt))
+            if texts:
+                return "\n".join(texts).strip()
+        audio_obj = getattr(msg, "audio", None)
+        if audio_obj and getattr(audio_obj, "transcript", None):
+            return str(audio_obj.transcript).strip()
+    except Exception:
+        return ""
+    return ""
+
+def _transcribe_audio_with_llm(audio_content, fname, key):
+    src_ext = os.path.splitext(fname or "")[1].lower() or ".webm"
+    if src_ext not in (".webm", ".wav", ".mp3", ".m4a", ".ogg", ".flac", ".opus"):
+        src_ext = ".webm"
+    try:
+        pcm = _convert_audio_to_pcm(audio_content, src_suffix=src_ext, rate=24000)
+        wav_bytes = _pcm_to_wav_bytes(pcm, rate=24000)
+    except Exception as e:
+        raise RuntimeError(f"Audio conversion failed (ffmpeg): {e}") from e
+
+    client = _get_openai_client(key, base_url=None)
+    audio_b64 = base64.b64encode(wav_bytes).decode("ascii")
+    resp = client.chat.completions.create(
+        model="gpt-audio-mini",
+        modalities=["text"],
+        messages=[
+            {
+                "role": "system",
+                "content": "You are a transcription engine. Return only the transcript in the original language. No summary or commentary. If silent, return an empty string."
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "この音声を文字起こししてください。出力は本文のみ。"},
+                    {"type": "input_audio", "input_audio": {"data": audio_b64, "format": "wav"}}
+                ]
+            }
+        ]
+    )
+    return _extract_chat_completion_text(resp)
+
 async def _openai_sts_realtime(pcm_bytes, api_key, model_key, voice="alloy", speed=None, rate=24000):
     # OpenAI Realtime currently supports 24kHz PCM audio for output; keep session aligned.
     rate = 24000
@@ -1532,6 +1605,7 @@ class User(UserMixin, db.Model):
     xai_api_key = db.Column(db.Text, nullable=True)
     google_api_key = db.Column(db.Text, nullable=True)
     google_cloud_project = db.Column(db.Text, nullable=True)
+    mic_transcribe_mode = db.Column(db.String(16), default="stt_api")
     stt_model = db.Column(db.String(64), default="gpt-4o-mini-transcribe")
     enter_to_send = db.Column(db.Boolean, default=False)
     use_sw_cache = db.Column(db.Boolean, default=False)
@@ -8754,6 +8828,7 @@ def handle_settings():
             'xai_key': decrypt_val(current_user.xai_api_key) or "",
             'google_key': decrypt_val(current_user.google_api_key) or "",
             'google_project': decrypt_val(current_user.google_cloud_project) or "",
+            'mic_transcribe_mode': _normalize_mic_transcribe_mode(getattr(current_user, 'mic_transcribe_mode', None)),
             'stt_model': current_user.stt_model or "gpt-4o-mini-transcribe",
             'enter_to_send': current_user.enter_to_send,
             'use_sw_cache': current_user.use_sw_cache,
@@ -8821,6 +8896,8 @@ def handle_settings():
     if 'xai_key' in d: current_user.xai_api_key = encrypt_val(d['xai_key'])
     if 'google_key' in d: current_user.google_api_key = encrypt_val(d['google_key'])
     if 'google_project' in d: current_user.google_cloud_project = encrypt_val(d['google_project'])
+    if 'mic_transcribe_mode' in d:
+        current_user.mic_transcribe_mode = _normalize_mic_transcribe_mode(d['mic_transcribe_mode'])
     if 'stt_model' in d: current_user.stt_model = d['stt_model']
     if 'enter_to_send' in d: current_user.enter_to_send = bool(d['enter_to_send'])
     if 'use_sw_cache' in d: current_user.use_sw_cache = bool(d['use_sw_cache'])
@@ -9221,13 +9298,17 @@ def transcribe():
     if not audio_content:
         return jsonify({'error': 'Empty audio'}), 400
 
-    # OpenAI STT Implementation
     try:
         key = decrypt_val(current_user.openai_api_key)
         if not key and _admin_env_fallback_enabled(current_user):
             key = os.getenv('OPENAI_API_KEY')
         if not key:
             return jsonify({'error': 'OpenAI API Key not configured'}), 400
+
+        transcribe_mode = _normalize_mic_transcribe_mode(getattr(current_user, 'mic_transcribe_mode', None))
+        if transcribe_mode == "llm":
+            transcript = _transcribe_audio_with_llm(audio_content, fname, key)
+            return jsonify({'transcript': transcript, 'mode': 'llm'})
 
         allowed_models = {
             "gpt-4o-mini-transcribe",
@@ -9273,7 +9354,7 @@ def transcribe():
             if lines:
                 transcript = "\n".join(lines)
 
-        return jsonify({'transcript': transcript})
+        return jsonify({'transcript': transcript, 'mode': 'stt_api'})
     except Exception as e:
         logger.error(f"Transcription failed: {e}")
         return jsonify({'error': str(e)}), 500
@@ -9901,6 +9982,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN passkey_only_login BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN mic_transcribe_mode VARCHAR(16) DEFAULT 'stt_api'")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN stt_model VARCHAR(64)")

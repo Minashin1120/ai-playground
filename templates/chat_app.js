@@ -2497,6 +2497,7 @@
         }
             function toggleOptions() { 
                 const model = get('model-select').value; 
+                const modelLower = String(model || '').toLowerCase();
                 const thinkOpts = get('thinking-options'); 
                 const reasonOpts = get('reasoning-effort-container'); 
                 const thinkChk = get('enable-thinking'); 
@@ -2508,6 +2509,7 @@
                 const pyChk = get('enable-python'); const pyCont = get('python-container');
                 const isSearchModel = model === 'gpt-5-search-api';
                 const isTts = model.includes('tts');
+                const isNanoBanana2 = modelLower.includes('gemini-3.1-flash-image');
                 
                 thinkOpts.classList.add('hidden'); 
                 reasonOpts.classList.add('hidden'); 
@@ -2522,6 +2524,16 @@
                     if(searchCont) { get('enable-search').checked = false; searchCont.classList.add('opacity-50', 'pointer-events-none'); }
                     if(pyCont) { pyChk.checked = false; pyCont.classList.add('opacity-50', 'pointer-events-none'); }
                     sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50');
+                } else if (isNanoBanana2) {
+                    thinkOpts.classList.remove('hidden');
+                    Array.from(thinkLvl.options).forEach(opt => {
+                        if (['low', 'medium'].includes(opt.value)) opt.disabled = true;
+                        if (['minimal', 'high'].includes(opt.value)) opt.disabled = false;
+                    });
+                    if (!['minimal', 'high'].includes(thinkLvl.value)) {
+                        thinkLvl.value = 'high';
+                    }
+                    if (thinkChk) thinkChk.disabled = false;
                 } else if(model.includes('gemini') && !isGeminiImage) { 
                     thinkOpts.classList.remove('hidden'); 
                     const isFlash = model.includes('flash');
@@ -2557,12 +2569,12 @@
                     if(pyCont) pyCont.classList.add('opacity-50', 'pointer-events-none');
                 } else {
                     if(pyCont) pyCont.classList.remove('opacity-50', 'pointer-events-none');
-                    if(!model.includes('nano') && !model.includes('gpt-image')) {
+                    if((!model.includes('nano') || isNanoBanana2) && !model.includes('gpt-image')) {
                          sysChk.disabled = false; sysLbl.classList.remove('opacity-50');
                     }
                 }
 
-                if(model.includes('nano') || model.includes('gpt-image') || isGrokImageModel() || isGrokVideoModel()) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); } 
+                if(((model.includes('nano') && !isNanoBanana2) || model.includes('gpt-image') || isGrokImageModel() || isGrokVideoModel())) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); }
                 if (pyCont) {
                     if (isLlmModel()) {
                         pyCont.classList.remove('hidden');

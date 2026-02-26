@@ -4432,6 +4432,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             image_cfg_kwargs["image_size"] = size_val
                         config_kwargs = {
                             "temperature": 0.7,
+                            "response_modalities": ["TEXT", "IMAGE"],
                             "safety_settings": [
                                 types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
                                 types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
@@ -4440,13 +4441,19 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             ]
                         }
                         if img_model == "gemini-3.1-flash-image-preview":
-                            if options.get('enable_thinking'):
-                                raw_lvl = str(options.get('thinking_level') or 'high').lower()
-                                lvl = raw_lvl if raw_lvl in ("minimal", "low", "medium", "high") else "high"
-                                config_kwargs["thinking_config"] = types.ThinkingConfig(
-                                    include_thoughts=True,
-                                    thinking_level=lvl
-                                )
+                            raw_lvl = str(options.get('thinking_level') or 'high').lower()
+                            if raw_lvl in ("low", "minimal"):
+                                nano_banana2_lvl = "minimal"
+                            elif raw_lvl in ("medium", "high"):
+                                nano_banana2_lvl = "high"
+                            else:
+                                nano_banana2_lvl = "high"
+                            # Gemini 3.1 Flash Image supports only minimal/high thinking levels.
+                            # The UI checkbox controls thought output visibility; internal thinking remains model-driven.
+                            config_kwargs["thinking_config"] = types.ThinkingConfig(
+                                include_thoughts=bool(options.get('enable_thinking')),
+                                thinking_level=nano_banana2_lvl
+                            )
                             if options.get('enable_search'):
                                 config_kwargs["tools"] = [types.Tool(google_search=types.GoogleSearch())]
                         if image_cfg_kwargs:

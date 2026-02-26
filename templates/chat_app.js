@@ -7232,6 +7232,23 @@
                 if (bubbleEl) bubbleEl.classList.remove('ai-stream-transition');
             }, 260);
         }
+
+        async function syncThreadAfterAbortedStream(startedThreadId = null) {
+            const started = (startedThreadId !== null && startedThreadId !== undefined && startedThreadId !== '')
+                ? String(startedThreadId)
+                : null;
+            const current = (currentThreadId !== null && currentThreadId !== undefined && currentThreadId !== '')
+                ? String(currentThreadId)
+                : null;
+            if (!current) return false;
+            if (started && current !== started) return false;
+            try {
+                await loadMessages(current, { preserveDraft: true, silent: true });
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
         
         async function sendMessage() { 
             if (abortController) {
@@ -7454,6 +7471,7 @@
             }
             
             abortController = new AbortController(); 
+            const streamStartedThreadId = currentThreadId;
             try { 
                 if (p.thread_id && activeGem) {
                     threadGemMap[p.thread_id] = activeGem;
@@ -7625,12 +7643,16 @@
                 } else loadThreads(false); 
 
             } catch(e){ 
+                let syncedAfterAbort = false;
+                if (e.name === 'AbortError') {
+                    syncedAfterAbort = await syncThreadAfterAbortedStream(streamStartedThreadId);
+                }
                 if(e.name!=='AbortError') { 
                     const msg = "Connection Error: " + e.message;
                     showToast(msg, "error", true);
                 }
                 // Restore old message if error occurred during edit
-                if (editingId) restoreHiddenBranch();
+                if (editingId && !syncedAfterAbort) restoreHiddenBranch();
             } finally { 
                 get('stop-container').classList.add('hidden'); 
                 updateFilePreview();
@@ -7653,6 +7675,7 @@
             get('send-btn').disabled = true;
             get('stop-container').classList.remove('hidden');
             abortController = new AbortController();
+            const resumeStartedThreadId = currentThreadId;
             const pendingModel = String((pending && pending.model) || '').toLowerCase();
             const pendingReasoningModel =
                 pendingModel.includes('gemini') ||
@@ -7814,6 +7837,9 @@
                     loadThreads(false);
                 }
             } catch (e) {
+                if (e.name === 'AbortError') {
+                    await syncThreadAfterAbortedStream(resumeStartedThreadId);
+                }
                 if (e.name !== 'AbortError') {
                     const msg = "Connection Error: " + e.message;
                     showToast(msg, "error", true);

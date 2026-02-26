@@ -74,10 +74,13 @@ except ImportError:
 # Logger Setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+VERBOSE_DEBUG_LOGS = str(os.getenv("VERBOSE_DEBUG_LOGS", "0")).strip().lower() in ("1", "true", "yes", "on")
 
 def log_force(msg):
     """Force log to file and journalctl"""
     try:
+        if isinstance(msg, str) and msg.startswith("DEBUG:") and not VERBOSE_DEBUG_LOGS:
+            return
         t = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_msg = f"[{t}] [AI-CHAT-DEBUG] {msg}"
         with open("/home/ai-chat-minashin1120/app/debug.log", "a") as f:
@@ -6496,6 +6499,27 @@ def settings_page():
     }
     return render_template('chat.html', easy_login_used=easy_login_used, bot_config=bot_config)
 
+@app.route('/assets/chat-app.js')
+@login_required
+def chat_app_js():
+    if not current_user.is_setup_completed:
+        return Response("/* setup incomplete */", mimetype="application/javascript", status=403)
+    thread_q = (request.args.get('thread') or '').strip()
+    initial_thread_id = thread_q or None
+    bot_config = {
+        "username": current_user.username,
+        "isAdmin": bool(getattr(current_user, "is_admin", False)),
+        "globalEnabled": get_bot_detection_global_enabled(),
+        "accountEnabled": current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
+        "turnstileSiteKey": os.getenv('TURNSTILE_SITE_KEY') or ""
+    }
+    js = render_template('chat_app.js', initial_thread_id=initial_thread_id, bot_config=bot_config)
+    resp = Response(js, mimetype="application/javascript")
+    resp.headers["Cache-Control"] = "private, max-age=3600, stale-while-revalidate=86400"
+    resp.headers["Vary"] = "Cookie"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    return resp
+
 @app.route('/c/<thread_id>')
 @login_required
 def chat_permalink(thread_id):
@@ -7656,8 +7680,39 @@ def handle_thread_item(thread_id):
     t = resolve_thread_for_user(thread_id, current_user.id)
     if not t: return jsonify({'error': '403'}), 403
     if request.method == 'GET':
-        # Ensure stable ordering even when timestamps collide (e.g., rapid edit/regenerate).
-        ms = Message.query.filter_by(thread_id=t.id).order_by(Message.timestamp, Message.id).all()
+        limit = request.args.get('limit', type=int)
+        before_id = request.args.get('before_id', type=int)
+        include_meta_raw = str(request.args.get('include_meta', '1')).strip().lower()
+        include_meta = include_meta_raw not in ('0', 'false', 'no', 'off')
+        if limit is not None:
+            limit = max(1, min(limit, 200))
+        has_older_messages = False
+        total_messages = None
+        oldest_loaded_id = None
+
+        q = Message.query.filter_by(thread_id=t.id)
+        if before_id:
+            q = q.filter(Message.id < before_id)
+
+        if limit:
+            # Page by message ID (cursor=before_id) and then restore stable presentation order.
+            rows_desc = q.order_by(Message.id.desc()).limit(limit + 1).all()
+            if len(rows_desc) > limit:
+                has_older_messages = True
+                rows_desc = rows_desc[:limit]
+            ms = sorted(rows_desc, key=lambda m: ((m.timestamp or datetime.min), m.id))
+            if ms:
+                oldest_loaded_id = ms[0].id
+            if before_id is None:
+                try:
+                    total_messages = Message.query.filter_by(thread_id=t.id).count()
+                except Exception:
+                    total_messages = None
+        else:
+            # Ensure stable ordering even when timestamps collide (e.g., rapid edit/regenerate).
+            ms = Message.query.filter_by(thread_id=t.id).order_by(Message.timestamp, Message.id).all()
+            if ms:
+                oldest_loaded_id = ms[0].id
         res = []
         for m in ms:
             cnt = decrypt_val(m.content) if m.is_encrypted else m.content
@@ -7711,25 +7766,33 @@ def handle_thread_item(thread_id):
                 'quote_text': m.quote_text,
                 'parent_id': m.parent_id
             })
-        pending_job = None
-        try:
-            pending_raw = redis_conn.get(f"pending_job:{current_user.id}:{t.id}")
-            if pending_raw:
-                try:
-                    pending_job = json.loads(pending_raw)
-                except Exception:
-                    pending_job = {"job_id": pending_raw.decode("utf-8", "ignore")}
-        except Exception:
-            pending_job = None
-        return jsonify({
+        payload = {
             'messages': res,
-            'custom_instruction': t.custom_instruction,
-            'include_global_instruction': t.include_global_instruction if t.include_global_instruction is not None else True,
-            'last_model': t.last_model,
-            'is_temporary': bool(getattr(t, "is_temporary", False)),
-            'timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user),
-            'pending_job': pending_job
-        })
+            'has_older_messages': bool(has_older_messages),
+            'oldest_loaded_id': oldest_loaded_id,
+            'loaded_count': len(res),
+            'total_messages': total_messages
+        }
+        if include_meta:
+            pending_job = None
+            try:
+                pending_raw = redis_conn.get(f"pending_job:{current_user.id}:{t.id}")
+                if pending_raw:
+                    try:
+                        pending_job = json.loads(pending_raw)
+                    except Exception:
+                        pending_job = {"job_id": pending_raw.decode("utf-8", "ignore")}
+            except Exception:
+                pending_job = None
+            payload.update({
+                'custom_instruction': t.custom_instruction,
+                'include_global_instruction': t.include_global_instruction if t.include_global_instruction is not None else True,
+                'last_model': t.last_model,
+                'is_temporary': bool(getattr(t, "is_temporary", False)),
+                'timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user),
+                'pending_job': pending_job
+            })
+        return jsonify(payload)
 
     temp_member = _temp_chat_member(t)
     for m in t.messages:

@@ -4406,7 +4406,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if options.get('system_prompt'):
                             img_prompt = f"{options.get('system_prompt')}\n\n{final_message_text}"
 
-                        img_model = "gemini-2.5-flash-image" if "2.5" in model_key else "gemini-3-pro-image-preview"
+                        mk_lower = str(model_key or "").lower()
+                        if "gemini-3.1-flash-image" in mk_lower:
+                            img_model = "gemini-3.1-flash-image-preview"
+                        elif "2.5" in mk_lower:
+                            img_model = "gemini-2.5-flash-image"
+                        else:
+                            img_model = "gemini-3-pro-image-preview"
                         aspect_allowed = {"1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9", "auto"}
                         size_allowed = {"1K", "2K", "4K"}
                         aspect_val = options.get('gemini_image_aspect')
@@ -4433,6 +4439,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE")
                             ]
                         }
+                        if img_model == "gemini-3.1-flash-image-preview":
+                            if options.get('enable_thinking'):
+                                raw_lvl = str(options.get('thinking_level') or 'high').lower()
+                                lvl = raw_lvl if raw_lvl in ("minimal", "low", "medium", "high") else "high"
+                                config_kwargs["thinking_config"] = types.ThinkingConfig(
+                                    include_thoughts=True,
+                                    thinking_level=lvl
+                                )
+                            if options.get('enable_search'):
+                                config_kwargs["tools"] = [types.Tool(google_search=types.GoogleSearch())]
                         if image_cfg_kwargs:
                             config_kwargs["image_config"] = types.ImageConfig(**image_cfg_kwargs)
 
@@ -4455,6 +4471,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             for part in parts0:
                                 if hasattr(part, 'thought_signature') and part.thought_signature:
                                     signature_parts.append(base64.b64encode(part.thought_signature).decode('utf-8'))
+
+                                if hasattr(part, 'text') and part.text:
+                                    txt = str(part.text)
+                                    if txt.strip():
+                                        pub("content", txt)
+                                        full_res += txt + ("\n" if not txt.endswith("\n") else "")
 
                                 if hasattr(part, 'inline_data') and part.inline_data:
                                     ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))

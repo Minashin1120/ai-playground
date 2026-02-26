@@ -320,6 +320,9 @@
         let pendingGemForNewThread = null;
         let currentJobId = null; 
         let currentThreadPending = null;
+        let manualStopContext = null;
+        let manualStopSeq = 0;
+        const suppressedPendingJobIds = new Set();
         let editingMessageId = null; // Track message being edited
         const messageStore = {}, lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), attachMode: false, searchQuery: '' };
         const LIB_SORT_KEY = 'lib_sort_order';
@@ -2901,10 +2904,26 @@
                 };
             }
             get('stop-btn').onclick = async () => { 
+                const stopThreadId = (currentThreadId !== null && currentThreadId !== undefined && currentThreadId !== '') ? String(currentThreadId) : null;
+                const stopJobId = normalizeJobIdForUi(currentJobId);
+                const stopSeq = ++manualStopSeq;
+                manualStopContext = { seq: stopSeq, threadId: stopThreadId, jobId: stopJobId };
+                if (stopJobId) suppressPendingJob(stopJobId);
                 if(abortController) abortController.abort(); 
-                if(currentJobId) await apiFetch("/api/stop_chat", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({job_id: currentJobId})}); 
-                get('stop-container').classList.add('hidden'); 
-                updateFilePreview();
+                try {
+                    if(stopJobId) {
+                        await apiFetch("/api/stop_chat", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({job_id: stopJobId})});
+                    }
+                    if (manualStopContext && manualStopContext.seq === stopSeq) {
+                        await syncThreadAfterAbortedStream(stopThreadId);
+                    }
+                } finally {
+                    if (manualStopContext && manualStopContext.seq === stopSeq) {
+                        manualStopContext = null;
+                    }
+                    get('stop-container').classList.add('hidden');
+                    updateFilePreview();
+                }
             };
             const renderBanAppeals = (items) => {
                 const box = get('ban-appeal-list');
@@ -7233,6 +7252,36 @@
             }, 260);
         }
 
+        function normalizeJobIdForUi(jobId) {
+            if (jobId === null || jobId === undefined || jobId === '') return null;
+            return String(jobId);
+        }
+
+        function suppressPendingJob(jobId) {
+            const id = normalizeJobIdForUi(jobId);
+            if (!id) return;
+            suppressedPendingJobIds.add(id);
+        }
+
+        function isPendingJobSuppressed(jobId) {
+            const id = normalizeJobIdForUi(jobId);
+            return !!(id && suppressedPendingJobIds.has(id));
+        }
+
+        function isManualStopAbortForThread(startedThreadId = null) {
+            if (!manualStopContext) return false;
+            const stopThreadId = manualStopContext.threadId ? String(manualStopContext.threadId) : null;
+            const started = (startedThreadId !== null && startedThreadId !== undefined && startedThreadId !== '')
+                ? String(startedThreadId)
+                : null;
+            const current = (currentThreadId !== null && currentThreadId !== undefined && currentThreadId !== '')
+                ? String(currentThreadId)
+                : null;
+            if (stopThreadId && started && stopThreadId !== started) return false;
+            if (stopThreadId && current && stopThreadId !== current) return false;
+            return true;
+        }
+
         async function syncThreadAfterAbortedStream(startedThreadId = null) {
             const started = (startedThreadId !== null && startedThreadId !== undefined && startedThreadId !== '')
                 ? String(startedThreadId)
@@ -7644,7 +7693,7 @@
 
             } catch(e){ 
                 let syncedAfterAbort = false;
-                if (e.name === 'AbortError') {
+                if (e.name === 'AbortError' && !isManualStopAbortForThread(streamStartedThreadId)) {
                     syncedAfterAbort = await syncThreadAfterAbortedStream(streamStartedThreadId);
                 }
                 if(e.name!=='AbortError') { 
@@ -7663,6 +7712,7 @@
         async function resumePendingStream(pending) {
             if (abortController) return;
             if (!pending || !pending.job_id || !currentThreadId) return;
+            if (isPendingJobSuppressed(pending.job_id)) return;
             const jobId = pending.job_id;
             const bubbleId = `pending-${jobId}`;
             if (!get(bubbleId)) {
@@ -7837,7 +7887,7 @@
                     loadThreads(false);
                 }
             } catch (e) {
-                if (e.name === 'AbortError') {
+                if (e.name === 'AbortError' && !isManualStopAbortForThread(resumeStartedThreadId)) {
                     await syncThreadAfterAbortedStream(resumeStartedThreadId);
                 }
                 if (e.name !== 'AbortError') {
@@ -7971,7 +8021,7 @@
             } else if (!silent) {
                 applyCodeCollapseByMessage(get('chat-container'), null, true);
             }
-            if (currentThreadPending && !silent) {
+            if (currentThreadPending && !silent && !isPendingJobSuppressed(currentThreadPending.job_id)) {
                 resumePendingStream(currentThreadPending);
             }
             if (preserveDraft) {
@@ -8110,7 +8160,7 @@
                 );
             });
             const pending = currentThreadPending;
-            if (pending) {
+            if (pending && !isPendingJobSuppressed(pending.job_id)) {
                 const pendingId = pending.message_id;
                 const pathIds = new Set(path.map(p => p.id));
                 const lastMsg = path.length ? path[path.length - 1] : null;

@@ -3008,6 +3008,31 @@
                 `;
                 tab.appendChild(card);
             };
+            const ensureLlmTranscribePromptSettingsUi = () => {
+                const sttModelEl = get('set-stt-model');
+                if (!sttModelEl || get('set-llm-transcribe-prompt')) return;
+                const host = sttModelEl.closest('.space-y-2');
+                if (!host) return;
+                const wrap = document.createElement('div');
+                wrap.className = 'pt-2 border-t border-gray-700/60';
+                wrap.innerHTML = `
+                    <label class="text-xs text-gray-500 block">LLM文字起こしプロンプト（LLM方式）</label>
+                    <textarea id="set-llm-transcribe-prompt" class="w-full h-24 bg-gray-800 border border-gray-600 rounded px-2 py-2 text-xs text-white mt-1" placeholder=""></textarea>
+                    <div class="flex items-center gap-2 mt-2">
+                        <button type="button" id="reset-llm-transcribe-prompt" class="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-[10px] font-bold btn-hover">既定に戻す</button>
+                        <div class="text-[10px] text-gray-500">LLM方式のマイク文字起こし時のみ使用。空欄で保存すると既定文面を使います（無音時の安全ガードは別途自動付与）。</div>
+                    </div>
+                `;
+                host.appendChild(wrap);
+                const resetBtn = get('reset-llm-transcribe-prompt');
+                if (resetBtn) {
+                    resetBtn.onclick = () => {
+                        const ta = get('set-llm-transcribe-prompt');
+                        if (ta) ta.value = '';
+                        showToast('LLM文字起こしプロンプトを既定値に戻しました（保存してください）', 'success');
+                    };
+                }
+            };
             const AUTO_SYS_PROMPT_ITEMS = [
                 { key: 'python', label: 'Python 実行案内' },
                 { key: 'gemini_local_python', label: 'Gemini 音声/動画 + Python（ローカル実行）' },
@@ -3120,12 +3145,14 @@
                 wrapHost.appendChild(box);
             };
             ensureTemporaryChatSettingsCard();
+            ensureLlmTranscribePromptSettingsUi();
             ensureAutoSystemPromptSettingsCard();
             ensureThreadAutoSystemPromptCard();
             bindTemporaryChatToggle();
             window.openSettingsModal = () => {
                 showModal('settings-modal');
                 loadStorageUsage();
+                ensureLlmTranscribePromptSettingsUi();
                 ensureAutoSystemPromptSettingsCard();
                 if (location.pathname !== '/settings') {
                     history.pushState({ modal: 'settings', from: location.pathname }, '', '/settings');
@@ -3167,6 +3194,10 @@
                     if(get('set-google-project')) get('set-google-project').value = d.google_project || ''; 
                     if(get('set-mic-transcribe-mode')) get('set-mic-transcribe-mode').value = d.mic_transcribe_mode || 'stt_api';
                     if(get('set-stt-model')) get('set-stt-model').value = d.stt_model || 'gpt-4o-mini-transcribe';
+                    if(get('set-llm-transcribe-prompt')) {
+                        get('set-llm-transcribe-prompt').value = d.llm_transcribe_prompt || '';
+                        get('set-llm-transcribe-prompt').placeholder = d.llm_transcribe_prompt_default || '';
+                    }
                     if(get('set-enter-to-send')) get('set-enter-to-send').checked = !!d.enter_to_send;
                     if(get('set-compact-prompt-mode')) get('set-compact-prompt-mode').checked = !!d.compact_prompt_mode;
                     if(get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;
@@ -3359,6 +3390,7 @@
                     theme_color: normalizeHex(get('set-theme-color-text') ? get('set-theme-color-text').value : '') || THEME_DEFAULT,
                     mic_transcribe_mode: get('set-mic-transcribe-mode') ? get('set-mic-transcribe-mode').value : 'stt_api',
                     stt_model: get('set-stt-model') ? get('set-stt-model').value : null,
+                    llm_transcribe_prompt: get('set-llm-transcribe-prompt') ? get('set-llm-transcribe-prompt').value : '',
                     enter_to_send: get('set-enter-to-send') ? get('set-enter-to-send').checked : false,
                     compact_prompt_mode: get('set-compact-prompt-mode') ? get('set-compact-prompt-mode').checked : false,
                     use_sw_cache: get('set-use-sw-cache') ? get('set-use-sw-cache').checked : false,

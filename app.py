@@ -1362,10 +1362,32 @@ def _save_user_audio(user_id, data, suffix, encrypt):
     return fname, fpath
 
 MIC_TRANSCRIBE_MODES = {"stt_api", "llm"}
+DEFAULT_LLM_TRANSCRIBE_PROMPT = (
+    "この音声を日本語で正確に文字起こししてください。"
+    "出力は文字起こし本文のみ。説明・要約・補足は不要です。"
+)
+LLM_TRANSCRIBE_PROMPT_MAX_CHARS = 4000
 
 def _normalize_mic_transcribe_mode(value):
     v = str(value or "").strip().lower()
     return v if v in MIC_TRANSCRIBE_MODES else "stt_api"
+
+def _normalize_llm_transcribe_prompt(raw_text):
+    if raw_text is None:
+        return None
+    text = str(raw_text).strip()
+    if not text:
+        return None
+    if len(text) > LLM_TRANSCRIBE_PROMPT_MAX_CHARS:
+        text = text[:LLM_TRANSCRIBE_PROMPT_MAX_CHARS]
+    return text
+
+def get_user_llm_transcribe_prompt(user):
+    try:
+        raw = getattr(user, "llm_transcribe_prompt", None)
+    except Exception:
+        raw = None
+    return _normalize_llm_transcribe_prompt(raw) or DEFAULT_LLM_TRANSCRIBE_PROMPT
 
 def _extract_openai_response_text(resp):
     try:
@@ -1399,9 +1421,9 @@ def _extract_openai_response_text(resp):
 
 def _transcribe_audio_with_llm(audio_content, fname, llm_model_key, user):
     no_speech_token = "[[NO_SPEECH]]"
+    base_transcription_prompt = get_user_llm_transcribe_prompt(user)
     transcription_prompt = (
-        "この音声を日本語で正確に文字起こししてください。"
-        "出力は文字起こし本文のみ。説明・要約・補足は不要です。"
+        f"{base_transcription_prompt}\n"
         f"聞き取れない、無音、音声が極端に小さい場合は推測せず {no_speech_token} のみを返してください。"
     )
     model_key = (llm_model_key or "").strip()
@@ -1684,6 +1706,7 @@ class User(UserMixin, db.Model):
     google_cloud_project = db.Column(db.Text, nullable=True)
     mic_transcribe_mode = db.Column(db.String(16), default="stt_api")
     stt_model = db.Column(db.String(64), default="gpt-4o-mini-transcribe")
+    llm_transcribe_prompt = db.Column(db.Text, nullable=True)
     enter_to_send = db.Column(db.Boolean, default=False)
     use_sw_cache = db.Column(db.Boolean, default=False)
     theme_color = db.Column(db.String(16), default="")
@@ -2388,6 +2411,7 @@ def ensure_user_stt_settings_columns():
             columns = [
                 ("mic_transcribe_mode", "ALTER TABLE user ADD COLUMN mic_transcribe_mode VARCHAR(16) DEFAULT 'stt_api'"),
                 ("stt_model", "ALTER TABLE user ADD COLUMN stt_model VARCHAR(64)"),
+                ("llm_transcribe_prompt", "ALTER TABLE user ADD COLUMN llm_transcribe_prompt TEXT"),
             ]
             for column_name, ddl in columns:
                 res = conn.execute(text(
@@ -8927,6 +8951,8 @@ def handle_settings():
             'google_project': decrypt_val(current_user.google_cloud_project) or "",
             'mic_transcribe_mode': _normalize_mic_transcribe_mode(getattr(current_user, 'mic_transcribe_mode', None)),
             'stt_model': current_user.stt_model or "gpt-4o-mini-transcribe",
+            'llm_transcribe_prompt': _normalize_llm_transcribe_prompt(getattr(current_user, 'llm_transcribe_prompt', None)) or "",
+            'llm_transcribe_prompt_default': DEFAULT_LLM_TRANSCRIBE_PROMPT,
             'enter_to_send': current_user.enter_to_send,
             'use_sw_cache': current_user.use_sw_cache,
             'theme_color': current_user.theme_color or "",
@@ -8996,6 +9022,8 @@ def handle_settings():
     if 'mic_transcribe_mode' in d:
         current_user.mic_transcribe_mode = _normalize_mic_transcribe_mode(d['mic_transcribe_mode'])
     if 'stt_model' in d: current_user.stt_model = d['stt_model']
+    if 'llm_transcribe_prompt' in d:
+        current_user.llm_transcribe_prompt = _normalize_llm_transcribe_prompt(d.get('llm_transcribe_prompt'))
     if 'enter_to_send' in d: current_user.enter_to_send = bool(d['enter_to_send'])
     if 'use_sw_cache' in d: current_user.use_sw_cache = bool(d['use_sw_cache'])
     if 'compact_prompt_mode' in d: current_user.compact_prompt_mode = bool(d['compact_prompt_mode'])
@@ -10094,6 +10122,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN stt_model VARCHAR(64)")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN llm_transcribe_prompt TEXT")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN enter_to_send BOOLEAN DEFAULT 0")

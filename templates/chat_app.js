@@ -1652,8 +1652,8 @@
             const allImgs = Array.from(document.querySelectorAll(groupSelector));
             // Filter out duplicate sources if needed, but keep DOM order
             viewerImages = allImgs.map(img => ({
-                url: img.src,
-                filename: img.title || img.src.split('/').pop(),
+                url: img.dataset.viewerSrc || img.currentSrc || img.src,
+                filename: img.dataset.viewerFilename || img.title || (img.dataset.viewerSrc || img.currentSrc || img.src).split('/').pop(),
                 element: img
             }));
             
@@ -2658,7 +2658,7 @@
                         return `<div class="code-wrapper collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${l || 'TEXT'}</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button>${previewBtn}${downloadBtn}<button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`;
                     },
                     link(h, t, x) { return `<a href="${h}" title="${t || ''}" target="_blank">${x}</a>`; },
-                    image(h, t, x) { const alt = escapeHtml(x || ''); const title = t ? ` title="${escapeHtml(t)}"` : ''; return `<img src="${h}" alt="${alt}"${title} class="chat-image" loading="lazy" width="320" height="320">`; }
+                    image(h, t, x) { const alt = escapeHtml(x || ''); const title = t ? ` title="${escapeHtml(t)}"` : ''; const viewerSrc = escapeHtml(h || ''); return `<img src="${h}" data-viewer-src="${viewerSrc}" alt="${alt}"${title} class="chat-image" loading="lazy" width="320" height="320">`; }
                 },
                 breaks: true,
                 gfm: true
@@ -4107,9 +4107,10 @@
             });
             get('chat-container').addEventListener('click', (e) => {
                 const img = e.target.closest('img.chat-image');
-                if (img && img.src) {
+                const viewerSrc = img ? (img.dataset.viewerSrc || img.currentSrc || img.src) : '';
+                if (img && viewerSrc) {
                     e.preventDefault();
-                    openImageViewer(img.src);
+                    openImageViewer(viewerSrc);
                 }
             });
             get('image-viewer').addEventListener('click', (e) => {
@@ -6993,7 +6994,7 @@
                             const fn = path.split('/').pop(); 
                             const ext = fn.split('.').pop().toLowerCase(); 
                             if(['jpg','jpeg','png','webp','gif'].includes(ext)) {
-                                items.push(`<img src="${previewUrl}" class="chat-image" loading="lazy" onclick="openImageViewer('${url}')" title="${fn}">`);
+                                items.push(`<img src="${previewUrl}" data-viewer-src="${url}" data-viewer-filename="${escapeHtml(fn)}" class="chat-image" loading="lazy" onclick="openImageViewer('${url}')" title="${fn}">`);
                             } else {
                                 items.push(`<div class="file-thumb bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700" onclick="window.open('${url}')" title="${fn}"><i class="fas fa-file text-2xl text-gray-400 mb-1"></i><span class="text-[9px] truncate w-20 text-center">${fn}</span></div>`);
                             }

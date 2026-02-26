@@ -351,11 +351,22 @@
         let chatDefaultsLoaded = false;
         const THREAD_INITIAL_MESSAGE_LIMIT = 120;
         const THREAD_OLDER_PAGE_SIZE = 120;
+        const LOW_BANDWIDTH_INITIAL_MESSAGE_LIMIT = 40;
+        const LOW_BANDWIDTH_OLDER_PAGE_SIZE = 60;
+        const LOW_BANDWIDTH_MODE_STORAGE_KEY = 'low_bandwidth_mode_pref_v1';
+        const LOW_BANDWIDTH_DECORATION_VISIBILITY_THRESHOLD = 0.02;
         const MATHJAX_SRC = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js';
         const HLJS_JS_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js';
         const HLJS_CSS_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css';
         let mathJaxLoadPromise = null;
         let highlightLoadPromise = null;
+        let lowBandwidthModePreference = 'auto';
+        let lowBandwidthModeAuto = false;
+        let lowBandwidthMode = false;
+        let lowBandwidthModeReason = '';
+        let lowBandwidthConnectionListenerAttached = false;
+        let deferredDecorationObserver = null;
+        const deferredDecorationTextMap = new WeakMap();
         let threadHasOlderMessages = false;
         let oldestLoadedMessageId = null;
         let loadingOlderMessages = false;
@@ -447,7 +458,8 @@
             if (!container || typeof container.querySelector !== 'function') return false;
             return !!container.querySelector('pre code');
         }
-        function queueMathTypeset(container, text = '') {
+        function queueMathTypeset(container, text = '', opts = {}) {
+            if (lowBandwidthMode && !opts.force) return;
             if (!container || !maybeNeedsMathJax(text)) return;
             ensureMathJaxLoaded()
                 .then(() => {
@@ -457,7 +469,8 @@
                 })
                 .catch(() => {});
         }
-        function queueHighlight(container, text = '') {
+        function queueHighlight(container, text = '', opts = {}) {
+            if (lowBandwidthMode && !opts.force) return;
             if (!container || !maybeNeedsHighlight(text, container)) return;
             ensureHighlightLoaded()
                 .then(() => {
@@ -470,6 +483,186 @@
                     });
                 })
                 .catch(() => {});
+        }
+        function getNetworkConnectionInfo() {
+            return navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
+        }
+        function detectLowBandwidthModeAuto() {
+            const conn = getNetworkConnectionInfo();
+            if (!conn) {
+                return { enabled: false, reason: '' };
+            }
+            const saveData = !!conn.saveData;
+            const effectiveType = String(conn.effectiveType || '').toLowerCase();
+            const downlink = Number(conn.downlink || 0);
+            const isSlowType = effectiveType === 'slow-2g' || effectiveType === '2g' || effectiveType === '3g';
+            const isLowDownlink = Number.isFinite(downlink) && downlink > 0 && downlink < 1.3;
+            const enabled = saveData || isSlowType || isLowDownlink;
+            const parts = [];
+            if (saveData) parts.push('データ節約');
+            if (effectiveType) parts.push(`回線:${effectiveType}`);
+            if (isLowDownlink) parts.push(`下り:${downlink}Mbps`);
+            return { enabled, reason: parts.join(' / ') };
+        }
+        function normalizeLowBandwidthModePreference(raw) {
+            const v = String(raw || '').trim().toLowerCase();
+            if (v === 'on' || v === 'off' || v === 'auto') return v;
+            return 'auto';
+        }
+        function readLowBandwidthModePreference() {
+            try {
+                return normalizeLowBandwidthModePreference(localStorage.getItem(LOW_BANDWIDTH_MODE_STORAGE_KEY) || 'auto');
+            } catch (e) {
+                return 'auto';
+            }
+        }
+        function persistLowBandwidthModePreference(pref) {
+            const normalized = normalizeLowBandwidthModePreference(pref);
+            lowBandwidthModePreference = normalized;
+            try {
+                if (normalized === 'auto') localStorage.removeItem(LOW_BANDWIDTH_MODE_STORAGE_KEY);
+                else localStorage.setItem(LOW_BANDWIDTH_MODE_STORAGE_KEY, normalized);
+            } catch (e) {}
+        }
+        function getEffectiveThreadInitialMessageLimit() {
+            return lowBandwidthMode ? LOW_BANDWIDTH_INITIAL_MESSAGE_LIMIT : THREAD_INITIAL_MESSAGE_LIMIT;
+        }
+        function getEffectiveThreadOlderPageSize() {
+            return lowBandwidthMode ? LOW_BANDWIDTH_OLDER_PAGE_SIZE : THREAD_OLDER_PAGE_SIZE;
+        }
+        function mergeBtnClasses(btn, add = [], remove = []) {
+            if (!btn) return;
+            remove.forEach(c => btn.classList.remove(c));
+            add.forEach(c => btn.classList.add(c));
+        }
+        function updateLowBandwidthModeUi() {
+            const btn = get('low-bandwidth-toggle-btn');
+            const pill = get('low-bandwidth-status-pill');
+            const prefLabel = lowBandwidthModePreference === 'auto' ? '自動' : (lowBandwidthModePreference === 'on' ? '固定ON' : '固定OFF');
+            const modeLabel = lowBandwidthMode ? 'ON' : 'OFF';
+            const reasonText = lowBandwidthModeReason ? ` (${lowBandwidthModeReason})` : '';
+            if (btn) {
+                btn.setAttribute('title', `低速回線モード ${modeLabel} / ${prefLabel}${reasonText}`);
+                btn.setAttribute('aria-pressed', lowBandwidthMode ? 'true' : 'false');
+                if (lowBandwidthMode) {
+                    mergeBtnClasses(btn, ['text-amber-200', 'bg-amber-900/30', 'border', 'border-amber-600/40'], ['text-gray-400']);
+                } else {
+                    mergeBtnClasses(btn, ['text-gray-400'], ['text-amber-200', 'bg-amber-900/30', 'border', 'border-amber-600/40']);
+                }
+            }
+            if (pill) {
+                if (lowBandwidthMode) {
+                    pill.classList.remove('hidden');
+                    const autoBadge = lowBandwidthModePreference === 'auto' ? ' (自動)' : ' (手動)';
+                    pill.innerHTML = `<i class="fas fa-wifi mr-1"></i>低速回線モード${autoBadge}${lowBandwidthModeReason ? `: ${escapeHtml(lowBandwidthModeReason)}` : ''}`;
+                } else {
+                    pill.classList.add('hidden');
+                    pill.innerHTML = '<i class="fas fa-wifi mr-1"></i>低速回線モード';
+                }
+            }
+        }
+        function refreshDecorationsForVisibleChat() {
+            const container = get('chat-container');
+            if (!container) return;
+            queueHighlight(container, container.textContent || '', { force: true });
+            queueMathTypeset(container, container.textContent || '', { force: true });
+        }
+        function applyLowBandwidthModeState(nextMode, opts = {}) {
+            const prev = lowBandwidthMode;
+            lowBandwidthMode = !!nextMode;
+            updateLowBandwidthModeUi();
+            if (prev && !lowBandwidthMode) {
+                // When leaving low-bandwidth mode, progressively decorate existing visible content.
+                refreshDecorationsForVisibleChat();
+            }
+            if (opts.notify) {
+                const prefText = lowBandwidthModePreference === 'auto' ? '自動' : '手動';
+                const suffix = lowBandwidthModeReason ? ` (${lowBandwidthModeReason})` : '';
+                showToast(`低速回線モードを${lowBandwidthMode ? 'ON' : 'OFF'}にしました [${prefText}]${suffix}`, 'info', false);
+            }
+        }
+        function recomputeLowBandwidthMode(opts = {}) {
+            const auto = detectLowBandwidthModeAuto();
+            lowBandwidthModeAuto = !!auto.enabled;
+            lowBandwidthModeReason = auto.reason || '';
+            const effective = lowBandwidthModePreference === 'on'
+                ? true
+                : (lowBandwidthModePreference === 'off' ? false : lowBandwidthModeAuto);
+            applyLowBandwidthModeState(effective, opts);
+        }
+        function cycleLowBandwidthModePreference() {
+            const current = normalizeLowBandwidthModePreference(lowBandwidthModePreference);
+            const next = current === 'auto' ? 'on' : (current === 'on' ? 'off' : 'auto');
+            persistLowBandwidthModePreference(next);
+            recomputeLowBandwidthMode({ notify: true });
+        }
+        function ensureDeferredDecorationObserver() {
+            if (deferredDecorationObserver || typeof IntersectionObserver === 'undefined') return deferredDecorationObserver;
+            const rootEl = get('chat-container') || null;
+            deferredDecorationObserver = new IntersectionObserver((entries) => {
+                entries.forEach((entry) => {
+                    if (!entry.isIntersecting || !entry.target) return;
+                    runDeferredDecorations(entry.target);
+                });
+            }, { root: rootEl, threshold: LOW_BANDWIDTH_DECORATION_VISIBILITY_THRESHOLD });
+            return deferredDecorationObserver;
+        }
+        function runDeferredDecorations(container) {
+            if (!container) return;
+            if (deferredDecorationObserver) {
+                try { deferredDecorationObserver.unobserve(container); } catch (e) {}
+            }
+            const text = deferredDecorationTextMap.get(container) || '';
+            queueHighlight(container, text, { force: true });
+            queueMathTypeset(container, text, { force: true });
+        }
+        function queueMessageDecorations(container, text = '') {
+            if (!container) return;
+            if (!lowBandwidthMode) {
+                queueHighlight(container, text);
+                queueMathTypeset(container, text);
+                return;
+            }
+            if (!maybeNeedsHighlight(text, container) && !maybeNeedsMathJax(text)) return;
+            deferredDecorationTextMap.set(container, String(text || ''));
+            const chatRoot = get('chat-container');
+            if (chatRoot && container === chatRoot) {
+                window.setTimeout(() => runDeferredDecorations(container), 250);
+                return;
+            }
+            if (!container.isConnected) return;
+            const observer = ensureDeferredDecorationObserver();
+            if (observer) {
+                observer.observe(container);
+                return;
+            }
+            window.setTimeout(() => runDeferredDecorations(container), 250);
+        }
+        function initLowBandwidthMode() {
+            lowBandwidthModePreference = readLowBandwidthModePreference();
+            recomputeLowBandwidthMode({ notify: false });
+            const btn = get('low-bandwidth-toggle-btn');
+            if (btn && !btn.__lowBandwidthBound) {
+                btn.__lowBandwidthBound = true;
+                btn.addEventListener('click', (e) => {
+                    if (e) e.preventDefault();
+                    cycleLowBandwidthModePreference();
+                });
+            }
+            const conn = getNetworkConnectionInfo();
+            if (conn && typeof conn.addEventListener === 'function' && !lowBandwidthConnectionListenerAttached) {
+                lowBandwidthConnectionListenerAttached = true;
+                conn.addEventListener('change', () => {
+                    if (lowBandwidthModePreference === 'auto') {
+                        recomputeLowBandwidthMode({ notify: true });
+                    } else {
+                        const auto = detectLowBandwidthModeAuto();
+                        lowBandwidthModeAuto = !!auto.enabled;
+                        lowBandwidthModeReason = auto.reason || '';
+                        updateLowBandwidthModeUi();
+                    }
+                });
+            }
         }
         
         function escapeHtml(t) { return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") : t; }
@@ -2451,6 +2644,7 @@
             }, { root: get('thread-list'), threshold: 0.1 });
             threadObserver.observe(get('scroll-sentinel'));
             
+            initLowBandwidthMode();
             checkVersion();
             startConnectionMonitor();
             window.addEventListener('online', probeServerConnection);
@@ -6434,16 +6628,17 @@
             wrap.className = 'prose prose-invert text-sm break-words';
             wrap.innerHTML = sanitizeMarkdownHtml(text);
             wrapRenderedSvgBoxes(wrap);
-            if (maybeNeedsHighlight(text, wrap)) ensureHighlightLoaded().catch(() => {});
-            if (maybeNeedsMathJax(text)) ensureMathJaxLoaded().catch(() => {});
+            if (!lowBandwidthMode) {
+                if (maybeNeedsHighlight(text, wrap)) ensureHighlightLoaded().catch(() => {});
+                if (maybeNeedsMathJax(text)) ensureMathJaxLoaded().catch(() => {});
+            }
             return wrap.outerHTML;
         }
         function renderAiMarkdownInto(container, text) {
             if (!container) return;
             container.innerHTML = sanitizeMarkdownHtml(text);
             wrapRenderedSvgBoxes(container);
-            queueHighlight(container, text);
-            queueMathTypeset(container, text);
+            queueMessageDecorations(container, text);
         }
         function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true) { 
             const isUser = role === 'user'; 
@@ -6576,8 +6771,7 @@
             if (doScroll) scrollToBottom(); 
             const newMsg = container.lastElementChild;
             if (newMsg && !isUser) {
-                queueHighlight(newMsg, text);
-                queueMathTypeset(newMsg, text);
+                queueMessageDecorations(newMsg, text);
             }
         }
 
@@ -7402,7 +7596,7 @@
                 get('chat-container').innerHTML = '<div class="text-center mt-10"><i class="fas fa-spinner fa-spin text-blue-500"></i></div>'; 
             }
             const threadUrl = new URL("{{ url_for('handle_thread_item', thread_id=0) }}".replace('0', tid), window.location.origin);
-            threadUrl.searchParams.set('limit', String(THREAD_INITIAL_MESSAGE_LIMIT));
+            threadUrl.searchParams.set('limit', String(getEffectiveThreadInitialMessageLimit()));
             const r = await apiFetch(threadUrl.toString()); 
             const threadData = await r.json();
             allMessages = threadData.messages || []; 
@@ -7482,7 +7676,7 @@
             try {
                 const url = new URL("{{ url_for('handle_thread_item', thread_id=0) }}".replace('0', currentThreadId), window.location.origin);
                 url.searchParams.set('before_id', String(oldestLoadedMessageId));
-                url.searchParams.set('limit', String(THREAD_OLDER_PAGE_SIZE));
+                url.searchParams.set('limit', String(getEffectiveThreadOlderPageSize()));
                 url.searchParams.set('include_meta', '0');
                 const r = await apiFetch(url.toString());
                 const data = await r.json();
@@ -7604,10 +7798,14 @@
             updateTotalTokenBar(pathTotals.tokens_total, pathTotals, allBranchTotals);
             currentParentId = currentLeafId;
             if (!keepScroll) scrollToBottom();
-            queueHighlight(container);
-            if (path.length) {
-                const latestText = path[path.length - 1] && path[path.length - 1].content;
-                queueMathTypeset(container, latestText);
+            if (lowBandwidthMode) {
+                queueMessageDecorations(container, container ? (container.textContent || '') : '');
+            } else {
+                queueHighlight(container);
+                if (path.length) {
+                    const latestText = path[path.length - 1] && path[path.length - 1].content;
+                    queueMathTypeset(container, latestText);
+                }
             }
         }
 

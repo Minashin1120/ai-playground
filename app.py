@@ -3,6 +3,7 @@ import sys
 import json
 import time
 import logging
+import gzip
 import base64
 import mimetypes
 import secrets
@@ -113,6 +114,9 @@ def _env_bool(name, default=False):
 def _env_choice(name, default, allowed):
     val = (os.getenv(name) or "").strip()
     return val if val in allowed else default
+
+ENABLE_HTTP_GZIP = _env_bool("ENABLE_HTTP_GZIP", True)
+HTTP_GZIP_MIN_BYTES = max(512, _env_int("HTTP_GZIP_MIN_BYTES", 1024))
 
 def _coerce_bool_or_none(value):
     if value is None:
@@ -2844,6 +2848,97 @@ def ensure_temp_chat_monitor():
     except Exception:
         pass
 
+def _append_vary_header(resp, token):
+    if not resp or not token:
+        return
+    existing = resp.headers.get("Vary", "")
+    parts = [p.strip() for p in existing.split(",") if p.strip()]
+    lowered = {p.lower() for p in parts}
+    if token.lower() not in lowered:
+        parts.append(token)
+        resp.headers["Vary"] = ", ".join(parts)
+
+def _looks_like_versioned_static(filename):
+    name = str(filename or "")
+    if not name:
+        return False
+    if re.search(r"\.v\d+\.\d+\.\d+\.", name):
+        return True
+    return False
+
+def _apply_performance_cache_headers(response):
+    try:
+        if not response or request.method != "GET":
+            return response
+        endpoint = request.endpoint or ""
+        view_args = request.view_args or {}
+        version_query = (request.args.get("v") or "").strip()
+
+        if endpoint in ("index", "settings_page", "chat_permalink"):
+            response.headers.setdefault("Cache-Control", "private, no-cache, max-age=0, must-revalidate")
+            _append_vary_header(response, "Cookie")
+            return response
+
+        if endpoint == "chat_app_js" and version_query:
+            # User-specific templated JS: keep private, but cache longer per-user.
+            response.headers["Cache-Control"] = "private, max-age=86400, stale-while-revalidate=604800"
+            _append_vary_header(response, "Cookie")
+            return response
+
+        if endpoint == "static":
+            filename = view_args.get("filename") or ""
+            if version_query or _looks_like_versioned_static(filename):
+                response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+    except Exception:
+        return response
+
+def _maybe_gzip_response(response):
+    try:
+        if not ENABLE_HTTP_GZIP:
+            return response
+        if not response:
+            return response
+        if request.method == "HEAD":
+            return response
+        if response.status_code in (204, 304) or response.status_code < 200:
+            return response
+        if response.is_streamed or response.direct_passthrough:
+            return response
+        if response.headers.get("Content-Encoding"):
+            return response
+        cache_control = (response.headers.get("Cache-Control") or "").lower()
+        if "no-transform" in cache_control:
+            return response
+        accept_encoding = (request.headers.get("Accept-Encoding") or "").lower()
+        if "gzip" not in accept_encoding:
+            return response
+        mimetype = (response.mimetype or "").lower()
+        if mimetype not in (
+            "text/html",
+            "text/plain",
+            "text/css",
+            "application/json",
+            "application/javascript",
+            "text/javascript",
+            "application/xml",
+            "image/svg+xml",
+        ):
+            return response
+        raw = response.get_data()
+        if not raw or len(raw) < HTTP_GZIP_MIN_BYTES:
+            return response
+        compressed = gzip.compress(raw, compresslevel=5)
+        if not compressed or len(compressed) >= len(raw):
+            return response
+        response.set_data(compressed)
+        response.headers["Content-Encoding"] = "gzip"
+        response.headers["Content-Length"] = str(len(compressed))
+        _append_vary_header(response, "Accept-Encoding")
+        return response
+    except Exception:
+        return response
+
 @app.after_request
 def set_client_token_cookie(response):
     token = getattr(g, "new_client_token", None)
@@ -2856,6 +2951,8 @@ def set_client_token_cookie(response):
             samesite="Lax",
             secure=_is_secure_request()
         )
+    response = _apply_performance_cache_headers(response)
+    response = _maybe_gzip_response(response)
     return response
 
 @app.before_request

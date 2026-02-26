@@ -320,6 +320,7 @@
         let pendingGemForNewThread = null;
         let currentJobId = null; 
         let currentThreadPending = null;
+        let activeStreamingBubbleId = null;
         let manualStopContext = null;
         let manualStopSeq = 0;
         const suppressedPendingJobIds = new Set();
@@ -2907,7 +2908,8 @@
                 const stopThreadId = (currentThreadId !== null && currentThreadId !== undefined && currentThreadId !== '') ? String(currentThreadId) : null;
                 const stopJobId = normalizeJobIdForUi(currentJobId);
                 const stopSeq = ++manualStopSeq;
-                manualStopContext = { seq: stopSeq, threadId: stopThreadId, jobId: stopJobId };
+                const partialSnapshot = captureStoppedPartialBubbleSnapshot(getActiveStreamingBubbleElement());
+                manualStopContext = { seq: stopSeq, threadId: stopThreadId, jobId: stopJobId, partialSnapshot };
                 if (stopJobId) suppressPendingJob(stopJobId);
                 if(abortController) abortController.abort(); 
                 try {
@@ -2926,7 +2928,10 @@
                         }
                     }
                     if (manualStopContext && manualStopContext.seq === stopSeq) {
-                        await syncThreadAfterAbortedStream(stopThreadId, { retries: 2, retryDelayMs: 180, notifyOnFailure: true });
+                        const synced = await syncThreadAfterAbortedStream(stopThreadId, { retries: 2, retryDelayMs: 180, notifyOnFailure: true });
+                        if (synced && manualStopContext.partialSnapshot) {
+                            appendStoppedPartialBubbleSnapshot(manualStopContext.partialSnapshot, stopThreadId);
+                        }
                     }
                 } finally {
                     if (manualStopContext && manualStopContext.seq === stopSeq) {
@@ -7268,6 +7273,63 @@
             return String(jobId);
         }
 
+        function getActiveStreamingBubbleElement() {
+            if (!activeStreamingBubbleId) return null;
+            return get(activeStreamingBubbleId);
+        }
+
+        function captureStoppedPartialBubbleSnapshot(bubbleEl) {
+            if (!bubbleEl) return null;
+            const hasRenderedContent = Array.from(bubbleEl.querySelectorAll('.prose')).some((el) => String(el.textContent || '').trim());
+            const hasPythonBox = !!bubbleEl.querySelector('.python-box');
+            const hasThoughtContent = Array.from(bubbleEl.querySelectorAll('.thought-content')).some((el) => {
+                const txt = String(el.textContent || '').trim();
+                return !!txt && el.getAttribute('data-placeholder') !== '1';
+            });
+            if (!hasRenderedContent && !hasPythonBox && !hasThoughtContent) return null;
+            const wrapper = bubbleEl.parentElement;
+            if (!wrapper) return null;
+            const clone = wrapper.cloneNode(true);
+            clone.setAttribute('data-local-stopped-partial', '1');
+            clone.classList.remove('fade-in');
+            const cloneBubble = clone.querySelector('.message-bubble');
+            if (cloneBubble) {
+                cloneBubble.classList.remove('ai-pending-bubble', 'ai-stream-transition');
+                cloneBubble.removeAttribute('data-stream-transition');
+                cloneBubble.removeAttribute('id');
+                if (!clone.querySelector('[data-stopped-partial-note="1"]')) {
+                    const note = document.createElement('div');
+                    note.setAttribute('data-stopped-partial-note', '1');
+                    note.className = 'text-[10px] text-amber-200/90 mt-2 text-right';
+                    note.textContent = '停止済み（途中まで）';
+                    cloneBubble.appendChild(note);
+                }
+            }
+            return {
+                html: clone.outerHTML,
+                threadId: (currentThreadId !== null && currentThreadId !== undefined && currentThreadId !== '')
+                    ? String(currentThreadId)
+                    : null
+            };
+        }
+
+        function appendStoppedPartialBubbleSnapshot(snapshot, expectedThreadId = null) {
+            if (!snapshot || !snapshot.html) return false;
+            const current = (currentThreadId !== null && currentThreadId !== undefined && currentThreadId !== '')
+                ? String(currentThreadId)
+                : null;
+            const expected = (expectedThreadId !== null && expectedThreadId !== undefined && expectedThreadId !== '')
+                ? String(expectedThreadId)
+                : (snapshot.threadId ? String(snapshot.threadId) : null);
+            if (expected && current && expected !== current) return false;
+            const container = get('chat-container');
+            if (!container) return false;
+            container.querySelectorAll('[data-local-stopped-partial="1"]').forEach((el) => el.remove());
+            container.insertAdjacentHTML('beforeend', snapshot.html);
+            scrollToBottom();
+            return true;
+        }
+
         function suppressPendingJob(jobId) {
             const id = normalizeJobIdForUi(jobId);
             if (!id) return;
@@ -7528,6 +7590,7 @@
             get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aid}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${initialHtml}</div></div>`); 
             scrollToBottom(); 
             const adiv = get(aid);
+            activeStreamingBubbleId = aid;
             let thoughtPlaceholderEl = null;
             const ensureThoughtPlaceholder = (text) => {
                 if (!shouldShowReasoningProgress || !adiv) return null;
@@ -7735,6 +7798,7 @@
             } finally { 
                 get('stop-container').classList.add('hidden'); 
                 updateFilePreview();
+                if (activeStreamingBubbleId === aid) activeStreamingBubbleId = null;
                 abortController=null; currentJobId=null; editingMessageId=null; setEditUi(false); 
             } 
         }
@@ -7750,6 +7814,7 @@
             }
             const adiv = get(bubbleId);
             if (!adiv) return;
+            activeStreamingBubbleId = bubbleId;
             adiv.classList.add('ai-pending-bubble');
             currentJobId = jobId;
             get('send-btn').disabled = true;
@@ -7927,6 +7992,7 @@
             } finally {
                 get('stop-container').classList.add('hidden');
                 updateFilePreview();
+                if (activeStreamingBubbleId === bubbleId) activeStreamingBubbleId = null;
                 abortController = null;
                 currentJobId = null;
                 currentThreadPending = null;

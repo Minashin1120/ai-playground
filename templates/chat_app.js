@@ -4101,6 +4101,102 @@
             let stsLastSoundTs = 0;
             let stsHasSound = false;
             let stsPlaybackAudio = null;
+            let micVizAudioCtx = null;
+            let micVizAnalyser = null;
+            let micVizSource = null;
+            let micVizAnimationFrame = null;
+            let micVizData = null;
+            let micVizBars = null;
+            let micIndicatorHideTimer = null;
+            function ensureMicWaveformBars() {
+                const wave = get('mic-waveform');
+                if (!wave) return [];
+                if (Array.isArray(micVizBars) && micVizBars.length) return micVizBars;
+                wave.innerHTML = '';
+                const bars = [];
+                for (let i = 0; i < 24; i++) {
+                    const bar = document.createElement('span');
+                    bar.className = 'block rounded-full';
+                    bar.style.background = 'rgba(252, 165, 165, 0.92)';
+                    bar.style.width = '2px';
+                    bar.style.transition = 'height 75ms linear, opacity 75ms linear';
+                    bar.style.height = '2px';
+                    bar.style.opacity = '0.4';
+                    bars.push(bar);
+                    wave.appendChild(bar);
+                }
+                micVizBars = bars;
+                return bars;
+            }
+            function setMicRecordingIndicator(text, mode = 'hidden') {
+                const box = get('mic-recording-indicator');
+                const label = get('mic-recording-text');
+                if (!box) return;
+                if (micIndicatorHideTimer) {
+                    clearTimeout(micIndicatorHideTimer);
+                    micIndicatorHideTimer = null;
+                }
+                if (mode === 'hidden') {
+                    box.classList.add('hidden');
+                    return;
+                }
+                if (label && text) label.innerText = text;
+                box.classList.remove('hidden');
+                if (mode === 'recording') box.style.color = 'rgb(252 165 165)';
+                else if (mode === 'processing') box.style.color = 'rgb(253 224 71)';
+                else box.style.color = 'rgb(209 213 219)';
+            }
+            function resetMicWaveformBars() {
+                const bars = ensureMicWaveformBars();
+                bars.forEach((bar) => {
+                    bar.style.height = '2px';
+                    bar.style.opacity = '0.35';
+                });
+            }
+            function stopMicWaveform() {
+                if (micVizAnimationFrame) {
+                    cancelAnimationFrame(micVizAnimationFrame);
+                    micVizAnimationFrame = null;
+                }
+                if (micVizSource) { try { micVizSource.disconnect(); } catch (e) {} micVizSource = null; }
+                if (micVizAudioCtx) { try { micVizAudioCtx.close(); } catch (e) {} micVizAudioCtx = null; }
+                micVizAnalyser = null;
+                micVizData = null;
+                resetMicWaveformBars();
+            }
+            function startMicWaveform(stream) {
+                stopMicWaveform();
+                const bars = ensureMicWaveformBars();
+                if (!bars.length) return;
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) return;
+                try {
+                    micVizAudioCtx = new AC();
+                    micVizAnalyser = micVizAudioCtx.createAnalyser();
+                    micVizAnalyser.fftSize = 256;
+                    micVizAnalyser.smoothingTimeConstant = 0;
+                    micVizSource = micVizAudioCtx.createMediaStreamSource(stream);
+                    micVizSource.connect(micVizAnalyser);
+                    micVizData = new Uint8Array(micVizAnalyser.frequencyBinCount);
+                } catch (e) {
+                    stopMicWaveform();
+                    return;
+                }
+                const render = () => {
+                    if (!micVizAnalyser || !micVizData) return;
+                    micVizAnalyser.getByteFrequencyData(micVizData);
+                    const step = Math.max(1, Math.floor(micVizData.length / bars.length));
+                    for (let i = 0; i < bars.length; i++) {
+                        const raw = micVizData[Math.min(micVizData.length - 1, i * step)] || 0;
+                        const level = raw / 255;
+                        const px = Math.max(2, Math.round(2 + (level * 10)));
+                        bars[i].style.height = `${px}px`;
+                        bars[i].style.opacity = `${0.35 + level * 0.65}`;
+                    }
+                    micVizAnimationFrame = requestAnimationFrame(render);
+                };
+                render();
+            }
             function stopSilenceMonitor() {
                 if (stsSilenceInterval) { clearInterval(stsSilenceInterval); stsSilenceInterval = null; }
                 if (stsSource) { try { stsSource.disconnect(); } catch(e) {} stsSource = null; }
@@ -4183,14 +4279,20 @@
                     mediaRecorder.stop();
                     get('mic-btn').classList.remove('bg-red-600', 'animate-pulse');
                     get('mic-btn').classList.add('bg-gray-700');
+                    if (!isStsModel()) setMicRecordingIndicator('録音を処理中…', 'processing');
                     if (isStsModel()) setStsStatus('Processing voice...', false);
                     return;
                 }
                 try {
+                    if (!isStsModel()) {
+                        resetMicWaveformBars();
+                        setMicRecordingIndicator('録音準備中…', 'processing');
+                    }
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     mediaRecorder = new MediaRecorder(stream);
                     audioChunks = [];
                     stsCancelPending = false;
+                    const recordingStartedInStsMode = isStsModel();
                     mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
                     mediaRecorder.onstop = async () => {
                         if (stsCancelPending) {
@@ -4198,6 +4300,11 @@
                             get('file-preview').classList.add('hidden');
                             stream.getTracks().forEach(track => track.stop());
                             stopSilenceMonitor();
+                            stopMicWaveform();
+                            if (!recordingStartedInStsMode) {
+                                setMicRecordingIndicator('録音をキャンセルしました', 'idle');
+                                micIndicatorHideTimer = setTimeout(() => setMicRecordingIndicator('', 'hidden'), 900);
+                            }
                             if (isStsModel()) setStsStatus('Canceled', false);
                             setTimeout(() => { if (isStsModel()) setStsStatus('Tap to speak', false); }, 800);
                             return;
@@ -4207,7 +4314,7 @@
                         const fd = new FormData();
                         fd.append('file', file);
                         get('file-preview').classList.remove('hidden');
-                        const stsMode = isStsModel();
+                        const stsMode = recordingStartedInStsMode;
                         get('file-name').innerText = stsMode ? "Processing voice..." : "Transcribing...";
                         try {
                             if (stsMode) {
@@ -4288,15 +4395,23 @@
                             get('file-preview').classList.add('hidden');
                             stream.getTracks().forEach(track => track.stop());
                             stopSilenceMonitor();
+                            stopMicWaveform();
+                            if (!stsMode) setMicRecordingIndicator('', 'hidden');
                             if (stsMode) setStsStatus('Tap to speak', false);
                         }
                     };
                     mediaRecorder.start();
                     get('mic-btn').classList.remove('bg-gray-700');
                     get('mic-btn').classList.add('bg-red-600', 'animate-pulse');
+                    if (!isStsModel()) {
+                        setMicRecordingIndicator('録音中…', 'recording');
+                        startMicWaveform(stream);
+                    }
                     startSilenceMonitor(stream);
                     if (isStsModel()) setStsStatus('Recording... Tap to stop', true);
                 } catch (err) {
+                    stopMicWaveform();
+                    if (!isStsModel()) setMicRecordingIndicator('', 'hidden');
                     alert("Microphone access denied or not available.");
                 }
             };

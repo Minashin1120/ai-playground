@@ -3461,35 +3461,85 @@
                         box.textContent = '実行中...';
                     }
                     try {
-                        const res = await apiFetch('/api/bot/speed-test', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({})
-                        });
-                        const data = await res.json().catch(() => ({}));
-                        if (!res.ok || !data || data.status !== 'ok') {
-                            const msg = (data && data.error) ? data.error : 'スピードテストに失敗しました';
-                            if (box) box.textContent = `エラー: ${msg}`;
-                            showToast(msg, 'error', true);
-                            return;
+                        const setBox = (text) => { if (box) box.textContent = text; };
+                        const cacheBust = () => `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+                        const toMbps = (bytes, ms) => {
+                            if (!bytes || !ms || ms <= 0) return 0;
+                            return (bytes * 8) / (ms / 1000) / 1000 / 1000;
+                        };
+                        const fmtMs = (v) => Number.isFinite(v) ? `${v.toFixed(0)} ms` : '-';
+                        const fmtMbps = (v) => Number.isFinite(v) ? `${v.toFixed(v >= 100 ? 0 : 1)} Mbps` : '-';
+                        const parseErr = async (res, fallback) => {
+                            const data = await res.json().catch(() => ({}));
+                            return (data && data.error) ? data.error : fallback;
+                        };
+
+                        const pingSamples = [];
+                        setBox('測定中... ping');
+                        for (let i = 0; i < 4; i++) {
+                            const t0 = performance.now();
+                            const res = await apiFetch(`/api/speedtest/ping?_=${cacheBust()}`, { cache: 'no-store' });
+                            const t1 = performance.now();
+                            if (!res.ok) throw new Error(await parseErr(res, 'ping_failed'));
+                            await res.json().catch(() => ({}));
+                            pingSamples.push(t1 - t0);
                         }
-                        const reasons = Array.isArray(data.reasons) && data.reasons.length ? data.reasons.join(', ') : '(none)';
-                        const payload = data.payload || {};
+                        const pingAvg = pingSamples.reduce((a, b) => a + b, 0) / Math.max(1, pingSamples.length);
+                        const pingMin = Math.min(...pingSamples);
+
+                        const runDownload = async (bytes) => {
+                            const t0 = performance.now();
+                            const res = await apiFetch(`/api/speedtest/download?bytes=${bytes}&_=${cacheBust()}`, { cache: 'no-store' });
+                            if (!res.ok) throw new Error(await parseErr(res, 'download_failed'));
+                            const buf = await res.arrayBuffer();
+                            const t1 = performance.now();
+                            return { bytes: buf.byteLength || bytes, ms: t1 - t0, mbps: toMbps(buf.byteLength || bytes, t1 - t0) };
+                        };
+
+                        setBox(`測定中... ping ${fmtMs(pingAvg)}\n測定中... download`);
+                        const dlRuns = [];
+                        for (const bytes of [2 * 1024 * 1024, 8 * 1024 * 1024]) {
+                            dlRuns.push(await runDownload(bytes));
+                            setBox(`測定中... ping ${fmtMs(pingAvg)}\ndownload ${fmtMbps(Math.max(...dlRuns.map(x => x.mbps)))}\n測定中... upload`);
+                        }
+                        const downloadBest = Math.max(...dlRuns.map(x => x.mbps));
+
+                        const runUpload = async (bytes) => {
+                            const payload = new Uint8Array(bytes);
+                            const t0 = performance.now();
+                            const res = await apiFetch(`/api/speedtest/upload?_=${cacheBust()}`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/octet-stream' },
+                                body: payload,
+                                cache: 'no-store'
+                            });
+                            const t1 = performance.now();
+                            if (!res.ok) throw new Error(await parseErr(res, 'upload_failed'));
+                            const data = await res.json().catch(() => ({}));
+                            const actualBytes = Number(data.bytes_received || bytes) || bytes;
+                            return { bytes: actualBytes, ms: t1 - t0, mbps: toMbps(actualBytes, t1 - t0), serverMs: Number(data.server_elapsed_ms || 0) || 0 };
+                        };
+
+                        const ulRuns = [];
+                        for (const bytes of [1 * 1024 * 1024, 4 * 1024 * 1024]) {
+                            ulRuns.push(await runUpload(bytes));
+                        }
+                        const uploadBest = Math.max(...ulRuns.map(x => x.mbps));
+
                         const lines = [
-                            `対象: ${data.target_username || '(unknown)'}`,
-                            `モード: dry-run（非BAN / 非変更）`,
-                            `今回スコア: ${Number(data.simulated_score || 0).toFixed(2)} / BAN閾値 ${Number(data.ban_threshold || 8).toFixed(2)}`,
-                            `累積スコア: ${Number(data.current_accumulated_score || 0).toFixed(2)} -> ${Number(data.projected_accumulated_score || 0).toFixed(2)}`,
-                            `判定: ${data.would_ban ? 'BAN相当（しきい値到達）' : 'BAN未到達'}`,
-                            `理由: ${reasons}`,
-                            `payload: clicks=${payload.clicks ?? '-'}, fast_clicks=${payload.fast_clicks ?? '-'}, keys=${payload.keys ?? '-'}, fast_keys=${payload.fast_keys ?? '-'}, event_rate=${payload.event_rate ?? '-'}`,
+                            '結果 (ブラウザ⇔このサーバー)',
+                            `Ping (avg/min): ${fmtMs(pingAvg)} / ${fmtMs(pingMin)}`,
+                            `Download (best): ${fmtMbps(downloadBest)}`,
+                            `Upload (best): ${fmtMbps(uploadBest)}`,
+                            `Download runs: ${dlRuns.map(x => `${Math.round(x.bytes / 1024 / 1024)}MB=${fmtMbps(x.mbps)}`).join(', ')}`,
+                            `Upload runs: ${ulRuns.map(x => `${Math.round(x.bytes / 1024 / 1024)}MB=${fmtMbps(x.mbps)}`).join(', ')}`,
+                            '注記: fast.com のようなインターネット全体の速度ではなく、このアプリサーバーまでの回線速度の目安です。'
                         ];
-                        if (data.note) lines.push(`注記: ${data.note}`);
-                        if (box) box.textContent = lines.join('\\n');
-                        showToast('スピードテストを実行しました', 'success');
+                        setBox(lines.join('\n'));
+                        showToast('回線速度テストを実行しました', 'success');
                     } catch (e) {
-                        if (box) box.textContent = 'エラー: スピードテストに失敗しました';
-                        showToast('スピードテストに失敗しました', 'error', true);
+                        if (box) box.textContent = `エラー: ${e && e.message ? e.message : '回線速度テストに失敗しました'}`;
+                        showToast('回線速度テストに失敗しました', 'error', true);
                     } finally {
                         if (btn) {
                             btn.disabled = false;

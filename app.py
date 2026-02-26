@@ -8405,62 +8405,86 @@ def bot_unban():
         unban_single_account(user)
     return jsonify({'status': 'ok', 'username': username, 'mode': mode})
 
-@app.route('/api/bot/speed-test', methods=['POST'])
-@login_required
-def bot_speed_test():
+def _deny_unless_primary_admin_for_speedtest():
     if not getattr(current_user, "is_admin", False):
         return jsonify({'error': '403'}), 403
-    target_username = _get_primary_admin_username()
-    if not target_username:
-        return jsonify({'error': 'primary_admin_not_configured'}), 400
-    user = User.query.filter_by(username=target_username).first()
-    if not user:
-        return jsonify({'error': 'primary_admin_not_found', 'target_username': target_username}), 404
+    if not _is_primary_admin_user(current_user):
+        return jsonify({'error': 'primary_admin_only'}), 403
+    return None
 
-    # Admin accounts are skipped by live bot telemetry, so provide a deterministic
-    # dry-run speed test using the same scoring function for settings verification.
-    payload = {
-        'window_ms': 2200,
-        'clicks': 24,
-        'keys': 18,
-        'moves': 36,
-        'fast_clicks': 9,
-        'fast_keys': 16,
-        'click_burst': 14,
-        'key_burst': 20,
-        'avg_click_ms': 95,
-        'click_cv': 0.03,
-        'event_rate': 35.0,
-        'pointer_speed_max': 7200,
-        'pointer_speed_avg': 3100,
-    }
-    score, reasons = evaluate_bot_score(payload)
-
-    current_accumulated = 0.0
-    redis_key = f"bot:score:{user.id}"
+def _mark_speedtest_no_store(resp):
     try:
-        raw = redis_conn.get(redis_key)
-        if raw is not None:
-            current_accumulated = float(raw.decode() if isinstance(raw, (bytes, bytearray)) else raw)
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        resp.headers['Pragma'] = 'no-cache'
+        resp.headers['Expires'] = '0'
     except Exception:
-        current_accumulated = 0.0
+        pass
+    return resp
 
-    projected_score = current_accumulated + float(score or 0)
-    return jsonify({
+@app.route('/api/speedtest/ping', methods=['GET'])
+@login_required
+def speedtest_ping():
+    denied = _deny_unless_primary_admin_for_speedtest()
+    if denied:
+        return denied
+    resp = jsonify({
         'status': 'ok',
-        'dry_run': True,
-        'target_username': user.username,
-        'target_is_admin': bool(getattr(user, 'is_admin', False)),
-        'target_is_primary_admin': _is_primary_admin_username(user.username),
-        'current_accumulated_score': current_accumulated,
-        'simulated_score': float(score or 0),
-        'projected_accumulated_score': projected_score,
-        'ban_threshold': 8,
-        'would_ban': projected_score >= 8,
-        'reasons': reasons,
-        'payload': payload,
-        'note': 'PRIMARY_ADMIN_USERNAME を対象にした速度判定の dry-run テストです（BANや設定変更は行いません）。'
+        'server_time_ms': int(time.time() * 1000)
     })
+    return _mark_speedtest_no_store(resp)
+
+@app.route('/api/speedtest/download', methods=['GET'])
+@login_required
+def speedtest_download():
+    denied = _deny_unless_primary_admin_for_speedtest()
+    if denied:
+        return denied
+    try:
+        size = int(request.args.get('bytes') or 0)
+    except Exception:
+        size = 0
+    size = max(64 * 1024, min(32 * 1024 * 1024, size or (8 * 1024 * 1024)))
+    chunk = (b'0123456789abcdef' * 4096)  # 64KB deterministic payload
+    chunk_len = len(chunk)
+
+    def generate():
+        remaining = size
+        while remaining > 0:
+            n = min(chunk_len, remaining)
+            yield chunk[:n]
+            remaining -= n
+
+    resp = Response(stream_with_context(generate()), mimetype='application/octet-stream')
+    resp.headers['Content-Length'] = str(size)
+    resp.headers['X-Speedtest-Bytes'] = str(size)
+    return _mark_speedtest_no_store(resp)
+
+@app.route('/api/speedtest/upload', methods=['POST'])
+@login_required
+def speedtest_upload():
+    denied = _deny_unless_primary_admin_for_speedtest()
+    if denied:
+        return denied
+    start = time.perf_counter()
+    total = 0
+    max_bytes = 32 * 1024 * 1024
+    try:
+        while True:
+            chunk = request.stream.read(64 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > max_bytes:
+                return jsonify({'error': 'payload_too_large', 'max_bytes': max_bytes}), 413
+    except RequestEntityTooLarge:
+        return jsonify({'error': 'payload_too_large', 'max_bytes': max_bytes}), 413
+    elapsed_ms = int((time.perf_counter() - start) * 1000)
+    resp = jsonify({
+        'status': 'ok',
+        'bytes_received': total,
+        'server_elapsed_ms': elapsed_ms
+    })
+    return _mark_speedtest_no_store(resp)
 
 @app.route('/api/bot/users', methods=['GET'])
 @login_required

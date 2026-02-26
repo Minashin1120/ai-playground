@@ -3014,7 +3014,8 @@
                 { key: 'grok_search', label: 'Search補助（Grok）' },
                 { key: 'openai_search', label: 'Search補助（OpenAI/xAI Responses）' },
                 { key: 'marker', label: 'Marker編集時' },
-                { key: 'attachment_names', label: '添付ファイル名（LLM入力時）', hint: '利用可能変数: {{attachment_names}} / {{attachment_count}}' }
+                { key: 'attachment_names', label: '添付ファイル名（LLM入力時）', hint: '利用可能変数: {{attachment_names}} / {{attachment_count}}' },
+                { key: 'mathjax', label: 'MathJax（LaTeX数式）' }
             ];
             const buildAutoSystemPromptRows = (prefix, compact = false) => {
                 const textClass = compact

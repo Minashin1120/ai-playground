@@ -6,7 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>2FA Verification - AI Chat</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="{{ url_for('static', filename='js/progress_spinner.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.266') }}"></script>
     <script type="module">
         import { create, get } from 'https://esm.sh/@github/webauthn-json@2.1.1';
         window.webauthnJSON = { create, get };

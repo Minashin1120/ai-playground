@@ -8,6 +8,7 @@
     const USER_ACTION_WINDOW_MS = 1200;
     const FORM_FALLBACK_MS = 15000;
     const EXPECTED_SLOW_FALLBACK_MS = 4000;
+    const DEFAULT_SPINNER_TEXT = '処理中...';
 
     const ENGLISH_SLOW_HINT_RE = /(send|submit|save|upload|generate|login|signup|verify|revoke|refresh|delete|remove|regenerate|create|setup|appeal|ban|sync|migrate|export|import)/i;
     const JAPANESE_SLOW_HINT_RE = /(送信|保存|アップロード|生成|ログイン|認証|削除|更新|作成|再生成|同期|設定|申し立て)/;
@@ -15,7 +16,9 @@
     let pendingCount = 0;
     let showTimer = null;
     let spinnerEl = null;
+    let spinnerTextEl = null;
     let lastUserActionAt = 0;
+    let lastUserActionLabel = DEFAULT_SPINNER_TEXT;
     let expectedSlowRelease = null;
     let expectedSlowTimer = null;
 
@@ -76,9 +79,174 @@
         spinnerEl.id = 'global-progress-spinner';
         spinnerEl.setAttribute('aria-live', 'polite');
         spinnerEl.setAttribute('aria-label', '処理中');
-        spinnerEl.innerHTML = '<span class="spinner" aria-hidden="true"></span><span>処理中...</span>';
+        spinnerEl.innerHTML = '<span class="spinner" aria-hidden="true"></span><span class="progress-text"></span>';
         document.body.appendChild(spinnerEl);
+        spinnerTextEl = spinnerEl.querySelector('.progress-text');
+        setSpinnerText(lastUserActionLabel || DEFAULT_SPINNER_TEXT);
         return spinnerEl;
+    }
+
+    function setSpinnerText(text) {
+        const nextText = (typeof text === 'string' && text.trim()) ? text.trim() : DEFAULT_SPINNER_TEXT;
+        if (!spinnerEl) {
+            spinnerEl = document.getElementById('global-progress-spinner');
+        }
+        if (!spinnerTextEl && spinnerEl) {
+            spinnerTextEl = spinnerEl.querySelector('.progress-text');
+        }
+        if (spinnerTextEl) {
+            spinnerTextEl.textContent = nextText;
+        }
+        if (spinnerEl) {
+            spinnerEl.setAttribute('aria-label', nextText.replace(/\.\.\.$/, ''));
+        }
+    }
+
+    function normalizeSpinnerLabel(raw) {
+        if (typeof raw !== 'string') {
+            return '';
+        }
+        return raw.replace(/\s+/g, ' ').trim();
+    }
+
+    function setPendingLabel(label) {
+        const normalized = normalizeSpinnerLabel(label);
+        lastUserActionLabel = normalized || DEFAULT_SPINNER_TEXT;
+        setSpinnerText(lastUserActionLabel);
+    }
+
+    function inferSpinnerTextFromText(rawText) {
+        const text = normalizeSpinnerLabel(rawText);
+        if (!text) {
+            return '';
+        }
+
+        if (/(送信|送る|submit|send|paper-plane)/i.test(text)) {
+            return '送信中...';
+        }
+        if (/(保存|save)/i.test(text)) {
+            return '保存中...';
+        }
+        if (/(アップロード|upload|添付|ファイルを選択|写真|カメラ)/i.test(text)) {
+            return 'アップロード中...';
+        }
+        if (/(生成|generate|imagine)/i.test(text)) {
+            return '生成中...';
+        }
+        if (/(ログイン|login|sign in|signin)/i.test(text)) {
+            return 'ログイン中...';
+        }
+        if (/(認証|verify|2fa|二要素)/i.test(text)) {
+            return '認証中...';
+        }
+        if (/(削除|delete|remove)/i.test(text)) {
+            return '削除中...';
+        }
+        if (/(作成|create|new)/i.test(text)) {
+            return '作成中...';
+        }
+        if (/(設定|setting|config|preference)/i.test(text)) {
+            return '設定を反映中...';
+        }
+        if (/(更新|refresh|reload|読み込み|load)/i.test(text)) {
+            return '読み込み中...';
+        }
+        return '';
+    }
+
+    function inferSpinnerTextFromButton(buttonLike) {
+        if (!(buttonLike instanceof Element)) {
+            return '';
+        }
+
+        const explicitLabel = inferSpinnerTextFromText(buttonLike.getAttribute('data-progress-label'));
+        if (explicitLabel) {
+            return explicitLabel;
+        }
+
+        const candidates = [
+            buttonLike.getAttribute('aria-label') || '',
+            buttonLike.getAttribute('title') || '',
+            buttonLike.value || '',
+            buttonLike.textContent || '',
+            buttonLike.id || '',
+            buttonLike.getAttribute('name') || '',
+            typeof buttonLike.className === 'string' ? buttonLike.className : ''
+        ];
+
+        for (let i = 0; i < candidates.length; i += 1) {
+            const inferred = inferSpinnerTextFromText(candidates[i]);
+            if (inferred) {
+                return inferred;
+            }
+        }
+
+        if (buttonLike.closest('form')) {
+            return '送信中...';
+        }
+        return '';
+    }
+
+    function inferSpinnerTextFromUrl(url, method) {
+        const urlText = normalizeSpinnerLabel(url).toLowerCase();
+        const methodText = normalizeSpinnerLabel(method).toUpperCase();
+        const combined = (methodText + ' ' + urlText).trim();
+
+        if (!combined) {
+            return '';
+        }
+        if (/upload|attachment|file|\/photo/.test(combined)) {
+            return 'アップロード中...';
+        }
+        if (/message|chat|prompt|stream|reply/.test(combined)) {
+            return '送信中...';
+        }
+        if (/setting|config|preference/.test(combined)) {
+            return '保存中...';
+        }
+        if (/login|signin/.test(combined)) {
+            return 'ログイン中...';
+        }
+        if (/verify|2fa|totp/.test(combined)) {
+            return '認証中...';
+        }
+        if (/generate|image|imagine/.test(combined)) {
+            return '生成中...';
+        }
+        if (/delete|remove/.test(combined) || methodText === 'DELETE') {
+            return '削除中...';
+        }
+        if (/save|update/.test(combined) || methodText === 'PUT' || methodText === 'PATCH') {
+            return '保存中...';
+        }
+        if (methodText === 'GET') {
+            return '読み込み中...';
+        }
+        if (methodText === 'POST') {
+            return '送信中...';
+        }
+        return '';
+    }
+
+    function inferSpinnerTextFromFetchArgs(args) {
+        const input = args && args[0];
+        const init = args && args[1];
+        let url = '';
+        let method = '';
+
+        if (typeof input === 'string') {
+            url = input;
+        } else if (input && typeof input.url === 'string') {
+            url = input.url;
+        }
+
+        if (init && typeof init.method === 'string') {
+            method = init.method;
+        } else if (input && typeof input.method === 'string') {
+            method = input.method;
+        }
+
+        return inferSpinnerTextFromUrl(url, method);
     }
 
     function showSpinner() {
@@ -114,6 +282,12 @@
 
     function acquirePending(options) {
         const immediate = !!(options && options.immediate);
+        const label = options && options.label;
+        if (label) {
+            setSpinnerText(label);
+        } else if (pendingCount <= 0) {
+            setSpinnerText(lastUserActionLabel);
+        }
         pendingCount += 1;
         if (immediate) {
             clearShowTimer();
@@ -135,6 +309,7 @@
                 pendingCount = 0;
                 clearShowTimer();
                 hideSpinner();
+                setSpinnerText(DEFAULT_SPINNER_TEXT);
             }
         };
     }
@@ -150,17 +325,20 @@
         }
     }
 
-    function startExpectedSlowPending() {
+    function startExpectedSlowPending(options) {
         clearExpectedSlowPending();
-        expectedSlowRelease = acquirePending({ immediate: true });
+        expectedSlowRelease = acquirePending({
+            immediate: true,
+            label: options && options.label
+        });
         expectedSlowTimer = window.setTimeout(function () {
             clearExpectedSlowPending();
         }, EXPECTED_SLOW_FALLBACK_MS);
     }
 
-    function startTrackedPending() {
+    function startTrackedPending(options) {
         if (!expectedSlowRelease) {
-            return acquirePending();
+            return acquirePending({ label: options && options.label });
         }
 
         const releaseExpected = expectedSlowRelease;
@@ -170,13 +348,19 @@
             expectedSlowTimer = null;
         }
 
-        const trackedRelease = acquirePending({ immediate: true });
+        const trackedRelease = acquirePending({
+            immediate: true,
+            label: options && options.label
+        });
         releaseExpected();
         return trackedRelease;
     }
 
-    function markUserAction() {
+    function markUserAction(label) {
         lastUserActionAt = Date.now();
+        if (label) {
+            setPendingLabel(label);
+        }
     }
 
     function isLikelyUserInitiated() {
@@ -237,9 +421,10 @@
             }
             const buttonLike = target.closest('button, input[type="submit"], input[type="button"], [role="button"]');
             if (buttonLike) {
-                markUserAction();
+                const actionLabel = inferSpinnerTextFromButton(buttonLike);
+                markUserAction(actionLabel);
                 if (isExpectedSlowButton(buttonLike)) {
-                    startExpectedSlowPending();
+                    startExpectedSlowPending({ label: actionLabel });
                 }
             }
         }, true);
@@ -248,8 +433,9 @@
             if (event.defaultPrevented) {
                 return;
             }
-            markUserAction();
-            const release = startTrackedPending();
+            const submitLabel = inferSpinnerTextFromButton(event.submitter) || inferSpinnerTextFromUrl(event.target && event.target.action, 'POST');
+            markUserAction(submitLabel);
+            const release = startTrackedPending({ label: submitLabel });
             window.setTimeout(release, FORM_FALLBACK_MS);
         });
 
@@ -263,9 +449,10 @@
             }
             const buttonLike = target.closest('button, input[type="submit"], [role="button"]');
             if (buttonLike) {
-                markUserAction();
+                const actionLabel = inferSpinnerTextFromButton(buttonLike);
+                markUserAction(actionLabel);
                 if (isExpectedSlowButton(buttonLike)) {
-                    startExpectedSlowPending();
+                    startExpectedSlowPending({ label: actionLabel });
                 }
                 return;
             }
@@ -279,6 +466,7 @@
             pendingCount = 0;
             clearShowTimer();
             hideSpinner();
+            setSpinnerText(DEFAULT_SPINNER_TEXT);
         });
     }
 
@@ -289,7 +477,8 @@
         const originalFetch = window.fetch.bind(window);
         window.fetch = function () {
             const tracked = isLikelyUserInitiated();
-            const release = tracked ? startTrackedPending() : null;
+            const requestLabel = tracked ? inferSpinnerTextFromFetchArgs(arguments) : '';
+            const release = tracked ? startTrackedPending({ label: requestLabel || lastUserActionLabel }) : null;
 
             let result;
             try {
@@ -313,13 +502,20 @@
             return;
         }
 
+        const originalOpen = window.XMLHttpRequest.prototype.open;
         const originalSend = window.XMLHttpRequest.prototype.send;
+        window.XMLHttpRequest.prototype.open = function (method, url) {
+            this.__progressSpinnerMethod = method;
+            this.__progressSpinnerUrl = url;
+            return originalOpen.apply(this, arguments);
+        };
         window.XMLHttpRequest.prototype.send = function () {
             if (!isLikelyUserInitiated()) {
                 return originalSend.apply(this, arguments);
             }
 
-            const release = startTrackedPending();
+            const xhrLabel = inferSpinnerTextFromUrl(this.__progressSpinnerUrl, this.__progressSpinnerMethod);
+            const release = startTrackedPending({ label: xhrLabel || lastUserActionLabel });
             this.addEventListener('loadend', release, { once: true });
             return originalSend.apply(this, arguments);
         };

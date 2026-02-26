@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.270)</title>
+    <title>AI Playground (V4.8.271)</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.258.css') }}?v={{ app_version }}">
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -81,7 +81,7 @@
     
     <!-- Alpha Bar -->
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-green-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-green-400">
-        <i class="fas fa-check-circle mr-1"></i> System v4.8.262 (Stable)
+        <i class="fas fa-check-circle mr-1"></i> System v4.8.271 (Stable)
     </div>
 
     <!-- Debug Console -->
@@ -90,8 +90,12 @@
     <!-- Sidebar -->
     <div id="sidebar" class="sidebar w-64 bg-gray-800 border-r border-gray-700 flex flex-col shrink-0">
         <div class="p-3 border-b border-gray-700 flex flex-col gap-2">
-            <div class="flex items-center">
-                <h2 class="font-bold text-base text-gray-200">AI Chat</h2>
+            <div class="min-w-0">
+                <div id="sidebar-chat-temporary-label" class="hidden text-[10px] text-amber-200/50 leading-none mb-0.5 tracking-wide">一時チャット</div>
+                <div class="flex items-center gap-2 min-w-0">
+                    <h2 id="sidebar-chat-title" class="font-bold text-base text-gray-200 truncate">AI Chat</h2>
+                    <span id="sidebar-chat-ttl" class="hidden shrink-0 text-[10px] text-amber-200 border border-amber-500/40 rounded px-1.5 py-0.5 leading-none"></span>
+                </div>
             </div>
             <div class="flex items-center justify-start gap-1 flex-wrap">
                     <a href="https://github.com/Minashin1120/ai-playground" target="_blank" class="text-gray-400 hover:text-white p-1.5 btn-hover" title="GitHub"><i class="fab fa-github"></i></a>
@@ -115,13 +119,13 @@
             <!-- Threads loaded dynamically -->
             <div id="scroll-sentinel"></div>
         </div>
-        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.8.262 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
+        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.8.271 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
     </div>
     <div id="overlay" class="overlay"></div>
 
     <!-- Main Content -->
     <div class="flex-1 flex flex-col w-full relative min-w-0">
-        <header class="bg-gray-800 border-b border-gray-700 p-3 shadow-md flex justify-between items-center shrink-0 md:hidden"><button id="menu-btn" class="text-gray-300 p-2"><i class="fas fa-bars text-xl"></i></button><span class="font-bold text-sm">AI Playground</span><div class="flex items-center"><button id="mobile-new-chat-btn" class="text-blue-400 font-bold text-xl p-2">+</button></div></header>
+        <header class="bg-gray-800 border-b border-gray-700 p-3 shadow-md flex justify-between items-center gap-2 shrink-0 md:hidden"><button id="menu-btn" class="text-gray-300 p-2 shrink-0"><i class="fas fa-bars text-xl"></i></button><div class="min-w-0 flex-1"><div id="mobile-chat-temporary-label" class="hidden text-[9px] text-amber-200/50 leading-none mb-0.5">一時チャット</div><div class="flex items-center gap-1.5 min-w-0"><span id="mobile-chat-title" class="font-bold text-sm truncate">AI Playground</span><span id="mobile-chat-ttl" class="hidden shrink-0 text-[9px] text-amber-200 border border-amber-500/40 rounded px-1 py-0.5 leading-none"></span></div></div><div class="flex items-center shrink-0"><button id="mobile-new-chat-btn" class="text-blue-400 font-bold text-xl p-2">+</button></div></header>
         {% if easy_login_used %}
         <div class="bg-red-900/30 border-b border-red-700 text-red-200 text-xs px-4 py-2 flex items-center gap-2">
             <i class="fas fa-exclamation-triangle"></i>
@@ -844,7 +848,7 @@
     </div>
     {% endif %}
 
-    <script src="{{ url_for('chat_app_js', thread=initial_thread_id|default('', true), v=(app_version ~ '-v4.8.270')) }}" defer></script>
+    <script src="{{ url_for('chat_app_js', thread=initial_thread_id|default('', true), v=(app_version ~ '-v4.8.271')) }}" defer></script>
 
 <div id="token-detail-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm" onclick="if(event.target.id==='token-detail-modal') closeTokenDetail()">
   <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4 text-white relative">

@@ -326,11 +326,14 @@
         let threadPage = 1, threadLoading = false, hasMoreThreads = true;
         let threadObserver = null;
         let currentQuote = "";
+        let currentThreadTitle = null;
         let temporaryChatEnabled = false;
         let temporaryChatTimeoutSeconds = TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS;
+        let tempChatExpiresAtMs = null;
         let tempChatHeartbeatTimer = null;
         let tempChatHeartbeatIntervalMs = 0;
         let tempChatHeartbeatInFlight = false;
+        let tempChatHeaderTicker = null;
         let connectionCheckTimer = null;
         let connectionCheckIntervalMs = 0;
         let connectionCheckInFlight = false;
@@ -2374,6 +2377,8 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             initThemeFromStorage();
+            updateCurrentChatHeaderUi();
+            ensureCurrentChatHeaderTicker();
             const bar = document.getElementById('alpha-bar'); setTimeout(() => { if(bar) { const target = document.getElementById('version-display'); if(target) { const barRect = bar.getBoundingClientRect(); const targetRect = target.getBoundingClientRect(); const tx = targetRect.left + (targetRect.width/2) - (barRect.left + barRect.width/2); const ty = targetRect.top + (targetRect.height/2) - (barRect.top + barRect.height/2); bar.style.transform = `translate(${tx}px, ${ty}px) scale(0.1)`; bar.style.opacity = '0'; setTimeout(() => { target.classList.add('pulse-target'); setTimeout(() => target.classList.remove('pulse-target'), 2000); bar.remove(); }, 800); } else { bar.style.opacity = '0'; setTimeout(() => bar.remove(), 1000); } } }, 3000);
             function updateGptImageUi() {
                 const wrap = get('gpt-image-options');
@@ -4212,8 +4217,9 @@
                                     });
                                     const d = await r.json();
                                     currentThreadId = d.id !== null && d.id !== undefined ? String(d.id) : d.id;
-                                    applyTemporaryChatTimeoutSeconds(d.timeout_seconds);
                                     setTemporaryChatUiState(!!(d && d.is_temporary));
+                                    setCurrentChatHeaderTitle(d && d.title);
+                                    applyTemporaryChatRuntimeMeta(d || {});
                                     ensureTemporaryChatHeartbeat(true);
                                     history.pushState({}, '', '/c/' + d.id);
                                     get('welcome-screen').classList.add('hidden');
@@ -7445,7 +7451,7 @@
                 if(userAutoScroll) scrollToBottom();
 
                 if (document.querySelectorAll('.message-group').length <= 2) {
-                     apiFetch("/api/generate_title", {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({thread_id: currentThreadId})}).then(r=>r.json()).then(d=>{ if(d.title) { document.title = d.title + " - AI Chat"; loadThreads(); } });
+                     apiFetch("/api/generate_title", {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({thread_id: currentThreadId})}).then(r=>r.json()).then(d=>{ if(d.title) { document.title = d.title + " - AI Chat"; setCurrentChatHeaderTitle(d.title); loadThreads(); } });
                 } else loadThreads(false); 
 
             } catch(e){ 
@@ -7723,6 +7729,7 @@
             threadUrl.searchParams.set('limit', String(getEffectiveThreadInitialMessageLimit()));
             const r = await apiFetch(threadUrl.toString()); 
             const threadData = await r.json();
+            setCurrentChatHeaderTitle(threadData && threadData.title);
             allMessages = threadData.messages || []; 
             threadHasOlderMessages = !!threadData.has_older_messages;
             oldestLoadedMessageId = threadData.oldest_loaded_id || (allMessages.length ? allMessages[0].id : null);
@@ -7743,8 +7750,8 @@
             }
 
             currentThreadPending = threadData.pending_job || null;
-            applyTemporaryChatTimeoutSeconds(threadData && threadData.timeout_seconds);
             setTemporaryChatUiState(!!(threadData && threadData.is_temporary));
+            applyTemporaryChatRuntimeMeta(threadData || {});
             ensureTemporaryChatHeartbeat(true);
             
             // Update thread-specific settings UI
@@ -8008,6 +8015,94 @@
         }
         function activateGem(g) { pendingGemForNewThread = g; applyActiveGem(g); startNewChat({ preserveGem: true }); }
         function clearActiveGem() { if (currentThreadId) delete threadGemMap[currentThreadId]; pendingGemForNewThread = null; applyActiveGem(null); }
+        function getCurrentChatHeaderTitleText() {
+            if (typeof currentThreadTitle === 'string' && currentThreadTitle.trim()) return currentThreadTitle.trim();
+            if (currentThreadId) return 'No Title';
+            return 'AI Chat';
+        }
+        function formatTemporaryChatRemainingLabel(totalSeconds) {
+            let sec = Number(totalSeconds);
+            if (!Number.isFinite(sec)) return '';
+            sec = Math.max(0, Math.floor(sec));
+            if (sec >= 3600) {
+                const h = Math.floor(sec / 3600);
+                const m = Math.floor((sec % 3600) / 60);
+                return `残り ${h}時間${m}分`;
+            }
+            if (sec >= 60) {
+                const m = Math.floor(sec / 60);
+                const s = sec % 60;
+                return `残り ${m}分${s}秒`;
+            }
+            return `残り ${sec}秒`;
+        }
+        function getTemporaryChatRemainingSeconds() {
+            if (!temporaryChatEnabled || !currentThreadId || !Number.isFinite(tempChatExpiresAtMs)) return null;
+            return Math.max(0, Math.ceil((tempChatExpiresAtMs - Date.now()) / 1000));
+        }
+        function updateCurrentChatHeaderUi() {
+            const titleText = getCurrentChatHeaderTitleText();
+            const remainingLabel = formatTemporaryChatRemainingLabel(getTemporaryChatRemainingSeconds());
+            const showTempLabel = !!temporaryChatEnabled;
+            const titleTargets = ['sidebar-chat-title', 'mobile-chat-title'];
+            const tempLabelTargets = ['sidebar-chat-temporary-label', 'mobile-chat-temporary-label'];
+            const ttlTargets = ['sidebar-chat-ttl', 'mobile-chat-ttl'];
+            titleTargets.forEach((id) => {
+                const el = get(id);
+                if (el) el.textContent = titleText;
+            });
+            tempLabelTargets.forEach((id) => {
+                const el = get(id);
+                if (el) el.classList.toggle('hidden', !showTempLabel);
+            });
+            ttlTargets.forEach((id) => {
+                const el = get(id);
+                if (!el) return;
+                if (remainingLabel) {
+                    el.textContent = remainingLabel;
+                    el.classList.remove('hidden');
+                } else {
+                    el.textContent = '';
+                    el.classList.add('hidden');
+                }
+            });
+        }
+        function setCurrentChatHeaderTitle(title) {
+            currentThreadTitle = typeof title === 'string' ? title : null;
+            updateCurrentChatHeaderUi();
+        }
+        function resetTemporaryChatExpiresAt() {
+            tempChatExpiresAtMs = null;
+            updateCurrentChatHeaderUi();
+        }
+        function applyTemporaryChatRuntimeMeta(data) {
+            if (!data || typeof data !== 'object') return;
+            if (Object.prototype.hasOwnProperty.call(data, 'timeout_seconds')) {
+                applyTemporaryChatTimeoutSeconds(data.timeout_seconds);
+            }
+            let nextExpiresAtMs = null;
+            const exp = Number(data.temp_chat_expires_at);
+            if (Number.isFinite(exp) && exp > 0) {
+                nextExpiresAtMs = Math.floor(exp * 1000);
+            } else {
+                const remaining = Number(data.temp_chat_remaining_seconds);
+                if (Number.isFinite(remaining) && remaining >= 0) {
+                    nextExpiresAtMs = Date.now() + Math.floor(remaining * 1000);
+                }
+            }
+            if (nextExpiresAtMs !== null) {
+                tempChatExpiresAtMs = nextExpiresAtMs;
+            } else if (data.is_temporary === false || !temporaryChatEnabled) {
+                tempChatExpiresAtMs = null;
+            }
+            updateCurrentChatHeaderUi();
+        }
+        function ensureCurrentChatHeaderTicker() {
+            if (tempChatHeaderTicker) return;
+            tempChatHeaderTicker = setInterval(() => {
+                updateCurrentChatHeaderUi();
+            }, 1000);
+        }
         function normalizeTemporaryChatTimeoutSeconds(value, fallback = TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS) {
             let sec = Number(value);
             if (!Number.isFinite(sec)) sec = Number(fallback);
@@ -8030,6 +8125,7 @@
             const input = get('set-temp-chat-timeout-seconds');
             if (input) input.value = String(temporaryChatTimeoutSeconds);
             updateTemporaryChatDescriptionText();
+            updateCurrentChatHeaderUi();
             if (temporaryChatEnabled) ensureTemporaryChatHeartbeat(false);
         }
         function getTemporaryChatHeartbeatIntervalMs() {
@@ -8045,7 +8141,9 @@
             if (welcomeDefault) welcomeDefault.classList.toggle('hidden', temporaryChatEnabled);
             const welcomeTemporary = get('welcome-temporary-content');
             if (welcomeTemporary) welcomeTemporary.classList.toggle('hidden', !temporaryChatEnabled);
+            if (!temporaryChatEnabled) tempChatExpiresAtMs = null;
             updateTemporaryChatDescriptionText();
+            updateCurrentChatHeaderUi();
         }
         function stopTemporaryChatHeartbeat() {
             if (tempChatHeartbeatTimer) {
@@ -8069,9 +8167,7 @@
                     body: JSON.stringify({ thread_id: currentThreadId, active: true })
                 });
                 const data = await res.json().catch(() => ({}));
-                if (res.ok && data) {
-                    applyTemporaryChatTimeoutSeconds(data.timeout_seconds);
-                }
+                if (res.ok && data) applyTemporaryChatRuntimeMeta(data);
                 if (res.ok && data && data.is_temporary === false) {
                     setTemporaryChatUiState(false);
                     stopTemporaryChatHeartbeat();
@@ -8111,8 +8207,8 @@
                 });
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error((data && data.error) || '設定更新に失敗しました');
-                if (data) applyTemporaryChatTimeoutSeconds(data.timeout_seconds);
                 setTemporaryChatUiState(!!(data && data.is_temporary));
+                applyTemporaryChatRuntimeMeta(data || {});
                 ensureTemporaryChatHeartbeat(true);
                 return true;
             } catch (err) {
@@ -8126,6 +8222,8 @@
             resetUploadState(); 
             stopTemporaryChatHeartbeat();
             setTemporaryChatUiState(false);
+            currentThreadTitle = null;
+            tempChatExpiresAtMs = null;
             currentThreadId = null; 
             allMessages = []; 
             threadHasOlderMessages = false;
@@ -8138,6 +8236,7 @@
             history.pushState({}, '', '/'); 
             get('chat-container').innerHTML = ''; 
             get('welcome-screen').classList.remove('hidden'); 
+            updateCurrentChatHeaderUi();
             if (get('thread-custom-instruction')) get('thread-custom-instruction').value = '';
             if (!opts.preserveGem) applyActiveGem(null); 
             loadThreads(); 
@@ -8155,8 +8254,9 @@
                     }); 
                     const d = await r.json(); 
                     currentThreadId = d.id !== null && d.id !== undefined ? String(d.id) : d.id; 
-                    applyTemporaryChatTimeoutSeconds(d.timeout_seconds);
                     setTemporaryChatUiState(!!(d && d.is_temporary));
+                    setCurrentChatHeaderTitle(d && d.title);
+                    applyTemporaryChatRuntimeMeta(d || {});
                     ensureTemporaryChatHeartbeat(true);
                     history.pushState({}, '', '/c/' + d.id);
                     loadThreads();
@@ -8277,7 +8377,7 @@
             }
         };
         async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('handle_gem_item', gid=0) }}".replace('0', id), {method: 'DELETE'}); loadGems(); }
-        async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { await apiFetch("{{ url_for('update_title', thread_id=0) }}".replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); loadThreads(); } }
+        async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { const res = await apiFetch("{{ url_for('update_title', thread_id=0) }}".replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); const d = await res.json().catch(() => ({})); if (res.ok && currentThreadId === String(id)) setCurrentChatHeaderTitle((d && d.title) || n); loadThreads(); } }
         async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('handle_thread_item', thread_id=0) }}".replace('0', id), {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }
         async function deleteMessage(id) { if(!confirm("Delete this message and subsequent history?")) return; await apiFetch("{{ url_for('delete_message', mid=0) }}".replace('0', id), {method:'DELETE'}); loadMessages(currentThreadId); }
         window.regenerateMessage = (id) => {

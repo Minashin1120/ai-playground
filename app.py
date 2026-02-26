@@ -2443,6 +2443,42 @@ def _mark_temp_chat_presence(thread, user_id=None, timeout_seconds=None):
     except Exception:
         pass
 
+def _get_temp_chat_runtime_meta(thread, user=None):
+    timeout_seconds = _resolve_temp_chat_timeout_seconds(
+        thread=thread,
+        user_id=(thread.user_id if thread is not None else None),
+        timeout_seconds=(_get_user_temp_chat_timeout_seconds(user) if user is not None else None),
+    )
+    meta = {
+        "timeout_seconds": int(timeout_seconds),
+        "temp_chat_expires_at": None,
+        "temp_chat_remaining_seconds": None,
+    }
+    if not thread or not bool(getattr(thread, "is_temporary", False)):
+        return meta
+    member = _temp_chat_member(thread)
+    if not member:
+        return meta
+    now_ts = int(time.time())
+    try:
+        score = redis_conn.zscore(_TEMP_CHAT_LAST_SEEN_ZSET, member)
+    except Exception:
+        score = None
+    if score is None:
+        meta["temp_chat_expires_at"] = now_ts + int(timeout_seconds)
+        meta["temp_chat_remaining_seconds"] = int(timeout_seconds)
+        return meta
+    try:
+        timeout_seconds = _resolve_temp_chat_member_timeout_seconds(member, thread=thread)
+    except Exception:
+        timeout_seconds = _resolve_temp_chat_timeout_seconds(thread=thread, user_id=thread.user_id)
+    expires_at = int(float(score) + float(timeout_seconds))
+    remaining = max(0, int(expires_at - now_ts))
+    meta["timeout_seconds"] = int(timeout_seconds)
+    meta["temp_chat_expires_at"] = expires_at
+    meta["temp_chat_remaining_seconds"] = remaining
+    return meta
+
 def _track_temp_chat_uploaded_refs(thread, user_id, refs):
     if not thread or not bool(getattr(thread, "is_temporary", False)):
         return
@@ -7500,11 +7536,14 @@ def temporary_chat_heartbeat():
             current_user.id,
             timeout_seconds=_get_user_temp_chat_timeout_seconds(current_user)
         )
+    temp_meta = _get_temp_chat_runtime_meta(t, user=current_user)
     return jsonify({
         'status': 'ok',
         'thread_id': t.public_id or t.id,
         'is_temporary': bool(getattr(t, "is_temporary", False)),
-        'timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user)
+        'timeout_seconds': temp_meta.get('timeout_seconds'),
+        'temp_chat_expires_at': temp_meta.get('temp_chat_expires_at'),
+        'temp_chat_remaining_seconds': temp_meta.get('temp_chat_remaining_seconds')
     })
 
 @app.route('/api/generate_title', methods=['POST'])
@@ -7784,7 +7823,7 @@ def handle_threads():
             'id': t.public_id,
             'title': t.title,
             'is_temporary': bool(t.is_temporary),
-            'timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user)
+            **_get_temp_chat_runtime_meta(t, user=current_user)
         })
     except Exception as e:
         log_force(f"DEBUG: handle_threads POST failed: {e}")
@@ -7901,13 +7940,14 @@ def handle_thread_item(thread_id):
             except Exception:
                 pending_job = None
             payload.update({
+                'title': t.title,
                 'custom_instruction': t.custom_instruction,
                 'include_global_instruction': t.include_global_instruction if t.include_global_instruction is not None else True,
                 'last_model': t.last_model,
                 'is_temporary': bool(getattr(t, "is_temporary", False)),
-                'timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user),
                 'pending_job': pending_job
             })
+            payload.update(_get_temp_chat_runtime_meta(t, user=current_user))
         return jsonify(payload)
 
     temp_member = _temp_chat_member(t)
@@ -7975,7 +8015,7 @@ def update_thread_settings(thread_id):
             'custom_instruction': t.custom_instruction,
             'include_global_instruction': t.include_global_instruction if t.include_global_instruction is not None else True,
             'is_temporary': bool(getattr(t, "is_temporary", False)),
-            'timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user)
+            **_get_temp_chat_runtime_meta(t, user=current_user)
         })
     d = request.json or {}
     log_force(f"DEBUG: update_thread_settings received json: {d}")
@@ -8001,10 +8041,13 @@ def update_thread_settings(thread_id):
     else:
         _clear_temp_chat_tracking_for_thread(t)
     log_force(f"DEBUG: update_thread_settings returning ok")
+    temp_meta = _get_temp_chat_runtime_meta(t, user=current_user)
     return jsonify({
         'status': 'ok',
         'is_temporary': bool(getattr(t, "is_temporary", False)),
-        'timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user)
+        'timeout_seconds': temp_meta.get('timeout_seconds'),
+        'temp_chat_expires_at': temp_meta.get('temp_chat_expires_at'),
+        'temp_chat_remaining_seconds': temp_meta.get('temp_chat_remaining_seconds')
     })
 
 @app.route('/api/threads/<thread_id>/title', methods=['PUT'])
@@ -8014,7 +8057,7 @@ def update_title(thread_id):
     if not t: return jsonify({'error': '403'}), 403
     t.title = request.json.get('title', 'Untitled')
     safe_db_commit()
-    return jsonify({'status': 'ok'})
+    return jsonify({'status': 'ok', 'title': t.title})
 
 @app.route('/api/threads/<thread_id>/bookmark', methods=['POST'])
 @login_required

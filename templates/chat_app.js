@@ -350,7 +350,6 @@
         let useSwCache = {{ 'true' if current_user.is_authenticated and current_user.use_sw_cache else 'false' }};
         let compactPromptMode = {{ 'true' if current_user.is_authenticated and current_user.compact_prompt_mode else 'false' }};
         let promptControlsExpanded = false;
-        let modelOptionOverridePanelOpen = false;
         const appVersion = "{{ app_version }}";
         const botConfig = {{ bot_config|tojson if bot_config is defined else 'null' }};
         const isAdminUser = botConfig && botConfig.isAdmin;
@@ -364,7 +363,6 @@
         const LOW_BANDWIDTH_INITIAL_MESSAGE_LIMIT = 40;
         const LOW_BANDWIDTH_OLDER_PAGE_SIZE = 60;
         const LOW_BANDWIDTH_MODE_STORAGE_KEY = 'low_bandwidth_mode_pref_v1';
-        const MODEL_PROMPT_BAR_OPTION_OVERRIDES_KEY = 'model_prompt_bar_option_overrides_v1';
         const LOW_BANDWIDTH_DECORATION_VISIBILITY_THRESHOLD = 0.02;
         const MATHJAX_SRC = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js';
         const HLJS_JS_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js';
@@ -381,14 +379,6 @@
         let threadHasOlderMessages = false;
         let oldestLoadedMessageId = null;
         let loadingOlderMessages = false;
-        let modelPromptBarOptionOverrides = (() => {
-            try {
-                const raw = JSON.parse(localStorage.getItem(MODEL_PROMPT_BAR_OPTION_OVERRIDES_KEY) || '{}');
-                return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
-            } catch (e) {
-                return {};
-            }
-        })();
         
         // Tree State
         let allMessages = [];
@@ -1061,174 +1051,6 @@
             if (!compactPromptMode) return;
             promptControlsExpanded = !promptControlsExpanded;
             applyPromptControlMode();
-        }
-        function normalizeModelPromptBarOverrideMode(v) {
-            const s = String(v || '').trim().toLowerCase();
-            return (s === 'show' || s === 'hide' || s === 'default') ? s : 'default';
-        }
-        function sanitizeModelPromptBarOverrideEntry(raw) {
-            const out = {};
-            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
-            ['search', 'python', 'sys', 'thinking', 'effort'].forEach((k) => {
-                const v = normalizeModelPromptBarOverrideMode(raw[k]);
-                if (v !== 'default') out[k] = v;
-            });
-            return out;
-        }
-        function saveModelPromptBarOptionOverrides() {
-            try {
-                localStorage.setItem(MODEL_PROMPT_BAR_OPTION_OVERRIDES_KEY, JSON.stringify(modelPromptBarOptionOverrides || {}));
-            } catch (e) {}
-        }
-        function getLocalModelPromptBarOverride(modelId) {
-            const id = String(modelId || '').trim();
-            if (!id) return {};
-            return sanitizeModelPromptBarOverrideEntry(modelPromptBarOptionOverrides[id] || {});
-        }
-        function getEffectiveModelPromptBarOverride(modelId) {
-            const id = String(modelId || '').trim();
-            const preset = sanitizeModelPromptBarOverrideEntry(MODEL_PROMPT_BAR_OPTION_PRESETS[id] || {});
-            const local = getLocalModelPromptBarOverride(id);
-            return Object.assign({}, preset, local);
-        }
-        function setCurrentModelPromptBarOverrideField(field, value) {
-            const modelId = String(get('model-select')?.value || '').trim();
-            if (!modelId) return;
-            const mode = normalizeModelPromptBarOverrideMode(value);
-            const current = getLocalModelPromptBarOverride(modelId);
-            if (mode === 'default') {
-                delete current[field];
-            } else {
-                current[field] = mode;
-            }
-            if (Object.keys(current).length) {
-                modelPromptBarOptionOverrides[modelId] = current;
-            } else {
-                delete modelPromptBarOptionOverrides[modelId];
-            }
-            saveModelPromptBarOptionOverrides();
-        }
-        function resetCurrentModelPromptBarOverrides() {
-            const modelId = String(get('model-select')?.value || '').trim();
-            if (!modelId) return;
-            delete modelPromptBarOptionOverrides[modelId];
-            saveModelPromptBarOptionOverrides();
-        }
-        function setElementHidden(el, hidden) {
-            if (!el) return;
-            el.classList.toggle('hidden', !!hidden);
-        }
-        function syncModelOptionOverridePanelUi() {
-            const modelId = String(get('model-select')?.value || '');
-            const nameEl = get('model-option-override-model-name');
-            if (nameEl) nameEl.textContent = getModelDisplayNameById(modelId) || modelId || '';
-            const local = getLocalModelPromptBarOverride(modelId);
-            const map = {
-                search: 'model-opt-override-search',
-                python: 'model-opt-override-python',
-                sys: 'model-opt-override-sys',
-                thinking: 'model-opt-override-thinking',
-                effort: 'model-opt-override-effort'
-            };
-            Object.entries(map).forEach(([key, id]) => {
-                const el = get(id);
-                if (!el) return;
-                el.value = normalizeModelPromptBarOverrideMode(local[key] || 'default');
-            });
-        }
-        function setModelOptionOverridePanelOpen(open) {
-            modelOptionOverridePanelOpen = !!open;
-            const panel = get('model-option-override-panel');
-            const btn = get('model-option-override-btn');
-            if (panel) panel.classList.toggle('hidden', !modelOptionOverridePanelOpen);
-            if (btn) {
-                btn.setAttribute('aria-expanded', modelOptionOverridePanelOpen ? 'true' : 'false');
-                btn.classList.toggle('border-cyan-500', modelOptionOverridePanelOpen);
-                btn.classList.toggle('text-cyan-200', modelOptionOverridePanelOpen);
-            }
-            if (modelOptionOverridePanelOpen) syncModelOptionOverridePanelUi();
-        }
-        function applyModelPromptBarOptionOverrides(model, ctx = {}) {
-            const modelId = String(model || '').trim();
-            if (!modelId) return;
-            const ov = getEffectiveModelPromptBarOverride(modelId);
-            const lower = modelId.toLowerCase();
-            const isTts = !!ctx.isTts;
-            const isSearchModel = !!ctx.isSearchModel;
-            const isGemini = lower.includes('gemini');
-
-            const searchCont = get('search-container');
-            const searchChk = get('enable-search');
-            const pyCont = get('python-container');
-            const pyChk = get('enable-python');
-            const sysWrap = get('sys-prompt-option');
-            const sysChk = get('enable-sys-prompt');
-            const thinkWrap = get('thinking-options');
-            const thinkChk = get('enable-thinking');
-            const effortWrap = get('reasoning-effort-container');
-
-            const applyBasicMode = (wrap, chk, mode, opts = {}) => {
-                if (!wrap) return;
-                if (mode === 'hide') {
-                    setElementHidden(wrap, true);
-                    if (chk && opts.uncheckOnHide !== false) chk.checked = false;
-                    if (chk && opts.disableOnHide !== false) chk.disabled = true;
-                    return;
-                }
-                setElementHidden(wrap, false);
-                if (mode === 'show') {
-                    wrap.classList.remove('opacity-50', 'pointer-events-none');
-                    if (chk && !opts.keepDisabled) chk.disabled = false;
-                }
-            };
-
-            applyBasicMode(searchCont, searchChk, ov.search || 'default', {
-                keepDisabled: isTts || isSearchModel
-            });
-            if (ov.search === 'show' && searchCont && searchChk && !isTts && !isSearchModel) {
-                searchCont.classList.remove('opacity-50', 'pointer-events-none');
-                searchChk.disabled = false;
-            }
-            if (ov.search === 'hide' && isSearchModel && searchCont) {
-                // Search-only model should still indicate forced behavior.
-                setElementHidden(searchCont, false);
-            }
-
-            applyBasicMode(pyCont, pyChk, ov.python || 'default', {
-                keepDisabled: isTts || isSearchModel
-            });
-            if (ov.python === 'show' && pyCont && pyChk && !isTts && !isSearchModel) {
-                pyCont.classList.remove('opacity-50', 'pointer-events-none');
-                pyChk.disabled = false;
-            }
-
-            applyBasicMode(sysWrap, sysChk, ov.sys || 'default', {
-                keepDisabled: isTts
-            });
-            if (ov.sys === 'show' && sysWrap && sysChk && !isTts) {
-                sysWrap.classList.remove('opacity-50');
-                sysChk.disabled = false;
-            }
-
-            const thinkMode = ov.thinking || 'default';
-            if (thinkWrap) {
-                if (thinkMode === 'hide') {
-                    thinkWrap.classList.add('hidden');
-                    if (thinkChk) {
-                        thinkChk.checked = false;
-                        thinkChk.disabled = true;
-                    }
-                } else if (thinkMode === 'show' && isGemini && !isTts) {
-                    thinkWrap.classList.remove('hidden');
-                    if (thinkChk) thinkChk.disabled = false;
-                }
-            }
-
-            const effortMode = ov.effort || 'default';
-            if (effortWrap) {
-                if (effortMode === 'hide') effortWrap.classList.add('hidden');
-                else if (effortMode === 'show' && !isTts) effortWrap.classList.remove('hidden');
-            }
         }
         function applyChatDefaults(d) {
             if (!d) return;
@@ -2124,27 +1946,6 @@
             }
         ];
 
-        const MODEL_PROMPT_BAR_OPTION_PRESETS = {
-            // Gemini 3.1 Flash Image (Nano Banana 2) may support more features than older image models.
-            'gemini-3.1-flash-image-preview': {
-                sys: 'show',
-                thinking: 'show'
-            }
-        };
-
-        function findModelItemById(id) {
-            for (const group of MODELS) {
-                const item = (group.items || []).find((m) => m.id === id);
-                if (item) return item;
-            }
-            return null;
-        }
-
-        function getModelDisplayNameById(id) {
-            const item = findModelItemById(id);
-            return item ? (item.name || id) : (id || '');
-        }
-
         let activeModelTag = 'all';
         const MODEL_TAGS = ['all','openai','gemini','xai','image','audio','reasoning','fast'];
         const STS_MODELS = new Set([
@@ -2804,8 +2605,6 @@
                 updateGrokImageUi();
                 updateGrokVideoUi();
                 updateImageInputLimits();
-                applyModelPromptBarOptionOverrides(model, { isTts, isSearchModel });
-                syncModelOptionOverridePanelUi();
                 purgeUnsupportedAttachments(true);
             }
             get('model-select').addEventListener('change', toggleOptions);
@@ -2816,39 +2615,6 @@
             if (promptControlsToggleBtn) {
                 promptControlsToggleBtn.onclick = () => togglePromptControlDetails();
             }
-            const modelOptBtn = get('model-option-override-btn');
-            if (modelOptBtn) {
-                modelOptBtn.onclick = () => setModelOptionOverridePanelOpen(!modelOptionOverridePanelOpen);
-            }
-            const modelOptCloseBtn = get('model-option-override-close');
-            if (modelOptCloseBtn) {
-                modelOptCloseBtn.onclick = () => setModelOptionOverridePanelOpen(false);
-            }
-            const modelOptResetBtn = get('model-option-override-reset');
-            if (modelOptResetBtn) {
-                modelOptResetBtn.onclick = () => {
-                    resetCurrentModelPromptBarOverrides();
-                    syncModelOptionOverridePanelUi();
-                    toggleOptions();
-                    showToast('このモデルの項目設定を既定に戻しました', 'success');
-                };
-            }
-            [
-                ['search', 'model-opt-override-search'],
-                ['python', 'model-opt-override-python'],
-                ['sys', 'model-opt-override-sys'],
-                ['thinking', 'model-opt-override-thinking'],
-                ['effort', 'model-opt-override-effort']
-            ].forEach(([field, id]) => {
-                const el = get(id);
-                if (!el) return;
-                el.addEventListener('change', () => {
-                    setCurrentModelPromptBarOverrideField(field, el.value);
-                    toggleOptions();
-                });
-            });
-            syncModelOptionOverridePanelUi();
-            setModelOptionOverridePanelOpen(false);
             if (get('tts-voice')) get('tts-voice').addEventListener('change', updateTtsUi);
             if (get('gpt-image-format')) get('gpt-image-format').addEventListener('change', () => updateGptImageUi());
             if (get('gemini-image-size')) get('gemini-image-size').addEventListener('change', () => updateGeminiImageUi());

@@ -1343,72 +1343,104 @@ def _normalize_mic_transcribe_mode(value):
     v = str(value or "").strip().lower()
     return v if v in MIC_TRANSCRIBE_MODES else "stt_api"
 
-def _extract_chat_completion_text(resp):
+def _extract_openai_response_text(resp):
     try:
-        choices = getattr(resp, "choices", None) or []
-        if not choices:
-            return ""
-        msg = getattr(choices[0], "message", None)
-        if not msg:
-            return ""
-        content = getattr(msg, "content", None)
-        if isinstance(content, str):
-            return content.strip()
-        if isinstance(content, list):
-            texts = []
-            for item in content:
-                if isinstance(item, dict):
-                    text_val = item.get("text")
-                    if isinstance(text_val, str) and text_val:
-                        texts.append(text_val)
-                        continue
-                    if isinstance(text_val, dict) and text_val.get("value"):
-                        texts.append(str(text_val.get("value")))
+        if isinstance(resp, dict):
+            raw = resp.get("output_text")
+            if isinstance(raw, str) and raw.strip():
+                return raw.strip()
+        else:
+            raw = getattr(resp, "output_text", None)
+            if isinstance(raw, str) and raw.strip():
+                return raw.strip()
+        output = resp.get("output") if isinstance(resp, dict) else getattr(resp, "output", None)
+        texts = []
+        for item in output or []:
+            content = item.get("content") if isinstance(item, dict) else getattr(item, "content", None)
+            for part in content or []:
+                if isinstance(part, dict):
+                    p_type = part.get("type")
+                    if p_type in ("output_text", "text") and part.get("text"):
+                        texts.append(str(part.get("text")))
                 else:
-                    txt = getattr(item, "text", None)
-                    if hasattr(txt, "value"):
-                        txt = getattr(txt, "value", None)
-                    if txt:
-                        texts.append(str(txt))
-            if texts:
-                return "\n".join(texts).strip()
-        audio_obj = getattr(msg, "audio", None)
-        if audio_obj and getattr(audio_obj, "transcript", None):
-            return str(audio_obj.transcript).strip()
+                    p_type = getattr(part, "type", None)
+                    p_text = getattr(part, "text", None)
+                    if p_type in ("output_text", "text") and p_text:
+                        texts.append(str(p_text))
+        if texts:
+            return "\n".join(texts).strip()
     except Exception:
         return ""
     return ""
 
-def _transcribe_audio_with_llm(audio_content, fname, key):
+def _transcribe_audio_with_llm(audio_content, fname, llm_model_key, user):
+    model_key = (llm_model_key or "").strip()
+    model_key_l = model_key.lower()
+    is_gem = ("gemini" in model_key_l) or ("nano" in model_key_l)
+    is_grok = ("grok" in model_key_l) and ("gpt" not in model_key_l)
+    if is_grok:
+        raise ValueError("現在の xAI/Grok モデルのLLM文字起こしは未対応です。OpenAI/Gemini対応モデルに切り替えるか、STT APIを使用してください。")
+    if not model_key:
+        model_key = "gpt-4o-mini"
+        model_key_l = model_key.lower()
+
     src_ext = os.path.splitext(fname or "")[1].lower() or ".webm"
     if src_ext not in (".webm", ".wav", ".mp3", ".m4a", ".ogg", ".flac", ".opus"):
         src_ext = ".webm"
     try:
-        pcm = _convert_audio_to_pcm(audio_content, src_suffix=src_ext, rate=24000)
-        wav_bytes = _pcm_to_wav_bytes(pcm, rate=24000)
+        target_rate = 16000 if is_gem else 24000
+        pcm = _convert_audio_to_pcm(audio_content, src_suffix=src_ext, rate=target_rate)
+        wav_bytes = _pcm_to_wav_bytes(pcm, rate=target_rate)
     except Exception as e:
         raise RuntimeError(f"Audio conversion failed (ffmpeg): {e}") from e
 
-    client = _get_openai_client(key, base_url=None)
+    if is_gem:
+        gemini_runtime = _resolve_gemini_runtime(user)
+        g_key = gemini_runtime.get("api_key")
+        backend = gemini_runtime.get("backend")
+        if backend == "vertex_ai":
+            if not gemini_runtime.get("vertex_project"):
+                raise ValueError("Vertex AI Project ID が未設定です。Gemini設定を確認してください。")
+        elif not g_key:
+            raise ValueError("Gemini API Key not configured")
+        g_client = _get_gemini_client(
+            api_key=g_key,
+            backend=backend,
+            vertex_project=gemini_runtime.get("vertex_project"),
+            vertex_location=gemini_runtime.get("vertex_location"),
+            vertex_credentials_json=gemini_runtime.get("vertex_credentials_json"),
+        )
+        if not g_client:
+            raise RuntimeError("Gemini client initialization failed")
+        resp = g_client.models.generate_content(
+            model=model_key,
+            contents=[
+                types.Part(text="この音声を文字起こししてください。出力は文字起こし本文のみ。説明や要約は不要です。"),
+                types.Part.from_bytes(data=wav_bytes, mime_type="audio/wav"),
+            ],
+        )
+        return (getattr(resp, "text", None) or "").strip()
+
+    o_key = decrypt_val(user.openai_api_key)
+    if not o_key and _admin_env_fallback_enabled(user):
+        o_key = os.getenv('OPENAI_API_KEY')
+    if not o_key:
+        raise ValueError("OpenAI API Key not configured")
+    client = _get_openai_client(o_key, base_url=None)
     audio_b64 = base64.b64encode(wav_bytes).decode("ascii")
-    resp = client.chat.completions.create(
-        model="gpt-audio-mini",
-        modalities=["text"],
-        messages=[
-            {
-                "role": "system",
-                "content": "You are a transcription engine. Return only the transcript in the original language. No summary or commentary. If silent, return an empty string."
-            },
+    resp = client.responses.create(
+        model=model_key,
+        input=[
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "この音声を文字起こししてください。出力は本文のみ。"},
+                    {"type": "input_text", "text": "この音声を文字起こししてください。出力は文字起こし本文のみ。説明や要約は不要です。"},
                     {"type": "input_audio", "input_audio": {"data": audio_b64, "format": "wav"}}
                 ]
             }
         ]
     )
-    return _extract_chat_completion_text(resp)
+    return _extract_openai_response_text(resp)
 
 async def _openai_sts_realtime(pcm_bytes, api_key, model_key, voice="alloy", speed=None, rate=24000):
     # OpenAI Realtime currently supports 24kHz PCM audio for output; keep session aligned.
@@ -9299,16 +9331,18 @@ def transcribe():
         return jsonify({'error': 'Empty audio'}), 400
 
     try:
+        transcribe_mode = _normalize_mic_transcribe_mode(getattr(current_user, 'mic_transcribe_mode', None))
+        if transcribe_mode == "llm":
+            req_data = request.form if request.form else (request.json or {})
+            llm_model_key = (req_data.get('llm_model') or req_data.get('model') or "").strip()
+            transcript = _transcribe_audio_with_llm(audio_content, fname, llm_model_key, current_user)
+            return jsonify({'transcript': transcript, 'mode': 'llm'})
+
         key = decrypt_val(current_user.openai_api_key)
         if not key and _admin_env_fallback_enabled(current_user):
             key = os.getenv('OPENAI_API_KEY')
         if not key:
             return jsonify({'error': 'OpenAI API Key not configured'}), 400
-
-        transcribe_mode = _normalize_mic_transcribe_mode(getattr(current_user, 'mic_transcribe_mode', None))
-        if transcribe_mode == "llm":
-            transcript = _transcribe_audio_with_llm(audio_content, fname, key)
-            return jsonify({'transcript': transcript, 'mode': 'llm'})
 
         allowed_models = {
             "gpt-4o-mini-transcribe",
@@ -9355,6 +9389,9 @@ def transcribe():
                 transcript = "\n".join(lines)
 
         return jsonify({'transcript': transcript, 'mode': 'stt_api'})
+    except ValueError as e:
+        logger.warning(f"Transcription validation failed: {e}")
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Transcription failed: {e}")
         return jsonify({'error': str(e)}), 500

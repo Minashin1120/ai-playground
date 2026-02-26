@@ -4261,6 +4261,13 @@
                                     showToast(stsData.error || "Speech-to-speech failed", "error", true);
                                 }
                             } else {
+                                const micModeEl = get('set-mic-transcribe-mode');
+                                const llmMicMode = !!(micModeEl && micModeEl.value === 'llm');
+                                if (llmMicMode && !supportsAudioInputModel()) {
+                                    showToast("現在のモデルはLLM音声文字起こし（音声入力）に対応していません", "error", true);
+                                    return;
+                                }
+                                fd.append('llm_model', get('model-select') ? (get('model-select').value || '') : '');
                                 const transRes = await apiFetch("{{ url_for('transcribe') }}", {
                                     method: 'POST',
                                     body: fd

@@ -799,116 +799,135 @@ _TOKEN_FILE_TOKENS_CACHE_MAX = max(0, _env_int("TOKEN_FILE_TOKENS_CACHE_MAX", 51
 _TOKEN_FILE_TOKENS_CACHE_LOCK = threading.Lock()
 _TOKEN_FILE_TOKENS_CACHE = OrderedDict()
 
-def _media_bytes_cache_get(key):
-    if _MEDIA_BYTES_CACHE_MAX <= 0:
+def _ordered_lru_cache_get(cache, lock, key, enabled=True):
+    if not enabled:
         return None
-    with _MEDIA_BYTES_CACHE_LOCK:
-        hit = _MEDIA_BYTES_CACHE.get(key)
+    with lock:
+        hit = cache.get(key)
         if hit is None:
             return None
-        _MEDIA_BYTES_CACHE.move_to_end(key)
+        cache.move_to_end(key)
         return hit
 
-def _media_bytes_cache_put(key, data):
-    global _MEDIA_BYTES_CACHE_SIZE
-    if _MEDIA_BYTES_CACHE_MAX <= 0:
-        return
-    if data is None:
-        return
+def _ordered_lru_bytes_cache_put(cache, lock, key, data, cache_max, item_max, current_size):
+    if cache_max <= 0 or data is None:
+        return current_size
     size = len(data)
     if size <= 0:
-        return
-    if _MEDIA_BYTES_CACHE_ITEM_MAX and size > _MEDIA_BYTES_CACHE_ITEM_MAX:
-        return
-    if size > _MEDIA_BYTES_CACHE_MAX:
-        return
-    with _MEDIA_BYTES_CACHE_LOCK:
-        prev = _MEDIA_BYTES_CACHE.pop(key, None)
+        return current_size
+    if item_max and size > item_max:
+        return current_size
+    if size > cache_max:
+        return current_size
+    with lock:
+        prev = cache.pop(key, None)
         if prev is not None:
-            _MEDIA_BYTES_CACHE_SIZE -= len(prev)
-        _MEDIA_BYTES_CACHE[key] = data
-        _MEDIA_BYTES_CACHE_SIZE += size
-        while _MEDIA_BYTES_CACHE_SIZE > _MEDIA_BYTES_CACHE_MAX and _MEDIA_BYTES_CACHE:
-            _, ev = _MEDIA_BYTES_CACHE.popitem(last=False)
-            _MEDIA_BYTES_CACHE_SIZE -= len(ev)
+            current_size -= len(prev)
+        cache[key] = data
+        current_size += size
+        while current_size > cache_max and cache:
+            _, ev = cache.popitem(last=False)
+            current_size -= len(ev)
+    return current_size
 
-def _media_bytes_cache_evict_path(rel_path):
-    global _MEDIA_BYTES_CACHE_SIZE
+def _ordered_lru_bytes_cache_evict_path(cache, lock, rel_path, current_size):
     if not rel_path:
-        return
-    with _MEDIA_BYTES_CACHE_LOCK:
-        to_del = [k for k in _MEDIA_BYTES_CACHE.keys() if isinstance(k, tuple) and len(k) > 0 and k[0] == rel_path]
+        return current_size
+    with lock:
+        to_del = [k for k in cache.keys() if isinstance(k, tuple) and len(k) > 0 and k[0] == rel_path]
         for k in to_del:
-            prev = _MEDIA_BYTES_CACHE.pop(k, None)
+            prev = cache.pop(k, None)
             if prev is not None:
-                _MEDIA_BYTES_CACHE_SIZE -= len(prev)
+                current_size -= len(prev)
+    return current_size
 
-def _thumbnail_bytes_cache_get(key):
-    if _THUMBNAIL_CACHE_MAX <= 0:
-        return None
-    with _THUMBNAIL_BYTES_CACHE_LOCK:
-        hit = _THUMBNAIL_BYTES_CACHE.get(key)
-        if hit is None:
-            return None
-        _THUMBNAIL_BYTES_CACHE.move_to_end(key)
-        return hit
-
-def _thumbnail_bytes_cache_put(key, data):
-    global _THUMBNAIL_BYTES_CACHE_SIZE
-    if _THUMBNAIL_CACHE_MAX <= 0:
-        return
-    if data is None:
-        return
-    size = len(data)
-    if size <= 0:
-        return
-    if _THUMBNAIL_CACHE_ITEM_MAX and size > _THUMBNAIL_CACHE_ITEM_MAX:
-        return
-    if size > _THUMBNAIL_CACHE_MAX:
-        return
-    with _THUMBNAIL_BYTES_CACHE_LOCK:
-        prev = _THUMBNAIL_BYTES_CACHE.pop(key, None)
-        if prev is not None:
-            _THUMBNAIL_BYTES_CACHE_SIZE -= len(prev)
-        _THUMBNAIL_BYTES_CACHE[key] = data
-        _THUMBNAIL_BYTES_CACHE_SIZE += size
-        while _THUMBNAIL_BYTES_CACHE_SIZE > _THUMBNAIL_CACHE_MAX and _THUMBNAIL_BYTES_CACHE:
-            _, ev = _THUMBNAIL_BYTES_CACHE.popitem(last=False)
-            _THUMBNAIL_BYTES_CACHE_SIZE -= len(ev)
-
-def _thumbnail_bytes_cache_evict_path(rel_path):
-    global _THUMBNAIL_BYTES_CACHE_SIZE
-    if not rel_path:
-        return
-    with _THUMBNAIL_BYTES_CACHE_LOCK:
-        to_del = [k for k in _THUMBNAIL_BYTES_CACHE.keys() if isinstance(k, tuple) and len(k) > 0 and k[0] == rel_path]
-        for k in to_del:
-            prev = _THUMBNAIL_BYTES_CACHE.pop(k, None)
-            if prev is not None:
-                _THUMBNAIL_BYTES_CACHE_SIZE -= len(prev)
-
-
-def _token_file_tokens_cache_get(key):
-    if _TOKEN_FILE_TOKENS_CACHE_MAX <= 0:
-        return None
-    with _TOKEN_FILE_TOKENS_CACHE_LOCK:
-        hit = _TOKEN_FILE_TOKENS_CACHE.get(key)
-        if hit is None:
-            return None
-        _TOKEN_FILE_TOKENS_CACHE.move_to_end(key)
-        return hit
-
-
-def _token_file_tokens_cache_put(key, value):
-    if _TOKEN_FILE_TOKENS_CACHE_MAX <= 0:
+def _ordered_lru_cache_put_count_limited(cache, lock, key, value, max_items):
+    if max_items <= 0:
         return
     if key is None or value is None:
         return
-    with _TOKEN_FILE_TOKENS_CACHE_LOCK:
-        _TOKEN_FILE_TOKENS_CACHE[key] = value
-        _TOKEN_FILE_TOKENS_CACHE.move_to_end(key)
-        while len(_TOKEN_FILE_TOKENS_CACHE) > _TOKEN_FILE_TOKENS_CACHE_MAX:
-            _TOKEN_FILE_TOKENS_CACHE.popitem(last=False)
+    with lock:
+        cache[key] = value
+        cache.move_to_end(key)
+        while len(cache) > max_items:
+            cache.popitem(last=False)
+
+def _media_bytes_cache_get(key):
+    return _ordered_lru_cache_get(
+        _MEDIA_BYTES_CACHE,
+        _MEDIA_BYTES_CACHE_LOCK,
+        key,
+        enabled=_MEDIA_BYTES_CACHE_MAX > 0,
+    )
+
+def _media_bytes_cache_put(key, data):
+    global _MEDIA_BYTES_CACHE_SIZE
+    _MEDIA_BYTES_CACHE_SIZE = _ordered_lru_bytes_cache_put(
+        _MEDIA_BYTES_CACHE,
+        _MEDIA_BYTES_CACHE_LOCK,
+        key,
+        data,
+        _MEDIA_BYTES_CACHE_MAX,
+        _MEDIA_BYTES_CACHE_ITEM_MAX,
+        _MEDIA_BYTES_CACHE_SIZE,
+    )
+
+def _media_bytes_cache_evict_path(rel_path):
+    global _MEDIA_BYTES_CACHE_SIZE
+    _MEDIA_BYTES_CACHE_SIZE = _ordered_lru_bytes_cache_evict_path(
+        _MEDIA_BYTES_CACHE,
+        _MEDIA_BYTES_CACHE_LOCK,
+        rel_path,
+        _MEDIA_BYTES_CACHE_SIZE,
+    )
+
+def _thumbnail_bytes_cache_get(key):
+    return _ordered_lru_cache_get(
+        _THUMBNAIL_BYTES_CACHE,
+        _THUMBNAIL_BYTES_CACHE_LOCK,
+        key,
+        enabled=_THUMBNAIL_CACHE_MAX > 0,
+    )
+
+def _thumbnail_bytes_cache_put(key, data):
+    global _THUMBNAIL_BYTES_CACHE_SIZE
+    _THUMBNAIL_BYTES_CACHE_SIZE = _ordered_lru_bytes_cache_put(
+        _THUMBNAIL_BYTES_CACHE,
+        _THUMBNAIL_BYTES_CACHE_LOCK,
+        key,
+        data,
+        _THUMBNAIL_CACHE_MAX,
+        _THUMBNAIL_CACHE_ITEM_MAX,
+        _THUMBNAIL_BYTES_CACHE_SIZE,
+    )
+
+def _thumbnail_bytes_cache_evict_path(rel_path):
+    global _THUMBNAIL_BYTES_CACHE_SIZE
+    _THUMBNAIL_BYTES_CACHE_SIZE = _ordered_lru_bytes_cache_evict_path(
+        _THUMBNAIL_BYTES_CACHE,
+        _THUMBNAIL_BYTES_CACHE_LOCK,
+        rel_path,
+        _THUMBNAIL_BYTES_CACHE_SIZE,
+    )
+
+
+def _token_file_tokens_cache_get(key):
+    return _ordered_lru_cache_get(
+        _TOKEN_FILE_TOKENS_CACHE,
+        _TOKEN_FILE_TOKENS_CACHE_LOCK,
+        key,
+        enabled=_TOKEN_FILE_TOKENS_CACHE_MAX > 0,
+    )
+
+
+def _token_file_tokens_cache_put(key, value):
+    _ordered_lru_cache_put_count_limited(
+        _TOKEN_FILE_TOKENS_CACHE,
+        _TOKEN_FILE_TOKENS_CACHE_LOCK,
+        key,
+        value,
+        _TOKEN_FILE_TOKENS_CACHE_MAX,
+    )
 
 def _load_user_file_bytes(rel_path, info=None):
     if not rel_path:

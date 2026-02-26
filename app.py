@@ -1363,7 +1363,7 @@ def _save_user_audio(user_id, data, suffix, encrypt):
 
 MIC_TRANSCRIBE_MODES = {"stt_api", "llm"}
 DEFAULT_LLM_TRANSCRIBE_PROMPT = (
-    "この音声を日本語で正確に文字起こししてください。"
+    "この音声を正確に文字起こししてください。"
     "出力は文字起こし本文のみ。説明・要約・補足は不要です。"
 )
 LLM_TRANSCRIBE_PROMPT_MAX_CHARS = 4000

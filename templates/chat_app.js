@@ -4266,6 +4266,18 @@
                     mediaRecorder.stop();
                 }
             }
+            function getMicCaptureConstraints() {
+                const stsMode = isStsModel();
+                if (stsMode) return { audio: true };
+                const supported = (navigator.mediaDevices && navigator.mediaDevices.getSupportedConstraints)
+                    ? navigator.mediaDevices.getSupportedConstraints()
+                    : {};
+                const audio = { channelCount: 1 };
+                if (supported.echoCancellation) audio.echoCancellation = false;
+                if (supported.noiseSuppression) audio.noiseSuppression = false;
+                if (supported.autoGainControl) audio.autoGainControl = false;
+                return { audio };
+            }
             get('mic-btn').onclick = async () => {
                 if (abortController) {
                     showToast("回答生成中です。完了までお待ちいただくか、停止してください。", "warning", true);
@@ -4288,7 +4300,7 @@
                         resetMicWaveformBars();
                         setMicRecordingIndicator('録音準備中…', 'processing');
                     }
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const stream = await navigator.mediaDevices.getUserMedia(getMicCaptureConstraints());
                     mediaRecorder = new MediaRecorder(stream);
                     audioChunks = [];
                     stsCancelPending = false;

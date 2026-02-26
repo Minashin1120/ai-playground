@@ -8,6 +8,7 @@ import base64
 import mimetypes
 import secrets
 import re
+import audioop
 import redis
 import shutil
 import glob
@@ -1315,6 +1316,29 @@ def _pcm_to_wav_bytes(pcm_bytes, rate=24000):
         wf.writeframes(pcm_bytes)
     return buf.getvalue()
 
+def _pcm_audio_metrics_mono_s16le(pcm_bytes, rate=24000):
+    try:
+        if not pcm_bytes:
+            return {"duration_sec": 0.0, "rms": 0, "peak": 0}
+        width = 2
+        frame_count = len(pcm_bytes) // width
+        duration_sec = (frame_count / float(rate)) if rate else 0.0
+        rms = int(audioop.rms(pcm_bytes, width)) if frame_count > 0 else 0
+        peak = int(audioop.max(pcm_bytes, width)) if frame_count > 0 else 0
+        return {"duration_sec": duration_sec, "rms": rms, "peak": peak}
+    except Exception:
+        return {"duration_sec": 0.0, "rms": 0, "peak": 0}
+
+def _llm_transcript_is_no_speech(text, token="[[NO_SPEECH]]"):
+    t = (text or "").strip()
+    if not t:
+        return False
+    if t == token:
+        return True
+    if token in t and len(t) <= (len(token) + 12):
+        return True
+    return False
+
 def _save_user_audio(user_id, data, suffix, encrypt):
     user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
     if not os.path.exists(user_dir): os.makedirs(user_dir, exist_ok=True)
@@ -1374,6 +1398,12 @@ def _extract_openai_response_text(resp):
     return ""
 
 def _transcribe_audio_with_llm(audio_content, fname, llm_model_key, user):
+    no_speech_token = "[[NO_SPEECH]]"
+    transcription_prompt = (
+        "この音声を日本語で正確に文字起こししてください。"
+        "出力は文字起こし本文のみ。説明・要約・補足は不要です。"
+        f"聞き取れない、無音、音声が極端に小さい場合は推測せず {no_speech_token} のみを返してください。"
+    )
     model_key = (llm_model_key or "").strip()
     model_key_l = model_key.lower()
     is_gem = ("gemini" in model_key_l) or ("nano" in model_key_l)
@@ -1393,6 +1423,15 @@ def _transcribe_audio_with_llm(audio_content, fname, llm_model_key, user):
         wav_bytes = _pcm_to_wav_bytes(pcm, rate=target_rate)
     except Exception as e:
         raise RuntimeError(f"Audio conversion failed (ffmpeg): {e}") from e
+
+    metrics = _pcm_audio_metrics_mono_s16le(pcm, rate=target_rate)
+    # Guard against near-silent capture in LLM mode to prevent hallucinated transcripts.
+    if metrics["duration_sec"] >= 0.35 and metrics["rms"] < 80 and metrics["peak"] < 600:
+        logger.warning(
+            "LLM transcription rejected due to near-silent audio "
+            f"(model={model_key}, dur={metrics['duration_sec']:.2f}s, rms={metrics['rms']}, peak={metrics['peak']})"
+        )
+        raise ValueError("録音音声が極端に小さい/無音です。マイク入力（ノイズ抑制設定含む）を確認して、もう一度お試しください。")
 
     if is_gem:
         gemini_runtime = _resolve_gemini_runtime(user)
@@ -1415,11 +1454,14 @@ def _transcribe_audio_with_llm(audio_content, fname, llm_model_key, user):
         resp = g_client.models.generate_content(
             model=model_key,
             contents=[
-                types.Part(text="この音声を文字起こししてください。出力は文字起こし本文のみ。説明や要約は不要です。"),
+                types.Part(text=transcription_prompt),
                 types.Part.from_bytes(data=wav_bytes, mime_type="audio/wav"),
             ],
         )
-        return (getattr(resp, "text", None) or "").strip()
+        text_out = (getattr(resp, "text", None) or "").strip()
+        if _llm_transcript_is_no_speech(text_out, no_speech_token):
+            raise ValueError("音声を検出できませんでした。マイク入力（ノイズ抑制設定含む）を確認して、もう一度お試しください。")
+        return text_out
 
     o_key = decrypt_val(user.openai_api_key)
     if not o_key and _admin_env_fallback_enabled(user):
@@ -1434,13 +1476,16 @@ def _transcribe_audio_with_llm(audio_content, fname, llm_model_key, user):
             {
                 "role": "user",
                 "content": [
-                    {"type": "input_text", "text": "この音声を文字起こししてください。出力は文字起こし本文のみ。説明や要約は不要です。"},
+                    {"type": "input_text", "text": transcription_prompt},
                     {"type": "input_audio", "input_audio": {"data": audio_b64, "format": "wav"}}
                 ]
             }
         ]
     )
-    return _extract_openai_response_text(resp)
+    text_out = _extract_openai_response_text(resp).strip()
+    if _llm_transcript_is_no_speech(text_out, no_speech_token):
+        raise ValueError("音声を検出できませんでした。マイク入力（ノイズ抑制設定含む）を確認して、もう一度お試しください。")
+    return text_out
 
 async def _openai_sts_realtime(pcm_bytes, api_key, model_key, voice="alloy", speed=None, rate=24000):
     # OpenAI Realtime currently supports 24kHz PCM audio for output; keep session aligned.

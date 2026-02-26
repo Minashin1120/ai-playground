@@ -272,6 +272,7 @@
         const TEMP_CHAT_HEARTBEAT_MIN_MS = 4000;
         const TEMP_CHAT_HEARTBEAT_MAX_MS = 15000;
         const CONNECTION_CHECK_INTERVAL_MS = 15000;
+        const CONNECTION_CHECK_FAST_INTERVAL_MS = 4000;
         const CONNECTION_CHECK_TIMEOUT_MS = 5000;
         const CONNECTION_UNSTABLE_LATENCY_MS = 1800;
         const CONNECTION_FAIL_TO_OFFLINE = 2;
@@ -331,6 +332,7 @@
         let tempChatHeartbeatIntervalMs = 0;
         let tempChatHeartbeatInFlight = false;
         let connectionCheckTimer = null;
+        let connectionCheckIntervalMs = 0;
         let connectionCheckInFlight = false;
         let connectionConsecutiveFail = 0;
         let connectionUnstableUntil = 0;
@@ -1248,12 +1250,29 @@
                 }
             }, CONNECTION_RECOVERED_BANNER_MS);
         }
+        function getConnectionCheckIntervalMs() {
+            if (connectionStatus === 'offline' || connectionStatus === 'unstable') return CONNECTION_CHECK_FAST_INTERVAL_MS;
+            if (connectionConsecutiveFail > 0) return CONNECTION_CHECK_FAST_INTERVAL_MS;
+            if (connectionUnstableUntil && Date.now() < connectionUnstableUntil) return CONNECTION_CHECK_FAST_INTERVAL_MS;
+            return CONNECTION_CHECK_INTERVAL_MS;
+        }
+        function refreshConnectionMonitorTimer(force = false) {
+            const nextIntervalMs = getConnectionCheckIntervalMs();
+            if (!force && connectionCheckTimer && connectionCheckIntervalMs === nextIntervalMs) return;
+            if (connectionCheckTimer) {
+                window.clearInterval(connectionCheckTimer);
+                connectionCheckTimer = null;
+            }
+            connectionCheckIntervalMs = nextIntervalMs;
+            connectionCheckTimer = window.setInterval(probeServerConnection, nextIntervalMs);
+        }
         async function probeServerConnection() {
             if (!navigator.onLine) {
                 connectionConsecutiveFail = CONNECTION_FAIL_TO_OFFLINE;
                 connectionUnstableUntil = 0;
                 connectionStatus = 'offline';
                 setConnectionBanner('offline');
+                refreshConnectionMonitorTimer();
                 return;
             }
             if (connectionCheckInFlight) return;
@@ -1291,6 +1310,7 @@
                         setConnectionBanner('hidden');
                     }
                 }
+                refreshConnectionMonitorTimer();
             } catch (e) {
                 const now = Date.now();
                 connectionConsecutiveFail += 1;
@@ -1302,20 +1322,21 @@
                     connectionStatus = 'unstable';
                     setConnectionBanner('unstable', 'サーバーとの通信が不安定です（再接続を試行中）');
                 }
+                refreshConnectionMonitorTimer();
             } finally {
                 window.clearTimeout(timeoutId);
                 connectionCheckInFlight = false;
             }
         }
         function startConnectionMonitor() {
-            if (connectionCheckTimer) window.clearInterval(connectionCheckTimer);
-            connectionCheckTimer = window.setInterval(probeServerConnection, CONNECTION_CHECK_INTERVAL_MS);
+            refreshConnectionMonitorTimer(true);
             probeServerConnection();
         }
         function stopConnectionMonitor() {
             if (!connectionCheckTimer) return;
             window.clearInterval(connectionCheckTimer);
             connectionCheckTimer = null;
+            connectionCheckIntervalMs = 0;
             if (connectionRecoveredHideTimer) {
                 window.clearTimeout(connectionRecoveredHideTimer);
                 connectionRecoveredHideTimer = null;
@@ -2651,6 +2672,7 @@
             window.addEventListener('offline', () => {
                 connectionStatus = 'offline';
                 setConnectionBanner('offline');
+                refreshConnectionMonitorTimer();
             });
             window.addEventListener('pagehide', stopConnectionMonitor);
             applyCacheMode(useSwCache);

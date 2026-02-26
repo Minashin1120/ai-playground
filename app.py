@@ -8405,6 +8405,63 @@ def bot_unban():
         unban_single_account(user)
     return jsonify({'status': 'ok', 'username': username, 'mode': mode})
 
+@app.route('/api/bot/speed-test', methods=['POST'])
+@login_required
+def bot_speed_test():
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({'error': '403'}), 403
+    target_username = _get_primary_admin_username()
+    if not target_username:
+        return jsonify({'error': 'primary_admin_not_configured'}), 400
+    user = User.query.filter_by(username=target_username).first()
+    if not user:
+        return jsonify({'error': 'primary_admin_not_found', 'target_username': target_username}), 404
+
+    # Admin accounts are skipped by live bot telemetry, so provide a deterministic
+    # dry-run speed test using the same scoring function for settings verification.
+    payload = {
+        'window_ms': 2200,
+        'clicks': 24,
+        'keys': 18,
+        'moves': 36,
+        'fast_clicks': 9,
+        'fast_keys': 16,
+        'click_burst': 14,
+        'key_burst': 20,
+        'avg_click_ms': 95,
+        'click_cv': 0.03,
+        'event_rate': 35.0,
+        'pointer_speed_max': 7200,
+        'pointer_speed_avg': 3100,
+    }
+    score, reasons = evaluate_bot_score(payload)
+
+    current_accumulated = 0.0
+    redis_key = f"bot:score:{user.id}"
+    try:
+        raw = redis_conn.get(redis_key)
+        if raw is not None:
+            current_accumulated = float(raw.decode() if isinstance(raw, (bytes, bytearray)) else raw)
+    except Exception:
+        current_accumulated = 0.0
+
+    projected_score = current_accumulated + float(score or 0)
+    return jsonify({
+        'status': 'ok',
+        'dry_run': True,
+        'target_username': user.username,
+        'target_is_admin': bool(getattr(user, 'is_admin', False)),
+        'target_is_primary_admin': _is_primary_admin_username(user.username),
+        'current_accumulated_score': current_accumulated,
+        'simulated_score': float(score or 0),
+        'projected_accumulated_score': projected_score,
+        'ban_threshold': 8,
+        'would_ban': projected_score >= 8,
+        'reasons': reasons,
+        'payload': payload,
+        'note': 'PRIMARY_ADMIN_USERNAME を対象にした速度判定の dry-run テストです（BANや設定変更は行いません）。'
+    })
+
 @app.route('/api/bot/users', methods=['GET'])
 @login_required
 def bot_users():

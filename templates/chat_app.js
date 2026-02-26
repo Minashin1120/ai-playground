@@ -3450,6 +3450,54 @@
                     }
                 };
             }
+            if (get('bot-speed-test-btn')) {
+                get('bot-speed-test-btn').onclick = async () => {
+                    const btn = get('bot-speed-test-btn');
+                    const box = get('bot-speed-test-result');
+                    if (btn) btn.disabled = true;
+                    if (btn) btn.classList.add('opacity-60', 'cursor-not-allowed');
+                    if (box) {
+                        box.classList.remove('hidden');
+                        box.textContent = '実行中...';
+                    }
+                    try {
+                        const res = await apiFetch('/api/bot/speed-test', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({})
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok || !data || data.status !== 'ok') {
+                            const msg = (data && data.error) ? data.error : 'スピードテストに失敗しました';
+                            if (box) box.textContent = `エラー: ${msg}`;
+                            showToast(msg, 'error', true);
+                            return;
+                        }
+                        const reasons = Array.isArray(data.reasons) && data.reasons.length ? data.reasons.join(', ') : '(none)';
+                        const payload = data.payload || {};
+                        const lines = [
+                            `対象: ${data.target_username || '(unknown)'}`,
+                            `モード: dry-run（非BAN / 非変更）`,
+                            `今回スコア: ${Number(data.simulated_score || 0).toFixed(2)} / BAN閾値 ${Number(data.ban_threshold || 8).toFixed(2)}`,
+                            `累積スコア: ${Number(data.current_accumulated_score || 0).toFixed(2)} -> ${Number(data.projected_accumulated_score || 0).toFixed(2)}`,
+                            `判定: ${data.would_ban ? 'BAN相当（しきい値到達）' : 'BAN未到達'}`,
+                            `理由: ${reasons}`,
+                            `payload: clicks=${payload.clicks ?? '-'}, fast_clicks=${payload.fast_clicks ?? '-'}, keys=${payload.keys ?? '-'}, fast_keys=${payload.fast_keys ?? '-'}, event_rate=${payload.event_rate ?? '-'}`,
+                        ];
+                        if (data.note) lines.push(`注記: ${data.note}`);
+                        if (box) box.textContent = lines.join('\\n');
+                        showToast('スピードテストを実行しました', 'success');
+                    } catch (e) {
+                        if (box) box.textContent = 'エラー: スピードテストに失敗しました';
+                        showToast('スピードテストに失敗しました', 'error', true);
+                    } finally {
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.classList.remove('opacity-60', 'cursor-not-allowed');
+                        }
+                    }
+                };
+            }
             if (get('ban-appeal-refresh')) {
                 get('ban-appeal-refresh').onclick = () => loadBanAppeals();
             }

@@ -7708,11 +7708,33 @@ def chat_stream_resume():
 @app.route('/api/stop_chat', methods=['POST'])
 @login_required
 def stop_chat():
-    job_id = request.json.get('job_id')
+    data = request.json or {}
+    job_id = data.get('job_id')
+    stop_source = 'job_id'
+    if not job_id:
+        thread_ref = data.get('thread_id')
+        t = resolve_thread_for_user(thread_ref, current_user.id) if thread_ref else None
+        if t:
+            pending_raw = None
+            try:
+                pending_raw = redis_conn.get(f"pending_job:{current_user.id}:{t.id}")
+            except Exception:
+                pending_raw = None
+            if pending_raw:
+                try:
+                    pending_obj = json.loads(pending_raw)
+                    job_id = (pending_obj or {}).get('job_id')
+                except Exception:
+                    try:
+                        job_id = pending_raw.decode("utf-8", "ignore")
+                    except Exception:
+                        job_id = None
+                if job_id:
+                    stop_source = 'thread_id'
     if job_id:
         redis_conn.set(f"stop_job:{job_id}", "1", ex=300)
-        return jsonify({'status': 'stopped'})
-    return jsonify({'error': 'no job_id'}), 400
+        return jsonify({'status': 'stopped', 'job_id': job_id, 'source': stop_source})
+    return jsonify({'error': 'no job_id', 'detail': 'pending job not found'}), 400
 
 @app.route('/api/temporary_chat/heartbeat', methods=['POST'])
 @login_required

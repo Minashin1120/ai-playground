@@ -2911,11 +2911,22 @@
                 if (stopJobId) suppressPendingJob(stopJobId);
                 if(abortController) abortController.abort(); 
                 try {
-                    if(stopJobId) {
-                        await apiFetch("/api/stop_chat", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({job_id: stopJobId})});
+                    if(stopJobId || stopThreadId) {
+                        const stopPayload = {};
+                        if (stopJobId) stopPayload.job_id = stopJobId;
+                        if (stopThreadId) stopPayload.thread_id = stopThreadId;
+                        const stopRes = await apiFetch("/api/stop_chat", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(stopPayload)});
+                        const stopData = await stopRes.json().catch(() => ({}));
+                        const resolvedStopJobId = normalizeJobIdForUi(stopData && stopData.job_id);
+                        if (resolvedStopJobId) {
+                            suppressPendingJob(resolvedStopJobId);
+                            if (manualStopContext && manualStopContext.seq === stopSeq) {
+                                manualStopContext.jobId = resolvedStopJobId;
+                            }
+                        }
                     }
                     if (manualStopContext && manualStopContext.seq === stopSeq) {
-                        await syncThreadAfterAbortedStream(stopThreadId);
+                        await syncThreadAfterAbortedStream(stopThreadId, { retries: 2, retryDelayMs: 180, notifyOnFailure: true });
                     }
                 } finally {
                     if (manualStopContext && manualStopContext.seq === stopSeq) {
@@ -7282,7 +7293,10 @@
             return true;
         }
 
-        async function syncThreadAfterAbortedStream(startedThreadId = null) {
+        async function syncThreadAfterAbortedStream(startedThreadId = null, opts = {}) {
+            const retries = Math.max(0, Number(opts.retries ?? 1) || 0);
+            const retryDelayMs = Math.max(0, Number(opts.retryDelayMs ?? 180) || 0);
+            const notifyOnFailure = !!opts.notifyOnFailure;
             const started = (startedThreadId !== null && startedThreadId !== undefined && startedThreadId !== '')
                 ? String(startedThreadId)
                 : null;
@@ -7291,12 +7305,28 @@
                 : null;
             if (!current) return false;
             if (started && current !== started) return false;
-            try {
-                await loadMessages(current, { preserveDraft: true, silent: true });
-                return true;
-            } catch (e) {
-                return false;
+            for (let attempt = 0; attempt <= retries; attempt++) {
+                try {
+                    if ((currentThreadId !== null && currentThreadId !== undefined && currentThreadId !== '') && String(currentThreadId) !== current) {
+                        return false;
+                    }
+                    await loadMessages(current, { preserveDraft: true, silent: true });
+                    return true;
+                } catch (e) {
+                    if (attempt < retries && retryDelayMs > 0) {
+                        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+                    }
+                }
             }
+            if (notifyOnFailure) {
+                const nowThread = (currentThreadId !== null && currentThreadId !== undefined && currentThreadId !== '')
+                    ? String(currentThreadId)
+                    : null;
+                if (nowThread === current) {
+                    showToast("停止後の履歴同期に失敗しました。画面を再読み込みすると確実です。", "warning", true);
+                }
+            }
+            return false;
         }
         
         async function sendMessage() { 
@@ -7694,7 +7724,7 @@
             } catch(e){ 
                 let syncedAfterAbort = false;
                 if (e.name === 'AbortError' && !isManualStopAbortForThread(streamStartedThreadId)) {
-                    syncedAfterAbort = await syncThreadAfterAbortedStream(streamStartedThreadId);
+                    syncedAfterAbort = await syncThreadAfterAbortedStream(streamStartedThreadId, { retries: 2, retryDelayMs: 180, notifyOnFailure: true });
                 }
                 if(e.name!=='AbortError') { 
                     const msg = "Connection Error: " + e.message;
@@ -7888,7 +7918,7 @@
                 }
             } catch (e) {
                 if (e.name === 'AbortError' && !isManualStopAbortForThread(resumeStartedThreadId)) {
-                    await syncThreadAfterAbortedStream(resumeStartedThreadId);
+                    await syncThreadAfterAbortedStream(resumeStartedThreadId, { retries: 2, retryDelayMs: 180, notifyOnFailure: true });
                 }
                 if (e.name !== 'AbortError') {
                     const msg = "Connection Error: " + e.message;

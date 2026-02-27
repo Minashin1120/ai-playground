@@ -4516,6 +4516,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             image_cfg_kwargs["image_size"] = size_val
                         config_kwargs = {
                             "temperature": 0.7,
+                            "candidate_count": 1,
                             "response_modalities": ["TEXT", "IMAGE"],
                             "safety_settings": [
                                 types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
@@ -4559,6 +4560,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if resp.candidates:
                             cand0 = resp.candidates[0]
                             parts0 = getattr(getattr(cand0, 'content', None), 'parts', None) or []
+                            
+                            # For gemini-3.1-flash-image-preview, if multiple image parts are returned (e.g. preview + final),
+                            # we only want to process the last one to avoid duplication.
+                            if img_model == "gemini-3.1-flash-image-preview":
+                                img_part_indices = [i for i, p in enumerate(parts0) if hasattr(p, 'inline_data') and p.inline_data]
+                                if len(img_part_indices) > 1:
+                                    # Keep only the last one
+                                    last_idx = img_part_indices[-1]
+                                    parts0 = [p for i, p in enumerate(parts0) if not (hasattr(p, 'inline_data') and p.inline_data) or i == last_idx]
+
                             for part in parts0:
                                 if hasattr(part, 'text') and part.text:
                                     txt = str(part.text)
@@ -5366,7 +5377,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             else:
                                                 with open(fp2, 'wb') as f: f.write(img_data)
                                                 
-                                            generated_images.append(f"{user_id}/{fn2}")
+                                            # generated_images.append(f"{user_id}/{fn2}")
                                             img_md = f"\n![Agentic View](/files/{user_id}/{fn2})\n"
                                             full_res += img_md
                                             pub("content", img_md)

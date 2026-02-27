@@ -4476,9 +4476,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             cand0 = resp.candidates[0]
                             parts0 = getattr(getattr(cand0, 'content', None), 'parts', None) or []
                             for part in parts0:
-                                if hasattr(part, 'thought_signature') and part.thought_signature:
-                                    signature_parts.append(base64.b64encode(part.thought_signature).decode('utf-8'))
-
                                 if hasattr(part, 'text') and part.text:
                                     txt = str(part.text)
                                     if txt.strip():
@@ -6752,7 +6749,47 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             if is_grok and grok_reasoning_supported and not thought_accumulated:
                 thought_accumulated = " "
             final_content = full_res
-            final_signature = json.dumps(signature_parts) if signature_parts else None
+
+            def _compact_thought_signature(parts):
+                if not parts:
+                    return None
+                max_json_bytes = 60000
+                max_items = 32
+                max_item_chars = 4096
+                compact = []
+                for raw in parts:
+                    if not isinstance(raw, str) or not raw:
+                        continue
+                    # Skip abnormal signatures to protect DB TEXT column and history payload.
+                    if len(raw) > max_item_chars:
+                        continue
+                    compact.append(raw)
+                    if len(compact) >= max_items:
+                        break
+                if not compact:
+                    return None
+                enc = json.dumps(compact, separators=(",", ":"))
+                if len(enc.encode('utf-8')) <= max_json_bytes:
+                    return enc
+                while compact:
+                    compact.pop()
+                    if not compact:
+                        return None
+                    enc = json.dumps(compact, separators=(",", ":"))
+                    if len(enc.encode('utf-8')) <= max_json_bytes:
+                        return enc
+                return None
+
+            sig_original_count = len(signature_parts)
+            final_signature = _compact_thought_signature(signature_parts)
+            if sig_original_count:
+                try:
+                    sig_kept_count = len(json.loads(final_signature)) if final_signature else 0
+                except Exception:
+                    sig_kept_count = 0
+                if sig_kept_count < sig_original_count:
+                    log_force(f"Trimmed thought_signature for DB storage: kept {sig_kept_count}/{sig_original_count}")
+
             final_thought = json.dumps({'text': thought_accumulated}) if thought_accumulated else None
             is_enc = user_config.get('enable_e2ee', False)
             if is_enc:

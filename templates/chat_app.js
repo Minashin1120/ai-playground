@@ -358,6 +358,7 @@
         let turnstileToken = null;
         let turnstilePending = false;
         let chatDefaultsLoaded = false;
+        let modelApiKeyMap = {};
         const THREAD_INITIAL_MESSAGE_LIMIT = 120;
         const THREAD_OLDER_PAGE_SIZE = 120;
         const LOW_BANDWIDTH_INITIAL_MESSAGE_LIMIT = 40;
@@ -1946,6 +1947,164 @@
             }
         ];
 
+        const normalizeModelApiKeyMap = (raw) => {
+            if (!raw || typeof raw !== 'object') return {};
+            const out = {};
+            Object.entries(raw).forEach(([modelId, apiKey]) => {
+                const mk = String(modelId || '').trim();
+                const kv = String(apiKey || '').trim();
+                if (!mk || !kv) return;
+                out[mk] = kv;
+            });
+            return out;
+        };
+        const MODEL_NAME_BY_ID = (() => {
+            const map = new Map();
+            MODELS.forEach((group) => {
+                (group.items || []).forEach((item) => {
+                    const id = String(item.id || '').trim();
+                    if (!id || map.has(id)) return;
+                    map.set(id, String(item.name || id));
+                });
+            });
+            return map;
+        })();
+        const getModelNameById = (modelId) => {
+            const mk = String(modelId || '').trim();
+            if (!mk) return '';
+            return MODEL_NAME_BY_ID.get(mk) || mk;
+        };
+        const maskApiKeyPreview = (key) => {
+            const txt = String(key || '');
+            if (!txt) return '';
+            if (txt.length <= 8) return '********';
+            return `${txt.slice(0, 4)}...${txt.slice(-4)}`;
+        };
+        const setModelApiKeyPanelOpen = (open) => {
+            const panel = get('model-api-keys-panel');
+            const btn = get('toggle-model-api-keys-btn');
+            if (!panel || !btn) return;
+            const show = !!open;
+            panel.classList.toggle('hidden', !show);
+            btn.innerText = show ? 'モデル別APIキー設定を閉じる' : 'モデル別のAPIキーを設定する';
+        };
+        const syncModelApiKeyModelOptions = () => {
+            const select = get('model-api-key-model');
+            if (!select) return;
+            const prev = select.value || '';
+            select.innerHTML = '';
+            const first = document.createElement('option');
+            first.value = '';
+            first.textContent = 'モデルを選択';
+            select.appendChild(first);
+            MODELS.forEach((group) => {
+                const items = Array.isArray(group.items) ? group.items : [];
+                if (!items.length) return;
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = String(group.category || 'Models');
+                items.forEach((item) => {
+                    const id = String(item.id || '').trim();
+                    if (!id) return;
+                    const op = document.createElement('option');
+                    op.value = id;
+                    op.textContent = `${String(item.name || id)} (${id})`;
+                    optgroup.appendChild(op);
+                });
+                if (optgroup.children.length > 0) select.appendChild(optgroup);
+            });
+            if (prev) {
+                const hasPrev = Array.from(select.options).some((op) => op.value === prev);
+                if (hasPrev) select.value = prev;
+            }
+        };
+        const renderModelApiKeyList = () => {
+            const list = get('model-api-key-list');
+            if (!list) return;
+            modelApiKeyMap = normalizeModelApiKeyMap(modelApiKeyMap);
+            const entries = Object.entries(modelApiKeyMap).sort((a, b) => a[0].localeCompare(b[0]));
+            list.innerHTML = '';
+            if (!entries.length) {
+                const empty = document.createElement('div');
+                empty.className = 'text-[11px] text-gray-500';
+                empty.textContent = 'モデル別キーは未設定です。';
+                list.appendChild(empty);
+                return;
+            }
+            entries.forEach(([modelId, key]) => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between gap-3 rounded border border-gray-700 bg-gray-900/70 px-3 py-2';
+                const left = document.createElement('div');
+                left.className = 'min-w-0';
+                const title = document.createElement('div');
+                title.className = 'text-[11px] text-gray-200 truncate';
+                title.textContent = `${getModelNameById(modelId)} (${modelId})`;
+                const keyView = document.createElement('div');
+                keyView.className = 'text-[10px] text-cyan-300 font-mono';
+                keyView.textContent = maskApiKeyPreview(key);
+                left.appendChild(title);
+                left.appendChild(keyView);
+                const delBtn = document.createElement('button');
+                delBtn.type = 'button';
+                delBtn.className = 'text-[10px] bg-red-700/80 hover:bg-red-600 text-white px-2 py-1 rounded font-bold btn-hover shrink-0';
+                delBtn.textContent = '削除';
+                delBtn.onclick = () => {
+                    delete modelApiKeyMap[modelId];
+                    renderModelApiKeyList();
+                    showToast(`モデル別APIキーを削除: ${modelId}`, 'success');
+                };
+                row.appendChild(left);
+                row.appendChild(delBtn);
+                list.appendChild(row);
+            });
+        };
+        const bindModelApiKeySettingsControls = () => {
+            const toggleBtn = get('toggle-model-api-keys-btn');
+            if (toggleBtn && !toggleBtn.dataset.bound) {
+                toggleBtn.dataset.bound = '1';
+                toggleBtn.addEventListener('click', () => {
+                    const panel = get('model-api-keys-panel');
+                    setModelApiKeyPanelOpen(panel ? panel.classList.contains('hidden') : true);
+                });
+            }
+            const addBtn = get('model-api-key-apply-btn');
+            if (addBtn && !addBtn.dataset.bound) {
+                addBtn.dataset.bound = '1';
+                addBtn.addEventListener('click', () => {
+                    const modelSel = get('model-api-key-model');
+                    const keyInput = get('model-api-key-input');
+                    const modelId = modelSel ? String(modelSel.value || '').trim() : '';
+                    const keyVal = keyInput ? String(keyInput.value || '').trim() : '';
+                    if (!modelId) {
+                        showToast('モデルを選択してください', 'error', true);
+                        return;
+                    }
+                    if (!keyVal) {
+                        showToast('APIキーを入力してください', 'error', true);
+                        return;
+                    }
+                    modelApiKeyMap = normalizeModelApiKeyMap(modelApiKeyMap);
+                    modelApiKeyMap[modelId] = keyVal;
+                    if (keyInput) keyInput.value = '';
+                    renderModelApiKeyList();
+                    showToast(`モデル別APIキーを設定: ${modelId}`, 'success');
+                });
+            }
+            const keyInput = get('model-api-key-input');
+            if (keyInput && !keyInput.dataset.bound) {
+                keyInput.dataset.bound = '1';
+                keyInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const addBtnEl = get('model-api-key-apply-btn');
+                        if (addBtnEl) addBtnEl.click();
+                    }
+                });
+            }
+            syncModelApiKeyModelOptions();
+            renderModelApiKeyList();
+            setModelApiKeyPanelOpen(false);
+        };
+
         let activeModelTag = 'all';
         const MODEL_TAGS = ['all','openai','gemini','xai','image','audio','reasoning','fast'];
         const STS_MODELS = new Set([
@@ -3246,6 +3405,10 @@
                         if(get('set-xai')) get('set-xai').value = d.xai_key || ''; 
                     if(get('set-google-key')) get('set-google-key').value = d.google_key || ''; 
                     if(get('set-google-project')) get('set-google-project').value = d.google_project || ''; 
+                    modelApiKeyMap = normalizeModelApiKeyMap(d.model_api_keys || {});
+                    syncModelApiKeyModelOptions();
+                    renderModelApiKeyList();
+                    setModelApiKeyPanelOpen(false);
                     if(get('set-mic-transcribe-mode')) get('set-mic-transcribe-mode').value = d.mic_transcribe_mode || 'stt_api';
                     if(get('set-stt-model')) get('set-stt-model').value = d.stt_model || 'gpt-4o-mini-transcribe';
                     if(get('set-llm-transcribe-prompt')) {
@@ -3411,6 +3574,7 @@
             get('close-settings-btn').onclick = () => closeSettingsModal(); 
             bindThemeControls();
             bindSystemPromptControls();
+            bindModelApiKeySettingsControls();
             syncGeminiLocalPyDialogSetting();
             const localPyDialogSetting = get('set-gemini-local-python-dialog');
             if (localPyDialogSetting) {
@@ -3468,6 +3632,7 @@
                 };
                 if (get('set-openai')) b.openai_key = get('set-openai').value;
                 if (get('set-gemini')) b.gemini_key = get('set-gemini').value;
+                b.model_api_keys = normalizeModelApiKeyMap(modelApiKeyMap);
                 if (get('set-gemini-backend')) b.gemini_backend = normalizeGeminiBackend(get('set-gemini-backend').value);
                 if (get('set-gemini-vertex-project')) b.gemini_vertex_project = get('set-gemini-vertex-project').value;
                 if (get('set-gemini-vertex-location')) b.gemini_vertex_location = get('set-gemini-vertex-location').value;

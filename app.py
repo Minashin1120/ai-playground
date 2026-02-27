@@ -293,6 +293,73 @@ def _resolve_gemini_runtime(user):
         "vertex_credentials_json": vertex_credentials_json,
     }
 
+_MODEL_API_KEY_MAX_ENTRIES = 256
+_MODEL_API_KEY_MODEL_MAX_LEN = 128
+_MODEL_API_KEY_VALUE_MAX_LEN = 1024
+
+def _normalize_model_api_key_map(raw):
+    if raw is None:
+        return {}
+    parsed = raw
+    if isinstance(raw, str):
+        txt = raw.strip()
+        if not txt:
+            return {}
+        try:
+            parsed = json.loads(txt)
+        except Exception:
+            return {}
+    if not isinstance(parsed, dict):
+        return {}
+    out = {}
+    for k, v in parsed.items():
+        mk = str(k or "").strip()
+        if not mk:
+            continue
+        if len(mk) > _MODEL_API_KEY_MODEL_MAX_LEN:
+            mk = mk[:_MODEL_API_KEY_MODEL_MAX_LEN]
+        mv = str(v or "").strip()
+        if not mv:
+            continue
+        if len(mv) > _MODEL_API_KEY_VALUE_MAX_LEN:
+            mv = mv[:_MODEL_API_KEY_VALUE_MAX_LEN]
+        out[mk] = mv
+        if len(out) >= _MODEL_API_KEY_MAX_ENTRIES:
+            break
+    return out
+
+def _load_user_model_api_key_map(user):
+    if not user:
+        return {}
+    raw = decrypt_val(getattr(user, "model_api_keys", None))
+    return _normalize_model_api_key_map(raw)
+
+def _save_user_model_api_key_map(user, raw):
+    if not user:
+        return {}
+    normalized = _normalize_model_api_key_map(raw)
+    if not normalized:
+        user.model_api_keys = None
+        return {}
+    payload = json.dumps(normalized, ensure_ascii=False, separators=(",", ":"))
+    user.model_api_keys = encrypt_val(payload)
+    return normalized
+
+def _get_model_specific_api_key(user, model_key):
+    mk = str(model_key or "").strip()
+    if not user or not mk:
+        return None
+    key_map = _load_user_model_api_key_map(user)
+    hit = key_map.get(mk)
+    if hit and str(hit).strip():
+        return str(hit).strip()
+    mk_l = mk.lower()
+    for k, v in key_map.items():
+        if str(k or "").strip().lower() == mk_l:
+            val = str(v or "").strip()
+            return val or None
+    return None
+
 def _closest_aspect_ratio(width, height, allowed):
     try:
         if not width or not height:
@@ -1457,7 +1524,7 @@ def _transcribe_audio_with_llm(audio_content, fname, llm_model_key, user):
 
     if is_gem:
         gemini_runtime = _resolve_gemini_runtime(user)
-        g_key = gemini_runtime.get("api_key")
+        g_key = _get_model_specific_api_key(user, model_key) or gemini_runtime.get("api_key")
         backend = gemini_runtime.get("backend")
         if backend == "vertex_ai":
             if not gemini_runtime.get("vertex_project"):
@@ -1485,7 +1552,7 @@ def _transcribe_audio_with_llm(audio_content, fname, llm_model_key, user):
             raise ValueError("音声を検出できませんでした。マイク入力（ノイズ抑制設定含む）を確認して、もう一度お試しください。")
         return text_out
 
-    o_key = decrypt_val(user.openai_api_key)
+    o_key = _get_model_specific_api_key(user, model_key) or decrypt_val(user.openai_api_key)
     if not o_key and _admin_env_fallback_enabled(user):
         o_key = os.getenv('OPENAI_API_KEY')
     if not o_key:
@@ -1697,6 +1764,7 @@ class User(UserMixin, db.Model):
     auto_system_prompt_notices_config = db.Column(db.Text, nullable=True)
     openai_api_key = db.Column(db.Text, nullable=True)
     gemini_api_key = db.Column(db.Text, nullable=True)
+    model_api_keys = db.Column(db.Text, nullable=True)
     gemini_backend = db.Column(db.String(24), default="gemini_api")
     gemini_vertex_project = db.Column(db.Text, nullable=True)
     gemini_vertex_location = db.Column(db.String(64), default="global")
@@ -2370,6 +2438,21 @@ def ensure_user_admin_api_key_mode_column():
             if not res:
                 conn.execute(text("SET SESSION lock_wait_timeout=1"))
                 conn.execute(text("ALTER TABLE user ADD COLUMN admin_api_key_mode VARCHAR(24) DEFAULT 'env_fallback'"))
+    except Exception:
+        pass
+
+def ensure_user_model_api_keys_column():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='user' "
+                "AND COLUMN_NAME='model_api_keys'"
+            )).scalar()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN model_api_keys TEXT"))
     except Exception:
         pass
 
@@ -4045,6 +4128,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 return None
 
             gemini_runtime = _resolve_gemini_runtime(user)
+            model_api_key_override = _get_model_specific_api_key(user, model_key)
 
             api_keys = {
                 'openai': get_k(user.openai_api_key, 'OPENAI_API_KEY'),
@@ -4053,9 +4137,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             }
 
             key = None
-            if is_gem: key = api_keys.get('gemini')
-            elif is_grok: key = api_keys.get('xai')
-            else: key = api_keys.get('openai') 
+            if is_gem: key = model_api_key_override or api_keys.get('gemini')
+            elif is_grok: key = model_api_key_override or api_keys.get('xai')
+            else: key = model_api_key_override or api_keys.get('openai')
 
             if is_gem:
                 if gemini_runtime.get("backend") == "vertex_ai":
@@ -5767,13 +5851,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                     if 'google-tts' in model_key:
                         # Google Cloud TTS (requires Google Cloud API key, not Gemini API key)
-                        g_key = decrypt_val(current_user.google_api_key)
-                        if not g_key and _admin_env_fallback_enabled(current_user):
+                        g_key = model_api_key_override or decrypt_val(user.google_api_key)
+                        if not g_key and _admin_env_fallback_enabled(user):
                             g_key = os.getenv('GOOGLE_API_KEY')
                         if not g_key:
                             raise RuntimeError("Google API Key is not configured for Google TTS.")
-                        g_project = decrypt_val(current_user.google_cloud_project)
-                        if not g_project and _admin_env_fallback_enabled(current_user):
+                        g_project = decrypt_val(user.google_cloud_project)
+                        if not g_project and _admin_env_fallback_enabled(user):
                             g_project = os.getenv('GOOGLE_CLOUD_PROJECT')
                         opts = {"api_key": g_key}
                         if g_project: opts["quota_project_id"] = g_project
@@ -7847,10 +7931,18 @@ def generate_title_api():
         
         # [FIX] Multi-model fallback logic
         title = "New Chat"
-        o_key = decrypt_val(current_user.openai_api_key) or (os.getenv('OPENAI_API_KEY') if _admin_env_fallback_enabled(current_user) else None)
+        o_key = (
+            _get_model_specific_api_key(current_user, "gpt-4o-mini")
+            or decrypt_val(current_user.openai_api_key)
+            or (os.getenv('OPENAI_API_KEY') if _admin_env_fallback_enabled(current_user) else None)
+        )
         gemini_runtime = _resolve_gemini_runtime(current_user)
-        g_key = gemini_runtime.get("api_key")
-        x_key = decrypt_val(current_user.xai_api_key) or (os.getenv('XAI_API_KEY') if _admin_env_fallback_enabled(current_user) else None)
+        g_key = _get_model_specific_api_key(current_user, "gemini-2.5-flash-lite") or gemini_runtime.get("api_key")
+        x_key = (
+            _get_model_specific_api_key(current_user, "grok-4-1-fast-non-reasoning")
+            or decrypt_val(current_user.xai_api_key)
+            or (os.getenv('XAI_API_KEY') if _admin_env_fallback_enabled(current_user) else None)
+        )
 
         # Try OpenAI (gpt-4o-mini)
         if o_key:
@@ -9030,6 +9122,7 @@ def handle_settings():
             'username': current_user.username, 
             'openai_key': decrypt_val(current_user.openai_api_key) or "", 
             'gemini_key': decrypt_val(current_user.gemini_api_key) or "", 
+            'model_api_keys': _load_user_model_api_key_map(current_user),
             'gemini_backend': _normalize_gemini_backend(current_user.gemini_backend),
             'gemini_vertex_project': decrypt_val(current_user.gemini_vertex_project) or "",
             'gemini_vertex_location': _normalize_gemini_vertex_location(current_user.gemini_vertex_location),
@@ -9095,6 +9188,7 @@ def handle_settings():
         set_user_auto_system_prompt_notices_config(current_user, d.get('auto_system_prompt_notices_config'))
     if 'openai_key' in d: current_user.openai_api_key = encrypt_val(d['openai_key'])
     if 'gemini_key' in d: current_user.gemini_api_key = encrypt_val(d['gemini_key'])
+    if 'model_api_keys' in d: _save_user_model_api_key_map(current_user, d.get('model_api_keys'))
     if 'gemini_backend' in d: current_user.gemini_backend = _normalize_gemini_backend(d['gemini_backend'])
     if 'gemini_vertex_project' in d: current_user.gemini_vertex_project = encrypt_val(d['gemini_vertex_project'])
     if 'gemini_vertex_location' in d: current_user.gemini_vertex_location = _normalize_gemini_vertex_location(d['gemini_vertex_location'])
@@ -9519,12 +9613,6 @@ def transcribe():
             transcript = _transcribe_audio_with_llm(audio_content, fname, llm_model_key, current_user)
             return jsonify({'transcript': transcript, 'mode': 'llm'})
 
-        key = decrypt_val(current_user.openai_api_key)
-        if not key and _admin_env_fallback_enabled(current_user):
-            key = os.getenv('OPENAI_API_KEY')
-        if not key:
-            return jsonify({'error': 'OpenAI API Key not configured'}), 400
-
         allowed_models = {
             "gpt-4o-mini-transcribe",
             "gpt-4o-transcribe",
@@ -9534,6 +9622,11 @@ def transcribe():
         model = (current_user.stt_model or "").strip()
         if model not in allowed_models:
             model = "gpt-4o-mini-transcribe"
+        key = _get_model_specific_api_key(current_user, model) or decrypt_val(current_user.openai_api_key)
+        if not key and _admin_env_fallback_enabled(current_user):
+            key = os.getenv('OPENAI_API_KEY')
+        if not key:
+            return jsonify({'error': 'OpenAI API Key not configured'}), 400
 
         client = _get_openai_client(key, base_url=None)
         audio_file = BytesIO(audio_content)
@@ -9643,9 +9736,10 @@ def speech_to_speech():
     assistant_text = ""
     input_text = ""
     gemini_runtime = None
+    model_specific_key = _get_model_specific_api_key(current_user, model_key)
     try:
         if provider == "openai":
-            key = decrypt_val(current_user.openai_api_key)
+            key = model_specific_key or decrypt_val(current_user.openai_api_key)
             if not key and _admin_env_fallback_enabled(current_user):
                 key = os.getenv('OPENAI_API_KEY')
             if not key:
@@ -9654,7 +9748,7 @@ def speech_to_speech():
                 _openai_sts_realtime(pcm_bytes, key, model_key, voice=sts_voice, speed=sts_speed, rate=rate_out)
             )
         elif provider == "xai":
-            key = decrypt_val(current_user.xai_api_key)
+            key = model_specific_key or decrypt_val(current_user.xai_api_key)
             if not key and _admin_env_fallback_enabled(current_user):
                 key = os.getenv('XAI_API_KEY')
             if not key:
@@ -9664,7 +9758,7 @@ def speech_to_speech():
             )
         elif provider == "google":
             gemini_runtime = _resolve_gemini_runtime(current_user)
-            key = gemini_runtime.get("api_key")
+            key = model_specific_key or gemini_runtime.get("api_key")
             if gemini_runtime.get("backend") == "vertex_ai":
                 if not gemini_runtime.get("vertex_project"):
                     return jsonify({'error': 'Vertex AI Project ID not configured'}), 400
@@ -10120,6 +10214,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_user_model_api_keys_column()
+    except Exception:
+        pass
+    try:
         ensure_user_temp_chat_timeout_column()
     except Exception:
         pass
@@ -10192,6 +10290,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN admin_api_key_mode VARCHAR(24) DEFAULT 'env_fallback'")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN model_api_keys TEXT")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN is_2fa_enabled BOOLEAN DEFAULT 0")

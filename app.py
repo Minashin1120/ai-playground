@@ -4613,6 +4613,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     rm = model_key
                     if "gemini-3.1-pro" in model_key:
                         rm = "gemini-3.1-pro-preview"
+                    elif "gemini-3.1-flash-lite" in model_key:
+                        rm = "gemini-3.1-flash-lite-preview"
                     elif "gemini-3-flash" in model_key or "gemini-3.0-flash" in model_key:
                         rm = "gemini-3-flash-preview"
                     elif "gemini-3-pro" in model_key or "gemini-3.0-pro" in model_key:

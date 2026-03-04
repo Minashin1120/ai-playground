@@ -560,6 +560,9 @@ app.config['MAINTENANCE_MODE'] = os.path.exists(os.path.join(os.path.dirname(__f
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/10')
 redis_conn = redis.from_url(REDIS_URL)
 task_queue = Queue('ai_chat_queue', connection=redis_conn)
+_LATENCY_TRACE_PREFIX = "latency_trace:"
+_LATENCY_TRACE_TTL_SECONDS = max(300, _env_int("LATENCY_TRACE_TTL_SECONDS", 86400))
+_DIRECT_FIRST_TURN_ENABLED = _env_bool("CHAT_STREAM_DIRECT_FIRST_TURN", True)
 
 _TEMP_CHAT_TIMEOUT_MIN_SECONDS = max(10, _env_int("TEMP_CHAT_TIMEOUT_MIN_SECONDS", 30))
 _TEMP_CHAT_TIMEOUT_MAX_SECONDS = max(_TEMP_CHAT_TIMEOUT_MIN_SECONDS, _env_int("TEMP_CHAT_TIMEOUT_MAX_SECONDS", 3600))
@@ -1949,6 +1952,7 @@ class FirstTokenLatencyMetric(db.Model):
     __tablename__ = 'first_token_latency_metric'
     __table_args__ = (
         db.Index('idx_ft_latency_user_created', 'user_id', 'created_at'),
+        db.Index('idx_ft_latency_user_event_created', 'user_id', 'first_event_type', 'created_at'),
     )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
@@ -1962,6 +1966,58 @@ class FirstTokenLatencyMetric(db.Model):
     ip_address = db.Column(db.String(64), nullable=True)
     user_agent = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+class ChatLatencyTrace(db.Model):
+    __tablename__ = 'chat_latency_trace'
+    __table_args__ = (
+        db.UniqueConstraint('job_id', name='uq_chat_latency_trace_job_id'),
+        db.Index('idx_chat_latency_trace_user_created', 'user_id', 'created_at'),
+        db.Index('idx_chat_latency_trace_thread_created', 'thread_public_id', 'created_at'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    thread_public_id = db.Column(db.String(64), nullable=True, index=True)
+    job_id = db.Column(db.String(64), nullable=False, index=True)
+    model = db.Column(db.String(80), nullable=True)
+    execution_path = db.Column(db.String(24), nullable=True)
+    client_sent_at = db.Column(db.DateTime, nullable=True)
+    client_first_event_type = db.Column(db.String(32), nullable=True)
+    client_first_latency_ms = db.Column(db.Integer, nullable=True)
+    route_received_at = db.Column(db.DateTime, nullable=True)
+    route_dispatch_at = db.Column(db.DateTime, nullable=True)
+    route_stream_open_at = db.Column(db.DateTime, nullable=True)
+    worker_started_at = db.Column(db.DateTime, nullable=True)
+    provider_request_started_at = db.Column(db.DateTime, nullable=True)
+    provider_first_chunk_at = db.Column(db.DateTime, nullable=True)
+    provider_first_status_at = db.Column(db.DateTime, nullable=True)
+    provider_first_thought_at = db.Column(db.DateTime, nullable=True)
+    provider_first_content_at = db.Column(db.DateTime, nullable=True)
+    stream_first_pubsub_at = db.Column(db.DateTime, nullable=True)
+    stream_first_status_to_client_at = db.Column(db.DateTime, nullable=True)
+    stream_first_thought_to_client_at = db.Column(db.DateTime, nullable=True)
+    stream_first_content_to_client_at = db.Column(db.DateTime, nullable=True)
+    stream_done_at = db.Column(db.DateTime, nullable=True)
+    worker_done_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+_LATENCY_PHASE_TO_FIELD = {
+    "route_received_ms": "route_received_at",
+    "route_dispatch_ms": "route_dispatch_at",
+    "route_stream_open_ms": "route_stream_open_at",
+    "worker_started_ms": "worker_started_at",
+    "provider_request_started_ms": "provider_request_started_at",
+    "provider_first_chunk_ms": "provider_first_chunk_at",
+    "provider_first_status_ms": "provider_first_status_at",
+    "provider_first_thought_ms": "provider_first_thought_at",
+    "provider_first_content_ms": "provider_first_content_at",
+    "stream_first_pubsub_ms": "stream_first_pubsub_at",
+    "stream_first_status_to_client_ms": "stream_first_status_to_client_at",
+    "stream_first_thought_to_client_ms": "stream_first_thought_to_client_at",
+    "stream_first_content_to_client_ms": "stream_first_content_to_client_at",
+    "stream_done_ms": "stream_done_at",
+    "worker_done_ms": "worker_done_at",
+}
 
 @login_manager.user_loader
 def load_user(uid): return User.query.get(int(uid))
@@ -1978,6 +2034,115 @@ def get_client_ip():
     if fwd:
         return fwd.split(',')[0].strip()
     return request.remote_addr
+
+def _now_epoch_ms():
+    return int(time.time() * 1000)
+
+def _latency_trace_key(job_id):
+    return f"{_LATENCY_TRACE_PREFIX}{job_id}"
+
+def _latency_mark(job_id, phase, ts_ms=None, only_if_missing=False):
+    if not job_id or not phase:
+        return None
+    try:
+        v = int(ts_ms if ts_ms is not None else _now_epoch_ms())
+    except Exception:
+        v = _now_epoch_ms()
+    try:
+        k = _latency_trace_key(job_id)
+        if only_if_missing:
+            redis_conn.hsetnx(k, phase, v)
+        else:
+            redis_conn.hset(k, phase, v)
+        redis_conn.expire(k, _LATENCY_TRACE_TTL_SECONDS)
+    except Exception:
+        pass
+    return v
+
+def _latency_mark_once(job_id, phase, ts_ms=None):
+    return _latency_mark(job_id, phase, ts_ms=ts_ms, only_if_missing=True)
+
+def _latency_read(job_id):
+    if not job_id:
+        return {}
+    out = {}
+    try:
+        raw = redis_conn.hgetall(_latency_trace_key(job_id)) or {}
+    except Exception:
+        raw = {}
+    for k, v in raw.items():
+        try:
+            ks = k.decode("utf-8", "ignore") if isinstance(k, (bytes, bytearray)) else str(k)
+            vs = v.decode("utf-8", "ignore") if isinstance(v, (bytes, bytearray)) else str(v)
+            out[ks] = int(vs)
+        except Exception:
+            continue
+    return out
+
+def _epoch_ms_to_utc_datetime(ms):
+    try:
+        ms_i = int(ms)
+    except Exception:
+        return None
+    if ms_i < 946684800000 or ms_i > 4102444800000:
+        return None
+    try:
+        return datetime.utcfromtimestamp(ms_i / 1000.0)
+    except Exception:
+        return None
+
+def _upsert_chat_latency_trace(job_id, user_id, thread_public_id=None, model=None, execution_path=None, client_sent_at_ms=None, client_first_event_type=None, client_first_latency_ms=None):
+    if not job_id or not user_id:
+        return None
+    try:
+        trace = ChatLatencyTrace.query.filter_by(job_id=job_id).first()
+        if not trace:
+            trace = ChatLatencyTrace(job_id=job_id, user_id=user_id)
+        if thread_public_id:
+            trace.thread_public_id = str(thread_public_id)[:64]
+        if model:
+            trace.model = str(model)[:80]
+        if execution_path:
+            trace.execution_path = str(execution_path)[:24]
+        if client_sent_at_ms is not None:
+            dt = _epoch_ms_to_utc_datetime(client_sent_at_ms)
+            if dt:
+                trace.client_sent_at = dt
+        if client_first_event_type:
+            trace.client_first_event_type = str(client_first_event_type)[:32]
+        if client_first_latency_ms is not None:
+            try:
+                c_ms = max(0, int(client_first_latency_ms))
+            except Exception:
+                c_ms = None
+            if c_ms is not None and (trace.client_first_latency_ms is None or c_ms < trace.client_first_latency_ms):
+                trace.client_first_latency_ms = c_ms
+
+        phases = _latency_read(job_id)
+        for phase_key, field_name in _LATENCY_PHASE_TO_FIELD.items():
+            if getattr(trace, field_name, None) is not None:
+                continue
+            dt = _epoch_ms_to_utc_datetime(phases.get(phase_key))
+            if dt:
+                setattr(trace, field_name, dt)
+        db.session.add(trace)
+        safe_db_commit()
+        return trace
+    except Exception:
+        db.session.rollback()
+        return None
+
+def _trace_delta_ms(trace, start_field, end_field):
+    if not trace:
+        return None
+    a = getattr(trace, start_field, None)
+    b = getattr(trace, end_field, None)
+    if not a or not b:
+        return None
+    try:
+        return int((b - a).total_seconds() * 1000)
+    except Exception:
+        return None
 
 CLIENT_TOKEN_COOKIE = "ai_client_token"
 
@@ -3755,6 +3920,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
     with app.app_context():
         channel = f"ai_chat:channel:{job_id}"
         r = redis.from_url(REDIS_URL)
+        _latency_mark_once(job_id, "worker_started_ms")
         def _append_limited(key, chunk, limit=1_000_000):
             try:
                 if chunk is None:
@@ -3771,6 +3937,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             except Exception:
                 pass
         def pub(dt, d):
+            if dt == "status":
+                _latency_mark_once(job_id, "provider_first_status_ms")
+            elif dt == "thought":
+                _latency_mark_once(job_id, "provider_first_thought_ms")
+            elif dt == "content":
+                _latency_mark_once(job_id, "provider_first_content_ms")
+            elif dt in ("done", "error"):
+                _latency_mark_once(job_id, "worker_done_ms")
             r.publish(channel, json.dumps({"type": dt, "content": d}))
             try:
                 if dt == "content":
@@ -3796,6 +3970,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 log_force(f"Job {job_id} stopped by user.")
                 return True
             return False
+
+        def _mark_provider_request_started():
+            _latency_mark_once(job_id, "provider_request_started_ms")
         
         def _decode_text_bytes(raw):
             return _decode_text_bytes_for_prompt(raw)
@@ -4228,7 +4405,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     norm_name = _normalize_display_name_for_path(norm_path, raw_name)
                     if norm_name:
                         attachment_name_map[norm_path] = norm_name
-            label_name_map = _get_user_file_label_map(user_id)
+            label_name_map = _get_user_file_label_map(user_id) if img_list else {}
 
             def _resolve_send_name(rel_path, mime):
                 norm_rel = _normalize_upload_ref(rel_path)
@@ -4245,143 +4422,144 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if fixed:
                         return fixed
                 return _sanitize_file_display_name(base_name) or "file"
-            try:
-                max_single_mb = int(os.getenv("ATTACHMENT_MAX_MB", str(_upload_max_mb)) or _upload_max_mb)
-            except Exception:
-                max_single_mb = _upload_max_mb
-            max_single_bytes = max_single_mb * 1024 * 1024 if max_single_mb else 0
-            max_total_bytes = 0
-            try:
-                max_total_mb = os.getenv("ATTACHMENT_TOTAL_MAX_MB")
-                if max_total_mb and str(max_total_mb).strip():
-                    max_total_bytes = int(max_total_mb) * 1024 * 1024
-            except Exception:
+            if img_list:
+                try:
+                    max_single_mb = int(os.getenv("ATTACHMENT_MAX_MB", str(_upload_max_mb)) or _upload_max_mb)
+                except Exception:
+                    max_single_mb = _upload_max_mb
+                max_single_bytes = max_single_mb * 1024 * 1024 if max_single_mb else 0
                 max_total_bytes = 0
+                try:
+                    max_total_mb = os.getenv("ATTACHMENT_TOTAL_MAX_MB")
+                    if max_total_mb and str(max_total_mb).strip():
+                        max_total_bytes = int(max_total_mb) * 1024 * 1024
+                except Exception:
+                    max_total_bytes = 0
 
-            for fn in img_list:
-                clean_fn = _normalize_upload_ref(fn)
-                if not clean_fn:
-                    file_errors.append({"name": str(fn)[:80], "reason": "無効な参照"})
-                    continue
-                if not clean_fn.startswith(f"{user_id}/"):
-                    file_errors.append({"name": clean_fn, "reason": "権限外のパス"})
-                    continue
-                info = _get_file_disk_info(clean_fn)
-                if not info.get("exists"):
-                    file_errors.append({"name": clean_fn, "reason": "見つかりません"})
-                    continue
-                if max_single_bytes and info.get("size") and info["size"] > max_single_bytes:
-                    size_mb = info["size"] // (1024 * 1024)
-                    file_errors.append({"name": clean_fn, "reason": f"サイズ超過({size_mb}MB)"})
-                    continue
-                data = _load_user_file_bytes(clean_fn, info)
-                if data is None:
-                    file_errors.append({"name": clean_fn, "reason": "読み込み失敗"})
-                    continue
-                if len(data) == 0:
-                    file_errors.append({"name": clean_fn, "reason": "空ファイル"})
-                    continue
-                if max_total_bytes:
-                    total_loaded_bytes += len(data)
-                    if total_loaded_bytes > max_total_bytes:
-                        file_errors.append({"name": clean_fn, "reason": "合計サイズ超過"})
-                        break
+                for fn in img_list:
+                    clean_fn = _normalize_upload_ref(fn)
+                    if not clean_fn:
+                        file_errors.append({"name": str(fn)[:80], "reason": "無効な参照"})
+                        continue
+                    if not clean_fn.startswith(f"{user_id}/"):
+                        file_errors.append({"name": clean_fn, "reason": "権限外のパス"})
+                        continue
+                    info = _get_file_disk_info(clean_fn)
+                    if not info.get("exists"):
+                        file_errors.append({"name": clean_fn, "reason": "見つかりません"})
+                        continue
+                    if max_single_bytes and info.get("size") and info["size"] > max_single_bytes:
+                        size_mb = info["size"] // (1024 * 1024)
+                        file_errors.append({"name": clean_fn, "reason": f"サイズ超過({size_mb}MB)"})
+                        continue
+                    data = _load_user_file_bytes(clean_fn, info)
+                    if data is None:
+                        file_errors.append({"name": clean_fn, "reason": "読み込み失敗"})
+                        continue
+                    if len(data) == 0:
+                        file_errors.append({"name": clean_fn, "reason": "空ファイル"})
+                        continue
+                    if max_total_bytes:
+                        total_loaded_bytes += len(data)
+                        if total_loaded_bytes > max_total_bytes:
+                            file_errors.append({"name": clean_fn, "reason": "合計サイズ超過"})
+                            break
 
-                is_pdf = clean_fn.lower().endswith('.pdf')
-                is_docx = clean_fn.lower().endswith('.docx')
-                mime_guess = mimetypes.guess_type(clean_fn)[0]
-                mime = _normalize_media_mime(clean_fn, mime_guess)
-                is_text = (mime or '').startswith('text/') or clean_fn.lower().endswith('.txt')
-                if is_pdf:
-                    mime = 'application/pdf'
-                elif is_docx:
-                    mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                elif is_text:
-                    mime = 'text/plain'
-                send_name = _resolve_send_name(clean_fn, mime) if is_llm_model else None
+                    is_pdf = clean_fn.lower().endswith('.pdf')
+                    is_docx = clean_fn.lower().endswith('.docx')
+                    mime_guess = mimetypes.guess_type(clean_fn)[0]
+                    mime = _normalize_media_mime(clean_fn, mime_guess)
+                    is_text = (mime or '').startswith('text/') or clean_fn.lower().endswith('.txt')
+                    if is_pdf:
+                        mime = 'application/pdf'
+                    elif is_docx:
+                        mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    elif is_text:
+                        mime = 'text/plain'
+                    send_name = _resolve_send_name(clean_fn, mime) if is_llm_model else None
 
-                if is_pdf:
-                    extracted = None
-                    try:
-                        reader = pypdf.PdfReader(BytesIO(data))
-                        extracted = "".join([p.extract_text() + "\n" for p in reader.pages])
-                    except Exception:
+                    if is_pdf:
                         extracted = None
-                    loaded_files.append({
-                        'name': clean_fn,
-                        'path': clean_fn,
-                        'text': extracted if extracted else None,
-                        'bytes': data,
-                        'mime': mime,
-                        'is_pdf': True,
-                        'is_docx': False,
-                        'is_text': False,
-                        'send_name': send_name,
-                        'size': len(data),
-                        'mtime': info.get("mtime")
-                    })
-                elif is_docx:
-                    extracted = _extract_text_from_docx(data)
-                    loaded_files.append({
-                        'name': clean_fn,
-                        'path': clean_fn,
-                        'text': extracted if extracted else None,
-                        'bytes': data,
-                        'mime': mime,
-                        'is_pdf': False,
-                        'is_docx': True,
-                        'is_text': False,
-                        'send_name': send_name,
-                        'size': len(data),
-                        'mtime': info.get("mtime")
-                    })
-                elif is_text:
-                    extracted = _decode_text_bytes(data)
-                    loaded_files.append({
-                        'name': clean_fn,
-                        'path': clean_fn,
-                        'text': extracted if extracted else None,
-                        'bytes': data,
-                        'mime': mime,
-                        'is_pdf': False,
-                        'is_text': True,
-                        'send_name': send_name,
-                        'size': len(data),
-                        'mtime': info.get("mtime")
-                    })
-                else:
-                    loaded_files.append({
-                        'name': clean_fn,
-                        'path': clean_fn,
-                        'text': None,
-                        'bytes': data,
-                        'mime': mime,
-                        'is_pdf': False,
-                        'is_text': False,
-                        'send_name': send_name,
-                        'size': len(data),
-                        'mtime': info.get("mtime")
-                    })
-                try:
-                    _upsert_file_cache(
-                        user_id,
-                        clean_fn,
-                        "local",
-                        size_bytes=len(data),
-                        mtime=info.get("mtime"),
-                        mime_type=mime,
-                        state="loaded",
-                        last_error=None
-                    )
-                    cache_updated = True
-                except Exception:
-                    pass
+                        try:
+                            reader = pypdf.PdfReader(BytesIO(data))
+                            extracted = "".join([p.extract_text() + "\n" for p in reader.pages])
+                        except Exception:
+                            extracted = None
+                        loaded_files.append({
+                            'name': clean_fn,
+                            'path': clean_fn,
+                            'text': extracted if extracted else None,
+                            'bytes': data,
+                            'mime': mime,
+                            'is_pdf': True,
+                            'is_docx': False,
+                            'is_text': False,
+                            'send_name': send_name,
+                            'size': len(data),
+                            'mtime': info.get("mtime")
+                        })
+                    elif is_docx:
+                        extracted = _extract_text_from_docx(data)
+                        loaded_files.append({
+                            'name': clean_fn,
+                            'path': clean_fn,
+                            'text': extracted if extracted else None,
+                            'bytes': data,
+                            'mime': mime,
+                            'is_pdf': False,
+                            'is_docx': True,
+                            'is_text': False,
+                            'send_name': send_name,
+                            'size': len(data),
+                            'mtime': info.get("mtime")
+                        })
+                    elif is_text:
+                        extracted = _decode_text_bytes(data)
+                        loaded_files.append({
+                            'name': clean_fn,
+                            'path': clean_fn,
+                            'text': extracted if extracted else None,
+                            'bytes': data,
+                            'mime': mime,
+                            'is_pdf': False,
+                            'is_text': True,
+                            'send_name': send_name,
+                            'size': len(data),
+                            'mtime': info.get("mtime")
+                        })
+                    else:
+                        loaded_files.append({
+                            'name': clean_fn,
+                            'path': clean_fn,
+                            'text': None,
+                            'bytes': data,
+                            'mime': mime,
+                            'is_pdf': False,
+                            'is_text': False,
+                            'send_name': send_name,
+                            'size': len(data),
+                            'mtime': info.get("mtime")
+                        })
+                    try:
+                        _upsert_file_cache(
+                            user_id,
+                            clean_fn,
+                            "local",
+                            size_bytes=len(data),
+                            mtime=info.get("mtime"),
+                            mime_type=mime,
+                            state="loaded",
+                            last_error=None
+                        )
+                        cache_updated = True
+                    except Exception:
+                        pass
 
-            if cache_updated:
-                try:
-                    safe_db_commit()
-                except Exception:
-                    pass
+                if cache_updated:
+                    try:
+                        safe_db_commit()
+                    except Exception:
+                        pass
 
             if file_errors:
                 parts = []
@@ -4461,6 +4639,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if voice_name not in GEMINI_TTS_VOICES:
                             voice_name = "Kore"
                         tts_lang = (options.get('tts_language') or "").strip() or None
+                        _mark_provider_request_started()
                         tts_resp = g_client.models.generate_content(
                             model=model_key,
                             contents=final_message_text,
@@ -4580,6 +4759,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if image_cfg_kwargs:
                             config_kwargs["image_config"] = types.ImageConfig(**image_cfg_kwargs)
 
+                        _mark_provider_request_started()
                         resp = g_client.models.generate_content(
                             model=img_model,
                             contents=[
@@ -5357,11 +5537,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             return str(text_val)
                         return ""
 
+                    _mark_provider_request_started()
                     stream = g_client.models.generate_content_stream(model=rm, contents=contents, config=types.GenerateContentConfig(**conf))
                     current_py_id = None
                     current_py_code = None
                     final_usage_metadata = None
                     for chunk in stream:
+                        _latency_mark_once(job_id, "provider_first_chunk_ms")
                         if check_stop(): break
                         if hasattr(chunk, 'usage_metadata') and chunk.usage_metadata:
                             final_usage_metadata = chunk.usage_metadata
@@ -5540,6 +5722,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             "image": {"url": img_data_url},
                             "response_format": img_response_format
                         }
+                        _mark_provider_request_started()
                         resp = httpx.post(endpoint, headers=headers, json=payload, timeout=120)
                         if resp.status_code >= 400:
                             try:
@@ -5554,6 +5737,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             if not img_data_b64 and resp_json.get("image"):
                                 img_data_b64 = resp_json.get("image")
                     else:
+                        _mark_provider_request_started()
                         resp = o_client.images.generate(**img_kwargs, extra_body=eb)
                         if resp.data:
                             img_data_b64 = resp.data[0].b64_json
@@ -5657,6 +5841,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 pass
 
                     # Send request
+                    _mark_provider_request_started()
                     resp = httpx.post(endpoint, headers=headers, json=payload, timeout=60.0)
                     if resp.status_code != 200:
                         raise RuntimeError(f"xAI API Error: {resp.status_code} - {resp.text}")
@@ -5675,6 +5860,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     for i in range(max_polls):
                         if check_stop(): break
                         time.sleep(2)
+                        _mark_provider_request_started()
                         p_resp = httpx.get(poll_url, headers=headers, timeout=30.0)
                         if p_resp.status_code == 200:
                             p_data = p_resp.json()
@@ -5696,6 +5882,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     
                     if video_url:
                         # Download and save the video locally
+                        _mark_provider_request_started()
                         v_resp = httpx.get(video_url, timeout=60.0)
                         if v_resp.status_code == 200:
                             ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
@@ -5760,6 +5947,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 if options.get('enable_python') and XAI_SDK_AVAILABLE:
                     create_kwargs["tools"] = [x_code_execution()]
 
+                _mark_provider_request_started()
                 chat_session = x_client.chat.create(**create_kwargs)
 
                 grok_sys = _grok_system_prompt(options.get('system_prompt'), grok_enable_search)
@@ -5820,6 +6008,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 
                 chat_session.append(x_user(*curr_user_content))
                 
+                _mark_provider_request_started()
                 stream = chat_session.stream()
                 search_reported = False
                 last_response = None
@@ -5827,6 +6016,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     # Ensure thought box is created even if Grok doesn't stream reasoning text.
                     pub("thought", " ")
                 for resp, chunk in stream:
+                    _latency_mark_once(job_id, "provider_first_chunk_ms")
                     last_response = resp
                     if check_stop(): break
                     tool_calls = getattr(chunk, 'tool_calls', None)
@@ -5944,7 +6134,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         }
                         if speed_val is not None:
                             tts_kwargs["speed"] = speed_val
-                        with o_client.audio.speech.with_streaming_response.create(**tts_kwargs) as response:
+                    _mark_provider_request_started()
+                    with o_client.audio.speech.with_streaming_response.create(**tts_kwargs) as response:
                             response.stream_to_file(speech_file_path)
 
                     # Encryption if enabled
@@ -6055,6 +6246,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         else:
                             resp = img_client.images.edit(image=img_inputs, **img_kwargs)
                     else:
+                        _mark_provider_request_started()
                         resp = img_client.images.generate(**img_kwargs)
                     if resp.data:
                         img_bytes = base64.b64decode(resp.data[0].b64_json)
@@ -6204,6 +6396,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     else:
                         messages.append({"role": "user", "content": user_text})
 
+                    _mark_provider_request_started()
                     resp = client.chat.completions.create(
                         model=model_key,
                         messages=messages,
@@ -6484,6 +6677,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                 log_force(f"Responses API Params: {kwargs.keys()}")
                 pub("status", "APIへ送信完了。モデルが応答を生成中です...")
+                _mark_provider_request_started()
                 stream = client.responses.create(**kwargs)
                 search_reported = False
                 saw_reasoning_summary_delta = False
@@ -6538,6 +6732,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     return full_res_add
 
                 for chunk in stream:
+                    _latency_mark_once(job_id, "provider_first_chunk_ms")
                     if check_stop(): break
                     if isinstance(chunk, dict):
                         event_type = chunk.get('type')
@@ -6677,6 +6872,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     full_res += f"\n```pyexec\n{json.dumps({'code': code, 'output': result})}\n```\n"
                                     pub("python", {"id": tool_call_id or f"py_{int(time.time()*1000)}_{os.urandom(3).hex()}", "code": code, "output": result})
                                     if response_id and tool_call_id:
+                                        _mark_provider_request_started()
                                         tool_stream = client.responses.create(
                                             model=model_key,
                                             previous_response_id=response_id,
@@ -6688,6 +6884,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             stream=True
                                         )
                                         for tchunk in tool_stream:
+                                            _latency_mark_once(job_id, "provider_first_chunk_ms")
                                             if check_stop(): break
                                             if isinstance(tchunk, dict):
                                                 t_event = tchunk.get('type')
@@ -6822,6 +7019,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 # Fallback: retrieve full response if no reasoning summary surfaced in stream
                 if enable_reasoning and not thought_accumulated and response_id:
                     try:
+                        _mark_provider_request_started()
                         resp_full = client.responses.retrieve(response_id)
                         resp_usage = getattr(resp_full, 'usage', None)
                         if resp_usage:
@@ -7000,6 +7198,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 pass
             pub("error", err_msg)
         finally:
+            _latency_mark_once(job_id, "worker_done_ms")
             r.delete(f"stop_job:{job_id}")
             try:
                 r.delete(f"pending_job:{user_id}:{thread_id}")
@@ -7532,6 +7731,7 @@ def chat_stream():
     data = request.json or {}
     user_config = {'enable_e2ee': current_user.enable_e2ee}
     job_id = f"job_{int(time.time())}_{current_user.id}"
+    _latency_mark_once(job_id, "route_received_ms")
 
     temporary_requested = _coerce_bool_or_none(data.get('temporary_chat'))
     thread_ref = data.get('thread_id')
@@ -7711,7 +7911,50 @@ def chat_stream():
     if 'thread_custom_instruction' in data:
         options['thread_custom_instruction'] = data.get('thread_custom_instruction')
 
-    task_queue.enqueue(background_chat_task, job_id, thread_id, data.get('model'), user_msg.id, options, current_user.id, user_config, job_timeout=600)
+    model_key = str(data.get('model') or '').strip()
+    model_key_l = model_key.lower()
+    is_gemini_text_model = ("gemini" in model_key_l and not any(x in model_key_l for x in ("image", "nano", "tts", "native-audio")))
+    no_attachments = not bool(norm_image_urls)
+    no_special_tools = not bool(data.get('enable_search')) and not bool(data.get('enable_python'))
+    no_quote = not bool(data.get('quote_text'))
+    no_thread_custom_instruction = not bool((data.get('thread_custom_instruction') or '').strip())
+    first_turn_direct_eligible = bool(
+        _DIRECT_FIRST_TURN_ENABLED
+        and thread_was_created
+        and is_gemini_text_model
+        and no_attachments
+        and no_special_tools
+        and no_quote
+        and no_thread_custom_instruction
+    )
+    execution_path = "direct" if first_turn_direct_eligible else "queued"
+    try:
+        redis_conn.hset(
+            _latency_trace_key(job_id),
+            mapping={
+                "execution_path": execution_path,
+                "model": model_key[:80],
+                "thread_public_id": (thread_stream_id or "")[:64],
+                "user_id": str(current_user.id),
+            }
+        )
+        redis_conn.expire(_latency_trace_key(job_id), _LATENCY_TRACE_TTL_SECONDS)
+    except Exception:
+        pass
+
+    if execution_path == "queued":
+        task_queue.enqueue(
+            background_chat_task,
+            job_id,
+            thread_id,
+            data.get('model'),
+            user_msg.id,
+            options,
+            current_user.id,
+            user_config,
+            job_timeout=600
+        )
+        _latency_mark_once(job_id, "route_dispatch_ms")
     try:
         redis_conn.setex(
             f"pending_job:{current_user.id}:{thread_id}",
@@ -7726,21 +7969,46 @@ def chat_stream():
     except Exception:
         pass
     try:
-        redis_conn.setex(f"stream_acc:{job_id}:status", 600, "キューに投入しました。ワーカー待機中です...")
+        if execution_path == "direct":
+            redis_conn.setex(f"stream_acc:{job_id}:status", 600, "高速経路で実行中です。モデル応答を待機しています...")
+        else:
+            redis_conn.setex(f"stream_acc:{job_id}:status", 600, "キューに投入しました。ワーカー待機中です...")
     except Exception:
         pass
-    
+
+    direct_worker_started = False
+    direct_worker_lock = threading.Lock()
+    def _start_direct_worker_once():
+        nonlocal direct_worker_started
+        if execution_path != "direct":
+            return
+        with direct_worker_lock:
+            if direct_worker_started:
+                return
+            direct_worker_started = True
+            _latency_mark_once(job_id, "route_dispatch_ms")
+            th = threading.Thread(
+                target=background_chat_task,
+                args=(job_id, thread_id, data.get('model'), user_msg.id, options, current_user.id, user_config),
+                daemon=True,
+                name=f"direct-chat-{job_id}"
+            )
+            th.start()
+
     def generate():
         pubsub = redis_conn.pubsub()
         channel = f"ai_chat:channel:{job_id}"
         pubsub.subscribe(channel)
         start_time = time.time()
+        _latency_mark_once(job_id, "route_stream_open_ms")
+        _start_direct_worker_once()
         if thread_stream_id:
             yield json.dumps({"type": "thread_id", "content": thread_stream_id}) + "\n"
         yield json.dumps({"type": "job_id", "content": job_id}) + "\n"
         try:
             cached_status = redis_conn.get(f"stream_acc:{job_id}:status")
             if cached_status:
+                _latency_mark_once(job_id, "stream_first_status_to_client_ms")
                 yield json.dumps({"type": "status", "content": cached_status.decode("utf-8", "ignore")}) + "\n"
         except Exception:
             pass
@@ -7748,10 +8016,29 @@ def chat_stream():
             for message in pubsub.listen():
                 if time.time() - start_time > 600: break
                 if message['type'] == 'message':
-                    data = json.loads(message['data'])
-                    yield json.dumps(data) + "\n"
-                    if data['type'] in ['done', 'error']: break
-        finally: pubsub.unsubscribe()
+                    _latency_mark_once(job_id, "stream_first_pubsub_ms")
+                    evt = json.loads(message['data'])
+                    evt_type = str(evt.get('type') or '')
+                    if evt_type == "status":
+                        _latency_mark_once(job_id, "stream_first_status_to_client_ms")
+                    elif evt_type == "thought":
+                        _latency_mark_once(job_id, "stream_first_thought_to_client_ms")
+                    elif evt_type == "content":
+                        _latency_mark_once(job_id, "stream_first_content_to_client_ms")
+                    yield json.dumps(evt) + "\n"
+                    if evt_type in ['done', 'error']:
+                        _latency_mark_once(job_id, "stream_done_ms")
+                        break
+        finally:
+            _latency_mark_once(job_id, "stream_done_ms")
+            pubsub.unsubscribe()
+            _upsert_chat_latency_trace(
+                job_id=job_id,
+                user_id=current_user.id,
+                thread_public_id=thread_stream_id,
+                model=model_key,
+                execution_path=execution_path
+            )
     resp = Response(stream_with_context(generate()), mimetype='application/x-ndjson')
     resp.headers['Cache-Control'] = 'no-cache, no-transform'
     resp.headers['X-Accel-Buffering'] = 'no'
@@ -10566,6 +10853,15 @@ def first_token_metric():
         )
         db.session.add(row)
         safe_db_commit()
+        trace = _upsert_chat_latency_trace(
+            job_id=job_id,
+            user_id=current_user.id,
+            thread_public_id=thread_public_id,
+            model=model,
+            client_sent_at_ms=client_sent_at_ms,
+            client_first_event_type=first_event_type,
+            client_first_latency_ms=latency_ms
+        )
 
         window_start = datetime.utcnow() - timedelta(hours=24)
         stats = db.session.query(
@@ -10577,19 +10873,54 @@ def first_token_metric():
             FirstTokenLatencyMetric.user_id == current_user.id,
             FirstTokenLatencyMetric.created_at >= window_start
         ).first()
+        stats_evt = None
+        if first_event_type:
+            stats_evt = db.session.query(
+                func.count(FirstTokenLatencyMetric.id),
+                func.avg(FirstTokenLatencyMetric.latency_seconds),
+                func.min(FirstTokenLatencyMetric.latency_seconds),
+                func.max(FirstTokenLatencyMetric.latency_seconds)
+            ).filter(
+                FirstTokenLatencyMetric.user_id == current_user.id,
+                FirstTokenLatencyMetric.first_event_type == first_event_type,
+                FirstTokenLatencyMetric.created_at >= window_start
+            ).first()
 
         cnt = int((stats[0] or 0)) if stats else 0
         avg_s = float(stats[1]) if stats and stats[1] is not None else latency_seconds
         min_s = float(stats[2]) if stats and stats[2] is not None else latency_seconds
         max_s = float(stats[3]) if stats and stats[3] is not None else latency_seconds
+        evt_cnt = int((stats_evt[0] or 0)) if stats_evt else 0
+        evt_avg_s = float(stats_evt[1]) if stats_evt and stats_evt[1] is not None else latency_seconds
+        evt_min_s = float(stats_evt[2]) if stats_evt and stats_evt[2] is not None else latency_seconds
+        evt_max_s = float(stats_evt[3]) if stats_evt and stats_evt[3] is not None else latency_seconds
+        phase_parts = []
+        if trace:
+            phase_candidates = {
+                "client_to_route_ms": _trace_delta_ms(trace, "client_sent_at", "route_received_at"),
+                "route_to_dispatch_ms": _trace_delta_ms(trace, "route_received_at", "route_dispatch_at"),
+                "dispatch_to_worker_ms": _trace_delta_ms(trace, "route_dispatch_at", "worker_started_at"),
+                "worker_to_provider_req_ms": _trace_delta_ms(trace, "worker_started_at", "provider_request_started_at"),
+                "provider_req_to_first_chunk_ms": _trace_delta_ms(trace, "provider_request_started_at", "provider_first_chunk_at"),
+                "provider_req_to_first_content_ms": _trace_delta_ms(trace, "provider_request_started_at", "provider_first_content_at"),
+                "provider_content_to_client_ms": _trace_delta_ms(trace, "provider_first_content_at", "stream_first_content_to_client_at"),
+                "route_to_client_content_ms": _trace_delta_ms(trace, "route_received_at", "stream_first_content_to_client_at"),
+            }
+            for key, val in phase_candidates.items():
+                if val is not None:
+                    phase_parts.append(f"{key}={val}")
         log_force(
             "FIRST-TOKEN-METRIC: "
             f"user={current_user.id} "
             f"model={model or '-'} "
             f"thread={thread_public_id or '-'} "
             f"job={job_id or '-'} "
+            f"event={first_event_type or '-'} "
             f"seconds={latency_seconds:.3f} "
-            f"window24h(count={cnt},avg={avg_s:.3f},min={min_s:.3f},max={max_s:.3f})"
+            f"window24h(count={cnt},avg={avg_s:.3f},min={min_s:.3f},max={max_s:.3f}) "
+            f"event24h(count={evt_cnt},avg={evt_avg_s:.3f},min={evt_min_s:.3f},max={evt_max_s:.3f}) "
+            f"path={getattr(trace, 'execution_path', '-') or '-'} "
+            f"phases({','.join(phase_parts)})"
         )
 
         return jsonify({
@@ -10600,7 +10931,15 @@ def first_token_metric():
                 'avg_seconds': round(avg_s, 3),
                 'min_seconds': round(min_s, 3),
                 'max_seconds': round(max_s, 3),
-            }
+            },
+            'event24h': {
+                'event': first_event_type or None,
+                'count': evt_cnt,
+                'avg_seconds': round(evt_avg_s, 3),
+                'min_seconds': round(evt_min_s, 3),
+                'max_seconds': round(evt_max_s, 3),
+            },
+            'execution_path': getattr(trace, 'execution_path', None) if trace else None
         })
     except Exception as e:
         db.session.rollback()

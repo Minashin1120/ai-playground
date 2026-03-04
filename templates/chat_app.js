@@ -7856,10 +7856,31 @@
             const streamStartedThreadId = currentThreadId;
             const sendStartPerfMs = nowPerfMs();
             const sendStartEpochMs = Date.now();
-            let firstTokenLatencySent = false;
+            let firstStatusLatencySent = false;
+            let firstThoughtLatencySent = false;
+            let firstContentLatencySent = false;
             let streamThreadIdForMetric = (currentThreadId !== null && currentThreadId !== undefined && currentThreadId !== '')
                 ? String(currentThreadId)
                 : null;
+            const maybeReportFirstEventLatency = (eventType, shouldReport) => {
+                if (!shouldReport) return;
+                if (eventType === 'status' && firstStatusLatencySent) return;
+                if (eventType === 'thought' && firstThoughtLatencySent) return;
+                if (eventType === 'content' && firstContentLatencySent) return;
+                const elapsedMs = Math.max(0, nowPerfMs() - sendStartPerfMs);
+                reportFirstTokenLatency({
+                    latency_seconds: elapsedMs / 1000,
+                    latency_ms: elapsedMs,
+                    thread_id: streamThreadIdForMetric || currentThreadId,
+                    job_id: currentJobId,
+                    model: p.model,
+                    first_event_type: eventType,
+                    client_sent_at_ms: sendStartEpochMs
+                });
+                if (eventType === 'status') firstStatusLatencySent = true;
+                else if (eventType === 'thought') firstThoughtLatencySent = true;
+                else if (eventType === 'content') firstContentLatencySent = true;
+            };
             try { 
                 if (p.thread_id && activeGem) {
                     threadGemMap[p.thread_id] = activeGem;
@@ -7922,6 +7943,7 @@
                             if (j.type === 'status') {
                                 markApiAccepted();
                                 const statusText = (j.content === null || j.content === undefined) ? '' : String(j.content);
+                                maybeReportFirstEventLatency('status', !!statusText);
                                 const ca = adiv ? adiv.querySelector('.content-area') : null;
                                 if (ca && first) {
                                     const headline = escapeHtml(statusText || 'モデル処理中...');
@@ -7943,6 +7965,7 @@
                                     thEl = adiv.querySelector('.thought-content');
                                 }
                                 tht+=j.content; 
+                                maybeReportFirstEventLatency('thought', !!j.content);
                                 if(!thEl){ 
                                     const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content collapsed"></div></div>`; 
                                     if(searchBox) searchBox.insertAdjacentHTML('afterend', tHtml); 
@@ -7997,19 +8020,7 @@
                                 const collapseState = snapshotCodeCollapse(cEl);
                                 renderAiMarkdownInto(cEl, acc);
                                 applyCodeCollapse(cEl, collapseState, true);
-                                if (!firstTokenLatencySent && contentDelta) {
-                                    firstTokenLatencySent = true;
-                                    const elapsedMs = Math.max(0, nowPerfMs() - sendStartPerfMs);
-                                    reportFirstTokenLatency({
-                                        latency_seconds: elapsedMs / 1000,
-                                        latency_ms: elapsedMs,
-                                        thread_id: streamThreadIdForMetric || currentThreadId,
-                                        job_id: currentJobId,
-                                        model: p.model,
-                                        first_event_type: 'content',
-                                        client_sent_at_ms: sendStartEpochMs
-                                    });
-                                }
+                                maybeReportFirstEventLatency('content', !!contentDelta);
                             } else if(j.type==='error'){ 
                                 hadError = true;
                                 adiv.insertAdjacentHTML('beforeend', `<div class="text-red-400 text-xs mt-2 border border-red-500 p-2 rounded">Error: ${j.content}</div>`); 

@@ -7917,12 +7917,12 @@ def chat_stream():
 
     model_key = str(data.get('model') or '').strip()
     model_key_l = model_key.lower()
-    is_gemini_text_model = ("gemini" in model_key_l and not any(x in model_key_l for x in ("image", "nano", "tts", "native-audio")))
     no_attachments = not bool(norm_image_urls)
     no_special_tools = not bool(data.get('enable_search')) and not bool(data.get('enable_python'))
     no_quote = not bool(data.get('quote_text'))
     no_thread_custom_instruction = not bool((data.get('thread_custom_instruction') or '').strip())
     model_looks_heavy = any(x in model_key_l for x in ("image", "video", "tts", "audio", "native-audio"))
+    supports_direct_first_turn = not model_looks_heavy
     fast_queue_eligible = bool(
         not model_looks_heavy
         and no_attachments
@@ -7933,7 +7933,7 @@ def chat_stream():
     first_turn_direct_eligible = bool(
         _DIRECT_FIRST_TURN_ENABLED
         and thread_was_created
-        and is_gemini_text_model
+        and supports_direct_first_turn
         and no_attachments
         and no_special_tools
         and no_quote

@@ -49,7 +49,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from sqlalchemy import or_, exc, text
+from sqlalchemy import or_, exc, text, func
 from dotenv import load_dotenv
 from openai import OpenAI, APITimeoutError, APIError, APIConnectionError, RateLimitError
 from google import genai
@@ -1944,6 +1944,24 @@ class AppSetting(db.Model):
     key = db.Column(db.String(64), primary_key=True)
     value = db.Column(db.Text, nullable=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class FirstTokenLatencyMetric(db.Model):
+    __tablename__ = 'first_token_latency_metric'
+    __table_args__ = (
+        db.Index('idx_ft_latency_user_created', 'user_id', 'created_at'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    thread_public_id = db.Column(db.String(64), nullable=True, index=True)
+    job_id = db.Column(db.String(64), nullable=True, index=True)
+    model = db.Column(db.String(80), nullable=True)
+    first_event_type = db.Column(db.String(32), nullable=True)
+    latency_seconds = db.Column(db.Float, nullable=False)
+    latency_ms = db.Column(db.Integer, nullable=False)
+    client_sent_at = db.Column(db.DateTime, nullable=True)
+    ip_address = db.Column(db.String(64), nullable=True)
+    user_agent = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
 @login_manager.user_loader
 def load_user(uid): return User.query.get(int(uid))
@@ -10502,6 +10520,92 @@ with app.app_context():
         try:
             try_alter("ALTER TABLE thread ADD COLUMN is_temporary BOOLEAN DEFAULT 0")
         except: pass
+
+@app.route('/api/metrics/first_token', methods=['POST'])
+@login_required
+def first_token_metric():
+    if not rate_limit(f"rl:first_token_metric:user:{current_user.id}", 240, 60):
+        return jsonify({'error': 'rate_limit'}), 429
+    try:
+        d = request.get_json(silent=True) or {}
+
+        try:
+            latency_seconds = float(d.get('latency_seconds'))
+        except Exception:
+            return jsonify({'error': 'latency_seconds is required'}), 400
+        if latency_seconds != latency_seconds or latency_seconds < 0 or latency_seconds > 600:
+            return jsonify({'error': 'latency_seconds out of range'}), 400
+
+        latency_ms = _coerce_int_or_none(d.get('latency_ms'))
+        if latency_ms is None:
+            latency_ms = int(round(latency_seconds * 1000))
+        if latency_ms < 0:
+            latency_ms = 0
+
+        thread_public_id = str(d.get('thread_id') or '').strip()[:64] or None
+        job_id = str(d.get('job_id') or '').strip()[:64] or None
+        model = str(d.get('model') or '').strip()[:80] or None
+        first_event_type = str(d.get('first_event_type') or '').strip()[:32] or None
+
+        client_sent_at = None
+        client_sent_at_ms = _coerce_int_or_none(d.get('client_sent_at_ms'))
+        if client_sent_at_ms is not None and 946684800000 <= client_sent_at_ms <= 4102444800000:
+            client_sent_at = datetime.utcfromtimestamp(client_sent_at_ms / 1000.0)
+
+        row = FirstTokenLatencyMetric(
+            user_id=current_user.id,
+            thread_public_id=thread_public_id,
+            job_id=job_id,
+            model=model,
+            first_event_type=first_event_type,
+            latency_seconds=round(latency_seconds, 6),
+            latency_ms=latency_ms,
+            client_sent_at=client_sent_at,
+            ip_address=get_client_ip(),
+            user_agent=request.headers.get('User-Agent', '')
+        )
+        db.session.add(row)
+        safe_db_commit()
+
+        window_start = datetime.utcnow() - timedelta(hours=24)
+        stats = db.session.query(
+            func.count(FirstTokenLatencyMetric.id),
+            func.avg(FirstTokenLatencyMetric.latency_seconds),
+            func.min(FirstTokenLatencyMetric.latency_seconds),
+            func.max(FirstTokenLatencyMetric.latency_seconds)
+        ).filter(
+            FirstTokenLatencyMetric.user_id == current_user.id,
+            FirstTokenLatencyMetric.created_at >= window_start
+        ).first()
+
+        cnt = int((stats[0] or 0)) if stats else 0
+        avg_s = float(stats[1]) if stats and stats[1] is not None else latency_seconds
+        min_s = float(stats[2]) if stats and stats[2] is not None else latency_seconds
+        max_s = float(stats[3]) if stats and stats[3] is not None else latency_seconds
+        log_force(
+            "FIRST-TOKEN-METRIC: "
+            f"user={current_user.id} "
+            f"model={model or '-'} "
+            f"thread={thread_public_id or '-'} "
+            f"job={job_id or '-'} "
+            f"seconds={latency_seconds:.3f} "
+            f"window24h(count={cnt},avg={avg_s:.3f},min={min_s:.3f},max={max_s:.3f})"
+        )
+
+        return jsonify({
+            'status': 'ok',
+            'latency_seconds': round(latency_seconds, 3),
+            'window24h': {
+                'count': cnt,
+                'avg_seconds': round(avg_s, 3),
+                'min_seconds': round(min_s, 3),
+                'max_seconds': round(max_s, 3),
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        log_force(f"FIRST-TOKEN-METRIC-ERROR: user={getattr(current_user, 'id', 'unknown')} err={e}")
+        return jsonify({'status': 'error'}), 500
 
 @app.route('/api/client_log', methods=['POST'])
 @login_required

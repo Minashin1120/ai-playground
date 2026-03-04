@@ -260,6 +260,36 @@
             const credentials = opts.credentials || 'include';
             return fetch(url, Object.assign({}, opts, { headers, credentials }));
         };
+        const nowPerfMs = () => {
+            if (window.performance && typeof window.performance.now === 'function') {
+                return window.performance.now();
+            }
+            return Date.now();
+        };
+        const reportFirstTokenLatency = (payload) => {
+            try {
+                if (!payload || typeof payload !== 'object') return;
+                const secRaw = Number(payload.latency_seconds);
+                if (!Number.isFinite(secRaw) || secRaw < 0 || secRaw > 600) return;
+                const msRaw = Number(payload.latency_ms);
+                const body = {
+                    latency_seconds: Number(secRaw.toFixed(6)),
+                    latency_ms: Number.isFinite(msRaw) ? Math.max(0, Math.round(msRaw)) : Math.round(secRaw * 1000),
+                    thread_id: payload.thread_id ? String(payload.thread_id) : null,
+                    job_id: payload.job_id ? String(payload.job_id) : null,
+                    model: payload.model ? String(payload.model) : null,
+                    first_event_type: payload.first_event_type ? String(payload.first_event_type) : "content",
+                    client_sent_at_ms: Number.isFinite(Number(payload.client_sent_at_ms))
+                        ? Math.round(Number(payload.client_sent_at_ms))
+                        : Date.now()
+                };
+                apiFetch('/api/metrics/first_token', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(body)
+                }).catch(() => {});
+            } catch (_e) {}
+        };
         let currentThreadId = {{ initial_thread_id|default(none)|tojson }};
         if (currentThreadId !== null && currentThreadId !== undefined) {
             currentThreadId = String(currentThreadId);
@@ -7824,6 +7854,12 @@
             
             abortController = new AbortController(); 
             const streamStartedThreadId = currentThreadId;
+            const sendStartPerfMs = nowPerfMs();
+            const sendStartEpochMs = Date.now();
+            let firstTokenLatencySent = false;
+            let streamThreadIdForMetric = (currentThreadId !== null && currentThreadId !== undefined && currentThreadId !== '')
+                ? String(currentThreadId)
+                : null;
             try { 
                 if (p.thread_id && activeGem) {
                     threadGemMap[p.thread_id] = activeGem;
@@ -7858,6 +7894,7 @@
                                 markApiAccepted();
                                 const streamThreadId = j.content !== null && j.content !== undefined ? String(j.content) : j.content;
                                 if (streamThreadId) {
+                                    streamThreadIdForMetric = streamThreadId;
                                     if (currentThreadId !== streamThreadId) {
                                         currentThreadId = streamThreadId;
                                         history.pushState({}, '', '/c/' + streamThreadId);
@@ -7950,7 +7987,8 @@
                                     } 
                                 } 
                             } else if(j.type==='content'){ 
-                                acc+=j.content; 
+                                const contentDelta = (j.content === null || j.content === undefined) ? '' : String(j.content);
+                                acc += contentDelta; 
                                 if(!cEl){ 
                                     cEl = adiv.querySelector('.content-area') || document.createElement('div'); 
                                     cEl.className='prose prose-invert text-sm break-words'; 
@@ -7959,6 +7997,19 @@
                                 const collapseState = snapshotCodeCollapse(cEl);
                                 renderAiMarkdownInto(cEl, acc);
                                 applyCodeCollapse(cEl, collapseState, true);
+                                if (!firstTokenLatencySent && contentDelta) {
+                                    firstTokenLatencySent = true;
+                                    const elapsedMs = Math.max(0, nowPerfMs() - sendStartPerfMs);
+                                    reportFirstTokenLatency({
+                                        latency_seconds: elapsedMs / 1000,
+                                        latency_ms: elapsedMs,
+                                        thread_id: streamThreadIdForMetric || currentThreadId,
+                                        job_id: currentJobId,
+                                        model: p.model,
+                                        first_event_type: 'content',
+                                        client_sent_at_ms: sendStartEpochMs
+                                    });
+                                }
                             } else if(j.type==='error'){ 
                                 hadError = true;
                                 adiv.insertAdjacentHTML('beforeend', `<div class="text-red-400 text-xs mt-2 border border-red-500 p-2 rounded">Error: ${j.content}</div>`); 

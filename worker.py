@@ -7,14 +7,30 @@ from rq import SimpleWorker, Queue
 from app import app as flask_app  # noqa: F401
 from app import background_chat_task  # noqa: F401
 
-listen = ['ai_chat_queue']
+FAST_QUEUE_NAME = os.getenv("AI_CHAT_FAST_QUEUE", "ai_chat_fast_queue")
+HEAVY_QUEUE_NAME = os.getenv("AI_CHAT_HEAVY_QUEUE", "ai_chat_heavy_queue")
+LEGACY_QUEUE_NAME = "ai_chat_queue"
 logger = logging.getLogger(__name__)
 
 
+def _default_queue_names():
+    instance = (os.getenv("WORKER_INSTANCE") or "").strip()
+    # 1,2 番は fast 優先。3,4 番は heavy 優先で詰まりを分散する。
+    if instance in {"3", "4"}:
+        return [HEAVY_QUEUE_NAME, FAST_QUEUE_NAME, LEGACY_QUEUE_NAME]
+    return [FAST_QUEUE_NAME, HEAVY_QUEUE_NAME, LEGACY_QUEUE_NAME]
+
+
 def _parse_queue_names():
-    raw = os.getenv("RQ_QUEUES", ",".join(listen))
+    instance = (os.getenv("WORKER_INSTANCE") or "").strip()
+    if instance:
+        # インスタンス運用時は、global RQ_QUEUES より instance 優先順を優先する。
+        raw_instance = os.getenv(f"RQ_QUEUES_INSTANCE_{instance}", "")
+        names = [name.strip() for name in raw_instance.split(",") if name.strip()]
+        return names or _default_queue_names()
+    raw = os.getenv("RQ_QUEUES", "")
     names = [name.strip() for name in raw.split(",") if name.strip()]
-    return names or list(listen)
+    return names or _default_queue_names()
 
 
 def main():

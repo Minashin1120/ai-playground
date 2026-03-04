@@ -560,6 +560,10 @@ app.config['MAINTENANCE_MODE'] = os.path.exists(os.path.join(os.path.dirname(__f
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/10')
 redis_conn = redis.from_url(REDIS_URL)
 task_queue = Queue('ai_chat_queue', connection=redis_conn)
+_CHAT_FAST_QUEUE_NAME = os.getenv("AI_CHAT_FAST_QUEUE", "ai_chat_fast_queue")
+_CHAT_HEAVY_QUEUE_NAME = os.getenv("AI_CHAT_HEAVY_QUEUE", "ai_chat_heavy_queue")
+chat_fast_queue = Queue(_CHAT_FAST_QUEUE_NAME, connection=redis_conn)
+chat_heavy_queue = Queue(_CHAT_HEAVY_QUEUE_NAME, connection=redis_conn)
 _LATENCY_TRACE_PREFIX = "latency_trace:"
 _LATENCY_TRACE_TTL_SECONDS = max(300, _env_int("LATENCY_TRACE_TTL_SECONDS", 86400))
 _DIRECT_FIRST_TURN_ENABLED = _env_bool("CHAT_STREAM_DIRECT_FIRST_TURN", True)
@@ -7918,6 +7922,14 @@ def chat_stream():
     no_special_tools = not bool(data.get('enable_search')) and not bool(data.get('enable_python'))
     no_quote = not bool(data.get('quote_text'))
     no_thread_custom_instruction = not bool((data.get('thread_custom_instruction') or '').strip())
+    model_looks_heavy = any(x in model_key_l for x in ("image", "video", "tts", "audio", "native-audio"))
+    fast_queue_eligible = bool(
+        not model_looks_heavy
+        and no_attachments
+        and no_special_tools
+        and no_quote
+    )
+    queue_name = _CHAT_FAST_QUEUE_NAME if fast_queue_eligible else _CHAT_HEAVY_QUEUE_NAME
     first_turn_direct_eligible = bool(
         _DIRECT_FIRST_TURN_ENABLED
         and thread_was_created
@@ -7933,6 +7945,7 @@ def chat_stream():
             _latency_trace_key(job_id),
             mapping={
                 "execution_path": execution_path,
+                "queue_name": queue_name[:64],
                 "model": model_key[:80],
                 "thread_public_id": (thread_stream_id or "")[:64],
                 "user_id": str(current_user.id),
@@ -7943,7 +7956,8 @@ def chat_stream():
         pass
 
     if execution_path == "queued":
-        task_queue.enqueue(
+        enqueue_queue = chat_fast_queue if queue_name == _CHAT_FAST_QUEUE_NAME else chat_heavy_queue
+        enqueue_queue.enqueue(
             background_chat_task,
             job_id,
             thread_id,
@@ -7952,7 +7966,8 @@ def chat_stream():
             options,
             current_user.id,
             user_config,
-            job_timeout=600
+            job_timeout=600,
+            at_front=(queue_name == _CHAT_FAST_QUEUE_NAME)
         )
         _latency_mark_once(job_id, "route_dispatch_ms")
     try:
@@ -7972,7 +7987,10 @@ def chat_stream():
         if execution_path == "direct":
             redis_conn.setex(f"stream_acc:{job_id}:status", 600, "高速経路で実行中です。モデル応答を待機しています...")
         else:
-            redis_conn.setex(f"stream_acc:{job_id}:status", 600, "キューに投入しました。ワーカー待機中です...")
+            if queue_name == _CHAT_FAST_QUEUE_NAME:
+                redis_conn.setex(f"stream_acc:{job_id}:status", 600, "高速キューに投入しました。優先ワーカー待機中です...")
+            else:
+                redis_conn.setex(f"stream_acc:{job_id}:status", 600, "通常キューに投入しました。ワーカー待機中です...")
     except Exception:
         pass
 

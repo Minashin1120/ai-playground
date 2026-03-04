@@ -1782,6 +1782,7 @@ class User(UserMixin, db.Model):
     compact_prompt_mode = db.Column(db.Boolean, default=False)
     use_last_chat_settings = db.Column(db.Boolean, default=False)
     temp_chat_timeout_seconds = db.Column(db.Integer, default=_TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS)
+    default_model = db.Column(db.String(64), default="gemini-3.1-flash-lite-preview")
     default_enable_search = db.Column(db.Boolean, default=False)
     default_enable_python = db.Column(db.Boolean, default=True)
     default_enable_thinking = db.Column(db.Boolean, default=False)
@@ -1790,6 +1791,7 @@ class User(UserMixin, db.Model):
     default_reasoning_effort = db.Column(db.String(16), default="medium")
     default_enable_system_prompt = db.Column(db.Boolean, default=False)
     default_safety_setting = db.Column(db.String(16), default="default")
+    last_model = db.Column(db.String(64), nullable=True)
     last_enable_search = db.Column(db.Boolean, default=False)
     last_enable_python = db.Column(db.Boolean, default=True)
     last_enable_thinking = db.Column(db.Boolean, default=False)
@@ -2524,6 +2526,22 @@ def cleanup_user_temp_system_prompt_columns():
                     conn.execute(text(f"ALTER TABLE user DROP COLUMN {column_name}"))
     except Exception:
         pass
+
+def ensure_user_default_model_columns():
+    try:
+        with db.engine.connect() as conn:
+            # check default_model
+            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='default_model'")).fetchone()
+            if not res:
+                conn.execute(text("ALTER TABLE user ADD COLUMN default_model VARCHAR(64) DEFAULT 'gemini-3.1-flash-lite-preview'"))
+                conn.commit()
+            # check last_model
+            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='last_model'")).fetchone()
+            if not res:
+                conn.execute(text("ALTER TABLE user ADD COLUMN last_model VARCHAR(64)"))
+                conn.commit()
+    except Exception as e:
+        logger.error(f"Failed to ensure user default model columns: {e}")
 
 def ensure_db_index(table_name, index_name, ddl):
     try:
@@ -7461,6 +7479,7 @@ def setup():
         current_user.xai_api_key = encrypt_val(request.form.get('xai_key'))
         current_user.google_api_key = encrypt_val(request.form.get('google_key'))
         current_user.google_cloud_project = encrypt_val(request.form.get('google_project'))
+        current_user.default_model = request.form.get('default_model') or "gemini-3.1-flash-lite-preview"
         current_user.enable_e2ee = (request.form.get('enable_e2ee') == 'on')
         current_user.is_setup_completed = True
         safe_db_commit()
@@ -7599,6 +7618,7 @@ def chat_stream():
         )
         db.session.add(user_msg)
         if current_user.use_last_chat_settings:
+            current_user.last_model = data.get('model')
             current_user.last_enable_search = bool(data.get('enable_search'))
             current_user.last_enable_python = bool(data.get('enable_python'))
             current_user.last_enable_thinking = bool(data.get('enable_thinking'))
@@ -9154,6 +9174,7 @@ def handle_settings():
             'compact_prompt_mode': current_user.compact_prompt_mode if current_user.compact_prompt_mode is not None else False,
             'use_last_chat_settings': current_user.use_last_chat_settings,
             'temp_chat_timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user),
+            'default_model': current_user.default_model or "gemini-3.1-flash-lite-preview",
             'default_enable_search': current_user.default_enable_search,
             'default_enable_python': current_user.default_enable_python,
             'default_enable_thinking': current_user.default_enable_thinking,
@@ -9162,6 +9183,7 @@ def handle_settings():
             'default_reasoning_effort': current_user.default_reasoning_effort or "medium",
             'default_enable_system_prompt': current_user.default_enable_system_prompt,
             'default_safety_setting': current_user.default_safety_setting or "default",
+            'last_model': current_user.last_model or "gemini-3.1-flash-lite-preview",
             'last_enable_search': current_user.last_enable_search,
             'last_enable_python': current_user.last_enable_python,
             'last_enable_thinking': current_user.last_enable_thinking,
@@ -9225,6 +9247,7 @@ def handle_settings():
     if 'theme_color' in d: current_user.theme_color = normalize_theme_color(d.get('theme_color'))
     if 'auto_search_on_links' in d: current_user.auto_search_on_links = bool(d['auto_search_on_links'])
     if 'use_last_chat_settings' in d: current_user.use_last_chat_settings = bool(d['use_last_chat_settings'])
+    if 'default_model' in d: current_user.default_model = d['default_model']
     if 'temp_chat_timeout_seconds' in d:
         current_user.temp_chat_timeout_seconds = _normalize_temp_chat_timeout_seconds(
             d.get('temp_chat_timeout_seconds')
@@ -10240,6 +10263,10 @@ with app.app_context():
         pass
     try:
         ensure_user_stt_settings_columns()
+    except Exception:
+        pass
+    try:
+        ensure_user_default_model_columns()
     except Exception:
         pass
     try:

@@ -1059,6 +1059,7 @@
             if (chatDefaultsLoaded) return;
             const useLast = !!d.use_last_chat_settings;
             const src = useLast ? {
+                model: d.last_model,
                 enable_search: d.last_enable_search,
                 enable_python: d.last_enable_python,
                 enable_thinking: d.last_enable_thinking,
@@ -1068,6 +1069,7 @@
                 enable_system_prompt: d.last_enable_system_prompt,
                 safety_setting: d.last_safety_setting
             } : {
+                model: d.default_model,
                 enable_search: d.default_enable_search,
                 enable_python: d.default_enable_python,
                 enable_thinking: d.default_enable_thinking,
@@ -1078,6 +1080,7 @@
                 safety_setting: d.default_safety_setting
             };
             const s = (v, fallback) => (v === undefined || v === null || v === "") ? fallback : v;
+            if (src.model) selectModelById(src.model);
             if (get('enable-search')) get('enable-search').checked = !!s(src.enable_search, get('enable-search').checked);
             if (get('enable-python')) get('enable-python').checked = !!s(src.enable_python, get('enable-python').checked);
             if (get('enable-thinking')) get('enable-thinking').checked = !!s(src.enable_thinking, get('enable-thinking').checked);
@@ -3363,7 +3366,27 @@
             ensureAutoSystemPromptSettingsCard();
             ensureThreadAutoSystemPromptCard();
             bindTemporaryChatToggle();
+            const populateDefaultModelOptions = () => {
+                const sel = get('set-default-model');
+                if (!sel) return;
+                const current = sel.value;
+                sel.innerHTML = '';
+                MODELS.forEach(group => {
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = group.category;
+                    (group.items || []).forEach(item => {
+                        const opt = document.createElement('option');
+                        opt.value = item.id;
+                        opt.textContent = item.name;
+                        optgroup.appendChild(opt);
+                    });
+                    sel.appendChild(optgroup);
+                });
+                if (current) sel.value = current;
+            };
+
             window.openSettingsModal = () => {
+                populateDefaultModelOptions();
                 showModal('settings-modal');
                 loadStorageUsage();
                 ensureLlmTranscribePromptSettingsUi();
@@ -3421,6 +3444,7 @@
                     if(get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;
                     if(get('set-auto-search-links')) get('set-auto-search-links').checked = d.auto_search_on_links !== false;
                     if(get('set-use-last-settings')) get('set-use-last-settings').checked = !!d.use_last_chat_settings;
+                    if(get('set-default-model')) get('set-default-model').value = d.default_model || 'gemini-3.1-flash-lite-preview';
                     applyTemporaryChatTimeoutSeconds(d.temp_chat_timeout_seconds);
                     if(get('set-default-search')) get('set-default-search').checked = !!d.default_enable_search;
                     if(get('set-default-python')) get('set-default-python').checked = !!d.default_enable_python;
@@ -3615,6 +3639,7 @@
                     use_sw_cache: get('set-use-sw-cache') ? get('set-use-sw-cache').checked : false,
                     auto_search_on_links: get('set-auto-search-links') ? get('set-auto-search-links').checked : true,
                     use_last_chat_settings: get('set-use-last-settings') ? get('set-use-last-settings').checked : false,
+                    default_model: get('set-default-model') ? get('set-default-model').value : null,
                     temp_chat_timeout_seconds: normalizeTemporaryChatTimeoutSeconds(
                         get('set-temp-chat-timeout-seconds') ? get('set-temp-chat-timeout-seconds').value : temporaryChatTimeoutSeconds
                     ),

@@ -1928,6 +1928,7 @@
                 items: [
                     { id: "gpt-4o", name: "GPT-4o", desc: "Multimodal flagship model.", price: "In $2.50/1M, Out $10.00/1M" },
                     { id: "gpt-4o-mini", name: "GPT-4o mini", desc: "Fast, low-cost model.", price: "In $0.15/1M, Out $0.60/1M" },
+                    { id: "gpt-5.4", name: "GPT-5.4", desc: "Experimental OpenAI model ID for accounts with access.", price: "Pricing not publicly confirmed" },
                     { id: "gpt-5.2", name: "GPT-5.2 (Responses API)", desc: "Most capable reasoning model.", price: "In $1.75/1M, Out $14/1M" },
                     { id: "gpt-5-search-api", name: "GPT-5 Search (API)", desc: "Search-optimized model (Chat Completions)." },
                     { id: "gpt-5.1", name: "GPT-5.1", desc: "High intelligence.", price: "In $1.25/1M, Out $10/1M" },

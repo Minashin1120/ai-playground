@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-10-001')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-10-002')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -4233,6 +4233,48 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         total_bytes += len(data_h)
                 return parts
 
+            def _load_message_history_images(raw_urls, seen=None, total_bytes=0, include_only_images=True):
+                items = []
+                if not raw_urls:
+                    return items, total_bytes
+                if seen is None:
+                    seen = set()
+                try:
+                    ref_list = json.loads(raw_urls)
+                except Exception:
+                    ref_list = raw_urls
+                if not isinstance(ref_list, list):
+                    ref_list = [ref_list]
+                for ref in ref_list:
+                    if _HISTORY_IMAGE_MAX_ITEMS and len(seen) >= _HISTORY_IMAGE_MAX_ITEMS:
+                        break
+                    norm_h = _normalize_upload_ref(ref)
+                    if not norm_h or norm_h in seen:
+                        continue
+                    info_h = _get_file_disk_info(norm_h)
+                    if not info_h.get("exists"):
+                        continue
+                    est_size = info_h.get("size") or 0
+                    if _HISTORY_IMAGE_MAX_BYTES and est_size and (total_bytes + est_size > _HISTORY_IMAGE_MAX_BYTES):
+                        continue
+                    data_h = _load_user_file_bytes(norm_h, info_h)
+                    if not data_h:
+                        continue
+                    if _HISTORY_IMAGE_MAX_BYTES and (total_bytes + len(data_h) > _HISTORY_IMAGE_MAX_BYTES):
+                        continue
+                    mime_h = _normalize_media_mime(norm_h, mimetypes.guess_type(norm_h)[0] or 'application/octet-stream')
+                    if include_only_images and not str(mime_h).startswith('image/'):
+                        continue
+                    items.append({
+                        "ref": norm_h,
+                        "bytes": data_h,
+                        "mime": mime_h,
+                        "name": os.path.basename(norm_h)
+                    })
+                    seen.add(norm_h)
+                    total_bytes += len(data_h)
+                return items, total_bytes
+
             def _build_non_llm_image_context(current_text, include_assistant_images=True):
                 max_context_chars = 12000
                 text_lines = []
@@ -4983,7 +5025,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     
                     contents = []
                     history_img_seen = set()
-                    history_img_count = 0
                     history_img_bytes = 0
                     for m in history:
                         parts = []
@@ -5009,36 +5050,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         pass
                         if m['content']:
                             parts.append(types.Part(text=m['content']))
-                        # Only include historical user images. Assistant-generated images can explode latency.
-                        if m['role'] == 'user' and m['image_url']:
+                        if m.get('image_url'):
                             try:
-                                h_list = json.loads(m['image_url'])
-                                if not isinstance(h_list, list):
-                                    h_list = [h_list]
-                                for h_img in h_list:
-                                    if _HISTORY_IMAGE_MAX_ITEMS and history_img_count >= _HISTORY_IMAGE_MAX_ITEMS:
-                                        break
-                                    norm_h = _normalize_upload_ref(h_img)
-                                    if not norm_h:
-                                        continue
-                                    if norm_h in history_img_seen:
-                                        continue
-                                    info_h = _get_file_disk_info(norm_h)
-                                    if not info_h.get("exists"):
-                                        continue
-                                    est_size = info_h.get("size") or 0
-                                    if _HISTORY_IMAGE_MAX_BYTES and est_size and (history_img_bytes + est_size > _HISTORY_IMAGE_MAX_BYTES):
-                                        continue
-                                    d2 = _load_user_file_bytes(norm_h, info_h)
-                                    if d2:
-                                        if _HISTORY_IMAGE_MAX_BYTES and (history_img_bytes + len(d2) > _HISTORY_IMAGE_MAX_BYTES):
-                                            continue
-                                        mime2 = mimetypes.guess_type(norm_h)[0] or 'application/octet-stream'
-                                        if mime2.startswith('image/'):
-                                            parts.append(types.Part.from_bytes(data=d2, mime_type=mime2))
-                                            history_img_seen.add(norm_h)
-                                            history_img_count += 1
-                                            history_img_bytes += len(d2)
+                                msg_images, history_img_bytes = _load_message_history_images(
+                                    m.get('image_url'),
+                                    seen=history_img_seen,
+                                    total_bytes=history_img_bytes,
+                                    include_only_images=True
+                                )
+                                for msg_img in msg_images:
+                                    parts.append(types.Part.from_bytes(data=msg_img['bytes'], mime_type=msg_img['mime']))
                             except: pass
                         if parts: contents.append(types.Content(role='model' if m['role'] == 'assistant' else 'user', parts=parts))
 
@@ -6064,43 +6085,28 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 if grok_sys: chat_session.append(x_system(grok_sys))
                 
                 history_img_seen = set()
-                history_img_count = 0
                 history_img_bytes = 0
                 for m in history:
-                    if m['role'] == 'user':
+                    if m['role'] in ('user', 'assistant'):
                         content_parts = [m['content']]
-                        if m['image_url']:
+                        if m.get('image_url'):
                             try:
-                                h_list = json.loads(m['image_url'])
-                                if not isinstance(h_list, list):
-                                    h_list = [h_list]
-                                for h_img in h_list:
-                                    if _HISTORY_IMAGE_MAX_ITEMS and history_img_count >= _HISTORY_IMAGE_MAX_ITEMS:
-                                        break
-                                    norm_h = _normalize_upload_ref(h_img)
-                                    if not norm_h:
-                                        continue
-                                    if norm_h in history_img_seen:
-                                        continue
-                                    info_h = _get_file_disk_info(norm_h)
-                                    if not info_h.get("exists"):
-                                        continue
-                                    est_size = info_h.get("size") or 0
-                                    if _HISTORY_IMAGE_MAX_BYTES and est_size and (history_img_bytes + est_size > _HISTORY_IMAGE_MAX_BYTES):
-                                        continue
-                                    d2 = _load_user_file_bytes(norm_h, info_h)
-                                    if d2:
-                                        if _HISTORY_IMAGE_MAX_BYTES and (history_img_bytes + len(d2) > _HISTORY_IMAGE_MAX_BYTES):
-                                            continue
-                                        mime = mimetypes.guess_type(norm_h)[0] or 'image/webp'
-                                        d_uri = f"data:{mime};base64,{base64.b64encode(d2).decode('utf-8')}"
-                                        content_parts.append(x_image(d_uri))
-                                        history_img_seen.add(norm_h)
-                                        history_img_count += 1
-                                        history_img_bytes += len(d2)
+                                msg_images, history_img_bytes = _load_message_history_images(
+                                    m.get('image_url'),
+                                    seen=history_img_seen,
+                                    total_bytes=history_img_bytes,
+                                    include_only_images=True
+                                )
+                                for msg_img in msg_images:
+                                    d_uri = f"data:{msg_img['mime']};base64,{base64.b64encode(msg_img['bytes']).decode('utf-8')}"
+                                    content_parts.append(x_image(d_uri))
                             except: pass
-                        chat_session.append(x_user(*content_parts))
-                    else: chat_session.append(x_assistant(m['content']))
+                        if m['role'] == 'user':
+                            chat_session.append(x_user(*content_parts))
+                        else:
+                            chat_session.append(x_assistant(*content_parts))
+                    else:
+                        chat_session.append(x_user(m['content']) if m['role'] == 'user' else x_assistant(m['content']))
                 
                 curr_user_content = [final_message_text]
                 current_image_names = []
@@ -6411,37 +6417,21 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         messages.append({"role": "system", "content": sys_prompt})
                     
                     history_img_seen = set()
-                    history_img_count = 0
                     history_img_bytes = 0
 
                     for m in history:
-                        if m['role'] == 'user' and m.get('image_url'):
+                        if m.get('image_url'):
                             try:
-                                h_list = json.loads(m['image_url'])
-                                if not isinstance(h_list, list): h_list = [h_list]
                                 content_parts = [{"type": "text", "text": m['content']}]
-                                for h_img in h_list:
-                                    if _HISTORY_IMAGE_MAX_ITEMS and history_img_count >= _HISTORY_IMAGE_MAX_ITEMS:
-                                        break
-                                    norm_h = _normalize_upload_ref(h_img)
-                                    if not norm_h or norm_h in history_img_seen:
-                                        continue
-                                    info_h = _get_file_disk_info(norm_h)
-                                    if not info_h.get("exists"):
-                                        continue
-                                    est_size = info_h.get("size") or 0
-                                    if _HISTORY_IMAGE_MAX_BYTES and est_size and (history_img_bytes + est_size > _HISTORY_IMAGE_MAX_BYTES):
-                                        continue
-                                    d2 = _load_user_file_bytes(norm_h, info_h)
-                                    if d2:
-                                        if _HISTORY_IMAGE_MAX_BYTES and (history_img_bytes + len(d2) > _HISTORY_IMAGE_MAX_BYTES):
-                                            continue
-                                        mime = mimetypes.guess_type(norm_h)[0] or 'image/jpeg'
-                                        b64 = base64.b64encode(d2).decode('utf-8')
-                                        content_parts.append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}})
-                                        history_img_seen.add(norm_h)
-                                        history_img_count += 1
-                                        history_img_bytes += len(d2)
+                                msg_images, history_img_bytes = _load_message_history_images(
+                                    m.get('image_url'),
+                                    seen=history_img_seen,
+                                    total_bytes=history_img_bytes,
+                                    include_only_images=True
+                                )
+                                for msg_img in msg_images:
+                                    b64 = base64.b64encode(msg_img['bytes']).decode('utf-8')
+                                    content_parts.append({"type": "image_url", "image_url": {"url": f"data:{msg_img['mime']};base64,{b64}"}})
                                 messages.append({"role": m['role'], "content": content_parts})
                             except Exception as e:
                                 log_force(f"Error processing history image in search branch: {e}")
@@ -6597,39 +6587,23 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 if sys_prompt: input_data.append({"role": "system", "content": sys_prompt})
                 
                 history_img_seen = set()
-                history_img_count = 0
                 history_img_bytes = 0
                 text_type = "input_text"
                 image_type = "input_image"
 
                 for m in history:
-                    if m['role'] == 'user' and m.get('image_url'):
+                    if m.get('image_url'):
                         try:
-                            h_list = json.loads(m['image_url'])
-                            if not isinstance(h_list, list): h_list = [h_list]
                             content_parts = [{"type": text_type, "text": m['content']}]
-                            for h_img in h_list:
-                                if _HISTORY_IMAGE_MAX_ITEMS and history_img_count >= _HISTORY_IMAGE_MAX_ITEMS:
-                                    break
-                                norm_h = _normalize_upload_ref(h_img)
-                                if not norm_h or norm_h in history_img_seen:
-                                    continue
-                                info_h = _get_file_disk_info(norm_h)
-                                if not info_h.get("exists"):
-                                    continue
-                                est_size = info_h.get("size") or 0
-                                if _HISTORY_IMAGE_MAX_BYTES and est_size and (history_img_bytes + est_size > _HISTORY_IMAGE_MAX_BYTES):
-                                    continue
-                                d2 = _load_user_file_bytes(norm_h, info_h)
-                                if d2:
-                                    if _HISTORY_IMAGE_MAX_BYTES and (history_img_bytes + len(d2) > _HISTORY_IMAGE_MAX_BYTES):
-                                        continue
-                                    mime = mimetypes.guess_type(norm_h)[0] or 'image/jpeg'
-                                    b64 = base64.b64encode(d2).decode('utf-8')
-                                    content_parts.append({"type": image_type, "image_url": f"data:{mime};base64,{b64}"})
-                                    history_img_seen.add(norm_h)
-                                    history_img_count += 1
-                                    history_img_bytes += len(d2)
+                            msg_images, history_img_bytes = _load_message_history_images(
+                                m.get('image_url'),
+                                seen=history_img_seen,
+                                total_bytes=history_img_bytes,
+                                include_only_images=True
+                            )
+                            for msg_img in msg_images:
+                                b64 = base64.b64encode(msg_img['bytes']).decode('utf-8')
+                                content_parts.append({"type": image_type, "image_url": f"data:{msg_img['mime']};base64,{b64}"})
                             input_data.append({"role": m['role'], "content": content_parts})
                         except Exception as e:
                             log_force(f"Error processing history image: {e}")

@@ -4837,6 +4837,56 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 # Image Generation
                 elif "nano" in model_key or "image" in model_key:
                     try:
+                        def _collect_gemini_image_output_parts(resp_obj, keep_only_last_image=False):
+                            text_chunks = []
+                            image_parts = []
+                            seen_part_ids = set()
+
+                            def _append_parts(parts_seq):
+                                for _part in parts_seq or []:
+                                    part_id = id(_part)
+                                    if part_id in seen_part_ids:
+                                        continue
+                                    seen_part_ids.add(part_id)
+                                    if hasattr(_part, 'text') and _part.text:
+                                        txt = str(_part.text)
+                                        if txt.strip():
+                                            text_chunks.append(txt)
+                                    if hasattr(_part, 'inline_data') and _part.inline_data:
+                                        image_parts.append(_part)
+
+                            _append_parts(getattr(resp_obj, 'parts', None) or [])
+                            for cand in getattr(resp_obj, 'candidates', None) or []:
+                                _append_parts(getattr(getattr(cand, 'content', None), 'parts', None) or [])
+
+                            if keep_only_last_image and len(image_parts) > 1:
+                                image_parts = [image_parts[-1]]
+                            return text_chunks, image_parts
+
+                        def _save_gemini_image_part(part_obj):
+                            ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
+                            os.makedirs(ud, exist_ok=True)
+                            mime = getattr(part_obj.inline_data, "mime_type", None) or "image/png"
+                            ext_map = {
+                                "image/png": "png",
+                                "image/jpeg": "jpg",
+                                "image/webp": "webp"
+                            }
+                            ext = ext_map.get(mime, "png")
+                            fn2 = f"gen_{int(time.time())}_{len(generated_images)}.{ext}"
+                            fp2 = os.path.join(ud, fn2)
+                            img_data = part_obj.inline_data.data
+                            if isinstance(img_data, str):
+                                img_data = base64.b64decode(img_data)
+                            if user_config.get('enable_e2ee'):
+                                with open(fp2 + '.enc', 'wb') as f:
+                                    f.write(encrypt_bytes(img_data))
+                            else:
+                                with open(fp2, 'wb') as f:
+                                    f.write(img_data)
+                            generated_images.append(f"{user_id}/{fn2}")
+                            return fn2
+
                         # [FIX] Apply System Prompt to Image Prompts if available
                         img_prompt, history_image_parts = _build_non_llm_image_context(final_message_text)
                         if options.get('system_prompt'):
@@ -4918,54 +4968,50 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             ],
                             config=types.GenerateContentConfig(**config_kwargs)
                         )
-                        
-                        if resp.candidates:
-                            cand0 = resp.candidates[0]
-                            parts0 = getattr(getattr(cand0, 'content', None), 'parts', None) or []
-                            
-                            # For gemini-3.1-flash-image-preview, if multiple image parts are returned (e.g. preview + final),
-                            # we only want to process the last one to avoid duplication.
-                            if img_model == "gemini-3.1-flash-image-preview":
-                                img_part_indices = [i for i, p in enumerate(parts0) if hasattr(p, 'inline_data') and p.inline_data]
-                                if len(img_part_indices) > 1:
-                                    # Keep only the last one
-                                    last_idx = img_part_indices[-1]
-                                    parts0 = [p for i, p in enumerate(parts0) if not (hasattr(p, 'inline_data') and p.inline_data) or i == last_idx]
 
-                            for part in parts0:
-                                if hasattr(part, 'text') and part.text:
-                                    txt = str(part.text)
-                                    if txt.strip():
-                                        pub("content", txt)
-                                        full_res += txt + ("\n" if not txt.endswith("\n") else "")
+                        text_outputs, image_outputs = _collect_gemini_image_output_parts(
+                            resp,
+                            keep_only_last_image=(img_model == "gemini-3.1-flash-image-preview")
+                        )
 
-                                if hasattr(part, 'inline_data') and part.inline_data:
-                                    ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
-                                    os.makedirs(ud, exist_ok=True)
-                                    mime = getattr(part.inline_data, "mime_type", None) or "image/png"
-                                    ext_map = {
-                                        "image/png": "png",
-                                        "image/jpeg": "jpg",
-                                        "image/webp": "webp"
-                                    }
-                                    ext = ext_map.get(mime, "png")
-                                    fn2 = f"gen_{int(time.time())}_{len(generated_images)}.{ext}"
-                                    fp2 = os.path.join(ud, fn2)
-                                    if user_config.get('enable_e2ee'):
-                                        img_data = part.inline_data.data
-                                        if isinstance(img_data, str):
-                                            img_data = base64.b64decode(img_data)
-                                        with open(fp2 + '.enc', 'wb') as f: f.write(encrypt_bytes(img_data))
-                                    else:
-                                        img_data = part.inline_data.data
-                                        if isinstance(img_data, str):
-                                            img_data = base64.b64decode(img_data)
-                                        with open(fp2, 'wb') as f: f.write(img_data)
-                                    generated_images.append(f"{user_id}/{fn2}")
-                                    pub("content", f"\n![Image](/files/{user_id}/{fn2})\n")
-                                    full_res += f"Generated Image for: {final_message_text}\n"
-                        else:
-                             pub("error", "No image candidates returned.")
+                        if not image_outputs and img_model == "gemini-3.1-flash-image-preview":
+                            log_force(
+                                f"Nano Banana 2 returned text-only output; retrying with image-only mode. "
+                                f"thread={thread_id} job={job_id}"
+                            )
+                            retry_cfg_kwargs = dict(config_kwargs)
+                            retry_cfg_kwargs.pop("tools", None)
+                            retry_cfg_kwargs["response_modalities"] = ["IMAGE"]
+                            retry_prompt = (
+                                f"{img_prompt}\n\n"
+                                "Return an image for this request. Do not answer with text only."
+                            )
+                            retry_resp = g_client.models.generate_content(
+                                model=img_model,
+                                contents=[
+                                    *gemini_image_parts,
+                                    types.Part(text=retry_prompt)
+                                ],
+                                config=types.GenerateContentConfig(**retry_cfg_kwargs)
+                            )
+                            retry_text_outputs, retry_image_outputs = _collect_gemini_image_output_parts(
+                                retry_resp,
+                                keep_only_last_image=True
+                            )
+                            if retry_image_outputs:
+                                text_outputs, image_outputs = retry_text_outputs, retry_image_outputs
+
+                        for txt in text_outputs:
+                            pub("content", txt)
+                            full_res += txt + ("\n" if not txt.endswith("\n") else "")
+
+                        for part in image_outputs:
+                            fn2 = _save_gemini_image_part(part)
+                            pub("content", f"\n![Image](/files/{user_id}/{fn2})\n")
+                            full_res += f"Generated Image for: {final_message_text}\n"
+
+                        if not image_outputs and not text_outputs:
+                            pub("error", "No image output returned.")
                     except Exception as e:
                         logger.exception("Gemini Image Gen Error")
                         pub("error", f"Gemini Image Gen Error: {str(e)}")

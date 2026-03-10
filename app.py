@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-08-001')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-10-001')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -4183,6 +4183,97 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 current_node = current_node.parent
             history = list(reversed(history_rev))
 
+            def _load_history_image_parts(include_roles=None, newest_first=False, include_only_images=True):
+                parts = []
+                seen = set()
+                total_bytes = 0
+                src_messages = list(reversed(history)) if newest_first else history
+                for m in src_messages:
+                    role = str(m.get('role') or '').strip().lower()
+                    if include_roles and role not in include_roles:
+                        continue
+                    raw_urls = m.get('image_url')
+                    if not raw_urls:
+                        continue
+                    try:
+                        ref_list = json.loads(raw_urls)
+                    except Exception:
+                        ref_list = raw_urls
+                    if not isinstance(ref_list, list):
+                        ref_list = [ref_list]
+                    for ref in ref_list:
+                        if _HISTORY_IMAGE_MAX_ITEMS and len(parts) >= _HISTORY_IMAGE_MAX_ITEMS:
+                            return parts
+                        norm_h = _normalize_upload_ref(ref)
+                        if not norm_h or norm_h in seen:
+                            continue
+                        info_h = _get_file_disk_info(norm_h)
+                        if not info_h.get("exists"):
+                            continue
+                        est_size = info_h.get("size") or 0
+                        if _HISTORY_IMAGE_MAX_BYTES and est_size and (total_bytes + est_size > _HISTORY_IMAGE_MAX_BYTES):
+                            continue
+                        data_h = _load_user_file_bytes(norm_h, info_h)
+                        if not data_h:
+                            continue
+                        if _HISTORY_IMAGE_MAX_BYTES and (total_bytes + len(data_h) > _HISTORY_IMAGE_MAX_BYTES):
+                            continue
+                        mime_h = _normalize_media_mime(norm_h, mimetypes.guess_type(norm_h)[0] or 'application/octet-stream')
+                        if include_only_images and not str(mime_h).startswith('image/'):
+                            continue
+                        parts.append({
+                            "role": role,
+                            "ref": norm_h,
+                            "bytes": data_h,
+                            "mime": mime_h,
+                            "name": os.path.basename(norm_h),
+                            "content": m.get('content') or ""
+                        })
+                        seen.add(norm_h)
+                        total_bytes += len(data_h)
+                return parts
+
+            def _build_non_llm_image_context(current_text, include_assistant_images=True):
+                max_context_chars = 12000
+                text_lines = []
+                for m in history:
+                    role = 'User' if m.get('role') == 'user' else 'Assistant'
+                    msg_text = (m.get('content') or '').strip()
+                    image_count = 0
+                    try:
+                        raw_urls = m.get('image_url')
+                        if raw_urls:
+                            parsed_urls = json.loads(raw_urls)
+                            if isinstance(parsed_urls, list):
+                                image_count = len(parsed_urls)
+                            elif parsed_urls:
+                                image_count = 1
+                    except Exception:
+                        image_count = 1 if m.get('image_url') else 0
+                    if msg_text:
+                        text_lines.append(f"{role}: {msg_text}")
+                    elif image_count:
+                        text_lines.append(f"{role}: [attached {image_count} image(s)]")
+                history_images = _load_history_image_parts(
+                    include_roles={"user", "assistant"} if include_assistant_images else {"user"},
+                    newest_first=True,
+                    include_only_images=True
+                )
+                if not text_lines and not history_images:
+                    return current_text, history_images
+                if text_lines:
+                    combined_text = "\n".join(text_lines)
+                    if len(combined_text) > max_context_chars:
+                        combined_text = combined_text[-max_context_chars:]
+                        text_lines = ["[earlier context trimmed]", combined_text]
+                prompt_sections = [
+                    "Conversation context for this image follow-up:",
+                    "\n".join(text_lines) if text_lines else "(no prior text context)",
+                    "Current user request:",
+                    current_text
+                ]
+                return "\n\n".join([section for section in prompt_sections if section]), history_images
+
             model_key = model_key.strip()
             model_key_l = model_key.lower()
             is_openai_search_model = model_key_l in ("gpt-5-search-api", "gpt-4o-search-preview", "gpt-4o-mini-search-preview")
@@ -4705,9 +4796,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 elif "nano" in model_key or "image" in model_key:
                     try:
                         # [FIX] Apply System Prompt to Image Prompts if available
-                        img_prompt = final_message_text
+                        img_prompt, history_image_parts = _build_non_llm_image_context(final_message_text)
                         if options.get('system_prompt'):
-                            img_prompt = f"{options.get('system_prompt')}\n\n{final_message_text}"
+                            img_prompt = f"{options.get('system_prompt')}\n\n{img_prompt}"
 
                         mk_lower = str(model_key or "").lower()
                         if "gemini-3.1-flash-image" in mk_lower:
@@ -4764,14 +4855,23 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             config_kwargs["image_config"] = types.ImageConfig(**image_cfg_kwargs)
 
                         _mark_provider_request_started()
+                        gemini_image_parts = []
+                        history_image_refs_included = set()
+                        for fi in loaded_files:
+                            if fi.get('bytes') and fi.get('mime', '').startswith('image/'):
+                                gemini_image_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime']))
+                        for hp in history_image_parts:
+                            ref = hp.get("ref")
+                            if ref and ref in history_image_refs_included:
+                                continue
+                            gemini_image_parts.append(types.Part.from_bytes(data=hp['bytes'], mime_type=hp['mime']))
+                            if ref:
+                                history_image_refs_included.add(ref)
+
                         resp = g_client.models.generate_content(
                             model=img_model,
                             contents=[
-                                *[
-                                    types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime'])
-                                    for fi in loaded_files
-                                    if fi.get('bytes') and fi.get('mime', '').startswith('image/')
-                                ],
+                                *gemini_image_parts,
                                 types.Part(text=img_prompt)
                             ],
                             config=types.GenerateContentConfig(**config_kwargs)
@@ -4821,7 +4921,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         with open(fp2, 'wb') as f: f.write(img_data)
                                     generated_images.append(f"{user_id}/{fn2}")
                                     pub("content", f"\n![Image](/files/{user_id}/{fn2})\n")
-                                    full_res += f"Generated Image for: {img_prompt}\n"
+                                    full_res += f"Generated Image for: {final_message_text}\n"
                         else:
                              pub("error", "No image candidates returned.")
                     except Exception as e:
@@ -5672,11 +5772,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     pub("content", "**Generating Image (Grok)...**\n")
                     
                     aspect_ratio = options.get('grok_image_aspect') or "1:1"
+                    grok_prompt, history_image_parts = _build_non_llm_image_context(final_message_text)
                     
                     img_response_format = "b64_json"
                     img_kwargs = {
                         "model": model_key,
-                        "prompt": final_message_text,
+                        "prompt": grok_prompt,
                         "n": 1,
                         "response_format": img_response_format
                     }
@@ -5705,6 +5806,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 pass
                         img_name = os.path.basename(fi.get('send_name') or fi.get('name') or f"input_{len(img_inputs)}")
                         img_inputs.append((img_name, img_bytes, img_mime))
+                    for hp in history_image_parts:
+                        ref = hp.get("ref")
+                        if any(existing[0] == os.path.basename(ref or "") for existing in img_inputs):
+                            continue
+                        img_inputs.append((hp['name'], hp['bytes'], hp['mime']))
 
                     img_data_b64 = None
                     if img_inputs:
@@ -5722,7 +5828,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         }
                         payload = {
                             "model": model_key,
-                            "prompt": final_message_text,
+                            "prompt": grok_prompt,
                             "image": {"url": img_data_url},
                             "response_format": img_response_format
                         }
@@ -6184,7 +6290,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         comp_opt = None
                     if comp_opt is not None and (comp_opt < 0 or comp_opt > 100):
                         comp_opt = None
-                    img_kwargs = {"model": model_key, "prompt": final_message_text}
+                    img_prompt, history_image_parts = _build_non_llm_image_context(final_message_text)
+                    if options.get('system_prompt'):
+                        img_prompt = f"{options.get('system_prompt')}\n\n{img_prompt}"
+                    img_kwargs = {"model": model_key, "prompt": img_prompt}
                     if size_opt:
                         img_kwargs["size"] = size_opt
                     if quality_opt:
@@ -6212,6 +6321,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 pass
                         img_name = os.path.basename(fi.get('send_name') or fi.get('name') or f"input_{len(img_inputs)}")
                         img_inputs.append((img_name, img_bytes, img_mime))
+                    existing_input_names = {item[0] for item in img_inputs}
+                    for hp in history_image_parts:
+                        if hp['name'] in existing_input_names:
+                            continue
+                        img_inputs.append((hp['name'], hp['bytes'], hp['mime']))
+                        existing_input_names.add(hp['name'])
                     mask_file = None
                     mask_name = options.get('image_mask')
                     if mask_name:

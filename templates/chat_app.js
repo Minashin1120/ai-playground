@@ -706,6 +706,10 @@
         }
         
         function escapeHtml(t) { return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") : t; }
+        function wrapTextWave(t) {
+            if (!t) return "";
+            return t.split("").map((c, i) => `<span class="wave-char" style="animation-delay: ${i * 0.04}s">${escapeHtml(c)}</span>`).join("");
+        }
         function hashString(str) {
             let h = 0;
             if (!str) return '0';
@@ -7485,7 +7489,7 @@
         function renderPendingMessage(target = null, animate = true, doScroll = true, pendingId = null) {
             const fadeClass = animate ? 'fade-in' : '';
             const idAttr = pendingId ? ` id="${pendingId}"` : '';
-            const html = `<div class="flex justify-start mb-4 ${fadeClass}"><div${idAttr} class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative"><div class="content-area"><span class="animate-pulse">APIに送信中...</span><div class="text-xs text-gray-300/80 mt-2">回答を待機中...</div></div></div></div>`;
+            const html = `<div class="flex justify-start mb-4 ${fadeClass}"><div${idAttr} class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative"><div class="content-area"><div>${wrapTextWave("APIに送信中...")}</div><div class="text-xs text-gray-300/80 mt-2">回答を待機中...</div></div></div></div>`;
             const container = target || get('chat-container');
             container.insertAdjacentHTML('beforeend', html);
             if (doScroll) scrollToBottom();
@@ -7827,7 +7831,7 @@
                 (modelLower.includes('reasoning') && !modelLower.includes('non-reasoning'));
             const shouldShowReasoningProgress = reasoningRequested && reasoningCapableModel;
         
-            let initialHtml = '<div class="content-area"><span class="animate-pulse">APIに送信中...</span><div class="text-xs text-gray-300/80 mt-2">回答を待機中...</div></div>';
+            let initialHtml = `<div class="content-area"><div>${wrapTextWave("APIに送信中...")}</div><div class="text-xs text-gray-300/80 mt-2">回答を待機中...</div></div>`;
             get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aid}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${initialHtml}</div></div>`); 
             scrollToBottom(); 
             const adiv = get(aid);
@@ -7894,7 +7898,7 @@
                     if (!ca) return;
                     if (ca.getAttribute('data-api-accepted') === '1') return;
                     ca.setAttribute('data-api-accepted', '1');
-                    ca.innerHTML = '<span class="animate-pulse">接続完了。モデル応答を待機中...</span><div class="text-xs text-gray-300/80 mt-2">キュー待機や初期化中の可能性があります</div>';
+                    ca.innerHTML = `<div>${wrapTextWave("接続完了。モデル応答を待機中...")}</div><div class="text-xs text-gray-300/80 mt-2">キュー待機や初期化中の可能性があります</div>`;
                 };
                 markApiAccepted();
                 const reader = r.body.getReader(); 
@@ -7947,8 +7951,8 @@
                                 maybeReportFirstEventLatency('status', !!statusText);
                                 const ca = adiv ? adiv.querySelector('.content-area') : null;
                                 if (ca && first) {
-                                    const headline = escapeHtml(statusText || 'モデル処理中...');
-                                    ca.innerHTML = `<span class="animate-pulse">${headline}</span><div class="text-xs text-gray-300/80 mt-2">応答開始までの進捗を表示しています</div>`;
+                                    const headline = statusText || 'モデル処理中...';
+                                    ca.innerHTML = `<div>${wrapTextWave(headline)}</div><div class="text-xs text-gray-300/80 mt-2">応答開始までの進捗を表示しています</div>`;
                                 }
                                 if (shouldShowReasoningProgress) {
                                     ensureThoughtPlaceholder(statusText || '推論プロセスを準備中...');
@@ -8161,8 +8165,8 @@
                                 const statusText = (j.content === null || j.content === undefined) ? '' : String(j.content);
                                 const ca = adiv ? adiv.querySelector('.content-area') : null;
                                 if (ca && first) {
-                                    const headline = escapeHtml(statusText || 'モデル処理中...');
-                                    ca.innerHTML = `<span class="animate-pulse">${headline}</span><div class="text-xs text-gray-300/80 mt-2">応答開始までの進捗を表示しています</div>`;
+                                    const headline = statusText || 'モデル処理中...';
+                                    ca.innerHTML = `<div>${wrapTextWave(headline)}</div><div class="text-xs text-gray-300/80 mt-2">応答開始までの進捗を表示しています</div>`;
                                 }
                                 if (pendingReasoningModel) {
                                     ensureThoughtPlaceholder(statusText || '推論プロセスを準備中...');

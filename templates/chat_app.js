@@ -8019,7 +8019,14 @@
                             } else if(j.type==='content'){ 
                                 const contentDelta = (j.content === null || j.content === undefined) ? '' : String(j.content);
                                 acc += contentDelta; 
-                                contentChanged = true;
+                                if(!cEl){ 
+                                    cEl = adiv.querySelector('.content-area') || document.createElement('div'); 
+                                    cEl.className='prose prose-invert text-sm break-words'; 
+                                    if(!adiv.contains(cEl)) adiv.appendChild(cEl); 
+                                } 
+                                const collapseState = snapshotCodeCollapse(cEl);
+                                renderAiMarkdownInto(cEl, acc);
+                                applyCodeCollapse(cEl, collapseState, true);
                                 maybeReportFirstEventLatency('content', !!contentDelta);
                             } else if(j.type==='error'){ 
                                 hadError = true;
@@ -8031,21 +8038,6 @@
                     if (thoughtChanged && thEl) {
                         thEl.textContent = tht;
                         if (userAutoScroll) thEl.scrollTop = thEl.scrollHeight;
-                    }
-                    if (contentChanged) {
-                        const now = Date.now();
-                        // 16ms throttle (approx 60fps) for smooth flowing feeling
-                        if (now - lastRenderTime > 16) {
-                            lastRenderTime = now;
-                            if(!cEl){ 
-                                cEl = adiv.querySelector('.content-area') || document.createElement('div'); 
-                                cEl.className='prose prose-invert text-sm break-words'; 
-                                if(!adiv.contains(cEl)) adiv.appendChild(cEl); 
-                            } 
-                            const collapseState = snapshotCodeCollapse(cEl);
-                            renderAiMarkdownInto(cEl, acc);
-                            applyCodeCollapse(cEl, collapseState, true);
-                        }
                     }
                     scrollToBottom(); 
                 } 
@@ -8250,8 +8242,16 @@
                                     }
                                 }
                             } else if (j.type === 'content') {
-                                acc += j.content;
-                                contentChanged = true;
+                                const contentDelta = (j.content === null || j.content === undefined) ? '' : String(j.content);
+                                acc += contentDelta;
+                                if (!cEl) {
+                                    cEl = adiv.querySelector('.content-area') || document.createElement('div');
+                                    cEl.className = 'prose prose-invert text-sm break-words';
+                                    if (!adiv.contains(cEl)) adiv.appendChild(cEl);
+                                }
+                                const collapseState = snapshotCodeCollapse(cEl);
+                                renderAiMarkdownInto(cEl, acc);
+                                applyCodeCollapse(cEl, collapseState, true);
                             } else if (j.type === 'error') {
                                 hadError = true;
                                 adiv.insertAdjacentHTML('beforeend', `<div class="text-red-400 text-xs mt-2 border border-red-500 p-2 rounded">Error: ${j.content}</div>`);
@@ -8262,21 +8262,6 @@
                     if (thoughtChanged && thEl) {
                         thEl.textContent = tht;
                         if (userAutoScroll) thEl.scrollTop = thEl.scrollHeight;
-                    }
-                    if (contentChanged) {
-                        const now = Date.now();
-                        // 16ms throttle for smooth flowing feeling
-                        if (now - lastRenderTime > 16) {
-                            lastRenderTime = now;
-                            if (!cEl) {
-                                cEl = adiv.querySelector('.content-area') || document.createElement('div');
-                                cEl.className = 'prose prose-invert text-sm break-words';
-                                if (!adiv.contains(cEl)) adiv.appendChild(cEl);
-                            }
-                            const collapseState = snapshotCodeCollapse(cEl);
-                            renderAiMarkdownInto(cEl, acc);
-                            applyCodeCollapse(cEl, collapseState, true);
-                        }
                     }
                     scrollToBottom();
                 }

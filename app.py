@@ -5782,8 +5782,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         continue
 
                                     if hasattr(part, 'text') and part.text:
-                                        full_res += part.text
-                                        pub("content", part.text)
+                                        t_delta = part.text
+                                        for char in t_delta:
+                                            full_res += char
+                                            pub("content", char)
                         
                         # Fallback to chunk.text if parts didn't cover it (unlikely but safe)
                         # but be careful not to double-publish.

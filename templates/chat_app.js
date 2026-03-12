@@ -1095,6 +1095,7 @@
             const src = useLast ? {
                 model: d.last_model,
                 enable_search: d.last_enable_search,
+                enable_url_context: d.last_enable_url_context,
                 enable_python: d.last_enable_python,
                 enable_thinking: d.last_enable_thinking,
                 thinking_level: d.last_thinking_level,
@@ -1105,6 +1106,7 @@
             } : {
                 model: d.default_model,
                 enable_search: d.default_enable_search,
+                enable_url_context: d.default_enable_url_context,
                 enable_python: d.default_enable_python,
                 enable_thinking: d.default_enable_thinking,
                 thinking_level: d.default_thinking_level,
@@ -1116,6 +1118,7 @@
             const s = (v, fallback) => (v === undefined || v === null || v === "") ? fallback : v;
             if (src.model) selectModelById(src.model);
             if (get('enable-search')) get('enable-search').checked = !!s(src.enable_search, get('enable-search').checked);
+            if (get('enable-url-context')) get('enable-url-context').checked = !!s(src.enable_url_context, get('enable-url-context').checked);
             if (get('enable-python')) get('enable-python').checked = !!s(src.enable_python, get('enable-python').checked);
             if (get('enable-thinking')) get('enable-thinking').checked = !!s(src.enable_thinking, get('enable-thinking').checked);
             if (get('thinking-level')) get('thinking-level').value = s(src.thinking_level, get('thinking-level').value || "high");
@@ -2703,6 +2706,7 @@
                 const thinkBudget = get('thinking-budget');
                 const searchChk = get('enable-search'); 
                 const searchCont = get('search-container'); 
+                const urlCont = get('url-context-container');
                 const sysChk = get('enable-sys-prompt'); const sysLbl = get('sys-prompt-option'); 
                 const pyChk = get('enable-python'); const pyCont = get('python-container');
                 const isSearchModel = model === 'gpt-5-search-api';
@@ -2711,6 +2715,7 @@
                 
                 thinkOpts.classList.add('hidden'); 
                 reasonOpts.classList.add('hidden'); 
+                if(urlCont) urlCont.classList.add('hidden');
                 if(thinkChk) thinkChk.disabled = false; 
                 
                 if(thinkBudget) {
@@ -2720,6 +2725,7 @@
                 const isGeminiImage = model.includes('gemini') && (model.includes('image') || model.includes('nano'));
                 if(isTts) {
                     if(searchCont) { get('enable-search').checked = false; searchCont.classList.add('opacity-50', 'pointer-events-none'); }
+                    if(urlCont) { get('enable-url-context').checked = false; urlCont.classList.add('opacity-50', 'pointer-events-none'); }
                     if(pyCont) { pyChk.checked = false; pyCont.classList.add('opacity-50', 'pointer-events-none'); }
                     sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50');
                 } else if (isNanoBanana2) {
@@ -2734,6 +2740,9 @@
                     if (thinkChk) thinkChk.disabled = false;
                 } else if(model.includes('gemini') && !isGeminiImage) { 
                     thinkOpts.classList.remove('hidden'); 
+                    if(urlCont) {
+                        urlCont.classList.remove('hidden', 'opacity-50', 'pointer-events-none');
+                    }
                     const isFlash = model.includes('flash');
                     const isGemini3 = model.includes('gemini-3') || model.includes('gemini-3.1');
                     Array.from(thinkLvl.options).forEach(opt => {
@@ -3482,6 +3491,7 @@
                     if(get('set-default-model')) get('set-default-model').value = d.default_model || 'gemini-3.1-flash-lite-preview';
                     applyTemporaryChatTimeoutSeconds(d.temp_chat_timeout_seconds);
                     if(get('set-default-search')) get('set-default-search').checked = !!d.default_enable_search;
+                    if(get('set-default-url-context')) get('set-default-url-context').checked = !!d.default_enable_url_context;
                     if(get('set-default-python')) get('set-default-python').checked = !!d.default_enable_python;
                     if(get('set-default-thinking')) get('set-default-thinking').checked = !!d.default_enable_thinking;
                     if(get('set-default-sys-prompt')) get('set-default-sys-prompt').checked = !!d.default_enable_system_prompt;
@@ -3679,6 +3689,7 @@
                         get('set-temp-chat-timeout-seconds') ? get('set-temp-chat-timeout-seconds').value : temporaryChatTimeoutSeconds
                     ),
                     default_enable_search: get('set-default-search') ? get('set-default-search').checked : false,
+                    default_enable_url_context: get('set-default-url-context') ? get('set-default-url-context').checked : false,
                     default_enable_python: get('set-default-python') ? get('set-default-python').checked : false,
                     default_enable_thinking: get('set-default-thinking') ? get('set-default-thinking').checked : false,
                     default_thinking_level: get('set-default-thinking-level') ? get('set-default-thinking-level').value : null,
@@ -7786,6 +7797,7 @@
                 uploaded_image_urls: uploadedImageUrlsToSend,
                 temporary_chat: temporaryChatEnabled,
                 enable_search: get('enable-search').checked, 
+                enable_url_context: get('enable-url-context') ? get('enable-url-context').checked : false,
                 enable_python: get('enable-python').checked, 
                 enable_thinking: get('enable-thinking').checked, 
                 thinking_level: get('thinking-level').value, 

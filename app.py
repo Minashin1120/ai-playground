@@ -1791,6 +1791,7 @@ class User(UserMixin, db.Model):
     temp_chat_timeout_seconds = db.Column(db.Integer, default=_TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS)
     default_model = db.Column(db.String(64), default="gemini-3.1-flash-lite-preview")
     default_enable_search = db.Column(db.Boolean, default=False)
+    default_enable_url_context = db.Column(db.Boolean, default=False)
     default_enable_python = db.Column(db.Boolean, default=True)
     default_enable_thinking = db.Column(db.Boolean, default=False)
     default_thinking_level = db.Column(db.String(16), default="high")
@@ -1800,6 +1801,7 @@ class User(UserMixin, db.Model):
     default_safety_setting = db.Column(db.String(16), default="default")
     last_model = db.Column(db.String(64), nullable=True)
     last_enable_search = db.Column(db.Boolean, default=False)
+    last_enable_url_context = db.Column(db.Boolean, default=False)
     last_enable_python = db.Column(db.Boolean, default=True)
     last_enable_thinking = db.Column(db.Boolean, default=False)
     last_thinking_level = db.Column(db.String(16), default="high")
@@ -4737,6 +4739,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 final_message_text = f"Context (User Quote):\n\"\"\"\n{quote_text}\n\"\"\"\n\nUser Message:\n{message_text}"
 
             auto_enable_search = options.get('enable_search')
+            auto_enable_url_context = options.get('enable_url_context')
             grok_enable_search = auto_enable_search
             user_auto_search = True
             try:
@@ -4761,6 +4764,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if re.search(r'https?://', check_text) or "x.com/" in check_text or "twitter.com/" in check_text:
                         auto_enable_search = True
                         log_force("Auto-enabled Web search for URL/X post access")
+                except Exception:
+                    pass
+            if is_gem and not auto_enable_url_context and user_auto_search and not disable_auto:
+                try:
+                    import re
+                    check_text = f"{message_text} {quote_text or ''}"
+                    if re.search(r'https?://', check_text):
+                        auto_enable_url_context = True
+                        log_force("Auto-enabled URL context for Gemini URL access")
                 except Exception:
                     pass
 
@@ -5057,12 +5069,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             )
                         else:
                             conf['thinking_config'] = types.ThinkingConfig(include_thoughts=True, thinking_level=lvl)
-                    # For Gemini 3, if thinking_level is not specified, the model defaults to "high".
                     # Avoid forcing "minimal" when users disable thinking, because Gemini 3 does not
                     # support fully turning thinking off and defaults are higher per docs.
 
-                    if options.get('enable_search'):
+                    if auto_enable_search:
                         conf['tools'] = [types.Tool(google_search=types.GoogleSearch())]
+                    if auto_enable_url_context:
+                        if 'tools' not in conf: conf['tools'] = []
+                        conf['tools'].append(types.Tool(url_context=types.UrlContext()))
                     if options.get('enable_python') and not gemini_local_python:
                         if 'tools' not in conf: conf['tools'] = []
                         conf['tools'].append(types.Tool(code_execution=types.ToolCodeExecution()))
@@ -5617,6 +5631,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                     grounding_chunks = None
                     grounding_supports = None
+                    url_context_chunks = None
 
                     def _collect_grounding(gm):
                         nonlocal grounding_chunks, grounding_supports
@@ -5628,6 +5643,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         g_supports = getattr(gm, 'grounding_supports', None) or getattr(gm, 'groundingSupports', None) or []
                         if g_supports and grounding_supports is None:
                             grounding_supports = g_supports
+
+                    def _collect_url_context(ucm):
+                        nonlocal url_context_chunks
+                        if not ucm:
+                            return
+                        u_metadata = getattr(ucm, 'url_metadata', None) or getattr(ucm, 'urlMetadata', None) or []
+                        if u_metadata and url_context_chunks is None:
+                            url_context_chunks = u_metadata
 
                     def _chunk_web_info(chunk):
                         web = None
@@ -5723,6 +5746,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             for cand in chunk.candidates:
                                 gm = getattr(cand, 'grounding_metadata', None)
                                 _collect_grounding(gm)
+                                ucm = getattr(cand, 'url_context_metadata', None)
+                                _collect_url_context(ucm)
 
                                 parts = getattr(getattr(cand, 'content', None), 'parts', None) or []
                                 for part in parts:
@@ -5810,6 +5835,27 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             sources_text = "\n\n**Sources:**\n" + "\n".join(sources_lines) + "\n"
                             full_res += sources_text
                             pub("content", sources_text)
+
+                    if url_context_chunks and (options.get('enable_url_context') or auto_enable_url_context):
+                        url_sources = []
+                        has_url_sources = False
+                        for i, chunk in enumerate(url_context_chunks):
+                            uri = None
+                            status = None
+                            if isinstance(chunk, dict):
+                                uri = chunk.get('retrieved_url') or chunk.get('retrievedUrl')
+                                status = chunk.get('url_retrieval_status') or chunk.get('urlRetrievalStatus')
+                            else:
+                                uri = getattr(chunk, 'retrieved_url', None) or getattr(chunk, 'retrievedUrl', None)
+                                status = getattr(chunk, 'url_retrieval_status', None) or getattr(chunk, 'urlRetrievalStatus', None)
+                            if uri:
+                                has_url_sources = True
+                                st_str = f" ({status})" if status and str(status) != "ACTIVE" else ""
+                                url_sources.append(f"- [{uri}]({uri}){st_str}")
+                        if has_url_sources:
+                            url_sources_text = "\n\n**URL Context:**\n" + "\n".join(url_sources) + "\n"
+                            full_res += url_sources_text
+                            pub("content", url_sources_text)
 
                     if gemini_local_python and options.get('enable_python'):
                         try:
@@ -7989,6 +8035,7 @@ def chat_stream():
         if current_user.use_last_chat_settings:
             current_user.last_model = data.get('model')
             current_user.last_enable_search = bool(data.get('enable_search'))
+            current_user.last_enable_url_context = bool(data.get('enable_url_context'))
             current_user.last_enable_python = bool(data.get('enable_python'))
             current_user.last_enable_thinking = bool(data.get('enable_thinking'))
             current_user.last_thinking_level = (data.get('thinking_level') or current_user.last_thinking_level or "high")
@@ -8032,6 +8079,7 @@ def chat_stream():
     options = {
         'system_prompt': None,
         'enable_search': data.get('enable_search'),
+        'enable_url_context': data.get('enable_url_context'),
         'disable_auto_search': data.get('disable_auto_search'),
         'enable_python': data.get('enable_python'),
         'enable_thinking': data.get('enable_thinking'),
@@ -9646,6 +9694,7 @@ def handle_settings():
             'temp_chat_timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user),
             'default_model': current_user.default_model or "gemini-3.1-flash-lite-preview",
             'default_enable_search': current_user.default_enable_search,
+            'default_enable_url_context': current_user.default_enable_url_context,
             'default_enable_python': current_user.default_enable_python,
             'default_enable_thinking': current_user.default_enable_thinking,
             'default_thinking_level': current_user.default_thinking_level or "high",
@@ -9655,6 +9704,7 @@ def handle_settings():
             'default_safety_setting': current_user.default_safety_setting or "default",
             'last_model': current_user.last_model or "gemini-3.1-flash-lite-preview",
             'last_enable_search': current_user.last_enable_search,
+            'last_enable_url_context': current_user.last_enable_url_context,
             'last_enable_python': current_user.last_enable_python,
             'last_enable_thinking': current_user.last_enable_thinking,
             'last_thinking_level': current_user.last_thinking_level or "high",
@@ -9723,6 +9773,7 @@ def handle_settings():
             d.get('temp_chat_timeout_seconds')
         )
     if 'default_enable_search' in d: current_user.default_enable_search = bool(d['default_enable_search'])
+    if 'default_enable_url_context' in d: current_user.default_enable_url_context = bool(d['default_enable_url_context'])
     if 'default_enable_python' in d: current_user.default_enable_python = bool(d['default_enable_python'])
     if 'default_enable_thinking' in d: current_user.default_enable_thinking = bool(d['default_enable_thinking'])
     if 'default_thinking_level' in d: current_user.default_thinking_level = d['default_thinking_level'] or "high"

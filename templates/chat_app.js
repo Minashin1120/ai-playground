@@ -4,15 +4,38 @@
         const GEMINI_LOCAL_PY_DIALOG_KEY = 'gemini_local_py_dialog_enabled';
         const COMPRESSION_SIZE_KEY = 'compression_max_size_mb';
         const COMPRESSION_DIM_KEY = 'compression_max_dim';
+        const COMPRESSION_TYPE_KEY = 'compression_output_type';
         const getCompressionMaxSizeMB = () => parseFloat(localStorage.getItem(COMPRESSION_SIZE_KEY) || '1.0');
         const getCompressionMaxDim = () => parseInt(localStorage.getItem(COMPRESSION_DIM_KEY) || '1920');
-        const setCompressionSettings = (size, dim) => {
+        const getCompressionOutputType = () => localStorage.getItem(COMPRESSION_TYPE_KEY) || 'original';
+        const setCompressionSettings = (size, dim, type) => {
             localStorage.setItem(COMPRESSION_SIZE_KEY, size);
             localStorage.setItem(COMPRESSION_DIM_KEY, dim);
+            localStorage.setItem(COMPRESSION_TYPE_KEY, type);
         };
         const syncCompressionSettingsUi = () => {
             if (get('compression-max-size')) get('compression-max-size').value = getCompressionMaxSizeMB();
             if (get('compression-max-dim')) get('compression-max-dim').value = getCompressionMaxDim();
+            if (get('compression-output-type')) get('compression-output-type').value = getCompressionOutputType();
+
+            // Sync model-specific settings from the prompt bar to the modal
+            const sync = (srcId, destId) => { if(get(srcId) && get(destId)) get(destId).value = get(srcId).value; };
+            sync('gpt-image-size', 'modal-gpt-image-size');
+            sync('gpt-image-quality', 'modal-gpt-image-quality');
+            sync('gpt-image-format', 'modal-gpt-image-format');
+            sync('gpt-image-compression', 'modal-gpt-image-compression');
+            sync('gemini-image-aspect', 'modal-gemini-image-aspect');
+            sync('gemini-image-size', 'modal-gemini-image-size');
+            sync('grok-image-aspect', 'modal-grok-image-aspect');
+
+            // Hide/Show sections based on current model support
+            const model = get('model-select').value;
+            const isGpt = isGptImageModel(model);
+            const isGemini = isGeminiImageModel(model);
+            const isGrok = isGrokImageModel(model);
+            if(get('modal-gpt-image-options')) get('modal-gpt-image-options').classList.toggle('hidden', !isGpt);
+            if(get('modal-gemini-image-options')) get('modal-gemini-image-options').classList.toggle('hidden', !isGemini);
+            if(get('modal-grok-image-options')) get('modal-grok-image-options').classList.toggle('hidden', !isGrok);
         };
         const isGeminiLocalPyDialogEnabled = () => {
             const v = localStorage.getItem(GEMINI_LOCAL_PY_DIALOG_KEY);
@@ -7154,11 +7177,15 @@
                     }
                     if (get('enable-compression').checked && f.type.startsWith('image/')) {
                         try {
+                            const outputType = getCompressionOutputType();
                             const o = {
                                 maxSizeMB: getCompressionMaxSizeMB(),
                                 maxWidthOrHeight: getCompressionMaxDim(),
                                 useWebWorker: true
                             };
+                            if (outputType && outputType !== 'original') {
+                                o.fileType = outputType;
+                            }
                             const c = await imageCompression(f, o);
                             const compressedFile = new File([c], f.name, { type: c.type });
                             if (compressedFile.size > f.size) {
@@ -9044,9 +9071,21 @@
         get('save-compression-settings-btn').onclick = () => {
             const size = get('compression-max-size').value;
             const dim = get('compression-max-dim').value;
-            setCompressionSettings(size, dim);
+            const type = get('compression-output-type').value;
+            setCompressionSettings(size, dim, type);
+
+            // Sync back to the prompt bar inputs
+            const syncBack = (modalId, targetId) => { if(get(modalId) && get(targetId)) get(targetId).value = get(modalId).value; };
+            syncBack('modal-gpt-image-size', 'gpt-image-size');
+            syncBack('modal-gpt-image-quality', 'gpt-image-quality');
+            syncBack('modal-gpt-image-format', 'gpt-image-format');
+            syncBack('modal-gpt-image-compression', 'gpt-image-compression');
+            syncBack('modal-gemini-image-aspect', 'gemini-image-aspect');
+            syncBack('modal-gemini-image-size', 'gemini-image-size');
+            syncBack('modal-grok-image-aspect', 'grok-image-aspect');
+
             hideModal('compression-modal');
-            showToast('圧縮設定を保存しました', 'success');
+            showToast('設定を保存しました', 'success');
         };
         async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('handle_gem_item', gid=0) }}".replace('0', id), {method: 'DELETE'}); loadGems(); }
         async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { const res = await apiFetch("{{ url_for('update_title', thread_id=0) }}".replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); const d = await res.json().catch(() => ({})); if (res.ok && currentThreadId === String(id)) setCurrentChatHeaderTitle((d && d.title) || n); loadThreads(); } }

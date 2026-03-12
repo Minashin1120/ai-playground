@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-12-009')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-12-010')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2005,6 +2005,8 @@ class ChatLatencyTrace(db.Model):
     stream_first_content_to_client_at = db.Column(db.DateTime, nullable=True)
     stream_done_at = db.Column(db.DateTime, nullable=True)
     worker_done_at = db.Column(db.DateTime, nullable=True)
+    client_done_at = db.Column(db.DateTime, nullable=True)
+    client_total_latency_ms = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -2098,7 +2100,7 @@ def _epoch_ms_to_utc_datetime(ms):
     except Exception:
         return None
 
-def _upsert_chat_latency_trace(job_id, user_id, thread_public_id=None, model=None, execution_path=None, client_sent_at_ms=None, client_first_event_type=None, client_first_latency_ms=None):
+def _upsert_chat_latency_trace(job_id, user_id, thread_public_id=None, model=None, execution_path=None, client_sent_at_ms=None, client_first_event_type=None, client_first_latency_ms=None, client_done_at_ms=None, client_total_latency_ms=None):
     if not job_id or not user_id:
         return None
     try:
@@ -2124,6 +2126,18 @@ def _upsert_chat_latency_trace(job_id, user_id, thread_public_id=None, model=Non
                 c_ms = None
             if c_ms is not None and (trace.client_first_latency_ms is None or c_ms < trace.client_first_latency_ms):
                 trace.client_first_latency_ms = c_ms
+        
+        if client_done_at_ms is not None:
+            dt = _epoch_ms_to_utc_datetime(client_done_at_ms)
+            if dt:
+                trace.client_done_at = dt
+        if client_total_latency_ms is not None:
+            try:
+                t_ms = max(0, int(client_total_latency_ms))
+            except Exception:
+                t_ms = None
+            if t_ms is not None:
+                trace.client_total_latency_ms = t_ms
 
         phases = _latency_read(job_id)
         for phase_key, field_name in _LATENCY_PHASE_TO_FIELD.items():
@@ -11094,6 +11108,22 @@ def first_token_metric():
         client_sent_at_ms = _coerce_int_or_none(d.get('client_sent_at_ms'))
         if client_sent_at_ms is not None and 946684800000 <= client_sent_at_ms <= 4102444800000:
             client_sent_at = datetime.utcfromtimestamp(client_sent_at_ms / 1000.0)
+
+        is_total = bool(d.get('is_total'))
+        client_done_at_ms = _coerce_int_or_none(d.get('client_done_at_ms'))
+
+        if is_total:
+            # If it's a total latency report, we primarily update the trace
+            _upsert_chat_latency_trace(
+                job_id=job_id,
+                user_id=current_user.id,
+                thread_public_id=thread_public_id,
+                model=model,
+                client_sent_at_ms=client_sent_at_ms,
+                client_done_at_ms=client_done_at_ms,
+                client_total_latency_ms=latency_ms
+            )
+            return jsonify({'status': 'ok', 'type': 'total'})
 
         row = FirstTokenLatencyMetric(
             user_id=current_user.id,

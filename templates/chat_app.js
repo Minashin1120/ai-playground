@@ -335,7 +335,11 @@
                     first_event_type: payload.first_event_type ? String(payload.first_event_type) : "content",
                     client_sent_at_ms: Number.isFinite(Number(payload.client_sent_at_ms))
                         ? Math.round(Number(payload.client_sent_at_ms))
-                        : Date.now()
+                        : Date.now(),
+                    is_total: !!payload.is_total,
+                    client_done_at_ms: Number.isFinite(Number(payload.client_done_at_ms))
+                        ? Math.round(Number(payload.client_done_at_ms))
+                        : null
                 };
                 apiFetch('/api/metrics/first_token', {
                     method: 'POST',
@@ -8160,6 +8164,19 @@
 
                     if (enableLatencyMetrics) {
                         const totalLatencyMs = nowPerfMs() - sendStartPerfMs;
+                        
+                        // Send total latency to server
+                        reportFirstTokenLatency({
+                            is_total: true,
+                            latency_seconds: totalLatencyMs / 1000,
+                            latency_ms: totalLatencyMs,
+                            thread_id: streamThreadIdForMetric || currentThreadId,
+                            job_id: currentJobId,
+                            model: p.model,
+                            client_sent_at_ms: sendStartEpochMs,
+                            client_done_at_ms: Date.now()
+                        });
+
                         let latencyHtml = `<div class="mt-2 pt-2 border-t border-gray-700/30 flex flex-col gap-1 items-end opacity-70 text-[10px] font-mono text-gray-400">`;
                         
                         // First Token

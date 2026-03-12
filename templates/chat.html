@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.333)</title>
+    <title>AI Playground (V4.8.334)</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.258.css') }}?v={{ app_version }}">
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -232,7 +232,15 @@
                         </div>
                         <div id="reasoning-effort-container" class="hidden flex items-center gap-1"><span class="text-gray-400">Effort:</span><select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="none">None</option><option value="low">Low</option><option value="medium" selected>Med</option><option value="high">High</option><option value="xhigh">XHigh</option></select></div>
                         <div class="flex items-center gap-1 border-l border-gray-600 pl-2 ml-2"><span class="text-gray-400">Safety:</span><select id="safety-setting" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="default">Default</option><option value="none" class="text-red-300">None</option></select></div>
-                        <label class="flex items-center gap-1 cursor-pointer select-none ml-2" title="Client-side Compression"><input type="checkbox" id="enable-compression" class="accent-blue-500 w-3 h-3" checked><span class="text-gray-400 text-[10px]">Compress</span></label>
+                        <div class="flex items-center gap-0.5 select-none ml-2">
+                            <label class="flex items-center gap-1 cursor-pointer" title="Client-side Compression">
+                                <input type="checkbox" id="enable-compression" class="accent-blue-500 w-3 h-3" checked>
+                                <span class="text-gray-400 text-[10px]">Compress</span>
+                            </label>
+                            <button type="button" onclick="openCompressionModal()" class="text-gray-500 hover:text-blue-400 transition p-1" title="Compression Settings">
+                                <i class="fas fa-cog text-[10px]"></i>
+                            </button>
+                        </div>
                         </div>
                         <div id="temporary-chat-controls" class="flex items-center gap-2 ml-1">
                             <label id="temporary-chat-container" class="flex items-center gap-1 cursor-pointer select-none" title="切断後にこのチャットとアップロード添付を自動削除"><input type="checkbox" id="enable-temporary-chat" class="accent-amber-500 w-3 h-3"><span class="text-amber-300 text-[10px]">一時チャット</span></label>
@@ -610,6 +618,31 @@
         </div>
     </div>
 
+    <!-- Compression Settings Modal -->
+    <div id="compression-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
+        <div class="bg-gray-800 rounded-lg w-full max-w-sm p-6 shadow-2xl border border-gray-700 m-4 flex flex-col modal-panel">
+            <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <i class="fas fa-compress-alt text-blue-400"></i> 画像圧縮設定
+            </h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-xs text-gray-400 block mb-1">最大ファイルサイズ (MB)</label>
+                    <input type="number" id="compression-max-size" step="0.1" min="0.1" max="10" value="1.0" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none">
+                    <div class="text-[10px] text-gray-500 mt-1">これを超える画像は圧縮されます</div>
+                </div>
+                <div>
+                    <label class="text-xs text-gray-400 block mb-1">最大幅/高さ (px)</label>
+                    <input type="number" id="compression-max-dim" step="128" min="256" max="8192" value="1920" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none">
+                    <div class="text-[10px] text-gray-500 mt-1">縦横比を維持したままこのサイズにリサイズされます</div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-8">
+                <button onclick="hideModal('compression-modal')" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white transition">閉じる</button>
+                <button id="save-compression-settings-btn" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-modern">保存</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Model Selector Modal -->
     <div id="model-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
         <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-0 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh] overflow-hidden modal-panel">
@@ -901,7 +934,7 @@
     </div>
     {% endif %}
 
-    <script src="{{ url_for('chat_app_js', thread=initial_thread_id|default('', true), v=(app_version ~ '-v4.8.333')) }}" defer></script>
+    <script src="{{ url_for('chat_app_js', thread=initial_thread_id|default('', true), v=(app_version ~ '-v4.8.334')) }}" defer></script>
 
 <div id="token-detail-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm" onclick="if(event.target.id==='token-detail-modal') closeTokenDetail()">
   <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4 text-white relative">

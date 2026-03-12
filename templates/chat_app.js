@@ -2,6 +2,18 @@
         const THEME_DEFAULT = '#14b8a6';
         const THEME_STORAGE_KEY = 'theme_color';
         const GEMINI_LOCAL_PY_DIALOG_KEY = 'gemini_local_py_dialog_enabled';
+        const COMPRESSION_SIZE_KEY = 'compression_max_size_mb';
+        const COMPRESSION_DIM_KEY = 'compression_max_dim';
+        const getCompressionMaxSizeMB = () => parseFloat(localStorage.getItem(COMPRESSION_SIZE_KEY) || '1.0');
+        const getCompressionMaxDim = () => parseInt(localStorage.getItem(COMPRESSION_DIM_KEY) || '1920');
+        const setCompressionSettings = (size, dim) => {
+            localStorage.setItem(COMPRESSION_SIZE_KEY, size);
+            localStorage.setItem(COMPRESSION_DIM_KEY, dim);
+        };
+        const syncCompressionSettingsUi = () => {
+            if (get('compression-max-size')) get('compression-max-size').value = getCompressionMaxSizeMB();
+            if (get('compression-max-dim')) get('compression-max-dim').value = getCompressionMaxDim();
+        };
         const isGeminiLocalPyDialogEnabled = () => {
             const v = localStorage.getItem(GEMINI_LOCAL_PY_DIALOG_KEY);
             if (v === null) return true;
@@ -3523,6 +3535,7 @@
                         syncThemeInputs(localStorage.getItem(THEME_STORAGE_KEY) || THEME_DEFAULT);
                     }
                     syncGeminiLocalPyDialogSetting();
+                    syncCompressionSettingsUi();
                     if(get('set-username')) get('set-username').value = d.username; 
                     
                     // 2FA UI Update
@@ -3650,6 +3663,7 @@
             bindSystemPromptControls();
             bindModelApiKeySettingsControls();
             syncGeminiLocalPyDialogSetting();
+            syncCompressionSettingsUi();
             const localPyDialogSetting = get('set-gemini-local-python-dialog');
             if (localPyDialogSetting) {
                 localPyDialogSetting.onchange = () => setGeminiLocalPyDialogEnabled(localPyDialogSetting.checked);
@@ -7140,7 +7154,11 @@
                     }
                     if (get('enable-compression').checked && f.type.startsWith('image/')) {
                         try {
-                            const o = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true };
+                            const o = {
+                                maxSizeMB: getCompressionMaxSizeMB(),
+                                maxWidthOrHeight: getCompressionMaxDim(),
+                                useWebWorker: true
+                            };
                             const c = await imageCompression(f, o);
                             const compressedFile = new File([c], f.name, { type: c.type });
                             if (compressedFile.size > f.size) {
@@ -9016,6 +9034,19 @@
                     saveBtn.textContent = originalLabel || '保存';
                 }
             }
+        };
+
+        window.openCompressionModal = () => {
+            syncCompressionSettingsUi();
+            showModal('compression-modal');
+        };
+
+        get('save-compression-settings-btn').onclick = () => {
+            const size = get('compression-max-size').value;
+            const dim = get('compression-max-dim').value;
+            setCompressionSettings(size, dim);
+            hideModal('compression-modal');
+            showToast('圧縮設定を保存しました', 'success');
         };
         async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('handle_gem_item', gid=0) }}".replace('0', id), {method: 'DELETE'}); loadGems(); }
         async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { const res = await apiFetch("{{ url_for('update_title', thread_id=0) }}".replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); const d = await res.json().catch(() => ({})); if (res.ok && currentThreadId === String(id)) setCurrentChatHeaderTitle((d && d.title) || n); loadThreads(); } }

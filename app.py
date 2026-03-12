@@ -439,7 +439,7 @@ _OPENAI_HTTPX_TIMEOUT = httpx.Timeout(
 )
 
 _OPENAI_HTTPX_CLIENT = httpx.Client(http2=_HTTP2_ENABLED, limits=_HTTPX_LIMITS, timeout=_OPENAI_HTTPX_TIMEOUT)
-_GEMINI_HTTPX_CLIENT = httpx.Client(http2=_HTTP2_ENABLED, limits=_HTTPX_LIMITS)
+_GEMINI_HTTPX_CLIENT = httpx.Client(http2=False, limits=_HTTPX_LIMITS)
 
 _CLIENT_CACHE_LOCK = threading.Lock()
 _OPENAI_CLIENT_CACHE = {}
@@ -5719,9 +5719,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if hasattr(chunk, 'usage_metadata') and chunk.usage_metadata:
                             final_usage_metadata = chunk.usage_metadata
                         
-                        chunk_thought = ""
-                        chunk_content = ""
-
                         if hasattr(chunk, 'candidates') and chunk.candidates:
                             for cand in chunk.candidates:
                                 gm = getattr(cand, 'grounding_metadata', None)
@@ -5732,19 +5729,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     if hasattr(part, 'thought_signature') and part.thought_signature:
                                         signature_parts.append(base64.b64encode(part.thought_signature).decode('utf-8'))
                                     
-                                    # Collect thoughts in this chunk
                                     if hasattr(part, 'thought') and part.thought:
                                         t_text = _extract_gemini_thought_text(part)
                                         if t_text:
-                                            chunk_thought += t_text
+                                            thought_accumulated += t_text
+                                            pub("thought", t_text)
                                         continue
                                     
-                                    # Handle tool calls/results immediately as they are usually distinct
                                     if hasattr(part, 'executable_code') and part.executable_code:
-                                        if chunk_content: # Publish any pending content before tool call
-                                            full_res += chunk_content
-                                            pub("content", chunk_content)
-                                            chunk_content = ""
                                         c_txt = f"\n```python\n{part.executable_code.code}\n```\n"
                                         full_res += c_txt
                                         pub("content", c_txt)
@@ -5754,10 +5746,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         continue
                                     
                                     if hasattr(part, 'code_execution_result') and part.code_execution_result:
-                                        if chunk_content: # Publish any pending content before result
-                                            full_res += chunk_content
-                                            pub("content", chunk_content)
-                                            chunk_content = ""
                                         r_txt = f"\n**Output:**\n```\n{part.code_execution_result.output}\n```\n"
                                         full_res += r_txt
                                         pub("content", r_txt)
@@ -5768,10 +5756,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         continue
 
                                     if hasattr(part, 'inline_data') and part.inline_data:
-                                        if chunk_content: # Publish any pending content before image
-                                            full_res += chunk_content
-                                            pub("content", chunk_content)
-                                            chunk_content = ""
                                         try:
                                             ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
                                             os.makedirs(ud, exist_ok=True)
@@ -5797,19 +5781,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             log_force(f"Agentic Vision Image Error: {e}")
                                         continue
 
-                                    # Collect text in this chunk
                                     if hasattr(part, 'text') and part.text:
-                                        chunk_content += part.text
+                                        full_res += part.text
+                                        pub("content", part.text)
                         
-                        # Publish aggregated thought for this chunk
-                        if chunk_thought:
-                            thought_accumulated += chunk_thought
-                            pub("thought", chunk_thought)
-                        
-                        # Publish aggregated content for this chunk
-                        if chunk_content:
-                            full_res += chunk_content
-                            pub("content", chunk_content)
+                        # Fallback to chunk.text if parts didn't cover it (unlikely but safe)
+                        # but be careful not to double-publish.
 
                     if grounding_chunks and options.get('enable_search'):
                         if grounding_supports:

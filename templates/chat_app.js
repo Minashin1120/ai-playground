@@ -8034,7 +8034,8 @@
                     }
                     if (contentChanged) {
                         const now = Date.now();
-                        if (now - lastRenderTime > 80) {
+                        // 16ms throttle (approx 60fps) for smooth flowing feeling
+                        if (now - lastRenderTime > 16) {
                             lastRenderTime = now;
                             if(!cEl){ 
                                 cEl = adiv.querySelector('.content-area') || document.createElement('div'); 
@@ -8264,7 +8265,8 @@
                     }
                     if (contentChanged) {
                         const now = Date.now();
-                        if (now - lastRenderTime > 80) {
+                        // 16ms throttle for smooth flowing feeling
+                        if (now - lastRenderTime > 16) {
                             lastRenderTime = now;
                             if (!cEl) {
                                 cEl = adiv.querySelector('.content-area') || document.createElement('div');

@@ -5,18 +5,32 @@
         const COMPRESSION_SIZE_KEY = 'compression_max_size_mb';
         const COMPRESSION_DIM_KEY = 'compression_max_dim';
         const COMPRESSION_TYPE_KEY = 'compression_output_type';
+        const COMPRESSION_FORMAT_ONLY_KEY = 'compression_format_only';
         const getCompressionMaxSizeMB = () => parseFloat(localStorage.getItem(COMPRESSION_SIZE_KEY) || '1.0');
         const getCompressionMaxDim = () => parseInt(localStorage.getItem(COMPRESSION_DIM_KEY) || '1920');
         const getCompressionOutputType = () => localStorage.getItem(COMPRESSION_TYPE_KEY) || 'original';
-        const setCompressionSettings = (size, dim, type) => {
+        const getCompressionFormatOnly = () => localStorage.getItem(COMPRESSION_FORMAT_ONLY_KEY) === 'true';
+        const setCompressionSettings = (size, dim, type, formatOnly) => {
             localStorage.setItem(COMPRESSION_SIZE_KEY, size);
             localStorage.setItem(COMPRESSION_DIM_KEY, dim);
             localStorage.setItem(COMPRESSION_TYPE_KEY, type);
+            localStorage.setItem(COMPRESSION_FORMAT_ONLY_KEY, formatOnly);
         };
         const syncCompressionSettingsUi = () => {
-            if (get('compression-max-size')) get('compression-max-size').value = getCompressionMaxSizeMB();
-            if (get('compression-max-dim')) get('compression-max-dim').value = getCompressionMaxDim();
-            if (get('compression-output-type')) get('compression-output-type').value = getCompressionOutputType();
+            const sizeEl = get('compression-max-size');
+            const dimEl = get('compression-max-dim');
+            const typeEl = get('compression-output-type');
+            const onlyEl = get('compression-format-only');
+
+            if (sizeEl) sizeEl.value = getCompressionMaxSizeMB();
+            if (dimEl) dimEl.value = getCompressionMaxDim();
+            if (typeEl) typeEl.value = getCompressionOutputType();
+            if (onlyEl) {
+                onlyEl.checked = getCompressionFormatOnly();
+                const disabled = onlyEl.checked;
+                if (sizeEl) sizeEl.disabled = disabled;
+                if (dimEl) dimEl.disabled = disabled;
+            }
 
             // Sync model-specific settings from the prompt bar to the modal
             const sync = (srcId, destId) => { if(get(srcId) && get(destId)) get(destId).value = get(srcId).value; };
@@ -3094,6 +3108,16 @@
             get('send-btn').onclick = sendMessage; 
             get('new-chat-btn').onclick = () => startNewChat(); 
             get('upload-btn').onclick = () => openUploadModal(); 
+            const onlyEl = get('compression-format-only');
+            if (onlyEl) {
+                onlyEl.onchange = () => {
+                    const disabled = onlyEl.checked;
+                    const sizeEl = get('compression-max-size');
+                    const dimEl = get('compression-max-dim');
+                    if (sizeEl) sizeEl.disabled = disabled;
+                    if (dimEl) dimEl.disabled = disabled;
+                };
+            }
             const bindTemporaryChatToggle = () => {
                 const temporaryChatChk = get('enable-temporary-chat');
                 if (!temporaryChatChk || temporaryChatChk.dataset.bound === '1') return;
@@ -7178,13 +7202,17 @@
                     if (get('enable-compression').checked && f.type.startsWith('image/')) {
                         try {
                             const outputType = getCompressionOutputType();
+                            const formatOnly = getCompressionFormatOnly();
                             const o = {
-                                maxSizeMB: getCompressionMaxSizeMB(),
-                                maxWidthOrHeight: getCompressionMaxDim(),
+                                maxSizeMB: formatOnly ? 50 : getCompressionMaxSizeMB(),
+                                maxWidthOrHeight: formatOnly ? 16384 : getCompressionMaxDim(),
                                 useWebWorker: true
                             };
                             if (outputType && outputType !== 'original') {
                                 o.fileType = outputType;
+                            } else if (formatOnly) {
+                                // If formatOnly is true but outputType is original, do nothing.
+                                throw new Error('formatOnly with original type');
                             }
                             const c = await imageCompression(f, o);
                             const compressedFile = new File([c], f.name, { type: c.type });
@@ -9072,7 +9100,8 @@
             const size = get('compression-max-size').value;
             const dim = get('compression-max-dim').value;
             const type = get('compression-output-type').value;
-            setCompressionSettings(size, dim, type);
+            const formatOnly = get('compression-format-only').checked;
+            setCompressionSettings(size, dim, type, formatOnly);
 
             // Sync back to the prompt bar inputs
             const syncBack = (modalId, targetId) => { if(get(modalId) && get(targetId)) get(targetId).value = get(modalId).value; };

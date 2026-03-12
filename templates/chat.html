@@ -638,6 +638,10 @@
                                 <option value="image/webp">WebP に変換 (推奨)</option>
                             </select>
                         </div>
+                        <div class="flex items-center gap-2 mt-1">
+                            <input type="checkbox" id="compression-format-only" class="accent-blue-500 w-4 h-4">
+                            <label for="compression-format-only" class="text-xs text-gray-300 cursor-pointer select-none">形式変換のみ (リサイズ無効)</label>
+                        </div>
                         <div>
                             <label class="text-xs text-gray-400 block mb-1">最大ファイルサイズ (MB)</label>
                             <input type="number" id="compression-max-size" step="0.1" min="0.1" max="10" value="1.0" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none">

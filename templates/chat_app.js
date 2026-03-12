@@ -7961,6 +7961,10 @@
             let firstStatusLatencySent = false;
             let firstThoughtLatencySent = false;
             let firstContentLatencySent = false;
+            let firstStatusLatencyMs = null;
+            let firstThoughtLatencyMs = null;
+            let firstContentLatencyMs = null;
+
             let streamThreadIdForMetric = (currentThreadId !== null && currentThreadId !== undefined && currentThreadId !== '')
                 ? String(currentThreadId)
                 : null;
@@ -7970,6 +7974,11 @@
                 if (eventType === 'thought' && firstThoughtLatencySent) return;
                 if (eventType === 'content' && firstContentLatencySent) return;
                 const elapsedMs = Math.max(0, nowPerfMs() - sendStartPerfMs);
+                
+                if (eventType === 'status') firstStatusLatencyMs = elapsedMs;
+                else if (eventType === 'thought') firstThoughtLatencyMs = elapsedMs;
+                else if (eventType === 'content') firstContentLatencyMs = elapsedMs;
+
                 reportFirstTokenLatency({
                     latency_seconds: elapsedMs / 1000,
                     latency_ms: elapsedMs,
@@ -8148,6 +8157,36 @@
                 if (adiv) {
                     queueHighlight(adiv, acc);
                     queueMathTypeset(adiv, acc);
+
+                    if (enableLatencyMetrics) {
+                        const totalLatencyMs = nowPerfMs() - sendStartPerfMs;
+                        let latencyHtml = `<div class="mt-2 pt-2 border-t border-gray-700/30 flex flex-col gap-1 items-end opacity-70 text-[10px] font-mono text-gray-400">`;
+                        
+                        // First Token
+                        let firstAnyMs = null;
+                        if (firstStatusLatencyMs !== null) firstAnyMs = firstStatusLatencyMs;
+                        if (firstThoughtLatencyMs !== null && (firstAnyMs === null || firstThoughtLatencyMs < firstAnyMs)) firstAnyMs = firstThoughtLatencyMs;
+                        if (firstContentLatencyMs !== null && (firstAnyMs === null || firstContentLatencyMs < firstAnyMs)) firstAnyMs = firstContentLatencyMs;
+                        
+                        if (firstAnyMs !== null) {
+                            latencyHtml += `<div>Initial: ${(firstAnyMs/1000).toFixed(2)}s</div>`;
+                        }
+                        
+                        // Breakdown if available
+                        if (firstContentLatencyMs !== null && firstContentLatencyMs !== firstAnyMs) {
+                            latencyHtml += `<div>Content: ${(firstContentLatencyMs/1000).toFixed(2)}s</div>`;
+                        }
+
+                        latencyHtml += `<div class="font-bold text-gray-300">Total: ${(totalLatencyMs/1000).toFixed(2)}s</div>`;
+                        if (currentJobId) {
+                            latencyHtml += `<div class="text-[9px] opacity-50">Job ID: ${currentJobId}</div>`;
+                        }
+                        latencyHtml += `<div class="text-[10px] mt-1">${get('model-select').value}</div>`;
+                        latencyHtml += `</div>`;
+                        adiv.insertAdjacentHTML('beforeend', latencyHtml);
+                    } else {
+                        adiv.insertAdjacentHTML('beforeend', `<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">${get('model-select').value}</div>`);
+                    }
                 }
 
                 // Reset editing state

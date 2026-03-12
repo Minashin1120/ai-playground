@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-12-008')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-12-009')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -6379,6 +6379,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             elif 'gpt-image' in model_key:
                 log_force("Routing: GPT Image Branch")
                 try:
+                    pub("status", "画像生成の準備中...")
                     pub("content", "**Generating Image (OpenAI)...**\n")
                     # GPT Image models always return base64; response_format is not supported for them.
                     # Use a dedicated timeout/retry so image generation can be slower without timing out.
@@ -6401,6 +6402,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         comp_opt = None
                     if comp_opt is not None and (comp_opt < 0 or comp_opt > 100):
                         comp_opt = None
+                    
+                    pub("status", "プロンプトとコンテキストを構成中...")
                     img_prompt, history_image_parts = _build_non_llm_image_context(final_message_text)
                     if options.get('system_prompt'):
                         img_prompt = f"{options.get('system_prompt')}\n\n{img_prompt}"
@@ -6413,6 +6416,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         img_kwargs["output_format"] = format_opt
                         if format_opt in {"jpeg", "webp"}:
                             img_kwargs["output_compression"] = comp_opt if comp_opt is not None else _OPENAI_IMAGE_OUTPUT_COMPRESSION
+                    
+                    pub("status", "入力画像を処理中...")
                     img_inputs = []
                     for fi in loaded_files:
                         if not fi.get('bytes') or not fi.get('mime', '').startswith('image/'):
@@ -6441,6 +6446,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     mask_file = None
                     mask_name = options.get('image_mask')
                     if mask_name:
+                        pub("status", "マスク画像を処理中...")
                         if not img_inputs:
                             raise RuntimeError("Mask requires at least one input image.")
                         norm = os.path.normpath(mask_name)
@@ -6470,15 +6476,20 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             raise
                         except Exception:
                             raise RuntimeError("Failed to process mask file.")
+                    
                     if img_inputs:
+                        pub("status", "OpenAI API (Edit) を呼び出し中...")
                         if mask_file:
                             resp = img_client.images.edit(image=img_inputs, mask=mask_file, **img_kwargs)
                         else:
                             resp = img_client.images.edit(image=img_inputs, **img_kwargs)
                     else:
+                        pub("status", "OpenAI API (Generations) を呼び出し中... (これには時間がかかる場合があります)")
                         _mark_provider_request_started()
                         resp = img_client.images.generate(**img_kwargs)
+                    
                     if resp.data:
+                        pub("status", "生成されたデータをデコード中...")
                         img_bytes = base64.b64decode(resp.data[0].b64_json)
                         ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
                         if not os.path.exists(ud): os.makedirs(ud, exist_ok=True)
@@ -6489,11 +6500,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             ext = "webp"
                         fn2 = f"gen_gpt_{int(time.time())}_{len(generated_images)}.{ext}"
                         fp2 = os.path.join(ud, fn2)
+                        
+                        pub("status", "画像を保存して暗号化を適用中...")
                         if user_config.get('enable_e2ee'):
                             with open(fp2 + '.enc', 'wb') as f: f.write(encrypt_bytes(img_bytes))
                         else:
                             with open(fp2, 'wb') as f: f.write(img_bytes)
                         generated_images.append(f"{user_id}/{fn2}")
+                        pub("status", "完了")
                         pub("content", f"\n![Image](/files/{user_id}/{fn2})\n")
                         full_res += f"Generated Image for: {final_message_text}\n"
                 except APITimeoutError:

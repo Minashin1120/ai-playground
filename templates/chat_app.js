@@ -365,7 +365,7 @@
         let activeGem = null, editingGemId = null, currentImageUrls = [], currentMaskImage = null, abortController = null, userAutoScroll = true, searchTimeout;
         
         // Prompt History
-        let promptHistory = JSON.parse(localStorage.getItem('prompt_history') || '[]');
+        let promptHistory = [];
         let historyIndex = -1;
         let tempPrompt = "";
          
@@ -7749,7 +7749,6 @@
                 if (promptHistory.length === 0 || promptHistory[0] !== rawText) {
                     promptHistory.unshift(rawText);
                     if (promptHistory.length > 100) promptHistory.pop();
-                    localStorage.setItem('prompt_history', JSON.stringify(promptHistory));
                 }
             }
             historyIndex = -1;
@@ -8477,19 +8476,14 @@
             oldestLoadedMessageId = threadData.oldest_loaded_id || (allMessages.length ? allMessages[0].id : null);
 
             // Load prompt history from thread messages
-            if (allMessages.length > 0) {
-                const threadUserPrompts = allMessages
-                    .filter(m => m.role === 'user' && m.content)
-                    .map(m => m.content);
-                
-                // Add to history if not present (moving to front if already there)
-                threadUserPrompts.forEach(p => {
-                    promptHistory = promptHistory.filter(h => h !== p);
-                    promptHistory.unshift(p);
-                });
-                if (promptHistory.length > 100) promptHistory = promptHistory.slice(0, 100);
-                localStorage.setItem('prompt_history', JSON.stringify(promptHistory));
-            }
+            const threadUserPrompts = (allMessages || [])
+                .filter(m => m.role === 'user' && m.content)
+                .map(m => m.content);
+            
+            // Deduplicate (latest sent should be first in promptHistory for ArrowUp)
+            promptHistory = [...new Set(threadUserPrompts.slice().reverse())];
+            historyIndex = -1;
+            tempPrompt = "";
 
             currentThreadPending = threadData.pending_job || null;
             setTemporaryChatUiState(!!(threadData && threadData.is_temporary));
@@ -8948,6 +8942,9 @@
             tempChatExpiresAtMs = null;
             currentThreadId = null; 
             allMessages = []; 
+            promptHistory = [];
+            historyIndex = -1;
+            tempPrompt = "";
             threadHasOlderMessages = false;
             oldestLoadedMessageId = null;
             loadingOlderMessages = false;

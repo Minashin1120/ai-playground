@@ -1896,7 +1896,7 @@
                     { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro", desc: "Next-gen native multimodal model.", price: "In $2.00/1M, Out $12.00/1M (≤200k)" },
                     { id: "gemini-3.1-flash-lite-preview", name: "Gemini 3.1 Flash-Lite", desc: "Fastest and most cost-efficient Gemini 3.1 model.", price: "In $0.25/1M, Out $1.50/1M" },
                     { id: "gemini-3-flash-preview", name: "Gemini 3.0 Flash", desc: "Fastest and most cost-efficient.", price: "In $0.50/1M, Out $3.00/1M" },
-                    { id: "gemini-3-pro-preview", name: "Gemini 3.0 Pro", desc: "Best performing model for complex tasks.", price: "In $2.00/1M, Out $12.00/1M (≤200k)" }
+                    { id: "gemini-3-pro-preview", name: "Gemini 3.0 Pro", desc: "Best performing model for complex tasks.", price: "In $2.00/1M, Out $12.00/1M (≤200k)", deprecated: true }
                 ]
             },
             {
@@ -2040,7 +2040,7 @@
             first.textContent = 'モデルを選択';
             select.appendChild(first);
             MODELS.forEach((group) => {
-                const items = Array.isArray(group.items) ? group.items : [];
+                const items = Array.isArray(group.items) ? group.items.filter(m => !m.deprecated) : [];
                 if (!items.length) return;
                 const optgroup = document.createElement('optgroup');
                 optgroup.label = String(group.category || 'Models');
@@ -2462,6 +2462,7 @@
             
             MODELS.forEach(group => {
                 const matches = group.items.filter(m => {
+                    if (m.deprecated) return false;
                     const hit = m.name.toLowerCase().includes(f) || m.id.toLowerCase().includes(f);
                     if (!hit) return false;
                     if (activeModelTag === 'all') return true;

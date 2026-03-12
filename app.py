@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-12-001')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-12-002')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1827,6 +1827,7 @@ class User(UserMixin, db.Model):
     appeal_blocked = db.Column(db.Boolean, default=False)
     appeal_block_reason = db.Column(db.Text, nullable=True)
     appeal_blocked_at = db.Column(db.DateTime, nullable=True)
+    enable_latency_metrics = db.Column(db.Boolean, default=False)
     threads = db.relationship('Thread', backref='user', lazy=True, cascade="all, delete-orphan")
     gems = db.relationship('Gem', backref='user', lazy=True, cascade="all, delete-orphan")
     sessions = db.relationship('UserSession', backref='user', lazy=True, cascade="all, delete-orphan")
@@ -9724,7 +9725,8 @@ def handle_settings():
             'bot_detection_enabled': current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
             'bot_detection_global_enabled': get_bot_detection_global_enabled(),
             'is_bot_banned': current_user.is_bot_banned,
-            'bot_ban_reason': current_user.bot_ban_reason
+            'bot_ban_reason': current_user.bot_ban_reason,
+            'enable_latency_metrics': current_user.enable_latency_metrics if current_user.enable_latency_metrics is not None else False
         }
         if getattr(current_user, 'is_admin', False):
             payload['admin_api_key_mode'] = _normalize_admin_api_key_mode(current_user.admin_api_key_mode)
@@ -9794,6 +9796,8 @@ def handle_settings():
         current_user.passkey_only_login = target
     if 'bot_detection_enabled' in d and d['bot_detection_enabled'] is not None:
         current_user.bot_detection_enabled = bool(d['bot_detection_enabled'])
+    if 'enable_latency_metrics' in d:
+        current_user.enable_latency_metrics = bool(d['enable_latency_metrics'])
     if getattr(current_user, 'is_admin', False) and 'admin_api_key_mode' in d:
         current_user.admin_api_key_mode = _normalize_admin_api_key_mode(d['admin_api_key_mode'])
     if getattr(current_user, 'is_admin', False) and 'bot_detection_global_enabled' in d:

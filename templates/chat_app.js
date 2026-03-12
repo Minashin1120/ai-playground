@@ -267,6 +267,7 @@
             return Date.now();
         };
         const reportFirstTokenLatency = (payload) => {
+            if (!enableLatencyMetrics) return;
             try {
                 if (!payload || typeof payload !== 'object') return;
                 const secRaw = Number(payload.latency_seconds);
@@ -379,6 +380,7 @@
         let autoSearchOnLinks = {{ 'true' if current_user.is_authenticated and current_user.auto_search_on_links else 'false' }};
         let useSwCache = {{ 'true' if current_user.is_authenticated and current_user.use_sw_cache else 'false' }};
         let compactPromptMode = {{ 'true' if current_user.is_authenticated and current_user.compact_prompt_mode else 'false' }};
+        let enableLatencyMetrics = {{ 'true' if current_user.is_authenticated and current_user.enable_latency_metrics else 'false' }};
         let promptControlsExpanded = false;
         const appVersion = "{{ app_version }}";
         const botConfig = {{ bot_config|tojson if bot_config is defined else 'null' }};
@@ -3461,6 +3463,7 @@
                         applyAutoSystemPromptConfigToForm('set', d.auto_system_prompt_notices_config || {});
                         get('sys-prompt-text').value = d.system_prompt; 
                         if(get('set-global-sys-prompt-enabled')) get('set-global-sys-prompt-enabled').checked = d.system_prompt_enabled !== false;
+                        if(get('set-latency-metrics')) get('set-latency-metrics').checked = d.enable_latency_metrics === true;
                         if(get('set-openai')) get('set-openai').value = d.openai_key || ''; 
                         if(get('set-gemini')) get('set-gemini').value = d.gemini_key || ''; 
                         if(get('set-gemini-backend')) get('set-gemini-backend').value = normalizeGeminiBackend(d.gemini_backend || 'gemini_api');
@@ -3698,6 +3701,7 @@
                     default_reasoning_effort: get('set-default-reasoning-effort') ? get('set-default-reasoning-effort').value : null,
                     default_enable_system_prompt: get('set-default-sys-prompt') ? get('set-default-sys-prompt').checked : false,
                     default_safety_setting: get('set-default-safety') ? get('set-default-safety').value : null,
+                    enable_latency_metrics: get('set-latency-metrics') ? get('set-latency-metrics').checked : false,
                     enable_e2ee: get('set-e2ee').checked,
                     passkey_only_login: get('set-passkey-only-login') ? get('set-passkey-only-login').checked : false,
                     new_username: uEl ? uEl.value : null,

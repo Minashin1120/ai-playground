@@ -30,6 +30,10 @@
                 const disabled = onlyEl.checked;
                 if (sizeEl) sizeEl.disabled = disabled;
                 if (dimEl) dimEl.disabled = disabled;
+                const sizeWrap = get('compression-size-wrap');
+                const dimWrap = get('compression-dim-wrap');
+                if (sizeWrap) sizeWrap.style.opacity = disabled ? '0.4' : '1';
+                if (dimWrap) dimWrap.style.opacity = disabled ? '0.4' : '1';
             }
 
             // Sync model-specific settings from the prompt bar to the modal
@@ -3116,6 +3120,10 @@
                     const dimEl = get('compression-max-dim');
                     if (sizeEl) sizeEl.disabled = disabled;
                     if (dimEl) dimEl.disabled = disabled;
+                    const sizeWrap = get('compression-size-wrap');
+                    const dimWrap = get('compression-dim-wrap');
+                    if (sizeWrap) sizeWrap.style.opacity = disabled ? '0.4' : '1';
+                    if (dimWrap) dimWrap.style.opacity = disabled ? '0.4' : '1';
                 };
             }
             const bindTemporaryChatToggle = () => {

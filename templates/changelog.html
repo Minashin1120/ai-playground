@@ -52,6 +52,18 @@
             .markdown-body ul { font-size: 0.95rem; }
         }
         .log-card { background: rgba(11,18,26,0.9); border: 1px solid rgba(148,163,184,0.2); box-shadow: 0 22px 50px rgba(0,0,0,0.4); backdrop-filter: blur(12px); }
+        .loading-spinner {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="min-h-screen p-6 md:p-12">
@@ -60,17 +72,96 @@
             <h1 class="text-3xl font-bold text-white"><i class="fas fa-history text-amber-300 mr-3"></i> 更新履歴</h1>
             <a href="/" class="px-4 py-2 bg-slate-900/70 hover:bg-slate-800 text-white rounded-lg border border-slate-700 transition">戻る</a>
         </div>
-        <div class="space-y-8">
+        <div id="changelog-container" class="space-y-8">
             {% for log in logs %}
             <div class="log-card p-6 rounded-xl">
                 {% if log.title %}
                 <div class="text-teal-300 font-semibold text-sm mb-2">{{ log.title }}</div>
                 {% endif %}
-                <div class="markdown-body" id="log-{{ loop.index }}"></div>
-                <script>document.getElementById('log-{{ loop.index }}').innerHTML = DOMPurify.sanitize(marked.parse(`{{ log.content | replace('`', '\`') | safe }}`));</script>
+                <div class="markdown-body">{{ log.content }}</div>
             </div>
             {% endfor %}
         </div>
+
+        <div id="loading-trigger" class="py-10 flex justify-center items-center">
+            <div id="spinner" class="loading-spinner hidden"></div>
+            <div id="no-more" class="text-gray-500 text-sm hidden">これ以上の履歴はありません</div>
+        </div>
     </div>
+
+    <script>
+        let currentPage = 1;
+        const limit = {{ limit }};
+        const totalItems = {{ total }};
+        let isLoading = false;
+        let hasMore = totalItems > limit;
+
+        const container = document.getElementById('changelog-container');
+        const trigger = document.getElementById('loading-trigger');
+        const spinner = document.getElementById('spinner');
+        const noMore = document.getElementById('no-more');
+
+        // Initial markdown rendering for first page
+        document.querySelectorAll('.markdown-body').forEach(el => {
+            if (el.dataset.rendered !== 'true') {
+                el.innerHTML = DOMPurify.sanitize(marked.parse(el.textContent));
+                el.dataset.rendered = 'true';
+            }
+        });
+
+        async function loadMore() {
+            if (isLoading || !hasMore) return;
+            isLoading = true;
+            spinner.classList.remove('hidden');
+            currentPage++;
+
+            try {
+                const response = await fetch(`/api/changelogs?page=${currentPage}&limit=${limit}`);
+                const data = await response.json();
+                
+                if (data.logs.length === 0) {
+                    hasMore = false;
+                    noMore.classList.remove('hidden');
+                } else {
+                    data.logs.forEach(log => {
+                        const card = document.createElement('div');
+                        card.className = 'log-card p-6 rounded-xl';
+                        
+                        let html = '';
+                        if (log.title) {
+                            html += `<div class="text-teal-300 font-semibold text-sm mb-2">${log.title}</div>`;
+                        }
+                        const markdownHtml = DOMPurify.sanitize(marked.parse(log.content));
+                        html += `<div class="markdown-body">${markdownHtml}</div>`;
+                        
+                        card.innerHTML = html;
+                        container.appendChild(card);
+                    });
+
+                    if (currentPage * limit >= data.total) {
+                        hasMore = false;
+                        noMore.classList.remove('hidden');
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading changelogs:', error);
+            } finally {
+                isLoading = false;
+                spinner.classList.add('hidden');
+            }
+        }
+
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting) {
+                loadMore();
+            }
+        }, { threshold: 0.1 });
+
+        if (hasMore) {
+            observer.observe(trigger);
+        } else if (totalItems > 0) {
+            noMore.classList.remove('hidden');
+        }
+    </script>
 </body>
 </html>

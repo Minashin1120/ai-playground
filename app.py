@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-12-006')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-12-007')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -7480,10 +7480,9 @@ def chat_permalink(thread_id):
     initial_thread_id = thread.public_id or thread.id
     return render_template('chat.html', initial_thread_id=initial_thread_id, easy_login_used=easy_login_used, bot_config=bot_config)
 
-@app.route('/changelog')
-def changelog():
-    log_dir = app.config['CHANGELOG_FOLDER']
-    logs = []
+def _get_changelogs(page=1, limit=10):
+    log_dir = app.config.get('CHANGELOG_FOLDER', os.path.join(os.path.dirname(__file__), 'static/changelogs'))
+    all_logs = []
     if os.path.exists(log_dir):
         files = glob.glob(os.path.join(log_dir, '*.md'))
         def _changelog_meta(path):
@@ -7502,15 +7501,38 @@ def changelog():
                 title = f"V{version} ({date_fmt})"
                 return date_key, ver_nums, title
             return 0, (0,), base
+        
         files.sort(key=lambda p: _changelog_meta(p)[:2], reverse=True)
-        for f in files:
-            with open(f, 'r', encoding='utf-8') as file:
-                content = file.read()
-            title = None
-            if not content.lstrip().startswith('#'):
-                _, _, title = _changelog_meta(f)
-            logs.append({'content': content, 'title': title})
-    return render_template('changelog.html', logs=logs)
+        
+        start = (page - 1) * limit
+        end = start + limit
+        paginated_files = files[start:end]
+        
+        for f in paginated_files:
+            try:
+                with open(f, 'r', encoding='utf-8') as file:
+                    content = file.read()
+                title = None
+                if not content.lstrip().startswith('#'):
+                    _, _, title = _changelog_meta(f)
+                all_logs.append({'content': content, 'title': title})
+            except Exception as e:
+                logger.error(f"Error reading changelog file {f}: {e}")
+                
+        return all_logs, len(files)
+    return [], 0
+
+@app.route('/changelog')
+def changelog():
+    logs, total = _get_changelogs(page=1, limit=10)
+    return render_template('changelog.html', logs=logs, total=total, limit=10)
+
+@app.route('/api/changelogs')
+def api_changelogs():
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 10, type=int)
+    logs, total = _get_changelogs(page=page, limit=limit)
+    return jsonify({'logs': logs, 'total': total, 'page': page, 'limit': limit})
 
 @app.route('/banned')
 @login_required

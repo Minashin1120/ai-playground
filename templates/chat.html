@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>AI Playground (V4.8.335)</title>
+    <title>AI Playground (V4.8.336)</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.258.css') }}?v={{ app_version }}">
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -642,13 +642,13 @@
                             <input type="checkbox" id="compression-format-only" class="accent-blue-500 w-4 h-4">
                             <label for="compression-format-only" class="text-xs text-gray-300 cursor-pointer select-none">形式変換のみ (リサイズ無効)</label>
                         </div>
-                        <div>
+                        <div id="compression-size-wrap" class="transition-opacity">
                             <label class="text-xs text-gray-400 block mb-1">最大ファイルサイズ (MB)</label>
-                            <input type="number" id="compression-max-size" step="0.1" min="0.1" max="10" value="1.0" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none">
+                            <input type="number" id="compression-max-size" step="0.1" min="0.1" max="10" value="1.0" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none disabled:opacity-50">
                         </div>
-                        <div>
+                        <div id="compression-dim-wrap" class="transition-opacity">
                             <label class="text-xs text-gray-400 block mb-1">最大幅/高さ (px)</label>
-                            <input type="number" id="compression-max-dim" step="128" min="256" max="8192" value="1920" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none">
+                            <input type="number" id="compression-max-dim" step="128" min="256" max="8192" value="1920" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none disabled:opacity-50">
                         </div>
                     </div>
                 </div>

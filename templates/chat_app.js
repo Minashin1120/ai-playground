@@ -7905,6 +7905,7 @@
                 const dec = new TextDecoder(); 
                 let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null, hadError=false; 
                 const pyBoxes = {}; 
+                let lastRenderTime = 0;
             
                 while(true) { 
                     const {done, value} = await reader.read(); 
@@ -7912,6 +7913,8 @@
                     buf += dec.decode(value, {stream:true}); 
                     let ls = buf.split("\n"); 
                     buf = ls.pop(); 
+                    let contentChanged = false;
+                    let thoughtChanged = false;
                     for(let l of ls) { 
                         if(!l.trim()) continue; 
                         try { 
@@ -7982,8 +7985,7 @@
                                     thEl.removeAttribute('data-placeholder');
                                     tht = j.content;
                                 }
-                                thEl.textContent=tht; 
-                                if(userAutoScroll) thEl.scrollTop=thEl.scrollHeight; 
+                                thoughtChanged = true;
                             } else if(j.type==='python'){ 
                                 const py = j.content || {}; 
                                 const pyId = py.id || `py_${Date.now()}`; 
@@ -8017,14 +8019,7 @@
                             } else if(j.type==='content'){ 
                                 const contentDelta = (j.content === null || j.content === undefined) ? '' : String(j.content);
                                 acc += contentDelta; 
-                                if(!cEl){ 
-                                    cEl = adiv.querySelector('.content-area') || document.createElement('div'); 
-                                    cEl.className='prose prose-invert text-sm break-words'; 
-                                    if(!adiv.contains(cEl)) adiv.appendChild(cEl); 
-                                } 
-                                const collapseState = snapshotCodeCollapse(cEl);
-                                renderAiMarkdownInto(cEl, acc);
-                                applyCodeCollapse(cEl, collapseState, true);
+                                contentChanged = true;
                                 maybeReportFirstEventLatency('content', !!contentDelta);
                             } else if(j.type==='error'){ 
                                 hadError = true;
@@ -8033,8 +8028,32 @@
                             } 
                         } catch(e){} 
                     } 
+                    if (thoughtChanged && thEl) {
+                        thEl.textContent = tht;
+                        if (userAutoScroll) thEl.scrollTop = thEl.scrollHeight;
+                    }
+                    if (contentChanged) {
+                        const now = Date.now();
+                        if (now - lastRenderTime > 80) {
+                            lastRenderTime = now;
+                            if(!cEl){ 
+                                cEl = adiv.querySelector('.content-area') || document.createElement('div'); 
+                                cEl.className='prose prose-invert text-sm break-words'; 
+                                if(!adiv.contains(cEl)) adiv.appendChild(cEl); 
+                            } 
+                            const collapseState = snapshotCodeCollapse(cEl);
+                            renderAiMarkdownInto(cEl, acc);
+                            applyCodeCollapse(cEl, collapseState, true);
+                        }
+                    }
                     scrollToBottom(); 
                 } 
+                // Final render to catch any remaining content
+                if (cEl) {
+                    const collapseState = snapshotCodeCollapse(cEl);
+                    renderAiMarkdownInto(cEl, acc);
+                    applyCodeCollapse(cEl, collapseState, true);
+                }
 
                 if (adiv) {
                     queueHighlight(adiv, acc);
@@ -8127,6 +8146,7 @@
             }
             let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null, hadError=false;
             const pyBoxes = {};
+            let lastRenderTime = 0;
             try {
                 const r = await apiFetch("/chat_stream_resume", {
                     method: 'POST',
@@ -8145,6 +8165,8 @@
                     buf += dec.decode(value, {stream:true});
                     let ls = buf.split("\n");
                     buf = ls.pop();
+                    let contentChanged = false;
+                    let thoughtChanged = false;
                     for (let l of ls) {
                         if (!l.trim()) continue;
                         try {
@@ -8195,8 +8217,7 @@
                                     thEl.removeAttribute('data-placeholder');
                                     tht = j.content;
                                 }
-                                thEl.textContent = tht;
-                                if (userAutoScroll) thEl.scrollTop = thEl.scrollHeight;
+                                thoughtChanged = true;
                             } else if (j.type === 'python') {
                                 const py = j.content || {};
                                 const pyId = py.id || `py_${Date.now()}`;
@@ -8229,14 +8250,7 @@
                                 }
                             } else if (j.type === 'content') {
                                 acc += j.content;
-                                if (!cEl) {
-                                    cEl = adiv.querySelector('.content-area') || document.createElement('div');
-                                    cEl.className = 'prose prose-invert text-sm break-words';
-                                    if (!adiv.contains(cEl)) adiv.appendChild(cEl);
-                                }
-                                const collapseState = snapshotCodeCollapse(cEl);
-                                renderAiMarkdownInto(cEl, acc);
-                                applyCodeCollapse(cEl, collapseState, true);
+                                contentChanged = true;
                             } else if (j.type === 'error') {
                                 hadError = true;
                                 adiv.insertAdjacentHTML('beforeend', `<div class="text-red-400 text-xs mt-2 border border-red-500 p-2 rounded">Error: ${j.content}</div>`);
@@ -8244,7 +8258,31 @@
                             }
                         } catch (e) {}
                     }
+                    if (thoughtChanged && thEl) {
+                        thEl.textContent = tht;
+                        if (userAutoScroll) thEl.scrollTop = thEl.scrollHeight;
+                    }
+                    if (contentChanged) {
+                        const now = Date.now();
+                        if (now - lastRenderTime > 80) {
+                            lastRenderTime = now;
+                            if (!cEl) {
+                                cEl = adiv.querySelector('.content-area') || document.createElement('div');
+                                cEl.className = 'prose prose-invert text-sm break-words';
+                                if (!adiv.contains(cEl)) adiv.appendChild(cEl);
+                            }
+                            const collapseState = snapshotCodeCollapse(cEl);
+                            renderAiMarkdownInto(cEl, acc);
+                            applyCodeCollapse(cEl, collapseState, true);
+                        }
+                    }
                     scrollToBottom();
+                }
+                // Final render to catch any remaining content
+                if (cEl) {
+                    const collapseState = snapshotCodeCollapse(cEl);
+                    renderAiMarkdownInto(cEl, acc);
+                    applyCodeCollapse(cEl, collapseState, true);
                 }
 
                 if (adiv) {

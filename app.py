@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-13-001')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-13-002')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -6513,37 +6513,107 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     
                     if img_inputs:
                         pub("status", "OpenAI API (Edit) を呼び出し中...")
-                        if mask_file:
-                            resp = img_client.images.edit(image=img_inputs, mask=mask_file, **img_kwargs)
-                        else:
-                            resp = img_client.images.edit(image=img_inputs, **img_kwargs)
                     else:
                         pub("status", "OpenAI API (Generations) を呼び出し中... (これには時間がかかる場合があります)")
-                        _mark_provider_request_started()
-                        resp = img_client.images.generate(**img_kwargs)
                     
-                    if resp.data:
-                        pub("status", "生成されたデータをデコード中...")
-                        img_bytes = base64.b64decode(resp.data[0].b64_json)
-                        ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
-                        if not os.path.exists(ud): os.makedirs(ud, exist_ok=True)
-                        ext = "png"
-                        if format_opt == "jpeg":
-                            ext = "jpg"
-                        elif format_opt == "webp":
-                            ext = "webp"
-                        fn2 = f"gen_gpt_{int(time.time())}_{len(generated_images)}.{ext}"
-                        fp2 = os.path.join(ud, fn2)
-                        
-                        pub("status", "画像を保存して暗号化を適用中...")
-                        if user_config.get('enable_e2ee'):
-                            with open(fp2 + '.enc', 'wb') as f: f.write(encrypt_bytes(img_bytes))
+                    _mark_provider_request_started()
+                    
+                    # Build tools and input for Responses API
+                    tools = [
+                        {
+                            "type": "image_generation",
+                            "model": model_key,
+                            "size": size_opt,
+                            "quality": quality_opt,
+                            "output_format": format_opt,
+                        }
+                    ]
+                    if comp_opt is not None:
+                        tools[0]["output_compression"] = comp_opt
+                    
+                    input_content = [{"type": "input_text", "text": img_prompt}]
+                    for name, bits, mime in img_inputs:
+                        b64 = base64.b64encode(bits).decode()
+                        input_content.append({
+                            "type": "input_image",
+                            "image_url": f"data:{mime};base64,{b64}"
+                        })
+                    
+                    if mask_file:
+                        mask_b64 = base64.b64encode(mask_file[1]).decode()
+                        tools[0]["input_image_mask"] = {"image_url": f"data:image/png;base64,{mask_b64}"}
+                        tools[0]["action"] = "edit"
+                    elif img_inputs:
+                        tools[0]["action"] = "edit"
+                    else:
+                        tools[0]["action"] = "generate"
+
+                    # Use gpt-4o-mini as the driver for image generation tool
+                    # background=True allows cancellation via the API
+                    resp_obj = img_client.responses.create(
+                        model="gpt-4o-mini",
+                        input=[{"role": "user", "content": input_content}],
+                        tools=tools,
+                        background=True
+                    )
+                    
+                    # Polling loop to check for completion and cancellation
+                    while resp_obj.status in {"queued", "in_progress"}:
+                        if check_stop():
+                            try:
+                                img_client.responses.cancel(resp_obj.id)
+                                log_force(f"GPT Image Gen Job {job_id} cancelled via Responses API.")
+                            except Exception as ce:
+                                log_force(f"Failed to cancel GPT Image Gen: {ce}")
+                            raise RuntimeError("Generation stopped by user.")
+                        time.sleep(2)
+                        resp_obj = img_client.responses.retrieve(resp_obj.id)
+                    
+                    if resp_obj.status == "failed":
+                        err_msg = "Unknown error"
+                        if hasattr(resp_obj, "error") and resp_obj.error:
+                            err_msg = resp_obj.error.message
+                        raise RuntimeError(f"OpenAI Responses API failed: {err_msg}")
+                    
+                    if resp_obj.status == "cancelled":
+                        raise RuntimeError("Generation was cancelled.")
+
+                    # Extract the generated image from the tool output
+                    image_data_b64 = None
+                    for out_item in (resp_obj.output or []):
+                        # Some versions of the SDK might use dict, others objects
+                        if isinstance(out_item, dict):
+                            if out_item.get("type") == "image_generation_call":
+                                image_data_b64 = out_item.get("result")
+                                break
                         else:
-                            with open(fp2, 'wb') as f: f.write(img_bytes)
-                        generated_images.append(f"{user_id}/{fn2}")
-                        pub("status", "完了")
-                        pub("content", f"\n![Image](/files/{user_id}/{fn2})\n")
-                        full_res += f"Generated Image for: {final_message_text}\n"
+                            if getattr(out_item, "type", None) == "image_generation_call":
+                                image_data_b64 = getattr(out_item, "result", None)
+                                break
+                    
+                    if not image_data_b64:
+                        raise RuntimeError("No image data found in the response.")
+                    
+                    img_bytes = base64.b64decode(image_data_b64)
+                    ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
+                    if not os.path.exists(ud): os.makedirs(ud, exist_ok=True)
+                    ext = "png"
+                    if format_opt == "jpeg":
+                        ext = "jpg"
+                    elif format_opt == "webp":
+                        ext = "webp"
+                    fn2 = f"gen_gpt_{int(time.time())}_{len(generated_images)}.{ext}"
+                    fp2 = os.path.join(ud, fn2)
+                    
+                    pub("status", "画像を保存して暗号化を適用中...")
+                    if user_config.get('enable_e2ee'):
+                        with open(fp2 + '.enc', 'wb') as f: f.write(encrypt_bytes(img_bytes))
+                    else:
+                        with open(fp2, 'wb') as f: f.write(img_bytes)
+                    generated_images.append(f"{user_id}/{fn2}")
+                    pub("status", "完了")
+                    pub("content", f"\n![Image](/files/{user_id}/{fn2})\n")
+                    full_res += f"Generated Image for: {final_message_text}\n"
                 except APITimeoutError:
                     pub("error", "GPT Image Gen Timeout: Upstream is slow. Please retry.")
                 except (APIConnectionError, RateLimitError) as e:

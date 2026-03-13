@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-12-010')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-13-001')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2691,6 +2691,26 @@ def ensure_user_compact_prompt_mode_column():
             if not res:
                 conn.execute(text("SET SESSION lock_wait_timeout=1"))
                 conn.execute(text("ALTER TABLE user ADD COLUMN compact_prompt_mode BOOLEAN DEFAULT 0"))
+    except Exception:
+        pass
+
+def ensure_chat_latency_trace_columns():
+    try:
+        with db.engine.connect() as conn:
+            columns = [
+                ("client_done_at", "ALTER TABLE chat_latency_trace ADD COLUMN client_done_at DATETIME"),
+                ("client_total_latency_ms", "ALTER TABLE chat_latency_trace ADD COLUMN client_total_latency_ms INTEGER"),
+            ]
+            for column_name, ddl in columns:
+                res = conn.execute(text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA=DATABASE() "
+                    "AND TABLE_NAME='chat_latency_trace' "
+                    "AND COLUMN_NAME=:col"
+                ), {"col": column_name}).scalar()
+                if not res:
+                    conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                    conn.execute(text(ddl))
     except Exception:
         pass
 
@@ -10841,6 +10861,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_chat_latency_trace_columns()
+    except Exception:
+        pass
+    try:
         ensure_user_default_model_columns()
     except Exception:
         pass
@@ -10887,6 +10911,12 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE message ADD COLUMN is_encrypted BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE chat_latency_trace ADD COLUMN client_done_at DATETIME")
+        except: pass
+        try:
+            try_alter("ALTER TABLE chat_latency_trace ADD COLUMN client_total_latency_ms INTEGER")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN xai_api_key TEXT")
@@ -11113,6 +11143,7 @@ def first_token_metric():
         client_done_at_ms = _coerce_int_or_none(d.get('client_done_at_ms'))
 
         if is_total:
+            log_force(f"RECEIVED-TOTAL-REPORT: job={job_id} model={model} latency_ms={latency_ms}")
             # If it's a total latency report, we primarily update the trace
             _upsert_chat_latency_trace(
                 job_id=job_id,
@@ -11122,6 +11153,15 @@ def first_token_metric():
                 client_sent_at_ms=client_sent_at_ms,
                 client_done_at_ms=client_done_at_ms,
                 client_total_latency_ms=latency_ms
+            )
+            log_force(
+                "TOTAL-LATENCY-METRIC: "
+                f"user={current_user.id} "
+                f"model={model or '-'} "
+                f"thread={thread_public_id or '-'} "
+                f"job={job_id or '-'} "
+                f"total_seconds={latency_seconds:.3f} "
+                f"client_done_at={client_done_at_ms or '-'}"
             )
             return jsonify({'status': 'ok', 'type': 'total'})
 

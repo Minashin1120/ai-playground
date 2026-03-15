@@ -118,9 +118,6 @@ def _env_choice(name, default, allowed):
 
 ENABLE_HTTP_GZIP = _env_bool("ENABLE_HTTP_GZIP", True)
 HTTP_GZIP_MIN_BYTES = max(512, _env_int("HTTP_GZIP_MIN_BYTES", 1024))
-FAST_TOKEN_COUNT_ON_SEND = _env_bool("FAST_TOKEN_COUNT_ON_SEND", True)
-FAST_TOKEN_COUNT_MAX_CHARS = max(200, _env_int("FAST_TOKEN_COUNT_MAX_CHARS", 1200))
-FAST_TOKEN_COUNT_CHAR_DIV = max(2, _env_int("FAST_TOKEN_COUNT_CHAR_DIV", 4))
 
 def _coerce_bool_or_none(value):
     if value is None:
@@ -363,12 +360,6 @@ def _get_model_specific_api_key(user, model_key):
             return val or None
     return None
 
-def _fast_token_estimate(text):
-    raw = text or ""
-    if not raw.strip():
-        return 0
-    return max(1, len(raw) // FAST_TOKEN_COUNT_CHAR_DIV)
-
 def _closest_aspect_ratio(width, height, allowed):
     try:
         if not width or not height:
@@ -538,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-15-008')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-15-006')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -8202,15 +8193,7 @@ def chat_stream():
         # Calculate user tokens on send to avoid worker re-counting.
         user_tokens_in = None
         if user_tokens_in is None:
-            if (
-                FAST_TOKEN_COUNT_ON_SEND
-                and is_token_countable_model(data.get('model'))
-                and isinstance(raw_msg_content, str)
-                and len(raw_msg_content) >= FAST_TOKEN_COUNT_MAX_CHARS
-            ):
-                user_tokens_in = _fast_token_estimate(raw_msg_content)
-            else:
-                user_tokens_in = count_tokens(raw_msg_content or "", data.get('model'))
+            user_tokens_in = count_tokens(raw_msg_content or "", data.get('model'))
         user_msg = Message(
             thread=t,
             role='user',
@@ -8413,12 +8396,8 @@ def chat_stream():
         try:
             cached_status = redis_conn.get(f"stream_acc:{job_id}:status")
             if cached_status:
-                status_text = cached_status.decode("utf-8", "ignore")
-            else:
-                status_text = "処理中..."
-            if status_text:
                 _latency_mark_once(job_id, "stream_first_status_to_client_ms")
-                yield json.dumps({"type": "status", "content": status_text}) + "\n"
+                yield json.dumps({"type": "status", "content": cached_status.decode("utf-8", "ignore")}) + "\n"
         except Exception:
             pass
         try:

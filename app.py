@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-15-005')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-15-006')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3550,7 +3550,7 @@ def check_maintenance():
         if current_user.is_authenticated and getattr(current_user, "is_admin", False): return
         return render_template('maintenance.html'), 503
     if request.method in ['POST', 'PUT', 'DELETE', 'PATCH']:
-        if request.endpoint not in ['static']:
+        if request.endpoint not in ['static', 'receive_client_log', 'client_log']:
             if not validate_csrf():
                 return jsonify({'error': 'CSRF token missing/invalid'}), 403
 

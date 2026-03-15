@@ -9632,6 +9632,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-                console.log("Extended debug logging system active. Version: v4.8.357");
+                console.log("Extended debug logging system active. Version: v4.8.358");
             }, 3000);
         })();

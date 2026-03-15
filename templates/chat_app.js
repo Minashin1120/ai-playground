@@ -7977,8 +7977,17 @@
             const adiv = get(aid);
             activeStreamingBubbleId = aid;
             let thoughtPlaceholderEl = null;
-            const ensureThoughtPlaceholder = (text) => {
-                if (!shouldShowReasoningProgress || !adiv) return null;
+            let firstContentOrThoughtSeen = false;
+            let thinkingFallbackTimer = null;
+            const THINKING_FALLBACK_DELAY_MS = 1200;
+            const clearThinkingFallback = () => {
+                if (thinkingFallbackTimer) {
+                    clearTimeout(thinkingFallbackTimer);
+                    thinkingFallbackTimer = null;
+                }
+            };
+            const ensureThoughtPlaceholder = (text, force=false) => {
+                if ((!shouldShowReasoningProgress && !force) || !adiv) return null;
                 if (!thoughtPlaceholderEl || !adiv.contains(thoughtPlaceholderEl)) {
                     thoughtPlaceholderEl = adiv.querySelector('.thought-content');
                 }
@@ -7996,6 +8005,14 @@
             if (shouldShowReasoningProgress) {
                 ensureThoughtPlaceholder('推論プロセスを準備中...');
             }
+            const scheduleThinkingFallback = () => {
+                clearThinkingFallback();
+                thinkingFallbackTimer = setTimeout(() => {
+                    if (firstContentOrThoughtSeen) return;
+                    const ph = ensureThoughtPlaceholder('処理中...', true);
+                    if (ph) sendClientDebugLog('info', 'Thinking placeholder shown (fallback).');
+                }, THINKING_FALLBACK_DELAY_MS);
+            };
             
             abortController = new AbortController(); 
             const streamStartedThreadId = currentThreadId;
@@ -8035,6 +8052,7 @@
                 else if (eventType === 'thought') firstThoughtLatencySent = true;
                 else if (eventType === 'content') firstContentLatencySent = true;
             };
+            scheduleThinkingFallback();
             try { 
                 if (p.thread_id && activeGem) {
                     threadGemMap[p.thread_id] = activeGem;
@@ -8119,6 +8137,8 @@
                                  first=false; 
                             }
                             if(j.type==='thought'){ 
+                                firstContentOrThoughtSeen = true;
+                                clearThinkingFallback();
                                 if(!thEl){
                                     thEl = adiv.querySelector('.thought-content');
                                 }
@@ -8167,6 +8187,8 @@
                                     } 
                                 } 
                             } else if(j.type==='content'){ 
+                                firstContentOrThoughtSeen = true;
+                                clearThinkingFallback();
                                 const contentDelta = (j.content === null || j.content === undefined) ? '' : String(j.content);
                                 acc += contentDelta; 
                                 if(!cEl){ 
@@ -8201,6 +8223,12 @@
                 if (adiv) {
                     queueHighlight(adiv, acc);
                     queueMathTypeset(adiv, acc);
+
+                    if (thoughtPlaceholderEl && thoughtPlaceholderEl.getAttribute('data-placeholder') === '1' && !tht) {
+                        const box = thoughtPlaceholderEl.closest('.thought-container');
+                        if (box) box.remove();
+                        thoughtPlaceholderEl = null;
+                    }
 
                     if (enableLatencyMetrics) {
                         const totalLatencyMs = nowPerfMs() - sendStartPerfMs;
@@ -8267,6 +8295,7 @@
                 } else loadThreads(false); 
 
             } catch(e){ 
+                clearThinkingFallback();
                 let syncedAfterAbort = false;
                 if (e.name === 'AbortError' && !isManualStopAbortForThread(streamStartedThreadId)) {
                     syncedAfterAbort = await syncThreadAfterAbortedStream(streamStartedThreadId, { retries: 2, retryDelayMs: 180, notifyOnFailure: true });
@@ -8279,6 +8308,7 @@
                 // Restore old message if error occurred during edit
                 if (editingId && !syncedAfterAbort) restoreHiddenBranch();
             } finally { 
+                clearThinkingFallback();
                 get('stop-container').classList.add('hidden'); 
                 updateFilePreview();
                 if (activeStreamingBubbleId === aid) activeStreamingBubbleId = null;

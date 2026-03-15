@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-15-003')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-15-004')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -10010,14 +10010,17 @@ def handle_settings():
 @login_required
 def receive_client_log():
     if not getattr(current_user, 'enable_client_debug_log', False):
-        return jsonify({'status': 'ignored'}), 200
+        return jsonify({'status': 'ignored', 'reason': 'disabled'}), 200
     try:
-        d = request.json
+        d = request.get_json(silent=True) or {}
         level = str(d.get('level') or 'info').upper()
         msg = str(d.get('message') or '')
+        if not msg:
+            return jsonify({'status': 'ignored', 'reason': 'empty'}), 200
         log_force(f"CLIENT-DEBUG [{level}]: {msg}")
         return jsonify({'status': 'ok'})
-    except Exception:
+    except Exception as e:
+        log_force(f"CLIENT-DEBUG-ERROR: user={getattr(current_user, 'id', 'unknown')} err={e}")
         return jsonify({'status': 'error'}), 400
 
 # --- Session Management ---
@@ -11406,12 +11409,17 @@ def first_token_metric():
 @app.route('/api/client_log', methods=['POST'])
 @login_required
 def client_log():
+    if not getattr(current_user, 'enable_client_debug_log', False):
+        return jsonify({'status': 'ignored', 'reason': 'disabled'}), 200
     if not rate_limit(f"rl:client_log:user:{current_user.id}", 60, 60):
         return jsonify({'error': 'rate_limit'}), 429
     try:
-        d = request.json or {}
-        msg = d.get('message', '')
-        log_force(f"CLIENT-DEBUG: {msg}")
+        d = request.get_json(silent=True) or {}
+        level = str(d.get('level') or 'info').upper()
+        msg = str(d.get('message') or '')
+        if not msg:
+            return jsonify({'status': 'ignored', 'reason': 'empty'}), 200
+        log_force(f"CLIENT-DEBUG [LEGACY {level}]: {msg}")
         return jsonify({'status': 'ok'})
     except Exception:
         return jsonify({'status': 'error'}), 500

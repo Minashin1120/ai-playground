@@ -313,6 +313,34 @@
             const credentials = opts.credentials || 'include';
             return fetch(url, Object.assign({}, opts, { headers, credentials }));
         };
+        let lastClientDebugEnabled = null;
+        const isClientDebugLogEnabled = () => {
+            const settingEl = get('set-client-debug-log');
+            return !!(settingEl && settingEl.checked);
+        };
+        const sendClientDebugLog = (level, message) => {
+            if (!isClientDebugLogEnabled()) return;
+            const payload = {
+                level: String(level || 'info'),
+                message: String(message || '')
+            };
+            apiFetch('/api/debug/client_log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).catch(() => {});
+        };
+        const syncClientDebugLogToggle = (enabled, source) => {
+            const settingEl = get('set-client-debug-log');
+            if (settingEl) {
+                settingEl.checked = !!enabled;
+            }
+            const normalized = !!enabled;
+            if (normalized && lastClientDebugEnabled !== true) {
+                sendClientDebugLog('info', `Client debug logging enabled (${source}).`);
+            }
+            lastClientDebugEnabled = normalized;
+        };
         const nowPerfMs = () => {
             if (window.performance && typeof window.performance.now === 'function') {
                 return window.performance.now();
@@ -3108,7 +3136,7 @@
                     setCompactPromptMode(!!d.compact_prompt_mode);
                 }
                 if (get('set-client-debug-log')) {
-                    get('set-client-debug-log').checked = d.enable_client_debug_log === true;
+                    syncClientDebugLogToggle(d.enable_client_debug_log === true, 'settings sync');
                 }
                 const sysChk = get('enable-sys-prompt');
                 if (sysChk && d && d.system_prompt && String(d.system_prompt).trim()) {
@@ -3539,7 +3567,7 @@
                         get('sys-prompt-text').value = d.system_prompt; 
                         if(get('set-global-sys-prompt-enabled')) get('set-global-sys-prompt-enabled').checked = d.system_prompt_enabled !== false;
                         if(get('set-latency-metrics')) get('set-latency-metrics').checked = d.enable_latency_metrics === true;
-                        if(get('set-client-debug-log')) get('set-client-debug-log').checked = d.enable_client_debug_log === true;
+                        if(get('set-client-debug-log')) syncClientDebugLogToggle(d.enable_client_debug_log === true, 'settings modal sync');
                         if(get('set-openai')) get('set-openai').value = d.openai_key || ''; 
                         if(get('set-gemini')) get('set-gemini').value = d.gemini_key || ''; 
                         if(get('set-gemini-backend')) get('set-gemini-backend').value = normalizeGeminiBackend(d.gemini_backend || 'gemini_api');
@@ -3821,6 +3849,7 @@
                     setCompactPromptMode(compactPromptMode);
                     
                     showToast("設定を保存しました", "success");
+                    syncClientDebugLogToggle(b.enable_client_debug_log, 'settings saved');
 
                     // Critical changes that still might benefit from a reload for full consistency
                     if (b.new_username && b.new_username !== oldUsername) {
@@ -9095,7 +9124,7 @@
 
         get('save-thread-settings-btn').onclick = async () => {
             const targetId = modalThreadId;
-            apiFetch('/api/client_log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message: "Save clicked for thread: " + targetId})}).catch(()=>{});
+            sendClientDebugLog('info', "Save clicked for thread: " + targetId);
             if (!targetId) return;
             const saveBtn = get('save-thread-settings-btn');
             const originalLabel = saveBtn ? saveBtn.textContent : '';
@@ -9119,27 +9148,27 @@
                     auto_system_prompt_notices_config: collectAutoSystemPromptConfigFromForm('thread')
                 } : null;
             } catch (payloadErr) {
-                apiFetch('/api/client_log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message: "Payload construction failed: " + payloadErr.message})}).catch(()=>{});
+                sendClientDebugLog('error', "Payload construction failed: " + payloadErr.message);
             }
             
             try {
-                apiFetch('/api/client_log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message: "Starting PUT request for thread: " + targetId})}).catch(()=>{});
+                sendClientDebugLog('info', "Starting PUT request for thread: " + targetId);
                 const res = await apiFetch(`/api/threads/${targetId}/settings`, {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ custom_instruction, include_global_instruction })
                 });
-                apiFetch('/api/client_log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message: "PUT request finished, status: " + res.status})}).catch(()=>{});
+                sendClientDebugLog('info', "PUT request finished, status: " + res.status);
                 let userResOk = true;
                 if (userPromptPayload) {
-                    apiFetch('/api/client_log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message: "Starting POST request for user settings"})}).catch(()=>{});
+                    sendClientDebugLog('info', "Starting POST request for user settings");
                     const userRes = await apiFetch("{{ url_for('handle_settings') }}", {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify(userPromptPayload)
                     });
                     userResOk = userRes.ok;
-                    apiFetch('/api/client_log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message: "POST request finished, status: " + userRes.status})}).catch(()=>{});
+                    sendClientDebugLog('info', "POST request finished, status: " + userRes.status);
                 }
                 if (res.ok && userResOk) {
                     hideModal('thread-modal');
@@ -9148,7 +9177,7 @@
                     showToast("保存に失敗しました", "error", true);
                 }
             } catch (err) {
-                apiFetch('/api/client_log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message: "Save failed with error: " + err.message})}).catch(()=>{});
+                sendClientDebugLog('error', "Save failed with error: " + err.message);
                 showToast("エラー: " + err.message, "error", true);
             } finally {
                 if (saveBtn) {
@@ -9552,8 +9581,7 @@
 
             async function sendToServer(level, args) {
                 if (isSending) return;
-                const settingEl = document.getElementById('set-client-debug-log');
-                if (!settingEl || !settingEl.checked) return;
+                if (!isClientDebugLogEnabled()) return;
 
                 isSending = true;
                 const message = args.map(arg => {
@@ -9566,14 +9594,7 @@
                 }).join(' ');
 
                 try {
-                    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || "";
-                    await fetch('/api/debug/client_log', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-                        body: JSON.stringify({ level, message })
-                    });
-                } catch (e) {
-                    // Don't log to console here to avoid recursion
+                    sendClientDebugLog(level, message);
                 } finally {
                     isSending = false;
                 }
@@ -9605,6 +9626,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-                console.log("Extended debug logging system active. Version: v4.8.355");
+                console.log("Extended debug logging system active. Version: v4.8.356");
             }, 3000);
         })();

@@ -9482,6 +9482,50 @@
             const text = await res.text(); 
             get('legal-content').innerHTML = DOMPurify.sanitize(marked.parse(text)); 
         }
+        window.showAlphaInfo = () => {
+            if (typeof showModal === 'function') {
+                showModal('alpha-info-modal');
+                return;
+            }
+            const el = get('alpha-info-modal');
+            if (el) {
+                el.classList.remove('hidden');
+                el.style.display = 'flex';
+            }
+        };
+        window.refreshLogs = async () => {
+            const panel = get('debug-console');
+            const content = get('debug-content');
+            if (!panel || !content) return;
+            content.textContent = '読み込み中...';
+            try {
+                if (!isAdminUser) {
+                    content.textContent = '管理者のみ閲覧できます。';
+                    return;
+                }
+                const res = await apiFetch('/api/debug/log', { cache: 'no-store' });
+                if (!res.ok) {
+                    content.textContent = `取得に失敗しました (HTTP ${res.status})`;
+                    return;
+                }
+                const text = await res.text();
+                content.textContent = text || 'ログがありません。';
+                panel.scrollTop = panel.scrollHeight;
+            } catch (e) {
+                content.textContent = '取得に失敗しました。';
+            }
+        };
+        window.toggleDebug = () => {
+            const panel = get('debug-console');
+            if (!panel) return;
+            if (!isAdminUser) {
+                showToast('管理者のみ利用できます', 'error', true);
+                return;
+            }
+            const isVisible = panel.style.display !== 'none' && getComputedStyle(panel).display !== 'none';
+            panel.style.display = isVisible ? 'none' : 'block';
+            if (!isVisible) refreshLogs();
+        };
         window.copyCode = (btn, code) => { 
             const text = decodeURIComponent(code);
             copyToClipboard(text, 
@@ -9561,7 +9605,7 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-                console.log("Extended debug logging system active. Version: v4.8.352");
+                console.log("Extended debug logging system active. Version: v4.8.354");
             }, 3000);
         })();
         })();

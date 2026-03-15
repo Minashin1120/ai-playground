@@ -538,7 +538,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-15-009')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-15-008')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -5118,16 +5118,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                     conf = {'temperature': 0.7}
                     is_gemini_3 = "gemini-3" in model_key or "gemini-3.1" in model_key
-                    force_minimal_thinking = False
-                    if is_gemini_3 and not options.get('enable_thinking'):
-                        # Gemini 3 cannot fully disable thinking. Force minimal and hide thoughts.
-                        force_minimal_thinking = True
+                    if is_gemini_3:
+                        # Gemini 3 does not support fully disabling thinking; force enabled.
                         options['enable_thinking'] = True
                     if options.get('enable_thinking'):
                         raw_lvl = (options.get('thinking_level') or 'high').lower()
                         lvl = raw_lvl if raw_lvl in ("minimal", "low", "medium", "high") else "high"
-                        if force_minimal_thinking:
-                            lvl = "minimal"
                         if "gemini-2.5" in model_key:
                             budget_map = {"low": 1024, "medium": 4096, "high": 8192}
                             manual_budget = options.get('thinking_budget')
@@ -5140,14 +5136,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 except Exception:
                                     budget_val = None
                             conf['thinking_config'] = types.ThinkingConfig(
-                                include_thoughts=not force_minimal_thinking,
+                                include_thoughts=True,
                                 thinking_budget=budget_val if budget_val is not None else budget_map.get(raw_lvl, 4096)
                             )
                         else:
-                            conf['thinking_config'] = types.ThinkingConfig(
-                                include_thoughts=not force_minimal_thinking,
-                                thinking_level=lvl
-                            )
+                            conf['thinking_config'] = types.ThinkingConfig(include_thoughts=True, thinking_level=lvl)
                     # Avoid forcing "minimal" when users disable thinking, because Gemini 3 does not
                     # support fully turning thinking off and defaults are higher per docs.
 

@@ -7818,6 +7818,10 @@
                 const proceed = await confirmGeminiLocalPythonSwitch();
                 if (!proceed) return;
             }
+            sendClientDebugLog(
+                'info',
+                `Prompt send start: model=${get('model-select').value} thread=${currentThreadId || '-'} text_len=${rawText.length} attachments=${imageUrlsToSend.length} search=${get('enable-search').checked}`
+            );
             const t = rawText;
             const markerSysPrompt = hasMarkerHint() ? MARKER_HINT_TEXT : null;
             if (isGptImageModel() && currentMaskImage && imageUrlsToSend.length === 0) {
@@ -8037,6 +8041,7 @@
                     pendingGemForNewThread = null;
                 }
                 const r = await apiFetch("{{ url_for('chat_stream') }}", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p), signal:abortController.signal}); 
+                sendClientDebugLog('info', `Prompt stream response status: ${r.status}`);
                 const markApiAccepted = () => {
                     if (!adiv) return;
                     const ca = adiv.querySelector('.content-area');
@@ -8266,6 +8271,7 @@
                 if (e.name === 'AbortError' && !isManualStopAbortForThread(streamStartedThreadId)) {
                     syncedAfterAbort = await syncThreadAfterAbortedStream(streamStartedThreadId, { retries: 2, retryDelayMs: 180, notifyOnFailure: true });
                 }
+                sendClientDebugLog('error', `Prompt send error: ${e.message}`);
                 if(e.name!=='AbortError') { 
                     const msg = "Connection Error: " + e.message;
                     showToast(msg, "error", true);
@@ -9626,6 +9632,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-                console.log("Extended debug logging system active. Version: v4.8.356");
+                console.log("Extended debug logging system active. Version: v4.8.357");
             }, 3000);
         })();

@@ -1995,6 +1995,7 @@
                     { id: "gpt-4o", name: "GPT-4o", desc: "Multimodal flagship model.", price: "In $2.50/1M, Out $10.00/1M" },
                     { id: "gpt-4o-mini", name: "GPT-4o mini", desc: "Fast, low-cost model.", price: "In $0.15/1M, Out $0.60/1M" },
                     { id: "gpt-5.4", name: "GPT-5.4", desc: "Experimental OpenAI model ID for accounts with access.", price: "Pricing not publicly confirmed" },
+                    { id: "gpt-5.4-pro", name: "GPT-5.4 Pro", desc: "Higher-capacity GPT-5.4 tier for accounts with access.", price: "Pricing not publicly confirmed" },
                     { id: "gpt-5.2", name: "GPT-5.2 (Responses API)", desc: "Most capable reasoning model.", price: "In $1.75/1M, Out $14/1M" },
                     { id: "gpt-5-search-api", name: "GPT-5 Search (API)", desc: "Search-optimized model (Chat Completions)." },
                     { id: "gpt-5.1", name: "GPT-5.1", desc: "High intelligence.", price: "In $1.25/1M, Out $10/1M" },
@@ -3106,6 +3107,9 @@
                 if (d && Object.prototype.hasOwnProperty.call(d, 'compact_prompt_mode')) {
                     setCompactPromptMode(!!d.compact_prompt_mode);
                 }
+                if (get('set-client-debug-log')) {
+                    get('set-client-debug-log').checked = d.enable_client_debug_log === true;
+                }
                 const sysChk = get('enable-sys-prompt');
                 if (sysChk && d && d.system_prompt && String(d.system_prompt).trim()) {
                     if (!sysChk.disabled && !d.default_enable_system_prompt && !d.use_last_chat_settings) sysChk.checked = true;
@@ -3535,6 +3539,7 @@
                         get('sys-prompt-text').value = d.system_prompt; 
                         if(get('set-global-sys-prompt-enabled')) get('set-global-sys-prompt-enabled').checked = d.system_prompt_enabled !== false;
                         if(get('set-latency-metrics')) get('set-latency-metrics').checked = d.enable_latency_metrics === true;
+                        if(get('set-client-debug-log')) get('set-client-debug-log').checked = d.enable_client_debug_log === true;
                         if(get('set-openai')) get('set-openai').value = d.openai_key || ''; 
                         if(get('set-gemini')) get('set-gemini').value = d.gemini_key || ''; 
                         if(get('set-gemini-backend')) get('set-gemini-backend').value = normalizeGeminiBackend(d.gemini_backend || 'gemini_api');
@@ -3775,6 +3780,7 @@
                     default_enable_system_prompt: get('set-default-sys-prompt') ? get('set-default-sys-prompt').checked : false,
                     default_safety_setting: get('set-default-safety') ? get('set-default-safety').value : null,
                     enable_latency_metrics: get('set-latency-metrics') ? get('set-latency-metrics').checked : false,
+                    enable_client_debug_log: get('set-client-debug-log') ? get('set-client-debug-log').checked : false,
                     enable_e2ee: get('set-e2ee').checked,
                     passkey_only_login: get('set-passkey-only-login') ? get('set-passkey-only-login').checked : false,
                     new_username: uEl ? uEl.value : null,
@@ -9491,3 +9497,71 @@
             );
         };
         window.toggleThinking = (el) => { const c = el.nextElementSibling; if(c.classList.contains('collapsed')) { c.classList.remove('collapsed'); } else { c.classList.add('collapsed'); } };
+
+        // --- Extended Client-Side Debug Logging System ---
+        (function() {
+            const originalLog = console.log;
+            const originalError = console.error;
+            const originalWarn = console.warn;
+            const originalInfo = console.info;
+            let isSending = false;
+
+            async function sendToServer(level, args) {
+                if (isSending) return;
+                const settingEl = document.getElementById('set-client-debug-log');
+                if (!settingEl || !settingEl.checked) return;
+
+                isSending = true;
+                const message = args.map(arg => {
+                    try {
+                        if (arg instanceof Error) return arg.stack || arg.message;
+                        return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+                    } catch (e) {
+                        return "[Unserializable Object]";
+                    }
+                }).join(' ');
+
+                try {
+                    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || "";
+                    await fetch('/api/debug/client_log', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+                        body: JSON.stringify({ level, message })
+                    });
+                } catch (e) {
+                    // Don't log to console here to avoid recursion
+                } finally {
+                    isSending = false;
+                }
+            }
+
+            console.log = function(...args) {
+                originalLog.apply(console, args);
+                sendToServer('log', args);
+            };
+            console.error = function(...args) {
+                originalError.apply(console, args);
+                sendToServer('error', args);
+            };
+            console.warn = function(...args) {
+                originalWarn.apply(console, args);
+                sendToServer('warn', args);
+            };
+            console.info = function(...args) {
+                originalInfo.apply(console, args);
+                sendToServer('info', args);
+            };
+
+            window.addEventListener('error', function(event) {
+                sendToServer('exception', [event.message, event.filename, event.lineno, event.colno, event.error]);
+            });
+            window.addEventListener('unhandledrejection', function(event) {
+                sendToServer('promise-rejection', [event.reason]);
+            });
+            
+            // Trigger initial log to confirm system is active
+            setTimeout(() => {
+                console.log("Extended debug logging system active. Version: v4.8.352");
+            }, 3000);
+        })();
+        })();

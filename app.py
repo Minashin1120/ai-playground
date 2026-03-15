@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-13-002')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-15-001')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1828,6 +1828,7 @@ class User(UserMixin, db.Model):
     appeal_block_reason = db.Column(db.Text, nullable=True)
     appeal_blocked_at = db.Column(db.DateTime, nullable=True)
     enable_latency_metrics = db.Column(db.Boolean, default=False)
+    enable_client_debug_log = db.Column(db.Boolean, default=False)
     threads = db.relationship('Thread', backref='user', lazy=True, cascade="all, delete-orphan")
     gems = db.relationship('Gem', backref='user', lazy=True, cascade="all, delete-orphan")
     sessions = db.relationship('UserSession', backref='user', lazy=True, cascade="all, delete-orphan")
@@ -2751,6 +2752,17 @@ def cleanup_user_temp_system_prompt_columns():
     except Exception:
         pass
 
+def ensure_user_debug_settings_columns():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='enable_client_debug_log'")).fetchone()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN enable_client_debug_log BOOLEAN DEFAULT 0"))
+                conn.commit()
+    except Exception:
+        pass
+
 def ensure_user_default_model_columns():
     try:
         with db.engine.connect() as conn:
@@ -3668,7 +3680,8 @@ def count_tokens(text, model="gpt-4"):
             return c
         except Exception:
             continue
-    return 0
+    # Ultimate fallback to avoid 0 count for large text if all tokenizers fail
+    return max(1, len(raw) // 4) if raw.strip() else 0
 
 NON_COUNTABLE_TOKEN_MARKERS = (
     "transcribe",
@@ -4007,9 +4020,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 pass
         
         def check_stop():
-            if r.get(f"stop_job:{job_id}"):
-                log_force(f"Job {job_id} stopped by user.")
-                return True
+            try:
+                res = r.get(f"stop_job:{job_id}")
+                if res:
+                    # Clear it immediately to avoid double processing if needed
+                    # but actually we want all loops to see it if multiple.
+                    # r.delete(f"stop_job:{job_id}") 
+                    log_force(f"STREAM-STOP-DETECTED: Job {job_id} stop flag found in Redis.")
+                    return True
+            except Exception as e:
+                log_force(f"STREAM-STOP-ERROR: Failed to check stop flag: {e}")
             return False
 
         def _mark_provider_request_started():
@@ -4203,6 +4223,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     token_src = decrypt_val(raw_cnt) if current_node.is_encrypted else raw_cnt
                     token_model = current_node.model or model_key
                     t_len = max(1, count_tokens(token_src or "", token_model))
+                    # Save back to DB to avoid future re-counts
+                    try:
+                        if current_node.role == 'user':
+                            current_node.tokens_in = t_len
+                        else:
+                            current_node.tokens_out = t_len
+                        safe_db_commit()
+                    except: pass
                 
                 if (not MAX_CONTEXT_TOKENS) or (total_history_tokens + t_len <= MAX_CONTEXT_TOKENS):
                     cnt = decrypt_val(raw_cnt) if current_node.is_encrypted else raw_cnt
@@ -5767,13 +5795,17 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         return ""
 
                     _mark_provider_request_started()
+                    log_force(f"STREAM-TRACE: Gemini stream starting for {job_id} model={rm}")
                     stream = g_client.models.generate_content_stream(model=rm, contents=contents, config=types.GenerateContentConfig(**conf))
                     current_py_id = None
                     current_py_code = None
                     final_usage_metadata = None
+                    log_force(f"STREAM-TRACE: Gemini stream loop start for {job_id}")
                     for chunk in stream:
                         _latency_mark_once(job_id, "provider_first_chunk_ms")
-                        if check_stop(): break
+                        if check_stop():
+                            log_force(f"STREAM-TRACE: Gemini stream breaking due to stop for {job_id}")
+                            break
                         if hasattr(chunk, 'usage_metadata') and chunk.usage_metadata:
                             final_usage_metadata = chunk.usage_metadata
                         
@@ -8158,8 +8190,10 @@ def chat_stream():
             if last_msg:
                 parent_id = last_msg.id
 
-        # Defer user token counting to read-time fallbacks to reduce send-path latency.
+        # Calculate user tokens on send to avoid worker re-counting.
         user_tokens_in = None
+        if user_tokens_in is None:
+            user_tokens_in = count_tokens(raw_msg_content or "", data.get('model'))
         user_msg = Message(
             thread=t,
             role='user',
@@ -8573,6 +8607,8 @@ def stop_chat():
                         job_id = None
                 if job_id:
                     stop_source = 'thread_id'
+    
+    log_force(f"STREAM-STOP-SIGNAL: Received stop request for job_id={job_id} via {stop_source}")
     if job_id:
         redis_conn.set(f"stop_job:{job_id}", "1", ex=300)
         return jsonify({'status': 'stopped', 'job_id': job_id, 'source': stop_source})
@@ -9866,7 +9902,8 @@ def handle_settings():
             'bot_detection_global_enabled': get_bot_detection_global_enabled(),
             'is_bot_banned': current_user.is_bot_banned,
             'bot_ban_reason': current_user.bot_ban_reason,
-            'enable_latency_metrics': current_user.enable_latency_metrics if current_user.enable_latency_metrics is not None else False
+            'enable_latency_metrics': current_user.enable_latency_metrics if current_user.enable_latency_metrics is not None else False,
+            'enable_client_debug_log': current_user.enable_client_debug_log if current_user.enable_client_debug_log is not None else False
         }
         if getattr(current_user, 'is_admin', False):
             payload['admin_api_key_mode'] = _normalize_admin_api_key_mode(current_user.admin_api_key_mode)
@@ -9938,6 +9975,9 @@ def handle_settings():
         current_user.bot_detection_enabled = bool(d['bot_detection_enabled'])
     if 'enable_latency_metrics' in d:
         current_user.enable_latency_metrics = bool(d['enable_latency_metrics'])
+    if 'enable_client_debug_log' in d:
+        current_user.enable_client_debug_log = bool(d['enable_client_debug_log'])
+        log_force(f"SETTINGS-UPDATE: user={current_user.id} enable_client_debug_log={current_user.enable_client_debug_log}")
     if getattr(current_user, 'is_admin', False) and 'admin_api_key_mode' in d:
         current_user.admin_api_key_mode = _normalize_admin_api_key_mode(d['admin_api_key_mode'])
     if getattr(current_user, 'is_admin', False) and 'bot_detection_global_enabled' in d:
@@ -9965,6 +10005,20 @@ def handle_settings():
         flash("設定を保存しました")
     log_force("DEBUG: handle_settings returning ok")
     return jsonify({'status': 'ok'})
+
+@app.route('/api/debug/client_log', methods=['POST'])
+@login_required
+def receive_client_log():
+    if not getattr(current_user, 'enable_client_debug_log', False):
+        return jsonify({'status': 'ignored'}), 200
+    try:
+        d = request.json
+        level = str(d.get('level') or 'info').upper()
+        msg = str(d.get('message') or '')
+        log_force(f"CLIENT-DEBUG [{level}]: {msg}")
+        return jsonify({'status': 'ok'})
+    except Exception:
+        return jsonify({'status': 'error'}), 400
 
 # --- Session Management ---
 
@@ -10935,6 +10989,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_user_debug_settings_columns()
+    except Exception:
+        pass
+    try:
         ensure_user_default_model_columns()
     except Exception:
         pass
@@ -10981,6 +11039,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE message ADD COLUMN is_encrypted BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN enable_client_debug_log BOOLEAN DEFAULT 0")
         except: pass
         try:
             try_alter("ALTER TABLE chat_latency_trace ADD COLUMN client_done_at DATETIME")
@@ -11368,3 +11429,10 @@ if __name__ == '__main__':
     app.run(debug=True)
 else:
     log_force("DEBUG: App imported/starting in worker or gunicorn")
+
+# Pre-warm common token encoders to avoid first-call latency in workers
+try:
+    for m in ("gpt-4o", "gemini-1.5-pro"):
+        _get_token_encoder(m)
+except:
+    pass

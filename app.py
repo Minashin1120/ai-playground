@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-15-006')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-18-001')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1360,6 +1360,14 @@ def get_sts_provider(model_key):
     meta = STS_MODELS.get(model_key)
     return meta.get("provider") if meta else None
 
+def is_gemini_model_key(model_key):
+    mk = str(model_key or "").lower()
+    return "gemini" in mk
+
+def is_gemini_image_model_key(model_key):
+    mk = str(model_key or "").lower()
+    return "gemini" in mk and any(x in mk for x in ("image", "nano"))
+
 def _chunk_bytes(data, chunk_size=32000):
     for i in range(0, len(data), chunk_size):
         yield data[i:i + chunk_size]
@@ -1502,7 +1510,7 @@ def _transcribe_audio_with_llm(audio_content, fname, llm_model_key, user):
     )
     model_key = (llm_model_key or "").strip()
     model_key_l = model_key.lower()
-    is_gem = ("gemini" in model_key_l) or ("nano" in model_key_l)
+    is_gem = is_gemini_model_key(model_key_l)
     is_grok = ("grok" in model_key_l) and ("gpt" not in model_key_l)
     if is_grok:
         raise ValueError("現在の xAI/Grok モデルのLLM文字起こしは未対応です。OpenAI/Gemini対応モデルに切り替えるか、STT APIを使用してください。")
@@ -4384,7 +4392,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             model_key = model_key.strip()
             model_key_l = model_key.lower()
             is_openai_search_model = model_key_l in ("gpt-5-search-api", "gpt-4o-search-preview", "gpt-4o-mini-search-preview")
-            is_gem = 'gemini' in model_key_l or 'nano' in model_key_l
+            is_gem = is_gemini_model_key(model_key_l)
             is_grok = 'grok' in model_key_l and 'gpt' not in model_key_l
             gemini_backend_mode = "gemini_api"
             def _is_non_llm_model(m):
@@ -4395,11 +4403,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     return True
                 if mk in ("grok-imagine-image", "grok-imagine-image-pro", "grok-imagine-video"):
                     return True
-                if "nano" in mk:
-                    return True
                 if "tts" in mk:
                     return True
-                if "gemini" in mk and any(x in mk for x in ("image", "nano", "native-audio")):
+                if is_gemini_image_model_key(mk):
+                    return True
+                if "gemini" in mk and "native-audio" in mk:
                     return True
                 return False
             is_llm_model = not _is_non_llm_model(model_key_l)
@@ -4910,7 +4918,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         pub("error", f"Gemini TTS Error: {str(e)}")
 
                 # Image Generation
-                elif "nano" in model_key or "image" in model_key:
+                elif is_gemini_image_model_key(model_key):
                     try:
                         def _collect_gemini_image_output_parts(resp_obj, keep_only_last_image=False):
                             text_chunks = []
@@ -7004,8 +7012,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if not effort:
                         return effort
                     effort = effort.lower().strip()
-                    # gpt-5-mini does not accept "none"; use minimal instead.
-                    if "gpt-5-mini" in model_key_l and effort == "none":
+                    # Smaller GPT-5 tiers do not accept "none"; use minimal instead.
+                    if any(x in model_key_l for x in ("gpt-5-mini", "gpt-5.4-mini", "gpt-5.4-nano")) and effort == "none":
                         return "minimal"
                     return effort
                 if is_grok and enable_reasoning and grok_reasoning_effort_supported:

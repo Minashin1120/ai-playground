@@ -2023,6 +2023,8 @@
                     { id: "gpt-4o", name: "GPT-4o", desc: "Multimodal flagship model.", price: "In $2.50/1M, Out $10.00/1M" },
                     { id: "gpt-4o-mini", name: "GPT-4o mini", desc: "Fast, low-cost model.", price: "In $0.15/1M, Out $0.60/1M" },
                     { id: "gpt-5.4", name: "GPT-5.4", desc: "Experimental OpenAI model ID for accounts with access.", price: "Pricing not publicly confirmed" },
+                    { id: "gpt-5.4-mini", name: "GPT-5.4 mini", desc: "Smaller and more cost-efficient GPT-5.4 tier.", price: "Pricing not publicly confirmed" },
+                    { id: "gpt-5.4-nano", name: "GPT-5.4 nano", desc: "Smallest and fastest GPT-5.4 tier.", price: "Pricing not publicly confirmed" },
                     { id: "gpt-5.4-pro", name: "GPT-5.4 Pro", desc: "Higher-capacity GPT-5.4 tier for accounts with access.", price: "Pricing not publicly confirmed" },
                     { id: "gpt-5.2", name: "GPT-5.2 (Responses API)", desc: "Most capable reasoning model.", price: "In $1.75/1M, Out $14/1M" },
                     { id: "gpt-5-search-api", name: "GPT-5 Search (API)", desc: "Search-optimized model (Chat Completions)." },
@@ -2255,6 +2257,10 @@
             if (idx === -1) return '';
             return name.slice(idx + 1).toLowerCase();
         };
+        const isGeminiImageModelKey = (model) => {
+            const m = (model || '').toLowerCase();
+            return m.includes('gemini') && (m.includes('image') || m.includes('nano'));
+        };
         const getModelMediaSupport = (model) => {
             const m = (model || '').toLowerCase();
             if (!m.includes('gemini')) return { audio: false, video: false };
@@ -2284,10 +2290,7 @@
         const GROK_PCM_RATES = [8000,16000,21050,24000,32000,44100,48000];
         const isTtsModel = () => get('model-select').value.includes('tts');
         const isGptImageModel = () => (get('model-select').value || '').includes('gpt-image');
-        const isGeminiImageModel = () => {
-            const m = (get('model-select').value || '').toLowerCase();
-            return m.includes('gemini') && (m.includes('image') || m.includes('nano'));
-        };
+        const isGeminiImageModel = () => isGeminiImageModelKey(get('model-select').value);
         const isLlmModel = () => {
             const m = (get('model-select').value || '').toLowerCase();
             if (
@@ -2296,9 +2299,9 @@
                 m.includes('voice-agent') ||
                 m.includes('native-audio') ||
                 m.includes('image') ||
-                m.includes('nano') ||
                 m.includes('video')
             ) return false;
+            if (m.includes('gemini') && (m.includes('image') || m.includes('nano'))) return false;
             return m.includes('gpt') || m.includes('gemini') || m.includes('grok');
         };
         const isGrokImageModel = () => {
@@ -2745,7 +2748,7 @@
                     '<div>最大 16 枚 / 画像1枚あたり 50MB 未満 / PNG・JPG・WEBP</div>',
                     '<div>マスク使用時: PNGのみ、4MB未満、元画像と同サイズ</div>'
                 ].join('');
-            } else if (model.includes('gemini') && (model.includes('image') || model.includes('nano'))) {
+            } else if (isGeminiImageModelKey(model)) {
                 show = true;
                 if (model.includes('gemini-3.1-flash-image')) {
                     html = [
@@ -2811,7 +2814,7 @@
                     thinkBudget.disabled = true;
                     thinkBudget.classList.add('opacity-50');
                 }
-                const isGeminiImage = model.includes('gemini') && (model.includes('image') || model.includes('nano'));
+                const isGeminiImage = isGeminiImageModelKey(model);
                 if(isTts) {
                     if(searchCont) { get('enable-search').checked = false; searchCont.classList.add('opacity-50', 'pointer-events-none'); }
                     if(urlCont) { get('enable-url-context').checked = false; urlCont.classList.add('opacity-50', 'pointer-events-none'); }
@@ -2865,12 +2868,12 @@
                     if(pyCont) pyCont.classList.add('opacity-50', 'pointer-events-none');
                 } else {
                     if(pyCont) pyCont.classList.remove('opacity-50', 'pointer-events-none');
-                    if((!model.includes('nano') || isNanoBanana2) && !model.includes('gpt-image')) {
+                    if((!isGeminiImage || isNanoBanana2) && !model.includes('gpt-image')) {
                          sysChk.disabled = false; sysLbl.classList.remove('opacity-50');
                     }
                 }
 
-                if(((model.includes('nano') && !isNanoBanana2) || model.includes('gpt-image') || isGrokImageModel() || isGrokVideoModel())) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); }
+                if(((isGeminiImage && !isNanoBanana2) || model.includes('gpt-image') || isGrokImageModel() || isGrokVideoModel())) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); }
                 if (pyCont) {
                     if (isLlmModel()) {
                         pyCont.classList.remove('hidden');
@@ -9632,6 +9635,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-                console.log("Extended debug logging system active. Version: v4.8.358");
+                console.log("Extended debug logging system active. Version: v4.8.359");
             }, 3000);
         })();

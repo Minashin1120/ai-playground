@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-18-001')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-19-001')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -9078,6 +9078,155 @@ def handle_thread_item(thread_id):
     except Exception:
         pass
     return jsonify({'status': 'deleted'})
+
+def _serialize_message_attachment_for_pdf(raw_ref):
+    source = "unknown"
+    ref = raw_ref
+    if isinstance(raw_ref, dict):
+        source = _normalize_attachment_source(raw_ref.get("source"))
+        ref = raw_ref.get("filepath") or raw_ref.get("path") or raw_ref.get("url") or raw_ref.get("file") or ""
+    norm = _normalize_upload_ref(ref)
+    if not norm:
+        return None
+    filename = os.path.basename(norm)
+    ext = os.path.splitext(filename)[1].lower().lstrip(".")
+    is_image = ext in {e.lstrip(".") for e in _IMAGE_THUMB_EXTS}
+    preview_endpoint = 'serve_file_thumb' if is_image else 'serve_file'
+    return {
+        "path": norm,
+        "filename": filename,
+        "source": source,
+        "is_image": is_image,
+        "url": url_for('serve_file', filename=norm),
+        "preview_url": url_for(preview_endpoint, filename=norm)
+    }
+
+def _build_thread_pdf_payload(thread, leaf_id=None):
+    messages = Message.query.filter_by(thread_id=thread.id).order_by(Message.timestamp, Message.id).all()
+    if not messages:
+        return {
+            "thread": {
+                "id": thread.id,
+                "public_id": thread.public_id,
+                "title": thread.title or "AI Chat"
+            },
+            "messages": [],
+            "leaf_id": None,
+            "generated_at": datetime.utcnow().isoformat() + "Z"
+        }
+
+    msg_map = {m.id: m for m in messages}
+    leaf = msg_map.get(leaf_id) if leaf_id else None
+    if leaf is None:
+        leaf = messages[-1]
+
+    path = []
+    seen = set()
+    curr = leaf
+    while curr and curr.id not in seen:
+        seen.add(curr.id)
+        path.append(curr)
+        parent_id = curr.parent_id
+        curr = msg_map.get(parent_id) if parent_id else None
+    path.reverse()
+
+    serialized = []
+    for m in path:
+        content = decrypt_val(m.content) if m.is_encrypted else m.content
+        thought_raw = decrypt_val(m.thought_data) if (m.is_encrypted and m.thought_data) else m.thought_data
+        thought_text = extract_reasoning_text(thought_raw)
+        token_in = None
+        token_out = None
+        token_total = None
+        tokens_content = None
+        tokens_thought = None
+        legacy_token_total = None
+        legacy_token_in = None
+        legacy_token_out = None
+        if (m.tokens_in and m.tokens_in > 0) or (m.tokens_out and m.tokens_out > 0):
+            token_in = m.tokens_in if m.tokens_in and m.tokens_in > 0 else None
+            token_out = m.tokens_out if m.tokens_out and m.tokens_out > 0 else None
+            token_total = sum_token_counts(token_in, token_out)
+            stored_tokens_thought = getattr(m, 'tokens_thought', None)
+            if stored_tokens_thought is not None and stored_tokens_thought > 0:
+                tokens_thought = stored_tokens_thought
+        elif m.tokens is not None and m.tokens > 0 and (should_count_tokens_for_display(m.model) or not m.model):
+            if m.role == 'user':
+                legacy_token_in = m.tokens
+            else:
+                legacy_token_out = m.tokens
+            legacy_token_total = m.tokens
+        if token_total is None and should_count_tokens_for_display(m.model):
+            details = build_message_token_details(m.role, content, thought_text, m.model, token_in, token_out)
+            token_in = details["tokens_in"] if details["tokens_in"] is not None else token_in
+            token_out = details["tokens_out"] if details["tokens_out"] is not None else token_out
+            token_total = details["tokens_total"] if details["tokens_total"] is not None else token_total
+            tokens_content = details["tokens_content"]
+            tokens_thought = details["tokens_thought"]
+        if token_total is None and legacy_token_total is not None:
+            token_in = token_in if token_in is not None else legacy_token_in
+            token_out = token_out if token_out is not None else legacy_token_out
+            token_total = legacy_token_total
+
+        attachments = []
+        for raw_ref in _iter_message_attachment_refs(m.image_url):
+            item = _serialize_message_attachment_for_pdf(raw_ref)
+            if item:
+                attachments.append(item)
+
+        serialized.append({
+            "id": m.id,
+            "role": m.role,
+            "content": content,
+            "image_url": m.image_url,
+            "attachments": attachments,
+            "model": m.model,
+            "thought_data": thought_raw,
+            "thought_text": thought_text,
+            "tokens": token_total,
+            "tokens_in": token_in,
+            "tokens_out": token_out,
+            "tokens_content": tokens_content,
+            "tokens_thought": tokens_thought,
+            "is_encrypted": bool(m.is_encrypted),
+            "quote_text": m.quote_text,
+            "parent_id": m.parent_id,
+            "timestamp": m.timestamp.isoformat() if m.timestamp else None
+        })
+
+    return {
+        "thread": {
+            "id": thread.id,
+            "public_id": thread.public_id,
+            "title": thread.title or "AI Chat",
+            "last_model": thread.last_model,
+            "custom_instruction": thread.custom_instruction,
+            "include_global_instruction": thread.include_global_instruction if thread.include_global_instruction is not None else True
+        },
+        "messages": serialized,
+        "leaf_id": leaf.id,
+        "generated_at": datetime.utcnow().isoformat() + "Z"
+    }
+
+@app.route('/c/<thread_id>/pdf')
+@login_required
+def export_thread_pdf(thread_id):
+    t = resolve_thread_for_user(thread_id, current_user.id)
+    if not t:
+        return jsonify({'error': '403'}), 403
+    leaf_id = request.args.get('leaf_id', type=int)
+    payload = _build_thread_pdf_payload(t, leaf_id=leaf_id)
+    resp = make_response(render_template(
+        'thread_pdf.html',
+        export_payload=payload,
+        export_title=t.title or 'AI Chat',
+        app_version=app.config.get('APP_VERSION'),
+        thread_public_id=t.public_id
+    ))
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+    resp.headers["Cache-Control"] = "private, no-cache, no-store, must-revalidate"
+    resp.headers["Vary"] = "Cookie"
+    return resp
 
 @app.route('/api/encryption_scan', methods=['GET'])
 @login_required

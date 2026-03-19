@@ -9225,6 +9225,20 @@
         async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { const res = await apiFetch("{{ url_for('update_title', thread_id=0) }}".replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); const d = await res.json().catch(() => ({})); if (res.ok && currentThreadId === String(id)) setCurrentChatHeaderTitle((d && d.title) || n); loadThreads(); } }
         async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('handle_thread_item', thread_id=0) }}".replace('0', id), {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }
         async function deleteMessage(id) { if(!confirm("Delete this message and subsequent history?")) return; await apiFetch("{{ url_for('delete_message', mid=0) }}".replace('0', id), {method:'DELETE'}); loadMessages(currentThreadId); }
+        function exportCurrentThreadPdf() {
+            if (!currentThreadId) {
+                showToast("PDF化するスレッドを開いてください", "warning", true);
+                return;
+            }
+            const url = new URL("{{ url_for('export_thread_pdf', thread_id=0) }}".replace('0', currentThreadId), window.location.origin);
+            if (currentLeafId !== null && currentLeafId !== undefined && String(currentLeafId).trim()) {
+                url.searchParams.set('leaf_id', String(currentLeafId));
+            }
+            const win = window.open(url.toString(), '_blank', 'noopener,noreferrer');
+            if (!win) {
+                showToast("PDF出力ページを開けませんでした。ポップアップ許可を確認してください。", "warning", true);
+            }
+        }
         window.regenerateMessage = (id) => {
             const msg = allMessages.find(m => m.id == id);
             if (!msg || !msg.parent_id) { showToast("再生成できるメッセージが見つかりません", "error", true); return; }
@@ -9635,6 +9649,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-                console.log("Extended debug logging system active. Version: v4.8.359");
+            console.log("Extended debug logging system active. Version: v4.8.360");
             }, 3000);
         })();

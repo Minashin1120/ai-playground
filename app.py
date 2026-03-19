@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-19-003')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-19-004')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2785,6 +2785,24 @@ def ensure_user_default_model_columns():
             res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='last_model'")).fetchone()
             if not res:
                 conn.execute(text("ALTER TABLE user ADD COLUMN last_model VARCHAR(64)"))
+                conn.commit()
+            # check default_enable_url_context / default_enable_maps
+            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='default_enable_url_context'")).fetchone()
+            if not res:
+                conn.execute(text("ALTER TABLE user ADD COLUMN default_enable_url_context BOOLEAN DEFAULT 0"))
+                conn.commit()
+            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='default_enable_maps'")).fetchone()
+            if not res:
+                conn.execute(text("ALTER TABLE user ADD COLUMN default_enable_maps BOOLEAN DEFAULT 0"))
+                conn.commit()
+            # check last_enable_url_context / last_enable_maps
+            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='last_enable_url_context'")).fetchone()
+            if not res:
+                conn.execute(text("ALTER TABLE user ADD COLUMN last_enable_url_context BOOLEAN DEFAULT 0"))
+                conn.commit()
+            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='last_enable_maps'")).fetchone()
+            if not res:
+                conn.execute(text("ALTER TABLE user ADD COLUMN last_enable_maps BOOLEAN DEFAULT 0"))
                 conn.commit()
     except Exception as e:
         logger.error(f"Failed to ensure user default model columns: {e}")

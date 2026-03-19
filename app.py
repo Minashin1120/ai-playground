@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-19-001')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-19-002')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -9216,17 +9216,7 @@ def export_thread_pdf(thread_id):
         return jsonify({'error': '403'}), 403
     leaf_id = request.args.get('leaf_id', type=int)
     payload = _build_thread_pdf_payload(t, leaf_id=leaf_id)
-    resp = make_response(render_template(
-        'thread_pdf.html',
-        export_payload=payload,
-        export_title=t.title or 'AI Chat',
-        app_version=app.config.get('APP_VERSION'),
-        thread_public_id=t.public_id
-    ))
-    resp.headers["X-Robots-Tag"] = "noindex, nofollow"
-    resp.headers["Cache-Control"] = "private, no-cache, no-store, must-revalidate"
-    resp.headers["Vary"] = "Cookie"
-    return resp
+    return jsonify(payload)
 
 @app.route('/api/encryption_scan', methods=['GET'])
 @login_required

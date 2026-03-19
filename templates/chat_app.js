@@ -9225,16 +9225,278 @@
         async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { const res = await apiFetch("{{ url_for('update_title', thread_id=0) }}".replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); const d = await res.json().catch(() => ({})); if (res.ok && currentThreadId === String(id)) setCurrentChatHeaderTitle((d && d.title) || n); loadThreads(); } }
         async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch("{{ url_for('handle_thread_item', thread_id=0) }}".replace('0', id), {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }
         async function deleteMessage(id) { if(!confirm("Delete this message and subsequent history?")) return; await apiFetch("{{ url_for('delete_message', mid=0) }}".replace('0', id), {method:'DELETE'}); loadMessages(currentThreadId); }
-        function exportCurrentThreadPdf() {
+        let activePdfPrintFrame = null;
+        const PDF_IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'svg']);
+        const PDF_PRINT_ROUTE = "{{ url_for('export_thread_pdf', thread_id=0) }}";
+        const pdfEscapeAttr = (value) => escapeHtml(value == null ? '' : String(value));
+        const pdfFormatTimestamp = (value) => {
+            if (!value) return '';
+            try {
+                const date = new Date(value);
+                if (Number.isNaN(date.getTime())) return String(value);
+                return new Intl.DateTimeFormat('ja-JP', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                }).format(date);
+            } catch (e) {
+                return String(value);
+            }
+        };
+        const pdfNormalizeAttachmentPath = (path) => {
+            if (!path) return '';
+            let v = String(path).trim();
+            if (!v) return '';
+            try {
+                if (v.includes('://')) {
+                    v = new URL(v, window.location.origin).pathname || '';
+                }
+            } catch (e) {}
+            if (v.includes('?')) v = v.split('?', 1)[0];
+            if (v.includes('#')) v = v.split('#', 1)[0];
+            v = v.replace(/^\/+/, '');
+            if (v.startsWith('files/')) v = v.slice(6);
+            try { v = decodeURIComponent(v); } catch (e) {}
+            return v;
+        };
+        const buildPdfAttachmentUrl = (path) => {
+            const norm = pdfNormalizeAttachmentPath(path);
+            return norm ? `${window.location.origin}/files/${encodeURI(norm)}` : '';
+        };
+        const buildPdfAttachmentPreviewUrl = (path) => {
+            const norm = pdfNormalizeAttachmentPath(path);
+            if (!norm) return '';
+            return `${window.location.origin}/${PDF_IMAGE_EXTS.has((norm.split('.').pop() || '').toLowerCase()) ? 'files/thumb/' : 'files/'}${encodeURI(norm)}`;
+        };
+        const buildPdfMessageAttachments = (message) => {
+            const attachments = Array.isArray(message && message.attachments) ? message.attachments : [];
+            return attachments.map((attachment) => {
+                const path = pdfNormalizeAttachmentPath(attachment && attachment.path ? attachment.path : attachment);
+                if (!path) return null;
+                const filename = attachment && attachment.filename ? attachment.filename : path.split('/').pop();
+                const source = attachment && attachment.source ? String(attachment.source) : 'attachment';
+                const isImage = !!(attachment && attachment.is_image);
+                const url = attachment && attachment.url ? attachment.url : buildPdfAttachmentUrl(path);
+                const previewUrl = attachment && attachment.preview_url ? attachment.preview_url : buildPdfAttachmentPreviewUrl(path);
+                return { path, filename, source, isImage, url, previewUrl };
+            }).filter(Boolean);
+        };
+        const buildPdfDocumentHtml = (data) => {
+            const thread = data && data.thread ? data.thread : {};
+            const messages = Array.isArray(data && data.messages) ? data.messages : [];
+            const coverTitle = thread.title || 'AI Chat';
+            const coverMeta = [
+                { label: 'Exported At', value: pdfFormatTimestamp(data && data.generated_at) },
+                { label: 'Leaf Message', value: data && data.leaf_id ? `#${data.leaf_id}` : 'none' },
+                { label: 'Messages', value: String(messages.length) },
+                { label: 'Version', value: `AI Playground ${appVersion}` }
+            ];
+            const messageHtml = messages.map((message) => {
+                const isUser = message.role === 'user';
+                const quoteHtml = message.quote_text
+                    ? `<div class="quote"><strong>Quote</strong><br>${escapeHtml(message.quote_text)}</div>`
+                    : '';
+                const thoughtHtml = message.thought_text
+                    ? `<div class="thought">${escapeHtml(message.thought_text)}</div>`
+                    : '';
+                const contentHtml = isUser
+                    ? `<div class="content" style="white-space: pre-wrap;">${escapeHtml(message.content || '')}</div>`
+                    : `<div class="content">${sanitizeMarkdownHtml(message.content || '')}</div>`;
+                const attachments = buildPdfMessageAttachments(message);
+                const attachmentsHtml = attachments.length
+                    ? `<div class="attachments">${attachments.map((attachment) => {
+                        if (attachment.isImage) {
+                            return `<div class="attachment"><img src="${pdfEscapeAttr(attachment.previewUrl)}" alt="${pdfEscapeAttr(attachment.filename)}"><div class="file-caption">${pdfEscapeAttr(attachment.filename)}</div></div>`;
+                        }
+                        return `<div class="attachment"><a class="file" href="${pdfEscapeAttr(attachment.url)}" target="_blank" rel="noreferrer noopener"><span class="file-icon">📄</span><span><span class="file-name">${pdfEscapeAttr(attachment.filename)}</span><span class="file-source">${pdfEscapeAttr(attachment.source)}</span></span></a></div>`;
+                    }).join('')}</div>`
+                    : '';
+                const metaBits = [];
+                if (message.model && !isUser) metaBits.push(message.model);
+                if (message.tokens !== null && message.tokens !== undefined) metaBits.push(`tokens:${message.tokens}`);
+                if (message.tokens_in !== null && message.tokens_in !== undefined) metaBits.push(`in:${message.tokens_in}`);
+                if (message.tokens_out !== null && message.tokens_out !== undefined) metaBits.push(`out:${message.tokens_out}`);
+                if (message.tokens_thought !== null && message.tokens_thought !== undefined) metaBits.push(`thought:${message.tokens_thought}`);
+                if (message.is_encrypted) metaBits.push('encrypted');
+                if (message.parent_id !== null && message.parent_id !== undefined) metaBits.push(`parent:#${message.parent_id}`);
+                const metaHtml = metaBits.length ? `<div class="message-meta">${pdfEscapeAttr(metaBits.join(' • '))}</div>` : '';
+                return `
+                    <article class="message ${isUser ? 'user' : 'ai'}">
+                        <div class="message-head">
+                            <div class="message-role" style="color:${isUser ? 'var(--user)' : 'var(--ai)'}"><span class="dot"></span><span>${isUser ? 'User' : 'Assistant'}</span></div>
+                            <div class="message-time">${pdfEscapeAttr(pdfFormatTimestamp(message.timestamp))}</div>
+                        </div>
+                        <div class="message-body">
+                            ${quoteHtml}
+                            ${contentHtml}
+                            ${thoughtHtml}
+                            ${attachmentsHtml}
+                            ${metaHtml}
+                        </div>
+                    </article>
+                `;
+            }).join('');
+            return `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${pdfEscapeAttr(coverTitle)} - PDF Export</title>
+  <style>
+    :root { --ink:#0f172a; --muted:#475569; --line:#dbe3ee; --panel:#fff; --panel-soft:#f8fafc; --user:#0ea5e9; --ai:#10b981; --accent:#0f766e; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body { font-family: "Noto Sans JP", system-ui, sans-serif; color: var(--ink); background: linear-gradient(180deg, #eef4fb 0%, #f8fbff 45%, #eef2f7 100%); }
+    .page { max-width: 980px; margin: 0 auto; padding: 24px 18px 48px; }
+    .cover { position: relative; overflow: hidden; border-radius: 26px; padding: 26px 24px; color: #eff6ff; background: linear-gradient(135deg, #0f172a 0%, #0b3b57 56%, #0f766e 100%); box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18); }
+    .cover h1 { margin: 0 0 8px; font-size: 40px; line-height: 1.1; }
+    .cover p { margin: 0; max-width: 72ch; color: rgba(226, 232, 240, 0.88); font-size: 14px; line-height: 1.8; }
+    .meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
+    .meta-card { padding: 12px 14px; border-radius: 16px; background: rgba(15, 23, 42, 0.2); border: 1px solid rgba(255,255,255,0.15); }
+    .meta-label { font-size: 11px; letter-spacing: 0.08em; color: rgba(226,232,240,0.68); margin-bottom: 6px; text-transform: uppercase; }
+    .meta-value { font-size: 14px; font-weight: 700; word-break: break-word; }
+    .message-list { margin-top: 20px; display: flex; flex-direction: column; gap: 16px; }
+    .message { border-radius: 22px; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06); overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
+    .message.user { border-left: 6px solid var(--user); }
+    .message.ai { border-left: 6px solid var(--ai); }
+    .message-head { display:flex; gap:10px; justify-content:space-between; align-items:flex-start; padding:14px 18px 0; }
+    .message-role { display:inline-flex; align-items:center; gap:8px; font-weight:900; font-size:13px; }
+    .message-role .dot { width:10px; height:10px; border-radius:50%; background: currentColor; }
+    .message-time { color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .message-body { padding: 12px 18px 18px; }
+    .quote { margin:0 0 12px; padding:10px 12px; border-left:4px solid rgba(14,165,233,0.7); background: var(--panel-soft); color: var(--muted); border-radius:12px; font-size:12px; line-height:1.7; }
+    .thought { margin: 12px 0 0; padding: 12px 14px; border-radius: 14px; background: rgba(139, 92, 246, 0.06); border: 1px solid rgba(139, 92, 246, 0.18); color: #4c1d95; font-size: 12px; line-height: 1.8; white-space: pre-wrap; }
+    .content { font-size: 14px; line-height: 1.85; word-break: break-word; }
+    .content pre { overflow:auto; padding:12px 14px; border-radius:14px; background:#0b1020; color:#e2e8f0; border:1px solid rgba(15,23,42,0.18); }
+    .content code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .content blockquote { margin:12px 0; padding:8px 12px; border-left:4px solid rgba(14,165,233,0.65); background: rgba(14,165,233,0.06); border-radius:10px; color:#334155; }
+    .content img { max-width:100%; height:auto; border-radius:14px; border:1px solid rgba(148,163,184,0.28); margin:10px 0; }
+    .attachments { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .attachment { border-radius: 16px; border: 1px solid var(--line); background: #f8fafc; overflow: hidden; break-inside: avoid; }
+    .attachment img { width: 100%; height: auto; display: block; }
+    .attachment .file { display:flex; gap:10px; align-items:center; padding:12px 14px; color: var(--ink); text-decoration:none; }
+    .file-icon { font-size: 18px; color: var(--accent); }
+    .file-name { display:block; font-weight:700; font-size:13px; word-break:break-word; }
+    .file-source { display:block; color: var(--muted); font-size: 11px; margin-top: 3px; }
+    .file-caption { padding:10px 12px; font-size:11px; color: var(--muted); }
+    .message-meta { margin-top: 14px; text-align: right; color: var(--muted); font-size: 11px; line-height: 1.7; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    @media print { body { background:#fff; } .page { padding:0; max-width:none; } .cover, .message { box-shadow:none; } .message, .attachment, .meta-card { break-inside: avoid; page-break-inside: avoid; } a { color: inherit; text-decoration: none; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="cover">
+      <h1>${pdfEscapeAttr(coverTitle)}</h1>
+      <p>スレッド ID: ${pdfEscapeAttr(thread.public_id || '')}。表示中の履歴をそのまま印刷できるように、画面キャプチャではなく全メッセージを再構成して出力しています。</p>
+      <div class="meta-grid">
+        ${coverMeta.map((item) => `<div class="meta-card"><div class="meta-label">${pdfEscapeAttr(item.label)}</div><div class="meta-value">${pdfEscapeAttr(item.value)}</div></div>`).join('')}
+      </div>
+    </section>
+    <main id="pdf-message-list" class="message-list">${messageHtml || '<div class="meta-card" style="margin-top:20px;background:#fff;color:var(--muted);text-align:center;border:1px dashed rgba(148,163,184,0.5);padding:28px;border-radius:20px;">このスレッドにはメッセージがありません。</div>'}</main>
+  </div>
+</body>
+</html>`;
+        };
+        async function openThreadPdfPrintDialog() {
             if (!currentThreadId) {
                 showToast("PDF化するスレッドを開いてください", "warning", true);
                 return;
             }
-            const url = new URL("{{ url_for('export_thread_pdf', thread_id=0) }}".replace('0', currentThreadId), window.location.origin);
+            if (activePdfPrintFrame) {
+                showToast("PDF出力の準備中です。しばらくお待ちください。", "warning", true);
+                return;
+            }
+            const url = new URL(PDF_PRINT_ROUTE.replace('0', currentThreadId), window.location.origin);
             if (currentLeafId !== null && currentLeafId !== undefined && String(currentLeafId).trim()) {
                 url.searchParams.set('leaf_id', String(currentLeafId));
             }
-            window.location.href = url.toString();
+            const res = await apiFetch(url.toString(), { headers: { 'Accept': 'application/json' } });
+            if (!res.ok) {
+                showToast("PDFデータの取得に失敗しました", "error", true);
+                return;
+            }
+            const data = await res.json().catch(() => null);
+            if (!data) {
+                showToast("PDFデータの解析に失敗しました", "error", true);
+                return;
+            }
+            const frame = document.createElement('iframe');
+            activePdfPrintFrame = frame;
+            frame.setAttribute('aria-hidden', 'true');
+            frame.style.position = 'fixed';
+            frame.style.right = '0';
+            frame.style.bottom = '0';
+            frame.style.width = '1px';
+            frame.style.height = '1px';
+            frame.style.opacity = '0';
+            frame.style.pointerEvents = 'none';
+            frame.style.border = '0';
+
+            const cleanup = () => {
+                if (activePdfPrintFrame === frame) activePdfPrintFrame = null;
+                window.removeEventListener('message', onMessage);
+                try {
+                    if (frame.parentNode) frame.parentNode.removeChild(frame);
+                } catch (e) {}
+            };
+            const onMessage = (event) => {
+                if (!event || event.source !== frame.contentWindow) return;
+                if (!event.data || event.data.type !== 'pdf-print-done') return;
+                cleanup();
+            };
+            window.addEventListener('message', onMessage);
+            frame.onload = async () => {
+                try {
+                    const doc = frame.contentDocument;
+                    const win = frame.contentWindow;
+                    if (!doc || !win) {
+                        cleanup();
+                        showToast("PDF印刷モーダルの準備に失敗しました", "error", true);
+                        return;
+                    }
+                    if (doc.fonts && doc.fonts.ready) {
+                        try { await doc.fonts.ready; } catch (e) {}
+                    }
+                    const imgs = Array.from(doc.images || []);
+                    await Promise.all(imgs.map((img) => {
+                        if (img.complete) return Promise.resolve();
+                        return new Promise((resolve) => {
+                            img.addEventListener('load', resolve, { once: true });
+                            img.addEventListener('error', resolve, { once: true });
+                        });
+                    }));
+                    setTimeout(() => {
+                        try {
+                            win.focus();
+                            win.addEventListener('afterprint', () => {
+                                try {
+                                    win.parent.postMessage({ type: 'pdf-print-done' }, window.location.origin);
+                                } catch (e) {
+                                    cleanup();
+                                }
+                            }, { once: true });
+                            win.print();
+                        } catch (e) {
+                            cleanup();
+                            showToast("PDF印刷モーダルを開けませんでした", "error", true);
+                        }
+                    }, 80);
+                } catch (e) {
+                    cleanup();
+                    showToast("PDF印刷モーダルの準備に失敗しました", "error", true);
+                }
+            };
+            frame.srcdoc = buildPdfDocumentHtml(data);
+            document.body.appendChild(frame);
+        }
+        function exportCurrentThreadPdf() {
+            openThreadPdfPrintDialog().catch(() => {
+                showToast("PDF出力に失敗しました", "error", true);
+            });
         }
         window.regenerateMessage = (id) => {
             const msg = allMessages.find(m => m.id == id);
@@ -9646,6 +9908,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.360");
+            console.log("Extended debug logging system active. Version: v4.8.361");
             }, 3000);
         })();

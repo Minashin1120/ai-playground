@@ -9234,10 +9234,7 @@
             if (currentLeafId !== null && currentLeafId !== undefined && String(currentLeafId).trim()) {
                 url.searchParams.set('leaf_id', String(currentLeafId));
             }
-            const win = window.open(url.toString(), '_blank', 'noopener,noreferrer');
-            if (!win) {
-                showToast("PDF出力ページを開けませんでした。ポップアップ許可を確認してください。", "warning", true);
-            }
+            window.location.href = url.toString();
         }
         window.regenerateMessage = (id) => {
             const msg = allMessages.find(m => m.id == id);

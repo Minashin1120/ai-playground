@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-19-002')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-19-003')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1800,6 +1800,7 @@ class User(UserMixin, db.Model):
     default_model = db.Column(db.String(64), default="gemini-3.1-flash-lite-preview")
     default_enable_search = db.Column(db.Boolean, default=False)
     default_enable_url_context = db.Column(db.Boolean, default=False)
+    default_enable_maps = db.Column(db.Boolean, default=False)
     default_enable_python = db.Column(db.Boolean, default=True)
     default_enable_thinking = db.Column(db.Boolean, default=False)
     default_thinking_level = db.Column(db.String(16), default="high")
@@ -1810,6 +1811,7 @@ class User(UserMixin, db.Model):
     last_model = db.Column(db.String(64), nullable=True)
     last_enable_search = db.Column(db.Boolean, default=False)
     last_enable_url_context = db.Column(db.Boolean, default=False)
+    last_enable_maps = db.Column(db.Boolean, default=False)
     last_enable_python = db.Column(db.Boolean, default=True)
     last_enable_thinking = db.Column(db.Boolean, default=False)
     last_thinking_level = db.Column(db.String(16), default="high")
@@ -4811,6 +4813,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
             auto_enable_search = options.get('enable_search')
             auto_enable_url_context = options.get('enable_url_context')
+            is_gemini_3 = "gemini-3" in model_key or "gemini-3.1" in model_key
+            auto_enable_maps = bool(options.get('enable_maps')) and is_gemini_3
             grok_enable_search = auto_enable_search
             user_auto_search = True
             try:
@@ -5116,7 +5120,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         rm = "gemini-2.5-flash"
 
                     conf = {'temperature': 0.7}
-                    is_gemini_3 = "gemini-3" in model_key or "gemini-3.1" in model_key
                     if is_gemini_3:
                         # Gemini 3 does not support fully disabling thinking; force enabled.
                         options['enable_thinking'] = True
@@ -5148,6 +5151,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if auto_enable_url_context:
                         if 'tools' not in conf: conf['tools'] = []
                         conf['tools'].append(types.Tool(url_context=types.UrlContext()))
+                    if auto_enable_maps:
+                        if 'tools' not in conf: conf['tools'] = []
+                        conf['tools'].append(types.Tool(google_maps=types.GoogleMaps()))
                     if options.get('enable_python') and not gemini_local_python:
                         if 'tools' not in conf: conf['tools'] = []
                         conf['tools'].append(types.Tool(code_execution=types.ToolCodeExecution()))
@@ -5723,21 +5729,39 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if u_metadata and url_context_chunks is None:
                             url_context_chunks = u_metadata
 
-                    def _chunk_web_info(chunk):
-                        web = None
+                    def _chunk_grounding_info(chunk):
+                        if not chunk:
+                            return None, None
+                        candidates = [chunk]
                         if isinstance(chunk, dict):
-                            web = chunk.get('web')
+                            candidates.extend([chunk.get('web'), chunk.get('maps')])
                         else:
-                            web = getattr(chunk, 'web', None)
-                        title = None
-                        uri = None
-                        if web:
-                            if isinstance(web, dict):
-                                title = web.get('title')
-                                uri = web.get('uri') or web.get('url')
+                            candidates.extend([getattr(chunk, 'web', None), getattr(chunk, 'maps', None)])
+                        for candidate in candidates:
+                            if not candidate:
+                                continue
+                            if isinstance(candidate, dict):
+                                title = candidate.get('title') or candidate.get('name') or candidate.get('text')
+                                uri = candidate.get('uri') or candidate.get('url')
                             else:
-                                title = getattr(web, 'title', None)
-                                uri = getattr(web, 'uri', None) or getattr(web, 'url', None)
+                                title = getattr(candidate, 'title', None) or getattr(candidate, 'name', None) or getattr(candidate, 'text', None)
+                                uri = getattr(candidate, 'uri', None) or getattr(candidate, 'url', None)
+                            if title or uri:
+                                return title, uri
+                        if isinstance(chunk, dict):
+                            title = chunk.get('title') or chunk.get('name') or chunk.get('text')
+                            uri = chunk.get('uri') or chunk.get('url')
+                            if not title:
+                                place_id = chunk.get('place_id') or chunk.get('placeId')
+                                if place_id:
+                                    title = place_id
+                        else:
+                            title = getattr(chunk, 'title', None) or getattr(chunk, 'name', None) or getattr(chunk, 'text', None)
+                            uri = getattr(chunk, 'uri', None) or getattr(chunk, 'url', None)
+                            if not title:
+                                place_id = getattr(chunk, 'place_id', None) or getattr(chunk, 'placeId', None)
+                                if place_id:
+                                    title = place_id
                         return title, uri
 
                     def _segment_end_index(segment):
@@ -5775,7 +5799,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     continue
                                 if idx < 0 or idx >= len(chunks):
                                     continue
-                                _, uri = _chunk_web_info(chunks[idx])
+                                _, uri = _chunk_grounding_info(chunks[idx])
                                 if uri:
                                     citation_links.append(f"[{idx + 1}]({uri})")
                             if citation_links:
@@ -5890,13 +5914,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         # Fallback to chunk.text if parts didn't cover it (unlikely but safe)
                         # but be careful not to double-publish.
 
-                    if grounding_chunks and options.get('enable_search'):
+                    if grounding_chunks and (options.get('enable_search') or options.get('enable_maps')):
                         if grounding_supports:
                             full_res = _add_gemini_citations(full_res, grounding_supports, grounding_chunks)
                         sources_lines = []
                         has_sources = False
                         for i, chunk in enumerate(grounding_chunks):
-                            title, uri = _chunk_web_info(chunk)
+                            title, uri = _chunk_grounding_info(chunk)
                             if title or uri:
                                 has_sources = True
                             if uri:
@@ -8219,6 +8243,7 @@ def chat_stream():
             current_user.last_model = data.get('model')
             current_user.last_enable_search = bool(data.get('enable_search'))
             current_user.last_enable_url_context = bool(data.get('enable_url_context'))
+            current_user.last_enable_maps = bool(data.get('enable_maps'))
             current_user.last_enable_python = bool(data.get('enable_python'))
             current_user.last_enable_thinking = bool(data.get('enable_thinking'))
             current_user.last_thinking_level = (data.get('thinking_level') or current_user.last_thinking_level or "high")
@@ -8286,17 +8311,18 @@ def chat_stream():
         'grok_image_aspect': data.get('grok_image_aspect'),
         'grok_image_format': data.get('grok_image_format'),
         'grok_video_duration': data.get('grok_video_duration'),
-        'grok_video_aspect': data.get('grok_video_aspect'),
-        'grok_video_resolution': data.get('grok_video_resolution'),
-        'attachment_name_map': attachment_name_map,
-    }
+            'grok_video_aspect': data.get('grok_video_aspect'),
+            'grok_video_resolution': data.get('grok_video_resolution'),
+            'attachment_name_map': attachment_name_map,
+        }
     if 'thread_custom_instruction' in data:
         options['thread_custom_instruction'] = data.get('thread_custom_instruction')
 
     model_key = str(data.get('model') or '').strip()
     model_key_l = model_key.lower()
+    is_gemini_3 = "gemini-3" in model_key_l or "gemini-3.1" in model_key_l
     no_attachments = not bool(norm_image_urls)
-    no_special_tools = not bool(data.get('enable_search')) and not bool(data.get('enable_python'))
+    no_special_tools = not bool(data.get('enable_search')) and not bool(data.get('enable_python')) and not (bool(data.get('enable_maps')) and is_gemini_3)
     no_quote = not bool(data.get('quote_text'))
     no_thread_custom_instruction = not bool((data.get('thread_custom_instruction') or '').strip())
     model_looks_heavy = any(x in model_key_l for x in ("image", "video", "tts", "audio", "native-audio"))
@@ -10019,6 +10045,7 @@ def handle_settings():
             'default_model': current_user.default_model or "gemini-3.1-flash-lite-preview",
             'default_enable_search': current_user.default_enable_search,
             'default_enable_url_context': current_user.default_enable_url_context,
+            'default_enable_maps': current_user.default_enable_maps,
             'default_enable_python': current_user.default_enable_python,
             'default_enable_thinking': current_user.default_enable_thinking,
             'default_thinking_level': current_user.default_thinking_level or "high",
@@ -10029,6 +10056,7 @@ def handle_settings():
             'last_model': current_user.last_model or "gemini-3.1-flash-lite-preview",
             'last_enable_search': current_user.last_enable_search,
             'last_enable_url_context': current_user.last_enable_url_context,
+            'last_enable_maps': current_user.last_enable_maps,
             'last_enable_python': current_user.last_enable_python,
             'last_enable_thinking': current_user.last_enable_thinking,
             'last_thinking_level': current_user.last_thinking_level or "high",
@@ -10100,6 +10128,7 @@ def handle_settings():
         )
     if 'default_enable_search' in d: current_user.default_enable_search = bool(d['default_enable_search'])
     if 'default_enable_url_context' in d: current_user.default_enable_url_context = bool(d['default_enable_url_context'])
+    if 'default_enable_maps' in d: current_user.default_enable_maps = bool(d['default_enable_maps'])
     if 'default_enable_python' in d: current_user.default_enable_python = bool(d['default_enable_python'])
     if 'default_enable_thinking' in d: current_user.default_enable_thinking = bool(d['default_enable_thinking'])
     if 'default_thinking_level' in d: current_user.default_thinking_level = d['default_thinking_level'] or "high"
@@ -11266,6 +11295,12 @@ with app.app_context():
             try_alter("ALTER TABLE user ADD COLUMN default_enable_search BOOLEAN DEFAULT 0")
         except: pass
         try:
+            try_alter("ALTER TABLE user ADD COLUMN default_enable_url_context BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN default_enable_maps BOOLEAN DEFAULT 0")
+        except: pass
+        try:
             try_alter("ALTER TABLE user ADD COLUMN default_enable_python BOOLEAN DEFAULT 1")
         except: pass
         try:
@@ -11300,6 +11335,12 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN last_enable_search BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN last_enable_url_context BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN last_enable_maps BOOLEAN DEFAULT 0")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN last_enable_python BOOLEAN DEFAULT 1")

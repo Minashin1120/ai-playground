@@ -3444,8 +3444,8 @@
             };
             const AUTO_SYS_PROMPT_ITEMS = [
                 { key: 'file_link_guard', label: '保存リンク抑止（共通・任意）', hint: '既定ON。不要ならOFFにできます。モデル本文に `Saved files` や `/files/` を出させないための共通ガードです。' },
-                { key: 'python', label: 'Python 実行案内' },
-                { key: 'python_save', label: 'Pythonファイル自動保存' },
+                { key: 'python', label: 'Python 実行案内', hint: 'Python有効時のみ注入されます。' },
+                { key: 'python_save', label: 'Pythonファイル自動保存', hint: 'Python有効時のみ注入されます。' },
                 { key: 'gemini_local_python', label: 'Gemini 音声/動画 + Python（ローカル実行）' },
                 { key: 'grok_search', label: 'Search補助（Grok）' },
                 { key: 'openai_search', label: 'Search補助（OpenAI/xAI Responses）' },
@@ -9999,6 +9999,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.377");
+            console.log("Extended debug logging system active. Version: v4.8.378");
             }, 3000);
         })();

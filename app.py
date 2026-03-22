@@ -530,7 +530,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-008')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-009')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3503,6 +3503,13 @@ def _artifact_system_prompt(base_prompt, user=None, enable_python=False):
         return f"{base_prompt}\n\n{artifact_notice}"
     return artifact_notice
 
+
+def _is_python_enabled(options):
+    try:
+        return _coerce_bool_like((options or {}).get("enable_python"), False)
+    except Exception:
+        return False
+
 @app.before_request
 def ensure_client_token():
     try:
@@ -4432,7 +4439,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             
             options['system_prompt'] = combined_prompt
 
-            if _auto_notice_enabled("python") and options.get('enable_python'):
+            python_enabled = _is_python_enabled(options)
+            if _auto_notice_enabled("python") and python_enabled:
                 python_notice = _auto_notice_text("python")
                 curr_p = options.get('system_prompt')
                 if curr_p and str(curr_p).strip():
@@ -4470,7 +4478,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             options['system_prompt'] = _artifact_system_prompt(
                 options.get('system_prompt'),
                 user=user,
-                enable_python=bool(options.get('enable_python'))
+                enable_python=python_enabled
             )
 
             quote_text = None

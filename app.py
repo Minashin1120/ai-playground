@@ -530,7 +530,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-009')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-010')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3206,6 +3206,8 @@ AUTO_SYSTEM_PROMPT_NOTICE_PYTHON_SAVE = (
     "Pythonが有効なとき、ファイルを保存したい場合は /work 配下に書き出してください。"
     "/work に作成されたファイルはサーバーが自動保存してライブラリに追加し、"
     "保存リンクはサーバー側が表示します。"
+    "ユーザーがドキュメント、コード、CSV、Markdown、JSON などのファイル作成を求めた場合は、"
+    "必ず execute_python を使って実際に /work へ書き出してください。"
     "本文では保存済みだと主張したり、リンクを捏造したりしないでください。"
 )
 AUTO_SYSTEM_PROMPT_NOTICE_FILE_LINK_GUARD = (

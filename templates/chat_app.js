@@ -7428,6 +7428,74 @@
             container.innerHTML = sanitizeMarkdownHtml(text);
             wrapRenderedSvgBoxes(container);
             queueMessageDecorations(container, text);
+            const messageRoot = container.closest('.message-bubble');
+            if (messageRoot) {
+                syncArtifactNoteVisibility(messageRoot);
+            }
+        }
+        function syncArtifactNoteVisibility(messageRoot) {
+            if (!messageRoot) return;
+            const host = messageRoot.querySelector('.artifact-note-host');
+            if (!host) return;
+            const contentArea = messageRoot.querySelector('.content-area');
+            const renderedArtifactLinks = contentArea && (
+                contentArea.querySelector('.artifact-note') ||
+                contentArea.querySelector('[data-allow-file-links="1"]') ||
+                contentArea.querySelector('a[href^="/files/"]')
+            );
+            if (renderedArtifactLinks) {
+                host.remove();
+            }
+        }
+        function ensureArtifactNoteHost(messageRoot) {
+            if (!messageRoot) return null;
+            let host = messageRoot.querySelector('.artifact-note-host');
+            if (host) return host;
+            const bubble = messageRoot.querySelector('.message-bubble') || messageRoot;
+            host = document.createElement('div');
+            host.className = 'artifact-note-host mt-3';
+            bubble.appendChild(host);
+            return host;
+        }
+        function upsertArtifactNote(messageRoot, artifact) {
+            if (!messageRoot || !artifact) return;
+            const filepath = normalizeAttachmentPath((artifact && (artifact.filepath || artifact.path || artifact.url || artifact.file)) || '');
+            if (!filepath) return;
+            const filename = normalizeAttachmentDisplayName(artifact.filename || filepath.split('/').pop() || filepath) || (filepath.split('/').pop() || filepath);
+            const url = buildFileUrl(filepath);
+            const contentArea = messageRoot.querySelector('.content-area');
+            if (contentArea && (
+                contentArea.querySelector('.artifact-note') ||
+                contentArea.querySelector('[data-allow-file-links="1"]') ||
+                contentArea.querySelector(`a[href="${url}"]`)
+            )) {
+                return;
+            }
+            const host = ensureArtifactNoteHost(messageRoot);
+            if (!host) return;
+            let card = host.querySelector('.artifact-note-card');
+            if (!card) {
+                host.innerHTML = `
+                    <div class="artifact-note-card rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-50" data-allow-file-links="1">
+                        <div class="text-[11px] font-bold tracking-wide text-emerald-200 uppercase">Created files</div>
+                        <div class="artifact-note-list mt-2 space-y-2"></div>
+                    </div>
+                `;
+                card = host.querySelector('.artifact-note-card');
+            }
+            const list = host.querySelector('.artifact-note-list');
+            if (!list) return;
+            for (const existing of list.querySelectorAll('[data-artifact-path]')) {
+                if (existing.getAttribute('data-artifact-path') === filepath) return;
+            }
+            const row = document.createElement('a');
+            row.className = 'artifact-note-item flex items-center gap-2 rounded-lg border border-emerald-400/20 bg-slate-950/35 px-3 py-2 text-emerald-50 hover:bg-slate-950/55 transition';
+            row.setAttribute('data-artifact-path', filepath);
+            row.setAttribute('href', url);
+            row.setAttribute('target', '_blank');
+            row.setAttribute('rel', 'noreferrer noopener');
+            row.innerHTML = `<i class="fas fa-file-lines text-emerald-300"></i><span class="font-medium break-all">${escapeHtml(filename)}</span>`;
+            list.appendChild(row);
         }
         function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true) { 
             const isUser = role === 'user'; 
@@ -8251,6 +8319,7 @@
                                     const filename = normalizeAttachmentDisplayName(art.filename || filepath.split('/').pop() || filepath) || (filepath.split('/').pop() || filepath);
                                     setAttachmentNameForPath(filepath, filename);
                                     addLibraryFileFromPath(filepath);
+                                    upsertArtifactNote(adiv, art);
                                 }
                             } else if(j.type==='content'){ 
                                 const contentDelta = (j.content === null || j.content === undefined) ? '' : String(j.content);
@@ -8528,6 +8597,7 @@
                                     const filename = normalizeAttachmentDisplayName(art.filename || filepath.split('/').pop() || filepath) || (filepath.split('/').pop() || filepath);
                                     setAttachmentNameForPath(filepath, filename);
                                     addLibraryFileFromPath(filepath);
+                                    upsertArtifactNote(adiv, art);
                                 }
                             } else if (j.type === 'content') {
                                 const contentDelta = (j.content === null || j.content === undefined) ? '' : String(j.content);
@@ -9999,6 +10069,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.378");
+            console.log("Extended debug logging system active. Version: v4.8.379");
             }, 3000);
         })();

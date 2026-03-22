@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-22-006')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-001')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3201,6 +3201,10 @@ def get_bot_detection_global_enabled():
     return get_bool_app_setting("bot_detection_global_enabled", True)
 
 AUTO_SYSTEM_PROMPT_NOTICE_PYTHON = "Python execution is available; you can run Python code when needed."
+AUTO_SYSTEM_PROMPT_NOTICE_PYTHON_SAVE = (
+    "Pythonが有効なとき、ファイルを保存したい場合は /work 配下に書き出してください。"
+    "/work に作成されたファイルはサーバーが自動保存してライブラリに追加します。"
+)
 AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON = (
     "Python execution is available locally. To run code, include a python fenced block "
     "that starts with '# EXECUTE' on the first line."
@@ -3222,6 +3226,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_MATHJAX = (
 
 AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
     "python",
+    "python_save",
     "gemini_local_python",
     "grok_search",
     "openai_search",
@@ -3232,6 +3237,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
 
 AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
     "python": "Python",
+    "python_save": "Pythonファイル自動保存",
     "gemini_local_python": "Gemini 音声/動画 + Python (ローカル実行時)",
     "grok_search": "Search補助 (Grok)",
     "openai_search": "Search補助 (OpenAI/xAI Responses)",
@@ -3242,6 +3248,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
 
 AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS = {
     "python": AUTO_SYSTEM_PROMPT_NOTICE_PYTHON,
+    "python_save": AUTO_SYSTEM_PROMPT_NOTICE_PYTHON_SAVE,
     "gemini_local_python": AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON,
     "grok_search": AUTO_SYSTEM_PROMPT_NOTICE_GROK_SEARCH,
     "openai_search": AUTO_SYSTEM_PROMPT_NOTICE_OPENAI_SEARCH,
@@ -3453,14 +3460,19 @@ def build_global_system_prompt(now=None):
     return f"Current time: {now.strftime('%Y-%m-%d %H:%M:%S %Z')} (UTC{now.strftime('%z')})"
 
 
-def _artifact_system_prompt(base_prompt):
-    artifact_notice = (
-        "必要なときは、作成したファイルを ```file ブロックで返してください。"
-        "形式は ```file\\nfilename: report.md\\n...content...\\n``` です。"
-        "サーバーが自動保存してライブラリに追加します。"
-    )
+def _artifact_system_prompt(base_prompt, user=None, enable_python=False):
+    if not enable_python:
+        return base_prompt
+    artifact_notice = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get("python_save", "")
+    if user is not None:
+        try:
+            if not get_user_auto_system_prompt_notice_enabled(user, "python_save"):
+                return base_prompt
+            artifact_notice = get_user_auto_system_prompt_notice_text(user, "python_save") or artifact_notice
+        except Exception:
+            pass
     if base_prompt and str(base_prompt).strip():
-        if "```file" in str(base_prompt):
+        if artifact_notice and artifact_notice in str(base_prompt):
             return base_prompt
         return f"{base_prompt}\n\n{artifact_notice}"
     return artifact_notice
@@ -4047,69 +4059,6 @@ def safe_execute_python(code):
         except Exception as e:
             return {"output": f"Error: {str(e)}", "returncode": 1, "files": []}
 
-
-def _extract_generated_file_block(block_text):
-    lines = (block_text or "").splitlines()
-    filename = None
-    mime = None
-    body_start = 0
-    for idx, line in enumerate(lines):
-        stripped = line.strip()
-        if not stripped:
-            if filename or mime:
-                body_start = idx + 1
-                break
-            continue
-        m = re.match(r'^(?:filename|path|name)\s*:\s*(.+)$', stripped, re.I)
-        if m:
-            filename = m.group(1).strip()
-            body_start = idx + 1
-            continue
-        m = re.match(r'^mime\s*:\s*(.+)$', stripped, re.I)
-        if m:
-            mime = m.group(1).strip()
-            body_start = idx + 1
-            continue
-        if filename is None:
-            filename = stripped
-            body_start = idx + 1
-        break
-    if not filename:
-        return None
-    body = "\n".join(lines[body_start:]).lstrip("\n")
-    return {
-        "filename": filename,
-        "mime": mime,
-        "text": body,
-    }
-
-
-def _extract_generated_artifacts_from_text(text, origin="assistant"):
-    artifacts = []
-    if not text:
-        return artifacts
-    pattern = re.compile(r"```(?:file|artifact|savefile|save-file)\s*\n(.*?)```", re.S | re.I)
-    for match in pattern.finditer(text):
-        parsed = _extract_generated_file_block(match.group(1) or "")
-        if not parsed:
-            continue
-        payload = {
-            "origin": origin,
-            "filename": parsed.get("filename"),
-            "mime": parsed.get("mime"),
-            "text": parsed.get("text") or "",
-        }
-        artifacts.append(payload)
-    return artifacts
-
-
-def _strip_generated_file_blocks(text):
-    if not text:
-        return text
-    pattern = re.compile(r"```(?:file|artifact|savefile|save-file)\s*\n(.*?)```", re.S | re.I)
-    return pattern.sub("", text)
-
-
 def _extract_generated_artifacts_from_python_result(result):
     artifacts = []
     if not isinstance(result, dict):
@@ -4471,7 +4420,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     else:
                         options['system_prompt'] = mathjax_notice
 
-            options['system_prompt'] = _artifact_system_prompt(options.get('system_prompt'))
+            options['system_prompt'] = _artifact_system_prompt(
+                options.get('system_prompt'),
+                user=user,
+                enable_python=bool(options.get('enable_python'))
+            )
 
             quote_text = None
             try:
@@ -7759,15 +7712,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
             if is_grok and grok_reasoning_supported and not thought_accumulated:
                 thought_accumulated = " "
-            assistant_file_artifacts = _extract_generated_artifacts_from_text(full_res, origin="assistant")
             saved_generated_artifacts = _save_generated_artifacts(
                 user_id,
-                list(generated_artifacts) + assistant_file_artifacts,
+                list(generated_artifacts),
                 user_config=user_config,
                 pub=pub
             )
             artifact_note = _build_artifact_saved_note(saved_generated_artifacts)
-            final_content = _strip_generated_file_blocks(full_res)
+            final_content = full_res
             if artifact_note:
                 pub("content", artifact_note)
                 if final_content.strip():

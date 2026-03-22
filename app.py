@@ -530,7 +530,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-007')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-008')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3204,11 +3204,12 @@ def get_bot_detection_global_enabled():
 AUTO_SYSTEM_PROMPT_NOTICE_PYTHON = "Python execution is available; you can run Python code when needed."
 AUTO_SYSTEM_PROMPT_NOTICE_PYTHON_SAVE = (
     "Pythonが有効なとき、ファイルを保存したい場合は /work 配下に書き出してください。"
-    "/work に作成されたファイルはサーバーが自動保存してライブラリに追加します。"
-    "本文では `Saved files` や `/files/` のリンクを出さないでください。"
+    "/work に作成されたファイルはサーバーが自動保存してライブラリに追加し、"
+    "保存リンクはサーバー側が表示します。"
+    "本文では保存済みだと主張したり、リンクを捏造したりしないでください。"
 )
 AUTO_SYSTEM_PROMPT_NOTICE_FILE_LINK_GUARD = (
-    "本文では `Saved files` や `/files/` のリンクを出さず、"
+    "本文では `Saved files` や `/files/` のリンクを自分で出さず、"
     "保存済みだと主張しないでください。"
     "実際の保存結果はサーバー側が別途表示します。"
 )
@@ -3244,7 +3245,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
 )
 
 AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
-    "file_link_guard": "保存リンク抑止（共通）",
+    "file_link_guard": "保存リンク抑止（共通・任意）",
     "python": "Python",
     "python_save": "Pythonファイル自動保存",
     "gemini_local_python": "Gemini 音声/動画 + Python (ローカル実行時)",
@@ -3379,10 +3380,7 @@ def get_user_auto_system_prompt_notices_config(user):
         if not isinstance(item, dict):
             continue
         default_text = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get(key, "")
-        if key == "file_link_guard":
-            config[key]["enabled"] = True
-        else:
-            config[key]["enabled"] = _coerce_bool_like(item.get("enabled"), True)
+        config[key]["enabled"] = _coerce_bool_like(item.get("enabled"), True)
         config[key]["text"] = _normalize_auto_notice_text(item.get("text"), default_text)
     return config
 
@@ -3395,9 +3393,7 @@ def set_user_auto_system_prompt_notices_config(user, new_config):
         item = new_config.get(key)
         if not isinstance(item, dict):
             continue
-        if key == "file_link_guard":
-            current[key]["enabled"] = True
-        elif "enabled" in item:
+        if "enabled" in item:
             current[key]["enabled"] = _coerce_bool_like(item.get("enabled"), True)
         if "text" in item:
             default_text = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get(key, "")
@@ -3423,8 +3419,6 @@ def get_user_auto_system_prompt_notices_enabled(user):
 def get_user_auto_system_prompt_notice_enabled(user, notice_key, config=None):
     if notice_key not in AUTO_SYSTEM_PROMPT_NOTICE_KEYS:
         return False
-    if notice_key == "file_link_guard":
-        return True
     if not get_user_auto_system_prompt_notices_enabled(user):
         return False
     if config is None:
@@ -3461,7 +3455,7 @@ def build_auto_system_prompt_notices_preview(user=None):
     for key in AUTO_SYSTEM_PROMPT_NOTICE_KEYS:
         item = config.get(key) or {}
         label = AUTO_SYSTEM_PROMPT_NOTICE_LABELS.get(key, key)
-        enabled = True if key == "file_link_guard" else bool(global_enabled and item.get("enabled", True))
+        enabled = bool(global_enabled and item.get("enabled", True))
         text = str(item.get("text") or AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get(key, "")).strip()
         lines.append(f"[{label}] {'ON' if enabled else 'OFF'}")
         lines.append(text)
@@ -3481,14 +3475,18 @@ def _artifact_system_prompt(base_prompt, user=None, enable_python=False):
     file_link_guard = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get("file_link_guard", AUTO_SYSTEM_PROMPT_NOTICE_FILE_LINK_GUARD)
     if user is not None:
         try:
-            file_link_guard = get_user_auto_system_prompt_notice_text(user, "file_link_guard") or file_link_guard
+            if get_user_auto_system_prompt_notice_enabled(user, "file_link_guard"):
+                file_link_guard = get_user_auto_system_prompt_notice_text(user, "file_link_guard") or file_link_guard
+            else:
+                file_link_guard = ""
         except Exception:
             pass
-    if base_prompt and str(base_prompt).strip():
-        if file_link_guard not in str(base_prompt):
-            base_prompt = f"{base_prompt}\n\n{file_link_guard}"
-    else:
-        base_prompt = file_link_guard
+    if file_link_guard:
+        if base_prompt and str(base_prompt).strip():
+            if file_link_guard not in str(base_prompt):
+                base_prompt = f"{base_prompt}\n\n{file_link_guard}"
+        else:
+            base_prompt = file_link_guard
     if not enable_python:
         return base_prompt
     artifact_notice = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get("python_save", "")

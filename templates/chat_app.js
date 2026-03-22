@@ -7365,8 +7365,34 @@
         }
         
         const messageMeta = {};
+        function isFileLinkHref(href) {
+            if (!href) return false;
+            try {
+                const url = new URL(href, window.location.origin);
+                return url && typeof url.pathname === 'string' && url.pathname.startsWith('/files/');
+            } catch (e) {
+                const v = String(href).trim();
+                return v.startsWith('/files/') || v.startsWith('files/');
+            }
+        }
+        function neutralizeFileLinks(root) {
+            if (!root || typeof root.querySelectorAll !== 'function') return;
+            root.querySelectorAll('a[href]').forEach((anchor) => {
+                const href = anchor.getAttribute('href') || '';
+                if (!isFileLinkHref(href)) return;
+                const replacement = document.createElement('span');
+                replacement.className = anchor.className || '';
+                replacement.setAttribute('data-file-link-blocked', '1');
+                replacement.textContent = anchor.textContent || href.split('/').pop() || 'file';
+                anchor.replaceWith(replacement);
+            });
+        }
         function sanitizeMarkdownHtml(text) {
-            return DOMPurify.sanitize(marked.parse(text || ''));
+            const html = DOMPurify.sanitize(marked.parse(text || ''));
+            const wrap = document.createElement('div');
+            wrap.innerHTML = html;
+            neutralizeFileLinks(wrap);
+            return wrap.innerHTML;
         }
         function wrapRenderedSvgBoxes(root) {
             if (!root || typeof root.querySelectorAll !== 'function') return;
@@ -9967,6 +9993,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.370");
+            console.log("Extended debug logging system active. Version: v4.8.371");
             }, 3000);
         })();

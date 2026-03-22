@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-001')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-002')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -4205,10 +4205,7 @@ def _build_artifact_saved_note(saved_artifacts):
         if not item:
             continue
         label = item.get("filename") or item.get("filepath")
-        path = item.get("filepath")
-        if label and path:
-            lines.append(f"- [{label}](/files/{path})")
-        elif label:
+        if label:
             lines.append(f"- {label}")
     return "\n".join(lines) + "\n"
 

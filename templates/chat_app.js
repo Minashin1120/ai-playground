@@ -1,6 +1,7 @@
         const get = (id) => document.getElementById(id);
         const THEME_DEFAULT = '#14b8a6';
         const THEME_STORAGE_KEY = 'theme_color';
+        const INITIAL_THEME_COLOR = {{ initial_theme_color|tojson }};
         const GEMINI_LOCAL_PY_DIALOG_KEY = 'gemini_local_py_dialog_enabled';
         const COMPRESSION_SIZE_KEY = 'compression_max_size_mb';
         const COMPRESSION_DIM_KEY = 'compression_max_dim';
@@ -217,7 +218,13 @@
                 btn.classList.toggle('active', c === hex);
             });
         };
-        const initThemeFromStorage = () => {
+        const initThemeFromServer = () => {
+            const serverTheme = normalizeHex(INITIAL_THEME_COLOR);
+            if (serverTheme) {
+                applyThemeColor(serverTheme, false);
+                localStorage.setItem(THEME_STORAGE_KEY, serverTheme);
+                return;
+            }
             const stored = normalizeHex(localStorage.getItem(THEME_STORAGE_KEY));
             if (stored) applyThemeColor(stored, false);
         };
@@ -256,7 +263,7 @@
                 barEl.style.opacity = '0.5';
             }
         };
-        initThemeFromStorage();
+        initThemeFromServer();
         const showModal = (id) => {
             const el = get(id);
             if (!el) return;
@@ -2682,7 +2689,7 @@
         };
 
         document.addEventListener('DOMContentLoaded', () => {
-            initThemeFromStorage();
+            initThemeFromServer();
             updateCurrentChatHeaderUi();
             ensureCurrentChatHeaderTicker();
             const bar = document.getElementById('alpha-bar'); setTimeout(() => { if(bar) { const target = document.getElementById('version-display'); if(target) { const barRect = bar.getBoundingClientRect(); const targetRect = target.getBoundingClientRect(); const tx = targetRect.left + (targetRect.width/2) - (barRect.left + barRect.width/2); const ty = targetRect.top + (targetRect.height/2) - (barRect.top + barRect.height/2); bar.style.transform = `translate(${tx}px, ${ty}px) scale(0.1)`; bar.style.opacity = '0'; setTimeout(() => { target.classList.add('pulse-target'); setTimeout(() => target.classList.remove('pulse-target'), 2000); bar.remove(); }, 800); } else { bar.style.opacity = '0'; setTimeout(() => bar.remove(), 1000); } } }, 3000);
@@ -3661,7 +3668,7 @@
                         applyThemeColor(d.theme_color, true);
                         syncThemeInputs(d.theme_color);
                     } else {
-                        syncThemeInputs(localStorage.getItem(THEME_STORAGE_KEY) || THEME_DEFAULT);
+                        syncThemeInputs(localStorage.getItem(THEME_STORAGE_KEY) || INITIAL_THEME_COLOR || THEME_DEFAULT);
                     }
                     syncGeminiLocalPyDialogSetting();
                     syncCompressionSettingsUi();
@@ -9944,6 +9951,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.364");
+            console.log("Extended debug logging system active. Version: v4.8.365");
             }, 3000);
         })();

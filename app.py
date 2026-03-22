@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-22-001')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-22-002')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2480,12 +2480,15 @@ def revoke_user_sessions(user_id, exclude_session_id=None):
 @app.context_processor
 def inject_csrf():
     is_admin = current_user.is_authenticated and bool(getattr(current_user, "is_admin", False))
+    initial_theme_color = normalize_theme_color(getattr(current_user, 'theme_color', '')) if current_user.is_authenticated else ""
     return {
         'csrf_token': get_csrf_token(),
         'app_version': app.config.get('APP_VERSION'),
         'is_admin': is_admin,
         'attachment_max_files': app.config.get('ATTACHMENT_MAX_FILES', 30),
         'upload_concurrency': app.config.get('UPLOAD_CONCURRENCY', 3),
+        'initial_theme_color': initial_theme_color,
+        'initial_theme_css': build_theme_css_vars(initial_theme_color),
     }
 
 def validate_csrf():
@@ -9921,6 +9924,37 @@ def normalize_theme_color(value):
     if any(c not in "0123456789abcdefABCDEF" for c in v[1:]):
         return ""
     return v.lower()
+
+def build_theme_css_vars(value):
+    hex_value = normalize_theme_color(value)
+    if not hex_value:
+        return ""
+
+    r = int(hex_value[1:3], 16)
+    g = int(hex_value[3:5], 16)
+    b = int(hex_value[5:7], 16)
+
+    def mix(channel, target, pct):
+        return round(channel + (target - channel) * pct)
+
+    def to_hex(red, green, blue):
+        return f"#{red:02x}{green:02x}{blue:02x}"
+
+    light = to_hex(mix(r, 255, 0.45), mix(g, 255, 0.45), mix(b, 255, 0.45))
+    lighter = to_hex(mix(r, 255, 0.7), mix(g, 255, 0.7), mix(b, 255, 0.7))
+    dark = to_hex(mix(r, 0, 0.18), mix(g, 0, 0.18), mix(b, 0, 0.18))
+    darker = to_hex(mix(r, 0, 0.32), mix(g, 0, 0.32), mix(b, 0, 0.32))
+    rgb = f"{r}, {g}, {b}"
+    return (
+        ":root{"
+        f"--theme-500:{hex_value};"
+        f"--theme-600:{dark};"
+        f"--theme-700:{darker};"
+        f"--theme-300:{light};"
+        f"--theme-200:{lighter};"
+        f"--theme-rgb:{rgb};"
+        "}"
+    )
 
 def _normalize_webauthn_credentials(raw):
     if not raw:

@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-004')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-005')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3206,6 +3206,11 @@ AUTO_SYSTEM_PROMPT_NOTICE_PYTHON_SAVE = (
     "/work に作成されたファイルはサーバーが自動保存してライブラリに追加します。"
     "本文では `Saved files` や `/files/` のリンクを出さないでください。"
 )
+AUTO_SYSTEM_PROMPT_NOTICE_FILE_LINK_GUARD = (
+    "本文では `Saved files` や `/files/` のリンクを出さず、"
+    "保存済みだと主張しないでください。"
+    "実際の保存結果はサーバー側が別途表示します。"
+)
 AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON = (
     "Python execution is available locally. To run code, include a python fenced block "
     "that starts with '# EXECUTE' on the first line."
@@ -3462,6 +3467,12 @@ def build_global_system_prompt(now=None):
 
 
 def _artifact_system_prompt(base_prompt, user=None, enable_python=False):
+    file_link_guard = AUTO_SYSTEM_PROMPT_NOTICE_FILE_LINK_GUARD
+    if base_prompt and str(base_prompt).strip():
+        if file_link_guard not in str(base_prompt):
+            base_prompt = f"{base_prompt}\n\n{file_link_guard}"
+    else:
+        base_prompt = file_link_guard
     if not enable_python:
         return base_prompt
     artifact_notice = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get("python_save", "")

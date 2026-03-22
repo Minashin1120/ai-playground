@@ -7375,6 +7375,16 @@
                 return v.startsWith('/files/') || v.startsWith('files/');
             }
         }
+        function stripModelFileClaims(text) {
+            if (!text) return '';
+            let out = String(text);
+            out = out.replace(/(?:^|\n)\s*(?:\*\*)?Saved files(?:\*\*)?:?\s*(?:\n(?:\s*[-*]\s+.*(?:\n|$))*)+/gi, '\n');
+            out = out.replace(/(?:^|\n)\s*(?:\*\*)?Saved files(?:\*\*)?:?\s*$/gmi, '\n');
+            out = out.replace(/\[([^\]]+)\]\((?:https?:\/\/[^)\s]*\/files\/[^)\s]+|\/files\/[^)\s]+)\)/gi, '$1');
+            out = out.replace(/https?:\/\/[^)\s]*\/files\/[^)\s]+/gi, '');
+            out = out.replace(/\/files\/[^\s)>\]]+/gi, '');
+            return out;
+        }
         function neutralizeFileLinks(root) {
             if (!root || typeof root.querySelectorAll !== 'function') return;
             root.querySelectorAll('a[href]').forEach((anchor) => {
@@ -7388,7 +7398,7 @@
             });
         }
         function sanitizeMarkdownHtml(text) {
-            const html = DOMPurify.sanitize(marked.parse(text || ''));
+            const html = DOMPurify.sanitize(marked.parse(stripModelFileClaims(text)));
             const wrap = document.createElement('div');
             wrap.innerHTML = html;
             neutralizeFileLinks(wrap);
@@ -9993,6 +10003,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.371");
+            console.log("Extended debug logging system active. Version: v4.8.373");
             }, 3000);
         })();

@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-002')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-004')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3204,6 +3204,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_PYTHON = "Python execution is available; you can run P
 AUTO_SYSTEM_PROMPT_NOTICE_PYTHON_SAVE = (
     "Pythonが有効なとき、ファイルを保存したい場合は /work 配下に書き出してください。"
     "/work に作成されたファイルはサーバーが自動保存してライブラリに追加します。"
+    "本文では `Saved files` や `/files/` のリンクを出さないでください。"
 )
 AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON = (
     "Python execution is available locally. To run code, include a python fenced block "
@@ -4200,7 +4201,7 @@ def _save_generated_artifacts(user_id, artifacts, user_config=None, pub=None):
 def _build_artifact_saved_note(saved_artifacts):
     if not saved_artifacts:
         return ""
-    lines = ["\n\n**Saved files:**"]
+    lines = ["\n\n**Created files:**"]
     for item in saved_artifacts:
         if not item:
             continue
@@ -4208,6 +4209,31 @@ def _build_artifact_saved_note(saved_artifacts):
         if label:
             lines.append(f"- {label}")
     return "\n".join(lines) + "\n"
+
+
+def _strip_model_file_claims(text):
+    if not text:
+        return text
+    cleaned = str(text)
+    cleaned = re.sub(
+        r"(?is)(?:^|\n)\s*(?:\*\*)?Saved files(?:\*\*)?:?\s*(?:\n(?:\s*[-*]\s+.*(?:\n|$))*)+",
+        "\n",
+        cleaned
+    )
+    cleaned = re.sub(
+        r"(?im)(?:^|\n)\s*(?:\*\*)?Saved files(?:\*\*)?:?\s*$",
+        "\n",
+        cleaned
+    )
+    cleaned = re.sub(
+        r"\[([^\]]+)\]\((?:https?://[^)\s]*/files/[^)\s]+|/files/[^)\s]+)\)",
+        r"\1",
+        cleaned,
+        flags=re.I
+    )
+    cleaned = re.sub(r"https?://[^)\s]*/files/[^)\s]+", "", cleaned, flags=re.I)
+    cleaned = re.sub(r"/files/[^\s)>\]]+", "", cleaned, flags=re.I)
+    return cleaned
 
 def background_chat_task(job_id, thread_id, model_key, message_id, options, user_id, user_config):
     with app.app_context():
@@ -7716,7 +7742,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 pub=pub
             )
             artifact_note = _build_artifact_saved_note(saved_generated_artifacts)
-            final_content = full_res
+            final_content = _strip_model_file_claims(full_res)
             if artifact_note:
                 pub("content", artifact_note)
                 if final_content.strip():

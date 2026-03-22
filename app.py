@@ -3,6 +3,7 @@ import sys
 import json
 import time
 import logging
+import html
 import gzip
 import base64
 import mimetypes
@@ -529,7 +530,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-006')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-007')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -4227,14 +4228,21 @@ def _save_generated_artifacts(user_id, artifacts, user_config=None, pub=None):
 def _build_artifact_saved_note(saved_artifacts):
     if not saved_artifacts:
         return ""
-    lines = ["\n\n**Created files:**"]
+    lines = ['\n\n<div class="artifact-note" data-allow-file-links="1"><strong>Created files:</strong><ul>']
     for item in saved_artifacts:
         if not item:
             continue
         label = item.get("filename") or item.get("filepath")
-        if label:
-            lines.append(f"- {label}")
-    return "\n".join(lines) + "\n"
+        path = item.get("filepath")
+        if label and path:
+            lines.append(
+                f'<li><a href="/files/{html.escape(path, quote=True)}" target="_blank" rel="noreferrer noopener">'
+                f'{html.escape(label)}</a></li>'
+            )
+        elif label:
+            lines.append(f"<li>{html.escape(label)}</li>")
+    lines.append("</ul></div>")
+    return "".join(lines) + "\n"
 
 
 def _strip_model_file_claims(text):
@@ -4251,14 +4259,6 @@ def _strip_model_file_claims(text):
         "\n",
         cleaned
     )
-    cleaned = re.sub(
-        r"\[([^\]]+)\]\((?:https?://[^)\s]*/files/[^)\s]+|/files/[^)\s]+)\)",
-        r"\1",
-        cleaned,
-        flags=re.I
-    )
-    cleaned = re.sub(r"https?://[^)\s]*/files/[^)\s]+", "", cleaned, flags=re.I)
-    cleaned = re.sub(r"/files/[^\s)>\]]+", "", cleaned, flags=re.I)
     return cleaned
 
 def background_chat_task(job_id, thread_id, model_key, message_id, options, user_id, user_config):

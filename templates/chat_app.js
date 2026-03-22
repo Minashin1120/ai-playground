@@ -7378,9 +7378,6 @@
             let out = String(text);
             out = out.replace(/(?:^|\n)\s*(?:\*\*)?Saved files(?:\*\*)?:?\s*(?:\n(?:\s*[-*]\s+.*(?:\n|$))*)+/gi, '\n');
             out = out.replace(/(?:^|\n)\s*(?:\*\*)?Saved files(?:\*\*)?:?\s*$/gmi, '\n');
-            out = out.replace(/\[([^\]]+)\]\((?:https?:\/\/[^)\s]*\/files\/[^)\s]+|\/files\/[^)\s]+)\)/gi, '$1');
-            out = out.replace(/https?:\/\/[^)\s]*\/files\/[^)\s]+/gi, '');
-            out = out.replace(/\/files\/[^\s)>\]]+/gi, '');
             return out;
         }
         function neutralizeFileLinks(root) {
@@ -7388,6 +7385,7 @@
             root.querySelectorAll('a[href]').forEach((anchor) => {
                 const href = anchor.getAttribute('href') || '';
                 if (!isFileLinkHref(href)) return;
+                if (anchor.closest('[data-allow-file-links="1"]')) return;
                 const replacement = document.createElement('span');
                 replacement.className = anchor.className || '';
                 replacement.setAttribute('data-file-link-blocked', '1');
@@ -10001,6 +9999,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.375");
+            console.log("Extended debug logging system active. Version: v4.8.376");
             }, 3000);
         })();

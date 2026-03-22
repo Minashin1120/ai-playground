@@ -1338,7 +1338,12 @@
                 if (latest && stored && latest !== stored) {
                     await purgeCaches();
                     localStorage.setItem("app_version", latest);
-                    location.reload();
+                    // The first page load after deployment is already serving the new
+                    // HTML/JS bundle. Reloading here only causes a visible double-load,
+                    // so we only force a reload when the active bundle is still stale.
+                    if (appVersion !== latest) {
+                        location.reload();
+                    }
                     return;
                 }
                 if (latest && !stored) localStorage.setItem("app_version", latest);
@@ -9939,6 +9944,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.363");
+            console.log("Extended debug logging system active. Version: v4.8.364");
             }, 3000);
         })();

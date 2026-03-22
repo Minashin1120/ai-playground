@@ -8211,6 +8211,14 @@
                                         if (outBtn) outBtn.setAttribute('data-code', encodeURIComponent(outText).replace(/'/g, "%27"));
                                     } 
                                 } 
+                            } else if(j.type === 'artifact') {
+                                const art = j.content || {};
+                                const filepath = normalizeAttachmentPath((art && (art.filepath || art.path || art.url || art.file)) || '');
+                                if (filepath) {
+                                    const filename = normalizeAttachmentDisplayName(art.filename || filepath.split('/').pop() || filepath) || (filepath.split('/').pop() || filepath);
+                                    setAttachmentNameForPath(filepath, filename);
+                                    addLibraryFileFromPath(filepath);
+                                }
                             } else if(j.type==='content'){ 
                                 const contentDelta = (j.content === null || j.content === undefined) ? '' : String(j.content);
                                 acc += contentDelta; 
@@ -8479,6 +8487,14 @@
                                         const outBtn = box.querySelector('.copy-btn[data-copy="output"]');
                                         if (outBtn) outBtn.setAttribute('data-code', encodeURIComponent(outText).replace(/'/g, "%27"));
                                     }
+                                }
+                            } else if (j.type === 'artifact') {
+                                const art = j.content || {};
+                                const filepath = normalizeAttachmentPath((art && (art.filepath || art.path || art.url || art.file)) || '');
+                                if (filepath) {
+                                    const filename = normalizeAttachmentDisplayName(art.filename || filepath.split('/').pop() || filepath) || (filepath.split('/').pop() || filepath);
+                                    setAttachmentNameForPath(filepath, filename);
+                                    addLibraryFileFromPath(filepath);
                                 }
                             } else if (j.type === 'content') {
                                 const contentDelta = (j.content === null || j.content === undefined) ? '' : String(j.content);
@@ -9950,6 +9966,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.368");
+            console.log("Extended debug logging system active. Version: v4.8.369");
             }, 3000);
         })();

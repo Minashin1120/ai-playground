@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-005')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-006')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3231,6 +3231,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_MATHJAX = (
 )
 
 AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
+    "file_link_guard",
     "python",
     "python_save",
     "gemini_local_python",
@@ -3242,6 +3243,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
 )
 
 AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
+    "file_link_guard": "保存リンク抑止（共通）",
     "python": "Python",
     "python_save": "Pythonファイル自動保存",
     "gemini_local_python": "Gemini 音声/動画 + Python (ローカル実行時)",
@@ -3253,6 +3255,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
 }
 
 AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS = {
+    "file_link_guard": AUTO_SYSTEM_PROMPT_NOTICE_FILE_LINK_GUARD,
     "python": AUTO_SYSTEM_PROMPT_NOTICE_PYTHON,
     "python_save": AUTO_SYSTEM_PROMPT_NOTICE_PYTHON_SAVE,
     "gemini_local_python": AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON,
@@ -3375,7 +3378,10 @@ def get_user_auto_system_prompt_notices_config(user):
         if not isinstance(item, dict):
             continue
         default_text = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get(key, "")
-        config[key]["enabled"] = _coerce_bool_like(item.get("enabled"), True)
+        if key == "file_link_guard":
+            config[key]["enabled"] = True
+        else:
+            config[key]["enabled"] = _coerce_bool_like(item.get("enabled"), True)
         config[key]["text"] = _normalize_auto_notice_text(item.get("text"), default_text)
     return config
 
@@ -3388,7 +3394,9 @@ def set_user_auto_system_prompt_notices_config(user, new_config):
         item = new_config.get(key)
         if not isinstance(item, dict):
             continue
-        if "enabled" in item:
+        if key == "file_link_guard":
+            current[key]["enabled"] = True
+        elif "enabled" in item:
             current[key]["enabled"] = _coerce_bool_like(item.get("enabled"), True)
         if "text" in item:
             default_text = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get(key, "")
@@ -3414,6 +3422,8 @@ def get_user_auto_system_prompt_notices_enabled(user):
 def get_user_auto_system_prompt_notice_enabled(user, notice_key, config=None):
     if notice_key not in AUTO_SYSTEM_PROMPT_NOTICE_KEYS:
         return False
+    if notice_key == "file_link_guard":
+        return True
     if not get_user_auto_system_prompt_notices_enabled(user):
         return False
     if config is None:
@@ -3450,7 +3460,7 @@ def build_auto_system_prompt_notices_preview(user=None):
     for key in AUTO_SYSTEM_PROMPT_NOTICE_KEYS:
         item = config.get(key) or {}
         label = AUTO_SYSTEM_PROMPT_NOTICE_LABELS.get(key, key)
-        enabled = bool(global_enabled and item.get("enabled", True))
+        enabled = True if key == "file_link_guard" else bool(global_enabled and item.get("enabled", True))
         text = str(item.get("text") or AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get(key, "")).strip()
         lines.append(f"[{label}] {'ON' if enabled else 'OFF'}")
         lines.append(text)
@@ -3467,7 +3477,12 @@ def build_global_system_prompt(now=None):
 
 
 def _artifact_system_prompt(base_prompt, user=None, enable_python=False):
-    file_link_guard = AUTO_SYSTEM_PROMPT_NOTICE_FILE_LINK_GUARD
+    file_link_guard = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get("file_link_guard", AUTO_SYSTEM_PROMPT_NOTICE_FILE_LINK_GUARD)
+    if user is not None:
+        try:
+            file_link_guard = get_user_auto_system_prompt_notice_text(user, "file_link_guard") or file_link_guard
+        except Exception:
+            pass
     if base_prompt and str(base_prompt).strip():
         if file_link_guard not in str(base_prompt):
             base_prompt = f"{base_prompt}\n\n{file_link_guard}"

@@ -3443,6 +3443,7 @@
                 }
             };
             const AUTO_SYS_PROMPT_ITEMS = [
+                { key: 'file_link_guard', label: '保存リンク抑止（共通）', fixedEnabled: true, hint: '常時適用。モデル本文に `Saved files` や `/files/` を出させないための共通ガードです。' },
                 { key: 'python', label: 'Python 実行案内' },
                 { key: 'python_save', label: 'Pythonファイル自動保存' },
                 { key: 'gemini_local_python', label: 'Gemini 音声/動画 + Python（ローカル実行）' },
@@ -3460,10 +3461,7 @@
                     <div class="rounded border border-gray-700 p-2 bg-gray-950/40">
                         <div class="flex items-center justify-between mb-1">
                             <div class="text-[11px] text-gray-300">${item.label}</div>
-                            <label class="flex items-center gap-1 text-[10px] text-gray-500">
-                                <input type="checkbox" id="${prefix}-auto-sys-${item.key}-enabled" class="accent-yellow-500 w-3 h-3">
-                                <span>適用</span>
-                            </label>
+                            ${item.fixedEnabled ? '<span class="text-[10px] text-cyan-300">常時適用</span>' : `<label class="flex items-center gap-1 text-[10px] text-gray-500"><input type="checkbox" id="${prefix}-auto-sys-${item.key}-enabled" class="accent-yellow-500 w-3 h-3"><span>適用</span></label>`}
                         </div>
                         <textarea id="${prefix}-auto-sys-${item.key}-text" class="${textClass}" placeholder="自動注入文言"></textarea>
                         ${item.hint ? `<div class="text-[10px] text-gray-500 mt-1">${item.hint}</div>` : ''}
@@ -3503,7 +3501,7 @@
                     const enabledEl = get(`${prefix}-auto-sys-${item.key}-enabled`);
                     const textEl = get(`${prefix}-auto-sys-${item.key}-text`);
                     cfg[item.key] = {
-                        enabled: enabledEl ? enabledEl.checked : true,
+                        enabled: item.fixedEnabled ? true : (enabledEl ? enabledEl.checked : true),
                         text: textEl ? textEl.value : ''
                     };
                 });
@@ -10003,6 +10001,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.374");
+            console.log("Extended debug logging system active. Version: v4.8.375");
             }, 3000);
         })();

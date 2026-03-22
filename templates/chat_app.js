@@ -222,7 +222,6 @@
             const serverTheme = normalizeHex(INITIAL_THEME_COLOR);
             if (serverTheme) {
                 applyThemeColor(serverTheme, false);
-                localStorage.setItem(THEME_STORAGE_KEY, serverTheme);
                 return;
             }
             const stored = normalizeHex(localStorage.getItem(THEME_STORAGE_KEY));
@@ -9951,6 +9950,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.365");
+            console.log("Extended debug logging system active. Version: v4.8.366");
             }, 3000);
         })();

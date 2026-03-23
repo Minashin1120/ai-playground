@@ -772,46 +772,33 @@
                 showToast('別タブの表示に失敗しました', 'error', true);
             }
         };
-        const ensureHtml2CanvasLoaded = async () => {
-            if (window.html2canvas) return window.html2canvas;
-            await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'html2canvas-script');
-            if (window.html2canvas) return window.html2canvas;
-            throw new Error('html2canvas ライブラリを読み込めませんでした');
-        };
-        const ensureJsPdfLoaded = async () => {
-            if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
-            if (window.jsPDF) return window.jsPDF;
-            await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf-script');
-            if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
-            if (window.jsPDF) return window.jsPDF;
-            throw new Error('jsPDF ライブラリを読み込めませんでした');
-        };
         const renderRichPastePdfBlob = async () => {
-            const html2canvas = await ensureHtml2CanvasLoaded();
-            const JsPdfCtor = await ensureJsPdfLoaded();
             const editor = getRichPasteEditor();
             if (!editor) throw new Error('PDF化する内容がありません');
             const html = buildRichPastePreviewHtml('pdf');
             const parser = new DOMParser();
             const parsed = parser.parseFromString(html, 'text/html');
             const wrapper = document.createElement('div');
-            wrapper.setAttribute('aria-hidden', 'true');
+            wrapper.id = 'rich-paste-pdf-root';
             wrapper.style.position = 'fixed';
             wrapper.style.left = '-10000px';
             wrapper.style.top = '0';
             wrapper.style.width = '794px';
+            wrapper.style.padding = '0';
             wrapper.style.background = '#ffffff';
             wrapper.style.color = '#111827';
             wrapper.style.pointerEvents = 'none';
             wrapper.style.opacity = '1';
             wrapper.style.zIndex = '-1';
             wrapper.style.contain = 'layout style paint';
-            const headNodes = Array.from(parsed.head ? parsed.head.children || [] : []);
-            const bodyNodes = Array.from(parsed.body ? parsed.body.children || [] : []);
-            headNodes.forEach((node) => {
-                try { wrapper.appendChild(node.cloneNode(true)); } catch (e) {}
-            });
-            bodyNodes.forEach((node) => {
+            const styleEl = document.createElement('style');
+            styleEl.textContent = (parsed.head && parsed.head.querySelector('style'))
+                ? parsed.head.querySelector('style').textContent || ''
+                : '';
+            wrapper.appendChild(styleEl);
+            const bodyWrap = document.createElement('div');
+            bodyWrap.innerHTML = parsed.body ? parsed.body.innerHTML : '';
+            Array.from(bodyWrap.childNodes || []).forEach((node) => {
                 try { wrapper.appendChild(node.cloneNode(true)); } catch (e) {}
             });
             document.body.appendChild(wrapper);
@@ -821,65 +808,29 @@
                 } catch (e) {}
             };
             try {
-                await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-                const root = wrapper.querySelector('.page') || wrapper;
-                if (!root) throw new Error('pdf_root_missing');
-                const imgs = Array.from(root.querySelectorAll('img') || []);
-                await Promise.all(imgs.map((img) => {
-                    if (!img) return Promise.resolve();
-                    if (img.complete) return Promise.resolve();
-                    return new Promise((resolve) => {
-                        img.addEventListener('load', resolve, { once: true });
-                        img.addEventListener('error', resolve, { once: true });
-                    });
-                }));
-                if (document.fonts && document.fonts.ready) {
-                    try { await document.fonts.ready; } catch (e) {}
+                if (typeof html2pdf === 'undefined') {
+                    throw new Error('html2pdf ライブラリが読み込まれていません');
                 }
-                const canvas = await Promise.race([
-                    html2canvas(root, {
-                        backgroundColor: '#ffffff',
-                        scale: Math.min(2, window.devicePixelRatio || 1.5),
-                        useCORS: true,
-                        allowTaint: false,
-                        logging: false,
-                        scrollX: 0,
-                        scrollY: 0,
-                        imageTimeout: 3000,
-                        removeContainer: true,
-                        windowWidth: root.scrollWidth || root.clientWidth || 794,
-                        windowHeight: root.scrollHeight || root.clientHeight || 1120
-                    }),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('pdf_render_timeout')), 25000))
+                const fileName = buildRichPastePdfFilename();
+                const blob = await Promise.race([
+                    html2pdf().set({
+                        margin: [10, 10, 12, 10],
+                        image: { type: 'jpeg', quality: 0.96 },
+                        html2canvas: {
+                            scale: 1.5,
+                            useCORS: true,
+                            allowTaint: false,
+                            backgroundColor: '#ffffff',
+                            scrollX: 0,
+                            scrollY: 0,
+                            logging: false,
+                            imageTimeout: 3000
+                        },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                        pagebreak: { mode: ['css', 'legacy'], avoid: ['table', 'img', 'pre', 'blockquote'] }
+                    }).from(wrapper).outputPdf('blob'),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('pdf_render_timeout')), 30000))
                 ]);
-                const docPdf = new JsPdfCtor({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
-                const marginX = 12;
-                const marginTop = 12;
-                const marginBottom = 12;
-                const pageWidth = 210;
-                const pageHeight = 297;
-                const contentWidth = pageWidth - (marginX * 2);
-                const contentHeight = pageHeight - marginTop - marginBottom;
-                const sliceHeightPx = Math.max(1, Math.floor(canvas.width * (contentHeight / contentWidth)));
-                let offsetY = 0;
-                let pageIndex = 0;
-                while (offsetY < canvas.height) {
-                    const sliceH = Math.min(sliceHeightPx, canvas.height - offsetY);
-                    const sliceCanvas = document.createElement('canvas');
-                    sliceCanvas.width = canvas.width;
-                    sliceCanvas.height = sliceH;
-                    const ctx = sliceCanvas.getContext('2d');
-                    if (!ctx) throw new Error('pdf_canvas_context');
-                    ctx.drawImage(canvas, 0, offsetY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
-                    const imgData = sliceCanvas.toDataURL('image/png');
-                    if (pageIndex > 0) docPdf.addPage();
-                    const sliceHeightMm = (sliceH / canvas.width) * contentWidth;
-                    docPdf.addImage(imgData, 'PNG', marginX, marginTop, contentWidth, sliceHeightMm, undefined, 'FAST');
-                    offsetY += sliceHeightPx;
-                    pageIndex++;
-                }
-                if (!pageIndex) throw new Error('pdf_canvas_empty');
-                const blob = docPdf.output('blob');
                 return { blob, fileName: buildRichPastePdfFilename() };
             } finally {
                 cleanup();
@@ -10642,6 +10593,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.378");
+            console.log("Extended debug logging system active. Version: v4.8.379");
             }, 3000);
         })();

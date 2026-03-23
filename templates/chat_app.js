@@ -763,11 +763,16 @@
             }, timeoutMs);
             img.src = rawSrc;
         });
+        const ensureJsPdfLoaded = async () => {
+            if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+            if (window.jsPDF) return window.jsPDF;
+            await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf-script');
+            if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+            if (window.jsPDF) return window.jsPDF;
+            throw new Error('jsPDF ライブラリを読み込めませんでした');
+        };
         const renderRichPastePdfBlob = async () => {
-            const JsPdfCtor = window.jspdf && window.jspdf.jsPDF;
-            if (!JsPdfCtor) {
-                throw new Error('jsPDF ライブラリが読み込まれていません');
-            }
+            const JsPdfCtor = await ensureJsPdfLoaded();
             const editor = getRichPasteEditor();
             if (!editor) throw new Error('PDF化する内容がありません');
             const sourceRoot = editor.cloneNode(true);

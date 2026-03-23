@@ -530,7 +530,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-010')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-011')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3201,7 +3201,11 @@ def get_bool_app_setting(key, default=False):
 def get_bot_detection_global_enabled():
     return get_bool_app_setting("bot_detection_global_enabled", True)
 
-AUTO_SYSTEM_PROMPT_NOTICE_PYTHON = "Python execution is available; you can run Python code when needed."
+AUTO_SYSTEM_PROMPT_NOTICE_PYTHON = (
+    "Python execution is available; you can run Python code when needed. "
+    "If the user asks you to create a document, code file, CSV, Markdown, JSON, or any other file, "
+    "use execute_python to actually write it under /work instead of only describing it."
+)
 AUTO_SYSTEM_PROMPT_NOTICE_PYTHON_SAVE = (
     "Pythonが有効なとき、ファイルを保存したい場合は /work 配下に書き出してください。"
     "/work に作成されたファイルはサーバーが自動保存してライブラリに追加し、"

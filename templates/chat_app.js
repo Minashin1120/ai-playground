@@ -2,7 +2,7 @@
         const THEME_DEFAULT = '#14b8a6';
         const THEME_STORAGE_KEY = 'theme_color';
         const INITIAL_THEME_COLOR = {{ initial_theme_color|tojson }};
-        const RICH_PASTE_DEFAULT_PROMPT = 'このPDFをMarkdown形式に変換してください。見出し、箇条書き、表、リンク、強調、コード、引用、画像の位置関係をできるだけ保ってください。画像は必要に応じて説明文を付けてください。';
+        const RICH_PASTE_DEFAULT_PROMPT = 'このPDFをMarkdown形式に変換し、コードブロックに書き出してください。';
         const GEMINI_LOCAL_PY_DIALOG_KEY = 'gemini_local_py_dialog_enabled';
         const COMPRESSION_SIZE_KEY = 'compression_max_size_mb';
         const COMPRESSION_DIM_KEY = 'compression_max_dim';
@@ -332,11 +332,73 @@
         ]);
         const RICH_PASTE_NOISE_TAGS = new Set(['script', 'style', 'link', 'meta', 'noscript', 'iframe', 'canvas', 'svg', 'object', 'embed']);
         const RICH_PASTE_NOISE_ROLE_RE = /(^|[\s_-])(nav|navbar|menu|footer|header|aside|sidebar|ads?|ad-|promo|cookie|banner|share|social|comments?|related|recommend|breadcrumb|subscription|popup|modal|overlay|toolbar|dialog|toast|sponsor)([\s_-]|$)/i;
-        const RICH_PASTE_PROMPT_STORAGE_KEY = 'rich_paste_prompt_v1';
+        let userSettingsSnapshot = null;
+        let userSettingsSnapshotPromise = null;
+        let richPastePromptSaveTimer = null;
+        let richPastePromptPreferenceSyncing = false;
         const getRichPasteEditor = () => get('rich-paste-storage');
         const getRichPasteCapture = () => get('rich-paste-capture');
         const getRichPastePrompt = () => get('rich-paste-prompt');
+        const getRichPasteUseDefaultCheckbox = () => get('rich-paste-use-default');
         const getRichPasteStatus = () => get('rich-paste-status');
+        const getRichPasteEffectivePrompt = (d = null) => {
+            if (d && d.rich_paste_prompt_use_custom_default) {
+                const text = String(d.rich_paste_prompt_default || '').trim();
+                if (text) return text;
+            }
+            return RICH_PASTE_DEFAULT_PROMPT;
+        };
+        const syncRichPastePromptPreferencesUi = (d = null, options = {}) => {
+            const preservePrompt = !!options.preservePrompt;
+            const prompt = getRichPastePrompt();
+            const checkbox = getRichPasteUseDefaultCheckbox();
+            if (checkbox) checkbox.checked = !!(d && d.rich_paste_prompt_use_custom_default);
+            if (prompt && !richPastePromptPreferenceSyncing && !preservePrompt) {
+                prompt.value = getRichPasteEffectivePrompt(d);
+            }
+        };
+        const cacheUserSettings = (d, options = {}) => {
+            userSettingsSnapshot = d || null;
+            syncRichPastePromptPreferencesUi(userSettingsSnapshot, options);
+            return userSettingsSnapshot;
+        };
+        const ensureUserSettingsSnapshot = async () => {
+            if (userSettingsSnapshot) return userSettingsSnapshot;
+            if (!userSettingsSnapshotPromise) {
+                userSettingsSnapshotPromise = apiFetch("{{ url_for('handle_settings', _=1) }}")
+                    .then((r) => r.json())
+                    .then((d) => cacheUserSettings(d))
+                    .catch(() => null)
+                    .finally(() => {
+                        userSettingsSnapshotPromise = null;
+                    });
+            }
+            return await userSettingsSnapshotPromise;
+        };
+        const saveRichPastePromptPreferences = async () => {
+            const prompt = getRichPastePrompt();
+            const checkbox = getRichPasteUseDefaultCheckbox();
+            if (!prompt || !checkbox) return;
+            const payload = {
+                rich_paste_prompt_default: prompt.value || '',
+                rich_paste_prompt_use_custom_default: !!checkbox.checked
+            };
+            try {
+                await apiFetch("{{ url_for('handle_settings') }}", {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                cacheUserSettings(Object.assign({}, userSettingsSnapshot || {}, payload), { preservePrompt: true });
+            } catch (e) {}
+        };
+        const queueRichPastePromptPreferenceSave = () => {
+            if (richPastePromptSaveTimer) clearTimeout(richPastePromptSaveTimer);
+            richPastePromptSaveTimer = setTimeout(() => {
+                richPastePromptSaveTimer = null;
+                saveRichPastePromptPreferences();
+            }, 500);
+        };
         const hasRichPasteContent = () => {
             const editor = getRichPasteEditor();
             if (!editor) return false;
@@ -930,11 +992,14 @@
         const createRichPastePdfBlob = async () => {
             return await renderRichPastePdfBlob();
         };
-        const openRichPasteModal = () => {
+        const openRichPasteModal = async () => {
+            await ensureUserSettingsSnapshot();
             showModal('rich-paste-modal');
             const prompt = getRichPastePrompt();
-            if (prompt && !prompt.value.trim()) {
-                prompt.value = localStorage.getItem(RICH_PASTE_PROMPT_STORAGE_KEY) || RICH_PASTE_DEFAULT_PROMPT;
+            if (prompt) {
+                richPastePromptPreferenceSyncing = true;
+                prompt.value = getRichPasteEffectivePrompt(userSettingsSnapshot);
+                richPastePromptPreferenceSyncing = false;
             }
             updateRichPasteStatus();
             setTimeout(() => focusRichPasteEditor(), 80);
@@ -952,7 +1017,6 @@
                 return;
             }
             const promptText = (promptEl && promptEl.value && promptEl.value.trim()) ? promptEl.value.trim() : RICH_PASTE_DEFAULT_PROMPT;
-            if (promptEl) localStorage.setItem(RICH_PASTE_PROMPT_STORAGE_KEY, promptText);
             const beforePaths = new Set(collectAttachmentItemsForSend().map((it) => it.path));
             const previousPrompt = get('prompt-input') ? get('prompt-input').value : '';
             if (sendBtn) sendBtn.disabled = true;
@@ -3845,6 +3909,7 @@
                 };
             };
             apiFetch("{{ url_for('handle_settings', _=1) }}").then(r => r.json()).then(d => {
+                cacheUserSettings(d);
                 applyChatDefaults(d);
                 if (d && d.theme_color) {
                     applyThemeColor(d.theme_color, true);
@@ -4264,6 +4329,7 @@
                     refreshBanAppealSummary(true);
                     loadBanAppeals();
                     apiFetch("{{ url_for('handle_settings', _=1) }}").then(r=>r.json()).then(d=>{ 
+                        cacheUserSettings(d);
                         const globalPreview = get('app-global-sys-prompt-preview');
                         if (globalPreview) {
                             globalPreview.value = d.global_system_prompt_effective || '';
@@ -4308,6 +4374,7 @@
                         get('set-llm-transcribe-prompt').value = d.llm_transcribe_prompt || '';
                         get('set-llm-transcribe-prompt').placeholder = d.llm_transcribe_prompt_default || '';
                     }
+                    syncRichPastePromptPreferencesUi(d);
                     if(get('set-enter-to-send')) get('set-enter-to-send').checked = !!d.enter_to_send;
                     if(get('set-compact-prompt-mode')) get('set-compact-prompt-mode').checked = !!d.compact_prompt_mode;
                     if(get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;
@@ -5248,12 +5315,18 @@
             };
             if (get('rich-paste-prompt')) {
                 const promptEl = get('rich-paste-prompt');
-                const storedPrompt = localStorage.getItem(RICH_PASTE_PROMPT_STORAGE_KEY);
-                if (storedPrompt && !promptEl.value.trim()) {
-                    promptEl.value = storedPrompt;
-                }
                 promptEl.addEventListener('input', () => {
-                    localStorage.setItem(RICH_PASTE_PROMPT_STORAGE_KEY, promptEl.value || '');
+                    if (!richPastePromptPreferenceSyncing) {
+                        queueRichPastePromptPreferenceSave();
+                    }
+                });
+            }
+            if (get('rich-paste-use-default')) {
+                const checkbox = get('rich-paste-use-default');
+                checkbox.addEventListener('change', () => {
+                    if (!richPastePromptPreferenceSyncing) {
+                        queueRichPastePromptPreferenceSave();
+                    }
                 });
             }
             if (get('rich-paste-capture')) {
@@ -10673,6 +10746,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.373");
+            console.log("Extended debug logging system active. Version: v4.8.376");
             }, 3000);
         })();

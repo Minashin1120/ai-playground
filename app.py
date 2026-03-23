@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-24-006')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-24-007')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1808,6 +1808,8 @@ class User(UserMixin, db.Model):
     default_reasoning_effort = db.Column(db.String(16), default="medium")
     default_enable_system_prompt = db.Column(db.Boolean, default=False)
     default_safety_setting = db.Column(db.String(16), default="default")
+    rich_paste_prompt_default = db.Column(db.Text, nullable=True)
+    rich_paste_prompt_use_custom_default = db.Column(db.Boolean, default=False)
     last_model = db.Column(db.String(64), nullable=True)
     last_enable_search = db.Column(db.Boolean, default=False)
     last_enable_url_context = db.Column(db.Boolean, default=False)
@@ -2806,6 +2808,14 @@ def ensure_user_default_model_columns():
             res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='last_enable_maps'")).fetchone()
             if not res:
                 conn.execute(text("ALTER TABLE user ADD COLUMN last_enable_maps BOOLEAN DEFAULT 0"))
+                conn.commit()
+            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='rich_paste_prompt_default'")).fetchone()
+            if not res:
+                conn.execute(text("ALTER TABLE user ADD COLUMN rich_paste_prompt_default TEXT"))
+                conn.commit()
+            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='rich_paste_prompt_use_custom_default'")).fetchone()
+            if not res:
+                conn.execute(text("ALTER TABLE user ADD COLUMN rich_paste_prompt_use_custom_default BOOLEAN DEFAULT 0"))
                 conn.commit()
     except Exception as e:
         logger.error(f"Failed to ensure user default model columns: {e}")
@@ -10105,6 +10115,8 @@ def handle_settings():
             'default_reasoning_effort': current_user.default_reasoning_effort or "medium",
             'default_enable_system_prompt': current_user.default_enable_system_prompt,
             'default_safety_setting': current_user.default_safety_setting or "default",
+            'rich_paste_prompt_default': current_user.rich_paste_prompt_default or "",
+            'rich_paste_prompt_use_custom_default': current_user.rich_paste_prompt_use_custom_default if current_user.rich_paste_prompt_use_custom_default is not None else False,
             'last_model': current_user.last_model or "gemini-3.1-flash-lite-preview",
             'last_enable_search': current_user.last_enable_search,
             'last_enable_url_context': current_user.last_enable_url_context,
@@ -10192,6 +10204,8 @@ def handle_settings():
     if 'default_reasoning_effort' in d: current_user.default_reasoning_effort = d['default_reasoning_effort'] or "medium"
     if 'default_enable_system_prompt' in d: current_user.default_enable_system_prompt = bool(d['default_enable_system_prompt'])
     if 'default_safety_setting' in d: current_user.default_safety_setting = d['default_safety_setting'] or "default"
+    if 'rich_paste_prompt_default' in d: current_user.rich_paste_prompt_default = d['rich_paste_prompt_default'] or ""
+    if 'rich_paste_prompt_use_custom_default' in d: current_user.rich_paste_prompt_use_custom_default = bool(d['rich_paste_prompt_use_custom_default'])
     if 'passkey_only_login' in d:
         target = bool(d['passkey_only_login'])
         if target:
@@ -11384,6 +11398,12 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN default_safety_setting VARCHAR(16) DEFAULT 'default'")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN rich_paste_prompt_default TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN rich_paste_prompt_use_custom_default BOOLEAN DEFAULT 0")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN last_enable_search BOOLEAN DEFAULT 0")

@@ -744,6 +744,309 @@
                 } catch (e) {}
             }
         };
+        const normalizeRichPastePdfText = (value) => {
+            return String(value || '')
+                .replace(/\u00a0/g, ' ')
+                .replace(/\r\n?/g, '\n')
+                .replace(/[ \t\f\v]+/g, ' ')
+                .replace(/\n[ \t]+/g, '\n')
+                .replace(/[ \t]+\n/g, '\n')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+        };
+        const normalizeRichPastePdfCodeText = (value) => {
+            return String(value || '').replace(/\u00a0/g, ' ').replace(/\r\n?/g, '\n');
+        };
+        const collectRichPasteInlineText = (node, options = {}) => {
+            if (!node) return '';
+            const allowLinks = options.allowLinks !== false;
+            const preserveWhitespace = !!options.preserveWhitespace;
+            const parts = [];
+            const walk = (current) => {
+                if (!current) return;
+                if (current.nodeType === Node.TEXT_NODE) {
+                    parts.push(current.textContent || '');
+                    return;
+                }
+                if (current.nodeType !== Node.ELEMENT_NODE) return;
+                const tag = String(current.tagName || '').toLowerCase();
+                if (RICH_PASTE_NOISE_TAGS.has(tag)) return;
+                if (tag === 'br') {
+                    parts.push('\n');
+                    return;
+                }
+                if (tag === 'img') {
+                    const alt = String(current.getAttribute('alt') || current.getAttribute('title') || '').trim();
+                    parts.push(alt ? `[image: ${alt}]` : '[image]');
+                    return;
+                }
+                if (tag === 'video') {
+                    const src = String(current.getAttribute('src') || '').trim();
+                    parts.push(src ? `[video: ${src}]` : '[video]');
+                    return;
+                }
+                if (tag === 'iframe') {
+                    const src = String(current.getAttribute('src') || '').trim();
+                    parts.push(src ? `[iframe: ${src}]` : '[iframe]');
+                    return;
+                }
+                if (tag === 'a') {
+                    const href = String(current.getAttribute('href') || '').trim();
+                    const inner = Array.from(current.childNodes || []).map((child) => collectRichPasteInlineText(child, options)).join('');
+                    if (allowLinks && href) {
+                        const innerText = normalizeRichPastePdfText(inner);
+                        if (!innerText) {
+                            parts.push(href);
+                        } else if (innerText.includes(href)) {
+                            parts.push(innerText);
+                        } else {
+                            parts.push(`${innerText} (${href})`);
+                        }
+                    } else {
+                        parts.push(inner);
+                    }
+                    return;
+                }
+                Array.from(current.childNodes || []).forEach((child) => walk(child));
+            };
+            walk(node);
+            let text = parts.join('');
+            text = text.replace(/\u00a0/g, ' ');
+            if (!preserveWhitespace) {
+                text = text.replace(/\r\n?/g, '\n');
+                text = text.replace(/[ \t\f\v]+/g, ' ');
+                text = text.replace(/\n[ \t]+/g, '\n');
+                text = text.replace(/[ \t]+\n/g, '\n');
+                text = text.replace(/\n{3,}/g, '\n\n');
+                text = text.trim();
+            }
+            return text;
+        };
+        const collectRichPasteTableRows = (tableEl) => {
+            const rows = [];
+            Array.from(tableEl.querySelectorAll('tr') || []).forEach((row) => {
+                if (row && row.closest && row.closest('table') === tableEl) {
+                    rows.push(row);
+                }
+            });
+            return rows;
+        };
+        const makeRichPasteTableMarkdown = (tableEl) => {
+            const caption = tableEl && tableEl.querySelector ? tableEl.querySelector('caption') : null;
+            const captionText = caption ? normalizeRichPastePdfText(collectRichPasteInlineText(caption)) : '';
+            const rows = collectRichPasteTableRows(tableEl).map((row) => {
+                const cells = Array.from(row.children || []).filter((cell) => {
+                    const tag = String(cell.tagName || '').toLowerCase();
+                    return tag === 'th' || tag === 'td';
+                }).map((cell) => normalizeRichPastePdfText(collectRichPasteInlineText(cell)) || ' ');
+                return cells;
+            }).filter((row) => row.length);
+            if (!rows.length) {
+                return captionText || '[table]';
+            }
+            const colCount = rows.reduce((max, row) => Math.max(max, row.length), 0);
+            const paddedRows = rows.map((row) => {
+                const copy = row.slice(0, colCount);
+                while (copy.length < colCount) copy.push(' ');
+                return copy;
+            });
+            const separator = `| ${Array(colCount).fill('---').join(' | ')} |`;
+            const lines = [];
+            if (captionText) {
+                lines.push(`Table: ${captionText}`);
+                lines.push('');
+            }
+            lines.push(`| ${paddedRows[0].join(' | ')} |`);
+            lines.push(separator);
+            for (let i = 1; i < paddedRows.length; i += 1) {
+                lines.push(`| ${paddedRows[i].join(' | ')} |`);
+            }
+            return lines.join('\n');
+        };
+        const collectRichPasteListBlocks = (listEl, ordered = false, depth = 0) => {
+            const blocks = [];
+            const items = Array.from(listEl.children || []).filter((child) => {
+                const tag = String(child.tagName || '').toLowerCase();
+                return tag === 'li';
+            });
+            let itemIndex = 1;
+            items.forEach((li) => {
+                const clone = li.cloneNode(true);
+                Array.from(clone.querySelectorAll('ul,ol') || []).forEach((nested) => {
+                    try { nested.remove(); } catch (e) {}
+                });
+                const itemText = normalizeRichPastePdfText(collectRichPasteInlineText(clone));
+                if (itemText) {
+                    blocks.push({
+                        type: 'list_item',
+                        ordered,
+                        depth,
+                        index: itemIndex,
+                        text: itemText
+                    });
+                }
+                Array.from(li.children || []).forEach((child) => {
+                    const tag = String(child.tagName || '').toLowerCase();
+                    if (tag === 'ul' || tag === 'ol') {
+                        blocks.push(...collectRichPasteListBlocks(child, tag === 'ol', depth + 1));
+                    }
+                });
+                itemIndex += 1;
+            });
+            return blocks;
+        };
+        const collectRichPastePdfBlocks = (root, depth = 0) => {
+            const blocks = [];
+            if (!root) return blocks;
+            let buffer = [];
+            const flushBuffer = () => {
+                const text = normalizeRichPastePdfText(buffer.join(' '));
+                buffer = [];
+                if (text) {
+                    blocks.push({ type: 'paragraph', text });
+                }
+            };
+            Array.from(root.childNodes || []).forEach((node) => {
+                if (!node) return;
+                if (node.nodeType === Node.TEXT_NODE) {
+                    const raw = String(node.textContent || '').replace(/\u00a0/g, ' ');
+                    if (raw.trim()) buffer.push(raw);
+                    return;
+                }
+                if (node.nodeType !== Node.ELEMENT_NODE) return;
+                const tag = String(node.tagName || '').toLowerCase();
+                if (RICH_PASTE_NOISE_TAGS.has(tag)) return;
+                if (tag === 'br') {
+                    buffer.push('\n');
+                    return;
+                }
+                if (/^h[1-6]$/.test(tag)) {
+                    flushBuffer();
+                    const text = normalizeRichPastePdfText(collectRichPasteInlineText(node));
+                    if (text) {
+                        blocks.push({ type: 'heading', level: Number(tag.slice(1)) || 1, text });
+                    }
+                    return;
+                }
+                if (tag === 'p') {
+                    flushBuffer();
+                    const text = normalizeRichPastePdfText(collectRichPasteInlineText(node));
+                    if (text) {
+                        blocks.push({ type: 'paragraph', text });
+                    }
+                    return;
+                }
+                if (tag === 'blockquote') {
+                    flushBuffer();
+                    const text = normalizeRichPastePdfText(collectRichPasteInlineText(node));
+                    if (text) {
+                        blocks.push({ type: 'blockquote', text });
+                    }
+                    return;
+                }
+                if (tag === 'pre') {
+                    flushBuffer();
+                    const text = normalizeRichPastePdfCodeText(node.innerText || node.textContent || '');
+                    if (text.trim()) {
+                        blocks.push({ type: 'code', text });
+                    }
+                    return;
+                }
+                if (tag === 'table') {
+                    flushBuffer();
+                    const text = makeRichPasteTableMarkdown(node);
+                    if (text) {
+                        blocks.push({ type: 'table', text });
+                    }
+                    return;
+                }
+                if (tag === 'ul' || tag === 'ol') {
+                    flushBuffer();
+                    blocks.push(...collectRichPasteListBlocks(node, tag === 'ol', depth));
+                    return;
+                }
+                if (tag === 'hr') {
+                    flushBuffer();
+                    blocks.push({ type: 'hr' });
+                    return;
+                }
+                if (tag === 'figure') {
+                    flushBuffer();
+                    const img = node.querySelector('img');
+                    if (img) {
+                        blocks.push({
+                            type: 'image',
+                            src: String(img.getAttribute('src') || '').trim(),
+                            alt: String(img.getAttribute('alt') || img.getAttribute('title') || '').trim(),
+                            title: String(img.getAttribute('title') || '').trim()
+                        });
+                    }
+                    const figcaption = node.querySelector('figcaption');
+                    if (figcaption) {
+                        const captionText = normalizeRichPastePdfText(collectRichPasteInlineText(figcaption));
+                        if (captionText) {
+                            blocks.push({ type: 'paragraph', text: captionText });
+                        }
+                    }
+                    return;
+                }
+                if (tag === 'img') {
+                    flushBuffer();
+                    blocks.push({
+                        type: 'image',
+                        src: String(node.getAttribute('src') || '').trim(),
+                        alt: String(node.getAttribute('alt') || node.getAttribute('title') || '').trim(),
+                        title: String(node.getAttribute('title') || '').trim()
+                    });
+                    return;
+                }
+                if (tag === 'li') {
+                    flushBuffer();
+                    blocks.push(...collectRichPasteListBlocks(node, false, depth));
+                    return;
+                }
+                const hasBlockChild = Array.from(node.children || []).some((child) => {
+                    const childTag = String(child.tagName || '').toLowerCase();
+                    return /^h[1-6]$/.test(childTag) || ['p', 'div', 'section', 'article', 'main', 'blockquote', 'pre', 'table', 'ul', 'ol', 'hr', 'figure', 'img', 'li'].includes(childTag);
+                });
+                if (hasBlockChild && ['div', 'section', 'article', 'main', 'figure'].includes(tag)) {
+                    flushBuffer();
+                    blocks.push(...collectRichPastePdfBlocks(node, depth + 1));
+                    return;
+                }
+                const inlineText = normalizeRichPastePdfText(collectRichPasteInlineText(node));
+                if (inlineText) {
+                    buffer.push(inlineText);
+                }
+            });
+            flushBuffer();
+            return blocks;
+        };
+        const detectImageMimeType = (dataUrl) => {
+            const match = String(dataUrl || '').match(/^data:(image\/[a-z0-9.+-]+);/i);
+            return match ? match[1].toLowerCase() : 'image/png';
+        };
+        const loadRichPasteImageData = async (src, timeoutMs = 3000) => {
+            const rawSrc = String(src || '').trim();
+            if (!rawSrc) return null;
+            if (rawSrc.startsWith('data:image/')) {
+                return { dataUrl: rawSrc, mimeType: detectImageMimeType(rawSrc) };
+            }
+            const fetchPromise = (async () => {
+                const response = await fetch(rawSrc, { mode: 'cors', credentials: 'include' });
+                if (!response.ok) return null;
+                const blob = await response.blob();
+                const dataUrl = await blobToDataUrl(blob);
+                return {
+                    dataUrl,
+                    mimeType: blob.type || detectImageMimeType(dataUrl)
+                };
+            })();
+            return await Promise.race([
+                fetchPromise,
+                new Promise((resolve) => setTimeout(() => resolve(null), Math.max(250, timeoutMs)))
+            ]);
+        };
         const buildRichPastePreviewHtml = (mode = 'preview') => {
             const editor = getRichPasteEditor();
             if (!editor) return '';
@@ -813,97 +1116,287 @@
         const renderRichPastePdfBlob = async () => {
             const editor = getRichPasteEditor();
             if (!editor) throw new Error('PDF化する内容がありません');
-            const html = buildRichPastePreviewHtml('pdf');
+            const contentHtml = sanitizeRichPasteHtml(editor.innerHTML || '');
             const parser = new DOMParser();
-            const parsed = parser.parseFromString(html, 'text/html');
-            const wrapper = document.createElement('div');
-            wrapper.id = 'rich-paste-pdf-root';
-            wrapper.style.position = 'fixed';
-            wrapper.style.left = '-10000px';
-            wrapper.style.top = '0';
-            wrapper.style.width = '794px';
-            wrapper.style.padding = '0';
-            wrapper.style.background = '#ffffff';
-            wrapper.style.color = '#111827';
-            wrapper.style.pointerEvents = 'none';
-            wrapper.style.opacity = '1';
-            wrapper.style.zIndex = '-1';
-            wrapper.style.contain = 'layout style paint';
-            const styleEl = document.createElement('style');
-            styleEl.textContent = (parsed.head && parsed.head.querySelector('style'))
-                ? parsed.head.querySelector('style').textContent || ''
-                : '';
-            wrapper.appendChild(styleEl);
-            const bodyWrap = document.createElement('div');
-            bodyWrap.innerHTML = parsed.body ? parsed.body.innerHTML : '';
-            Array.from(bodyWrap.childNodes || []).forEach((node) => {
-                try { wrapper.appendChild(node.cloneNode(true)); } catch (e) {}
-            });
-            document.body.appendChild(wrapper);
-            const cleanup = () => {
-                try {
-                    if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
-                } catch (e) {}
-            };
-            try {
-                const html2canvasFn = window.html2canvas;
-                const JsPdfCtor = window.jspdf && window.jspdf.jsPDF ? window.jspdf.jsPDF : null;
-                if (typeof html2canvasFn !== 'function') {
-                    throw new Error('html2canvas ライブラリが読み込まれていません');
-                }
-                if (!JsPdfCtor) {
-                    throw new Error('jsPDF ライブラリが読み込まれていません');
-                }
-                await waitForRichPasteMedia(wrapper, 2500);
-                const canvas = await Promise.race([
-                    html2canvasFn(wrapper, {
-                        scale: 1.4,
-                        useCORS: true,
-                        allowTaint: false,
-                        backgroundColor: '#ffffff',
-                        scrollX: 0,
-                        scrollY: 0,
-                        logging: false,
-                        imageTimeout: 1500
-                    }),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('pdf_render_timeout')), 30000))
-                ]);
-                if (!canvas || !canvas.width || !canvas.height) {
-                    throw new Error('PDF化できる描画結果がありません');
-                }
-                const pdf = new JsPdfCtor({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-                const pageWidth = pdf.internal.pageSize.getWidth();
-                const pageHeight = pdf.internal.pageSize.getHeight();
-                const margin = { top: 10, right: 10, bottom: 12, left: 10 };
-                const contentWidth = pageWidth - margin.left - margin.right;
-                const contentHeight = pageHeight - margin.top - margin.bottom;
-                const pageHeightPx = Math.max(1, Math.floor(canvas.width * (contentHeight / contentWidth)));
-                let renderedY = 0;
-                while (renderedY < canvas.height) {
-                    const sliceHeight = Math.min(pageHeightPx, canvas.height - renderedY);
-                    const sliceCanvas = document.createElement('canvas');
-                    sliceCanvas.width = canvas.width;
-                    sliceCanvas.height = sliceHeight;
-                    const ctx = sliceCanvas.getContext('2d');
-                    if (!ctx) {
-                        throw new Error('PDF描画用キャンバスを作成できませんでした');
-                    }
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
-                    ctx.drawImage(canvas, 0, renderedY, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
-                    const imgData = sliceCanvas.toDataURL('image/jpeg', 0.96);
-                    const imgHeight = (sliceHeight * contentWidth) / canvas.width;
-                    if (renderedY > 0) {
-                        pdf.addPage();
-                    }
-                    pdf.addImage(imgData, 'JPEG', margin.left, margin.top, contentWidth, imgHeight, undefined, 'FAST');
-                    renderedY += sliceHeight;
-                }
-                const blob = pdf.output('blob');
-                return { blob, fileName: buildRichPastePdfFilename() };
-            } finally {
-                cleanup();
+            const parsed = parser.parseFromString(`<div id="rich-paste-pdf-source">${contentHtml || '<p>内容がありません。</p>'}</div>`, 'text/html');
+            const sourceRoot = parsed.getElementById('rich-paste-pdf-source');
+            const JsPdfCtor = window.jspdf && window.jspdf.jsPDF ? window.jspdf.jsPDF : null;
+            if (!JsPdfCtor) {
+                throw new Error('jsPDF ライブラリが読み込まれていません');
             }
+            const pdf = new JsPdfCtor({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const margin = { top: 12, right: 12, bottom: 12, left: 12 };
+            const contentWidth = pageWidth - margin.left - margin.right;
+            const pageBottom = pageHeight - margin.bottom;
+            const ptToMm = 0.3527777778;
+            let cursorY = margin.top;
+            const ensureSpace = (neededHeight = 0) => {
+                if (cursorY + neededHeight <= pageBottom) return;
+                pdf.addPage();
+                cursorY = margin.top;
+            };
+            const writeRule = () => {
+                ensureSpace(4);
+                pdf.setDrawColor(203, 213, 225);
+                pdf.setLineWidth(0.3);
+                pdf.line(margin.left, cursorY + 1.5, pageWidth - margin.right, cursorY + 1.5);
+                cursorY += 4;
+            };
+            const writeTextBlock = (text, opts = {}) => {
+                const fontSize = Number(opts.fontSize || 11);
+                const fontName = opts.font || 'helvetica';
+                const fontStyle = opts.bold ? 'bold' : (opts.italic ? 'italic' : 'normal');
+                const color = opts.color || '#0f172a';
+                const prefix = String(opts.prefix || '');
+                const raw = String(text || '');
+                const width = Math.max(10, contentWidth - Number(opts.indent || 0));
+                const lines = pdf.splitTextToSize(prefix ? `${prefix}${raw}` : raw, width);
+                const lineHeight = Math.max(4.2, fontSize * ptToMm * (opts.lineFactor || 1.35));
+                const before = Number(opts.before || 0);
+                const after = Number(opts.after || 0);
+                ensureSpace(before + (lines.length * lineHeight) + after);
+                cursorY += before;
+                pdf.setFont(fontName, fontStyle);
+                pdf.setFontSize(fontSize);
+                const [r, g, b] = color.startsWith('#') ? hexToRgb(color) : [15, 23, 42];
+                pdf.setTextColor(r, g, b);
+                lines.forEach((line, idx) => {
+                    if (cursorY + lineHeight > pageBottom) {
+                        pdf.addPage();
+                        cursorY = margin.top;
+                    }
+                    pdf.text(String(line), margin.left + Number(opts.indent || 0), cursorY + lineHeight);
+                    cursorY += lineHeight;
+                });
+                cursorY += after;
+            };
+            const renderHeading = (block) => {
+                const level = Math.min(6, Math.max(1, Number(block.level || 1)));
+                const sizes = { 1: 18, 2: 15, 3: 13.5, 4: 12.5, 5: 12, 6: 11.5 };
+                writeTextBlock(block.text, {
+                    fontSize: sizes[level] || 12,
+                    bold: true,
+                    before: 3,
+                    after: 2,
+                    lineFactor: 1.25
+                });
+            };
+            const renderParagraph = (block) => {
+                writeTextBlock(block.text, {
+                    fontSize: 11,
+                    before: 1.5,
+                    after: 2,
+                    lineFactor: 1.38
+                });
+            };
+            const renderBlockquote = (block) => {
+                ensureSpace(8);
+                pdf.setDrawColor(245, 158, 11);
+                pdf.setLineWidth(0.7);
+                const startY = cursorY;
+                const textWidth = contentWidth - 4;
+                const lines = pdf.splitTextToSize(block.text, textWidth);
+                const lineHeight = Math.max(4.2, 11 * ptToMm * 1.35);
+                const height = (lines.length * lineHeight) + 3;
+                ensureSpace(height + 2);
+                pdf.line(margin.left, cursorY, margin.left, cursorY + height);
+                pdf.setTextColor(51, 65, 85);
+                pdf.setFont('helvetica', 'italic');
+                pdf.setFontSize(10.5);
+                lines.forEach((line) => {
+                    if (cursorY + lineHeight > pageBottom) {
+                        pdf.addPage();
+                        cursorY = margin.top;
+                        pdf.line(margin.left, cursorY, margin.left, cursorY + lineHeight);
+                    }
+                    pdf.text(String(line), margin.left + 4, cursorY + lineHeight);
+                    cursorY += lineHeight;
+                });
+                cursorY += 2;
+            };
+            const renderCodeBlock = (block) => {
+                const lines = String(block.text || '').split('\n');
+                const fontSize = 9;
+                const lineHeight = Math.max(4.0, fontSize * ptToMm * 1.35);
+                const blockHeight = (lines.length * lineHeight) + 5;
+                ensureSpace(blockHeight);
+                pdf.setFont('courier', 'normal');
+                pdf.setFontSize(fontSize);
+                pdf.setTextColor(15, 23, 42);
+                pdf.setFillColor(248, 250, 252);
+                pdf.setDrawColor(203, 213, 225);
+                const boxHeight = Math.min(blockHeight, pageBottom - cursorY);
+                pdf.roundedRect(margin.left, cursorY, contentWidth, boxHeight, 2, 2, 'FD');
+                cursorY += 3;
+                lines.forEach((line) => {
+                    if (cursorY + lineHeight > pageBottom) {
+                        pdf.addPage();
+                        cursorY = margin.top;
+                    }
+                    const rendered = pdf.splitTextToSize(line || ' ', contentWidth - 6);
+                    rendered.forEach((segment, segIdx) => {
+                        if (cursorY + lineHeight > pageBottom) {
+                            pdf.addPage();
+                            cursorY = margin.top;
+                        }
+                        if (segIdx === 0) {
+                            pdf.text(String(segment), margin.left + 3, cursorY + lineHeight);
+                            cursorY += lineHeight;
+                        } else {
+                            pdf.text(String(segment), margin.left + 3, cursorY + lineHeight);
+                            cursorY += lineHeight;
+                        }
+                    });
+                });
+                cursorY += 2;
+            };
+            const renderTableBlock = (block) => {
+                const lines = String(block.text || '').split('\n');
+                pdf.setFont('courier', 'normal');
+                pdf.setFontSize(8.5);
+                pdf.setTextColor(15, 23, 42);
+                const lineHeight = Math.max(3.8, 8.5 * ptToMm * 1.25);
+                const wrappedLines = [];
+                lines.forEach((line) => {
+                    const split = pdf.splitTextToSize(line || ' ', contentWidth - 2);
+                    wrappedLines.push(...split);
+                });
+                const blockHeight = (wrappedLines.length * lineHeight) + 4;
+                ensureSpace(blockHeight);
+                pdf.setFillColor(255, 251, 235);
+                pdf.setDrawColor(253, 224, 71);
+                pdf.roundedRect(margin.left, cursorY, contentWidth, blockHeight, 2, 2, 'FD');
+                cursorY += 2;
+                wrappedLines.forEach((line) => {
+                    if (cursorY + lineHeight > pageBottom) {
+                        pdf.addPage();
+                        cursorY = margin.top;
+                    }
+                    pdf.text(String(line), margin.left + 2, cursorY + lineHeight);
+                    cursorY += lineHeight;
+                });
+                cursorY += 2;
+            };
+            const renderListItem = (block) => {
+                const depth = Math.max(0, Number(block.depth || 0));
+                const prefix = `${'  '.repeat(depth)}${block.ordered ? `${Number(block.index || 1)}.` : '- '}`;
+                writeTextBlock(block.text, {
+                    fontSize: 10.8,
+                    prefix,
+                    before: 0.5,
+                    after: 1,
+                    lineFactor: 1.34
+                });
+            };
+            const renderImageBlock = async (block) => {
+                const src = String(block.src || '').trim();
+                const alt = String(block.alt || block.title || 'image').trim();
+                if (!src) {
+                    writeTextBlock(`[image: ${alt}]`, { fontSize: 10, before: 1, after: 1 });
+                    return;
+                }
+                const imageData = await loadRichPasteImageData(src, 2500);
+                if (!imageData || !imageData.dataUrl) {
+                    writeTextBlock(`[image: ${alt}]`, { fontSize: 10, before: 1, after: 1 });
+                    return;
+                }
+                const image = new Image();
+                const loaded = await Promise.race([
+                    new Promise((resolve) => {
+                        image.onload = () => resolve(true);
+                        image.onerror = () => resolve(false);
+                        image.src = imageData.dataUrl;
+                    }),
+                    new Promise((resolve) => setTimeout(() => resolve(false), 2500))
+                ]);
+                if (!loaded || !image.naturalWidth || !image.naturalHeight) {
+                    writeTextBlock(`[image: ${alt}]`, { fontSize: 10, before: 1, after: 1 });
+                    return;
+                }
+                const aspect = image.naturalWidth / image.naturalHeight;
+                let drawWidth = contentWidth;
+                let drawHeight = drawWidth / aspect;
+                const availableHeight = pageBottom - cursorY;
+                if (drawHeight > availableHeight) {
+                    drawHeight = Math.max(20, availableHeight);
+                    drawWidth = drawHeight * aspect;
+                }
+                const imageHeightNeed = drawHeight + 8;
+                ensureSpace(imageHeightNeed);
+                const mimeType = imageData.mimeType || detectImageMimeType(imageData.dataUrl);
+                const format = mimeType.includes('jpeg') || mimeType.includes('jpg') ? 'JPEG' : 'PNG';
+                pdf.addImage(imageData.dataUrl, format, margin.left, cursorY, drawWidth, drawHeight, undefined, 'FAST');
+                cursorY += drawHeight + 2;
+                if (alt) {
+                    pdf.setFontSize(9);
+                    pdf.setFont('helvetica', 'italic');
+                    pdf.setTextColor(100, 116, 139);
+                    const altLines = pdf.splitTextToSize(`Image: ${alt}`, contentWidth);
+                    altLines.forEach((line) => {
+                        if (cursorY + 3.5 > pageBottom) {
+                            pdf.addPage();
+                            cursorY = margin.top;
+                        }
+                        pdf.text(String(line), margin.left, cursorY + 3.5);
+                        cursorY += 3.5;
+                    });
+                }
+                cursorY += 2;
+            };
+            const blocks = collectRichPastePdfBlocks(sourceRoot);
+            writeTextBlock(title || 'Clipboard Export', {
+                fontSize: 18,
+                bold: true,
+                before: 0,
+                after: 2.5,
+                lineFactor: 1.2
+            });
+            writeTextBlock(`Clipboard import | ${new Date().toLocaleString('ja-JP')}`, {
+                fontSize: 9,
+                color: '#64748b',
+                before: 0,
+                after: 2,
+                lineFactor: 1.2
+            });
+            writeRule();
+            for (const block of blocks) {
+                if (!block) continue;
+                if (block.type === 'heading') {
+                    renderHeading(block);
+                    continue;
+                }
+                if (block.type === 'paragraph') {
+                    renderParagraph(block);
+                    continue;
+                }
+                if (block.type === 'blockquote') {
+                    renderBlockquote(block);
+                    continue;
+                }
+                if (block.type === 'code') {
+                    renderCodeBlock(block);
+                    continue;
+                }
+                if (block.type === 'table') {
+                    renderTableBlock(block);
+                    continue;
+                }
+                if (block.type === 'list_item') {
+                    renderListItem(block);
+                    continue;
+                }
+                if (block.type === 'image') {
+                    await renderImageBlock(block);
+                    continue;
+                }
+                if (block.type === 'hr') {
+                    writeRule();
+                }
+            }
+            const blob = pdf.output('blob');
+            return { blob, fileName: buildRichPastePdfFilename() };
         };
         const createRichPastePdfBlob = async () => {
             return await renderRichPastePdfBlob();
@@ -10662,6 +11155,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.383");
+            console.log("Extended debug logging system active. Version: v4.8.384");
             }, 3000);
         })();

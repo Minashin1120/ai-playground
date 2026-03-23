@@ -2,6 +2,7 @@
         const THEME_DEFAULT = '#14b8a6';
         const THEME_STORAGE_KEY = 'theme_color';
         const INITIAL_THEME_COLOR = {{ initial_theme_color|tojson }};
+        const RICH_PASTE_DEFAULT_PROMPT = 'このPDFをMarkdown形式に変換してください。見出し、箇条書き、表、リンク、強調、コード、引用、画像の位置関係をできるだけ保ってください。画像は必要に応じて説明文を付けてください。';
         const GEMINI_LOCAL_PY_DIALOG_KEY = 'gemini_local_py_dialog_enabled';
         const COMPRESSION_SIZE_KEY = 'compression_max_size_mb';
         const COMPRESSION_DIM_KEY = 'compression_max_dim';
@@ -286,6 +287,11 @@
                     return;
                 }
             }
+            if (id === 'rich-paste-modal') {
+                if (hasRichPasteContent() && !confirm('貼り付けた内容を破棄して閉じますか？')) {
+                    return;
+                }
+            }
             if (id === 'marker-modal') {
                 markerState.row = null;
             }
@@ -308,6 +314,409 @@
                 el.classList.remove('modal-prep');
                 el.classList.add('hidden');
             }, MODAL_ANIM_MS);
+        };
+        const RICH_PASTE_ALLOWED_TAGS = [
+            'a', 'abbr', 'b', 'blockquote', 'br', 'caption', 'code', 'col', 'colgroup', 'div',
+            'em', 'figcaption', 'figure', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img',
+            'li', 'mark', 'ol', 'p', 'pre', 's', 'section', 'small', 'span', 'strong', 'sub',
+            'sup', 'table', 'tbody', 'td', 'th', 'thead', 'tfoot', 'tr', 'u', 'ul'
+        ];
+        const RICH_PASTE_ALLOWED_ATTR = [
+            'align', 'alt', 'cellpadding', 'cellspacing', 'class', 'colspan', 'href', 'height',
+            'rel', 'rowspan', 'src', 'style', 'target', 'title', 'width'
+        ];
+        const RICH_PASTE_PROMPT_STORAGE_KEY = 'rich_paste_prompt_v1';
+        const getRichPasteEditor = () => get('rich-paste-editor');
+        const getRichPastePrompt = () => get('rich-paste-prompt');
+        const getRichPasteStatus = () => get('rich-paste-status');
+        const hasRichPasteContent = () => {
+            const editor = getRichPasteEditor();
+            if (!editor) return false;
+            if ((editor.textContent || '').trim()) return true;
+            return !!editor.querySelector('img,table,ul,ol,blockquote,h1,h2,h3,h4,h5,h6,pre,code');
+        };
+        const updateRichPasteStatus = () => {
+            const editor = getRichPasteEditor();
+            const status = getRichPasteStatus();
+            if (!status || !editor) return;
+            const text = (editor.innerText || '').trim();
+            if (!text) {
+                status.textContent = 'まだ内容がありません。';
+                return;
+            }
+            const images = editor.querySelectorAll('img').length;
+            const tables = editor.querySelectorAll('table').length;
+            const links = editor.querySelectorAll('a').length;
+            const headings = editor.querySelectorAll('h1,h2,h3,h4,h5,h6').length;
+            status.textContent = `${text.length} 文字 / 画像 ${images} / 表 ${tables} / リンク ${links} / 見出し ${headings}`;
+        };
+        const focusRichPasteEditor = () => {
+            const editor = getRichPasteEditor();
+            if (!editor) return;
+            editor.focus();
+            const selection = window.getSelection && window.getSelection();
+            if (selection) {
+                const range = document.createRange();
+                range.selectNodeContents(editor);
+                range.collapse(false);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+        };
+        const clearRichPasteEditor = (keepPrompt = true) => {
+            const editor = getRichPasteEditor();
+            if (editor) editor.innerHTML = '';
+            if (!keepPrompt) {
+                const prompt = getRichPastePrompt();
+                if (prompt) prompt.value = RICH_PASTE_DEFAULT_PROMPT;
+            }
+            updateRichPasteStatus();
+        };
+        const sanitizeRichPasteHtml = (html) => DOMPurify.sanitize(html || '', {
+            ALLOWED_TAGS: RICH_PASTE_ALLOWED_TAGS,
+            ALLOWED_ATTR: RICH_PASTE_ALLOWED_ATTR,
+            KEEP_CONTENT: true
+        });
+        const getRichPasteSelectionRange = (editor) => {
+            const selection = window.getSelection && window.getSelection();
+            if (!selection || !selection.rangeCount) return null;
+            const range = selection.getRangeAt(0);
+            if (editor && editor.contains(range.commonAncestorContainer)) return range;
+            const fallback = document.createRange();
+            fallback.selectNodeContents(editor);
+            fallback.collapse(false);
+            return fallback;
+        };
+        const insertNodeIntoRichPasteEditor = (node) => {
+            const editor = getRichPasteEditor();
+            if (!editor || !node) return;
+            editor.focus();
+            const selection = window.getSelection && window.getSelection();
+            const range = getRichPasteSelectionRange(editor);
+            if (!range) {
+                editor.appendChild(node);
+                updateRichPasteStatus();
+                return;
+            }
+            range.deleteContents();
+            const lastNode = node.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? node.lastChild : node;
+            range.insertNode(node);
+            if (lastNode && lastNode.parentNode) {
+                range.setStartAfter(lastNode);
+                range.collapse(true);
+                if (selection) {
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                }
+            }
+            updateRichPasteStatus();
+        };
+        const insertHtmlIntoRichPasteEditor = (html) => {
+            const safeHtml = sanitizeRichPasteHtml(html);
+            if (!safeHtml) return;
+            const template = document.createElement('template');
+            template.innerHTML = safeHtml;
+            const frag = template.content.cloneNode(true);
+            insertNodeIntoRichPasteEditor(frag);
+        };
+        const insertTextIntoRichPasteEditor = (text) => {
+            if (text === null || text === undefined) return;
+            const node = document.createTextNode(String(text));
+            insertNodeIntoRichPasteEditor(node);
+        };
+        const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ''));
+            reader.onerror = () => reject(reader.error || new Error('clipboard_image_read_failed'));
+            reader.readAsDataURL(blob);
+        });
+        const insertClipboardImageBlob = async (blob, alt = 'clipboard-image') => {
+            if (!blob) return false;
+            const dataUrl = await blobToDataUrl(blob);
+            if (!dataUrl) return false;
+            insertHtmlIntoRichPasteEditor(`<p><img src="${escapeHtml(dataUrl)}" alt="${escapeHtml(alt)}"></p>`);
+            return true;
+        };
+        const readClipboardRichContent = async () => {
+            if (!navigator.clipboard || !navigator.clipboard.read) {
+                throw new Error('このブラウザはリッチクリップボード読み取りに対応していません');
+            }
+            const items = await navigator.clipboard.read();
+            if (!items || !items.length) return false;
+            let inserted = false;
+            for (const item of items) {
+                if (!item) continue;
+                const itemTypes = Array.from(item.types || []);
+                if (itemTypes.includes('text/html')) {
+                    const htmlBlob = await item.getType('text/html');
+                    const html = await htmlBlob.text();
+                    if (html) {
+                        insertHtmlIntoRichPasteEditor(html);
+                        inserted = true;
+                    }
+                    continue;
+                }
+                if (itemTypes.includes('text/plain')) {
+                    const textBlob = await item.getType('text/plain');
+                    const text = await textBlob.text();
+                    if (text) {
+                        insertTextIntoRichPasteEditor(text);
+                        inserted = true;
+                    }
+                }
+                const imageType = itemTypes.find((type) => type && type.startsWith('image/'));
+                if (imageType) {
+                    const imageBlob = await item.getType(imageType);
+                    if (await insertClipboardImageBlob(imageBlob, 'clipboard-image')) {
+                        inserted = true;
+                    }
+                }
+            }
+            return inserted;
+        };
+        const buildRichPastePdfFilename = () => {
+            const now = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            return `clipboard_rich_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.pdf`;
+        };
+        const inferRichPasteTitle = () => {
+            const editor = getRichPasteEditor();
+            if (!editor) return 'Clipboard Export';
+            const heading = editor.querySelector('h1, h2, h3, h4, h5, h6');
+            if (heading && heading.textContent && heading.textContent.trim()) {
+                return heading.textContent.trim().slice(0, 48);
+            }
+            const text = (editor.innerText || '').trim().replace(/\s+/g, ' ');
+            if (!text) return 'Clipboard Export';
+            return text.slice(0, 48);
+        };
+        const waitForRichPasteMedia = async (root) => {
+            if (!root) return;
+            const imgs = Array.from(root.querySelectorAll('img') || []);
+            await Promise.all(imgs.map((img) => {
+                if (!img) return Promise.resolve();
+                if (img.complete) return Promise.resolve();
+                return new Promise((resolve) => {
+                    img.addEventListener('load', resolve, { once: true });
+                    img.addEventListener('error', resolve, { once: true });
+                });
+            }));
+            if (document.fonts && document.fonts.ready) {
+                try { await document.fonts.ready; } catch (e) {}
+            }
+        };
+        const buildRichPastePdfWrapper = () => {
+            const editor = getRichPasteEditor();
+            if (!editor) return null;
+            const title = inferRichPasteTitle();
+            const createdAt = new Date().toLocaleString('ja-JP');
+            const contentHtml = sanitizeRichPasteHtml(editor.innerHTML || '');
+            const wrapper = document.createElement('div');
+            wrapper.id = 'rich-paste-pdf-root';
+            wrapper.style.position = 'fixed';
+            wrapper.style.left = '-10000px';
+            wrapper.style.top = '0';
+            wrapper.style.width = '794px';
+            wrapper.style.padding = '0';
+            wrapper.style.background = '#ffffff';
+            wrapper.style.color = '#111827';
+            wrapper.style.zIndex = '-1';
+            wrapper.innerHTML = `
+                <style>
+                    .rp-page {
+                        box-sizing: border-box;
+                        width: 794px;
+                        padding: 28px 34px 34px;
+                        background: #ffffff;
+                        color: #111827;
+                        font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
+                    }
+                    .rp-hero {
+                        margin-bottom: 18px;
+                        padding: 18px 20px;
+                        border-radius: 18px;
+                        border: 1px solid #dbe2ea;
+                        background: linear-gradient(135deg, rgba(255,248,225,0.95), rgba(255,255,255,1));
+                    }
+                    .rp-title {
+                        margin: 0;
+                        font-size: 22px;
+                        line-height: 1.35;
+                        font-weight: 800;
+                        color: #0f172a;
+                    }
+                    .rp-meta {
+                        margin-top: 8px;
+                        font-size: 11px;
+                        color: #64748b;
+                    }
+                    .rp-content {
+                        font-size: 15px;
+                        line-height: 1.8;
+                        color: #111827;
+                        word-break: break-word;
+                        overflow-wrap: anywhere;
+                    }
+                    .rp-content h1,
+                    .rp-content h2,
+                    .rp-content h3,
+                    .rp-content h4,
+                    .rp-content h5,
+                    .rp-content h6 {
+                        line-height: 1.35;
+                        font-weight: 800;
+                        margin: 1.1em 0 0.55em;
+                        color: #0f172a;
+                    }
+                    .rp-content h1 { font-size: 28px; }
+                    .rp-content h2 { font-size: 24px; }
+                    .rp-content h3 { font-size: 21px; }
+                    .rp-content h4 { font-size: 18px; }
+                    .rp-content h5 { font-size: 16px; }
+                    .rp-content h6 { font-size: 15px; }
+                    .rp-content p { margin: 0 0 0.8em; }
+                    .rp-content a { color: #0f766e; text-decoration: underline; word-break: break-word; }
+                    .rp-content img { max-width: 100%; height: auto; display: block; margin: 0.8em 0; border-radius: 14px; border: 1px solid #dbe2ea; }
+                    .rp-content table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+                    .rp-content th,
+                    .rp-content td { border: 1px solid #cbd5e1; padding: 8px 10px; vertical-align: top; }
+                    .rp-content th { background: #f8fafc; font-weight: 700; }
+                    .rp-content ul,
+                    .rp-content ol { margin: 0.7em 0 0.9em 1.35em; padding: 0; }
+                    .rp-content li { margin: 0.3em 0; }
+                    .rp-content blockquote {
+                        margin: 1em 0;
+                        padding: 12px 16px;
+                        border-left: 4px solid #f59e0b;
+                        background: #fff9eb;
+                        color: #334155;
+                        border-radius: 12px;
+                    }
+                    .rp-content pre {
+                        margin: 1em 0;
+                        padding: 14px 16px;
+                        border-radius: 14px;
+                        background: #0f172a;
+                        color: #e2e8f0;
+                        overflow: auto;
+                        white-space: pre-wrap;
+                    }
+                    .rp-content code {
+                        font-family: "JetBrains Mono", "Noto Sans Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+                        font-size: 0.95em;
+                    }
+                    .rp-content :not(pre) > code {
+                        padding: 0.16rem 0.36rem;
+                        border-radius: 0.45rem;
+                        background: rgba(15, 118, 110, 0.08);
+                        color: #0f172a;
+                    }
+                    .rp-content hr { border: 0; border-top: 1px solid #cbd5e1; margin: 1.2em 0; }
+                    .rp-content strong { font-weight: 800; }
+                    .rp-content em { font-style: italic; }
+                    .rp-content mark { background: #fde68a; }
+                    .rp-content span { word-break: break-word; }
+                    .rp-content .katex { font-size: 1em; }
+                </style>
+                <div class="rp-page">
+                    <section class="rp-hero">
+                        <h1 class="rp-title">${escapeHtml(title)}</h1>
+                        <div class="rp-meta">Clipboard import | ${escapeHtml(createdAt)} | PDF ready for model conversion</div>
+                    </section>
+                    <section class="rp-content">${contentHtml || '<p>内容がありません。</p>'}</section>
+                </div>
+            `;
+            document.body.appendChild(wrapper);
+            return wrapper;
+        };
+        const createRichPastePdfBlob = async () => {
+            if (typeof html2pdf === 'undefined') {
+                throw new Error('html2pdf ライブラリが読み込まれていません');
+            }
+            const wrapper = buildRichPastePdfWrapper();
+            if (!wrapper) {
+                throw new Error('PDF化する内容がありません');
+            }
+            try {
+                await waitForRichPasteMedia(wrapper);
+                const fileName = buildRichPastePdfFilename();
+                const options = {
+                    margin: [10, 10, 12, 10],
+                    filename: fileName,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: {
+                        scale: Math.min(2, window.devicePixelRatio || 1),
+                        useCORS: true,
+                        allowTaint: true,
+                        backgroundColor: '#ffffff',
+                        scrollX: 0,
+                        scrollY: 0,
+                        logging: false
+                    },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                    pagebreak: { mode: ['css', 'legacy'], avoid: ['table', 'img', 'pre', 'blockquote', '.rp-hero'] }
+                };
+                const blob = await html2pdf().set(options).from(wrapper).outputPdf('blob');
+                return { blob, fileName };
+            } finally {
+                try {
+                    if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+                } catch (e) {}
+            }
+        };
+        const openRichPasteModal = () => {
+            showModal('rich-paste-modal');
+            const prompt = getRichPastePrompt();
+            if (prompt && !prompt.value.trim()) {
+                prompt.value = localStorage.getItem(RICH_PASTE_PROMPT_STORAGE_KEY) || RICH_PASTE_DEFAULT_PROMPT;
+            }
+            updateRichPasteStatus();
+            setTimeout(() => focusRichPasteEditor(), 80);
+        };
+        const sendRichPasteToModel = async () => {
+            if (abortController) {
+                showToast('回答生成中です。完了までお待ちいただくか、停止してください。', 'warning', true);
+                return;
+            }
+            const editor = getRichPasteEditor();
+            const promptEl = getRichPastePrompt();
+            const sendBtn = get('rich-paste-send-btn');
+            if (!editor || !editor.innerText || !editor.innerText.trim()) {
+                showToast('貼り付ける内容を入力してください', 'warning', true);
+                return;
+            }
+            const promptText = (promptEl && promptEl.value && promptEl.value.trim()) ? promptEl.value.trim() : RICH_PASTE_DEFAULT_PROMPT;
+            if (promptEl) localStorage.setItem(RICH_PASTE_PROMPT_STORAGE_KEY, promptText);
+            const beforePaths = new Set(collectAttachmentItemsForSend().map((it) => it.path));
+            const previousPrompt = get('prompt-input') ? get('prompt-input').value : '';
+            if (sendBtn) sendBtn.disabled = true;
+            try {
+                showToast('PDFを生成しています...', 'info', true);
+                const generated = await createRichPastePdfBlob();
+                const pdfFile = new File([generated.blob], generated.fileName, { type: 'application/pdf', lastModified: Date.now() });
+                const promptInput = get('prompt-input');
+                if (promptInput) promptInput.value = promptText;
+                await handleFiles([pdfFile], { openModal: false });
+                const afterPaths = collectAttachmentItemsForSend().map((it) => it.path);
+                const attached = afterPaths.some((path) => !beforePaths.has(path));
+                if (!attached) {
+                    if (promptInput) promptInput.value = previousPrompt;
+                    throw new Error('PDFの添付に失敗しました');
+                }
+                const sendPromise = sendMessage();
+                clearRichPasteEditor(true);
+                hideModal('rich-paste-modal');
+                showToast('PDFを添付して送信を開始しました', 'success');
+                if (sendPromise && typeof sendPromise.catch === 'function') {
+                    sendPromise.catch(() => {});
+                }
+            } catch (e) {
+                if (get('prompt-input')) get('prompt-input').value = previousPrompt;
+                const msg = (e && e.message) ? e.message : 'PDF化して送信できませんでした';
+                showToast(msg, 'error', true);
+            } finally {
+                if (sendBtn) sendBtn.disabled = false;
+            }
         };
         const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
         const apiFetch = (url, opts = {}) => {
@@ -4553,6 +4962,63 @@
                     await handleFiles(files, { openModal: false });
                 }
             });
+            if (get('rich-paste-btn')) get('rich-paste-btn').onclick = () => openRichPasteModal();
+            if (get('rich-paste-modal-close')) get('rich-paste-modal-close').onclick = () => hideModal('rich-paste-modal');
+            if (get('rich-paste-close-btn')) get('rich-paste-close-btn').onclick = () => hideModal('rich-paste-modal');
+            if (get('rich-paste-focus-btn')) get('rich-paste-focus-btn').onclick = () => focusRichPasteEditor();
+            if (get('rich-paste-clear-btn')) get('rich-paste-clear-btn').onclick = () => clearRichPasteEditor(true);
+            if (get('rich-paste-send-btn')) get('rich-paste-send-btn').onclick = () => sendRichPasteToModel();
+            if (get('rich-paste-import-btn')) get('rich-paste-import-btn').onclick = async () => {
+                try {
+                    const inserted = await readClipboardRichContent();
+                    if (!inserted) {
+                        showToast('クリップボードにリッチテキストが見つかりませんでした。Ctrl+V で貼り付けてください。', 'warning', true);
+                    }
+                } catch (e) {
+                    const msg = (e && e.message) ? e.message : 'クリップボードの取り込みに失敗しました';
+                    showToast(msg, 'error', true);
+                }
+            };
+            if (get('rich-paste-prompt')) {
+                const promptEl = get('rich-paste-prompt');
+                const storedPrompt = localStorage.getItem(RICH_PASTE_PROMPT_STORAGE_KEY);
+                if (storedPrompt && !promptEl.value.trim()) {
+                    promptEl.value = storedPrompt;
+                }
+                promptEl.addEventListener('input', () => {
+                    localStorage.setItem(RICH_PASTE_PROMPT_STORAGE_KEY, promptEl.value || '');
+                });
+            }
+            if (get('rich-paste-editor')) {
+                const editor = get('rich-paste-editor');
+                editor.addEventListener('input', updateRichPasteStatus);
+                editor.addEventListener('paste', async (e) => {
+                    const clipboard = e.clipboardData || window.clipboardData;
+                    if (!clipboard) return;
+                    const html = clipboard.getData && clipboard.getData('text/html');
+                    const text = clipboard.getData && clipboard.getData('text/plain');
+                    const files = Array.from(clipboard.items || [])
+                        .filter((item) => item && item.kind === 'file')
+                        .map((item) => item.getAsFile())
+                        .filter(Boolean);
+                    const imageFiles = files.filter((file) => file.type && file.type.startsWith('image/'));
+                    if (!html && !text && !imageFiles.length) return;
+                    e.preventDefault();
+                    if (html) {
+                        insertHtmlIntoRichPasteEditor(html);
+                    } else if (text) {
+                        insertTextIntoRichPasteEditor(text);
+                    }
+                    if (imageFiles.length) {
+                        for (const imageFile of imageFiles) {
+                            try {
+                                await insertClipboardImageBlob(imageFile, imageFile.name || 'clipboard-image');
+                            } catch (err) {}
+                        }
+                    }
+                    updateRichPasteStatus();
+                });
+            }
             get('chat-container').addEventListener('click', (e) => {
                 const img = e.target.closest('img.chat-image');
                 const viewerSrc = img ? (img.dataset.viewerSrc || img.currentSrc || img.src) : '';
@@ -9950,6 +10416,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.368");
+            console.log("Extended debug logging system active. Version: v4.8.369");
             }, 3000);
         })();

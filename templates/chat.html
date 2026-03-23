@@ -8,10 +8,11 @@
     {% if initial_theme_css %}
     <style id="initial-theme-vars">{{ initial_theme_css|safe }}</style>
     {% endif %}
-    <title>AI Playground (V4.8.368)</title>
+    <title>AI Playground (V4.8.369)</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.258.css') }}?v={{ app_version }}">
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script>
         // Configure DOMPurify to allow video and other tags
         DOMPurify.setConfig({
@@ -84,7 +85,7 @@
     
     <!-- Alpha Bar -->
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-green-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-green-400">
-        <i class="fas fa-check-circle mr-1"></i> System v4.8.368 (Stable)
+        <i class="fas fa-check-circle mr-1"></i> System v4.8.369 (Stable)
     </div>
 
     <!-- Debug Console -->
@@ -123,7 +124,7 @@
             <!-- Threads loaded dynamically -->
             <div id="scroll-sentinel"></div>
         </div>
-        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.8.368 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
+        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.8.369 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
     </div>
     <div id="overlay" class="overlay"></div>
 
@@ -439,7 +440,7 @@
                         <button id="auto-search-off-btn" class="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-[11px] btn-hover">検索OFFで回答</button>
                     </div>
                 </div>
-                <div id="input-row" class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><input type="file" id="photo-input" class="hidden" accept="image/*,video/*" multiple><input type="file" id="mask-input" class="hidden" accept="image/*"><button id="upload-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="mask-btn" data-progress-no-spinner="true" class="hidden bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Mask (GPT-Image)"><i class="fas fa-mask"></i></button><button id="mic-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
+                <div id="input-row" class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><input type="file" id="photo-input" class="hidden" accept="image/*,video/*" multiple><input type="file" id="mask-input" class="hidden" accept="image/*"><button id="upload-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="rich-paste-btn" data-progress-no-spinner="true" class="bg-amber-600 hover:bg-amber-500 p-3 rounded-lg text-white transition shrink-0 btn-hover" title="リッチ貼り付け → PDF化"><i class="fas fa-paste"></i></button><button id="mask-btn" data-progress-no-spinner="true" class="hidden bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Mask (GPT-Image)"><i class="fas fa-mask"></i></button><button id="mic-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
                 <div id="mic-recording-indicator" class="hidden mt-1 px-1 flex items-center gap-2 text-[11px] text-red-300">
                     <span id="mic-recording-text" class="shrink-0">録音中…</span>
                     <div id="mic-waveform" class="h-4 w-28 sm:w-36 flex items-end rounded border px-1 overflow-hidden" style="gap: 2px; padding-top: 2px; padding-bottom: 2px; background: rgba(69, 10, 10, 0.25); border-color: rgba(185, 28, 28, 0.3);" aria-hidden="true"></div>
@@ -488,6 +489,46 @@
                 </div>
             </div>
             <div id="upload-list" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
+        </div>
+    </div>
+
+    <!-- Rich Paste PDF Modal -->
+    <div id="rich-paste-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
+        <div class="bg-gray-800 rounded-lg w-full max-w-5xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[92vh] modal-panel">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-paste text-amber-400"></i> リッチ貼り付け → PDF → Markdown</h2>
+                <button id="rich-paste-modal-close" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)] gap-4 min-h-0 flex-1">
+                <div class="flex flex-col gap-3 min-h-0">
+                    <div class="rounded-lg border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-xs text-amber-100/90 leading-relaxed">
+                        Word、記事、ブラウザのリッチテキストをここに貼り付けると、画像・表・リンク・見出し・文字装飾を残したままPDF化してモデルに送れます。
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button id="rich-paste-import-btn" data-progress-no-spinner="true" class="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded text-sm font-bold btn-hover">クリップボードを取り込み</button>
+                        <button id="rich-paste-focus-btn" data-progress-no-spinner="true" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">入力欄にフォーカス</button>
+                        <button id="rich-paste-clear-btn" data-progress-no-spinner="true" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">内容をクリア</button>
+                    </div>
+                    <div id="rich-paste-editor" contenteditable="true" spellcheck="true" class="flex-1 min-h-[320px] max-h-[55vh] overflow-auto rounded-xl border border-gray-700 bg-gray-950/60 p-4 text-sm leading-7 text-gray-100 outline-none whitespace-pre-wrap break-words rich-paste-editor"></div>
+                    <div id="rich-paste-status" class="text-[11px] text-gray-400 min-h-[1rem]">まだ内容がありません。</div>
+                </div>
+                <div class="flex flex-col gap-3 min-h-0">
+                    <div class="rounded-lg border border-gray-700 bg-gray-900/60 p-4">
+                        <div class="text-xs font-bold text-gray-200 mb-2">モデルへの指示</div>
+                        <textarea id="rich-paste-prompt" rows="10" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-sm text-white outline-none resize-none leading-6" placeholder="モデルへの指示を入力...">このPDFをMarkdown形式に変換してください。見出し、箇条書き、表、リンク、強調、コード、引用、画像の位置関係をできるだけ保ってください。画像は必要に応じて説明文を付けてください。</textarea>
+                    </div>
+                    <div class="rounded-lg border border-gray-700 bg-gray-900/60 p-4 text-xs text-gray-400 leading-6 space-y-2">
+                        <div class="text-gray-200 font-bold">使い方</div>
+                        <div>1. この欄にコピーした内容を貼り付けます。</div>
+                        <div>2. 必要なら指示文を調整します。</div>
+                        <div>3. 「PDF化して送信」を押すと、一時PDFを作成して現在のモデルへ添付します。</div>
+                    </div>
+                    <div class="mt-auto flex flex-col gap-2">
+                        <button id="rich-paste-send-btn" data-progress-no-spinner="true" class="w-full px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold btn-hover">PDF化して送信</button>
+                        <button id="rich-paste-close-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-bold btn-hover">閉じる</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1050,7 +1091,7 @@
     </div>
     {% endif %}
 
-    <script src="{{ url_for('chat_app_js', thread=initial_thread_id|default('', true), v=(app_version ~ '-v4.8.368')) }}" defer></script>
+    <script src="{{ url_for('chat_app_js', thread=initial_thread_id|default('', true), v=(app_version ~ '-v4.8.369')) }}" defer></script>
 
 <div id="token-detail-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm" onclick="if(event.target.id==='token-detail-modal') closeTokenDetail()">
   <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4 text-white relative">

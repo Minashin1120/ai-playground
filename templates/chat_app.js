@@ -325,6 +325,11 @@
             'align', 'alt', 'cellpadding', 'cellspacing', 'class', 'colspan', 'href', 'height',
             'rel', 'rowspan', 'src', 'style', 'target', 'title', 'width'
         ];
+        const RICH_PASTE_SAFE_STYLE_PROPS = new Set([
+            'background-color', 'color', 'font-family', 'font-size', 'font-style', 'font-weight',
+            'letter-spacing', 'line-height', 'text-align', 'text-decoration', 'text-transform',
+            'vertical-align', 'white-space'
+        ]);
         const RICH_PASTE_PROMPT_STORAGE_KEY = 'rich_paste_prompt_v1';
         const getRichPasteEditor = () => get('rich-paste-editor');
         const getRichPastePrompt = () => get('rich-paste-prompt');
@@ -372,11 +377,64 @@
             }
             updateRichPasteStatus();
         };
-        const sanitizeRichPasteHtml = (html) => DOMPurify.sanitize(html || '', {
-            ALLOWED_TAGS: RICH_PASTE_ALLOWED_TAGS,
-            ALLOWED_ATTR: RICH_PASTE_ALLOWED_ATTR,
-            KEEP_CONTENT: true
-        });
+        const sanitizeRichPasteStyle = (styleText) => {
+            if (!styleText) return '';
+            const safe = [];
+            String(styleText).split(';').forEach((decl) => {
+                const part = decl.trim();
+                if (!part) return;
+                const idx = part.indexOf(':');
+                if (idx <= 0) return;
+                const prop = part.slice(0, idx).trim().toLowerCase();
+                const value = part.slice(idx + 1).trim();
+                if (!RICH_PASTE_SAFE_STYLE_PROPS.has(prop)) return;
+                const lower = value.toLowerCase();
+                if (lower.includes('position:') || lower.includes('fixed') || lower.includes('absolute') || lower.includes('sticky')) return;
+                if (lower.includes('z-index') || lower.includes('overflow') || lower.includes('transform') || lower.includes('filter')) return;
+                if (lower.includes('url(') || lower.includes('expression(')) return;
+                if (prop === 'font-size' && /calc\s*\(/i.test(value)) return;
+                safe.push(`${prop}: ${value}`);
+            });
+            return safe.join('; ');
+        };
+        const normalizeRichPasteTree = (root) => {
+            if (!root || typeof root.querySelectorAll !== 'function') return;
+            root.querySelectorAll('*').forEach((node) => {
+                if (!node || !node.getAttribute) return;
+                node.removeAttribute('class');
+                node.removeAttribute('id');
+                node.removeAttribute('width');
+                node.removeAttribute('height');
+                const tag = String(node.tagName || '').toLowerCase();
+                if (tag === 'img') {
+                    node.setAttribute('loading', 'lazy');
+                    node.setAttribute('decoding', 'async');
+                    node.removeAttribute('srcset');
+                    node.removeAttribute('sizes');
+                }
+                const styleText = node.getAttribute('style');
+                if (styleText) {
+                    const safeStyle = sanitizeRichPasteStyle(styleText);
+                    if (safeStyle) node.setAttribute('style', safeStyle);
+                    else node.removeAttribute('style');
+                }
+                if (tag === 'table') {
+                    node.removeAttribute('border');
+                }
+            });
+        };
+        const sanitizeRichPasteHtml = (html) => {
+            const safeHtml = DOMPurify.sanitize(html || '', {
+                ALLOWED_TAGS: RICH_PASTE_ALLOWED_TAGS,
+                ALLOWED_ATTR: RICH_PASTE_ALLOWED_ATTR,
+                KEEP_CONTENT: true
+            });
+            if (!safeHtml) return '';
+            const template = document.createElement('template');
+            template.innerHTML = safeHtml;
+            normalizeRichPasteTree(template.content);
+            return template.innerHTML;
+        };
         const getRichPasteSelectionRange = (editor) => {
             const selection = window.getSelection && window.getSelection();
             if (!selection || !selection.rangeCount) return null;
@@ -10416,6 +10474,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.369");
+            console.log("Extended debug logging system active. Version: v4.8.370");
             }, 3000);
         })();

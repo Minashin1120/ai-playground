@@ -3443,9 +3443,7 @@
                 }
             };
             const AUTO_SYS_PROMPT_ITEMS = [
-                { key: 'file_link_guard', label: '保存リンク抑止（共通・任意）', hint: '既定ON。不要ならOFFにできます。モデル本文に `Saved files` や `/files/` を出させないための共通ガードです。' },
-                { key: 'python', label: 'Python 実行案内', hint: 'Python有効時のみ注入されます。' },
-                { key: 'python_save', label: 'Pythonファイル自動保存', hint: 'Python有効時のみ注入されます。' },
+                { key: 'python', label: 'Python 実行案内' },
                 { key: 'gemini_local_python', label: 'Gemini 音声/動画 + Python（ローカル実行）' },
                 { key: 'grok_search', label: 'Search補助（Grok）' },
                 { key: 'openai_search', label: 'Search補助（OpenAI/xAI Responses）' },
@@ -3461,7 +3459,10 @@
                     <div class="rounded border border-gray-700 p-2 bg-gray-950/40">
                         <div class="flex items-center justify-between mb-1">
                             <div class="text-[11px] text-gray-300">${item.label}</div>
-                            <label class="flex items-center gap-1 text-[10px] text-gray-500"><input type="checkbox" id="${prefix}-auto-sys-${item.key}-enabled" class="accent-yellow-500 w-3 h-3"><span>適用</span></label>
+                            <label class="flex items-center gap-1 text-[10px] text-gray-500">
+                                <input type="checkbox" id="${prefix}-auto-sys-${item.key}-enabled" class="accent-yellow-500 w-3 h-3">
+                                <span>適用</span>
+                            </label>
                         </div>
                         <textarea id="${prefix}-auto-sys-${item.key}-text" class="${textClass}" placeholder="自動注入文言"></textarea>
                         ${item.hint ? `<div class="text-[10px] text-gray-500 mt-1">${item.hint}</div>` : ''}
@@ -7363,42 +7364,8 @@
         }
         
         const messageMeta = {};
-        function isFileLinkHref(href) {
-            if (!href) return false;
-            try {
-                const url = new URL(href, window.location.origin);
-                return url && typeof url.pathname === 'string' && url.pathname.startsWith('/files/');
-            } catch (e) {
-                const v = String(href).trim();
-                return v.startsWith('/files/') || v.startsWith('files/');
-            }
-        }
-        function stripModelFileClaims(text) {
-            if (!text) return '';
-            let out = String(text);
-            out = out.replace(/(?:^|\n)\s*(?:\*\*)?Saved files(?:\*\*)?:?\s*(?:\n(?:\s*[-*]\s+.*(?:\n|$))*)+/gi, '\n');
-            out = out.replace(/(?:^|\n)\s*(?:\*\*)?Saved files(?:\*\*)?:?\s*$/gmi, '\n');
-            return out;
-        }
-        function neutralizeFileLinks(root) {
-            if (!root || typeof root.querySelectorAll !== 'function') return;
-            root.querySelectorAll('a[href]').forEach((anchor) => {
-                const href = anchor.getAttribute('href') || '';
-                if (!isFileLinkHref(href)) return;
-                if (anchor.closest('[data-allow-file-links="1"]')) return;
-                const replacement = document.createElement('span');
-                replacement.className = anchor.className || '';
-                replacement.setAttribute('data-file-link-blocked', '1');
-                replacement.textContent = anchor.textContent || href.split('/').pop() || 'file';
-                anchor.replaceWith(replacement);
-            });
-        }
         function sanitizeMarkdownHtml(text) {
-            const html = DOMPurify.sanitize(marked.parse(stripModelFileClaims(text)));
-            const wrap = document.createElement('div');
-            wrap.innerHTML = html;
-            neutralizeFileLinks(wrap);
-            return wrap.innerHTML;
+            return DOMPurify.sanitize(marked.parse(text || ''));
         }
         function wrapRenderedSvgBoxes(root) {
             if (!root || typeof root.querySelectorAll !== 'function') return;
@@ -7428,74 +7395,6 @@
             container.innerHTML = sanitizeMarkdownHtml(text);
             wrapRenderedSvgBoxes(container);
             queueMessageDecorations(container, text);
-            const messageRoot = container.closest('.message-bubble');
-            if (messageRoot) {
-                syncArtifactNoteVisibility(messageRoot);
-            }
-        }
-        function syncArtifactNoteVisibility(messageRoot) {
-            if (!messageRoot) return;
-            const host = messageRoot.querySelector('.artifact-note-host');
-            if (!host) return;
-            const contentArea = messageRoot.querySelector('.content-area');
-            const renderedArtifactLinks = contentArea && (
-                contentArea.querySelector('.artifact-note') ||
-                contentArea.querySelector('[data-allow-file-links="1"]') ||
-                contentArea.querySelector('a[href^="/files/"]')
-            );
-            if (renderedArtifactLinks) {
-                host.remove();
-            }
-        }
-        function ensureArtifactNoteHost(messageRoot) {
-            if (!messageRoot) return null;
-            let host = messageRoot.querySelector('.artifact-note-host');
-            if (host) return host;
-            const bubble = messageRoot.querySelector('.message-bubble') || messageRoot;
-            host = document.createElement('div');
-            host.className = 'artifact-note-host mt-3';
-            bubble.appendChild(host);
-            return host;
-        }
-        function upsertArtifactNote(messageRoot, artifact) {
-            if (!messageRoot || !artifact) return;
-            const filepath = normalizeAttachmentPath((artifact && (artifact.filepath || artifact.path || artifact.url || artifact.file)) || '');
-            if (!filepath) return;
-            const filename = normalizeAttachmentDisplayName(artifact.filename || filepath.split('/').pop() || filepath) || (filepath.split('/').pop() || filepath);
-            const url = buildFileUrl(filepath);
-            const contentArea = messageRoot.querySelector('.content-area');
-            if (contentArea && (
-                contentArea.querySelector('.artifact-note') ||
-                contentArea.querySelector('[data-allow-file-links="1"]') ||
-                contentArea.querySelector(`a[href="${url}"]`)
-            )) {
-                return;
-            }
-            const host = ensureArtifactNoteHost(messageRoot);
-            if (!host) return;
-            let card = host.querySelector('.artifact-note-card');
-            if (!card) {
-                host.innerHTML = `
-                    <div class="artifact-note-card rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-50" data-allow-file-links="1">
-                        <div class="text-[11px] font-bold tracking-wide text-emerald-200 uppercase">Created files</div>
-                        <div class="artifact-note-list mt-2 space-y-2"></div>
-                    </div>
-                `;
-                card = host.querySelector('.artifact-note-card');
-            }
-            const list = host.querySelector('.artifact-note-list');
-            if (!list) return;
-            for (const existing of list.querySelectorAll('[data-artifact-path]')) {
-                if (existing.getAttribute('data-artifact-path') === filepath) return;
-            }
-            const row = document.createElement('a');
-            row.className = 'artifact-note-item flex items-center gap-2 rounded-lg border border-emerald-400/20 bg-slate-950/35 px-3 py-2 text-emerald-50 hover:bg-slate-950/55 transition';
-            row.setAttribute('data-artifact-path', filepath);
-            row.setAttribute('href', url);
-            row.setAttribute('target', '_blank');
-            row.setAttribute('rel', 'noreferrer noopener');
-            row.innerHTML = `<i class="fas fa-file-lines text-emerald-300"></i><span class="font-medium break-all">${escapeHtml(filename)}</span>`;
-            list.appendChild(row);
         }
         function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true) { 
             const isUser = role === 'user'; 
@@ -8312,15 +8211,6 @@
                                         if (outBtn) outBtn.setAttribute('data-code', encodeURIComponent(outText).replace(/'/g, "%27"));
                                     } 
                                 } 
-                            } else if(j.type === 'artifact') {
-                                const art = j.content || {};
-                                const filepath = normalizeAttachmentPath((art && (art.filepath || art.path || art.url || art.file)) || '');
-                                if (filepath) {
-                                    const filename = normalizeAttachmentDisplayName(art.filename || filepath.split('/').pop() || filepath) || (filepath.split('/').pop() || filepath);
-                                    setAttachmentNameForPath(filepath, filename);
-                                    addLibraryFileFromPath(filepath);
-                                    upsertArtifactNote(adiv, art);
-                                }
                             } else if(j.type==='content'){ 
                                 const contentDelta = (j.content === null || j.content === undefined) ? '' : String(j.content);
                                 acc += contentDelta; 
@@ -8589,15 +8479,6 @@
                                         const outBtn = box.querySelector('.copy-btn[data-copy="output"]');
                                         if (outBtn) outBtn.setAttribute('data-code', encodeURIComponent(outText).replace(/'/g, "%27"));
                                     }
-                                }
-                            } else if (j.type === 'artifact') {
-                                const art = j.content || {};
-                                const filepath = normalizeAttachmentPath((art && (art.filepath || art.path || art.url || art.file)) || '');
-                                if (filepath) {
-                                    const filename = normalizeAttachmentDisplayName(art.filename || filepath.split('/').pop() || filepath) || (filepath.split('/').pop() || filepath);
-                                    setAttachmentNameForPath(filepath, filename);
-                                    addLibraryFileFromPath(filepath);
-                                    upsertArtifactNote(adiv, art);
                                 }
                             } else if (j.type === 'content') {
                                 const contentDelta = (j.content === null || j.content === undefined) ? '' : String(j.content);
@@ -10069,6 +9950,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.380");
+            console.log("Extended debug logging system active. Version: v4.8.368");
             }, 3000);
         })();

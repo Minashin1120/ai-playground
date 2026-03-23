@@ -3,7 +3,6 @@ import sys
 import json
 import time
 import logging
-import html
 import gzip
 import base64
 import mimetypes
@@ -530,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-23-011')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-22-005')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3201,24 +3200,7 @@ def get_bool_app_setting(key, default=False):
 def get_bot_detection_global_enabled():
     return get_bool_app_setting("bot_detection_global_enabled", True)
 
-AUTO_SYSTEM_PROMPT_NOTICE_PYTHON = (
-    "Python execution is available; you can run Python code when needed. "
-    "If the user asks you to create a document, code file, CSV, Markdown, JSON, or any other file, "
-    "use execute_python to actually write it under /work instead of only describing it."
-)
-AUTO_SYSTEM_PROMPT_NOTICE_PYTHON_SAVE = (
-    "Pythonが有効なとき、ファイルを保存したい場合は /work 配下に書き出してください。"
-    "/work に作成されたファイルはサーバーが自動保存してライブラリに追加し、"
-    "保存リンクはサーバー側が表示します。"
-    "ユーザーがドキュメント、コード、CSV、Markdown、JSON などのファイル作成を求めた場合は、"
-    "必ず execute_python を使って実際に /work へ書き出してください。"
-    "本文では保存済みだと主張したり、リンクを捏造したりしないでください。"
-)
-AUTO_SYSTEM_PROMPT_NOTICE_FILE_LINK_GUARD = (
-    "本文では `Saved files` や `/files/` のリンクを自分で出さず、"
-    "保存済みだと主張しないでください。"
-    "実際の保存結果はサーバー側が別途表示します。"
-)
+AUTO_SYSTEM_PROMPT_NOTICE_PYTHON = "Python execution is available; you can run Python code when needed."
 AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON = (
     "Python execution is available locally. To run code, include a python fenced block "
     "that starts with '# EXECUTE' on the first line."
@@ -3239,9 +3221,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_MATHJAX = (
 )
 
 AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
-    "file_link_guard",
     "python",
-    "python_save",
     "gemini_local_python",
     "grok_search",
     "openai_search",
@@ -3251,9 +3231,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
 )
 
 AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
-    "file_link_guard": "保存リンク抑止（共通・任意）",
     "python": "Python",
-    "python_save": "Pythonファイル自動保存",
     "gemini_local_python": "Gemini 音声/動画 + Python (ローカル実行時)",
     "grok_search": "Search補助 (Grok)",
     "openai_search": "Search補助 (OpenAI/xAI Responses)",
@@ -3263,9 +3241,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
 }
 
 AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS = {
-    "file_link_guard": AUTO_SYSTEM_PROMPT_NOTICE_FILE_LINK_GUARD,
     "python": AUTO_SYSTEM_PROMPT_NOTICE_PYTHON,
-    "python_save": AUTO_SYSTEM_PROMPT_NOTICE_PYTHON_SAVE,
     "gemini_local_python": AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON,
     "grok_search": AUTO_SYSTEM_PROMPT_NOTICE_GROK_SEARCH,
     "openai_search": AUTO_SYSTEM_PROMPT_NOTICE_OPENAI_SEARCH,
@@ -3475,46 +3451,6 @@ def build_global_system_prompt(now=None):
     if now is None:
         now = datetime.now().astimezone()
     return f"Current time: {now.strftime('%Y-%m-%d %H:%M:%S %Z')} (UTC{now.strftime('%z')})"
-
-
-def _artifact_system_prompt(base_prompt, user=None, enable_python=False):
-    file_link_guard = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get("file_link_guard", AUTO_SYSTEM_PROMPT_NOTICE_FILE_LINK_GUARD)
-    if user is not None:
-        try:
-            if get_user_auto_system_prompt_notice_enabled(user, "file_link_guard"):
-                file_link_guard = get_user_auto_system_prompt_notice_text(user, "file_link_guard") or file_link_guard
-            else:
-                file_link_guard = ""
-        except Exception:
-            pass
-    if file_link_guard:
-        if base_prompt and str(base_prompt).strip():
-            if file_link_guard not in str(base_prompt):
-                base_prompt = f"{base_prompt}\n\n{file_link_guard}"
-        else:
-            base_prompt = file_link_guard
-    if not enable_python:
-        return base_prompt
-    artifact_notice = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get("python_save", "")
-    if user is not None:
-        try:
-            if not get_user_auto_system_prompt_notice_enabled(user, "python_save"):
-                return base_prompt
-            artifact_notice = get_user_auto_system_prompt_notice_text(user, "python_save") or artifact_notice
-        except Exception:
-            pass
-    if base_prompt and str(base_prompt).strip():
-        if artifact_notice and artifact_notice in str(base_prompt):
-            return base_prompt
-        return f"{base_prompt}\n\n{artifact_notice}"
-    return artifact_notice
-
-
-def _is_python_enabled(options):
-    try:
-        return _coerce_bool_like((options or {}).get("enable_python"), False)
-    except Exception:
-        return False
 
 @app.before_request
 def ensure_client_token():
@@ -4022,11 +3958,11 @@ def safe_execute_python(code):
 
     py_path = shutil.which("python3")
     if not py_path:
-        return {"output": "Error: python3 not found.", "returncode": 1, "files": []}
+        return "Error: python3 not found."
 
     bwrap = shutil.which("bwrap")
     if not bwrap:
-        return {"output": "Error: Python execution disabled (sandbox not available).", "returncode": 1, "files": []}
+        return "Error: Python execution disabled (sandbox not available)."
 
     with tempfile.TemporaryDirectory() as td:
         code_path = os.path.join(td, "code.py")
@@ -4056,228 +3992,20 @@ def safe_execute_python(code):
         for b in binds:
             cmd.extend(list(b))
         cmd.extend(["--bind", td, "/work", py_path, "/work/code.py"])
-
-        def _collect_workdir_files():
-            artifacts = []
-            max_file_bytes = max(1, _env_int("PYTHON_ARTIFACT_MAX_MB", 10)) * 1024 * 1024
-            for root, _, files in os.walk(td):
-                for name in files:
-                    rel = os.path.relpath(os.path.join(root, name), td)
-                    if rel == "code.py":
-                        continue
-                    try:
-                        size = os.path.getsize(os.path.join(root, name))
-                    except Exception:
-                        size = None
-                    if size is not None and size > max_file_bytes:
-                        continue
-                    try:
-                        with open(os.path.join(root, name), "rb") as f:
-                            data = f.read()
-                    except Exception:
-                        continue
-                    artifacts.append({
-                        "source_path": rel.replace(os.sep, "/"),
-                        "filename": os.path.basename(rel),
-                        "mime": mimetypes.guess_type(name)[0] or "application/octet-stream",
-                        "size": len(data),
-                        "bytes_b64": base64.b64encode(data).decode("ascii"),
-                    })
-            return artifacts
-
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             out = (result.stdout or "") + (result.stderr or "")
-            return {
-                "output": out if out.strip() else "Success (No output)",
-                "returncode": int(result.returncode or 0),
-                "files": _collect_workdir_files(),
-            }
+            return out if out.strip() else "Success (No output)"
         except subprocess.TimeoutExpired:
-            return {"output": "Error: Execution timed out (30s limit)", "returncode": 124, "files": []}
+            return "Error: Execution timed out (30s limit)"
         except Exception as e:
-            return {"output": f"Error: {str(e)}", "returncode": 1, "files": []}
-
-def _extract_generated_artifacts_from_python_result(result):
-    artifacts = []
-    if not isinstance(result, dict):
-        return artifacts
-    for item in result.get("files") or []:
-        if not isinstance(item, dict):
-            continue
-        b64 = item.get("bytes_b64")
-        if not b64:
-            continue
-        try:
-            data = base64.b64decode(b64)
-        except Exception:
-            continue
-        artifacts.append({
-            "origin": "python",
-            "filename": item.get("filename") or os.path.basename(item.get("source_path") or "") or "artifact.txt",
-            "source_path": item.get("source_path"),
-            "mime": item.get("mime") or "application/octet-stream",
-            "bytes": data,
-        })
-    return artifacts
-
-
-def _normalize_generated_artifact_filename(filename, mime=None):
-    raw = _sanitize_file_display_name(filename)
-    if not raw:
-        raw = "artifact"
-    base = os.path.basename(raw)
-    stem, ext = os.path.splitext(base)
-    if not ext:
-        mime_str = (mime or "").lower()
-        if mime_str.startswith("text/"):
-            ext = ".txt"
-        elif mime_str in ("application/json", "text/json"):
-            ext = ".json"
-        elif mime_str in ("text/markdown",):
-            ext = ".md"
-        else:
-            ext = ".txt"
-    safe = _sanitize_file_display_name(stem + ext) or f"artifact{ext}"
-    return safe
-
-
-def _save_generated_artifact_file(user_id, artifact, user_config=None):
-    if not user_id or not isinstance(artifact, dict):
-        return None
-    filename = _normalize_generated_artifact_filename(artifact.get("filename") or artifact.get("source_path") or "artifact.txt", artifact.get("mime"))
-    data = artifact.get("bytes")
-    if data is None:
-        text = artifact.get("text")
-        if text is None:
-            return None
-        data = str(text).encode("utf-8")
-    if not isinstance(data, (bytes, bytearray)):
-        return None
-
-    user = None
-    try:
-        user = User.query.get(int(user_id))
-    except Exception:
-        user = None
-    if user:
-        ok, used, limit = _check_storage_capacity(user, len(data))
-        if not ok:
-            raise StorageLimitError(
-                f"Storage limit exceeded ({_bytes_to_mb_str(used)} / {_bytes_to_mb_str(limit)})",
-                used=used,
-                limit=limit
-            )
-
-    user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
-    os.makedirs(user_dir, exist_ok=True)
-    base_name, ext = os.path.splitext(filename)
-    if not ext:
-        ext = ".txt"
-    candidate = f"{base_name}{ext}"
-    counter = 2
-    while os.path.exists(os.path.join(user_dir, candidate)) or os.path.exists(os.path.join(user_dir, candidate) + ".enc"):
-        candidate = f"{base_name}_{counter}{ext}"
-        counter += 1
-    fp = os.path.join(user_dir, candidate)
-    if user_config and user_config.get('enable_e2ee'):
-        with open(fp + '.enc', 'wb') as f:
-            f.write(encrypt_bytes(bytes(data)))
-    else:
-        with open(fp, 'wb') as f:
-            f.write(bytes(data))
-    rel_path = f"{user_id}/{candidate}"
-    display_name = os.path.basename(candidate)
-    try:
-        _upsert_file_cache(user_id, rel_path, "label", file_uri=display_name)
-    except Exception:
-        pass
-    return {
-        "filepath": rel_path,
-        "filename": display_name,
-        "url": f"/files/{rel_path}",
-        "source_path": artifact.get("source_path"),
-        "origin": artifact.get("origin") or "assistant",
-    }
-
-
-def _save_generated_artifacts(user_id, artifacts, user_config=None, pub=None):
-    saved = []
-    seen = set()
-    for artifact in artifacts or []:
-        if not isinstance(artifact, dict):
-            continue
-        text = artifact.get("text")
-        data = artifact.get("bytes")
-        key_basis = (
-            str(artifact.get("filename") or artifact.get("source_path") or ""),
-            hashlib.sha256((bytes(data) if isinstance(data, (bytes, bytearray)) else str(text or "").encode("utf-8"))).hexdigest()
-        )
-        if key_basis in seen:
-            continue
-        seen.add(key_basis)
-        try:
-            saved_item = _save_generated_artifact_file(user_id, artifact, user_config=user_config)
-            if saved_item:
-                saved.append(saved_item)
-                if pub:
-                    pub("artifact", saved_item)
-        except StorageLimitError as e:
-            if pub:
-                pub("error", str(e))
-        except Exception as e:
-            if pub:
-                pub("error", f"Artifact save failed: {e}")
-    if saved:
-        try:
-            safe_db_commit()
-        except Exception:
-            pass
-    return saved
-
-
-def _build_artifact_saved_note(saved_artifacts):
-    if not saved_artifacts:
-        return ""
-    lines = ['\n\n<div class="artifact-note" data-allow-file-links="1"><strong>Created files:</strong><ul>']
-    for item in saved_artifacts:
-        if not item:
-            continue
-        label = item.get("filename") or item.get("filepath")
-        path = item.get("filepath")
-        if label and path:
-            lines.append(
-                f'<li><a href="/files/{html.escape(path, quote=True)}" target="_blank" rel="noreferrer noopener">'
-                f'{html.escape(label)}</a></li>'
-            )
-        elif label:
-            lines.append(f"<li>{html.escape(label)}</li>")
-    lines.append("</ul></div>")
-    return "".join(lines) + "\n"
-
-
-def _strip_model_file_claims(text):
-    if not text:
-        return text
-    cleaned = str(text)
-    cleaned = re.sub(
-        r"(?is)(?:^|\n)\s*(?:\*\*)?Saved files(?:\*\*)?:?\s*(?:\n(?:\s*[-*]\s+.*(?:\n|$))*)+",
-        "\n",
-        cleaned
-    )
-    cleaned = re.sub(
-        r"(?im)(?:^|\n)\s*(?:\*\*)?Saved files(?:\*\*)?:?\s*$",
-        "\n",
-        cleaned
-    )
-    return cleaned
+            return f"Error: {str(e)}"
 
 def background_chat_task(job_id, thread_id, model_key, message_id, options, user_id, user_config):
     with app.app_context():
         channel = f"ai_chat:channel:{job_id}"
         r = redis.from_url(REDIS_URL)
         _latency_mark_once(job_id, "worker_started_ms")
-        generated_artifacts = []
         def _append_limited(key, chunk, limit=1_000_000):
             try:
                 if chunk is None:
@@ -4315,11 +4043,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     py_id = py.get("id") or "default"
                     r.hset(f"stream_acc:{job_id}:python", py_id, json.dumps(py))
                     r.expire(f"stream_acc:{job_id}:python", 600)
-                elif dt == "artifact":
-                    art = d if isinstance(d, dict) else {}
-                    art_id = art.get("filepath") or art.get("filename") or art.get("source_path") or f"artifact:{time.time()}"
-                    r.hset(f"stream_acc:{job_id}:artifact", art_id, json.dumps(art))
-                    r.expire(f"stream_acc:{job_id}:artifact", 600)
                 elif dt == "search_status":
                     r.setex(f"stream_acc:{job_id}:search", 600, d)
                 elif dt in ["error", "done"]:
@@ -4445,8 +4168,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             
             options['system_prompt'] = combined_prompt
 
-            python_enabled = _is_python_enabled(options)
-            if _auto_notice_enabled("python") and python_enabled:
+            if _auto_notice_enabled("python") and options.get('enable_python'):
                 python_notice = _auto_notice_text("python")
                 curr_p = options.get('system_prompt')
                 if curr_p and str(curr_p).strip():
@@ -4480,12 +4202,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         options['system_prompt'] = f"{curr_p}\n\n{mathjax_notice}"
                     else:
                         options['system_prompt'] = mathjax_notice
-
-            options['system_prompt'] = _artifact_system_prompt(
-                options.get('system_prompt'),
-                user=user,
-                enable_python=python_enabled
-            )
 
             quote_text = None
             try:
@@ -6287,13 +6003,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             exec_blocks = _extract_exec_blocks(full_res)
                             for b in exec_blocks:
                                 result = safe_execute_python(b)
-                                result_output = str(result.get("output") or "") if isinstance(result, dict) else str(result or "")
-                                out_txt = f"\\n**Output:**\\n```\\n{result_output}\\n```\\n"
+                                out_txt = f"\\n**Output:**\\n```\\n{result}\\n```\\n"
                                 full_res += out_txt
                                 pub("content", out_txt)
-                                if isinstance(result, dict):
-                                    generated_artifacts.extend(_extract_generated_artifacts_from_python_result(result))
-                                pub("python", {"id": f"gem_local_py_{int(time.time()*1000)}_{os.urandom(3).hex()}", "code": b, "output": result_output})
+                                pub("python", {"id": f"gem_local_py_{int(time.time()*1000)}_{os.urandom(3).hex()}", "code": b, "output": result})
                         except Exception as e:
                             log_force(f"Gemini local python failed: {e}")
 
@@ -7324,7 +7037,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     kwargs['tools'].append({
                         "type": "function",
                         "name": "execute_python",
-                        "description": "Execute Python code for calculations, data analysis, and file generation. Isolated environment, no internet access. Files written under /work are saved automatically to the user's library when execution finishes.",
+                        "description": "Execute Python code for calculations or data analysis. Isolated environment, no internet access.",
                         "parameters": {
                             "type": "object",
                             "properties": {
@@ -7555,16 +7268,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 if code:
                                     pub("content", f"\n```python\n{code}\n```\n")
                                     result = safe_execute_python(code)
-                                    result_output = ""
-                                    if isinstance(result, dict):
-                                        result_output = str(result.get("output") or "")
-                                        generated_artifacts.extend(_extract_generated_artifacts_from_python_result(result))
-                                    else:
-                                        result_output = str(result or "")
-                                    pub("content", f"\n**Output:**\n```\n{result_output}\n```\n")
-                                    full_res += f"\n```python\n{code}\n```\n\n**Output:**\n```\n{result_output}\n```\n"
-                                    full_res += f"\n```pyexec\n{json.dumps({'code': code, 'output': result_output})}\n```\n"
-                                    pub("python", {"id": tool_call_id or f"py_{int(time.time()*1000)}_{os.urandom(3).hex()}", "code": code, "output": result_output})
+                                    pub("content", f"\n**Output:**\n```\n{result}\n```\n")
+                                    full_res += f"\n```python\n{code}\n```\n\n**Output:**\n```\n{result}\n```\n"
+                                    full_res += f"\n```pyexec\n{json.dumps({'code': code, 'output': result})}\n```\n"
+                                    pub("python", {"id": tool_call_id or f"py_{int(time.time()*1000)}_{os.urandom(3).hex()}", "code": code, "output": result})
                                     if response_id and tool_call_id:
                                         _mark_provider_request_started()
                                         tool_stream = client.responses.create(
@@ -7573,7 +7280,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             input=[{
                                                 "type": "function_call_output",
                                                 "call_id": tool_call_id,
-                                                "output": result_output
+                                                "output": result
                                             }],
                                             stream=True
                                         )
@@ -7773,21 +7480,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
             if is_grok and grok_reasoning_supported and not thought_accumulated:
                 thought_accumulated = " "
-            saved_generated_artifacts = _save_generated_artifacts(
-                user_id,
-                list(generated_artifacts),
-                user_config=user_config,
-                pub=pub
-            )
-            artifact_note = _build_artifact_saved_note(saved_generated_artifacts)
-            final_content = _strip_model_file_claims(full_res)
-            if artifact_note:
-                pub("content", artifact_note)
-                if final_content.strip():
-                    final_content = final_content.rstrip() + artifact_note
-                else:
-                    final_content = artifact_note.strip()
-                full_res = final_content
+            final_content = full_res
 
             def _compact_thought_signature(parts):
                 if not parts:
@@ -7835,7 +7528,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 final_content = encrypt_val(final_content)
                 if final_thought: final_thought = encrypt_val(final_thought)
             
-            assistant_tokens_out = count_tokens_for_display(final_content, model_key, thought_accumulated)
+            assistant_tokens_out = count_tokens_for_display(full_res, model_key, thought_accumulated)
             tokens_thought_val = count_tokens(thought_accumulated, model_key) if thought_accumulated else 0
 
             # Gemini Thinking: Use official usage metadata if available
@@ -7919,7 +7612,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 r.delete(f"stream_acc:{job_id}:status")
                 r.delete(f"stream_acc:{job_id}:final")
                 r.delete(f"stream_acc:{job_id}:python")
-                r.delete(f"stream_acc:{job_id}:artifact")
             except Exception:
                 pass
 
@@ -8926,14 +8618,6 @@ def chat_stream_resume():
                     try:
                         py = json.loads(raw)
                         yield json.dumps({"type": "python", "content": py}) + "\n"
-                    except Exception:
-                        continue
-            cached_artifacts = redis_conn.hgetall(f"stream_acc:{job_id}:artifact")
-            if cached_artifacts:
-                for _, raw in cached_artifacts.items():
-                    try:
-                        art = json.loads(raw)
-                        yield json.dumps({"type": "artifact", "content": art}) + "\n"
                     except Exception:
                         continue
         except Exception:

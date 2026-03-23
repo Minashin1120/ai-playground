@@ -1116,6 +1116,8 @@
         const renderRichPastePdfBlob = async () => {
             const editor = getRichPasteEditor();
             if (!editor) throw new Error('PDF化する内容がありません');
+            const title = inferRichPasteTitle();
+            const createdAt = new Date().toLocaleString('ja-JP');
             const contentHtml = sanitizeRichPasteHtml(editor.innerHTML || '');
             const parser = new DOMParser();
             const parsed = parser.parseFromString(`<div id="rich-paste-pdf-source">${contentHtml || '<p>内容がありません。</p>'}</div>`, 'text/html');
@@ -1353,7 +1355,7 @@
                 after: 2.5,
                 lineFactor: 1.2
             });
-            writeTextBlock(`Clipboard import | ${new Date().toLocaleString('ja-JP')}`, {
+            writeTextBlock(`Clipboard import | ${createdAt}`, {
                 fontSize: 9,
                 color: '#64748b',
                 before: 0,
@@ -11155,6 +11157,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.384");
+            console.log("Extended debug logging system active. Version: v4.8.385");
             }, 3000);
         })();

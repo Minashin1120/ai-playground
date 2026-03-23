@@ -706,12 +706,13 @@
                 try { await document.fonts.ready; } catch (e) {}
             }
         };
-        const buildRichPastePreviewHtml = () => {
+        const buildRichPastePreviewHtml = (mode = 'preview') => {
             const editor = getRichPasteEditor();
             if (!editor) return '';
             const title = inferRichPasteTitle();
             const createdAt = new Date().toLocaleString('ja-JP');
             const contentHtml = sanitizeRichPasteHtml(editor.innerHTML || '');
+            const isPdf = mode === 'pdf';
             return `<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -719,19 +720,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(title)} - Preview</title>
   <style>
-    body { margin: 0; background: #0b1220; color: #e5e7eb; font-family: "Noto Sans JP", system-ui, sans-serif; }
-    .page { max-width: 920px; margin: 0 auto; padding: 24px; }
-    .card { background: #111827; border: 1px solid #243244; border-radius: 18px; padding: 20px; box-shadow: 0 18px 45px rgba(0,0,0,0.35); }
-    .title { margin: 0; font-size: 24px; line-height: 1.35; color: #f8fafc; }
-    .meta { margin-top: 8px; color: #94a3b8; font-size: 12px; }
-    .content { margin-top: 18px; color: #e5e7eb; font-size: 15px; line-height: 1.85; word-break: break-word; overflow-wrap: anywhere; }
+    body { margin: 0; background: ${isPdf ? '#ffffff' : '#0b1220'}; color: ${isPdf ? '#111827' : '#e5e7eb'}; font-family: "Noto Sans JP", system-ui, sans-serif; }
+    .page { max-width: ${isPdf ? '794px' : '920px'}; margin: 0 auto; padding: ${isPdf ? '28px 30px 36px' : '24px'}; }
+    .card { background: ${isPdf ? '#ffffff' : '#111827'}; border: 1px solid ${isPdf ? '#dbe3ee' : '#243244'}; border-radius: 18px; padding: 20px; box-shadow: ${isPdf ? 'none' : '0 18px 45px rgba(0,0,0,0.35)'}; }
+    .title { margin: 0; font-size: ${isPdf ? '22px' : '24px'}; line-height: 1.35; color: ${isPdf ? '#0f172a' : '#f8fafc'}; }
+    .meta { margin-top: 8px; color: ${isPdf ? '#64748b' : '#94a3b8'}; font-size: 12px; }
+    .content { margin-top: 18px; color: ${isPdf ? '#111827' : '#e5e7eb'}; font-size: ${isPdf ? '15px' : '15px'}; line-height: 1.85; word-break: break-word; overflow-wrap: anywhere; }
     .content img, .content video, .content iframe, .content table, .content pre, .content blockquote { max-width: 100%; }
     .content table { display: block; overflow-x: auto; border-collapse: collapse; }
-    .content th, .content td { border: 1px solid #334155; padding: 8px 10px; }
-    .content pre { padding: 14px 16px; border-radius: 14px; background: #020617; overflow: auto; }
-    .content blockquote { margin: 1em 0; padding: 12px 16px; border-left: 4px solid #f59e0b; background: rgba(245,158,11,0.08); border-radius: 12px; }
-    .toolbar { display:flex; gap:10px; margin-top: 16px; flex-wrap: wrap; }
+    .content th, .content td { border: 1px solid ${isPdf ? '#cbd5e1' : '#334155'}; padding: 8px 10px; }
+    .content pre { padding: 14px 16px; border-radius: 14px; background: ${isPdf ? '#f8fafc' : '#020617'}; overflow: auto; color: ${isPdf ? '#111827' : 'inherit'}; }
+    .content blockquote { margin: 1em 0; padding: 12px 16px; border-left: 4px solid ${isPdf ? '#f59e0b' : '#f59e0b'}; background: ${isPdf ? '#fff9eb' : 'rgba(245,158,11,0.08)'}; border-radius: 12px; color: ${isPdf ? '#334155' : 'inherit'}; }
+    .content a { color: ${isPdf ? '#0f766e' : '#7dd3fc'}; }
+    .toolbar { display:${isPdf ? 'none' : 'flex'}; gap:10px; margin-top: 16px; flex-wrap: wrap; }
     .toolbar button { border: 1px solid #334155; background: #0f172a; color: #e2e8f0; border-radius: 999px; padding: 8px 12px; cursor: pointer; }
+    ${isPdf ? '.card { border-radius: 0; } .page { max-width: none; padding: 0; }' : ''}
   </style>
 </head>
 <body>
@@ -749,7 +752,7 @@
 </html>`;
         };
         const openRichPastePreviewTab = () => {
-            const html = buildRichPastePreviewHtml();
+            const html = buildRichPastePreviewHtml('preview');
             if (!html) {
                 showToast('確認する内容がありません', 'warning', true);
                 return;
@@ -769,62 +772,12 @@
                 showToast('別タブの表示に失敗しました', 'error', true);
             }
         };
-        const loadImageAsDataUrl = (src, timeoutMs = 4000) => new Promise((resolve) => {
-            if (!src) return resolve(null);
-            let done = false;
-            const finish = (value) => {
-                if (done) return;
-                done = true;
-                resolve(value);
-            };
-            const rawSrc = String(src).trim();
-            if (!rawSrc) return resolve(null);
-            const allowDirectLoad = rawSrc.startsWith('data:') || rawSrc.startsWith('blob:') || (() => {
-                try {
-                    return new URL(rawSrc, window.location.href).origin === window.location.origin;
-                } catch (e) {
-                    return false;
-                }
-            })();
-            if (!allowDirectLoad) {
-                return resolve(null);
-            }
-            const img = new Image();
-            let timer = null;
-            const cleanup = () => {
-                if (timer) clearTimeout(timer);
-                timer = null;
-            };
-            img.onload = () => {
-                try {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.naturalWidth || img.width || 1;
-                    canvas.height = img.naturalHeight || img.height || 1;
-                    const ctx = canvas.getContext('2d');
-                    if (!ctx) {
-                        cleanup();
-                        return finish(null);
-                    }
-                    ctx.drawImage(img, 0, 0);
-                    const dataUrl = canvas.toDataURL('image/png');
-                    cleanup();
-                    finish(dataUrl);
-                } catch (e) {
-                    cleanup();
-                    finish(null);
-                }
-            };
-            img.onerror = () => {
-                cleanup();
-                finish(null);
-            };
-            timer = setTimeout(() => {
-                try { img.src = ''; } catch (e) {}
-                cleanup();
-                finish(null);
-            }, timeoutMs);
-            img.src = rawSrc;
-        });
+        const ensureHtml2CanvasLoaded = async () => {
+            if (window.html2canvas) return window.html2canvas;
+            await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'html2canvas-script');
+            if (window.html2canvas) return window.html2canvas;
+            throw new Error('html2canvas ライブラリを読み込めませんでした');
+        };
         const ensureJsPdfLoaded = async () => {
             if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
             if (window.jsPDF) return window.jsPDF;
@@ -834,160 +787,98 @@
             throw new Error('jsPDF ライブラリを読み込めませんでした');
         };
         const renderRichPastePdfBlob = async () => {
+            const html2canvas = await ensureHtml2CanvasLoaded();
             const JsPdfCtor = await ensureJsPdfLoaded();
             const editor = getRichPasteEditor();
             if (!editor) throw new Error('PDF化する内容がありません');
-            const sourceRoot = editor.cloneNode(true);
             const title = inferRichPasteTitle();
             const createdAt = new Date().toLocaleString('ja-JP');
-            const doc = new JsPdfCtor({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
-            const pageWidth = 210;
-            const pageHeight = 297;
-            const marginX = 14;
-            const marginTop = 16;
-            const marginBottom = 16;
-            const contentWidth = pageWidth - (marginX * 2);
-            const bottomY = pageHeight - marginBottom;
-            let y = marginTop;
-            const ensureSpace = (needed) => {
-                if (y + needed <= bottomY) return;
-                doc.addPage();
-                y = marginTop;
+            const iframe = document.createElement('iframe');
+            iframe.setAttribute('aria-hidden', 'true');
+            iframe.style.position = 'fixed';
+            iframe.style.left = '-10000px';
+            iframe.style.top = '0';
+            iframe.style.width = '820px';
+            iframe.style.height = '1200px';
+            iframe.style.opacity = '0';
+            iframe.style.pointerEvents = 'none';
+            iframe.style.border = '0';
+            const html = buildRichPastePreviewHtml('pdf');
+            document.body.appendChild(iframe);
+            const cleanup = () => {
+                try {
+                    if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+                } catch (e) {}
             };
-            const setFontFor = (opts = {}) => {
-                const font = opts.mono ? 'courier' : 'helvetica';
-                const style = opts.bold && opts.italic ? 'bolditalic' : opts.bold ? 'bold' : opts.italic ? 'italic' : 'normal';
-                doc.setFont(font, style);
-                doc.setTextColor(...(opts.color || [17, 24, 39]));
-                doc.setFontSize(opts.size || 11);
-            };
-            const renderLines = (text, opts = {}) => {
-                const size = opts.size || 11;
-                const lineH = (opts.lineHeight || 1.4) * (size * 0.35);
-                setFontFor(opts);
-                const clean = String(text || '').replace(/\r/g, '');
-                const lines = opts.preserve ? clean.split('\n') : doc.splitTextToSize(clean.replace(/\s+/g, ' ').trim(), opts.width || contentWidth);
-                const finalLines = [];
-                lines.forEach((line) => {
-                    if (opts.preserve) finalLines.push(...String(line).split('\n'));
-                    else finalLines.push(line);
+            try {
+                await new Promise((resolve, reject) => {
+                    const timer = setTimeout(() => reject(new Error('pdf_render_timeout')), 20000);
+                    iframe.onload = () => {
+                        clearTimeout(timer);
+                        resolve();
+                    };
+                    iframe.srcdoc = html;
                 });
-                if (!finalLines.length) return;
-                ensureSpace(finalLines.length * lineH + (opts.after || 0));
-                if (opts.background) {
-                    const rectH = finalLines.length * lineH + 4;
-                    doc.setFillColor(...opts.background);
-                    doc.roundedRect(marginX, y - 3, contentWidth, rectH, 2, 2, 'F');
+                const doc = iframe.contentDocument;
+                const win = iframe.contentWindow;
+                if (!doc || !win) throw new Error('pdf_frame_unavailable');
+                if (doc.fonts && doc.fonts.ready) {
+                    try { await doc.fonts.ready; } catch (e) {}
                 }
-                doc.text(finalLines, marginX + (opts.indent || 0), y + lineH, { maxWidth: opts.width || contentWidth - (opts.indent || 0) });
-                y += finalLines.length * lineH + (opts.after || 4);
-            };
-            const walk = async (node, inherited = {}) => {
-                if (!node) return;
-                if (node.nodeType === Node.TEXT_NODE) {
-                    const text = node.textContent || '';
-                    if (text.trim()) renderLines(text, inherited);
-                    return;
+                const root = doc.querySelector('.page') || doc.body;
+                if (!root) throw new Error('pdf_root_missing');
+                const imgs = Array.from(doc.images || []);
+                await Promise.all(imgs.map((img) => {
+                    if (!img) return Promise.resolve();
+                    if (img.complete) return Promise.resolve();
+                    return new Promise((resolve) => {
+                        img.addEventListener('load', resolve, { once: true });
+                        img.addEventListener('error', resolve, { once: true });
+                    });
+                }));
+                const canvas = await html2canvas(root, {
+                    backgroundColor: '#ffffff',
+                    scale: Math.min(2, window.devicePixelRatio || 1.5),
+                    useCORS: true,
+                    allowTaint: false,
+                    logging: false,
+                    scrollX: 0,
+                    scrollY: 0,
+                    windowWidth: root.scrollWidth || root.clientWidth || 794,
+                    windowHeight: root.scrollHeight || root.clientHeight || 1120
+                });
+                const docPdf = new JsPdfCtor({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+                const marginX = 12;
+                const marginTop = 12;
+                const marginBottom = 12;
+                const pageWidth = 210;
+                const pageHeight = 297;
+                const contentWidth = pageWidth - (marginX * 2);
+                const contentHeight = pageHeight - marginTop - marginBottom;
+                const sliceHeightPx = Math.max(1, Math.floor(canvas.width * (contentHeight / contentWidth)));
+                let offsetY = 0;
+                let pageIndex = 0;
+                while (offsetY < canvas.height) {
+                    const sliceH = Math.min(sliceHeightPx, canvas.height - offsetY);
+                    const sliceCanvas = document.createElement('canvas');
+                    sliceCanvas.width = canvas.width;
+                    sliceCanvas.height = sliceH;
+                    const ctx = sliceCanvas.getContext('2d');
+                    if (!ctx) throw new Error('pdf_canvas_context');
+                    ctx.drawImage(canvas, 0, offsetY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+                    const imgData = sliceCanvas.toDataURL('image/png');
+                    if (pageIndex > 0) docPdf.addPage();
+                    const sliceHeightMm = (sliceH / canvas.width) * contentWidth;
+                    docPdf.addImage(imgData, 'PNG', marginX, marginTop, contentWidth, sliceHeightMm, undefined, 'FAST');
+                    offsetY += sliceHeightPx;
+                    pageIndex++;
                 }
-                if (node.nodeType !== Node.ELEMENT_NODE) return;
-                const tag = String(node.tagName || '').toLowerCase();
-                const styleAttr = String(node.getAttribute('style') || '').toLowerCase();
-                const colorMatch = styleAttr.match(/color:\s*([^;]+)/i);
-                const bold = inherited.bold || tag === 'strong' || tag === 'b' || /font-weight:\s*(bold|[6-9]00)/i.test(styleAttr);
-                const italic = inherited.italic || tag === 'em' || tag === 'i' || /font-style:\s*italic/i.test(styleAttr);
-                const mono = inherited.mono || tag === 'code' || tag === 'pre' || /font-family:\s*[^;]*monospace/i.test(styleAttr);
-                const color = colorMatch ? hexToRgb(normalizeHex(colorMatch[1]) || '#111827') : inherited.color;
-                if (tag === 'br') { y += 3; return; }
-                if (tag === 'img') {
-                    const src = node.getAttribute('src') || '';
-                    const alt = node.getAttribute('alt') || 'image';
-                    const dataUrl = src.startsWith('data:') ? src : await loadImageAsDataUrl(src);
-                    ensureSpace(40);
-                    if (dataUrl) {
-                        try {
-                            const props = doc.getImageProperties(dataUrl);
-                            const ratio = props && props.width && props.height ? props.width / props.height : 1;
-                            const width = contentWidth;
-                            const height = Math.min(110, width / Math.max(0.2, ratio));
-                            if (y + height > bottomY) { doc.addPage(); y = marginTop; }
-                            doc.addImage(dataUrl, 'PNG', marginX, y, width, height, undefined, 'FAST');
-                            y += height + 4;
-                            return;
-                        } catch (e) {}
-                    }
-                    renderLines(`[Image: ${alt}]`, { bold: true, after: 4, color: [79, 70, 229] });
-                    return;
-                }
-                if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6') {
-                    const sizeMap = { h1: 22, h2: 18, h3: 16, h4: 14, h5: 12, h6: 11 };
-                    renderLines(node.textContent || '', { size: sizeMap[tag], bold: true, after: 6, color: color || [15, 23, 42] });
-                    return;
-                }
-                if (tag === 'blockquote') {
-                    const text = (node.textContent || '').trim();
-                    if (text) renderLines(text, { size: 10, italic: true, after: 6, indent: 4, background: [255, 249, 235], color: [51, 65, 85] });
-                    return;
-                }
-                if (tag === 'pre') {
-                    const text = node.textContent || '';
-                    renderLines(text, { size: 9, mono: true, preserve: true, after: 6, background: [15, 23, 42], color: [226, 232, 240] });
-                    return;
-                }
-                if (tag === 'hr') {
-                    ensureSpace(6);
-                    doc.setDrawColor(203, 213, 225);
-                    doc.line(marginX, y, pageWidth - marginX, y);
-                    y += 6;
-                    return;
-                }
-                if (tag === 'table') {
-                    const rows = Array.from(node.querySelectorAll('tr') || []);
-                    const lines = rows.map((tr) => Array.from(tr.children || []).map((cell) => (cell.textContent || '').replace(/\s+/g, ' ').trim()).join(' | ')).filter(Boolean);
-                    if (lines.length) renderLines(lines.join('\n'), { size: 9, mono: false, preserve: true, after: 6 });
-                    return;
-                }
-                if (tag === 'ul' || tag === 'ol') {
-                    let idx = 1;
-                    for (const li of Array.from(node.children || [])) {
-                        if (String(li.tagName || '').toLowerCase() !== 'li') continue;
-                        const prefix = tag === 'ol' ? `${idx}. ` : '• ';
-                        const text = (li.textContent || '').replace(/\s+/g, ' ').trim();
-                        if (text) renderLines(prefix + text, { size: 11, after: 3, indent: 2 });
-                        idx++;
-                    }
-                    y += 2;
-                    return;
-                }
-                if (tag === 'p' || tag === 'div' || tag === 'section' || tag === 'article' || tag === 'main' || tag === 'figure') {
-                    const children = Array.from(node.childNodes || []);
-                    if (!children.length) {
-                        const text = (node.textContent || '').trim();
-                        if (text) renderLines(text, { size: inherited.size || 11, bold, italic, mono, color, after: 4 });
-                        return;
-                    }
-                    for (const child of children) {
-                        await walk(child, { bold, italic, mono, color, size: inherited.size || 11 });
-                    }
-                    y += 2;
-                    return;
-                }
-                for (const child of Array.from(node.childNodes || [])) {
-                    await walk(child, { bold, italic, mono, color, size: inherited.size || 11 });
-                }
-            };
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(18);
-            doc.text(title || 'Clipboard Export', marginX, y);
-            y += 8;
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(9);
-            doc.setTextColor(100, 116, 139);
-            doc.text(`Clipboard import | ${createdAt}`, marginX, y);
-            y += 10;
-            doc.setTextColor(17, 24, 39);
-            await walk(sourceRoot, { size: 11, color: [17, 24, 39] });
-            const blob = doc.output('blob');
-            return { blob, fileName: buildRichPastePdfFilename() };
+                if (!pageIndex) throw new Error('pdf_canvas_empty');
+                const blob = docPdf.output('blob');
+                return { blob, fileName: buildRichPastePdfFilename() };
+            } finally {
+                cleanup();
+            }
         };
         const createRichPastePdfBlob = async () => {
             return await renderRichPastePdfBlob();
@@ -10746,6 +10637,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.376");
+            console.log("Extended debug logging system active. Version: v4.8.377");
             }, 3000);
         })();

@@ -692,7 +692,7 @@
                 showToast('確認する内容がありません', 'warning', true);
                 return;
             }
-            const win = window.open('', '_blank', 'noopener,noreferrer');
+            const win = window.open('about:blank', '_blank');
             if (!win) {
                 showToast('別タブを開けませんでした。ポップアップを許可してください。', 'error', true);
                 return;
@@ -707,164 +707,223 @@
                 showToast('別タブの表示に失敗しました', 'error', true);
             }
         };
-        const buildRichPastePdfWrapper = () => {
+        const loadImageAsDataUrl = (src, timeoutMs = 4000) => new Promise((resolve) => {
+            if (!src) return resolve(null);
+            let done = false;
+            const finish = (value) => {
+                if (done) return;
+                done = true;
+                resolve(value);
+            };
+            const rawSrc = String(src).trim();
+            if (!rawSrc) return resolve(null);
+            const allowDirectLoad = rawSrc.startsWith('data:') || rawSrc.startsWith('blob:') || (() => {
+                try {
+                    return new URL(rawSrc, window.location.href).origin === window.location.origin;
+                } catch (e) {
+                    return false;
+                }
+            })();
+            if (!allowDirectLoad) {
+                return resolve(null);
+            }
+            const img = new Image();
+            let timer = null;
+            const cleanup = () => {
+                if (timer) clearTimeout(timer);
+                timer = null;
+            };
+            img.onload = () => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.naturalWidth || img.width || 1;
+                    canvas.height = img.naturalHeight || img.height || 1;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        cleanup();
+                        return finish(null);
+                    }
+                    ctx.drawImage(img, 0, 0);
+                    const dataUrl = canvas.toDataURL('image/png');
+                    cleanup();
+                    finish(dataUrl);
+                } catch (e) {
+                    cleanup();
+                    finish(null);
+                }
+            };
+            img.onerror = () => {
+                cleanup();
+                finish(null);
+            };
+            timer = setTimeout(() => {
+                try { img.src = ''; } catch (e) {}
+                cleanup();
+                finish(null);
+            }, timeoutMs);
+            img.src = rawSrc;
+        });
+        const renderRichPastePdfBlob = async () => {
+            const JsPdfCtor = window.jspdf && window.jspdf.jsPDF;
+            if (!JsPdfCtor) {
+                throw new Error('jsPDF ライブラリが読み込まれていません');
+            }
             const editor = getRichPasteEditor();
-            if (!editor) return null;
+            if (!editor) throw new Error('PDF化する内容がありません');
+            const sourceRoot = editor.cloneNode(true);
             const title = inferRichPasteTitle();
             const createdAt = new Date().toLocaleString('ja-JP');
-            const contentHtml = sanitizeRichPasteHtml(editor.innerHTML || '');
-            const wrapper = document.createElement('div');
-            wrapper.id = 'rich-paste-pdf-root';
-            wrapper.style.position = 'fixed';
-            wrapper.style.left = '-10000px';
-            wrapper.style.top = '0';
-            wrapper.style.width = '794px';
-            wrapper.style.padding = '0';
-            wrapper.style.background = '#ffffff';
-            wrapper.style.color = '#111827';
-            wrapper.style.zIndex = '-1';
-            wrapper.innerHTML = `
-                <style>
-                    .rp-page {
-                        box-sizing: border-box;
-                        width: 794px;
-                        padding: 28px 34px 34px;
-                        background: #ffffff;
-                        color: #111827;
-                        font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
+            const doc = new JsPdfCtor({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+            const pageWidth = 210;
+            const pageHeight = 297;
+            const marginX = 14;
+            const marginTop = 16;
+            const marginBottom = 16;
+            const contentWidth = pageWidth - (marginX * 2);
+            const bottomY = pageHeight - marginBottom;
+            let y = marginTop;
+            const ensureSpace = (needed) => {
+                if (y + needed <= bottomY) return;
+                doc.addPage();
+                y = marginTop;
+            };
+            const setFontFor = (opts = {}) => {
+                const font = opts.mono ? 'courier' : 'helvetica';
+                const style = opts.bold && opts.italic ? 'bolditalic' : opts.bold ? 'bold' : opts.italic ? 'italic' : 'normal';
+                doc.setFont(font, style);
+                doc.setTextColor(...(opts.color || [17, 24, 39]));
+                doc.setFontSize(opts.size || 11);
+            };
+            const renderLines = (text, opts = {}) => {
+                const size = opts.size || 11;
+                const lineH = (opts.lineHeight || 1.4) * (size * 0.35);
+                setFontFor(opts);
+                const clean = String(text || '').replace(/\r/g, '');
+                const lines = opts.preserve ? clean.split('\n') : doc.splitTextToSize(clean.replace(/\s+/g, ' ').trim(), opts.width || contentWidth);
+                const finalLines = [];
+                lines.forEach((line) => {
+                    if (opts.preserve) finalLines.push(...String(line).split('\n'));
+                    else finalLines.push(line);
+                });
+                if (!finalLines.length) return;
+                ensureSpace(finalLines.length * lineH + (opts.after || 0));
+                if (opts.background) {
+                    const rectH = finalLines.length * lineH + 4;
+                    doc.setFillColor(...opts.background);
+                    doc.roundedRect(marginX, y - 3, contentWidth, rectH, 2, 2, 'F');
+                }
+                doc.text(finalLines, marginX + (opts.indent || 0), y + lineH, { maxWidth: opts.width || contentWidth - (opts.indent || 0) });
+                y += finalLines.length * lineH + (opts.after || 4);
+            };
+            const walk = async (node, inherited = {}) => {
+                if (!node) return;
+                if (node.nodeType === Node.TEXT_NODE) {
+                    const text = node.textContent || '';
+                    if (text.trim()) renderLines(text, inherited);
+                    return;
+                }
+                if (node.nodeType !== Node.ELEMENT_NODE) return;
+                const tag = String(node.tagName || '').toLowerCase();
+                const styleAttr = String(node.getAttribute('style') || '').toLowerCase();
+                const colorMatch = styleAttr.match(/color:\s*([^;]+)/i);
+                const bold = inherited.bold || tag === 'strong' || tag === 'b' || /font-weight:\s*(bold|[6-9]00)/i.test(styleAttr);
+                const italic = inherited.italic || tag === 'em' || tag === 'i' || /font-style:\s*italic/i.test(styleAttr);
+                const mono = inherited.mono || tag === 'code' || tag === 'pre' || /font-family:\s*[^;]*monospace/i.test(styleAttr);
+                const color = colorMatch ? hexToRgb(normalizeHex(colorMatch[1]) || '#111827') : inherited.color;
+                if (tag === 'br') { y += 3; return; }
+                if (tag === 'img') {
+                    const src = node.getAttribute('src') || '';
+                    const alt = node.getAttribute('alt') || 'image';
+                    const dataUrl = src.startsWith('data:') ? src : await loadImageAsDataUrl(src);
+                    ensureSpace(40);
+                    if (dataUrl) {
+                        try {
+                            const props = doc.getImageProperties(dataUrl);
+                            const ratio = props && props.width && props.height ? props.width / props.height : 1;
+                            const width = contentWidth;
+                            const height = Math.min(110, width / Math.max(0.2, ratio));
+                            if (y + height > bottomY) { doc.addPage(); y = marginTop; }
+                            doc.addImage(dataUrl, 'PNG', marginX, y, width, height, undefined, 'FAST');
+                            y += height + 4;
+                            return;
+                        } catch (e) {}
                     }
-                    .rp-hero {
-                        margin-bottom: 18px;
-                        padding: 18px 20px;
-                        border-radius: 18px;
-                        border: 1px solid #dbe2ea;
-                        background: linear-gradient(135deg, rgba(255,248,225,0.95), rgba(255,255,255,1));
+                    renderLines(`[Image: ${alt}]`, { bold: true, after: 4, color: [79, 70, 229] });
+                    return;
+                }
+                if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6') {
+                    const sizeMap = { h1: 22, h2: 18, h3: 16, h4: 14, h5: 12, h6: 11 };
+                    renderLines(node.textContent || '', { size: sizeMap[tag], bold: true, after: 6, color: color || [15, 23, 42] });
+                    return;
+                }
+                if (tag === 'blockquote') {
+                    const text = (node.textContent || '').trim();
+                    if (text) renderLines(text, { size: 10, italic: true, after: 6, indent: 4, background: [255, 249, 235], color: [51, 65, 85] });
+                    return;
+                }
+                if (tag === 'pre') {
+                    const text = node.textContent || '';
+                    renderLines(text, { size: 9, mono: true, preserve: true, after: 6, background: [15, 23, 42], color: [226, 232, 240] });
+                    return;
+                }
+                if (tag === 'hr') {
+                    ensureSpace(6);
+                    doc.setDrawColor(203, 213, 225);
+                    doc.line(marginX, y, pageWidth - marginX, y);
+                    y += 6;
+                    return;
+                }
+                if (tag === 'table') {
+                    const rows = Array.from(node.querySelectorAll('tr') || []);
+                    const lines = rows.map((tr) => Array.from(tr.children || []).map((cell) => (cell.textContent || '').replace(/\s+/g, ' ').trim()).join(' | ')).filter(Boolean);
+                    if (lines.length) renderLines(lines.join('\n'), { size: 9, mono: false, preserve: true, after: 6 });
+                    return;
+                }
+                if (tag === 'ul' || tag === 'ol') {
+                    let idx = 1;
+                    for (const li of Array.from(node.children || [])) {
+                        if (String(li.tagName || '').toLowerCase() !== 'li') continue;
+                        const prefix = tag === 'ol' ? `${idx}. ` : '• ';
+                        const text = (li.textContent || '').replace(/\s+/g, ' ').trim();
+                        if (text) renderLines(prefix + text, { size: 11, after: 3, indent: 2 });
+                        idx++;
                     }
-                    .rp-title {
-                        margin: 0;
-                        font-size: 22px;
-                        line-height: 1.35;
-                        font-weight: 800;
-                        color: #0f172a;
+                    y += 2;
+                    return;
+                }
+                if (tag === 'p' || tag === 'div' || tag === 'section' || tag === 'article' || tag === 'main' || tag === 'figure') {
+                    const children = Array.from(node.childNodes || []);
+                    if (!children.length) {
+                        const text = (node.textContent || '').trim();
+                        if (text) renderLines(text, { size: inherited.size || 11, bold, italic, mono, color, after: 4 });
+                        return;
                     }
-                    .rp-meta {
-                        margin-top: 8px;
-                        font-size: 11px;
-                        color: #64748b;
+                    for (const child of children) {
+                        await walk(child, { bold, italic, mono, color, size: inherited.size || 11 });
                     }
-                    .rp-content {
-                        font-size: 15px;
-                        line-height: 1.8;
-                        color: #111827;
-                        word-break: break-word;
-                        overflow-wrap: anywhere;
-                    }
-                    .rp-content h1,
-                    .rp-content h2,
-                    .rp-content h3,
-                    .rp-content h4,
-                    .rp-content h5,
-                    .rp-content h6 {
-                        line-height: 1.35;
-                        font-weight: 800;
-                        margin: 1.1em 0 0.55em;
-                        color: #0f172a;
-                    }
-                    .rp-content h1 { font-size: 28px; }
-                    .rp-content h2 { font-size: 24px; }
-                    .rp-content h3 { font-size: 21px; }
-                    .rp-content h4 { font-size: 18px; }
-                    .rp-content h5 { font-size: 16px; }
-                    .rp-content h6 { font-size: 15px; }
-                    .rp-content p { margin: 0 0 0.8em; }
-                    .rp-content a { color: #0f766e; text-decoration: underline; word-break: break-word; }
-                    .rp-content img { max-width: 100%; height: auto; display: block; margin: 0.8em 0; border-radius: 14px; border: 1px solid #dbe2ea; }
-                    .rp-content table { width: 100%; border-collapse: collapse; margin: 1em 0; }
-                    .rp-content th,
-                    .rp-content td { border: 1px solid #cbd5e1; padding: 8px 10px; vertical-align: top; }
-                    .rp-content th { background: #f8fafc; font-weight: 700; }
-                    .rp-content ul,
-                    .rp-content ol { margin: 0.7em 0 0.9em 1.35em; padding: 0; }
-                    .rp-content li { margin: 0.3em 0; }
-                    .rp-content blockquote {
-                        margin: 1em 0;
-                        padding: 12px 16px;
-                        border-left: 4px solid #f59e0b;
-                        background: #fff9eb;
-                        color: #334155;
-                        border-radius: 12px;
-                    }
-                    .rp-content pre {
-                        margin: 1em 0;
-                        padding: 14px 16px;
-                        border-radius: 14px;
-                        background: #0f172a;
-                        color: #e2e8f0;
-                        overflow: auto;
-                        white-space: pre-wrap;
-                    }
-                    .rp-content code {
-                        font-family: "JetBrains Mono", "Noto Sans Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-                        font-size: 0.95em;
-                    }
-                    .rp-content :not(pre) > code {
-                        padding: 0.16rem 0.36rem;
-                        border-radius: 0.45rem;
-                        background: rgba(15, 118, 110, 0.08);
-                        color: #0f172a;
-                    }
-                    .rp-content hr { border: 0; border-top: 1px solid #cbd5e1; margin: 1.2em 0; }
-                    .rp-content strong { font-weight: 800; }
-                    .rp-content em { font-style: italic; }
-                    .rp-content mark { background: #fde68a; }
-                    .rp-content span { word-break: break-word; }
-                    .rp-content .katex { font-size: 1em; }
-                </style>
-                <div class="rp-page">
-                    <section class="rp-hero">
-                        <h1 class="rp-title">${escapeHtml(title)}</h1>
-                        <div class="rp-meta">Clipboard import | ${escapeHtml(createdAt)} | PDF ready for model conversion</div>
-                    </section>
-                    <section class="rp-content">${contentHtml || '<p>内容がありません。</p>'}</section>
-                </div>
-            `;
-            document.body.appendChild(wrapper);
-            return wrapper;
+                    y += 2;
+                    return;
+                }
+                for (const child of Array.from(node.childNodes || [])) {
+                    await walk(child, { bold, italic, mono, color, size: inherited.size || 11 });
+                }
+            };
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(18);
+            doc.text(title || 'Clipboard Export', marginX, y);
+            y += 8;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`Clipboard import | ${createdAt}`, marginX, y);
+            y += 10;
+            doc.setTextColor(17, 24, 39);
+            await walk(sourceRoot, { size: 11, color: [17, 24, 39] });
+            const blob = doc.output('blob');
+            return { blob, fileName: buildRichPastePdfFilename() };
         };
         const createRichPastePdfBlob = async () => {
-            if (typeof html2pdf === 'undefined') {
-                throw new Error('html2pdf ライブラリが読み込まれていません');
-            }
-            const wrapper = buildRichPastePdfWrapper();
-            if (!wrapper) {
-                throw new Error('PDF化する内容がありません');
-            }
-            try {
-                await waitForRichPasteMedia(wrapper);
-                const fileName = buildRichPastePdfFilename();
-                const options = {
-                    margin: [10, 10, 12, 10],
-                    filename: fileName,
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: {
-                        scale: Math.min(2, window.devicePixelRatio || 1),
-                        useCORS: true,
-                        allowTaint: true,
-                        backgroundColor: '#ffffff',
-                        scrollX: 0,
-                        scrollY: 0,
-                        logging: false
-                    },
-                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                    pagebreak: { mode: ['css', 'legacy'], avoid: ['table', 'img', 'pre', 'blockquote', '.rp-hero'] }
-                };
-                const blob = await html2pdf().set(options).from(wrapper).outputPdf('blob');
-                return { blob, fileName };
-            } finally {
-                try {
-                    if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
-                } catch (e) {}
-            }
+            return await renderRichPastePdfBlob();
         };
         const openRichPasteModal = () => {
             showModal('rich-paste-modal');
@@ -10609,6 +10668,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.372");
+            console.log("Extended debug logging system active. Version: v4.8.373");
             }, 3000);
         })();

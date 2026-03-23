@@ -474,7 +474,7 @@
             if (!clonedDoc) return;
             const head = clonedDoc.head || clonedDoc.querySelector('head');
             if (head) {
-                Array.from(head.querySelectorAll('link[rel="stylesheet"], style')).forEach((node) => {
+                Array.from(head.querySelectorAll('link[rel="stylesheet"]')).forEach((node) => {
                     try { node.remove(); } catch (e) {}
                 });
             }
@@ -833,33 +833,60 @@
                 } catch (e) {}
             };
             try {
-                if (typeof html2pdf === 'undefined') {
-                    throw new Error('html2pdf ライブラリが読み込まれていません');
+                const html2canvasFn = window.html2canvas;
+                const JsPdfCtor = window.jspdf && window.jspdf.jsPDF ? window.jspdf.jsPDF : null;
+                if (typeof html2canvasFn !== 'function') {
+                    throw new Error('html2canvas ライブラリが読み込まれていません');
                 }
-                const blob = await Promise.race([
-                    html2pdf().set({
-                        margin: [10, 10, 12, 10],
-                        image: { type: 'jpeg', quality: 0.96 },
-                        html2canvas: {
-                            scale: 1.5,
-                            useCORS: true,
-                            allowTaint: false,
-                            backgroundColor: '#ffffff',
-                            scrollX: 0,
-                            scrollY: 0,
-                            logging: false,
-                            imageTimeout: 3000,
-                            onclone: (clonedDoc) => {
-                                try {
-                                    prepareRichPastePdfClone(clonedDoc);
-                                } catch (e) {}
-                            }
-                        },
-                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                        pagebreak: { mode: ['css', 'legacy'], avoid: ['table', 'img', 'pre', 'blockquote'] }
-                    }).from(wrapper).outputPdf('blob'),
+                if (!JsPdfCtor) {
+                    throw new Error('jsPDF ライブラリが読み込まれていません');
+                }
+                await waitForRichPasteMedia(wrapper);
+                const canvas = await Promise.race([
+                    html2canvasFn(wrapper, {
+                        scale: 1.8,
+                        useCORS: true,
+                        allowTaint: false,
+                        backgroundColor: '#ffffff',
+                        scrollX: 0,
+                        scrollY: 0,
+                        logging: false,
+                        imageTimeout: 3000
+                    }),
                     new Promise((_, reject) => setTimeout(() => reject(new Error('pdf_render_timeout')), 30000))
                 ]);
+                if (!canvas || !canvas.width || !canvas.height) {
+                    throw new Error('PDF化できる描画結果がありません');
+                }
+                const pdf = new JsPdfCtor({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+                const pageWidth = pdf.internal.pageSize.getWidth();
+                const pageHeight = pdf.internal.pageSize.getHeight();
+                const margin = { top: 10, right: 10, bottom: 12, left: 10 };
+                const contentWidth = pageWidth - margin.left - margin.right;
+                const contentHeight = pageHeight - margin.top - margin.bottom;
+                const pageHeightPx = Math.max(1, Math.floor(canvas.width * (contentHeight / contentWidth)));
+                let renderedY = 0;
+                while (renderedY < canvas.height) {
+                    const sliceHeight = Math.min(pageHeightPx, canvas.height - renderedY);
+                    const sliceCanvas = document.createElement('canvas');
+                    sliceCanvas.width = canvas.width;
+                    sliceCanvas.height = sliceHeight;
+                    const ctx = sliceCanvas.getContext('2d');
+                    if (!ctx) {
+                        throw new Error('PDF描画用キャンバスを作成できませんでした');
+                    }
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+                    ctx.drawImage(canvas, 0, renderedY, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
+                    const imgData = sliceCanvas.toDataURL('image/jpeg', 0.96);
+                    const imgHeight = (sliceHeight * contentWidth) / canvas.width;
+                    if (renderedY > 0) {
+                        pdf.addPage();
+                    }
+                    pdf.addImage(imgData, 'JPEG', margin.left, margin.top, contentWidth, imgHeight, undefined, 'FAST');
+                    renderedY += sliceHeight;
+                }
+                const blob = pdf.output('blob');
                 return { blob, fileName: buildRichPastePdfFilename() };
             } finally {
                 cleanup();
@@ -10622,6 +10649,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.380");
+            console.log("Extended debug logging system active. Version: v4.8.381");
             }, 3000);
         })();

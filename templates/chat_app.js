@@ -791,43 +791,40 @@
             const JsPdfCtor = await ensureJsPdfLoaded();
             const editor = getRichPasteEditor();
             if (!editor) throw new Error('PDF化する内容がありません');
-            const title = inferRichPasteTitle();
-            const createdAt = new Date().toLocaleString('ja-JP');
-            const iframe = document.createElement('iframe');
-            iframe.setAttribute('aria-hidden', 'true');
-            iframe.style.position = 'fixed';
-            iframe.style.left = '-10000px';
-            iframe.style.top = '0';
-            iframe.style.width = '820px';
-            iframe.style.height = '1200px';
-            iframe.style.opacity = '0';
-            iframe.style.pointerEvents = 'none';
-            iframe.style.border = '0';
             const html = buildRichPastePreviewHtml('pdf');
-            document.body.appendChild(iframe);
+            const parser = new DOMParser();
+            const parsed = parser.parseFromString(html, 'text/html');
+            const wrapper = document.createElement('div');
+            wrapper.setAttribute('aria-hidden', 'true');
+            wrapper.style.position = 'fixed';
+            wrapper.style.left = '-10000px';
+            wrapper.style.top = '0';
+            wrapper.style.width = '794px';
+            wrapper.style.background = '#ffffff';
+            wrapper.style.color = '#111827';
+            wrapper.style.pointerEvents = 'none';
+            wrapper.style.opacity = '1';
+            wrapper.style.zIndex = '-1';
+            wrapper.style.contain = 'layout style paint';
+            const headNodes = Array.from(parsed.head ? parsed.head.children || [] : []);
+            const bodyNodes = Array.from(parsed.body ? parsed.body.children || [] : []);
+            headNodes.forEach((node) => {
+                try { wrapper.appendChild(node.cloneNode(true)); } catch (e) {}
+            });
+            bodyNodes.forEach((node) => {
+                try { wrapper.appendChild(node.cloneNode(true)); } catch (e) {}
+            });
+            document.body.appendChild(wrapper);
             const cleanup = () => {
                 try {
-                    if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+                    if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
                 } catch (e) {}
             };
             try {
-                await new Promise((resolve, reject) => {
-                    const timer = setTimeout(() => reject(new Error('pdf_render_timeout')), 20000);
-                    iframe.onload = () => {
-                        clearTimeout(timer);
-                        resolve();
-                    };
-                    iframe.srcdoc = html;
-                });
-                const doc = iframe.contentDocument;
-                const win = iframe.contentWindow;
-                if (!doc || !win) throw new Error('pdf_frame_unavailable');
-                if (doc.fonts && doc.fonts.ready) {
-                    try { await doc.fonts.ready; } catch (e) {}
-                }
-                const root = doc.querySelector('.page') || doc.body;
+                await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                const root = wrapper.querySelector('.page') || wrapper;
                 if (!root) throw new Error('pdf_root_missing');
-                const imgs = Array.from(doc.images || []);
+                const imgs = Array.from(root.querySelectorAll('img') || []);
                 await Promise.all(imgs.map((img) => {
                     if (!img) return Promise.resolve();
                     if (img.complete) return Promise.resolve();
@@ -836,17 +833,25 @@
                         img.addEventListener('error', resolve, { once: true });
                     });
                 }));
-                const canvas = await html2canvas(root, {
-                    backgroundColor: '#ffffff',
-                    scale: Math.min(2, window.devicePixelRatio || 1.5),
-                    useCORS: true,
-                    allowTaint: false,
-                    logging: false,
-                    scrollX: 0,
-                    scrollY: 0,
-                    windowWidth: root.scrollWidth || root.clientWidth || 794,
-                    windowHeight: root.scrollHeight || root.clientHeight || 1120
-                });
+                if (document.fonts && document.fonts.ready) {
+                    try { await document.fonts.ready; } catch (e) {}
+                }
+                const canvas = await Promise.race([
+                    html2canvas(root, {
+                        backgroundColor: '#ffffff',
+                        scale: Math.min(2, window.devicePixelRatio || 1.5),
+                        useCORS: true,
+                        allowTaint: false,
+                        logging: false,
+                        scrollX: 0,
+                        scrollY: 0,
+                        imageTimeout: 3000,
+                        removeContainer: true,
+                        windowWidth: root.scrollWidth || root.clientWidth || 794,
+                        windowHeight: root.scrollHeight || root.clientHeight || 1120
+                    }),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('pdf_render_timeout')), 25000))
+                ]);
                 const docPdf = new JsPdfCtor({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
                 const marginX = 12;
                 const marginTop = 12;
@@ -10637,6 +10642,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.377");
+            console.log("Extended debug logging system active. Version: v4.8.378");
             }, 3000);
         })();

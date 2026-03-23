@@ -1032,15 +1032,29 @@
             if (rawSrc.startsWith('data:image/')) {
                 return { dataUrl: rawSrc, mimeType: detectImageMimeType(rawSrc) };
             }
+            let resolvedUrl = null;
+            try {
+                resolvedUrl = new URL(rawSrc, window.location.href);
+            } catch (e) {
+                return null;
+            }
+            const allowedSameOrigin = resolvedUrl.origin === window.location.origin;
+            if (!allowedSameOrigin) {
+                return null;
+            }
             const fetchPromise = (async () => {
-                const response = await fetch(rawSrc, { mode: 'cors', credentials: 'include' });
-                if (!response.ok) return null;
-                const blob = await response.blob();
-                const dataUrl = await blobToDataUrl(blob);
-                return {
-                    dataUrl,
-                    mimeType: blob.type || detectImageMimeType(dataUrl)
-                };
+                try {
+                    const response = await fetch(resolvedUrl.toString(), { credentials: 'same-origin', cache: 'force-cache' });
+                    if (!response.ok) return null;
+                    const blob = await response.blob();
+                    const dataUrl = await blobToDataUrl(blob);
+                    return {
+                        dataUrl,
+                        mimeType: blob.type || detectImageMimeType(dataUrl)
+                    };
+                } catch (e) {
+                    return null;
+                }
             })();
             return await Promise.race([
                 fetchPromise,
@@ -11157,6 +11171,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.385");
+            console.log("Extended debug logging system active. Version: v4.8.386");
             }, 3000);
         })();

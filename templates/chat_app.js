@@ -330,6 +330,8 @@
             'letter-spacing', 'line-height', 'text-align', 'text-decoration', 'text-transform',
             'vertical-align', 'white-space'
         ]);
+        const RICH_PASTE_NOISE_TAGS = new Set(['script', 'style', 'link', 'meta', 'noscript', 'iframe', 'canvas', 'svg', 'object', 'embed']);
+        const RICH_PASTE_NOISE_ROLE_RE = /(^|[\s_-])(nav|navbar|menu|footer|header|aside|sidebar|ads?|ad-|promo|cookie|banner|share|social|comments?|related|recommend|breadcrumb|subscription|popup|modal|overlay|toolbar|dialog|toast|sponsor)([\s_-]|$)/i;
         const RICH_PASTE_PROMPT_STORAGE_KEY = 'rich_paste_prompt_v1';
         const getRichPasteEditor = () => get('rich-paste-editor');
         const getRichPastePrompt = () => get('rich-paste-prompt');
@@ -401,11 +403,24 @@
             if (!root || typeof root.querySelectorAll !== 'function') return;
             root.querySelectorAll('*').forEach((node) => {
                 if (!node || !node.getAttribute) return;
+                const tag = String(node.tagName || '').toLowerCase();
+                if (RICH_PASTE_NOISE_TAGS.has(tag)) {
+                    node.remove();
+                    return;
+                }
+                const role = String(node.getAttribute('role') || '').trim().toLowerCase();
+                const aria = String(node.getAttribute('aria-label') || '').trim();
+                const cls = String(node.className || '').trim();
+                const id = String(node.id || '').trim();
+                const noiseText = `${role} ${aria} ${cls} ${id}`;
+                if (RICH_PASTE_NOISE_ROLE_RE.test(noiseText)) {
+                    node.remove();
+                    return;
+                }
                 node.removeAttribute('class');
                 node.removeAttribute('id');
                 node.removeAttribute('width');
                 node.removeAttribute('height');
-                const tag = String(node.tagName || '').toLowerCase();
                 if (tag === 'img') {
                     node.setAttribute('loading', 'lazy');
                     node.setAttribute('decoding', 'async');
@@ -423,8 +438,64 @@
                 }
             });
         };
+        const extractRichPasteArticleHtml = (html) => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(String(html || ''), 'text/html');
+            const candidates = [];
+            const pushCandidate = (node, boost = 0) => {
+                if (!node) return;
+                const textLen = (node.textContent || '').replace(/\s+/g, ' ').trim().length;
+                if (textLen <= 0) return;
+                const mediaCount = node.querySelectorAll ? node.querySelectorAll('img,table,figure,video,picture,pre,blockquote').length : 0;
+                candidates.push({ node, score: textLen + (mediaCount * 120) + boost });
+            };
+            pushCandidate(doc.body, 0);
+            const queryList = [
+                'article',
+                'main',
+                '[role="main"]',
+                '[role="article"]',
+                'section',
+                '.article',
+                '.article-body',
+                '.post',
+                '.post-content',
+                '.content',
+                '.entry-content',
+                '.article-content',
+                '.story-body'
+            ];
+            queryList.forEach((sel, idx) => {
+                doc.querySelectorAll(sel).forEach((node) => pushCandidate(node, 1000 - idx * 10));
+            });
+            if (!candidates.length) {
+                return doc.body ? doc.body.innerHTML : '';
+            }
+            candidates.sort((a, b) => b.score - a.score);
+            const best = candidates[0].node ? candidates[0].node.cloneNode(true) : doc.body.cloneNode(true);
+            if (best && best.querySelectorAll) {
+                best.querySelectorAll('header,footer,nav,aside,form,button,input,textarea,select,label,script,style,link,meta,noscript').forEach((node) => {
+                    if (node && node.remove) node.remove();
+                });
+                best.querySelectorAll('[role="navigation"],[role="complementary"],[role="banner"],[role="contentinfo"],[aria-hidden="true"]').forEach((node) => {
+                    if (node && node.remove) node.remove();
+                });
+                best.querySelectorAll('div,section,article,main,span,p').forEach((node) => {
+                    const cls = String(node.className || '').trim();
+                    const id = String(node.id || '').trim();
+                    const role = String(node.getAttribute('role') || '').trim().toLowerCase();
+                    const label = String(node.getAttribute('aria-label') || '').trim();
+                    const noiseText = `${cls} ${id} ${role} ${label}`;
+                    if (RICH_PASTE_NOISE_ROLE_RE.test(noiseText) && node.parentNode) {
+                        node.remove();
+                    }
+                });
+            }
+            return best ? best.innerHTML : (doc.body ? doc.body.innerHTML : '');
+        };
         const sanitizeRichPasteHtml = (html) => {
-            const safeHtml = DOMPurify.sanitize(html || '', {
+            const articleHtml = extractRichPasteArticleHtml(html);
+            const safeHtml = DOMPurify.sanitize(articleHtml || '', {
                 ALLOWED_TAGS: RICH_PASTE_ALLOWED_TAGS,
                 ALLOWED_ATTR: RICH_PASTE_ALLOWED_ATTR,
                 KEEP_CONTENT: true
@@ -10474,6 +10545,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.370");
+            console.log("Extended debug logging system active. Version: v4.8.371");
             }, 3000);
         })();

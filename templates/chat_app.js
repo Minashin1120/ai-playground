@@ -442,6 +442,16 @@
         const sanitizeRichPasteStyle = (styleText) => {
             if (!styleText) return '';
             const safe = [];
+            const hasUnsupportedColorSyntax = (value) => {
+                const lower = String(value || '').toLowerCase();
+                return (
+                    lower.includes('oklab(') ||
+                    lower.includes('oklch(') ||
+                    lower.includes('color-mix(') ||
+                    lower.includes('lab(') ||
+                    lower.includes('lch(')
+                );
+            };
             String(styleText).split(';').forEach((decl) => {
                 const part = decl.trim();
                 if (!part) return;
@@ -454,10 +464,25 @@
                 if (lower.includes('position:') || lower.includes('fixed') || lower.includes('absolute') || lower.includes('sticky')) return;
                 if (lower.includes('z-index') || lower.includes('overflow') || lower.includes('transform') || lower.includes('filter')) return;
                 if (lower.includes('url(') || lower.includes('expression(')) return;
+                if (hasUnsupportedColorSyntax(value)) return;
                 if (prop === 'font-size' && /calc\s*\(/i.test(value)) return;
                 safe.push(`${prop}: ${value}`);
             });
             return safe.join('; ');
+        };
+        const prepareRichPastePdfClone = (clonedDoc) => {
+            if (!clonedDoc) return;
+            const head = clonedDoc.head || clonedDoc.querySelector('head');
+            if (head) {
+                Array.from(head.querySelectorAll('link[rel="stylesheet"], style')).forEach((node) => {
+                    try { node.remove(); } catch (e) {}
+                });
+            }
+            if (clonedDoc.body) {
+                clonedDoc.body.style.margin = '0';
+                clonedDoc.body.style.background = '#ffffff';
+                clonedDoc.body.style.color = '#111827';
+            }
         };
         const normalizeRichPasteTree = (root) => {
             if (!root || typeof root.querySelectorAll !== 'function') return;
@@ -811,7 +836,6 @@
                 if (typeof html2pdf === 'undefined') {
                     throw new Error('html2pdf ライブラリが読み込まれていません');
                 }
-                const fileName = buildRichPastePdfFilename();
                 const blob = await Promise.race([
                     html2pdf().set({
                         margin: [10, 10, 12, 10],
@@ -824,7 +848,12 @@
                             scrollX: 0,
                             scrollY: 0,
                             logging: false,
-                            imageTimeout: 3000
+                            imageTimeout: 3000,
+                            onclone: (clonedDoc) => {
+                                try {
+                                    prepareRichPastePdfClone(clonedDoc);
+                                } catch (e) {}
+                            }
                         },
                         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
                         pagebreak: { mode: ['css', 'legacy'], avoid: ['table', 'img', 'pre', 'blockquote'] }
@@ -10593,6 +10622,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.379");
+            console.log("Extended debug logging system active. Version: v4.8.380");
             }, 3000);
         })();

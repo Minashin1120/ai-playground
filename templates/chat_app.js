@@ -716,19 +716,32 @@
             if (!text) return 'Clipboard Export';
             return text.slice(0, 48);
         };
-        const waitForRichPasteMedia = async (root) => {
+        const waitForRichPasteMedia = async (root, timeoutMs = 2500) => {
             if (!root) return;
-            const imgs = Array.from(root.querySelectorAll('img') || []);
-            await Promise.all(imgs.map((img) => {
+            const settle = new Promise((resolve) => setTimeout(resolve, Math.max(0, timeoutMs)));
+            const loadPromise = Promise.all(Array.from(root.querySelectorAll('img') || []).map((img) => {
                 if (!img) return Promise.resolve();
                 if (img.complete) return Promise.resolve();
                 return new Promise((resolve) => {
-                    img.addEventListener('load', resolve, { once: true });
-                    img.addEventListener('error', resolve, { once: true });
+                    let done = false;
+                    const finish = () => {
+                        if (done) return;
+                        done = true;
+                        resolve();
+                    };
+                    img.addEventListener('load', finish, { once: true });
+                    img.addEventListener('error', finish, { once: true });
+                    setTimeout(finish, Math.max(250, Math.min(timeoutMs, 2000)));
                 });
             }));
+            await Promise.race([loadPromise, settle]);
             if (document.fonts && document.fonts.ready) {
-                try { await document.fonts.ready; } catch (e) {}
+                try {
+                    await Promise.race([
+                        document.fonts.ready,
+                        settle
+                    ]);
+                } catch (e) {}
             }
         };
         const buildRichPastePreviewHtml = (mode = 'preview') => {
@@ -841,17 +854,17 @@
                 if (!JsPdfCtor) {
                     throw new Error('jsPDF ライブラリが読み込まれていません');
                 }
-                await waitForRichPasteMedia(wrapper);
+                await waitForRichPasteMedia(wrapper, 2500);
                 const canvas = await Promise.race([
                     html2canvasFn(wrapper, {
-                        scale: 1.8,
+                        scale: 1.4,
                         useCORS: true,
                         allowTaint: false,
                         backgroundColor: '#ffffff',
                         scrollX: 0,
                         scrollY: 0,
                         logging: false,
-                        imageTimeout: 3000
+                        imageTimeout: 1500
                     }),
                     new Promise((_, reject) => setTimeout(() => reject(new Error('pdf_render_timeout')), 30000))
                 ]);
@@ -10649,6 +10662,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.382");
+            console.log("Extended debug logging system active. Version: v4.8.383");
             }, 3000);
         })();

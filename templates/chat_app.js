@@ -333,7 +333,8 @@
         const RICH_PASTE_NOISE_TAGS = new Set(['script', 'style', 'link', 'meta', 'noscript', 'iframe', 'canvas', 'svg', 'object', 'embed']);
         const RICH_PASTE_NOISE_ROLE_RE = /(^|[\s_-])(nav|navbar|menu|footer|header|aside|sidebar|ads?|ad-|promo|cookie|banner|share|social|comments?|related|recommend|breadcrumb|subscription|popup|modal|overlay|toolbar|dialog|toast|sponsor)([\s_-]|$)/i;
         const RICH_PASTE_PROMPT_STORAGE_KEY = 'rich_paste_prompt_v1';
-        const getRichPasteEditor = () => get('rich-paste-editor');
+        const getRichPasteEditor = () => get('rich-paste-storage');
+        const getRichPasteCapture = () => get('rich-paste-capture');
         const getRichPastePrompt = () => get('rich-paste-prompt');
         const getRichPasteStatus = () => get('rich-paste-status');
         const hasRichPasteContent = () => {
@@ -358,21 +359,18 @@
             status.textContent = `${text.length} 文字 / 画像 ${images} / 表 ${tables} / リンク ${links} / 見出し ${headings}`;
         };
         const focusRichPasteEditor = () => {
-            const editor = getRichPasteEditor();
-            if (!editor) return;
-            editor.focus();
+            const capture = getRichPasteCapture();
+            if (!capture) return;
+            capture.focus();
+            capture.value = capture.value || '';
             const selection = window.getSelection && window.getSelection();
-            if (selection) {
-                const range = document.createRange();
-                range.selectNodeContents(editor);
-                range.collapse(false);
-                selection.removeAllRanges();
-                selection.addRange(range);
-            }
+            if (selection && capture.select) capture.select();
         };
         const clearRichPasteEditor = (keepPrompt = true) => {
             const editor = getRichPasteEditor();
             if (editor) editor.innerHTML = '';
+            const capture = getRichPasteCapture();
+            if (capture) capture.value = '';
             if (!keepPrompt) {
                 const prompt = getRichPastePrompt();
                 if (prompt) prompt.value = RICH_PASTE_DEFAULT_PROMPT;
@@ -519,25 +517,7 @@
         const insertNodeIntoRichPasteEditor = (node) => {
             const editor = getRichPasteEditor();
             if (!editor || !node) return;
-            editor.focus();
-            const selection = window.getSelection && window.getSelection();
-            const range = getRichPasteSelectionRange(editor);
-            if (!range) {
-                editor.appendChild(node);
-                updateRichPasteStatus();
-                return;
-            }
-            range.deleteContents();
-            const lastNode = node.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? node.lastChild : node;
-            range.insertNode(node);
-            if (lastNode && lastNode.parentNode) {
-                range.setStartAfter(lastNode);
-                range.collapse(true);
-                if (selection) {
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-                }
-            }
+            editor.appendChild(node);
             updateRichPasteStatus();
         };
         const insertHtmlIntoRichPasteEditor = (html) => {
@@ -570,6 +550,8 @@
             if (!navigator.clipboard || !navigator.clipboard.read) {
                 throw new Error('このブラウザはリッチクリップボード読み取りに対応していません');
             }
+            const capture = getRichPasteCapture();
+            if (capture) capture.value = '';
             const items = await navigator.clipboard.read();
             if (!items || !items.length) return false;
             let inserted = false;
@@ -603,6 +585,34 @@
             }
             return inserted;
         };
+        const ingestRichPasteClipboardData = async (clipboardData) => {
+            if (!clipboardData) return false;
+            let inserted = false;
+            const html = clipboardData.getData && clipboardData.getData('text/html');
+            const text = clipboardData.getData && clipboardData.getData('text/plain');
+            if (html) {
+                insertHtmlIntoRichPasteEditor(html);
+                inserted = true;
+            } else if (text) {
+                insertTextIntoRichPasteEditor(text);
+                inserted = true;
+            }
+            const items = Array.from(clipboardData.items || []);
+            const imageFiles = items
+                .filter((item) => item && item.kind === 'file')
+                .map((item) => item.getAsFile())
+                .filter((file) => file && file.type && file.type.startsWith('image/'));
+            if (imageFiles.length) {
+                for (const imageFile of imageFiles) {
+                    try {
+                        if (await insertClipboardImageBlob(imageFile, imageFile.name || 'clipboard-image')) {
+                            inserted = true;
+                        }
+                    } catch (e) {}
+                }
+            }
+            return inserted;
+        };
         const buildRichPastePdfFilename = () => {
             const now = new Date();
             const pad = (n) => String(n).padStart(2, '0');
@@ -632,6 +642,69 @@
             }));
             if (document.fonts && document.fonts.ready) {
                 try { await document.fonts.ready; } catch (e) {}
+            }
+        };
+        const buildRichPastePreviewHtml = () => {
+            const editor = getRichPasteEditor();
+            if (!editor) return '';
+            const title = inferRichPasteTitle();
+            const createdAt = new Date().toLocaleString('ja-JP');
+            const contentHtml = sanitizeRichPasteHtml(editor.innerHTML || '');
+            return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)} - Preview</title>
+  <style>
+    body { margin: 0; background: #0b1220; color: #e5e7eb; font-family: "Noto Sans JP", system-ui, sans-serif; }
+    .page { max-width: 920px; margin: 0 auto; padding: 24px; }
+    .card { background: #111827; border: 1px solid #243244; border-radius: 18px; padding: 20px; box-shadow: 0 18px 45px rgba(0,0,0,0.35); }
+    .title { margin: 0; font-size: 24px; line-height: 1.35; color: #f8fafc; }
+    .meta { margin-top: 8px; color: #94a3b8; font-size: 12px; }
+    .content { margin-top: 18px; color: #e5e7eb; font-size: 15px; line-height: 1.85; word-break: break-word; overflow-wrap: anywhere; }
+    .content img, .content video, .content iframe, .content table, .content pre, .content blockquote { max-width: 100%; }
+    .content table { display: block; overflow-x: auto; border-collapse: collapse; }
+    .content th, .content td { border: 1px solid #334155; padding: 8px 10px; }
+    .content pre { padding: 14px 16px; border-radius: 14px; background: #020617; overflow: auto; }
+    .content blockquote { margin: 1em 0; padding: 12px 16px; border-left: 4px solid #f59e0b; background: rgba(245,158,11,0.08); border-radius: 12px; }
+    .toolbar { display:flex; gap:10px; margin-top: 16px; flex-wrap: wrap; }
+    .toolbar button { border: 1px solid #334155; background: #0f172a; color: #e2e8f0; border-radius: 999px; padding: 8px 12px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <h1 class="title">${escapeHtml(title)}</h1>
+      <div class="meta">Clipboard import | ${escapeHtml(createdAt)} | 本文確認用プレビュー</div>
+      <div class="toolbar">
+        <button onclick="window.close()">閉じる</button>
+      </div>
+      <div class="content">${contentHtml || '<p>内容がありません。</p>'}</div>
+    </div>
+  </div>
+</body>
+</html>`;
+        };
+        const openRichPastePreviewTab = () => {
+            const html = buildRichPastePreviewHtml();
+            if (!html) {
+                showToast('確認する内容がありません', 'warning', true);
+                return;
+            }
+            const win = window.open('', '_blank', 'noopener,noreferrer');
+            if (!win) {
+                showToast('別タブを開けませんでした。ポップアップを許可してください。', 'error', true);
+                return;
+            }
+            try {
+                win.document.open();
+                win.document.write(html);
+                win.document.close();
+                win.focus();
+            } catch (e) {
+                try { win.close(); } catch (err) {}
+                showToast('別タブの表示に失敗しました', 'error', true);
             }
         };
         const buildRichPastePdfWrapper = () => {
@@ -5096,6 +5169,7 @@
             if (get('rich-paste-close-btn')) get('rich-paste-close-btn').onclick = () => hideModal('rich-paste-modal');
             if (get('rich-paste-focus-btn')) get('rich-paste-focus-btn').onclick = () => focusRichPasteEditor();
             if (get('rich-paste-clear-btn')) get('rich-paste-clear-btn').onclick = () => clearRichPasteEditor(true);
+            if (get('rich-paste-preview-btn')) get('rich-paste-preview-btn').onclick = () => openRichPastePreviewTab();
             if (get('rich-paste-send-btn')) get('rich-paste-send-btn').onclick = () => sendRichPasteToModel();
             if (get('rich-paste-import-btn')) get('rich-paste-import-btn').onclick = async () => {
                 try {
@@ -5118,34 +5192,24 @@
                     localStorage.setItem(RICH_PASTE_PROMPT_STORAGE_KEY, promptEl.value || '');
                 });
             }
-            if (get('rich-paste-editor')) {
-                const editor = get('rich-paste-editor');
-                editor.addEventListener('input', updateRichPasteStatus);
-                editor.addEventListener('paste', async (e) => {
+            if (get('rich-paste-capture')) {
+                const capture = get('rich-paste-capture');
+                capture.addEventListener('paste', async (e) => {
                     const clipboard = e.clipboardData || window.clipboardData;
                     if (!clipboard) return;
-                    const html = clipboard.getData && clipboard.getData('text/html');
-                    const text = clipboard.getData && clipboard.getData('text/plain');
-                    const files = Array.from(clipboard.items || [])
-                        .filter((item) => item && item.kind === 'file')
-                        .map((item) => item.getAsFile())
-                        .filter(Boolean);
-                    const imageFiles = files.filter((file) => file.type && file.type.startsWith('image/'));
-                    if (!html && !text && !imageFiles.length) return;
                     e.preventDefault();
-                    if (html) {
-                        insertHtmlIntoRichPasteEditor(html);
-                    } else if (text) {
-                        insertTextIntoRichPasteEditor(text);
-                    }
-                    if (imageFiles.length) {
-                        for (const imageFile of imageFiles) {
-                            try {
-                                await insertClipboardImageBlob(imageFile, imageFile.name || 'clipboard-image');
-                            } catch (err) {}
+                    try {
+                        const inserted = await ingestRichPasteClipboardData(clipboard);
+                        if (!inserted) {
+                            showToast('クリップボードに貼り付け可能な内容がありませんでした', 'warning', true);
                         }
+                        updateRichPasteStatus();
+                    } catch (err) {
+                        showToast('貼り付けの取り込みに失敗しました', 'error', true);
                     }
-                    updateRichPasteStatus();
+                });
+                capture.addEventListener('input', () => {
+                    capture.value = '';
                 });
             }
             get('chat-container').addEventListener('click', (e) => {
@@ -10545,6 +10609,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.371");
+            console.log("Extended debug logging system active. Version: v4.8.372");
             }, 3000);
         })();

@@ -8,7 +8,7 @@
     {% if initial_theme_css %}
     <style id="initial-theme-vars">{{ initial_theme_css|safe }}</style>
     {% endif %}
-    <title>AI Playground (V4.8.371)</title>
+    <title>AI Playground (V4.8.372)</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.258.css') }}?v={{ app_version }}">
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -40,22 +40,38 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.custom.v4.8.260.css') }}?v={{ app_version }}">
     <style>
-        #rich-paste-editor {
-            contain: content;
+        #rich-paste-capture {
+            position: fixed;
+            left: -10000px;
+            top: 0;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
         }
-        #rich-paste-editor img,
-        #rich-paste-editor video,
-        #rich-paste-editor iframe,
-        #rich-paste-editor table,
-        #rich-paste-editor pre,
-        #rich-paste-editor blockquote {
+        #rich-paste-storage {
+            position: fixed;
+            left: -10000px;
+            top: 0;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            opacity: 0;
+            pointer-events: none;
+        }
+        #rich-paste-storage img,
+        #rich-paste-storage video,
+        #rich-paste-storage iframe,
+        #rich-paste-storage table,
+        #rich-paste-storage pre,
+        #rich-paste-storage blockquote {
             max-width: 100% !important;
         }
-        #rich-paste-editor table {
+        #rich-paste-storage table {
             display: block;
             overflow-x: auto;
         }
-        #rich-paste-editor * {
+        #rich-paste-storage * {
             box-sizing: border-box;
         }
     </style>
@@ -105,7 +121,7 @@
     
     <!-- Alpha Bar -->
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-green-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-green-400">
-        <i class="fas fa-check-circle mr-1"></i> System v4.8.371 (Stable)
+        <i class="fas fa-check-circle mr-1"></i> System v4.8.372 (Stable)
     </div>
 
     <!-- Debug Console -->
@@ -144,7 +160,7 @@
             <!-- Threads loaded dynamically -->
             <div id="scroll-sentinel"></div>
         </div>
-        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.8.371 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
+        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.8.372 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
     </div>
     <div id="overlay" class="overlay"></div>
 
@@ -522,15 +538,17 @@
             <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)] gap-4 min-h-0 flex-1">
                 <div class="flex flex-col gap-3 min-h-0">
                     <div class="rounded-lg border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-xs text-amber-100/90 leading-relaxed">
-                        Word、記事、ブラウザのリッチテキストをここに貼り付けると、画像・表・リンク・見出し・文字装飾を残したままPDF化してモデルに送れます。
+                        Word、記事、ブラウザのリッチテキストをここに貼り付けると、内容は画面に出さずに内部保持します。必要なら別タブで確認し、PDF化してモデルに送れます。
                     </div>
                     <div class="flex flex-wrap gap-2">
                         <button id="rich-paste-import-btn" data-progress-no-spinner="true" class="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded text-sm font-bold btn-hover">クリップボードを取り込み</button>
-                        <button id="rich-paste-focus-btn" data-progress-no-spinner="true" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">入力欄にフォーカス</button>
+                        <button id="rich-paste-preview-btn" data-progress-no-spinner="true" class="px-3 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded text-sm font-bold btn-hover">別タブで確認</button>
+                        <button id="rich-paste-focus-btn" data-progress-no-spinner="true" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">貼り付け欄へ移動</button>
                         <button id="rich-paste-clear-btn" data-progress-no-spinner="true" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">内容をクリア</button>
                     </div>
-                    <div id="rich-paste-editor" contenteditable="true" spellcheck="true" class="flex-1 min-h-[320px] max-h-[55vh] overflow-auto rounded-xl border border-gray-700 bg-gray-950/60 p-4 text-sm leading-7 text-gray-100 outline-none whitespace-pre-wrap break-words rich-paste-editor"></div>
                     <div id="rich-paste-status" class="text-[11px] text-gray-400 min-h-[1rem]">まだ内容がありません。</div>
+                    <textarea id="rich-paste-capture" aria-hidden="true" tabindex="-1"></textarea>
+                    <div id="rich-paste-storage" aria-hidden="true"></div>
                 </div>
                 <div class="flex flex-col gap-3 min-h-0">
                     <div class="rounded-lg border border-gray-700 bg-gray-900/60 p-4">
@@ -1111,7 +1129,7 @@
     </div>
     {% endif %}
 
-    <script src="{{ url_for('chat_app_js', thread=initial_thread_id|default('', true), v=(app_version ~ '-v4.8.371')) }}" defer></script>
+    <script src="{{ url_for('chat_app_js', thread=initial_thread_id|default('', true), v=(app_version ~ '-v4.8.372')) }}" defer></script>
 
 <div id="token-detail-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm" onclick="if(event.target.id==='token-detail-modal') closeTokenDetail()">
   <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4 text-white relative">

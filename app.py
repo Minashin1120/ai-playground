@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-24-017')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-29-001')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1340,6 +1340,7 @@ STS_MODELS = {
     "gpt-realtime": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gpt-realtime-mini": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gemini-2.5-flash-native-audio-preview-12-2025": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
+    "gemini-3.1-flash-live-preview": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
     "grok-voice-agent": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
 }
 OPENAI_STS_VOICES = {

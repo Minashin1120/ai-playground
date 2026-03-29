@@ -3231,6 +3231,7 @@
                     { id: "gpt-realtime", name: "OpenAI Realtime", desc: "OpenAI realtime speech-to-speech model." },
                     { id: "gpt-realtime-mini", name: "OpenAI Realtime Mini", desc: "Lower-latency, smaller realtime model." },
                     { id: "gemini-2.5-flash-native-audio-preview-12-2025", name: "Gemini 2.5 Flash Native Audio (Live)", desc: "Google Live native audio model." },
+                    { id: "gemini-3.1-flash-live-preview", name: "Gemini 3.1 Flash Live", desc: "Google Live native audio model." },
                     { id: "grok-voice-agent", name: "Grok Voice Agent", desc: "xAI realtime voice agent API." }
                 ]
             },
@@ -3422,6 +3423,7 @@
             'gpt-realtime',
             'gpt-realtime-mini',
             'gemini-2.5-flash-native-audio-preview-12-2025',
+            'gemini-3.1-flash-live-preview',
             'grok-voice-agent'
         ]);
         const FILE_BASE_URL = "{{ url_for('serve_file', filename='') }}";
@@ -3442,7 +3444,7 @@
         const getModelMediaSupport = (model) => {
             const m = (model || '').toLowerCase();
             if (!m.includes('gemini')) return { audio: false, video: false };
-            if (m.includes('image') || m.includes('nano') || m.includes('tts') || m.includes('native-audio')) {
+            if (m.includes('image') || m.includes('nano') || m.includes('tts') || m.includes('native-audio') || m.includes('live')) {
                 return { audio: false, video: false };
             }
             return { audio: true, video: true };
@@ -3476,6 +3478,7 @@
                 m.includes('realtime') ||
                 m.includes('voice-agent') ||
                 m.includes('native-audio') ||
+                m.includes('live') ||
                 m.includes('image') ||
                 m.includes('video')
             ) return false;
@@ -3496,7 +3499,7 @@
             const m = (model || '').toLowerCase();
             if (m.includes('gpt-realtime')) return 'openai';
             if (m.includes('grok-voice-agent')) return 'xai';
-            if (m.includes('gemini') && m.includes('native-audio')) return 'gemini';
+            if (m.includes('gemini') && (m.includes('native-audio') || m.includes('live'))) return 'gemini';
             return null;
         };
         function setStsStatus(text, recording = false) {
@@ -11171,6 +11174,6 @@
             
             // Trigger initial log to confirm system is active
             setTimeout(() => {
-            console.log("Extended debug logging system active. Version: v4.8.386");
+            console.log("Extended debug logging system active. Version: v4.8.387");
             }, 3000);
         })();

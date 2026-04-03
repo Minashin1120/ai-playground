@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-04-004')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-04-005')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -7794,6 +7794,25 @@ def api_version():
     resp = jsonify({'version': app.config.get('APP_VERSION', '')})
     resp.headers['Cache-Control'] = 'no-store'
     return resp
+
+@app.route('/api/assets/fonts/japanese.ttf')
+def serve_japanese_font():
+    font_path = '/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf'
+    if not os.path.exists(font_path):
+        # Fallback to other possible locations
+        alt_paths = [
+            '/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf',
+            '/usr/share/fonts/truetype/freefont/FreeSans.ttf'
+        ]
+        for p in alt_paths:
+            if os.path.exists(p):
+                font_path = p
+                break
+    try:
+        return send_file(font_path, mimetype='font/ttf', max_age=31536000)
+    except Exception as e:
+        log_force(f"Error serving font: {e}")
+        abort(404)
 
 @app.route('/sw.js')
 def service_worker():

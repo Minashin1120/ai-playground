@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-03-29-001')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-04-001')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3505,12 +3505,6 @@ def _apply_performance_cache_headers(response):
 
         if endpoint in ("index", "settings_page", "chat_permalink"):
             response.headers.setdefault("Cache-Control", "private, no-cache, max-age=0, must-revalidate")
-            _append_vary_header(response, "Cookie")
-            return response
-
-        if endpoint == "chat_app_js" and version_query:
-            # User-specific templated JS: keep private, but cache longer per-user.
-            response.headers["Cache-Control"] = "private, max-age=86400, stale-while-revalidate=604800"
             _append_vary_header(response, "Cookie")
             return response
 
@@ -7655,27 +7649,6 @@ def settings_page():
         "turnstileSiteKey": os.getenv('TURNSTILE_SITE_KEY') or ""
     }
     return render_template('chat.html', easy_login_used=easy_login_used, bot_config=bot_config)
-
-@app.route('/assets/chat-app.js')
-@login_required
-def chat_app_js():
-    if not current_user.is_setup_completed:
-        return Response("/* setup incomplete */", mimetype="application/javascript", status=403)
-    thread_q = (request.args.get('thread') or '').strip()
-    initial_thread_id = thread_q or None
-    bot_config = {
-        "username": current_user.username,
-        "isAdmin": bool(getattr(current_user, "is_admin", False)),
-        "globalEnabled": get_bot_detection_global_enabled(),
-        "accountEnabled": current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
-        "turnstileSiteKey": os.getenv('TURNSTILE_SITE_KEY') or ""
-    }
-    js = render_template('chat_app.js', initial_thread_id=initial_thread_id, bot_config=bot_config)
-    resp = Response(js, mimetype="application/javascript")
-    resp.headers["Cache-Control"] = "private, no-cache, max-age=0, must-revalidate"
-    resp.headers["Vary"] = "Cookie"
-    resp.headers["X-Content-Type-Options"] = "nosniff"
-    return resp
 
 @app.route('/c/<thread_id>')
 @login_required

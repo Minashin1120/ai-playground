@@ -8,11 +8,11 @@
     {% if initial_theme_css %}
     <style id="initial-theme-vars">{{ initial_theme_css|safe }}</style>
     {% endif %}
-    <title>AI Playground (V4.8.387)</title>
+    <title>AI Playground (V4.8.388)</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.258.css') }}?v={{ app_version }}">
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
     <script>
         // Configure DOMPurify to allow video and other tags
         DOMPurify.setConfig({
@@ -20,8 +20,8 @@
             ADD_ATTR: ['controls', 'src', 'class', 'autoplay', 'loop', 'muted', 'poster', 'width', 'height', 'allow', 'allowfullscreen', 'frameborder', 'scrolling']
         });
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=Noto+Sans+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&family=Noto+Sans+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js" defer></script>
     <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.268') }}"></script>
     <script type="module">
         import { create, get } from 'https://esm.sh/@github/webauthn-json@2.1.1';
@@ -121,7 +121,7 @@
     
     <!-- Alpha Bar -->
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-green-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-green-400">
-        <i class="fas fa-check-circle mr-1"></i> System v4.8.387 (Stable)
+        <i class="fas fa-check-circle mr-1"></i> System v4.8.388 (Stable)
     </div>
 
     <!-- Debug Console -->
@@ -160,7 +160,7 @@
             <!-- Threads loaded dynamically -->
             <div id="scroll-sentinel"></div>
         </div>
-        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.8.387 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
+        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.8.388 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
     </div>
     <div id="overlay" class="overlay"></div>
 
@@ -1135,7 +1135,45 @@
     </div>
     {% endif %}
 
-    <script src="{{ url_for('chat_app_js', thread=initial_thread_id|default('', true), v=(app_version ~ '-v4.8.387')) }}" defer></script>
+    <script>
+        window.CHAT_CONFIG = {
+            initialThemeColor: {{ initial_theme_color|tojson }},
+            initialThreadId: {{ initial_thread_id|default(none)|tojson }},
+            attachmentMaxFiles: Number({{ attachment_max_files|default(30)|tojson }}) || 30,
+            uploadConcurrency: Math.max(1, Number({{ upload_concurrency|default(3)|tojson }}) || 3),
+            enterToSend: {{ 'true' if current_user.is_authenticated and current_user.enter_to_send else 'false' }},
+            autoSearchOnLinks: {{ 'true' if current_user.is_authenticated and current_user.auto_search_on_links else 'false' }},
+            useSwCache: {{ 'true' if current_user.is_authenticated and current_user.use_sw_cache else 'false' }},
+            compactPromptMode: {{ 'true' if current_user.is_authenticated and current_user.compact_prompt_mode else 'false' }},
+            enableLatencyMetrics: {{ 'true' if current_user.is_authenticated and current_user.enable_latency_metrics else 'false' }},
+            appVersion: "{{ app_version }}",
+            botConfig: {{ bot_config|tojson if bot_config is defined else 'null' }},
+            currentUsername: {{ current_user.username|tojson if current_user.is_authenticated else 'null' }},
+            enableE2EE: {{ current_user.enable_e2ee|tojson if current_user.is_authenticated else 'false' }},
+            urls: {
+                handleSettingsQuery: "{{ url_for('handle_settings', _=1) }}",
+                handleSettings: "{{ url_for('handle_settings') }}",
+                estimatePromptTokensApi: "{{ url_for('estimate_prompt_tokens_api') }}",
+                serveFileBase: "{{ url_for('serve_file', filename='') }}",
+                serveFileThumbBase: "{{ url_for('serve_file_thumb', filename='') }}",
+                deleteAccount: "{{ url_for('delete_account') }}",
+                handleThreads: "{{ url_for('handle_threads') }}",
+                transcribe: "{{ url_for('transcribe') }}",
+                handleGems: "{{ url_for('handle_gems') }}",
+                upload: "{{ url_for('upload') }}",
+                chatStream: "{{ url_for('chat_stream') }}",
+                handleThreadItem: "{{ url_for('handle_thread_item', thread_id=0) }}",
+                handleGemItem: "{{ url_for('handle_gem_item', gid=0) }}",
+                updateTitle: "{{ url_for('update_title', thread_id=0) }}",
+                deleteMessage: "{{ url_for('delete_message', mid=0) }}",
+                exportThreadPdf: "{{ url_for('export_thread_pdf', thread_id=0) }}",
+                renameLibraryFile: "{{ url_for('rename_library_file') }}",
+                deleteFilesBatch: "{{ url_for('delete_files_batch') }}",
+                getFilesLib: "{{ url_for('get_files_lib') }}"
+            }
+        };
+    </script>
+    <script src="{{ url_for('static', filename='js/chat_core.v4.8.388.js') }}?v={{ app_version }}" defer></script>
 
 <div id="token-detail-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm" onclick="if(event.target.id==='token-detail-modal') closeTokenDetail()">
   <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4 text-white relative">

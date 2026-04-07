@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-07-001')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-07-002')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -5947,8 +5947,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                                     if hasattr(part, 'text') and part.text:
                                         t_delta = part.text
-                                        full_res += t_delta
-                                        pub("content", t_delta)
+                                        for char in t_delta:
+                                            full_res += char
+                                            pub("content", char)
                         
                         # Fallback to chunk.text if parts didn't cover it (unlikely but safe)
                         # but be careful not to double-publish.

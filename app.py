@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-04-005')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-07-001')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -4238,9 +4238,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 MAX_CONTEXT_MESSAGES = 0
             history_count = 0
             
-            current_node = msg.parent # Start from the parent of the current message
-            if current_node and (current_node.thread_id != thread_id or current_node.thread.user_id != user_id):
+            # Load all messages for the thread once to avoid N+1 sequential queries when traversing parent_id
+            all_thread_msgs = Message.query.filter_by(thread_id=thread_id).all()
+            msg_map = {m.id: m for m in all_thread_msgs}
+            
+            current_node = msg_map.get(msg.parent_id) if msg.parent_id else None
+            if current_node and current_node.thread.user_id != user_id:
                 current_node = None
+            
+            messages_to_update = False
             while current_node:
                 if MAX_CONTEXT_MESSAGES and history_count >= MAX_CONTEXT_MESSAGES:
                     break
@@ -4259,13 +4265,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     token_src = decrypt_val(raw_cnt) if current_node.is_encrypted else raw_cnt
                     token_model = current_node.model or model_key
                     t_len = max(1, count_tokens(token_src or "", token_model))
-                    # Save back to DB to avoid future re-counts
+                    # Mark for single commit at the end of reconstruction
                     try:
                         if current_node.role == 'user':
                             current_node.tokens_in = t_len
                         else:
                             current_node.tokens_out = t_len
-                        safe_db_commit()
+                        messages_to_update = True
                     except: pass
                 
                 if (not MAX_CONTEXT_TOKENS) or (total_history_tokens + t_len <= MAX_CONTEXT_TOKENS):
@@ -4281,7 +4287,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 else:
                     break
                 
-                current_node = current_node.parent
+                current_node = msg_map.get(current_node.parent_id) if current_node.parent_id else None
+            
+            # Commit any token count updates in a single batch
+            if messages_to_update:
+                try:
+                    safe_db_commit()
+                except Exception:
+                    pass
+            
             history = list(reversed(history_rev))
 
             def _load_history_image_parts(include_roles=None, newest_first=False, include_only_images=True):
@@ -5933,9 +5947,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                                     if hasattr(part, 'text') and part.text:
                                         t_delta = part.text
-                                        for char in t_delta:
-                                            full_res += char
-                                            pub("content", char)
+                                        full_res += t_delta
+                                        pub("content", t_delta)
                         
                         # Fallback to chunk.text if parts didn't cover it (unlikely but safe)
                         # but be careful not to double-publish.

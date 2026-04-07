@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-07-002')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-07-003')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1892,7 +1892,7 @@ class Thread(db.Model):
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    thread_id = db.Column(db.Integer, db.ForeignKey('thread.id'), nullable=False)
+    thread_id = db.Column(db.Integer, db.ForeignKey('thread.id'), nullable=False, index=True)
     role = db.Column(db.String(20))
     content = db.Column(db.Text)
     model = db.Column(db.String(50))

@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-07-003')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-07-005')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -8365,20 +8365,34 @@ def chat_stream():
     no_thread_custom_instruction = not bool((data.get('thread_custom_instruction') or '').strip())
     model_looks_heavy = any(x in model_key_l for x in ("image", "video", "tts", "audio", "native-audio"))
     supports_direct_first_turn = not model_looks_heavy
+    # Enhanced Direct Execution: Allow direct path if thread is new OR message history is short (<15 msgs)
+    # This prevents the queue-induced delay (Dispatch delay) for typical chat interactions.
+    history_is_short = False
+    try:
+        if not thread_was_created:
+            msg_count = Message.query.filter_by(thread_id=thread_id).count()
+            history_is_short = (msg_count <= 15)
+        else:
+            history_is_short = True
+    except:
+        history_is_short = thread_was_created
+
+    is_reasoning_minimal = (options.get('reasoning_effort') or "").lower() == "minimal"
+    
     fast_queue_eligible = bool(
         not model_looks_heavy
         and no_attachments
-        and no_special_tools
-        and no_quote
+        # Now allows tools in the fast queue to reduce Dispatch delay
     )
     queue_name = _CHAT_FAST_QUEUE_NAME if fast_queue_eligible else _CHAT_HEAVY_QUEUE_NAME
+    
     first_turn_direct_eligible = bool(
         _DIRECT_FIRST_TURN_ENABLED
-        and thread_was_created
+        and history_is_short
         and supports_direct_first_turn
         and no_attachments
-        and no_special_tools
-        and no_quote
+        # Removed no_special_tools constraint: 
+        # Allow tools in direct path for fast TTFB when history is short
         and no_thread_custom_instruction
     )
     execution_path = "direct" if first_turn_direct_eligible else "queued"

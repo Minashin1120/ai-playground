@@ -1,7 +1,6 @@
 .env
 secret.key
-venv/
-app/venv/
+virtualenv/
 __pycache__/
 *.py[cod]
 maintenance.lock

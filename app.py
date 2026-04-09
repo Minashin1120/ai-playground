@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-09-002')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-09-003')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -4453,7 +4453,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     return True
                 return False
             is_llm_model = not _is_non_llm_model(model_key_l)
-            grok_reasoning_supported = ("grok-3-mini" in model_key_l) or ("reasoning" in model_key_l and "non-reasoning" not in model_key_l)
+            grok_reasoning_supported = ("grok-3-mini" in model_key_l) or ("reasoning" in model_key_l and "non-reasoning" not in model_key_l) or ("multi-agent" in model_key_l)
             grok_reasoning_effort_supported = "grok-3-mini" in model_key_l
             req_reasoning_effort = (options.get('reasoning_effort') or "").lower().strip()
             reasoning_requested = bool(options.get('enable_thinking')) or (req_reasoning_effort and req_reasoning_effort != "none")

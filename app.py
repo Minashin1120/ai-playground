@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-12-007')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-12-008')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1726,6 +1726,8 @@ async def _google_sts_live(
     gemini_vertex_credentials_json=None,
     rate=16000,
     voice="Kore",
+    thinking_level=None,
+    include_thoughts=False,
 ):
     client = _get_gemini_client(
         api_key=gemini_api_key,
@@ -1738,6 +1740,7 @@ async def _google_sts_live(
         raise ValueError("Gemini client not configured")
     audio_out = bytearray()
     transcript_out = ""
+    thought_out = ""
     input_transcript = ""
     live_conf = {"response_modalities": ["AUDIO"]}
     if voice and voice in GEMINI_STS_VOICES:
@@ -1745,6 +1748,11 @@ async def _google_sts_live(
             "voice_config": {
                 "prebuilt_voice_config": {"voice_name": voice}
             }
+        }
+    if thinking_level:
+        live_conf["thinking_config"] = {
+            "thinking_level": thinking_level,
+            "include_thoughts": include_thoughts
         }
     async with client.aio.live.connect(
         model=model_key,
@@ -1773,7 +1781,11 @@ async def _google_sts_live(
                         if part.inline_data and part.inline_data.data:
                             audio_out.extend(part.inline_data.data)
                         if part.text:
-                            transcript_out += part.text
+                            # If include_thoughts=True, thought tokens might arrive in parts marked as thought
+                            if getattr(part, "thought", False):
+                                thought_out += part.text
+                            else:
+                                transcript_out += part.text
 
                 # Also handle separate transcription objects
                 if getattr(sc, "output_transcription", None) and sc.output_transcription.text:
@@ -1783,7 +1795,7 @@ async def _google_sts_live(
                 
                 if sc.turn_complete:
                     break
-    return bytes(audio_out), transcript_out, input_transcript
+    return bytes(audio_out), transcript_out, input_transcript, thought_out
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -10742,6 +10754,8 @@ def speech_to_speech():
     sts_speed_raw = request.form.get('sts_speed')
     sts_rate_in_raw = request.form.get('sts_rate_in')
     sts_rate_out_raw = request.form.get('sts_rate_out')
+    sts_thinking_level = request.form.get('sts_thinking_level')
+    sts_include_thoughts = request.form.get('sts_include_thoughts') == 'true'
     sts_speed = None
 
     if provider == "openai":
@@ -10773,6 +10787,7 @@ def speech_to_speech():
 
     assistant_audio = b""
     assistant_text = ""
+    assistant_thought = ""
     input_text = ""
     gemini_runtime = None
     model_specific_key = _get_model_specific_api_key(current_user, model_key)
@@ -10803,7 +10818,7 @@ def speech_to_speech():
                     return jsonify({'error': 'Vertex AI Project ID not configured'}), 400
             elif not key:
                 return jsonify({'error': 'Gemini API Key not configured'}), 400
-            assistant_audio, assistant_text, input_text = asyncio.run(
+            assistant_audio, assistant_text, input_text, assistant_thought = asyncio.run(
                 _google_sts_live(
                     pcm_bytes,
                     model_key,
@@ -10813,7 +10828,9 @@ def speech_to_speech():
                     gemini_vertex_location=gemini_runtime.get("vertex_location"),
                     gemini_vertex_credentials_json=gemini_runtime.get("vertex_credentials_json"),
                     rate=rate_in,
-                    voice=sts_voice
+                    voice=sts_voice,
+                    thinking_level=sts_thinking_level,
+                    include_thoughts=sts_include_thoughts
                 )
             )
         else:
@@ -10859,14 +10876,21 @@ def speech_to_speech():
 
     user_text = (input_text or "Voice message").strip()
     assistant_text_clean = (assistant_text or "").strip()
+    assistant_thought_clean = (assistant_thought or "").strip()
+    
+    thought_tag = f"<thought>\n{assistant_thought_clean}\n</thought>\n" if assistant_thought_clean else ""
     audio_tag = f'\n<audio controls src="{audio_url}" class="w-full mt-2"></audio>\n'
-    assistant_content = (assistant_text_clean + "\n" if assistant_text_clean else "") + audio_tag
+    assistant_content = thought_tag + (assistant_text_clean + "\n" if assistant_text_clean else "") + audio_tag
 
     try:
         u_content = encrypt_val(user_text) if current_user.enable_e2ee else user_text
         a_content = encrypt_val(assistant_content) if current_user.enable_e2ee else assistant_content
         user_tokens_in = count_tokens_for_display(user_text, model_key)
         assistant_tokens_out = count_tokens_for_display(assistant_text_clean, model_key)
+        # Add thought tokens to assistant tokens out if possible
+        if assistant_thought_clean:
+            assistant_tokens_out += count_tokens_for_display(assistant_thought_clean, model_key)
+        
         user_msg = Message(
             thread_id=thread_id,
             role='user',
@@ -10899,6 +10923,7 @@ def speech_to_speech():
     return jsonify({
         'audio_url': audio_url,
         'transcript': assistant_text_clean,
+        'thought': assistant_thought_clean,
         'input_transcript': user_text,
         'filename': f"{current_user.id}/{out_fname}"
     })

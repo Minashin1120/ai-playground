@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-12-004')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-12-005')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1751,7 +1751,7 @@ async def _google_sts_live(
         config=live_conf,
     ) as session:
         await session.send_realtime_input(
-            media=types.Blob(data=pcm_bytes, mime_type=f"audio/pcm;rate={rate}")
+            audio=types.Blob(data=pcm_bytes, mime_type=f"audio/pcm;rate={rate}")
         )
         await session.send_realtime_input(audio_stream_end=True)
         async for msg in session.receive():

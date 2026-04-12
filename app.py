@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-12-005')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-12-006')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1755,14 +1755,32 @@ async def _google_sts_live(
         )
         await session.send_realtime_input(audio_stream_end=True)
         async for msg in session.receive():
+            # Limit total audio output size to prevent memory exhaustion (max ~200 seconds of audio)
+            if len(audio_out) > 10 * 1024 * 1024:
+                logger.warning(f"STS audio output exceeded 10MB limit. Truncating.")
+                break
+
+            # A single event can contain multiple content parts simultaneously in Gemini 3.1
             if msg.data:
-                audio_out += msg.data
+                audio_out.extend(msg.data)
+            
             sc = getattr(msg, "server_content", None)
             if sc:
+                # Check model_turn parts for combined audio/text content
+                model_turn = getattr(sc, "model_turn", None)
+                if model_turn:
+                    for part in model_turn.parts:
+                        if part.inline_data and part.inline_data.data:
+                            audio_out.extend(part.inline_data.data)
+                        if part.text:
+                            transcript_out += part.text
+
+                # Also handle separate transcription objects
                 if getattr(sc, "output_transcription", None) and sc.output_transcription.text:
                     transcript_out += sc.output_transcription.text
                 if getattr(sc, "input_transcription", None) and sc.input_transcription.text:
                     input_transcript = sc.input_transcription.text
+                
                 if sc.turn_complete:
                     break
     return bytes(audio_out), transcript_out, input_transcript

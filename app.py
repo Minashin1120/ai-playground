@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-12-009')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-12-010')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1738,10 +1738,7 @@ async def _google_sts_live(
     )
     if not client:
         raise ValueError("Gemini client not configured")
-    audio_out = bytearray()
-    transcript_out = ""
-    thought_out = ""
-    input_transcript = ""
+
     live_conf = {"response_modalities": ["AUDIO"]}
     if voice and voice in GEMINI_STS_VOICES:
         live_conf["speech_config"] = {
@@ -1754,6 +1751,7 @@ async def _google_sts_live(
             "thinking_level": thinking_level,
             "include_thoughts": include_thoughts
         }
+
     async with client.aio.live.connect(
         model=model_key,
         config=live_conf,
@@ -1762,40 +1760,48 @@ async def _google_sts_live(
             audio=types.Blob(data=pcm_bytes, mime_type=f"audio/pcm;rate={rate}")
         )
         await session.send_realtime_input(audio_stream_end=True)
+        
+        total_audio_len = 0
         async for msg in session.receive():
-            # Limit total audio output size to prevent memory exhaustion (max ~200 seconds of audio)
-            if len(audio_out) > 10 * 1024 * 1024:
-                logger.warning(f"STS audio output exceeded 10MB limit. Truncating.")
+            if total_audio_len > 10 * 1024 * 1024:
                 break
 
-            # A single event can contain multiple content parts simultaneously in Gemini 3.1
-            if msg.data:
-                audio_out.extend(msg.data)
-            
+            chunk_audio = bytearray()
+            chunk_transcript = ""
+            chunk_thought = ""
+            chunk_input_transcript = ""
+            turn_complete = False
+
             sc = getattr(msg, "server_content", None)
             if sc:
-                # Check model_turn parts for combined audio/text content
                 model_turn = getattr(sc, "model_turn", None)
                 if model_turn:
                     for part in model_turn.parts:
                         if part.inline_data and part.inline_data.data:
-                            audio_out.extend(part.inline_data.data)
+                            chunk_audio.extend(part.inline_data.data)
                         if part.text:
-                            # If include_thoughts=True, thought tokens might arrive in parts marked as thought
                             if getattr(part, "thought", False):
-                                thought_out += part.text
+                                chunk_thought += part.text
                             else:
-                                transcript_out += part.text
+                                chunk_transcript += part.text
 
-                # Also handle separate transcription objects
                 if getattr(sc, "output_transcription", None) and sc.output_transcription.text:
-                    transcript_out += sc.output_transcription.text
+                    chunk_transcript += sc.output_transcription.text
                 if getattr(sc, "input_transcription", None) and sc.input_transcription.text:
-                    input_transcript = sc.input_transcription.text
+                    chunk_input_transcript = sc.input_transcription.text
                 
                 if sc.turn_complete:
+                    turn_complete = True
+            elif msg.data:
+                chunk_audio.extend(msg.data)
+
+            if chunk_audio:
+                total_audio_len += len(chunk_audio)
+            
+            if chunk_audio or chunk_transcript or chunk_thought or chunk_input_transcript or turn_complete:
+                yield bytes(chunk_audio), chunk_transcript, chunk_input_transcript, chunk_thought, turn_complete
+                if turn_complete:
                     break
-    return bytes(audio_out), transcript_out, input_transcript, thought_out
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -10785,12 +10791,160 @@ def speech_to_speech():
         logger.error(f"Audio convert failed: {e}")
         return jsonify({'error': 'Audio conversion failed'}), 500
 
+    model_specific_key = _get_model_specific_api_key(current_user, model_key)
+
+    if provider == "google":
+        gemini_runtime = _resolve_gemini_runtime(current_user)
+        key = model_specific_key or gemini_runtime.get("api_key")
+        if gemini_runtime.get("backend") == "vertex_ai":
+            if not gemini_runtime.get("vertex_project"):
+                return jsonify({'error': 'Vertex AI Project ID not configured'}), 400
+        elif not key:
+            return jsonify({'error': 'Gemini API Key not configured'}), 400
+
+        def generate_sts_stream():
+            assistant_audio = bytearray()
+            assistant_text = ""
+            assistant_thought = ""
+            input_text = ""
+            try:
+                # Use a small buffer for audio chunks to send to client
+                audio_buffer = bytearray()
+                
+                # Consume the generator
+                gen = _google_sts_live(
+                    pcm_bytes,
+                    model_key,
+                    gemini_api_key=key,
+                    gemini_backend=gemini_runtime.get("backend"),
+                    gemini_vertex_project=gemini_runtime.get("vertex_project"),
+                    gemini_vertex_location=gemini_runtime.get("vertex_location"),
+                    gemini_vertex_credentials_json=gemini_runtime.get("vertex_credentials_json"),
+                    rate=rate_in,
+                    voice=sts_voice,
+                    thinking_level=sts_thinking_level,
+                    include_thoughts=sts_include_thoughts
+                )
+                
+                # Iterate over the async generator using an event loop
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                async def run_gen():
+                    nonlocal assistant_text, assistant_thought, input_text
+                    async for audio_chunk, transcript_delta, input_delta, thought_delta, turn_complete in gen:
+                        if audio_chunk:
+                            assistant_audio.extend(audio_chunk)
+                            audio_buffer.extend(audio_chunk)
+                        if transcript_delta: assistant_text += transcript_delta
+                        if input_delta: input_text += input_delta
+                        if thought_delta: assistant_thought += thought_delta
+                        
+                        # Send chunks if we have enough audio or text updates
+                        if len(audio_buffer) >= 8000 or transcript_delta or thought_delta or turn_complete:
+                            payload = {}
+                            if audio_buffer:
+                                payload['audio_delta'] = base64.b64encode(audio_buffer).decode('utf-8')
+                                audio_buffer.clear()
+                            if transcript_delta: payload['transcript_delta'] = transcript_delta
+                            if thought_delta: payload['thought_delta'] = thought_delta
+                            if input_delta: payload['input_delta'] = input_delta
+                            if turn_complete: payload['turn_complete'] = True
+                            
+                            if payload:
+                                yield json.dumps(payload) + "\n"
+
+                # Convert async generator to sync generator for Flask
+                it = run_gen().__aiter__()
+                while True:
+                    try:
+                        yield loop.run_until_complete(it.__anext__())
+                    except StopAsyncIteration:
+                        break
+                
+                # After stream ends, save to DB
+                if assistant_audio:
+                    wav_bytes = _pcm_to_wav_bytes(bytes(assistant_audio), rate=rate_out)
+                    out_fname, _ = _save_user_audio(current_user.id, wav_bytes, ".wav", current_user.enable_e2ee)
+                    audio_url = f"/files/{current_user.id}/{out_fname}"
+                    
+                    in_fname = None
+                    try:
+                        in_suffix = src_ext if src_ext.startswith('.') else f".{src_ext}"
+                        in_fname, _ = _save_user_audio(current_user.id, audio_bytes, in_suffix, current_user.enable_e2ee)
+                    except Exception: pass
+
+                    user_text = (input_text or "Voice message").strip()
+                    assistant_text_clean = (assistant_text or "").strip()
+                    assistant_thought_clean = (assistant_thought or "").strip()
+                    
+                    thought_tag = f"<thought>\n{assistant_thought_clean}\n</thought>\n" if assistant_thought_clean else ""
+                    audio_tag = f'\n<audio controls src="{audio_url}" class="w-full mt-2"></audio>\n'
+                    assistant_content = thought_tag + (assistant_text_clean + "\n" if assistant_text_clean else "") + audio_tag
+
+                    # DB Save Logic
+                    try:
+                        u_content = encrypt_val(user_text) if current_user.enable_e2ee else user_text
+                        a_content = encrypt_val(assistant_content) if current_user.enable_e2ee else assistant_content
+                        user_tokens_in = count_tokens_for_display(user_text, model_key)
+                        assistant_tokens_out = count_tokens_for_display(assistant_text_clean, model_key)
+                        if assistant_thought_clean:
+                            assistant_tokens_out += count_tokens_for_display(assistant_thought_clean, model_key)
+                        
+                        parent_id = None
+                        last_msg = Message.query.filter_by(thread_id=thread_id).order_by(Message.id.desc()).first()
+                        if last_msg: parent_id = last_msg.id
+
+                        user_msg = Message(
+                            thread_id=thread_id,
+                            role='user',
+                            content=u_content,
+                            image_url=json.dumps([f"{current_user.id}/{in_fname}"]) if in_fname else None,
+                            is_encrypted=current_user.enable_e2ee,
+                            parent_id=parent_id,
+                            model=model_key,
+                            tokens_in=user_tokens_in,
+                            tokens=sum_token_counts(user_tokens_in, None)
+                        )
+                        db.session.add(user_msg)
+                        safe_db_commit()
+
+                        assistant_msg = Message(
+                            thread_id=thread_id,
+                            role='assistant',
+                            content=a_content,
+                            model=model_key,
+                            is_encrypted=current_user.enable_e2ee,
+                            parent_id=user_msg.id,
+                            tokens_out=assistant_tokens_out,
+                            tokens=sum_token_counts(None, assistant_tokens_out)
+                        )
+                        db.session.add(assistant_msg)
+                        safe_db_commit()
+                        
+                        # Send final metadata
+                        yield json.dumps({
+                            'final': True,
+                            'audio_url': audio_url,
+                            'transcript': assistant_text_clean,
+                            'thought': assistant_thought_clean,
+                            'input_transcript': user_text
+                        }) + "\n"
+                    except Exception as e:
+                        logger.error(f"STS stream message save failed: {e}")
+            except Exception as e:
+                logger.error(f"STS stream failed: {e}")
+                yield json.dumps({'error': str(e)}) + "\n"
+            finally:
+                loop.close()
+
+        return Response(stream_with_context(generate_sts_stream()), content_type='application/x-ndjson')
+
+    # Original sync logic for OpenAI/xAI
     assistant_audio = b""
     assistant_text = ""
     assistant_thought = ""
     input_text = ""
-    gemini_runtime = None
-    model_specific_key = _get_model_specific_api_key(current_user, model_key)
     try:
         if provider == "openai":
             key = model_specific_key or decrypt_val(current_user.openai_api_key)
@@ -10810,38 +10964,11 @@ def speech_to_speech():
             assistant_audio, assistant_text = asyncio.run(
                 _xai_sts_realtime(pcm_bytes, key, model_key=model_key, voice=sts_voice, rate_in=rate_in, rate_out=rate_out)
             )
-        elif provider == "google":
-            gemini_runtime = _resolve_gemini_runtime(current_user)
-            key = model_specific_key or gemini_runtime.get("api_key")
-            if gemini_runtime.get("backend") == "vertex_ai":
-                if not gemini_runtime.get("vertex_project"):
-                    return jsonify({'error': 'Vertex AI Project ID not configured'}), 400
-            elif not key:
-                return jsonify({'error': 'Gemini API Key not configured'}), 400
-            assistant_audio, assistant_text, input_text, assistant_thought = asyncio.run(
-                _google_sts_live(
-                    pcm_bytes,
-                    model_key,
-                    gemini_api_key=key,
-                    gemini_backend=gemini_runtime.get("backend"),
-                    gemini_vertex_project=gemini_runtime.get("vertex_project"),
-                    gemini_vertex_location=gemini_runtime.get("vertex_location"),
-                    gemini_vertex_credentials_json=gemini_runtime.get("vertex_credentials_json"),
-                    rate=rate_in,
-                    voice=sts_voice,
-                    thinking_level=sts_thinking_level,
-                    include_thoughts=sts_include_thoughts
-                )
-            )
         else:
             return jsonify({'error': 'Unsupported provider'}), 400
     except Exception as e:
         logger.error(f"STS failed: {e}")
-        err_msg = str(e)
-        if provider == "google":
-            backend = gemini_runtime.get("backend") if isinstance(gemini_runtime, dict) else "gemini_api"
-            err_msg = _format_gemini_runtime_error(e, backend)
-        return jsonify({'error': err_msg}), 500
+        return jsonify({'error': str(e)}), 500
 
     if not assistant_audio:
         return jsonify({'error': 'No audio response'}), 500

@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-12-012')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-12-013')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -10841,7 +10841,7 @@ def speech_to_speech():
                         if thought_delta: assistant_thought += thought_delta
                         
                         # Send chunks if we have enough audio or text updates
-                        if len(audio_buffer) >= 2000 or transcript_delta or thought_delta or turn_complete:
+                        if len(audio_buffer) >= 1000 or transcript_delta or thought_delta or turn_complete:
                             payload = {}
                             if audio_buffer:
                                 payload['audio_delta'] = base64.b64encode(audio_buffer).decode('utf-8')

@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-12-013')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-12-014')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1374,21 +1374,27 @@ def _chunk_bytes(data, chunk_size=32000):
         yield data[i:i + chunk_size]
 
 def _convert_audio_to_pcm(audio_bytes, src_suffix=".webm", rate=24000):
-    suffix = src_suffix if src_suffix.startswith('.') else f".{src_suffix}"
-    with tempfile.NamedTemporaryFile(suffix=suffix) as in_f, tempfile.NamedTemporaryFile(suffix=".pcm") as out_f:
-        in_f.write(audio_bytes)
-        in_f.flush()
-        cmd = [
-            "ffmpeg", "-y",
-            "-i", in_f.name,
-            "-ac", "1",
-            "-ar", str(rate),
-            "-f", "s16le",
-            out_f.name
-        ]
-        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        out_f.seek(0)
-        return out_f.read()
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", "pipe:0",
+        "-ac", "1",
+        "-ar", str(rate),
+        "-f", "s16le",
+        "pipe:1"
+    ]
+    try:
+        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = proc.communicate(input=audio_bytes, timeout=10)
+        if proc.returncode != 0:
+            logger.error(f"FFmpeg failed (code {proc.returncode}): {stderr.decode()}")
+            raise Exception("Audio conversion failed")
+        return stdout
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        raise Exception("Audio conversion timed out")
+    except Exception as e:
+        logger.error(f"FFmpeg error: {e}")
+        raise e
 
 def _pcm_to_wav_bytes(pcm_bytes, rate=24000):
     buf = BytesIO()
@@ -1756,9 +1762,11 @@ async def _google_sts_live(
         model=model_key,
         config=live_conf,
     ) as session:
-        await session.send_realtime_input(
-            audio=types.Blob(data=pcm_bytes, mime_type=f"audio/pcm;rate={rate}")
-        )
+        # Send audio in small chunks to the Live API
+        for chunk in _chunk_bytes(pcm_bytes, 4096):
+            await session.send_realtime_input(
+                audio=types.Blob(data=chunk, mime_type=f"audio/pcm;rate={rate}")
+            )
         await session.send_realtime_input(audio_stream_end=True)
         
         total_audio_len = 0
@@ -10784,13 +10792,6 @@ def speech_to_speech():
         if sts_voice not in GEMINI_STS_VOICES:
             sts_voice = "Kore"
 
-    try:
-        src_ext = os.path.splitext(secure_filename(f.filename))[1].lower() or ".webm"
-        pcm_bytes = _convert_audio_to_pcm(audio_bytes, src_ext, rate=rate_in)
-    except Exception as e:
-        logger.error(f"Audio convert failed: {e}")
-        return jsonify({'error': 'Audio conversion failed'}), 500
-
     model_specific_key = _get_model_specific_api_key(current_user, model_key)
 
     if provider == "google":
@@ -10808,6 +10809,13 @@ def speech_to_speech():
             assistant_thought = ""
             input_text = ""
             try:
+                # Yield a processing status immediately
+                yield json.dumps({'status': 'processing'}) + "\n"
+
+                # Move conversion inside the stream for faster response start
+                src_ext = os.path.splitext(secure_filename(f.filename))[1].lower() or ".webm"
+                pcm_bytes = _convert_audio_to_pcm(audio_bytes, src_ext, rate=rate_in)
+
                 # Use a small buffer for audio chunks to send to client
                 audio_buffer = bytearray()
                 

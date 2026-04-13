@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-12-011')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-12-012')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -10841,7 +10841,7 @@ def speech_to_speech():
                         if thought_delta: assistant_thought += thought_delta
                         
                         # Send chunks if we have enough audio or text updates
-                        if len(audio_buffer) >= 8000 or transcript_delta or thought_delta or turn_complete:
+                        if len(audio_buffer) >= 2000 or transcript_delta or thought_delta or turn_complete:
                             payload = {}
                             if audio_buffer:
                                 payload['audio_delta'] = base64.b64encode(audio_buffer).decode('utf-8')
@@ -10938,7 +10938,10 @@ def speech_to_speech():
             finally:
                 loop.close()
 
-        return Response(stream_with_context(generate_sts_stream()), content_type='application/x-ndjson')
+        resp = Response(stream_with_context(generate_sts_stream()), content_type='application/x-ndjson')
+        resp.headers['X-Accel-Buffering'] = 'no'
+        resp.headers['Cache-Control'] = 'no-cache'
+        return resp
 
     # Original sync logic for OpenAI/xAI
     assistant_audio = b""

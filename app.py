@@ -36,7 +36,7 @@ from webauthn.helpers import generate_challenge, base64url_to_bytes, options_to_
 from webauthn.helpers.structs import (
     AuthenticatorSelectionCriteria, UserVerificationRequirement,
     PublicKeyCredentialCreationOptions, PublicKeyCredentialRequestOptions,
-    PublicKeyCredentialDescriptor, AuthenticatorTransport
+    PublicKeyCredentialDescriptor, AuthenticatorTransport, ResidentKeyRequirement
 )
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 from rq import Queue
@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-14-005')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-15-001')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -10430,7 +10430,8 @@ def webauthn_reg_options():
         "user_id": str(current_user.id).encode(),
         "user_name": current_user.username,
         "authenticator_selection": AuthenticatorSelectionCriteria(
-            user_verification=UserVerificationRequirement.PREFERRED
+            user_verification=UserVerificationRequirement.PREFERRED,
+            resident_key=ResidentKeyRequirement.PREFERRED
         )
     }
     if existing:

@@ -580,7 +580,11 @@
                         <div>2. 必要なら指示文を調整します。</div>
                         <div>3. 「PDF化して送信」を押すと、一時PDFを作成して現在のモデルへ添付します。</div>
                     </div>
-                    <div id="rich-paste-progress-container" class="hidden mb-2">
+                    <div class="mt-auto pt-2 flex flex-col gap-2 shrink-0">
+                        <button id="rich-paste-send-btn" data-progress-no-spinner="true" class="w-full px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold btn-hover">PDF化して送信</button>
+                        <button id="rich-paste-close-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-bold btn-hover">閉じる</button>
+                    </div>
+                    <div id="rich-paste-progress-container" class="hidden mb-2 mt-2" style="display: none !important;">
                         <div class="flex justify-between items-center mb-1">
                             <span class="text-[10px] text-amber-400 font-bold">PDF生成中...</span>
                             <span id="rich-paste-progress-text" class="text-[10px] text-gray-400 font-mono">0%</span>
@@ -588,10 +592,6 @@
                         <div class="h-1.5 w-full bg-gray-900 rounded-full overflow-hidden border border-gray-700">
                             <div id="rich-paste-progress-bar" class="h-full bg-amber-500 transition-all duration-300" style="width: 0%"></div>
                         </div>
-                    </div>
-                    <div class="mt-auto pt-2 flex flex-col gap-2 shrink-0">
-                        <button id="rich-paste-send-btn" data-progress-no-spinner="true" class="w-full px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold btn-hover">PDF化して送信</button>
-                        <button id="rich-paste-close-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-bold btn-hover">閉じる</button>
                     </div>                </div>
             </div>
         </div>

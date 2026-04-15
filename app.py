@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-15-006')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-15-007')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1537,7 +1537,8 @@ def _transcribe_audio_with_llm(audio_content, fname, llm_model_key, user):
 
     metrics = _pcm_audio_metrics_mono_s16le(pcm, rate=target_rate)
     # Guard against near-silent capture in LLM mode to prevent hallucinated transcripts.
-    if metrics["duration_sec"] >= 0.35 and metrics["rms"] < 80 and metrics["peak"] < 600:
+    # Relaxed thresholds to allow quieter valid inputs.
+    if metrics["duration_sec"] >= 0.35 and metrics["rms"] < 30 and metrics["peak"] < 250:
         logger.warning(
             "LLM transcription rejected due to near-silent audio "
             f"(model={model_key}, dur={metrics['duration_sec']:.2f}s, rms={metrics['rms']}, peak={metrics['peak']})"

@@ -529,7 +529,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-17-001')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-17-002')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -10115,6 +10115,8 @@ def _refresh_user_2fa_state(user):
 @login_required
 def handle_settings():
     if request.method == 'GET':
+        # Ensure we have the latest data from DB
+        db.session.refresh(current_user)
         status = redis_conn.get(f"migration_status:{current_user.id}")
         mig_status = status.decode() if status else "idle"
         prog = redis_conn.get(f"migration_progress:{current_user.id}")
@@ -10135,6 +10137,7 @@ def handle_settings():
                 global_prompt_effective = str(global_prompt_value)
             else:
                 global_prompt_effective = build_global_system_prompt()
+        
         auto_notices_config = get_user_auto_system_prompt_notices_config(current_user)
 
         payload = {

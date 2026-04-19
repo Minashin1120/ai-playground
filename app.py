@@ -5,6 +5,7 @@ import time
 import logging
 import gzip
 import base64
+import html
 import mimetypes
 import secrets
 import re
@@ -529,7 +530,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-19-002')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-19-003')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -9330,6 +9331,537 @@ def _build_thread_pdf_payload(thread, leaf_id=None):
         "leaf_id": leaf.id,
         "generated_at": datetime.utcnow().isoformat() + "Z"
     }
+
+_RICH_PASTE_PDF_FONT_STATE = {
+    "ready": False,
+    "base": "Helvetica",
+    "base_bold": "Helvetica-Bold",
+    "mono": "Courier",
+}
+
+
+def _ensure_rich_paste_pdf_fonts():
+    if _RICH_PASTE_PDF_FONT_STATE.get("ready"):
+        return _RICH_PASTE_PDF_FONT_STATE
+    try:
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+    except Exception:
+        _RICH_PASTE_PDF_FONT_STATE["ready"] = True
+        return _RICH_PASTE_PDF_FONT_STATE
+
+    font_candidates = [
+        ("IPAGothic", "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf"),
+        ("IPAPGothic", "/usr/share/fonts/opentype/ipafont-gothic/ipagp.ttf"),
+        ("NotoSansMono", "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf"),
+    ]
+    for font_name, font_path in font_candidates:
+        if not os.path.exists(font_path):
+            continue
+        try:
+            pdfmetrics.registerFont(TTFont(font_name, font_path))
+        except Exception:
+            continue
+
+    if "IPAGothic" in getattr(pdfmetrics, "_fonts", {}):
+        _RICH_PASTE_PDF_FONT_STATE["base"] = "IPAGothic"
+    if "IPAPGothic" in getattr(pdfmetrics, "_fonts", {}):
+        _RICH_PASTE_PDF_FONT_STATE["base_bold"] = "IPAPGothic"
+    elif _RICH_PASTE_PDF_FONT_STATE["base"] == "IPAGothic":
+        _RICH_PASTE_PDF_FONT_STATE["base_bold"] = "IPAGothic"
+    if "NotoSansMono" in getattr(pdfmetrics, "_fonts", {}):
+        _RICH_PASTE_PDF_FONT_STATE["mono"] = "NotoSansMono"
+    _RICH_PASTE_PDF_FONT_STATE["ready"] = True
+    return _RICH_PASTE_PDF_FONT_STATE
+
+
+def _css_color_to_hex(value):
+    if value is None:
+        return None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    lower = raw.lower()
+    if lower in {"inherit", "initial", "unset", "transparent", "none", "currentcolor"}:
+        return None
+    if lower.startswith("#"):
+        if len(lower) == 4:
+            return "#" + "".join(ch * 2 for ch in lower[1:])
+        if len(lower) >= 7:
+            return lower[:7]
+    m = re.match(r"rgba?\(([^)]+)\)", lower)
+    if m:
+        parts = [p.strip() for p in m.group(1).split(",")]
+        if len(parts) >= 3:
+            nums = []
+            for part in parts[:3]:
+                if part.endswith("%"):
+                    try:
+                        num = int(round(float(part[:-1]) * 2.55))
+                    except Exception:
+                        return None
+                else:
+                    try:
+                        num = int(float(part))
+                    except Exception:
+                        return None
+                nums.append(max(0, min(255, num)))
+            return "#%02x%02x%02x" % tuple(nums)
+    return None
+
+
+def _parse_inline_style(style_text):
+    styles = {}
+    if not style_text:
+        return styles
+    for decl in str(style_text).split(";"):
+        if ":" not in decl:
+            continue
+        prop, value = decl.split(":", 1)
+        prop = prop.strip().lower()
+        value = value.strip()
+        if prop in {"color", "background-color", "font-weight", "font-style", "text-decoration"}:
+            styles[prop] = value
+    return styles
+
+
+def _rich_paste_pdf_filename(title):
+    slug = re.sub(r"[^0-9A-Za-z\u3040-\u30ff\u4e00-\u9fff]+", "_", str(title or "").strip()).strip("_")
+    if not slug:
+        slug = "clipboard_rich"
+    if len(slug) > 48:
+        slug = slug[:48].rstrip("_")
+    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    return f"{slug}_{ts}.pdf"
+
+
+def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
+    from io import BytesIO
+    from bs4 import BeautifulSoup, NavigableString, Tag
+    from reportlab import rl_config
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_LEFT
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.lib.utils import ImageReader
+    from reportlab.platypus import HRFlowable, Image, Paragraph, Preformatted, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    rl_config.defaultPageSize = A4
+    fonts = _ensure_rich_paste_pdf_fonts()
+    base_font = fonts.get("base", "Helvetica")
+    bold_font = fonts.get("base_bold", "Helvetica-Bold")
+    mono_font = fonts.get("mono", "Courier")
+
+    def esc(value):
+        return html.escape("" if value is None else str(value), quote=False)
+
+    def normalize_text(value, preserve_newlines=False):
+        txt = "" if value is None else str(value)
+        txt = txt.replace("\u00a0", " ")
+        txt = txt.replace("\r\n", "\n").replace("\r", "\n")
+        if preserve_newlines:
+            return txt.strip("\n")
+        txt = re.sub(r"[ \t\f\v]+", " ", txt)
+        txt = re.sub(r"\n[ \t]+", "\n", txt)
+        txt = re.sub(r"[ \t]+\n", "\n", txt)
+        txt = re.sub(r"\n{3,}", "\n\n", txt)
+        return txt.strip()
+
+    def get_attr_style(tag):
+        return _parse_inline_style(tag.get("style"))
+
+    def apply_inline_styles(text, tag=None):
+        markup = text
+        style = get_attr_style(tag) if tag is not None and hasattr(tag, "get") else {}
+        if tag is not None and getattr(tag, "name", "").lower() == "code":
+            markup = f'<font face="{mono_font}" backColor="#eeeeee">{markup}</font>'
+        if "font-weight" in style and "bold" in style["font-weight"].lower():
+            markup = f"<b>{markup}</b>"
+        if "font-style" in style and "italic" in style["font-style"].lower():
+            markup = f"<i>{markup}</i>"
+        if "text-decoration" in style and "underline" in style["text-decoration"].lower():
+            markup = f"<u>{markup}</u>"
+        color_hex = _css_color_to_hex(style.get("color"))
+        if color_hex:
+            markup = f'<font color="{color_hex}">{markup}</font>'
+        back_hex = _css_color_to_hex(style.get("background-color"))
+        if back_hex:
+            markup = f'<font backColor="{back_hex}">{markup}</font>'
+        return markup
+
+    def inline_markup(node):
+        if node is None:
+            return ""
+        if isinstance(node, NavigableString):
+            return esc(str(node)).replace("\n", "<br/>")
+        if not isinstance(node, Tag):
+            return ""
+        tag_name = (node.name or "").lower()
+        if tag_name in {"script", "style", "noscript", "iframe", "canvas", "svg", "object", "embed"}:
+            return ""
+        if tag_name == "br":
+            return "<br/>"
+        rendered = "".join(inline_markup(child) for child in node.children)
+        rendered = rendered or ""
+        if not rendered:
+            return ""
+        if tag_name in {"strong", "b"}:
+            rendered = f"<b>{rendered}</b>"
+        elif tag_name in {"em", "i"}:
+            rendered = f"<i>{rendered}</i>"
+        elif tag_name in {"u"}:
+            rendered = f"<u>{rendered}</u>"
+        elif tag_name in {"s", "strike", "del"}:
+            rendered = f"<strike>{rendered}</strike>"
+        elif tag_name == "code":
+            rendered = f'<font face="{mono_font}" backColor="#eeeeee">{rendered}</font>'
+        elif tag_name == "a":
+            href = str(node.get("href") or "").strip()
+            if href:
+                rendered = f'<a href="{esc(href)}">{rendered}</a>'
+        rendered = apply_inline_styles(rendered, node)
+        return rendered
+
+    def paragraph_style(name, font_size=10.5, leading=15, bold=False, italic=False, color="#111827", space_after=6, left_indent=0, first_line_indent=0):
+        return ParagraphStyle(
+            name,
+            parent=styles["BodyText"],
+            fontName=bold_font if bold else base_font,
+            fontSize=font_size,
+            leading=leading,
+            textColor=colors.HexColor(color),
+            alignment=TA_LEFT,
+            spaceAfter=space_after,
+            leftIndent=left_indent,
+            firstLineIndent=first_line_indent,
+            wordWrap="CJK",
+            splitLongWords=1,
+        )
+
+    styles = getSampleStyleSheet()
+    title_style = paragraph_style("RichPasteTitle", font_size=18, leading=23, bold=True, color="#0f172a", space_after=10)
+    meta_style = paragraph_style("RichPasteMeta", font_size=9, leading=12, color="#64748b", space_after=12)
+    body_style = paragraph_style("RichPasteBody", font_size=10.5, leading=15, color="#111827", space_after=7)
+    heading_styles = {
+        1: paragraph_style("RichPasteH1", font_size=16, leading=20, bold=True, color="#0f172a", space_after=8),
+        2: paragraph_style("RichPasteH2", font_size=14, leading=18, bold=True, color="#0f172a", space_after=8),
+        3: paragraph_style("RichPasteH3", font_size=12.5, leading=16, bold=True, color="#0f172a", space_after=7),
+        4: paragraph_style("RichPasteH4", font_size=11.5, leading=15, bold=True, color="#0f172a", space_after=6),
+        5: paragraph_style("RichPasteH5", font_size=10.8, leading=14, bold=True, color="#0f172a", space_after=6),
+        6: paragraph_style("RichPasteH6", font_size=10.5, leading=14, bold=True, color="#0f172a", space_after=6),
+    }
+    quote_style = paragraph_style("RichPasteQuote", font_size=10.2, leading=15, color="#334155", space_after=0, left_indent=4)
+    code_style = ParagraphStyle(
+        "RichPasteCode",
+        parent=styles["Code"],
+        fontName=mono_font,
+        fontSize=9.2,
+        leading=12.2,
+        textColor=colors.HexColor("#111827"),
+        alignment=TA_LEFT,
+        spaceAfter=8,
+        leftIndent=0,
+        rightIndent=0,
+        wordWrap="CJK",
+        splitLongWords=1,
+    )
+    list_style = paragraph_style("RichPasteList", font_size=10.5, leading=15, color="#111827", space_after=3)
+    table_cell_style = paragraph_style("RichPasteTableCell", font_size=9.3, leading=12.5, color="#111827", space_after=0)
+    note_style = paragraph_style("RichPasteNote", font_size=9.2, leading=12.2, color="#64748b", space_after=4)
+
+    story = []
+    doc_buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        doc_buffer,
+        pagesize=A4,
+        leftMargin=16 * mm,
+        rightMargin=16 * mm,
+        topMargin=16 * mm,
+        bottomMargin=16 * mm,
+        title=str(title or "Clipboard Export"),
+        author="AI Playground",
+    )
+    available_width = A4[0] - doc.leftMargin - doc.rightMargin
+
+    def add_paragraph(text, style):
+        clean = normalize_text(text)
+        if not clean:
+            return
+        story.append(Paragraph(clean, style))
+
+    def add_blockquote(node):
+        text = normalize_text(node.get_text(" ", strip=True))
+        if not text:
+            return
+        para = Paragraph(esc(text), quote_style)
+        box = Table([[para]], colWidths=[available_width])
+        box.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#fff9eb")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("LINEBEFORE", (0, 0), (0, -1), 4, colors.HexColor("#f59e0b")),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#fde68a")),
+        ]))
+        story.append(box)
+
+    def add_hr():
+        story.append(HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#cbd5e1"), spaceBefore=6, spaceAfter=6))
+
+    def add_image(node):
+        src = str(node.get("src") or "").strip()
+        if not src:
+            return
+        image_bytes = None
+        try:
+            if src.startswith("data:"):
+                header, encoded = src.split(",", 1)
+                if ";base64" in header:
+                    image_bytes = base64.b64decode(encoded)
+                else:
+                    image_bytes = unquote(encoded).encode("utf-8")
+            elif src.startswith("http://") or src.startswith("https://"):
+                response = requests.get(src, timeout=10)
+                if response.ok:
+                    image_bytes = response.content
+            elif src.startswith("/"):
+                local_path = os.path.join(app.root_path, src.lstrip("/"))
+                if os.path.exists(local_path):
+                    with open(local_path, "rb") as fh:
+                        image_bytes = fh.read()
+        except Exception:
+            image_bytes = None
+        if not image_bytes:
+            alt = normalize_text(node.get("alt") or "image")
+            if alt:
+                story.append(Paragraph(f"[Image: {esc(alt)}]", note_style))
+            return
+        try:
+            image = Image(BytesIO(image_bytes))
+            image.hAlign = "CENTER"
+            max_width = available_width
+            max_height = 150 * mm
+            try:
+                image._restrictSize(max_width, max_height)
+            except Exception:
+                pass
+            story.append(image)
+            caption = normalize_text(node.get("alt") or "")
+            if caption:
+                story.append(Paragraph(esc(caption), note_style))
+        except Exception:
+            alt = normalize_text(node.get("alt") or "image")
+            if alt:
+                story.append(Paragraph(f"[Image: {esc(alt)}]", note_style))
+
+    def list_item_children_text(li_node):
+        inline_parts = []
+        nested_lists = []
+        for child in li_node.children:
+            if isinstance(child, Tag) and (child.name or "").lower() in {"ul", "ol"}:
+                nested_lists.append(child)
+                continue
+            inline_parts.append(inline_markup(child))
+        return "".join(inline_parts), nested_lists
+
+    def add_list(list_node, level=0, ordered=False):
+        items = list_node.find_all("li", recursive=False)
+        for idx, li in enumerate(items, start=1):
+            item_markup, nested_lists = list_item_children_text(li)
+            item_text = normalize_text(item_markup, preserve_newlines=True)
+            if item_text:
+                bullet = f"{idx}." if ordered else "•"
+                item_style = paragraph_style(
+                    f"RichPasteList{level}",
+                    font_size=10.3,
+                    leading=14.8,
+                    color="#111827",
+                    space_after=3,
+                    left_indent=max(0, level * 12),
+                )
+                story.append(Paragraph(item_text, item_style, bulletText=bullet))
+            for nested in nested_lists:
+                add_list(nested, level=level + 1, ordered=(nested.name or "").lower() == "ol")
+
+    def add_table(table_node):
+        rows = []
+        header_rows = 0
+        tbody = table_node.find("tbody")
+        tr_nodes = tbody.find_all("tr", recursive=False) if tbody else table_node.find_all("tr", recursive=False)
+        if not tr_nodes:
+            tr_nodes = table_node.find_all("tr")
+        for row_index, tr in enumerate(tr_nodes):
+            cells = []
+            cell_nodes = tr.find_all(["th", "td"], recursive=False)
+            if not cell_nodes:
+                continue
+            if any((cell.name or "").lower() == "th" for cell in cell_nodes) and header_rows == 0:
+                header_rows = 1
+            for cell in cell_nodes:
+                cell_markup = normalize_text(inline_markup(cell), preserve_newlines=True)
+                if not cell_markup:
+                    cell_markup = "&nbsp;"
+                cell_style = ParagraphStyle(
+                    f"RichPasteTableCell{row_index}",
+                    parent=table_cell_style,
+                    wordWrap="CJK",
+                    splitLongWords=1,
+                )
+                cells.append(Paragraph(cell_markup, cell_style))
+            rows.append(cells)
+        if not rows:
+            return
+        col_count = max(len(r) for r in rows)
+        for row in rows:
+            while len(row) < col_count:
+                row.append(Paragraph("&nbsp;", table_cell_style))
+        table = Table(rows, repeatRows=header_rows, hAlign="LEFT", colWidths=[available_width / col_count] * col_count)
+        style_cmds = [
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]
+        if header_rows:
+            style_cmds.extend([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e2e8f0")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
+                ("FONTNAME", (0, 0), (-1, 0), bold_font),
+            ])
+        table.setStyle(TableStyle(style_cmds))
+        story.append(table)
+
+    def add_pre(node):
+        text = normalize_text(node.get_text("\n"), preserve_newlines=True)
+        if not text:
+            return
+        pre = Preformatted(text, code_style, dedent=0)
+        box = Table([[pre]], colWidths=[available_width])
+        box.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ]))
+        story.append(box)
+
+    def render_node(node):
+        if node is None:
+            return
+        if isinstance(node, NavigableString):
+            text = normalize_text(str(node))
+            if text:
+                add_paragraph(text, body_style)
+            return
+        if not isinstance(node, Tag):
+            return
+        tag_name = (node.name or "").lower()
+        if tag_name in {"script", "style", "noscript", "meta", "link", "iframe", "canvas", "svg", "object", "embed"}:
+            return
+        if tag_name in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+            level = int(tag_name[1])
+            add_paragraph(inline_markup(node), heading_styles.get(level, body_style))
+            return
+        if tag_name == "p":
+            add_paragraph(inline_markup(node), body_style)
+            return
+        if tag_name in {"div", "section", "article", "main", "header", "footer", "aside"}:
+            child_tags = [child for child in node.children if isinstance(child, Tag)]
+            if not child_tags:
+                add_paragraph(inline_markup(node), body_style)
+                return
+            for child in node.children:
+                render_node(child)
+            return
+        if tag_name == "blockquote":
+            add_blockquote(node)
+            return
+        if tag_name == "pre":
+            add_pre(node)
+            return
+        if tag_name == "hr":
+            add_hr()
+            return
+        if tag_name == "br":
+            story.append(Spacer(1, 3))
+            return
+        if tag_name == "img":
+            add_image(node)
+            return
+        if tag_name == "figure":
+            img = node.find("img")
+            if img:
+                add_image(img)
+            caption = node.find("figcaption")
+            if caption:
+                add_paragraph(inline_markup(caption), note_style)
+            return
+        if tag_name in {"ul", "ol"}:
+            add_list(node, level=0, ordered=(tag_name == "ol"))
+            return
+        if tag_name == "table":
+            add_table(node)
+            return
+        text_markup = inline_markup(node)
+        if text_markup:
+            add_paragraph(text_markup, body_style)
+
+    soup = BeautifulSoup(content_html or "", "html.parser")
+    container = soup.body or soup
+    story.append(Paragraph(esc(str(title or "Clipboard Export")), title_style))
+    story.append(Paragraph(f"Created at: {esc(created_at or datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))}", meta_style))
+    story.append(Spacer(1, 6))
+
+    for child in container.children:
+        render_node(child)
+
+    if not any(isinstance(item, Paragraph) for item in story):
+        story.append(Paragraph("内容がありません。", body_style))
+
+    def draw_page(canvas, doc_obj):
+        canvas.saveState()
+        canvas.setStrokeColor(colors.HexColor("#dbe3ee"))
+        canvas.setLineWidth(0.6)
+        canvas.line(doc.leftMargin, doc.height + doc.topMargin + 2, A4[0] - doc.rightMargin, doc.height + doc.topMargin + 2)
+        canvas.setFont(base_font, 8.5)
+        canvas.setFillColor(colors.HexColor("#64748b"))
+        canvas.drawRightString(A4[0] - doc.rightMargin, 10 * mm, f"Page {doc_obj.page}")
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
+    return doc_buffer.getvalue()
+
+
+@app.route('/api/rich-paste/pdf', methods=['POST'])
+@login_required
+def rich_paste_pdf():
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({'error': '403'}), 403
+    d = request.json or {}
+    content_html = d.get('html') or ''
+    title = d.get('title') or 'Clipboard Export'
+    created_at = d.get('created_at') or datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    try:
+        pdf_bytes = _build_rich_paste_pdf_bytes(title, content_html, created_at=created_at)
+    except Exception as e:
+        logger.exception("Server-side rich paste PDF generation failed")
+        return jsonify({'error': 'pdf_generation_failed', 'message': str(e)}), 500
+    filename = _rich_paste_pdf_filename(title)
+    resp = send_file(
+        BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=filename
+    )
+    resp.headers['X-Rich-Paste-Filename'] = filename
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
 
 @app.route('/c/<thread_id>/pdf')
 @login_required

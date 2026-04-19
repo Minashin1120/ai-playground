@@ -594,6 +594,9 @@
                     </div>
                     <div class="mt-auto pt-2 flex flex-col gap-2 shrink-0">
                         <button id="rich-paste-send-btn" data-progress-no-spinner="true" class="w-full px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold btn-hover">PDF化して送信</button>
+                        {% if is_admin %}
+                        <button id="rich-paste-send-server-btn" data-progress-no-spinner="true" class="w-full px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold btn-hover">サーバー側でPDF化して送信</button>
+                        {% endif %}
                         <button id="rich-paste-close-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-bold btn-hover">閉じる</button>
                     </div>                </div>
             </div>
@@ -1191,6 +1194,7 @@
                 updateTitle: "{{ url_for('update_title', thread_id=0) }}",
                 deleteMessage: "{{ url_for('delete_message', mid=0) }}",
                 exportThreadPdf: "{{ url_for('export_thread_pdf', thread_id=0) }}",
+                richPastePdfServer: "{{ url_for('rich_paste_pdf') }}",
                 renameLibraryFile: "{{ url_for('rename_library_file') }}",
                 deleteFilesBatch: "{{ url_for('delete_files_batch') }}",
                 getFilesLib: "{{ url_for('get_files_lib') }}"

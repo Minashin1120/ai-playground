@@ -530,7 +530,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-19-003')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-19-004')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -9843,10 +9843,29 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
 def rich_paste_pdf():
     if not getattr(current_user, "is_admin", False):
         return jsonify({'error': '403'}), 403
-    d = request.json or {}
-    content_html = d.get('html') or ''
-    title = d.get('title') or 'Clipboard Export'
-    created_at = d.get('created_at') or datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    log_force(
+        "DEBUG: rich_paste_pdf "
+        f"content_type={request.content_type} "
+        f"content_length={request.content_length} "
+        f"is_json={request.is_json}"
+    )
+    d = request.get_json(silent=True)
+    if not isinstance(d, dict):
+        d = request.form.to_dict(flat=True) if request.form else {}
+    if not isinstance(d, dict) or not d:
+        raw_body = (request.get_data(cache=False, as_text=True) or "").strip()
+        if raw_body:
+            try:
+                parsed = json.loads(raw_body)
+                if isinstance(parsed, dict):
+                    d = parsed
+            except Exception:
+                d = {}
+    content_html = str(d.get('html') or '').strip()
+    title = str(d.get('title') or 'Clipboard Export').strip() or 'Clipboard Export'
+    created_at = str(d.get('created_at') or datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')).strip()
+    if not content_html:
+        return jsonify({'error': 'missing_html'}), 400
     try:
         pdf_bytes = _build_rich_paste_pdf_bytes(title, content_html, created_at=created_at)
     except Exception as e:

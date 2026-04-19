@@ -8,7 +8,7 @@
     {% if initial_theme_css %}
     <style id="initial-theme-vars">{{ initial_theme_css|safe }}</style>
     {% endif %}
-    <title>AI Playground (V4.8.426)</title>
+    <title>AI Playground (V4.8.427)</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.258.css') }}?v={{ app_version }}">
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -122,7 +122,7 @@
     
     <!-- Alpha Bar -->
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-green-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-green-400">
-        <i class="fas fa-check-circle mr-1"></i> System v4.8.425 (Stable)
+        <i class="fas fa-check-circle mr-1"></i> System v4.8.427 (Stable)
     </div>
 
     <!-- Debug Console -->
@@ -544,14 +544,14 @@
         </div>
     </div>
 
-    <div id="rich-paste-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
-        <div class="bg-gray-800 rounded-lg w-full max-w-5xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[92vh] modal-panel">
+    <div id="rich-paste-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-5xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[92vh] max-h-none modal-panel">
             <div class="flex items-center justify-between mb-3 shrink-0">
                 <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-paste text-amber-400"></i> リッチ貼り付け → PDF → Markdown</h2>
                 <button id="rich-paste-modal-close" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
             </div>
-            <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)] gap-6 min-h-0 flex-1 overflow-hidden">
-                <div class="flex flex-col gap-4 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
+            <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)] gap-6 min-h-0 flex-1 lg:overflow-hidden overflow-visible">
+                <div class="flex flex-col gap-4 min-h-0 lg:overflow-y-auto overflow-visible pr-2 custom-scrollbar">
                     <div class="rounded-lg border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-xs text-amber-100/90 leading-relaxed shrink-0">
                         Word、記事、ブラウザのリッチテキストをここに貼り付けると、内容は画面に出さずに内部保持します。必要なら別タブで確認し、PDF化してモデルに送れます。
                     </div>
@@ -565,7 +565,7 @@
                     <textarea id="rich-paste-capture" aria-hidden="true" tabindex="-1"></textarea>
                     <div id="rich-paste-storage" aria-hidden="true"></div>
                 </div>
-                <div class="flex flex-col gap-4 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
+                <div class="flex flex-col gap-4 min-h-0 lg:overflow-y-auto overflow-visible pr-2 custom-scrollbar">
                     <div class="rounded-lg border border-gray-700 bg-gray-900/60 p-4 shrink-0">
                         <div class="text-xs font-bold text-gray-200 mb-2">モデルへの指示</div>
                         <textarea id="rich-paste-prompt" rows="8" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-sm text-white outline-none resize-none leading-6" placeholder="モデルへの指示を入力...">このPDFをMarkdown形式に変換し、コードブロックに書き出してください。</textarea>

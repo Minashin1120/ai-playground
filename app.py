@@ -10320,6 +10320,8 @@ def handle_settings():
 @app.route('/api/debug/client_log', methods=['POST'])
 @login_required
 def receive_client_log():
+    if not getattr(current_user, 'enable_client_debug_log', False):
+        return jsonify({'status': 'ignored', 'reason': 'disabled'}), 200
     try:
         d = request.get_json(silent=True) or {}
         level = str(d.get('level') or 'info').upper()

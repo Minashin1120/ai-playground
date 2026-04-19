@@ -13,3 +13,4 @@ static/uploads/*
 !static/uploads/legal/
 !static/uploads/changelogs/
 !static/github_promo.png
+venv/

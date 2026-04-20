@@ -8,7 +8,7 @@
     {% if initial_theme_css %}
     <style id="initial-theme-vars">{{ initial_theme_css|safe }}</style>
     {% endif %}
-    <title>AI Playground (V4.8.427)</title>
+    <title>AI Playground (V4.8.428)</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.258.css') }}?v={{ app_version }}">
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -122,7 +122,7 @@
     
     <!-- Alpha Bar -->
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-green-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-green-400">
-        <i class="fas fa-check-circle mr-1"></i> System v4.8.427 (Stable)
+        <i class="fas fa-check-circle mr-1"></i> System v4.8.428 (Stable)
     </div>
 
     <!-- Debug Console -->
@@ -510,8 +510,8 @@
     </div>
 
     <!-- Upload Modal -->
-    <div id="upload-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
-        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[80vh] modal-panel">
+    <div id="upload-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[80vh] max-h-none modal-panel">
             <div class="flex items-center justify-between mb-3">
                 <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-paperclip text-blue-400"></i> ファイルアップロード</h2>
                 <button id="upload-modal-close" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
@@ -604,7 +604,7 @@
     </div>
 
     <!-- Camera Capture Modal -->
-    <div id="camera-capture-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay" style="z-index:60;">
+    <div id="camera-capture-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto" style="z-index:60;">
         <div class="bg-gray-800 rounded-lg w-full max-w-xl p-4 shadow-2xl border border-gray-700 m-4 flex flex-col gap-3 modal-panel">
             <div class="flex items-center justify-between">
                 <h2 class="text-base font-bold text-white flex items-center gap-2"><i class="fas fa-camera text-emerald-400"></i> カメラ撮影</h2>
@@ -628,8 +628,8 @@
     </div>
 
     <!-- Marker Modal -->
-    <div id="marker-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
-        <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh] modal-panel">
+    <div id="marker-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[85vh] max-h-none modal-panel">
             <div class="flex items-center justify-between mb-2">
                 <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-highlighter text-yellow-300"></i> 画像編集</h2>
                 <button id="marker-modal-close" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
@@ -687,8 +687,8 @@
     </div>
 
     <!-- Thread Settings Modal -->
-    <div id="thread-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
-        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh] overflow-hidden modal-panel">
+    <div id="thread-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[90vh] max-h-none overflow-hidden modal-panel">
             <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <i class="fas fa-comment-dots text-green-400"></i> Chat Instructions
             </h2>
@@ -736,8 +736,8 @@
     </div>
 
     <!-- Compression Settings Modal -->
-    <div id="compression-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
-        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh] overflow-hidden modal-panel">
+    <div id="compression-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[90vh] max-h-none overflow-hidden modal-panel">
             <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <i class="fas fa-compress-alt text-blue-400"></i> 画像・圧縮詳細設定
             </h2>
@@ -862,8 +862,8 @@
     </div>
 
     <!-- Model Selector Modal -->
-    <div id="model-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
-        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-0 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh] overflow-hidden modal-panel">
+    <div id="model-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-0 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[85vh] max-h-none overflow-hidden modal-panel">
             <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-900/50">
                 <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-robot text-blue-400"></i> Select Model</h2>
                 <button onclick="hideModal('model-modal')" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
@@ -891,7 +891,7 @@
     </div>
 
     <!-- Gem Modal -->
-    <div id="gem-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
+    <div id="gem-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
         <div class="bg-gray-800 rounded-lg w-full max-w-lg p-6 shadow-2xl border border-gray-700 m-4 flex flex-col modal-panel">
             <h2 class="text-xl font-bold text-white mb-4" id="gem-modal-title"><i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem</h2>
             <div class="space-y-4">
@@ -907,7 +907,7 @@
     </div>
 
     <!-- Settings Modal -->
-    <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay"><div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[90vh] modal-panel"><div class="settings-header"><h2 class="text-xl font-bold text-white flex items-center"><i class="fas fa-cog mr-2 text-gray-400"></i>設定</h2>
+    <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto"><div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[90vh] max-h-none modal-panel"><div class="settings-header"><h2 class="text-xl font-bold text-white flex items-center"><i class="fas fa-cog mr-2 text-gray-400"></i>設定</h2>
     <div class="flex border-b border-gray-700 mb-4 gap-4 overflow-x-auto settings-tabs">
         <button id="btn-tab-general" data-progress-no-spinner="true" class="px-4 py-2 text-blue-400 border-b-2 border-blue-400 font-bold whitespace-nowrap" onclick="switchTab('general')">一般</button>
         <button id="btn-tab-security" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white border-b-2 border-transparent whitespace-nowrap" onclick="switchTab('security')">セキュリティ</button>
@@ -1090,7 +1090,7 @@
 <div class="settings-footer flex justify-end gap-3 mt-4"><button id="close-settings-btn" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white transition">キャンセル</button><button id="save-settings-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-hover">保存</button></div></div></div>
     
     <!-- Gemini Local Python Dialog -->
-    <div id="gemini-local-python-modal" class="fixed inset-0 bg-gray-900/95 z-[85] hidden items-center justify-center backdrop-blur-sm modal-overlay">
+    <div id="gemini-local-python-modal" class="fixed inset-0 bg-gray-900/95 z-[85] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
         <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-yellow-500/60 m-4 modal-panel">
             <div class="flex items-center justify-between mb-3">
                 <h2 class="text-lg font-bold text-yellow-300 flex items-center"><i class="fas fa-terminal mr-2"></i>ローカルPython実行に切替</h2>
@@ -1138,15 +1138,15 @@
     </div>
     
     <!-- Legal Modal -->
-    <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm modal-overlay"><div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[85vh] modal-panel"><h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">利用規約</h2><div id="legal-content" class="overflow-y-auto pr-2 flex-1 text-sm text-gray-300 leading-relaxed space-y-4 prose prose-invert max-w-none"></div><div class="flex justify-end mt-4 shrink-0"><button onclick="hideModal('legal-modal')" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition">閉じる</button></div></div></div>
+    <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto"><div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[85vh] max-h-none modal-panel"><h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">利用規約</h2><div id="legal-content" class="overflow-y-auto pr-2 flex-1 text-sm text-gray-300 leading-relaxed space-y-4 prose prose-invert max-w-none"></div><div class="flex justify-end mt-4 shrink-0"><button onclick="hideModal('legal-modal')" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition">閉じる</button></div></div></div>
     
     <!-- Alpha Info Modal -->
-    <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-center justify-center backdrop-blur-sm modal-overlay"><div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4 modal-panel"><h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2><div class="text-sm text-gray-300 space-y-3"><p>このアプリケーションは開発中の<strong>アルファ版</strong>です。</p><ul class="list-disc list-inside space-y-1 text-gray-400"><li>予告なくデータが削除される可能性があります。</li><li>予期せぬ動作やエラーが発生する場合があります。</li></ul></div><div class="flex justify-end mt-6"><button onclick="hideModal('alpha-info-modal')" class="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded font-bold btn-hover">理解しました</button></div></div></div>
+    <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto"><div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4 modal-panel"><h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2><div class="text-sm text-gray-300 space-y-3"><p>このアプリケーションは開発中の<strong>アルファ版</strong>です。</p><ul class="list-disc list-inside space-y-1 text-gray-400"><li>予告なくデータが削除される可能性があります。</li><li>予期せぬ動作やエラーが発生する場合があります。</li></ul></div><div class="flex justify-end mt-6"><button onclick="hideModal('alpha-info-modal')" class="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded font-bold btn-hover">理解しました</button></div></div></div>
 
     {% if is_admin %}
     <!-- Bot Admin Modal -->
-    <div id="bot-admin-modal" class="fixed inset-0 bg-gray-900/95 z-[90] hidden items-center justify-center backdrop-blur-sm modal-overlay">
-        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 modal-panel flex flex-col max-h-[85vh]">
+    <div id="bot-admin-modal" class="fixed inset-0 bg-gray-900/95 z-[90] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 modal-panel flex flex-col lg:max-h-[85vh] max-h-none">
             <div class="flex items-center justify-between border-b border-gray-700 pb-3 mb-3">
                 <h2 class="text-lg font-bold text-white">アカウント管理 (Bot Detection)</h2>
                 <button id="bot-admin-close" class="text-gray-400 hover:text-white">✕</button>

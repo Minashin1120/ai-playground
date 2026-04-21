@@ -530,7 +530,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-21-002')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-21-003')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -8776,10 +8776,12 @@ def temporary_chat_heartbeat():
 @app.route('/api/generate_title', methods=['POST'])
 @login_required
 def generate_title_api():
-    """Auto-generate chat title with multi-model fallback"""
+    """Auto-generate chat title with multi-model fallback, prioritizing requested model"""
     try:
         data = request.json
         thread_id = data.get('thread_id')
+        requested_model = data.get('model_id')  # Captured from frontend
+        
         thread = resolve_thread_for_user(thread_id, current_user.id)
         if not thread:
             return jsonify({'error': 'Unauthorized'}), 403
@@ -8788,83 +8790,112 @@ def generate_title_api():
         if not first_msg: return jsonify({'status': 'skipped'})
         
         content = decrypt_val(first_msg.content) if first_msg.is_encrypted else first_msg.content
-        
-        # [FIX] Multi-model fallback logic
         title = "New Chat"
+
+        # Determine target provider for requested_model
+        primary_provider = None
+        if requested_model:
+            rml = requested_model.lower()
+            if "gemini" in rml: primary_provider = "gemini"
+            elif "grok" in rml: primary_provider = "xai"
+            else: primary_provider = "openai"
+
+        # Preparation
         o_key = (
             _get_model_specific_api_key(current_user, "gpt-4o-mini")
             or decrypt_val(current_user.openai_api_key)
             or (os.getenv('OPENAI_API_KEY') if _admin_env_fallback_enabled(current_user) else None)
         )
         gemini_runtime = _resolve_gemini_runtime(current_user)
-        g_key = _get_model_specific_api_key(current_user, "gemini-2.5-flash-lite") or gemini_runtime.get("api_key")
+        g_key = _get_model_specific_api_key(current_user, "gemini-2.0-flash-lite-preview") or gemini_runtime.get("api_key")
         x_key = (
-            _get_model_specific_api_key(current_user, "grok-4-1-fast-non-reasoning")
+            _get_model_specific_api_key(current_user, "grok-beta")
             or decrypt_val(current_user.xai_api_key)
             or (os.getenv('XAI_API_KEY') if _admin_env_fallback_enabled(current_user) else None)
         )
 
-        # Try OpenAI (gpt-4o-mini)
-        if o_key:
+        # 1. Try Primary requested provider/model
+        if primary_provider == "openai" and o_key:
             try:
                 client = _get_openai_client(o_key, base_url=None)
-                resp = client.responses.create(
-                    model="gpt-4o-mini",
-                    input=[
-                        {"role": "system", "content": "Generate a short title (max 6 words) for this chat. Output JSON: {\"title\": \"...\"}"},
+                resp = client.chat.completions.create(
+                    model=requested_model,
+                    messages=[
+                        {"role": "system", "content": "Generate a short title (max 6 words) for this chat. Output only the title text."},
                         {"role": "user", "content": content[:500]}
-                    ]
+                    ],
+                    max_tokens=20
                 )
-                raw = None
-                if isinstance(resp, dict):
-                    raw = resp.get("output_text")
-                else:
-                    raw = getattr(resp, "output_text", None)
-                if not raw and hasattr(resp, "output"):
-                    try:
-                        raw = resp.output[0].content[0].text
-                    except Exception:
-                        raw = None
-                if raw:
-                    title = json.loads(raw).get('title', 'New Chat')
+                if resp.choices[0].message.content:
+                    title = resp.choices[0].message.content.strip().replace('"', '')
             except: pass
-        
-        # Try Gemini (flash)
-        elif title == "New Chat":
+        elif primary_provider == "gemini":
             try:
                 backend = gemini_runtime.get("backend")
-                can_use_gemini = (
-                    (backend == "gemini_api" and bool(g_key))
-                    or (backend == "vertex_ai" and bool(gemini_runtime.get("vertex_project")))
-                )
-                if can_use_gemini:
-                    g_client = _get_gemini_client(
-                        api_key=g_key,
-                        backend=backend,
-                        vertex_project=gemini_runtime.get("vertex_project"),
-                        vertex_location=gemini_runtime.get("vertex_location"),
-                        vertex_credentials_json=gemini_runtime.get("vertex_credentials_json"),
-                    )
+                if (backend == "gemini_api" and bool(g_key)) or (backend == "vertex_ai"):
+                    g_client = _get_gemini_client(api_key=g_key, backend=backend, vertex_project=gemini_runtime.get("vertex_project"), vertex_location=gemini_runtime.get("vertex_location"), vertex_credentials_json=gemini_runtime.get("vertex_credentials_json"))
                     if g_client:
                         resp = g_client.models.generate_content(
-                            model="gemini-2.5-flash-lite",
-                            contents=[types.Part(text=f"Generate a short title (max 6 words) for this chat. JSON: {{'title': '...'}}\n\nChat: {content[:500]}")],
-                            config=types.GenerateContentConfig(response_mime_type="application/json")
+                            model=requested_model,
+                            contents=[types.Part(text=f"Generate a short title (max 6 words) for this chat. Output only the title text.\n\nChat: {content[:500]}")]
                         )
-                        title = json.loads(resp.text).get('title', 'New Chat')
+                        if resp.text:
+                            title = resp.text.strip().replace('"', '')
             except: pass
-
-        # Try xAI (grok-fast)
-        elif x_key and XAI_SDK_AVAILABLE and title == "New Chat":
+        elif primary_provider == "xai" and x_key and XAI_SDK_AVAILABLE:
             try:
                 x_client = XAIClient(api_key=x_key)
-                chat = x_client.chat.create(model="grok-4-1-fast-non-reasoning")
-                chat.append(x_system("Generate a short, descriptive title (max 6 words) for this chat conversation. Output only the title text without any quotes or JSON."))
+                chat = x_client.chat.create(model=requested_model)
+                chat.append(x_system("Generate a short, descriptive title (max 6 words) for this chat conversation. Output only the title text."))
                 chat.append(x_user(content[:500]))
                 resp = chat.sample()
                 if resp and resp.message and resp.message.content:
-                    title = resp.message.content.strip()
+                    title = resp.message.content.strip().replace('"', '')
             except: pass
+
+        # 2. Fallbacks if still "New Chat"
+        if title == "New Chat":
+            # Try OpenAI (gpt-4o-mini)
+            if o_key:
+                try:
+                    client = _get_openai_client(o_key, base_url=None)
+                    resp = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[
+                            {"role": "system", "content": "Generate a short title (max 6 words) for this chat. Output JSON: {\"title\": \"...\"}"},
+                            {"role": "user", "content": content[:500]}
+                        ],
+                        response_format={"type": "json_object"}
+                    )
+                    title = json.loads(resp.choices[0].message.content).get('title', 'New Chat')
+                except: pass
+            
+            # Try Gemini (flash)
+            if title == "New Chat":
+                try:
+                    backend = gemini_runtime.get("backend")
+                    if (backend == "gemini_api" and bool(g_key)) or (backend == "vertex_ai"):
+                        g_client = _get_gemini_client(api_key=g_key, backend=backend, vertex_project=gemini_runtime.get("vertex_project"), vertex_location=gemini_runtime.get("vertex_location"), vertex_credentials_json=gemini_runtime.get("vertex_credentials_json"))
+                        if g_client:
+                            resp = g_client.models.generate_content(
+                                model="gemini-2.0-flash-lite-preview",
+                                contents=[types.Part(text=f"Generate a short title (max 6 words) for this chat. JSON: {{'title': '...'}}\n\nChat: {content[:500]}")],
+                                config=types.GenerateContentConfig(response_mime_type="application/json")
+                            )
+                            title = json.loads(resp.text).get('title', 'New Chat')
+                except: pass
+
+            # Try xAI (grok-beta)
+            if title == "New Chat" and x_key and XAI_SDK_AVAILABLE:
+                try:
+                    x_client = XAIClient(api_key=x_key)
+                    chat = x_client.chat.create(model="grok-beta")
+                    chat.append(x_system("Generate a short, descriptive title (max 6 words) for this chat conversation. Output only the title text."))
+                    chat.append(x_user(content[:500]))
+                    resp = chat.sample()
+                    if resp and resp.message and resp.message.content:
+                        title = resp.message.content.strip()
+                except: pass
             
         thread.title = title
         safe_db_commit()

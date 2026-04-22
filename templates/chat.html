@@ -8,7 +8,7 @@
     {% if initial_theme_css %}
     <style id="initial-theme-vars">{{ initial_theme_css|safe }}</style>
     {% endif %}
-    <title>AI Playground (V4.8.445)</title>
+    <title>AI Playground (V4.8.446)</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.258.css') }}?v={{ app_version }}">
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -39,7 +39,7 @@
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit" async defer></script>
     {% endif %}
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.custom.v4.8.445.css') }}?v={{ app_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.custom.v4.8.446.css') }}?v={{ app_version }}">
     <style>
         #rich-paste-capture {
             position: fixed;
@@ -122,7 +122,7 @@
     
     <!-- Alpha Bar -->
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-green-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-green-400">
-        <i class="fas fa-check-circle mr-1"></i> System v4.8.445 (Stable)
+        <i class="fas fa-check-circle mr-1"></i> System v4.8.446 (Stable)
     </div>
 
     <!-- Debug Console -->
@@ -161,7 +161,7 @@
             <!-- Threads loaded dynamically -->
             <div id="scroll-sentinel"></div>
         </div>
-        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.8.445 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
+        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.8.446 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
     </div>
     <div id="overlay" class="overlay"></div>
 
@@ -208,18 +208,18 @@
             </div>
         </div>
         <div class="bg-gray-800 border-t border-gray-700 p-3 shrink-0 z-10">
-            <div class="max-w-3xl mx-auto space-y-2 relative">
+            <div class="max-w-3xl mx-auto space-y-2 relative pointer-events-none">
                 <!-- Floating Fixed Prompts (Truly floating above) -->
-                <div id="fixed-prompts-bar" class="hidden absolute bottom-[calc(100%+1.5rem)] left-0 right-0 flex gap-2 overflow-x-auto no-scrollbar select-none bg-transparent pb-1 z-30"></div>
+                <div id="fixed-prompts-bar" class="hidden absolute bottom-[calc(100%+1.5rem)] left-0 right-0 flex gap-2 overflow-x-auto no-scrollbar select-none bg-transparent pb-1 z-30 pointer-events-auto"></div>
                 
-                <div id="gem-active-indicator" class="hidden absolute -top-10 left-0 bg-blue-900/80 text-blue-200 text-xs px-3 py-1 rounded-t-lg border-t border-l border-r border-blue-700 flex items-center gap-2 fade-in max-w-full"><i class="fas fa-gem"></i> Using Gem: <span id="active-gem-name" class="font-bold"></span><button onclick="clearActiveGem()" class="ml-2 hover:text-white">×</button></div>
-                <div id="stop-container" class="absolute -top-12 left-1/2 transform -translate-x-1/2 hidden fade-in"><button id="stop-btn" class="bg-red-500/90 hover:bg-red-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm backdrop-blur-sm btn-hover"><i class="fas fa-stop"></i> 停止</button></div>
-                <div id="quote-popover-container" class="absolute -top-12 right-3 fade-in">
+                <div id="gem-active-indicator" class="hidden absolute -top-10 left-0 bg-blue-900/80 text-blue-200 text-xs px-3 py-1 rounded-t-lg border-t border-l border-r border-blue-700 flex items-center gap-2 fade-in max-w-full pointer-events-auto"><i class="fas fa-gem"></i> Using Gem: <span id="active-gem-name" class="font-bold"></span><button onclick="clearActiveGem()" class="ml-2 hover:text-white">×</button></div>
+                <div id="stop-container" class="absolute -top-12 left-1/2 transform -translate-x-1/2 hidden fade-in pointer-events-auto"><button id="stop-btn" class="bg-red-500/90 hover:bg-red-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm backdrop-blur-sm btn-hover"><i class="fas fa-stop"></i> 停止</button></div>
+                <div id="quote-popover-container" class="absolute -top-12 right-3 fade-in pointer-events-auto">
                     <button id="quote-popover"><i class="fas fa-quote-left mr-1"></i> Quote</button>
                 </div>
                 
                 <!-- Quote Bar -->
-                <div id="quote-bar">
+                <div id="quote-bar" class="pointer-events-auto">
                     <div class="flex items-center gap-2 overflow-hidden flex-1">
                         <i class="fas fa-quote-left text-blue-400 shrink-0"></i>
                         <span id="quote-text-display" class="quote-text text-xs"></span>
@@ -228,7 +228,7 @@
                 </div>
 
                 <!-- Edit Bar -->
-                <div id="edit-bar" class="hidden edit-bar-animate bg-gray-900/60 border border-gray-700 rounded px-3 py-2 text-xs text-gray-300 items-center justify-between">
+                <div id="edit-bar" class="hidden edit-bar-animate bg-gray-900/60 border border-gray-700 rounded px-3 py-2 text-xs text-gray-300 items-center justify-between pointer-events-auto">
                     <div class="flex items-center gap-2">
                         <i class="fas fa-pen text-blue-300"></i>
                         <span>編集中: このメッセージを編集しています</span>
@@ -1207,7 +1207,7 @@
             }
         };
     </script>
-    <script src="{{ url_for('static', filename='js/chat_core.v4.8.445.js') }}?v={{ app_version }}" defer></script>
+    <script src="{{ url_for('static', filename='js/chat_core.v4.8.446.js') }}?v={{ app_version }}" defer></script>
 
 <div id="token-detail-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm" onclick="if(event.target.id==='token-detail-modal') closeTokenDetail()">
   <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4 text-white relative">

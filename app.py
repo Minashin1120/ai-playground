@@ -531,7 +531,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-25-001')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-25-002')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -8005,24 +8005,41 @@ def login():
 @app.route('/login/google')
 def login_google():
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
+        # If already logged in, we are linking
+        session['google_link_mode'] = True
+    else:
+        session.pop('google_link_mode', None)
     redirect_uri = url_for('login_google_callback', _external=True)
     return oauth.google.authorize_redirect(redirect_uri)
 
 @app.route('/login/google/callback')
 def login_google_callback():
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
+    link_mode = session.pop('google_link_mode', False)
     try:
         token = oauth.google.authorize_access_token()
         user_info = token.get('userinfo')
         if not user_info:
             flash("Google からユーザー情報を取得できませんでした。")
-            return redirect(url_for('login'))
+            return redirect(url_for('login' if not current_user.is_authenticated else 'index'))
         
         google_id = str(user_info.get('sub'))
         email = user_info.get('email')
         
+        if current_user.is_authenticated:
+            # Explicit linking from settings
+            existing_with_id = User.query.filter_by(google_id=google_id).first()
+            if existing_with_id and existing_with_id.id != current_user.id:
+                flash("この Google アカウントは既に他のユーザーに紐付けられています。")
+                return redirect(url_for('index'))
+            
+            current_user.google_id = google_id
+            if not current_user.google_email:
+                current_user.google_email = email
+            safe_db_commit()
+            flash("Google アカウントと連携しました。")
+            return redirect(url_for('index'))
+
+        # Login/Signup flow
         user = User.query.filter_by(google_id=google_id).first()
         if not user:
             # Try to link by email if user exists but google_id is not set
@@ -8051,8 +8068,21 @@ def login_google_callback():
         return redirect(url_for('index'))
     except Exception as e:
         logger.error(f"Google Login Callback Error: {e}")
-        flash("Google ログイン中にエラーが発生しました。")
-        return redirect(url_for('login'))
+        flash("Google 連携中にエラーが発生しました。")
+        return redirect(url_for('login' if not current_user.is_authenticated else 'index'))
+
+@app.route('/api/account/unlink_google', methods=['POST'])
+@login_required
+def unlink_google():
+    if not current_user.google_id:
+        return jsonify({'error': 'Not linked'}), 400
+    
+    # Optional: Prevent unlinking if no password or other login method exists
+    # but here we allow it.
+    current_user.google_id = None
+    current_user.google_email = None
+    safe_db_commit()
+    return jsonify({'status': 'ok'})
 
 @app.route('/login/passkey/options', methods=['POST'])
 def login_passkey_options():
@@ -10878,6 +10908,8 @@ def handle_settings():
             'last_thinking_level': current_user.last_thinking_level or "high",
             'last_thinking_budget': current_user.last_thinking_budget if current_user.last_thinking_budget is not None else 4096,
             'last_reasoning_effort': current_user.last_reasoning_effort or "medium",
+            'google_id': current_user.google_id,
+            'google_email': current_user.google_email,
             'last_enable_system_prompt': current_user.last_enable_system_prompt,
             'last_safety_setting': current_user.last_safety_setting or "default",
             'enable_e2ee': current_user.enable_e2ee,

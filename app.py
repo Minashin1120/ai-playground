@@ -63,6 +63,7 @@ import pypdf
 from cryptography.fernet import Fernet
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
+from authlib.integrations.flask_client import OAuth
 
 try:
     from xai_sdk import Client as XAIClient
@@ -530,7 +531,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-21-020')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-25-001')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -557,6 +558,17 @@ app.config['USER_STORAGE_LIMIT_MB'] = _user_storage_limit_mb
 _primary_admin_username = (os.getenv('PRIMARY_ADMIN_USERNAME') or '').strip()
 app.config['PRIMARY_ADMIN_USERNAME'] = _primary_admin_username or None
 app.config['MAINTENANCE_MODE'] = os.path.exists(os.path.join(os.path.dirname(__file__), 'maintenance.lock'))
+
+oauth = OAuth(app)
+oauth.register(
+    name='google',
+    client_id=os.getenv('GOOGLE_CLIENT_ID'),
+    client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid email profile'
+    }
+)
 
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/10')
 redis_conn = redis.from_url(REDIS_URL)
@@ -1816,6 +1828,8 @@ async def _google_sts_live(
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True)
+    google_id = db.Column(db.String(128), unique=True, nullable=True, index=True)
+    google_email = db.Column(db.String(128), nullable=True)
     is_admin = db.Column(db.Boolean, default=False)
     admin_api_key_mode = db.Column(db.String(24), default="env_fallback")
     password_hash = db.Column(db.String(255))
@@ -2876,6 +2890,25 @@ def ensure_user_default_model_columns():
                 conn.commit()
     except Exception as e:
         logger.error(f"Failed to ensure user default model columns: {e}")
+
+def ensure_user_google_columns():
+    try:
+        with db.engine.connect() as conn:
+            # google_id
+            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='google_id'")).fetchone()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN google_id VARCHAR(128) UNIQUE"))
+                conn.execute(text("ALTER TABLE user ADD INDEX idx_user_google_id (google_id)"))
+                conn.commit()
+            # google_email
+            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='google_email'")).fetchone()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN google_email VARCHAR(128)"))
+                conn.commit()
+    except Exception:
+        pass
 
 def ensure_db_index(table_name, index_name, ddl):
     try:
@@ -7969,6 +8002,58 @@ def login():
         return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Invalid credentials")
     return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'))
 
+@app.route('/login/google')
+def login_google():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    redirect_uri = url_for('login_google_callback', _external=True)
+    return oauth.google.authorize_redirect(redirect_uri)
+
+@app.route('/login/google/callback')
+def login_google_callback():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    try:
+        token = oauth.google.authorize_access_token()
+        user_info = token.get('userinfo')
+        if not user_info:
+            flash("Google からユーザー情報を取得できませんでした。")
+            return redirect(url_for('login'))
+        
+        google_id = str(user_info.get('sub'))
+        email = user_info.get('email')
+        
+        user = User.query.filter_by(google_id=google_id).first()
+        if not user:
+            # Try to link by email if user exists but google_id is not set
+            user = User.query.filter(or_(User.google_email == email, User.username == email)).first()
+            if user:
+                user.google_id = google_id
+                if not user.google_email:
+                    user.google_email = email
+                safe_db_commit()
+            else:
+                # Create new user
+                user = User(
+                    username=email,
+                    google_id=google_id,
+                    google_email=email,
+                    is_setup_completed=False
+                )
+                db.session.add(user)
+                safe_db_commit()
+        
+        login_user(user, remember=True)
+        record_user_client_token(user)
+        
+        if not user.is_setup_completed:
+            return redirect(url_for('setup'))
+        return redirect(url_for('index'))
+    except Exception as e:
+        logger.error(f"Google Login Callback Error: {e}")
+        flash("Google ログイン中にエラーが発生しました。")
+        return redirect(url_for('login'))
+
 @app.route('/login/passkey/options', methods=['POST'])
 def login_passkey_options():
     if current_user.is_authenticated:
@@ -12048,6 +12133,10 @@ with app.app_context():
         pass
     try:
         ensure_user_default_model_columns()
+    except Exception:
+        pass
+    try:
+        ensure_user_google_columns()
     except Exception:
         pass
     try:

@@ -535,7 +535,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-26-002')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-26-003')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -10001,16 +10001,22 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
                 if not cell_markup:
                     cell_markup = "&nbsp;"
                 cell_style = ParagraphStyle(
-                    f"RichPasteTableCell{row_index}",
+                    f"RichPasteTableCell{row_index}_{len(cells)}",
                     parent=table_cell_style,
                     wordWrap="CJK",
                     splitLongWords=1,
                 )
-                cells.append(Paragraph(cell_markup, cell_style))
-            rows.append(cells)
+                try:
+                    cells.append(Paragraph(cell_markup, cell_style))
+                except Exception:
+                    cells.append(Paragraph(esc(cell_markup), cell_style))
+            if cells:
+                rows.append(cells)
         if not rows:
             return
         col_count = max(len(r) for r in rows)
+        if col_count == 0:
+            return
         for row in rows:
             while len(row) < col_count:
                 row.append(Paragraph("&nbsp;", table_cell_style))
@@ -10118,20 +10124,32 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
     for child in container.children:
         render_node(child)
 
-    if not any(isinstance(item, Paragraph) for item in story):
+    if not any(isinstance(item, (Paragraph, Table)) for item in story if not isinstance(item, Spacer)):
         story.append(Paragraph("内容がありません。", body_style))
 
     def draw_page(canvas, doc_obj):
-        canvas.saveState()
-        canvas.setStrokeColor(colors.HexColor("#dbe3ee"))
-        canvas.setLineWidth(0.6)
-        canvas.line(doc.leftMargin, doc.height + doc.topMargin + 2, A4[0] - doc.rightMargin, doc.height + doc.topMargin + 2)
-        canvas.setFont(base_font, 8.5)
-        canvas.setFillColor(colors.HexColor("#64748b"))
-        canvas.drawRightString(A4[0] - doc.rightMargin, 10 * mm, f"Page {doc_obj.page}")
-        canvas.restoreState()
+        try:
+            canvas.saveState()
+            canvas.setStrokeColor(colors.HexColor("#dbe3ee"))
+            canvas.setLineWidth(0.6)
+            canvas.line(doc.leftMargin, doc.height + doc.topMargin + 2, A4[0] - doc.rightMargin, doc.height + doc.topMargin + 2)
+            canvas.setFont(base_font, 8.5)
+            canvas.setFillColor(colors.HexColor("#64748b"))
+            canvas.drawRightString(A4[0] - doc.rightMargin, 10 * mm, f"Page {doc_obj.page}")
+            canvas.restoreState()
+        except Exception:
+            pass
 
-    doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
+    try:
+        doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
+    except Exception as e:
+        logger.exception("ReportLab doc.build failed")
+        # Fallback build with simple story if it failed due to complex layout
+        doc_buffer.seek(0)
+        doc_buffer.truncate()
+        fallback_story = [Paragraph(f"PDF生成エラーが発生しました: {esc(str(e))}", body_style)]
+        doc.build(fallback_story)
+
     return doc_buffer.getvalue()
 
 
@@ -10140,50 +10158,76 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
 def rich_paste_pdf():
     if not getattr(current_user, "is_admin", False):
         return jsonify({'error': '403'}), 403
+    
     log_force(
-        "DEBUG: rich_paste_pdf "
+        "DEBUG: rich_paste_pdf start "
         f"content_type={request.content_type} "
         f"content_length={request.content_length} "
         f"is_json={request.is_json}"
     )
-    d = request.get_json(silent=True)
+
+    d = None
+    if request.is_json:
+        try:
+            d = request.get_json(silent=True)
+        except Exception as e:
+            log_force(f"DEBUG: rich_paste_pdf get_json exception: {e}")
+
     if not isinstance(d, dict):
-        d = request.form.to_dict(flat=True) if request.form else {}
-    if not isinstance(d, dict) or not d:
-        raw_body = (request.get_data(cache=False, as_text=True) or "").strip()
-        if raw_body:
+        if request.form:
+            d = request.form.to_dict(flat=True)
+        else:
             try:
-                parsed = json.loads(raw_body)
-                if isinstance(parsed, dict):
-                    d = parsed
-            except Exception:
+                # Use request.get_data() with cache=True (default) to not exhaust stream
+                raw_body = request.get_data(as_text=True)
+                if raw_body and raw_body.strip():
+                    d = json.loads(raw_body)
+            except Exception as e:
+                log_force(f"DEBUG: rich_paste_pdf get_data/json.loads exception: {e}")
                 d = {}
+
+    if not isinstance(d, dict):
+        d = {}
+
     content_html = str(d.get('html') or '').strip()
     title = str(d.get('title') or 'Clipboard Export').strip() or 'Clipboard Export'
     created_at = str(d.get('created_at') or datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')).strip()
+
     log_force(
-        "DEBUG: rich_paste_pdf payload "
+        "DEBUG: rich_paste_pdf payload info "
         f"title_len={len(title)} "
         f"html_len={len(content_html)} "
-        f"keys={sorted(list(d.keys())) if isinstance(d, dict) else []}"
+        f"keys={sorted(list(d.keys())) if d else 'None'}"
     )
+
     if not content_html:
+        log_force("DEBUG: rich_paste_pdf error: missing_html")
         return jsonify({'error': 'missing_html'}), 400
+
     try:
         pdf_bytes = _build_rich_paste_pdf_bytes(title, content_html, created_at=created_at)
     except Exception as e:
         logger.exception("Server-side rich paste PDF generation failed")
+        log_force(f"DEBUG: rich_paste_pdf generation exception: {e}")
         return jsonify({'error': 'pdf_generation_failed', 'message': str(e)}), 500
-    filename = _rich_paste_pdf_filename(title)
-    resp = send_file(
-        BytesIO(pdf_bytes),
-        mimetype='application/pdf',
-        as_attachment=True,
-        download_name=filename
-    )
-    resp.headers['X-Rich-Paste-Filename'] = filename
-    resp.headers['Cache-Control'] = 'no-store'
-    return resp
+
+    try:
+        filename = _rich_paste_pdf_filename(title)
+        resp = send_file(
+            BytesIO(pdf_bytes),
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+        resp.headers['X-Rich-Paste-Filename'] = filename
+        resp.headers['Cache-Control'] = 'no-store'
+        log_force(f"DEBUG: rich_paste_pdf success filename={filename} bytes={len(pdf_bytes)}")
+        return resp
+    except Exception as e:
+        logger.exception("Server-side rich paste PDF response failed")
+        log_force(f"DEBUG: rich_paste_pdf response exception: {e}")
+        return jsonify({'error': 'response_failed', 'message': str(e)}), 500
+
 
 @app.route('/c/<thread_id>/pdf')
 @login_required

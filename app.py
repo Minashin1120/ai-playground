@@ -177,6 +177,10 @@ def _normalize_gemini_backend(value):
         return "vertex_ai"
     return "gemini_api"
 
+def _is_deepseek_model_key(model_key):
+    mk = str(model_key or "").lower()
+    return "deepseek" in mk
+
 def _normalize_admin_api_key_mode(value):
     raw = str(value or "").strip().lower().replace("-", "_")
     if raw in ("user_only", "user", "settings", "user_settings"):
@@ -531,7 +535,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-26-001')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-26-002')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1378,6 +1382,9 @@ def is_gemini_model_key(model_key):
     mk = str(model_key or "").lower()
     return "gemini" in mk
 
+def is_deepseek_model_key(model_key):
+    return _is_deepseek_model_key(model_key)
+
 def is_gemini_image_model_key(model_key):
     mk = str(model_key or "").lower()
     return "gemini" in mk and any(x in mk for x in ("image", "nano"))
@@ -1531,9 +1538,12 @@ def _transcribe_audio_with_llm(audio_content, fname, llm_model_key, user):
     model_key = (llm_model_key or "").strip()
     model_key_l = model_key.lower()
     is_gem = is_gemini_model_key(model_key_l)
+    is_deepseek = is_deepseek_model_key(model_key_l)
     is_grok = ("grok" in model_key_l) and ("gpt" not in model_key_l)
     if is_grok:
         raise ValueError("現在の xAI/Grok モデルのLLM文字起こしは未対応です。OpenAI/Gemini対応モデルに切り替えるか、STT APIを使用してください。")
+    if is_deepseek:
+        raise ValueError("DeepSeek モデルのLLM文字起こしは未対応です。OpenAI/Gemini対応モデルに切り替えるか、STT APIを使用してください。")
     if not model_key:
         model_key = "gpt-4o-mini"
         model_key_l = model_key.lower()
@@ -1840,6 +1850,7 @@ class User(UserMixin, db.Model):
     auto_system_prompt_notices_config = db.Column(db.Text, nullable=True)
     openai_api_key = db.Column(db.Text, nullable=True)
     gemini_api_key = db.Column(db.Text, nullable=True)
+    deepseek_api_key = db.Column(db.Text, nullable=True)
     model_api_keys = db.Column(db.Text, nullable=True)
     gemini_backend = db.Column(db.String(24), default="gemini_api")
     gemini_vertex_project = db.Column(db.Text, nullable=True)
@@ -2707,6 +2718,21 @@ def ensure_user_gemini_backend_columns():
                 if not res:
                     conn.execute(text("SET SESSION lock_wait_timeout=1"))
                     conn.execute(text(ddl))
+    except Exception:
+        pass
+
+def ensure_user_deepseek_api_key_column():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='user' "
+                "AND COLUMN_NAME='deepseek_api_key'"
+            )).scalar()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN deepseek_api_key TEXT"))
     except Exception:
         pass
 
@@ -3758,7 +3784,7 @@ def _select_tokenizer_name(model_key):
     mk = str(model_key or "").strip().lower()
     if not mk:
         return "o200k_base"
-    if "grok" in mk or "gemini" in mk:
+    if "grok" in mk or "gemini" in mk or "deepseek" in mk:
         return "o200k_base"
     if any(x in mk for x in ("gpt-4o", "gpt-4.1", "gpt-5", "o1", "o3", "o4")):
         return "o200k_base"
@@ -4524,6 +4550,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             model_key_l = model_key.lower()
             is_openai_search_model = model_key_l in ("gpt-5-search-api", "gpt-4o-search-preview", "gpt-4o-mini-search-preview")
             is_gem = is_gemini_model_key(model_key_l)
+            is_deepseek = is_deepseek_model_key(model_key_l)
             is_grok = 'grok' in model_key_l and 'gpt' not in model_key_l
             gemini_backend_mode = "gemini_api"
             def _is_non_llm_model(m):
@@ -4653,6 +4680,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 lvl = (options.get('thinking_level') or "low").lower()
                 return "high" if lvl == "high" else "low"
 
+            def _deepseek_reasoning_effort():
+                raw = (options.get('reasoning_effort') or "").lower().strip()
+                if raw in ("high", "max"):
+                    return raw
+                if raw == "xhigh":
+                    return "max"
+                if raw in ("low", "medium"):
+                    return "high"
+                return "high"
+
             def _grok_system_prompt(base_prompt, enable_search):
                 if not enable_search:
                     return base_prompt
@@ -4687,12 +4724,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             api_keys = {
                 'openai': get_k(user.openai_api_key, 'OPENAI_API_KEY'),
                 'gemini': gemini_runtime.get('api_key'),
-                'xai': get_k(user.xai_api_key, 'XAI_API_KEY')
+                'xai': get_k(user.xai_api_key, 'XAI_API_KEY'),
+                'deepseek': get_k(user.deepseek_api_key, 'DEEPSEEK_API_KEY')
             }
 
             key = None
             if is_gem: key = model_api_key_override or api_keys.get('gemini')
             elif is_grok: key = model_api_key_override or api_keys.get('xai')
+            elif is_deepseek: key = model_api_key_override or api_keys.get('deepseek')
             else: key = model_api_key_override or api_keys.get('openai')
 
             if is_gem:
@@ -4730,6 +4769,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             elif is_grok:
                 x_client = _get_xai_client(key)
                 o_client = _get_openai_client(key, base_url=f"https://{_XAI_API_HOST}/v1")
+            elif is_deepseek:
+                o_client = _get_openai_client(key, base_url="https://api.deepseek.com")
             else: o_client = _get_openai_client(key, base_url=None)
 
             loaded_files = []
@@ -6994,6 +7035,84 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 finally:
                     pub("search_status", "done")
 
+            elif is_deepseek:
+                log_force("Routing: DeepSeek V4 Branch (Chat Completions)")
+                try:
+                    if any(fi.get('bytes') and str(fi.get('mime', '')).startswith('image/') for fi in loaded_files):
+                        pub("error", "DeepSeek V4 does not support image inputs. Please remove images and retry.")
+                        return
+                    if check_stop():
+                        return
+                    client = o_client
+                    messages = []
+                    sys_prompt = options.get('system_prompt') or ""
+                    if sys_prompt:
+                        messages.append({"role": "system", "content": sys_prompt})
+
+                    for m in history:
+                        messages.append({"role": m['role'], "content": m['content']})
+
+                    user_text = ""
+                    if quote_text:
+                        user_text += f"User Quote:\n{quote_text}\n---\n"
+                    user_text += message_text
+                    for fi in loaded_files:
+                        if fi.get('text'):
+                            user_text += f"\n\n[File: {fi.get('send_name') or fi.get('name') or 'file'}]\n{fi['text']}"
+
+                    if not user_text.strip():
+                        pub("error", "DeepSeek request is empty.")
+                        return
+
+                    messages.append({"role": "user", "content": user_text})
+                    deepseek_kwargs = {
+                        "model": model_key,
+                        "messages": messages,
+                    }
+                    enable_reasoning = bool(options.get('enable_thinking')) or (req_reasoning_effort and req_reasoning_effort != "none")
+                    if enable_reasoning:
+                        deepseek_kwargs["reasoning_effort"] = _deepseek_reasoning_effort()
+                        deepseek_kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
+                    else:
+                        deepseek_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+
+                    _mark_provider_request_started()
+                    resp = client.chat.completions.create(**deepseek_kwargs)
+                    if not resp or not getattr(resp, "choices", None):
+                        pub("error", "DeepSeek API Error: Empty response.")
+                        return
+
+                    msg = resp.choices[0].message
+                    reasoning_text = getattr(msg, "reasoning_content", None)
+                    if reasoning_text:
+                        thought_accumulated += reasoning_text
+                        pub("thought", reasoning_text)
+
+                    content = getattr(msg, "content", None)
+                    text_parts = []
+                    if isinstance(content, list):
+                        for part in content:
+                            if isinstance(part, dict):
+                                p_type = part.get("type")
+                                p_text = part.get("text")
+                            else:
+                                p_type = getattr(part, "type", None)
+                                p_text = getattr(part, "text", None)
+                            if p_type in (None, "text", "output_text") and p_text:
+                                text_parts.append(p_text)
+                    elif isinstance(content, str):
+                        if content:
+                            text_parts.append(content)
+                    elif content is not None:
+                        text_parts.append(str(content))
+
+                    final_text = "".join(text_parts).strip()
+                    if final_text:
+                        full_res += final_text
+                        pub("content", final_text)
+                except Exception as e:
+                    pub("error", f"DeepSeek Error: {str(e)}")
+
             # --- 4. OpenAI Responses API (or Grok Fallback) ---
             else:
                 log_force("Routing: Responses API Branch")
@@ -8300,6 +8419,7 @@ def setup():
             return render_template('setup.html', error=str(e))
         current_user.openai_api_key = encrypt_val(request.form.get('openai_key'))
         current_user.gemini_api_key = encrypt_val(request.form.get('gemini_key'))
+        current_user.deepseek_api_key = encrypt_val(request.form.get('deepseek_key'))
         current_user.gemini_backend = _normalize_gemini_backend(request.form.get('gemini_backend'))
         current_user.gemini_vertex_project = encrypt_val(request.form.get('gemini_vertex_project'))
         current_user.gemini_vertex_location = _normalize_gemini_vertex_location(request.form.get('gemini_vertex_location'))
@@ -8923,6 +9043,7 @@ def generate_title_api():
             rml = requested_model.lower()
             if "gemini" in rml: primary_provider = "gemini"
             elif "grok" in rml: primary_provider = "xai"
+            elif "deepseek" in rml: primary_provider = "deepseek"
             else: primary_provider = "openai"
 
         # Preparation
@@ -8937,6 +9058,11 @@ def generate_title_api():
             _get_model_specific_api_key(current_user, "grok-beta")
             or decrypt_val(current_user.xai_api_key)
             or (os.getenv('XAI_API_KEY') if _admin_env_fallback_enabled(current_user) else None)
+        )
+        d_key = (
+            _get_model_specific_api_key(current_user, "deepseek-v4-flash")
+            or decrypt_val(current_user.deepseek_api_key)
+            or (os.getenv('DEEPSEEK_API_KEY') if _admin_env_fallback_enabled(current_user) else None)
         )
 
         # 1. Try Primary requested provider/model
@@ -8976,6 +9102,21 @@ def generate_title_api():
                 resp = chat.sample()
                 if resp and resp.message and resp.message.content:
                     title = resp.message.content.strip().replace('"', '')
+            except: pass
+        elif primary_provider == "deepseek" and d_key:
+            try:
+                client = _get_openai_client(d_key, base_url="https://api.deepseek.com")
+                resp = client.chat.completions.create(
+                    model=requested_model,
+                    messages=[
+                        {"role": "system", "content": "Generate a short title (max 6 words) for this chat. Output only the title text."},
+                        {"role": "user", "content": content[:500]}
+                    ],
+                    max_tokens=20,
+                    extra_body={"thinking": {"type": "disabled"}}
+                )
+                if resp.choices and resp.choices[0].message and resp.choices[0].message.content:
+                    title = str(resp.choices[0].message.content).strip().replace('"', '')
             except: pass
 
         # 2. Fallbacks if still "New Chat"
@@ -10867,6 +11008,7 @@ def handle_settings():
             'username': current_user.username, 
             'openai_key': decrypt_val(current_user.openai_api_key) or "", 
             'gemini_key': decrypt_val(current_user.gemini_api_key) or "", 
+            'deepseek_key': decrypt_val(current_user.deepseek_api_key) or "",
             'model_api_keys': _load_user_model_api_key_map(current_user),
             'gemini_backend': _normalize_gemini_backend(current_user.gemini_backend),
             'gemini_vertex_project': decrypt_val(current_user.gemini_vertex_project) or "",
@@ -10945,6 +11087,7 @@ def handle_settings():
         set_user_auto_system_prompt_notices_config(current_user, d.get('auto_system_prompt_notices_config'))
     if 'openai_key' in d: current_user.openai_api_key = encrypt_val(d['openai_key'])
     if 'gemini_key' in d: current_user.gemini_api_key = encrypt_val(d['gemini_key'])
+    if 'deepseek_key' in d: current_user.deepseek_api_key = encrypt_val(d['deepseek_key'])
     if 'model_api_keys' in d: _save_user_model_api_key_map(current_user, d.get('model_api_keys'))
     if 'gemini_backend' in d: current_user.gemini_backend = _normalize_gemini_backend(d['gemini_backend'])
     if 'gemini_vertex_project' in d: current_user.gemini_vertex_project = encrypt_val(d['gemini_vertex_project'])
@@ -12132,6 +12275,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_user_deepseek_api_key_column()
+    except Exception:
+        pass
+    try:
         ensure_user_admin_api_key_mode_column()
     except Exception:
         pass
@@ -12238,6 +12385,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN gemini_vertex_credentials_json TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN deepseek_api_key TEXT")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN admin_api_key_mode VARCHAR(24) DEFAULT 'env_fallback'")

@@ -531,7 +531,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-25-002')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-26-001')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -7166,7 +7166,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         return effort
                     effort = effort.lower().strip()
                     # Smaller GPT-5 tiers do not accept "none"; use minimal instead.
-                    if any(x in model_key_l for x in ("gpt-5-mini", "gpt-5.4-mini", "gpt-5.4-nano")) and effort == "none":
+                    if any(x in model_key_l for x in ("gpt-5-mini", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.5-mini", "gpt-5.5-nano")) and effort == "none":
                         return "minimal"
                     return effort
                 if is_grok and enable_reasoning and grok_reasoning_effort_supported:

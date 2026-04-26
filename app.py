@@ -535,7 +535,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-26-004')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-26-005')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -10086,14 +10086,18 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
         if node is None:
             return
         if isinstance(node, NavigableString):
+            from bs4 import Doctype, Comment, Declaration
+            if isinstance(node, (Doctype, Comment, Declaration)):
+                return
             text = normalize_text(str(node))
             if text:
-                add_paragraph(text, body_style)
+                # NavigableString must be escaped before Paragraph
+                add_paragraph(esc(text).replace("\n", "<br/>"), body_style)
             return
         if not isinstance(node, Tag):
             return
         tag_name = (node.name or "").lower()
-        if tag_name in {"script", "style", "noscript", "meta", "link", "iframe", "canvas", "svg", "object", "embed"}:
+        if tag_name in {"script", "style", "noscript", "meta", "link", "iframe", "canvas", "svg", "object", "embed", "head", "title"}:
             return
         if tag_name in {"h1", "h2", "h3", "h4", "h5", "h6"}:
             level = int(tag_name[1])
@@ -10102,10 +10106,19 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
         if tag_name == "p":
             add_paragraph(inline_markup(node), body_style)
             return
-        if tag_name in {"div", "section", "article", "main", "header", "footer", "aside"}:
+        if tag_name in {"div", "section", "article", "main", "header", "footer", "aside", "body", "html"}:
             child_tags = [child for child in node.children if isinstance(child, Tag)]
-            if not child_tags:
-                add_paragraph(inline_markup(node), body_style)
+            # If a block tag only has text/inline children, process it as one paragraph
+            # to keep the layout tighter.
+            inline_only = True
+            for child in node.children:
+                if isinstance(child, Tag) and (child.name or "").lower() not in {"span", "b", "strong", "i", "em", "u", "s", "a", "code", "font", "br"}:
+                    inline_only = False
+                    break
+            if inline_only:
+                markup = inline_markup(node)
+                if markup:
+                    add_paragraph(markup, body_style)
                 return
             for child in node.children:
                 render_node(child)

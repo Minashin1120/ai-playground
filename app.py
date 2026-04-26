@@ -535,7 +535,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-26-003')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-26-004')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -9967,18 +9967,28 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
         items = list_node.find_all("li", recursive=False)
         for idx, li in enumerate(items, start=1):
             item_markup, nested_lists = list_item_children_text(li)
+            # Remove any trailing <br/> or whitespace before normalization
+            item_markup = re.sub(r'(<br\s*/?>\s*)+$', '', item_markup.strip())
             item_text = normalize_text(item_markup, preserve_newlines=True)
+            bullet = f"{idx}." if ordered else "-"
+            item_style = paragraph_style(
+                f"RichPasteList{level}_{idx}",
+                font_size=10.3,
+                leading=14.8,
+                color="#111827",
+                space_after=3,
+                left_indent=max(0, (level + 1) * 12),
+                first_line_indent=-12,
+            )
             if item_text:
-                bullet = f"{idx}." if ordered else "-"
-                item_style = paragraph_style(
-                    f"RichPasteList{level}",
-                    font_size=10.3,
-                    leading=14.8,
-                    color="#111827",
-                    space_after=3,
-                    left_indent=max(0, level * 12),
-                )
-                story.append(Paragraph(item_text, item_style, bulletText=bullet))
+                try:
+                    story.append(Paragraph(item_text, item_style, bulletText=bullet))
+                except Exception:
+                    story.append(Paragraph(esc(item_text), item_style, bulletText=bullet))
+            elif not nested_lists:
+                # Add empty item if no text and no nested lists
+                story.append(Paragraph("&nbsp;", item_style, bulletText=bullet))
+
             for nested in nested_lists:
                 add_list(nested, level=level + 1, ordered=(nested.name or "").lower() == "ol")
 
@@ -10007,36 +10017,54 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
                     splitLongWords=1,
                 )
                 try:
-                    cells.append(Paragraph(cell_markup, cell_style))
+                    p = Paragraph(cell_markup, cell_style)
                 except Exception:
-                    cells.append(Paragraph(esc(cell_markup), cell_style))
+                    p = Paragraph(esc(cell_markup), cell_style)
+                cells.append(p)
             if cells:
                 rows.append(cells)
         if not rows:
             return
+        
         col_count = max(len(r) for r in rows)
         if col_count == 0:
             return
         for row in rows:
             while len(row) < col_count:
                 row.append(Paragraph("&nbsp;", table_cell_style))
-        table = Table(rows, repeatRows=header_rows, hAlign="LEFT", colWidths=[available_width / col_count] * col_count)
-        style_cmds = [
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING", (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ]
-        if header_rows:
-            style_cmds.extend([
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e2e8f0")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
-                ("FONTNAME", (0, 0), (-1, 0), bold_font),
-            ])
-        table.setStyle(TableStyle(style_cmds))
-        story.append(table)
+        
+        # Split very large tables into chunks to avoid layout issues
+        CHUNK_SIZE = 50
+        for i in range(0, len(rows), CHUNK_SIZE):
+            chunk = rows[i : i + CHUNK_SIZE]
+            is_first_chunk = (i == 0)
+            
+            # If not first chunk, we might want to repeat header, but SimpleDocTemplate 
+            # might handle it if repeatRows is set. However, splitting manual is safer for build.
+            current_header_rows = header_rows if is_first_chunk else 0
+            
+            table = Table(chunk, repeatRows=current_header_rows, hAlign="LEFT", 
+                          colWidths=[available_width / col_count] * col_count,
+                          splitByRow=1)
+            
+            style_cmds = [
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+            if current_header_rows:
+                style_cmds.extend([
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e2e8f0")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
+                    ("FONTNAME", (0, 0), (-1, 0), bold_font),
+                ])
+            table.setStyle(TableStyle(style_cmds))
+            story.append(table)
+            if i + CHUNK_SIZE < len(rows):
+                story.append(Spacer(1, 4))
 
     def add_pre(node):
         text = normalize_text(node.get_text("\n"), preserve_newlines=True)

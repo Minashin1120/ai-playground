@@ -535,7 +535,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-26-006')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-26-007')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -10212,20 +10212,31 @@ def rich_paste_pdf():
     if request.is_json:
         try:
             d = request.get_json(silent=True)
+            if d:
+                log_force(f"DEBUG: rich_paste_pdf get_json success keys={list(d.keys())}")
         except Exception as e:
             log_force(f"DEBUG: rich_paste_pdf get_json exception: {e}")
 
-    if not isinstance(d, dict):
+    if not isinstance(d, dict) or not d:
         if request.form:
             d = request.form.to_dict(flat=True)
+            log_force("DEBUG: rich_paste_pdf used request.form")
         else:
             try:
-                # Use request.get_data() with cache=True (default) to not exhaust stream
-                raw_body = request.get_data(as_text=True)
+                # Crucial: Use cache=True to allow multiple reads if needed
+                raw_body = request.get_data(cache=True, as_text=True)
                 if raw_body and raw_body.strip():
-                    d = json.loads(raw_body)
+                    log_force(f"DEBUG: rich_paste_pdf raw_body_len={len(raw_body)}")
+                    try:
+                        d = json.loads(raw_body)
+                        log_force("DEBUG: rich_paste_pdf json.loads(raw_body) success")
+                    except Exception:
+                        # Fallback for some clients that might send raw HTML as body
+                        if "<html>" in raw_body.lower() or "<div" in raw_body.lower():
+                            d = {"html": raw_body}
+                            log_force("DEBUG: rich_paste_pdf treated raw_body as html")
             except Exception as e:
-                log_force(f"DEBUG: rich_paste_pdf get_data/json.loads exception: {e}")
+                log_force(f"DEBUG: rich_paste_pdf get_data exception: {e}")
                 d = {}
 
     if not isinstance(d, dict):

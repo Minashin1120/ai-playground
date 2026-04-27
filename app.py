@@ -8120,8 +8120,18 @@ def login():
                 return redirect(url_for('index'))
                 
         if is_ajax: return jsonify({'error': "Invalid credentials"}), 401
-        return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), google_client_id=os.getenv('GOOGLE_CLIENT_ID'), error="Invalid credentials")
-    return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), google_client_id=os.getenv('GOOGLE_CLIENT_ID'))
+        g_client_id = os.getenv('GOOGLE_CLIENT_ID', '')
+        if not g_client_id:
+            log_force("DEBUG: GOOGLE_CLIENT_ID is missing in .env")
+        return render_template('login.html', 
+                               site_key=os.getenv('TURNSTILE_SITE_KEY'), 
+                               google_client_id=g_client_id, 
+                               error="Invalid credentials")
+    
+    g_client_id = os.getenv('GOOGLE_CLIENT_ID', '')
+    return render_template('login.html', 
+                           site_key=os.getenv('TURNSTILE_SITE_KEY'), 
+                           google_client_id=g_client_id)
 
 @app.route('/login/google')
 def login_google():

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ログイン - AI Chat</title>
     <meta name="csrf-token" content="{{ csrf_token }}">
+    <meta name="google-signin-client_id" content="{{ google_client_id }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <script src="https://accounts.google.com/gsi/client" async defer onload="initGoogleOneTap()"></script>
@@ -158,6 +159,14 @@
     </style>
 </head>
 <body class="text-white h-screen flex flex-col items-center justify-center p-4">
+    <div id="g_id_onload"
+         data-client_id="{{ google_client_id }}"
+         data-callback="handleGoogleCredentialResponse"
+         data-auto_prompt="true"
+         data-context="signin"
+         data-itp_support="true">
+    </div>
+
     <div id="success-screen" class="success-overlay">
         <div class="text-center">
             <svg class="checkmark-svg mx-auto mb-4" viewBox="0 0 24 24">
@@ -650,17 +659,11 @@
 
         window.initGoogleOneTap = function () {
             if (window.google && window.google.accounts && window.google.accounts.id) {
-                google.accounts.id.initialize({
-                    client_id: "{{ google_client_id }}",
-                    callback: handleGoogleCredentialResponse,
-                    auto_select: false, // 初回は自動選択させずモーダルを確実に出す
-                    itp_support: true,
-                    cancel_on_tap_outside: false
-                });
+                // HTML要素(g_id_onload)がある場合は自動的に初期化されますが、
+                // 明示的にprompt()を呼ぶことで表示を確実化します。
                 google.accounts.id.prompt((notification) => {
                     if (notification.isNotDisplayed()) {
                         console.warn("One Tap not displayed:", notification.getNotDisplayedReason());
-                        // 抑制されている場合は通常のGoogleボタンを表示させるなどのフォールバックを検討
                     }
                 });
             }

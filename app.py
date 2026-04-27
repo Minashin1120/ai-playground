@@ -537,7 +537,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-27-003')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-27-004')
+app.config['SYSTEM_VERSION'] = 'V4.8.460'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2563,6 +2564,7 @@ def inject_csrf():
     return {
         'csrf_token': get_csrf_token(),
         'app_version': app.config.get('APP_VERSION'),
+        'system_version': app.config.get('SYSTEM_VERSION'),
         'is_admin': is_admin,
         'attachment_max_files': app.config.get('ATTACHMENT_MAX_FILES', 30),
         'upload_concurrency': app.config.get('UPLOAD_CONCURRENCY', 3),

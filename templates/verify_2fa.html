@@ -77,16 +77,20 @@
 
         <div class="mb-6">
             <div class="flex border-b border-slate-700 mb-4">
-                <button onclick="switchTab('totp')" id="tab-totp" class="flex-1 py-2 text-sm font-semibold tab-active border-b-2 cursor-default">App Code</button>
-                <button onclick="switchTab('webauthn')" id="tab-webauthn" class="flex-1 py-2 text-sm text-slate-400 hover:text-white border-b-2 border-transparent cursor-pointer">Security Key</button>
+                {% if has_totp %}
+                <button onclick="switchTab('totp')" id="tab-totp" class="flex-1 py-2 text-sm {% if default_method == 'totp' %}tab-active font-semibold cursor-default border-b-2{% else %}text-slate-400 hover:text-white border-b-2 border-transparent cursor-pointer{% endif %}">App Code</button>
+                {% endif %}
+                {% if has_webauthn %}
+                <button onclick="switchTab('webauthn')" id="tab-webauthn" class="flex-1 py-2 text-sm {% if default_method == 'webauthn' %}tab-active font-semibold cursor-default border-b-2{% else %}text-slate-400 hover:text-white border-b-2 border-transparent cursor-pointer{% endif %}">Security Key</button>
+                {% endif %}
             </div>
 
             <!-- TOTP Form -->
-            <form id="form-totp">
+            <form id="form-totp" class="{% if default_method != 'totp' %}hidden{% endif %}">
                 <div id="totp-error" class="hidden bg-red-900/50 border border-red-500 text-red-200 px-4 py-2 rounded mb-4 text-sm"></div>
                 <div class="mb-4">
                     <label class="block text-slate-300 text-sm font-semibold mb-2">認証コード (6桁)</label>
-                    <input type="text" id="totp-input" name="totp_code" class="w-full bg-[#0b121a] text-white border border-slate-700 rounded-xl py-2.5 px-3 focus:outline-none focus:border-teal-400 font-mono text-center text-xl tracking-widest" placeholder="000000" maxlength="6" autofocus required autocomplete="one-time-code">
+                    <input type="text" id="totp-input" name="totp_code" class="w-full bg-[#0b121a] text-white border border-slate-700 rounded-xl py-2.5 px-3 focus:outline-none focus:border-teal-400 font-mono text-center text-xl tracking-widest" placeholder="000000" maxlength="6" {% if default_method == 'totp' %}autofocus{% endif %} required autocomplete="one-time-code">
                 </div>
                 <button type="submit" class="w-full font-bold py-2.5 px-4 rounded-xl transition primary-btn">
                     認証する
@@ -94,7 +98,7 @@
             </form>
 
             <!-- WebAuthn -->
-            <div id="form-webauthn" class="hidden text-center py-4">
+            <div id="form-webauthn" class="{% if default_method != 'webauthn' %}hidden{% endif %} text-center py-4">
                 <div class="mb-4 text-slate-300">
                     <i class="fas fa-key text-4xl mb-2 text-amber-300"></i>
                     <p>セキュリティキーまたはTouch IDを使用</p>
@@ -112,14 +116,21 @@
 
     <script>
         function switchTab(t) {
-            document.getElementById('form-totp').classList.add('hidden');
-            document.getElementById('form-webauthn').classList.add('hidden');
-            document.getElementById('form-'+t).classList.remove('hidden');
-            
-            document.getElementById('tab-totp').className = "flex-1 py-2 text-sm text-slate-400 hover:text-white cursor-pointer border-b-2 border-transparent";
-            document.getElementById('tab-webauthn').className = "flex-1 py-2 text-sm text-slate-400 hover:text-white cursor-pointer border-b-2 border-transparent";
+            const totpForm = document.getElementById('form-totp');
+            const webauthnForm = document.getElementById('form-webauthn');
+            const totpTab = document.getElementById('tab-totp');
+            const webauthnTab = document.getElementById('tab-webauthn');
 
-            document.getElementById('tab-'+t).className = "flex-1 py-2 text-sm font-semibold tab-active border-b-2 cursor-default";
+            if (totpForm) totpForm.classList.add('hidden');
+            if (webauthnForm) webauthnForm.classList.add('hidden');
+            const targetForm = document.getElementById('form-'+t);
+            if (targetForm) targetForm.classList.remove('hidden');
+            
+            if (totpTab) totpTab.className = "flex-1 py-2 text-sm text-slate-400 hover:text-white cursor-pointer border-b-2 border-transparent";
+            if (webauthnTab) webauthnTab.className = "flex-1 py-2 text-sm text-slate-400 hover:text-white cursor-pointer border-b-2 border-transparent";
+
+            const targetTab = document.getElementById('tab-'+t);
+            if (targetTab) targetTab.className = "flex-1 py-2 text-sm font-semibold tab-active border-b-2 cursor-default";
         }
 
         document.getElementById('form-totp').onsubmit = async (e) => {

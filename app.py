@@ -537,7 +537,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-27-001')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-27-002')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1904,6 +1904,8 @@ class User(UserMixin, db.Model):
     totp_secret = db.Column(db.String(32), nullable=True) # Encrypted
     webauthn_credentials = db.Column(db.Text, nullable=True) # JSON list
     passkey_only_login = db.Column(db.Boolean, default=False)
+    skip_2fa_on_google_login = db.Column(db.Boolean, default=False)
+    default_2fa_method = db.Column(db.String(16), default='totp')
     bot_detection_enabled = db.Column(db.Boolean, default=True)
     is_bot_banned = db.Column(db.Boolean, default=False)
     bot_banned_at = db.Column(db.DateTime, nullable=True)
@@ -2735,6 +2737,26 @@ def ensure_user_deepseek_api_key_column():
             if not res:
                 conn.execute(text("SET SESSION lock_wait_timeout=1"))
                 conn.execute(text("ALTER TABLE user ADD COLUMN deepseek_api_key TEXT"))
+    except Exception:
+        pass
+
+def ensure_user_2fa_default_columns():
+    try:
+        with db.engine.connect() as conn:
+            columns = [
+                ("skip_2fa_on_google_login", "ALTER TABLE user ADD COLUMN skip_2fa_on_google_login BOOLEAN DEFAULT 0"),
+                ("default_2fa_method", "ALTER TABLE user ADD COLUMN default_2fa_method VARCHAR(16) DEFAULT 'totp'"),
+            ]
+            for column_name, ddl in columns:
+                res = conn.execute(text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA=DATABASE() "
+                    "AND TABLE_NAME='user' "
+                    "AND COLUMN_NAME=:column_name"
+                ), {"column_name": column_name}).scalar()
+                if not res:
+                    conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                    conn.execute(text(ddl))
     except Exception:
         pass
 
@@ -8190,8 +8212,14 @@ def login_google_callback():
                 )
                 db.session.add(user)
                 safe_db_commit()
-        
+
+        if user.is_2fa_enabled and not user.skip_2fa_on_google_login:
+            session['pre_2fa_user_id'] = user.id
+            session['remember_me'] = True
+            return redirect(url_for('verify_2fa'))
+
         login_user(user, remember=True)
+        create_user_session(user)
         record_user_client_token(user)
         
         if not user.is_setup_completed:
@@ -8232,7 +8260,12 @@ def login_google_one_tap():
                 )
                 db.session.add(user)
                 safe_db_commit()
-        
+
+        if user.is_2fa_enabled and not user.skip_2fa_on_google_login:
+            session['pre_2fa_user_id'] = user.id
+            session['remember_me'] = True
+            return jsonify({'status': '2fa_required', 'redirect': url_for('verify_2fa')})
+
         login_user(user, remember=True)
         create_user_session(user)
         record_user_client_token(user)
@@ -8379,7 +8412,20 @@ def verify_2fa():
         
         if is_ajax: return jsonify({'error': "Code required"}), 400
             
-    return render_template('verify_2fa.html')
+    has_totp = bool(user.totp_secret)
+    has_webauthn = bool(_load_user_webauthn_credentials(user))
+    default_method = user.default_2fa_method or 'totp'
+    
+    # If the default method is not available, switch to the one that is
+    if default_method == 'totp' and not has_totp and has_webauthn:
+        default_method = 'webauthn'
+    elif default_method == 'webauthn' and not has_webauthn and has_totp:
+        default_method = 'totp'
+
+    return render_template('verify_2fa.html', 
+                           has_totp=has_totp, 
+                           has_webauthn=has_webauthn, 
+                           default_method=default_method)
 
 @app.route('/verify-2fa/webauthn/options', methods=['POST'])
 def verify_2fa_webauthn_options():
@@ -11217,6 +11263,8 @@ def handle_settings():
             'passkey_credentials': _serialize_public_webauthn_credentials(passkeys),
             'passkey_count': len(passkeys),
             'passkey_only_login': current_user.passkey_only_login,
+            'skip_2fa_on_google_login': current_user.skip_2fa_on_google_login,
+            'default_2fa_method': current_user.default_2fa_method or 'totp',
             'bot_detection_enabled': current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
             'bot_detection_global_enabled': get_bot_detection_global_enabled(),
             'is_bot_banned': current_user.is_bot_banned,
@@ -11294,6 +11342,10 @@ def handle_settings():
             if not creds:
                 return jsonify({'error': 'No passkey registered'}), 400
         current_user.passkey_only_login = target
+    if 'skip_2fa_on_google_login' in d:
+        current_user.skip_2fa_on_google_login = bool(d['skip_2fa_on_google_login'])
+    if 'default_2fa_method' in d:
+        current_user.default_2fa_method = str(d['default_2fa_method'])
     if 'bot_detection_enabled' in d and d['bot_detection_enabled'] is not None:
         current_user.bot_detection_enabled = bool(d['bot_detection_enabled'])
     if 'enable_latency_metrics' in d:
@@ -12437,6 +12489,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_user_2fa_default_columns()
+    except Exception:
+        pass
+    try:
         ensure_user_model_api_keys_column()
     except Exception:
         pass
@@ -12560,6 +12616,12 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN passkey_only_login BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN skip_2fa_on_google_login BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN default_2fa_method VARCHAR(16) DEFAULT 'totp'")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN mic_transcribe_mode VARCHAR(16) DEFAULT 'stt_api'")

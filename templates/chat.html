@@ -8,7 +8,7 @@
     {% if initial_theme_css %}
     <style id="initial-theme-vars">{{ initial_theme_css|safe }}</style>
     {% endif %}
-    <title>AI Playground (V4.8.457)</title>
+    <title>AI Playground (V4.8.458)</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.258.css') }}?v={{ app_version }}">
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -122,7 +122,7 @@
     
     <!-- Alpha Bar -->
     <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 bg-green-600/90 text-white text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg border-t border-green-400">
-        <i class="fas fa-check-circle mr-1"></i> System v4.8.457 (Stable)    </div>
+        <i class="fas fa-check-circle mr-1"></i> System v4.8.458 (Stable)    </div>
 
     <!-- Debug Console -->
     <div id="debug-console"><div class="flex justify-between border-b border-gray-700 mb-2 pb-1"><span>System Logs</span><div><button onclick="refreshLogs()" class="text-blue-400 mr-2">Refresh</button><button onclick="document.getElementById('debug-console').style.display='none'" class="text-red-400">Close</button></div></div><div id="debug-content" class="whitespace-pre-wrap"></div></div>
@@ -160,7 +160,7 @@
             <!-- Threads loaded dynamically -->
             <div id="scroll-sentinel"></div>
         </div>
-        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.8.451 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
+        <div class="p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">v4.8.458 <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
     </div>
     <div id="overlay" class="overlay"></div>
 
@@ -1085,15 +1085,32 @@
             </div>
 
             <div class="bg-gray-900 p-4 rounded border border-gray-700">
-                <h3 class="text-sm font-bold text-emerald-300 mb-2"><i class="fas fa-user-shield mr-2"></i> Passkey Only Login</h3>
-                <p class="text-xs text-gray-400 mb-3">パスワードをスキップし、パスキーのみでログインします。</p>
-                <label class="flex items-center justify-between text-xs text-gray-300">
-                    <span>パスキーのみログインを有効化</span>
-                    <span class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="set-passkey-only-login" class="sr-only peer">
-                        <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                    </span>
-                </label>
+                <h3 class="text-sm font-bold text-emerald-300 mb-2"><i class="fas fa-user-shield mr-2"></i> Authentication Preferences</h3>
+                <div class="space-y-4">
+                    <label class="flex items-center justify-between text-xs text-gray-300">
+                        <span>Google ログイン時に2FAをスキップ</span>
+                        <span class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="set-skip-2fa-google" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                        </span>
+                    </label>
+                    
+                    <div class="flex items-center justify-between text-xs text-gray-300">
+                        <span>既定の2要素認証方式</span>
+                        <select id="set-default-2fa-method" class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white outline-none">
+                            <option value="totp">Authenticator App (TOTP)</option>
+                            <option value="webauthn">Security Key / Passkey</option>
+                        </select>
+                    </div>
+
+                    <label class="flex items-center justify-between text-xs text-gray-300">
+                        <span>パスキーのみログインを有効化</span>
+                        <span class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="set-passkey-only-login" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                        </span>
+                    </label>
+                </div>
                 <div id="passkey-only-note" class="text-[10px] text-red-300 mt-2 hidden">パスキー未登録のため有効化できません。</div>
             </div>
         </div>

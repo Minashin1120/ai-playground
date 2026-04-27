@@ -88,9 +88,23 @@ GEMINI_API_KEY=your_gemini_key
 XAI_API_KEY=your_xai_key
 GOOGLE_API_KEY=your_google_key
 GOOGLE_CLOUD_PROJECT=your_gcp_project
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
 ```
 
-**Optional tuning:**
+### 5. Google OAuth Setup
+
+To enable Google Login and Google One Tap, you must configure your OAuth 2.0 Client ID in the [Google Cloud Console](https://console.cloud.google.com/):
+
+1.  **Authorized JavaScript origins**:
+    *   Add your domain: `https://ai.minashin1120.com`
+    *   *Required for Google One Tap.*
+2.  **Authorized redirect URIs**:
+    *   Add the callback URL: `https://ai.minashin1120.com/login/google/callback`
+    *   *Required for standard Google Login button.*
+
+### 6. Initialize & Run
+
 
 ```ini
 RUN_SCHEMA_MIGRATIONS=0

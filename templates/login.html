@@ -7,7 +7,7 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://accounts.google.com/gsi/client" async defer onload="initGoogleOneTap()"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.268') }}"></script>
@@ -641,8 +641,6 @@
                     triggerSuccess(data.redirect);
                 } else {
                     console.error("Google Login Error:", data.error);
-                    // We don't necessarily want to show an error to the user if One Tap fails silently or is cancelled
-                    // but if it was an explicit error from our backend, maybe.
                 }
             })
             .catch(err => {
@@ -650,22 +648,19 @@
             });
         }
 
-        window.onload = function () {
+        window.initGoogleOneTap = function () {
             if (window.google && window.google.accounts && window.google.accounts.id) {
                 google.accounts.id.initialize({
                     client_id: "{{ google_client_id }}",
                     callback: handleGoogleCredentialResponse,
-                    auto_select: true,
+                    auto_select: false, // 初回は自動選択させずモーダルを確実に出す
                     itp_support: true,
-                    use_fedcm_for_prompt: true
+                    cancel_on_tap_outside: false
                 });
                 google.accounts.id.prompt((notification) => {
                     if (notification.isNotDisplayed()) {
-                        console.log("One Tap not displayed:", notification.getNotDisplayedReason());
-                    } else if (notification.isSkippedMoment()) {
-                        console.log("One Tap skipped:", notification.getSkippedReason());
-                    } else if (notification.isDismissedMoment()) {
-                        console.log("One Tap dismissed:", notification.getDismissedReason());
+                        console.warn("One Tap not displayed:", notification.getNotDisplayedReason());
+                        // 抑制されている場合は通常のGoogleボタンを表示させるなどのフォールバックを検討
                     }
                 });
             }

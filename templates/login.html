@@ -7,6 +7,7 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.268') }}"></script>
@@ -619,6 +620,56 @@
                 passwordInput.type = showPasswordToggle.checked ? 'text' : 'password';
             });
         }
+
+        // Google One Tap
+        function handleGoogleCredentialResponse(response) {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const formData = new URLSearchParams();
+            formData.append('credential', response.credential);
+
+            fetch('/login/google/one-tap', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRF-Token': csrf
+                },
+                body: formData.toString()
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    triggerSuccess(data.redirect);
+                } else {
+                    console.error("Google Login Error:", data.error);
+                    // We don't necessarily want to show an error to the user if One Tap fails silently or is cancelled
+                    // but if it was an explicit error from our backend, maybe.
+                }
+            })
+            .catch(err => {
+                console.error("Google One Tap Network Error:", err);
+            });
+        }
+
+        window.onload = function () {
+            if (window.google && window.google.accounts && window.google.accounts.id) {
+                google.accounts.id.initialize({
+                    client_id: "{{ google_client_id }}",
+                    callback: handleGoogleCredentialResponse,
+                    auto_select: true,
+                    itp_support: true,
+                    use_fedcm_for_prompt: true
+                });
+                google.accounts.id.prompt((notification) => {
+                    if (notification.isNotDisplayed()) {
+                        console.log("One Tap not displayed:", notification.getNotDisplayedReason());
+                    } else if (notification.isSkippedMoment()) {
+                        console.log("One Tap skipped:", notification.getSkippedReason());
+                    } else if (notification.isDismissedMoment()) {
+                        console.log("One Tap dismissed:", notification.getDismissedReason());
+                    }
+                });
+            }
+        };
     </script>
 </body>
 </html>

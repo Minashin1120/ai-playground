@@ -53,6 +53,8 @@ from werkzeug.utils import secure_filename
 from sqlalchemy import or_, exc, text, func
 from dotenv import load_dotenv
 from openai import OpenAI, APITimeoutError, APIError, APIConnectionError, RateLimitError
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 from google import genai
 from google.genai import types
 from google.oauth2 import service_account
@@ -535,7 +537,7 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-26-007')
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-27-001')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -8118,8 +8120,8 @@ def login():
                 return redirect(url_for('index'))
                 
         if is_ajax: return jsonify({'error': "Invalid credentials"}), 401
-        return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Invalid credentials")
-    return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'))
+        return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), google_client_id=os.getenv('GOOGLE_CLIENT_ID'), error="Invalid credentials")
+    return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), google_client_id=os.getenv('GOOGLE_CLIENT_ID'))
 
 @app.route('/login/google')
 def login_google():
@@ -8189,6 +8191,51 @@ def login_google_callback():
         logger.error(f"Google Login Callback Error: {e}")
         flash("Google 連携中にエラーが発生しました。")
         return redirect(url_for('login' if not current_user.is_authenticated else 'index'))
+
+@app.route('/login/google/one-tap', methods=['POST'])
+def login_google_one_tap():
+    token = request.form.get('credential')
+    if not token:
+        return jsonify({'error': 'No credential provided'}), 400
+    
+    try:
+        # Verify the ID token
+        idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), os.getenv('GOOGLE_CLIENT_ID'))
+
+        google_id = str(idinfo['sub'])
+        email = idinfo['email']
+        
+        user = User.query.filter_by(google_id=google_id).first()
+        if not user:
+            user = User.query.filter(or_(User.google_email == email, User.username == email)).first()
+            if user:
+                user.google_id = google_id
+                if not user.google_email:
+                    user.google_email = email
+                safe_db_commit()
+            else:
+                user = User(
+                    username=email,
+                    google_id=google_id,
+                    google_email=email,
+                    is_setup_completed=False
+                )
+                db.session.add(user)
+                safe_db_commit()
+        
+        login_user(user, remember=True)
+        create_user_session(user)
+        record_user_client_token(user)
+        
+        if not user.is_setup_completed:
+            return jsonify({'status': 'ok', 'redirect': url_for('setup')})
+        return jsonify({'status': 'ok', 'redirect': url_for('index')})
+
+    except ValueError:
+        return jsonify({'error': 'Invalid token'}), 400
+    except Exception as e:
+        logger.error(f"Google One Tap Error: {e}")
+        return jsonify({'error': 'Authentication failed'}), 500
 
 @app.route('/api/account/unlink_google', methods=['POST'])
 @login_required

@@ -537,8 +537,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-27-004')
-app.config['SYSTEM_VERSION'] = 'V4.8.460'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-28-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.461'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -9268,6 +9268,15 @@ def generate_title_api():
                         title = resp.message.content.strip()
                 except: pass
             
+        # 5. Final fallback if still "New Chat" or empty
+        if title == "New Chat" or not title.strip():
+            # Use content snippet as fallback title
+            snippet = content[:50].strip().replace('\n', ' ')
+            if snippet:
+                title = snippet + ('...' if len(content) > 50 else '')
+            else:
+                title = "New Chat"
+
         thread.title = title
         safe_db_commit()
         return jsonify({'status': 'ok', 'title': title})

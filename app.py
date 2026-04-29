@@ -537,8 +537,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-29-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.465'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-04-29-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.466'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'

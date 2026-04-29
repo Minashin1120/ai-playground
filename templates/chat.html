@@ -39,7 +39,7 @@
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit" async defer></script>
     {% endif %}
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.custom.v4.8.465.css') }}?v={{ app_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.custom.v4.8.466.css') }}?v={{ app_version }}">
     <style>
         #rich-paste-capture {
             position: fixed;
@@ -142,7 +142,8 @@
                     {% if is_admin %}
                     <button onclick="toggleDebug()" class="text-gray-400 hover:text-yellow-400 p-1.5 rounded btn-hover hide-compact" title="Debug"><i class="fas fa-wrench text-xs"></i></button>
                     {% endif %}
-                    <button onclick="location.href='{{ url_for('changelog') }}'" class="text-gray-400 hover:text-white p-1.5 rounded btn-hover hide-compact" title="履歴"><i class="fas fa-history text-xs"></i></button>
+                    <button onclick="location.href='{{ url_for('changelog') }}'" class="text-gray-400 hover:text-white p-1.5 rounded btn-hover hide-compact" title="更新履歴"><i class="fas fa-history text-xs"></i></button>
+                    <button id="history-modal-btn" data-progress-no-spinner="true" class="text-gray-400 hover:text-white p-1.5 rounded btn-hover" title="チャット履歴"><i class="fas fa-clock-rotate-left text-xs"></i></button>
                     <button id="low-bandwidth-toggle-btn" data-progress-no-spinner="true" class="text-gray-400 hover:text-amber-300 p-1.5 rounded btn-hover hide-compact" title="低速回線モード（自動）"><i class="fas fa-tachometer-alt text-xs"></i></button>
                     <button id="settings-btn" data-progress-no-spinner="true" class="text-gray-400 hover:text-green-400 p-1.5 rounded btn-hover hide-compact" title="設定"><i class="fas fa-cog text-xs"></i></button>
                     <button id="lib-btn" data-progress-no-spinner="true" class="text-gray-400 hover:text-blue-400 p-1.5 rounded btn-hover" title="ライブラリ"><i class="fas fa-folder text-xs"></i></button>
@@ -692,6 +693,29 @@
                     <button id="marker-clear" data-progress-no-spinner="true" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white btn-hover">消去</button>
                     <button id="marker-save" class="px-4 py-1 rounded bg-yellow-500 hover:bg-yellow-400 text-black font-bold btn-hover">保存して反映</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div id="history-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
+        <div class="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 m-4 flex flex-col modal-panel overflow-hidden">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center shrink-0">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fas fa-history text-blue-400"></i> チャット履歴
+                </h2>
+                <button onclick="closeHistoryModal()" class="text-gray-400 hover:text-white transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-3 border-b border-gray-700 shrink-0">
+                <div class="relative">
+                    <input type="text" id="history-search-box" placeholder="履歴を検索..." class="w-full bg-gray-900 border border-gray-600 rounded px-4 py-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none transition">
+                    <i class="fas fa-search absolute right-3 top-2.5 text-gray-500"></i>
+                </div>
+            </div>
+            <div id="history-modal-thread-list-container" class="flex-1 overflow-hidden flex flex-col">
+                <!-- Thread list will be moved here when modal is open -->
             </div>
         </div>
     </div>
@@ -1354,16 +1378,60 @@
             const sidebar = document.getElementById('sidebar');
             const toggleBtn = document.getElementById('sidebar-toggle-btn');
             const toggleIcon = document.getElementById('sidebar-toggle-icon');
+            const historyBtn = document.getElementById('history-modal-btn');
+            const threadList = document.getElementById('thread-list');
+            const threadListInModal = document.getElementById('history-modal-thread-list-container');
+            const sidebarContainer = threadList.parentElement;
+
+            window.showHistoryModal = function() {
+                // Move thread list to modal
+                if (threadList && threadListInModal) {
+                    threadListInModal.appendChild(threadList);
+                    threadList.classList.remove('hide-compact');
+                }
+                showModal('history-modal');
+            };
+
+            window.closeHistoryModal = function() {
+                hideModal('history-modal');
+                // Move thread list back to sidebar after modal closes
+                setTimeout(() => {
+                    if (threadList && sidebarContainer) {
+                        sidebarContainer.insertBefore(threadList, document.querySelector('.safe-pb'));
+                        if (sidebar.classList.contains('compact')) {
+                            threadList.classList.add('hide-compact');
+                        }
+                    }
+                }, 300);
+            };
+
+            if (historyBtn) {
+                historyBtn.onclick = () => {
+                    showHistoryModal();
+                };
+            }
+
+            // Sync search box in modal with main search box
+            const historySearchBox = document.getElementById('history-search-box');
+            const mainSearchBox = document.getElementById('search-box');
+            if (historySearchBox && mainSearchBox) {
+                historySearchBox.addEventListener('input', (e) => {
+                    mainSearchBox.value = e.target.value;
+                    mainSearchBox.dispatchEvent(new Event('input', { bubbles: true }));
+                });
+            }
             
             function updateSidebarState(isCompact) {
                 if (isCompact) {
                     sidebar.classList.add('compact');
                     toggleIcon.classList.remove('fa-chevron-left');
                     toggleIcon.classList.add('fa-chevron-right');
+                    threadList.classList.add('hide-compact');
                 } else {
                     sidebar.classList.remove('compact');
                     toggleIcon.classList.remove('fa-chevron-right');
                     toggleIcon.classList.add('fa-chevron-left');
+                    threadList.classList.remove('hide-compact');
                 }
             }
 

@@ -39,7 +39,7 @@
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit" async defer></script>
     {% endif %}
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.custom.v4.8.462.css') }}?v={{ app_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.custom.v4.8.465.css') }}?v={{ app_version }}">
     <style>
         #rich-paste-capture {
             position: fixed;
@@ -130,7 +130,7 @@
     <!-- Sidebar -->
     <div id="sidebar" class="sidebar w-64 bg-gray-800 border-r border-gray-700 flex flex-col shrink-0">
         <div class="p-3 border-b border-gray-700 flex flex-col gap-2">
-            <div class="min-w-0">
+            <div class="min-w-0 hide-compact">
                 <div id="sidebar-chat-temporary-label" class="hidden text-[10px] text-amber-200/50 leading-none mb-0.5 tracking-wide">一時チャット</div>
                 <div class="flex items-center gap-2 min-w-0">
                     <h2 id="sidebar-chat-title" class="font-bold text-base text-gray-200 truncate">AI Chat</h2>
@@ -138,29 +138,36 @@
                 </div>
             </div>
             <div class="flex items-center justify-start gap-1 flex-wrap">
-                    <a href="https://github.com/Minashin1120/ai-playground" target="_blank" class="text-gray-400 hover:text-white p-1.5 btn-hover" title="GitHub"><i class="fab fa-github"></i></a>
+                    <a href="https://github.com/Minashin1120/ai-playground" target="_blank" class="text-gray-400 hover:text-white p-1.5 btn-hover hide-compact" title="GitHub"><i class="fab fa-github"></i></a>
                     {% if is_admin %}
-                    <button onclick="toggleDebug()" class="text-gray-400 hover:text-yellow-400 p-1.5 rounded btn-hover" title="Debug"><i class="fas fa-wrench text-xs"></i></button>
+                    <button onclick="toggleDebug()" class="text-gray-400 hover:text-yellow-400 p-1.5 rounded btn-hover hide-compact" title="Debug"><i class="fas fa-wrench text-xs"></i></button>
                     {% endif %}
-                    <button onclick="location.href='{{ url_for('changelog') }}'" class="text-gray-400 hover:text-white p-1.5 rounded btn-hover" title="履歴"><i class="fas fa-history text-xs"></i></button>
-                    <button id="low-bandwidth-toggle-btn" data-progress-no-spinner="true" class="text-gray-400 hover:text-amber-300 p-1.5 rounded btn-hover" title="低速回線モード（自動）"><i class="fas fa-tachometer-alt text-xs"></i></button>
-                    <button id="settings-btn" data-progress-no-spinner="true" class="text-gray-400 hover:text-green-400 p-1.5 rounded btn-hover" title="設定"><i class="fas fa-cog text-xs"></i></button>
+                    <button onclick="location.href='{{ url_for('changelog') }}'" class="text-gray-400 hover:text-white p-1.5 rounded btn-hover hide-compact" title="履歴"><i class="fas fa-history text-xs"></i></button>
+                    <button id="low-bandwidth-toggle-btn" data-progress-no-spinner="true" class="text-gray-400 hover:text-amber-300 p-1.5 rounded btn-hover hide-compact" title="低速回線モード（自動）"><i class="fas fa-tachometer-alt text-xs"></i></button>
+                    <button id="settings-btn" data-progress-no-spinner="true" class="text-gray-400 hover:text-green-400 p-1.5 rounded btn-hover hide-compact" title="設定"><i class="fas fa-cog text-xs"></i></button>
                     <button id="lib-btn" data-progress-no-spinner="true" class="text-gray-400 hover:text-blue-400 p-1.5 rounded btn-hover" title="ライブラリ"><i class="fas fa-folder text-xs"></i></button>
                     <button id="new-chat-btn" data-progress-no-spinner="true" class="text-gray-400 hover:text-white p-1.5 rounded bg-blue-600 hover:bg-blue-500 btn-hover" title="新規チャット"><i class="fas fa-plus text-xs"></i></button>
                     <button id="branch-manage-btn" data-progress-no-spinner="true" class="text-gray-400 hover:text-purple-400 p-1.5 rounded btn-hover" title="ブランチ管理"><i class="fas fa-sitemap text-xs"></i></button>
                     <button onclick="exportCurrentThreadPdf()" class="text-gray-400 hover:text-red-300 p-1.5 rounded btn-hover" title="PDF出力"><i class="fas fa-file-pdf text-xs"></i></button>            </div>
-            <div class="relative"><input type="text" id="search-box" placeholder="検索..." class="w-full bg-gray-700 rounded px-3 py-1 text-sm focus:ring-1 focus:ring-blue-500 outline-none transition"><i class="fas fa-search absolute right-3 top-1.5 text-gray-500 text-xs"></i></div>
-            <div id="low-bandwidth-status-pill" class="hidden text-[10px] text-amber-200 bg-amber-900/20 border border-amber-600/40 rounded px-2 py-1">
+            <div class="relative hide-compact"><input type="text" id="search-box" placeholder="検索..." class="w-full bg-gray-700 rounded px-3 py-1 text-sm focus:ring-1 focus:ring-blue-500 outline-none transition"><i class="fas fa-search absolute right-3 top-1.5 text-gray-500 text-xs"></i></div>
+            <div id="low-bandwidth-status-pill" class="hidden text-[10px] text-amber-200 bg-amber-900/20 border border-amber-600/40 rounded px-2 py-1 hide-compact">
                 <i class="fas fa-wifi mr-1"></i>低速回線モード
             </div>
         </div>
-        <div class="px-2 py-2"><div class="flex justify-between items-center px-2 mb-1"><span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Gems</span><button id="add-gem-btn" data-progress-no-spinner="true" class="text-xs text-blue-400 hover:text-blue-300 btn-hover"><i class="fas fa-plus"></i> New</button></div><div id="gem-list" class="space-y-1 overflow-y-auto max-h-40"></div></div>
-        <div class="border-t border-gray-700 my-1"></div>
-        <div class="flex-1 overflow-y-auto p-2 space-y-1" id="thread-list">
+        <div class="px-2 py-2 hide-compact"><div class="flex justify-between items-center px-2 mb-1"><span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Gems</span><button id="add-gem-btn" data-progress-no-spinner="true" class="text-xs text-blue-400 hover:text-blue-300 btn-hover"><i class="fas fa-plus"></i> New</button></div><div id="gem-list" class="space-y-1 overflow-y-auto max-h-40"></div></div>
+        <div class="border-t border-gray-700 my-1 hide-compact"></div>
+        <div class="flex-1 overflow-y-auto p-2 space-y-1 hide-compact" id="thread-list">
             <!-- Threads loaded dynamically -->
             <div id="scroll-sentinel"></div>
         </div>
-        <div class="p-3 safe-pb border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500"><div id="version-display" class="cursor-pointer hover:text-green-400 transition" onclick="showAlphaInfo()">{{ system_version }} <span class="text-green-500 font-bold">Stable</span></div><div class="flex justify-center gap-3"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div><a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover">ログアウト</a></div>
+        <div class="p-3 safe-pb border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500 relative">
+            <div id="version-display" class="cursor-pointer hover:text-green-400 transition hide-compact" onclick="showAlphaInfo()">{{ system_version }} <span class="text-green-500 font-bold">Stable</span></div>
+            <div class="flex justify-center gap-3 hide-compact"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div>
+            <a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover hide-compact">ログアウト</a>
+            <button id="sidebar-toggle-btn" class="absolute bottom-2 right-2 text-gray-500 hover:text-white transition-all toggle-compact-btn" title="サイドバー切替">
+                <i class="fas fa-chevron-left" id="sidebar-toggle-icon"></i>
+            </button>
+        </div>
     </div>
     <div id="overlay" class="overlay"></div>
 
@@ -1342,5 +1349,37 @@
     </div>
   </div>
 </div>
+    <script>
+        (function() {
+            const sidebar = document.getElementById('sidebar');
+            const toggleBtn = document.getElementById('sidebar-toggle-btn');
+            const toggleIcon = document.getElementById('sidebar-toggle-icon');
+            
+            function updateSidebarState(isCompact) {
+                if (isCompact) {
+                    sidebar.classList.add('compact');
+                    toggleIcon.classList.remove('fa-chevron-left');
+                    toggleIcon.classList.add('fa-chevron-right');
+                } else {
+                    sidebar.classList.remove('compact');
+                    toggleIcon.classList.remove('fa-chevron-right');
+                    toggleIcon.classList.add('fa-chevron-left');
+                }
+            }
+
+            // Load initial state
+            const isCompactStored = localStorage.getItem('sidebar_compact') === 'true';
+            updateSidebarState(isCompactStored);
+
+            toggleBtn.onclick = () => {
+                const newState = !sidebar.classList.contains('compact');
+                updateSidebarState(newState);
+                localStorage.setItem('sidebar_compact', newState);
+                
+                // Trigger window resize event to fix any layout issues in chat container
+                window.dispatchEvent(new Event('resize'));
+            };
+        })();
+    </script>
 </body>
 </html>

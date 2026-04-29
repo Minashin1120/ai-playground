@@ -1194,13 +1194,13 @@
 
     <!-- Branch Management Modal -->
     <div id="branch-modal" class="fixed inset-0 bg-gray-900/95 z-[100] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
-        <div class="bg-gray-800 rounded-lg w-full max-w-6xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[90vh] max-h-none modal-panel">
+        <div class="bg-gray-800 rounded-lg w-full max-w-4xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[90vh] max-h-none modal-panel">
             <div class="flex items-center justify-between border-b border-gray-700 pb-3 mb-3">
                 <h2 class="text-lg font-bold text-white flex items-center"><i class="fas fa-sitemap mr-2 text-purple-400"></i>ブランチ管理</h2>
                 <button onclick="hideModal('branch-modal')" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
             </div>
             
-            <div class="flex-1 flex flex-col md:flex-row gap-4 min-h-0 overflow-hidden">
+            <div class="flex-1 overflow-y-auto flex flex-col sm:flex-row gap-4 min-h-0">
                 <!-- Tree Visualization Area -->
                 <div class="flex-1 bg-gray-900 rounded-lg border border-gray-700 relative overflow-auto p-4 min-h-[400px]" id="branch-tree-container">
                     <div id="branch-tree-canvas" class="relative">
@@ -1209,7 +1209,7 @@
                 </div>
                 
                 <!-- Branch Detail / Action Panel -->
-                <div class="w-full md:w-80 flex flex-col gap-3 flex-shrink-0 overflow-y-auto pr-1 custom-scrollbar">
+                <div class="w-full sm:w-64 flex flex-col gap-3">
                     <div id="branch-detail-panel" class="bg-gray-900 p-4 rounded-lg border border-gray-700 hidden">
                         <h3 class="text-sm font-bold text-purple-300 mb-2 border-b border-gray-800 pb-1">ブランチ詳細</h3>
                         <div class="space-y-2 text-xs">

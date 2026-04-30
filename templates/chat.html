@@ -39,7 +39,7 @@
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit" async defer></script>
     {% endif %}
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.custom.v4.8.466.css') }}?v={{ app_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.custom.v4.8.467.css') }}?v={{ app_version }}">
     <style>
         #rich-paste-capture {
             position: fixed;
@@ -1381,10 +1381,34 @@
             const historyBtn = document.getElementById('history-modal-btn');
             const threadList = document.getElementById('thread-list');
             const threadListInModal = document.getElementById('history-modal-thread-list-container');
-            const sidebarContainer = threadList.parentElement;
+            const sidebarContainer = threadList ? threadList.parentElement : null;
+            const historyModal = document.getElementById('history-modal');
+
+            function ensureThreadListParent() {
+                const isModalOpen = historyModal && !historyModal.classList.contains('hidden') && historyModal.style.display !== 'none';
+                const isMobile = window.innerWidth <= 768;
+                
+                if (isModalOpen) {
+                    if (threadList && threadListInModal && threadList.parentElement !== threadListInModal) {
+                        threadListInModal.appendChild(threadList);
+                        threadList.classList.remove('hide-compact');
+                    }
+                } else {
+                    if (threadList && sidebarContainer && threadList.parentElement !== sidebarContainer) {
+                        // Insert before the footer (safe-pb)
+                        sidebarContainer.insertBefore(threadList, document.querySelector('.safe-pb'));
+                    }
+                    if (threadList) {
+                        if (sidebar.classList.contains('compact') && !isMobile) {
+                            threadList.classList.add('hide-compact');
+                        } else {
+                            threadList.classList.remove('hide-compact');
+                        }
+                    }
+                }
+            }
 
             window.showHistoryModal = function() {
-                // Move thread list to modal
                 if (threadList && threadListInModal) {
                     threadListInModal.appendChild(threadList);
                     threadList.classList.remove('hide-compact');
@@ -1394,15 +1418,8 @@
 
             window.closeHistoryModal = function() {
                 hideModal('history-modal');
-                // Move thread list back to sidebar after modal closes
-                setTimeout(() => {
-                    if (threadList && sidebarContainer) {
-                        sidebarContainer.insertBefore(threadList, document.querySelector('.safe-pb'));
-                        if (sidebar.classList.contains('compact')) {
-                            threadList.classList.add('hide-compact');
-                        }
-                    }
-                }, 300);
+                // Ensure it returns after animation
+                setTimeout(ensureThreadListParent, 310);
             };
 
             if (historyBtn) {
@@ -1422,17 +1439,19 @@
             }
             
             function updateSidebarState(isCompact) {
-                if (isCompact) {
+                const isMobile = window.innerWidth <= 768;
+                if (isCompact && !isMobile) {
                     sidebar.classList.add('compact');
                     toggleIcon.classList.remove('fa-chevron-left');
                     toggleIcon.classList.add('fa-chevron-right');
-                    threadList.classList.add('hide-compact');
+                    if (threadList) threadList.classList.add('hide-compact');
                 } else {
                     sidebar.classList.remove('compact');
                     toggleIcon.classList.remove('fa-chevron-right');
                     toggleIcon.classList.add('fa-chevron-left');
-                    threadList.classList.remove('hide-compact');
+                    if (threadList) threadList.classList.remove('hide-compact');
                 }
+                ensureThreadListParent();
             }
 
             // Load initial state
@@ -1443,10 +1462,18 @@
                 const newState = !sidebar.classList.contains('compact');
                 updateSidebarState(newState);
                 localStorage.setItem('sidebar_compact', newState);
-                
-                // Trigger window resize event to fix any layout issues in chat container
                 window.dispatchEvent(new Event('resize'));
             };
+
+            // Watch for resize/zoom changes
+            let resizeTimer;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(() => {
+                    const isCompact = localStorage.getItem('sidebar_compact') === 'true';
+                    updateSidebarState(isCompact);
+                }, 100);
+            });
         })();
     </script>
 </body>

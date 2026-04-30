@@ -12,7 +12,7 @@
 ## 🚀 Key Features
 
 - **Multi-Model Chat**: GPT-5.2 / GPT-5.1, Gemini 3.0 Pro/Flash, Gemini 2.5 Flash-Lite, Grok 4.1 Fast.
-- **Image & Video Generation**: GPT-Image, Gemini Image (Nano Banana), **Grok Imagine Image/Video** with option controls.
+- **Image & Video Generation**: GPT Image 2 / GPT-Image, Gemini Image (Nano Banana), **Grok Imagine Image/Video** with option controls.
 - **Full Multimodal**: Image/PDF analysis, voice STT/TTS, and realtime voice (OpenAI/xAI).
 - **Security First**: BYOK with encrypted storage, optional E2EE for chat logs, TOTP + WebAuthn (Passkeys), session management, and bot protection (Turnstile).
 - **File Library**: Drag & drop uploads, large-file chunking, upload history with previews, and per-user storage limits.

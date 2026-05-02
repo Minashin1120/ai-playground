@@ -584,7 +584,11 @@
                             <input id="rich-paste-use-default" type="checkbox" class="accent-amber-500 w-4 h-4">
                             <span>このプロンプトをこのユーザーの既定値として保存する</span>
                         </label>
-                        <div class="text-[11px] text-gray-500 mt-1">オンにすると、このプロンプトを次回以降の初期値としてユーザーごとに保存します。</div>
+                        <label class="mt-2 flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+                            <input id="rich-paste-download-only" type="checkbox" class="accent-blue-500 w-4 h-4">
+                            <span class="font-bold text-blue-400">ダウンロードのみ（プロンプトとして送信しない）</span>
+                        </label>
+                        <div class="text-[11px] text-gray-500 mt-1">オンにすると、PDF生成後にローカルへ保存し、チャットへの添付・送信は行いません。</div>
                     </div>
                     <div class="rounded-lg border border-gray-700 bg-gray-900/60 p-4 text-xs text-gray-400 leading-6 space-y-2 shrink-0">
                         <div class="text-gray-200 font-bold">使い方</div>
@@ -1345,7 +1349,7 @@
             }
         };
     </script>
-    <script src="{{ url_for('static', filename='js/chat_core.v4.8.469.js') }}?v={{ app_version }}" defer></script>
+    <script src="{{ url_for('static', filename='js/chat_core.v4.8.472.js') }}?v={{ app_version }}" defer></script>
 
 <div id="token-detail-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm" onclick="if(event.target.id==='token-detail-modal') closeTokenDetail()">
   <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4 text-white relative">

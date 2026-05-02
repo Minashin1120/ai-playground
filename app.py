@@ -537,8 +537,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-02-004')
-app.config['SYSTEM_VERSION'] = 'V4.8.472'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-02-005')
+app.config['SYSTEM_VERSION'] = 'V4.8.473'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -9861,7 +9861,9 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import mm
     from reportlab.lib.utils import ImageReader
-    from reportlab.platypus import HRFlowable, Image, Paragraph, Preformatted, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.platypus import HRFlowable, Image, Paragraph, Preformatted, SimpleDocTemplate, Spacer, Table, TableStyle, XPreformatted
+
+    sys.setrecursionlimit(max(sys.getrecursionlimit(), 5000))
 
     rl_config.defaultPageSize = A4
     fonts = _ensure_rich_paste_pdf_fonts()
@@ -9978,11 +9980,17 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
         leading=12.2,
         textColor=colors.HexColor("#111827"),
         alignment=TA_LEFT,
-        spaceAfter=8,
+        spaceAfter=10,
+        spaceBefore=10,
         leftIndent=0,
         rightIndent=0,
         wordWrap="CJK",
         splitLongWords=1,
+        backColor=colors.HexColor("#f8fafc"),
+        borderColor=colors.HexColor("#cbd5e1"),
+        borderWidth=0.5,
+        borderPadding=6,
+        borderRadius=2,
     )
     list_style = paragraph_style("RichPasteList", font_size=10.5, leading=15, color="#111827", space_after=3)
     table_cell_style = paragraph_style("RichPasteTableCell", font_size=9.3, leading=12.5, color="#111827", space_after=0)
@@ -9990,6 +9998,11 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
 
     story = []
     doc_buffer = BytesIO()
+    
+    # Ensure title and created_at are safe for ReportLab
+    safe_title = normalize_text(title) or "Clipboard Export"
+    safe_created_at = normalize_text(created_at) or datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+
     doc = SimpleDocTemplate(
         doc_buffer,
         pagesize=A4,
@@ -9997,7 +10010,7 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
         rightMargin=16 * mm,
         topMargin=16 * mm,
         bottomMargin=16 * mm,
-        title=str(title or "Clipboard Export"),
+        title=str(safe_title),
         author="AI Playground",
     )
     available_width = A4[0] - doc.leftMargin - doc.rightMargin
@@ -10006,24 +10019,39 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
         clean = normalize_text(text)
         if not clean:
             return
-        story.append(Paragraph(clean, style))
+        try:
+            story.append(Paragraph(clean, style))
+        except Exception:
+            try:
+                # Try escaping the whole thing if markup was invalid
+                story.append(Paragraph(esc(clean), style))
+            except Exception:
+                # Last resort: just add as plain text if still failing
+                pass
 
     def add_blockquote(node):
         text = normalize_text(node.get_text(" ", strip=True))
         if not text:
             return
-        para = Paragraph(esc(text), quote_style)
-        box = Table([[para]], colWidths=[available_width])
-        box.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#fff9eb")),
-            ("LEFTPADDING", (0, 0), (-1, -1), 10),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-            ("TOPPADDING", (0, 0), (-1, -1), 8),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-            ("LINEBEFORE", (0, 0), (0, -1), 4, colors.HexColor("#f59e0b")),
-            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#fde68a")),
-        ]))
-        story.append(box)
+        try:
+            para = Paragraph(esc(text), quote_style)
+            # If the blockquote is very long, don't use Table as it may fail page splitting
+            if len(text) > 1200:
+                story.append(para)
+                return
+            box = Table([[para]], colWidths=[available_width])
+            box.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#fff9eb")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("LINEBEFORE", (0, 0), (0, -1), 4, colors.HexColor("#f59e0b")),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#fde68a")),
+            ]))
+            story.append(box)
+        except Exception:
+            add_paragraph(esc(text), quote_style)
 
     def add_hr():
         story.append(HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#cbd5e1"), spaceBefore=6, spaceAfter=6))
@@ -10191,17 +10219,16 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
         text = normalize_text(node.get_text("\n"), preserve_newlines=True)
         if not text:
             return
-        pre = Preformatted(text, code_style, dedent=0)
-        box = Table([[pre]], colWidths=[available_width])
-        box.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
-            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
-            ("LEFTPADDING", (0, 0), (-1, -1), 10),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-            ("TOPPADDING", (0, 0), (-1, -1), 8),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-        ]))
-        story.append(box)
+        try:
+            # XPreformatted inherits from Paragraph and supports splitting across pages.
+            # It also interprets XML-like tags, so we MUST escape the content.
+            story.append(XPreformatted(esc(text), code_style, dedent=0))
+        except Exception:
+            try:
+                # Fallback to Paragraph with manual line breaks
+                story.append(Paragraph(esc(text).replace("\n", "<br/>"), code_style))
+            except Exception:
+                pass
 
     def render_node(node):
         if node is None:
@@ -10278,14 +10305,18 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
 
     soup = BeautifulSoup(content_html or "", "html.parser")
     container = soup.body or soup
-    story.append(Paragraph(esc(str(title or "Clipboard Export")), title_style))
-    story.append(Paragraph(f"Created at: {esc(created_at or datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))}", meta_style))
+    story.append(Paragraph(esc(str(safe_title)), title_style))
+    story.append(Paragraph(f"Created at: {esc(safe_created_at)}", meta_style))
     story.append(Spacer(1, 6))
 
-    for child in container.children:
-        render_node(child)
+    try:
+        for child in container.children:
+            render_node(child)
+    except Exception as e:
+        logger.exception("Error during rich paste node rendering")
+        story.append(Paragraph(f"[Content rendering partially failed: {esc(str(e))}]", note_style))
 
-    if not any(isinstance(item, (Paragraph, Table)) for item in story if not isinstance(item, Spacer)):
+    if not any(isinstance(item, (Paragraph, Table, XPreformatted)) for item in story if not isinstance(item, Spacer)):
         story.append(Paragraph("内容がありません。", body_style))
 
     def draw_page(canvas, doc_obj):
@@ -10321,7 +10352,7 @@ def rich_paste_pdf():
         return jsonify({'error': '403'}), 403
     
     log_force(
-        "DEBUG: rich_paste_pdf start "
+        "[DEBUG] rich_paste_pdf start "
         f"content_type={request.content_type} "
         f"content_length={request.content_length} "
         f"is_json={request.is_json}"
@@ -10332,30 +10363,30 @@ def rich_paste_pdf():
         try:
             d = request.get_json(silent=True)
             if d:
-                log_force(f"DEBUG: rich_paste_pdf get_json success keys={list(d.keys())}")
+                log_force(f"[DEBUG] rich_paste_pdf get_json success keys={list(d.keys())}")
         except Exception as e:
-            log_force(f"DEBUG: rich_paste_pdf get_json exception: {e}")
+            log_force(f"[DEBUG] rich_paste_pdf get_json exception: {e}")
 
     if not isinstance(d, dict) or not d:
         if request.form:
             d = request.form.to_dict(flat=True)
-            log_force("DEBUG: rich_paste_pdf used request.form")
+            log_force("[DEBUG] rich_paste_pdf used request.form")
         else:
             try:
                 # Crucial: Use cache=True to allow multiple reads if needed
                 raw_body = request.get_data(cache=True, as_text=True)
                 if raw_body and raw_body.strip():
-                    log_force(f"DEBUG: rich_paste_pdf raw_body_len={len(raw_body)}")
+                    log_force(f"[DEBUG] rich_paste_pdf raw_body_len={len(raw_body)}")
                     try:
                         d = json.loads(raw_body)
-                        log_force("DEBUG: rich_paste_pdf json.loads(raw_body) success")
+                        log_force("[DEBUG] rich_paste_pdf json.loads(raw_body) success")
                     except Exception:
                         # Fallback for some clients that might send raw HTML as body
                         if "<html>" in raw_body.lower() or "<div" in raw_body.lower():
                             d = {"html": raw_body}
-                            log_force("DEBUG: rich_paste_pdf treated raw_body as html")
+                            log_force("[DEBUG] rich_paste_pdf treated raw_body as html")
             except Exception as e:
-                log_force(f"DEBUG: rich_paste_pdf get_data exception: {e}")
+                log_force(f"[DEBUG] rich_paste_pdf get_data exception: {e}")
                 d = {}
 
     if not isinstance(d, dict):
@@ -10366,21 +10397,23 @@ def rich_paste_pdf():
     created_at = str(d.get('created_at') or datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')).strip()
 
     log_force(
-        "DEBUG: rich_paste_pdf payload info "
+        "[DEBUG] rich_paste_pdf payload info "
         f"title_len={len(title)} "
         f"html_len={len(content_html)} "
         f"keys={sorted(list(d.keys())) if d else 'None'}"
     )
 
     if not content_html:
-        log_force("DEBUG: rich_paste_pdf error: missing_html")
+        log_force("[DEBUG] rich_paste_pdf error: missing_html")
         return jsonify({'error': 'missing_html'}), 400
 
+    log_force(f"[DEBUG] rich_paste_pdf starting _build_rich_paste_pdf_bytes for title={title}")
     try:
         pdf_bytes = _build_rich_paste_pdf_bytes(title, content_html, created_at=created_at)
+        log_force(f"[DEBUG] rich_paste_pdf _build_rich_paste_pdf_bytes finished, size={len(pdf_bytes)}")
     except Exception as e:
         logger.exception("Server-side rich paste PDF generation failed")
-        log_force(f"DEBUG: rich_paste_pdf generation exception: {e}")
+        log_force(f"[DEBUG] rich_paste_pdf generation exception: {type(e).__name__}: {e}")
         return jsonify({'error': 'pdf_generation_failed', 'message': str(e)}), 500
 
     try:
@@ -10393,11 +10426,11 @@ def rich_paste_pdf():
         )
         resp.headers['X-Rich-Paste-Filename'] = filename
         resp.headers['Cache-Control'] = 'no-store'
-        log_force(f"DEBUG: rich_paste_pdf success filename={filename} bytes={len(pdf_bytes)}")
+        log_force(f"[DEBUG] rich_paste_pdf success filename={filename} bytes={len(pdf_bytes)}")
         return resp
     except Exception as e:
         logger.exception("Server-side rich paste PDF response failed")
-        log_force(f"DEBUG: rich_paste_pdf response exception: {e}")
+        log_force(f"[DEBUG] rich_paste_pdf response exception: {e}")
         return jsonify({'error': 'response_failed', 'message': str(e)}), 500
 
 

@@ -164,7 +164,7 @@
          data-callback="handleGoogleCredentialResponse"
          data-auto_prompt="true"
          data-context="signin"
-         data-itp_support="true">
+         data-use_fedcm_for_prompt="true">
     </div>
 
     <div id="success-screen" class="success-overlay">
@@ -632,6 +632,7 @@
 
         // Google One Tap
         function handleGoogleCredentialResponse(response) {
+            clearLoginError();
             const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
             const formData = new URLSearchParams();
             formData.append('credential', response.credential);
@@ -644,16 +645,31 @@
                 },
                 body: formData.toString()
             })
-            .then(res => res.json())
+            .then(res => {
+                if (!res.ok) {
+                    return res.json().then(err => { throw new Error(err.error || "Login failed"); });
+                }
+                return res.json();
+            })
             .then(data => {
                 if (data.status === 'ok') {
                     triggerSuccess(data.redirect);
+                } else if (data.status === '2fa_required') {
+                    document.getElementById('auth-container').classList.add('opacity-0', 'scale-95');
+                    setTimeout(() => {
+                        document.getElementById('login-section').classList.add('hidden');
+                        document.getElementById('signup-link-section').classList.add('hidden');
+                        document.getElementById('totp-section').classList.remove('hidden');
+                        document.getElementById('auth-container').classList.remove('opacity-0', 'scale-95');
+                        document.getElementById('totp-input').focus();
+                    }, 300);
                 } else {
-                    console.error("Google Login Error:", data.error);
+                    showLoginError(data.error || "Google ログインに失敗しました");
                 }
             })
             .catch(err => {
-                console.error("Google One Tap Network Error:", err);
+                console.error("Google One Tap Error:", err);
+                showLoginError(err.message || "Google 連携中にネットワークエラーが発生しました");
             });
         }
 

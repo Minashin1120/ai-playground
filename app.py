@@ -537,8 +537,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-01-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.469'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-02-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.470'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -8276,11 +8276,9 @@ def login_google_one_tap():
             return jsonify({'status': 'ok', 'redirect': url_for('setup')})
         return jsonify({'status': 'ok', 'redirect': url_for('index')})
 
-    except ValueError:
-        return jsonify({'error': 'Invalid token'}), 400
     except Exception as e:
-        logger.error(f"Google One Tap Error: {e}")
-        return jsonify({'error': 'Authentication failed'}), 500
+        logger.error(f"Google One Tap Login Error: {e}")
+        return jsonify({'error': 'Google One Tap 認証中にエラーが発生しました'}), 400
 
 @app.route('/api/account/unlink_google', methods=['POST'])
 @login_required

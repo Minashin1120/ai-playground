@@ -537,8 +537,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-02-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.470'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-02-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.471'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -8133,7 +8133,10 @@ def login():
                 if user.is_2fa_enabled:
                     session['remember_me'] = bool(form_data.get('remember'))
                     session['pre_2fa_user_id'] = user.id
-                    if is_ajax: return jsonify({'status': '2fa_required'})
+                    if is_ajax: return jsonify({
+                        'status': '2fa_required',
+                        'default_method': user.default_2fa_method or 'totp'
+                    })
                     return redirect(url_for('verify_2fa'))
                 
                 remember = bool(form_data.get('remember'))
@@ -8266,7 +8269,11 @@ def login_google_one_tap():
         if user.is_2fa_enabled and not user.skip_2fa_on_google_login:
             session['pre_2fa_user_id'] = user.id
             session['remember_me'] = True
-            return jsonify({'status': '2fa_required', 'redirect': url_for('verify_2fa')})
+            return jsonify({
+                'status': '2fa_required', 
+                'redirect': url_for('verify_2fa'),
+                'default_method': user.default_2fa_method or 'totp'
+            })
 
         login_user(user, remember=True)
         create_user_session(user)

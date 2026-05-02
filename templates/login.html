@@ -416,6 +416,23 @@
             }
         };
 
+        const init2FAUI = (method) => {
+            const m = method === 'webauthn' ? 'webauthn' : 'totp';
+            switch2FATab(m);
+            document.getElementById('auth-container').classList.add('opacity-0', 'scale-95');
+            setTimeout(() => {
+                document.getElementById('login-section').classList.add('hidden');
+                document.getElementById('signup-link-section').classList.add('hidden');
+                document.getElementById('totp-section').classList.remove('hidden');
+                document.getElementById('auth-container').classList.remove('opacity-0', 'scale-95');
+                if (m === 'totp') {
+                    document.getElementById('totp-input').focus();
+                } else {
+                    startWebAuthn();
+                }
+            }, 300);
+        };
+
         document.getElementById('login-form').onsubmit = async (e) => {
             e.preventDefault();
             clearLoginError();
@@ -450,15 +467,7 @@
                         triggerSuccess(result.redirect);
                     } else if (result.status === '2fa_required') {
                         resetLoginSubmitButton();
-                        // Switch to TOTP UI with simple transition
-                        document.getElementById('auth-container').classList.add('opacity-0', 'scale-95');
-                        setTimeout(() => {
-                            document.getElementById('login-section').classList.add('hidden');
-                            document.getElementById('signup-link-section').classList.add('hidden');
-                            document.getElementById('totp-section').classList.remove('hidden');
-                            document.getElementById('auth-container').classList.remove('opacity-0', 'scale-95');
-                            document.getElementById('totp-input').focus();
-                        }, 300);
+                        init2FAUI(result.default_method);
                     }
                 } else {
                     showLoginError(result.error || "ログインに失敗しました");
@@ -655,14 +664,7 @@
                 if (data.status === 'ok') {
                     triggerSuccess(data.redirect);
                 } else if (data.status === '2fa_required') {
-                    document.getElementById('auth-container').classList.add('opacity-0', 'scale-95');
-                    setTimeout(() => {
-                        document.getElementById('login-section').classList.add('hidden');
-                        document.getElementById('signup-link-section').classList.add('hidden');
-                        document.getElementById('totp-section').classList.remove('hidden');
-                        document.getElementById('auth-container').classList.remove('opacity-0', 'scale-95');
-                        document.getElementById('totp-input').focus();
-                    }, 300);
+                    init2FAUI(data.default_method);
                 } else {
                     showLoginError(data.error || "Google ログインに失敗しました");
                 }

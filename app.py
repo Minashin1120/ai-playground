@@ -537,8 +537,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-03-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.477'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-03-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.478'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3440,7 +3440,9 @@ def _render_attachment_names_notice(template_text, names):
     if not cleaned:
         return ""
 
-    names_block = "\n".join([f"- {n}" for n in cleaned])
+    # Keep the association explicit so the model sees each filename as a label,
+    # not as a loose bulleted list that could be read as a general summary.
+    names_block = "\n".join([f"画像{idx}: {n}" for idx, n in enumerate(cleaned, start=1)])
     rendered = str(template_text or "").replace("\r\n", "\n").strip()
     if not rendered:
         rendered = AUTO_SYSTEM_PROMPT_NOTICE_ATTACHMENT_NAMES

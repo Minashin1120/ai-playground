@@ -599,9 +599,12 @@
                     <div id="rich-paste-progress-container" class="hidden mb-4 mt-2">
                         <div class="flex justify-between items-center mb-1.5">
                             <span class="text-xs text-amber-400 font-bold flex items-center gap-2">
-                                <i class="fas fa-spinner fa-spin"></i> PDF生成中...
+                                <i class="fas fa-spinner fa-spin"></i> <span id="rich-paste-progress-label">PDF生成中...</span>
                             </span>
-                            <span id="rich-paste-progress-text" class="text-xs text-gray-300 font-mono font-bold">0%</span>
+                            <div class="flex items-center gap-3">
+                                <span id="rich-paste-progress-text" class="text-xs text-gray-300 font-mono font-bold">0%</span>
+                                <button id="rich-paste-cancel-btn" class="text-[10px] text-red-400 hover:text-red-300 font-bold border border-red-900/50 px-1.5 py-0.5 rounded bg-red-900/10 transition btn-hover">キャンセル</button>
+                            </div>
                         </div>
                         <div class="h-2 w-full bg-gray-950 rounded-full overflow-hidden border border-gray-800 shadow-inner">
                             <div id="rich-paste-progress-bar" class="h-full transition-all duration-300" style="width: 0%; background-color: #f59e0b; box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);"></div>
@@ -1349,7 +1352,7 @@
             }
         };
     </script>
-    <script src="{{ url_for('static', filename='js/chat_core.v4.8.490.js') }}?v={{ app_version }}" defer></script>
+    <script src="{{ url_for('static', filename='js/chat_core.v4.8.491.js') }}?v={{ app_version }}" defer></script>
     <script>
 <div id="token-detail-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm" onclick="if(event.target.id==='token-detail-modal') closeTokenDetail()">
   <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4 text-white relative">

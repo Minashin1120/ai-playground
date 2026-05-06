@@ -478,6 +478,7 @@ def _get_gemini_client(
     vertex_project=None,
     vertex_location=None,
     vertex_credentials_json=None,
+    api_version='v1beta'
 ):
     backend = _normalize_gemini_backend(backend)
     vertex_project = (vertex_project or "").strip() if vertex_project else ""
@@ -489,9 +490,9 @@ def _get_gemini_client(
             return None
         if vertex_credentials_json and str(vertex_credentials_json).strip():
             vertex_creds, vertex_creds_sig = _load_gemini_vertex_credentials(vertex_credentials_json)
-        sig = f"vertex:{vertex_project}:{vertex_location}:{vertex_creds_sig}"
+        sig = f"vertex:{vertex_project}:{vertex_location}:{vertex_creds_sig}:{api_version}"
     else:
-        sig = _key_sig(api_key, "gemini_api")
+        sig = _key_sig(api_key, f"gemini_api:{api_version}")
         if not sig:
             return None
     with _CLIENT_CACHE_LOCK:
@@ -499,7 +500,7 @@ def _get_gemini_client(
         if client:
             return client
         http_options = types.HttpOptions(
-            api_version='v1beta',
+            api_version=api_version,
             timeout=_GEMINI_TIMEOUT_MS,
             httpx_client=_GEMINI_HTTPX_CLIENT
         )
@@ -537,8 +538,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-06-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.496'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-06-003')
+app.config['SYSTEM_VERSION'] = 'V4.8.497'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -9288,6 +9289,157 @@ def generate_title_api():
         safe_db_commit()
         return jsonify({'status': 'ok', 'title': title})
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/gemini/session', methods=['POST'])
+@login_required
+def gemini_session():
+    model_key = (request.json.get('model') or "gemini-3.1-flash-live-preview").strip()
+    
+    # Resolve API key and runtime
+    gemini_runtime = _resolve_gemini_runtime(current_user)
+    model_specific_key = _get_model_specific_api_key(current_user, model_key)
+    key = model_specific_key or gemini_runtime.get("api_key")
+    
+    if not key:
+        return jsonify({'error': 'Gemini API Key not configured'}), 400
+        
+    # Use v1alpha for token creation as seen in test_genai_token.py
+    client = _get_gemini_client(
+        api_key=key,
+        backend=gemini_runtime.get("backend"),
+        vertex_project=gemini_runtime.get("vertex_project"),
+        vertex_location=gemini_runtime.get("vertex_location"),
+        vertex_credentials_json=gemini_runtime.get("vertex_credentials_json"),
+        api_version='v1alpha'
+    )
+    
+    if not client:
+        return jsonify({'error': 'Gemini client not configured'}), 400
+
+    # Thinking configuration and other setup
+    thinking_level = request.json.get('thinking_level') or 'minimal'
+    include_thoughts = request.json.get('include_thoughts') == True
+    voice = (request.json.get('voice') or "Kore").strip()
+    
+    generation_config = {
+        'response_modalities': ['AUDIO', 'TEXT'],
+    }
+    if voice and voice in GEMINI_STS_VOICES:
+        generation_config['speech_config'] = {
+            'voice_config': {
+                'prebuilt_voice_config': {'voice_name': voice}
+            }
+        }
+    if thinking_level:
+        generation_config['thinking_config'] = {
+            'thinking_level': thinking_level,
+            'include_thoughts': include_thoughts
+        }
+
+    config = {
+        'live_connect_constraints': {
+            'model': f'models/{model_key}',
+            'config': generation_config
+        }
+    }
+    
+    try:
+        # Note: auth_tokens.create is experimental in the SDK
+        token = client.auth_tokens.create(config=config)
+        return jsonify({
+            'token': token.name,
+            'url': f'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained'
+        })
+    except Exception as e:
+        logger.error(f"Failed to create Gemini session token: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/gemini/save_sts', methods=['POST'])
+@login_required
+def save_sts_direct():
+    data = request.json
+    thread_id = data.get('thread_id')
+    model_key = data.get('model')
+    user_text = data.get('user_text')
+    assistant_text = data.get('assistant_text')
+    assistant_thought = data.get('assistant_thought')
+    audio_base64 = data.get('audio_base64') # Assistant audio
+    user_audio_base64 = data.get('user_audio_base64') # User audio recorded by client
+    
+    t = resolve_thread_for_user(thread_id, current_user.id)
+    if not t:
+        return jsonify({'error': 'Invalid thread'}), 403
+
+    # Save Assistant Audio (Gemini returns PCM 24kHz)
+    audio_url = None
+    if audio_base64:
+        try:
+            audio_data = base64.b64decode(audio_base64)
+            wav_bytes = _pcm_to_wav_bytes(audio_data, rate=24000)
+            out_fname, _ = _save_user_audio(current_user.id, wav_bytes, ".wav", current_user.enable_e2ee)
+            audio_url = f"/files/{current_user.id}/{out_fname}"
+        except Exception as e:
+            logger.error(f"Failed to save assistant audio: {e}")
+
+    # Save User Audio (Client sends WebM/Opus)
+    in_fname = None
+    if user_audio_base64:
+        try:
+            user_audio_data = base64.b64decode(user_audio_base64)
+            in_fname, _ = _save_user_audio(current_user.id, user_audio_data, ".webm", current_user.enable_e2ee)
+        except Exception as e:
+            logger.error(f"Failed to save user audio: {e}")
+
+    user_text = (user_text or "Voice message").strip()
+    assistant_text_clean = (assistant_text or "").strip()
+    assistant_thought_clean = (assistant_thought or "").strip()
+    
+    thought_tag = f"<thought>\n{assistant_thought_clean}\n</thought>\n" if assistant_thought_clean else ""
+    audio_tag = f'\n<audio controls src="{audio_url}" class="w-full mt-2"></audio>\n' if audio_url else ""
+    assistant_content = thought_tag + (assistant_text_clean + "\n" if assistant_text_clean else "") + audio_tag
+
+    try:
+        u_content = encrypt_val(user_text) if current_user.enable_e2ee else user_text
+        a_content = encrypt_val(assistant_content) if current_user.enable_e2ee else assistant_content
+        user_tokens_in = count_tokens_for_display(user_text, model_key)
+        assistant_tokens_out = count_tokens_for_display(assistant_text_clean, model_key)
+        if assistant_thought_clean:
+            assistant_tokens_out += count_tokens_for_display(assistant_thought_clean, model_key)
+        
+        parent_id = None
+        last_msg = Message.query.filter_by(thread_id=thread_id).order_by(Message.id.desc()).first()
+        if last_msg: parent_id = last_msg.id
+
+        user_msg = Message(
+            thread_id=thread_id,
+            role='user',
+            content=u_content,
+            image_url=json.dumps([f"{current_user.id}/{in_fname}"]) if in_fname else None,
+            is_encrypted=current_user.enable_e2ee,
+            parent_id=parent_id,
+            model=model_key,
+            tokens_in=user_tokens_in,
+            tokens=sum_token_counts(user_tokens_in, None)
+        )
+        db.session.add(user_msg)
+        safe_db_commit()
+
+        assistant_msg = Message(
+            thread_id=thread_id,
+            role='assistant',
+            content=a_content,
+            model=model_key,
+            is_encrypted=current_user.enable_e2ee,
+            parent_id=user_msg.id,
+            tokens_out=assistant_tokens_out,
+            tokens=sum_token_counts(None, assistant_tokens_out)
+        )
+        db.session.add(assistant_msg)
+        safe_db_commit()
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        logger.error(f"Failed to save STS message: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/robots.txt')

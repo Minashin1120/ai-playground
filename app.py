@@ -538,8 +538,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-06-009')
-app.config['SYSTEM_VERSION'] = 'V4.8.497'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-06-010')
+app.config['SYSTEM_VERSION'] = 'V4.8.498'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -9323,7 +9323,7 @@ def gemini_session():
     voice = (request.json.get('voice') or "Kore").strip()
     
     generation_config = {
-        'response_modalities': ['AUDIO', 'TEXT'],
+        'response_modalities': ['AUDIO'],
     }
     if voice and voice in GEMINI_STS_VOICES:
         generation_config['speech_config'] = {
@@ -9349,7 +9349,7 @@ def gemini_session():
         token = client.auth_tokens.create(config=config)
         return jsonify({
             'token': token.name,
-            'url': f'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained'
+            'url': 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained'
         })
     except Exception as e:
         logger.error(f"Failed to create Gemini session token: {e}")

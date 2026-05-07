@@ -538,8 +538,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-06-011')
-app.config['SYSTEM_VERSION'] = 'V4.8.499'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-07-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.500'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -5565,7 +5565,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             safe_db_commit()
                         return None
 
-                    def _gemini_upload_with_retry(data, mime, suffix, rel_path, label=""):
+                    def _gemini_upload_with_retry(data, mime, suffix, rel_path, label="", display_name=None):
                         if not gemini_files_api_enabled:
                             return None, None, "Vertex AI モードではこのアプリの Files API 経路を利用できません（20MB以下にするか Gemini API モードへ切替してください）。"
                         max_attempts = 2
@@ -5588,7 +5588,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 with tempfile.NamedTemporaryFile(suffix=suffix or '.bin') as tmp:
                                     tmp.write(data)
                                     tmp.flush()
-                                    up = g_client.files.upload(file=tmp.name, config={"mimeType": mime})
+                                    config = {"mimeType": mime}
+                                    if display_name:
+                                        config["display_name"] = display_name
+                                        config["displayName"] = display_name
+                                        config["name"] = display_name
+                                    up = g_client.files.upload(file=tmp.name, config=config)
                                 up, up_state = _wait_gemini_file_active(up, label=label)
                                 if up_state and up_state != "ACTIVE":
                                     last_err = f"state:{up_state}"
@@ -5627,7 +5632,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             pdf_mime,
                                             os.path.splitext(pdf_name)[1] or '.pdf',
                                             rel_path,
-                                            label=f"pdf:{pdf_name}"
+                                            label=f"pdf:{pdf_name}",
+                                            display_name=pdf_name
                                         )
                                         if not up or up_err:
                                             pending_file_error = f"PDF({pdf_name})のアップロードに失敗しました: {up_err or 'unknown error'}"
@@ -5779,9 +5785,60 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             continue
                         mime = (fi.get('mime') or 'application/octet-stream').lower()
                         if mime.startswith('image/'):
-                            curr_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime']))
-                            img_label = fi.get('send_name') or fi.get('name') or f"画像{len(current_image_names) + 1}"
-                            current_image_names.append(os.path.basename(str(img_label)))
+                            img_name = os.path.basename(fi.get('send_name') or fi.get('name') or f"image{len(current_image_names) + 1}")
+                            rel_path = fi.get('path') or fi.get('name') or img_name
+                            img_size = len(fi['bytes'])
+
+                            attached = False
+                            if gemini_files_api_enabled:
+                                try:
+                                    cached_part = _gemini_get_cached_part(
+                                        rel_path,
+                                        fi['mime'],
+                                        size=img_size,
+                                        mtime=fi.get('mtime'),
+                                        label=f"image:{img_name}"
+                                    )
+                                    if cached_part:
+                                        curr_parts.append(cached_part)
+                                        attached = True
+                                    else:
+                                        up, up_state, up_err = _gemini_upload_with_retry(
+                                            fi['bytes'],
+                                            fi['mime'],
+                                            os.path.splitext(img_name)[1] or '.png',
+                                            rel_path,
+                                            label=f"image:{img_name}",
+                                            display_name=img_name
+                                        )
+                                        if up and not up_err:
+                                            file_uri = _gemini_file_uri(up)
+                                            up_mime = getattr(up, "mime_type", None) or getattr(up, "mimeType", None) or fi['mime']
+                                            part = _make_gemini_uri_part(file_uri, up_mime)
+                                            if part:
+                                                curr_parts.append(part)
+                                                _upsert_file_cache(
+                                                    user_id,
+                                                    rel_path,
+                                                    "gemini",
+                                                    file_id=_gemini_file_name(up),
+                                                    file_uri=file_uri,
+                                                    state=up_state or "ACTIVE",
+                                                    last_error=None,
+                                                    size_bytes=img_size,
+                                                    mtime=fi.get('mtime'),
+                                                    mime_type=up_mime,
+                                                    last_checked_at=datetime.utcnow()
+                                                )
+                                                safe_db_commit()
+                                                attached = True
+                                except Exception as e:
+                                    log_force(f"Gemini image upload failed: {e}")
+
+                            if not attached:
+                                curr_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime']))
+                                img_label = fi.get('send_name') or fi.get('name') or f"画像{len(current_image_names) + 1}"
+                                current_image_names.append(os.path.basename(str(img_label)))
                             continue
                         if mime.startswith('audio/'):
                             try:
@@ -5806,7 +5863,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             audio_mime,
                                             os.path.splitext(audio_name or '')[1] or '.bin',
                                             rel_path,
-                                            label=f"audio:{audio_name}"
+                                            label=f"audio:{audio_name}",
+                                            display_name=audio_name
                                         )
                                         if not up or up_err:
                                             pending_file_error = f"音声({audio_name})のアップロードに失敗しました: {up_err or 'unknown error'}"
@@ -5860,7 +5918,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         video_mime,
                                         os.path.splitext(video_name or '')[1] or '.bin',
                                         rel_path,
-                                        label=f"video:{video_name}"
+                                        label=f"video:{video_name}",
+                                        display_name=video_name
                                     )
                                     if not up or up_err:
                                         pending_file_error = f"動画({video_name})のアップロードに失敗しました: {up_err or 'unknown error'}"

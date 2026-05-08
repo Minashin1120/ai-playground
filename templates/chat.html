@@ -115,8 +115,31 @@
                 warn: (msg, data) => addLog('warn', msg, data),
                 error: (msg, data) => addLog('error', msg, data),
                 clear: () => { const c = document.getElementById('debug-log-content'); if(c) c.innerHTML = ''; },
-                show: () => document.getElementById('debug-overlay').classList.remove('hidden')
+                show: () => { 
+                    const overlay = document.getElementById('debug-overlay');
+                    if (overlay) overlay.classList.remove('hidden');
+                }
             };
+
+            // Mobile trigger: 5 taps on version display
+            let tapCount = 0;
+            let lastTap = 0;
+            window.handleVersionTap = function() {
+                const now = Date.now();
+                if (now - lastTap < 1000) {
+                    tapCount++;
+                } else {
+                    tapCount = 1;
+                }
+                lastTap = now;
+                if (tapCount >= 5) {
+                    Diagnostic.show();
+                    tapCount = 0;
+                }
+                // Also trigger original info modal if it exists
+                if (typeof showAlphaInfo === 'function') showAlphaInfo();
+            };
+
             window.onerror = (msg, url, line, col, err) => {
                 addLog('error', `${msg}`, { url, line, col, stack: err ? err.stack : null });
                 return false;
@@ -131,7 +154,8 @@
                 }
             });
             addLog('info', 'System initialized. Version 4.8.500');
-            addLog('info', 'Press Ctrl+Shift+D to open this console.');
+            addLog('info', 'Desktop: Ctrl+Shift+D to open.');
+            addLog('info', 'Mobile: Tap version display 5 times to open.');
         })();
     </script>
     
@@ -218,7 +242,7 @@
             <div id="scroll-sentinel"></div>
         </div>
         <div class="p-3 safe-pb border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500 relative">
-            <div id="version-display" class="cursor-pointer hover:text-green-400 transition hide-compact" onclick="showAlphaInfo()">{{ system_version }} <span class="text-green-500 font-bold">Stable</span></div>
+            <div id="version-display" class="cursor-pointer hover:text-green-400 transition hide-compact" onclick="handleVersionTap()">{{ system_version }} <span class="text-green-500 font-bold">Stable</span></div>
             <div class="flex justify-center gap-3 hide-compact"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div>
             <a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover hide-compact">ログアウト</a>
             <button id="sidebar-toggle-btn" class="absolute bottom-2 right-2 text-gray-500 hover:text-white transition-all toggle-compact-btn" title="サイドバー切替">

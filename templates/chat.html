@@ -78,86 +78,6 @@
     </style>
 </head>
 <body class="h-[100dvh] flex overflow-hidden text-sm md:text-base">
-    <div id="debug-overlay" class="fixed inset-0 bg-black/90 z-[9999] hidden flex-col p-4 text-xs font-mono text-green-400 overflow-hidden pointer-events-none">
-        <div class="flex justify-between items-center mb-2 pointer-events-auto bg-gray-900 p-2 rounded border border-gray-700">
-            <span class="text-sm font-bold text-yellow-400"><i class="fas fa-bug mr-2"></i>Diagnostic Console (V4.8.500)</span>
-            <div class="flex gap-2">
-                <button onclick="Diagnostic.clear()" class="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded">Clear</button>
-                <button onclick="document.getElementById('debug-overlay').classList.add('hidden')" class="px-2 py-1 bg-red-900/50 hover:bg-red-800 rounded">✕</button>
-            </div>
-        </div>
-        <div id="debug-log-content" class="flex-1 overflow-y-auto pointer-events-auto bg-black/50 p-2 rounded custom-scrollbar"></div>
-    </div>
-    <script>
-        (function() {
-            const logs = [];
-            function addLog(type, msg, data = null) {
-                const time = new Date().toLocaleTimeString();
-                logs.push({ time, type, msg, data });
-                console.log(`[DIAG] ${type}: ${msg}`, data || '');
-                const content = document.getElementById('debug-log-content');
-                if (content) {
-                    const div = document.createElement('div');
-                    div.className = `mb-1 py-1 border-b border-gray-800/50 ${type === 'error' ? 'text-red-400' : type === 'warn' ? 'text-yellow-400' : 'text-green-400'}`;
-                    div.innerHTML = `<span class="opacity-50">[${time}]</span> <span class="font-bold">${type.toUpperCase()}:</span> ${msg}`;
-                    if (data) {
-                        const pre = document.createElement('pre');
-                        pre.className = 'mt-1 p-2 bg-gray-900 rounded text-[10px] text-gray-400 overflow-x-auto';
-                        pre.textContent = typeof data === 'object' ? JSON.stringify(data, null, 2) : data;
-                        div.appendChild(pre);
-                    }
-                    content.appendChild(div);
-                    content.scrollTop = content.scrollHeight;
-                }
-            }
-            window.Diagnostic = {
-                log: (msg, data) => addLog('info', msg, data),
-                warn: (msg, data) => addLog('warn', msg, data),
-                error: (msg, data) => addLog('error', msg, data),
-                clear: () => { const c = document.getElementById('debug-log-content'); if(c) c.innerHTML = ''; },
-                show: () => { 
-                    const overlay = document.getElementById('debug-overlay');
-                    if (overlay) overlay.classList.remove('hidden');
-                }
-            };
-
-            // Mobile trigger: 5 taps on version display
-            let tapCount = 0;
-            let lastTap = 0;
-            window.handleVersionTap = function() {
-                const now = Date.now();
-                if (now - lastTap < 1000) {
-                    tapCount++;
-                } else {
-                    tapCount = 1;
-                }
-                lastTap = now;
-                if (tapCount >= 5) {
-                    Diagnostic.show();
-                    tapCount = 0;
-                }
-                // Also trigger original info modal if it exists
-                if (typeof showAlphaInfo === 'function') showAlphaInfo();
-            };
-
-            window.onerror = (msg, url, line, col, err) => {
-                addLog('error', `${msg}`, { url, line, col, stack: err ? err.stack : null });
-                return false;
-            };
-            window.onunhandledrejection = (e) => {
-                addLog('error', `Unhandled Rejection: ${e.reason}`);
-            };
-            document.addEventListener('keydown', (e) => {
-                if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') {
-                    e.preventDefault();
-                    Diagnostic.show();
-                }
-            });
-            addLog('info', 'System initialized. Version 4.8.500');
-            addLog('info', 'Desktop: Ctrl+Shift+D to open.');
-            addLog('info', 'Mobile: Tap version display 5 times to open.');
-        })();
-    </script>
     
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages() %}
@@ -242,7 +162,7 @@
             <div id="scroll-sentinel"></div>
         </div>
         <div class="p-3 safe-pb border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500 relative">
-            <div id="version-display" class="cursor-pointer hover:text-green-400 transition hide-compact" onclick="handleVersionTap()">{{ system_version }} <span class="text-green-500 font-bold">Stable</span></div>
+            <div id="version-display" class="cursor-pointer hover:text-green-400 transition hide-compact" onclick="showAlphaInfo()">{{ system_version }} <span class="text-green-500 font-bold">Stable</span></div>
             <div class="flex justify-center gap-3 hide-compact"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div>
             <a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover hide-compact">ログアウト</a>
             <button id="sidebar-toggle-btn" class="absolute bottom-2 right-2 text-gray-500 hover:text-white transition-all toggle-compact-btn" title="サイドバー切替">

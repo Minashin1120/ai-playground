@@ -396,6 +396,13 @@
                         </select>
                     </div>
                     <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Res</span>
+                        <select id="grok-image-resolution" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="1k" selected>1K</option>
+                            <option value="2k">2K</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
                         <span class="text-gray-400">Format</span>
                         <select id="grok-image-format" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
                             <option value="url" selected>URL</option>
@@ -891,6 +898,13 @@
                                 <option value="4:3">4:3</option>
                                 <option value="3:4">3:4</option>
                                 <option value="9:16">9:16 (Portrait)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">Resolution</label>
+                            <select id="modal-grok-image-resolution" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
+                                <option value="1k">1K</option>
+                                <option value="2k">2K</option>
                             </select>
                         </div>
                     </div>

@@ -538,8 +538,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-07-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.501'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-09-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.502'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -6248,12 +6248,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             log_force(f"Gemini local python failed: {e}")
 
             # --- 1.5 Grok Imagine Image Generation ---
-            elif model_key in ("grok-imagine-image", "grok-imagine-image-pro"):
+            elif model_key in ("grok-imagine-image", "grok-imagine-image-pro", "grok-imagine-image-quality"):
                 log_force("Routing: Grok Imagine Branch")
                 try:
                     pub("content", "**Generating Image (Grok)...**\n")
                     
                     aspect_ratio = options.get('grok_image_aspect') or "1:1"
+                    resolution = options.get('grok_image_resolution') or "1k"
                     grok_prompt, history_image_parts = _build_non_llm_image_context(final_message_text)
                     
                     img_response_format = "b64_json"
@@ -6267,6 +6268,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     eb = {}
                     if aspect_ratio:
                         eb["aspect_ratio"] = aspect_ratio
+                    if model_key == "grok-imagine-image-quality":
+                        eb["resolution"] = resolution
 
                     img_inputs = []
                     for fi in loaded_files:
@@ -6314,6 +6317,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             "image": {"url": img_data_url},
                             "response_format": img_response_format
                         }
+                        if aspect_ratio:
+                            payload["aspect_ratio"] = aspect_ratio
+                        if model_key == "grok-imagine-image-quality":
+                            payload["resolution"] = resolution
                         _mark_provider_request_started()
                         resp = httpx.post(endpoint, headers=headers, json=payload, timeout=120)
                         if resp.status_code >= 400:

@@ -68,6 +68,14 @@ from opentelemetry.sdk.trace import TracerProvider
 from authlib.integrations.flask_client import OAuth
 
 try:
+    from anthropic import Anthropic, APIError as AnthropicAPIError
+    ANTHROPIC_AVAILABLE = True
+except ImportError:
+    Anthropic = None
+    AnthropicAPIError = None
+    ANTHROPIC_AVAILABLE = False
+
+try:
     from xai_sdk import Client as XAIClient
     from xai_sdk.chat import user as x_user, assistant as x_assistant, system as x_system, image as x_image
     from xai_sdk.search import SearchParameters, web_source, x_source
@@ -538,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-09-005')
-app.config['SYSTEM_VERSION'] = 'V4.8.506'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-11-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.507'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1386,6 +1394,10 @@ def is_gemini_model_key(model_key):
     mk = str(model_key or "").lower()
     return "gemini" in mk
 
+def is_anthropic_model_key(model_key):
+    mk = str(model_key or "").lower()
+    return "claude" in mk
+
 def is_deepseek_model_key(model_key):
     return _is_deepseek_model_key(model_key)
 
@@ -1854,6 +1866,7 @@ class User(UserMixin, db.Model):
     auto_system_prompt_notices_config = db.Column(db.Text, nullable=True)
     openai_api_key = db.Column(db.Text, nullable=True)
     gemini_api_key = db.Column(db.Text, nullable=True)
+    anthropic_api_key = db.Column(db.Text, nullable=True)
     deepseek_api_key = db.Column(db.Text, nullable=True)
     model_api_keys = db.Column(db.Text, nullable=True)
     gemini_backend = db.Column(db.String(24), default="gemini_api")
@@ -2740,6 +2753,21 @@ def ensure_user_deepseek_api_key_column():
             if not res:
                 conn.execute(text("SET SESSION lock_wait_timeout=1"))
                 conn.execute(text("ALTER TABLE user ADD COLUMN deepseek_api_key TEXT"))
+    except Exception:
+        pass
+
+def ensure_user_anthropic_api_key_column():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='user' "
+                "AND COLUMN_NAME='anthropic_api_key'"
+            )).scalar()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN anthropic_api_key TEXT"))
     except Exception:
         pass
 
@@ -4579,6 +4607,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             model_key_l = model_key.lower()
             is_openai_search_model = model_key_l in ("gpt-5-search-api", "gpt-4o-search-preview", "gpt-4o-mini-search-preview")
             is_gem = is_gemini_model_key(model_key_l)
+            is_claude = is_anthropic_model_key(model_key_l)
             is_deepseek = is_deepseek_model_key(model_key_l)
             is_grok = 'grok' in model_key_l and 'gpt' not in model_key_l
             gemini_backend_mode = "gemini_api"
@@ -4753,12 +4782,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             api_keys = {
                 'openai': get_k(user.openai_api_key, 'OPENAI_API_KEY'),
                 'gemini': gemini_runtime.get('api_key'),
+                'anthropic': get_k(user.anthropic_api_key, 'ANTHROPIC_API_KEY'),
                 'xai': get_k(user.xai_api_key, 'XAI_API_KEY'),
                 'deepseek': get_k(user.deepseek_api_key, 'DEEPSEEK_API_KEY')
             }
 
             key = None
             if is_gem: key = model_api_key_override or api_keys.get('gemini')
+            elif is_claude: key = model_api_key_override or api_keys.get('anthropic')
             elif is_grok: key = model_api_key_override or api_keys.get('xai')
             elif is_deepseek: key = model_api_key_override or api_keys.get('deepseek')
             else: key = model_api_key_override or api_keys.get('openai')
@@ -4775,7 +4806,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 pub("error", "API Key missing")
                 return
 
-            g_client = None; o_client = None; x_client = None
+            g_client = None; o_client = None; x_client = None; c_client = None
             gemini_backend_mode = _normalize_gemini_backend(gemini_runtime.get("backend")) if is_gem else "gemini_api"
             if is_gem:
                 try:
@@ -4795,6 +4826,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     else:
                         pub("error", "Gemini client initialization failed. Gemini設定を確認してください。")
                     return
+            elif is_claude:
+                if not ANTHROPIC_AVAILABLE:
+                    pub("error", "Anthropic SDK is not installed on the server.")
+                    return
+                c_client = Anthropic(api_key=key)
             elif is_grok:
                 x_client = _get_xai_client(key)
                 o_client = _get_openai_client(key, base_url=f"https://{_XAI_API_HOST}/v1")
@@ -6507,6 +6543,111 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 except Exception as e:
                     logger.exception("Grok Imagine Video Error")
                     pub("error", f"Grok Imagine Video Error: {str(e)}")
+
+            # --- 1.5 Anthropic Claude ---
+            elif is_claude:
+                log_force("Routing: Claude Branch")
+                try:
+                    claude_messages = []
+                    # Convert history
+                    for m in history:
+                        role = 'assistant' if m['role'] == 'assistant' else 'user'
+                        content = m['content'] or ""
+                        
+                        msg_parts = []
+                        if content:
+                            msg_parts.append({"type": "text", "text": content})
+                        
+                        if m.get('image_url'):
+                            msg_images, _ = _load_message_history_images(m.get('image_url'), include_only_images=True)
+                            for img in msg_images:
+                                msg_parts.append({
+                                    "type": "image",
+                                    "source": {
+                                        "type": "base64",
+                                        "media_type": img['mime'],
+                                        "data": base64.b64encode(img['bytes']).decode('utf-8')
+                                    }
+                                })
+                        if msg_parts:
+                            claude_messages.append({"role": role, "content": msg_parts})
+
+                    # Current message
+                    curr_parts = [{"type": "text", "text": final_message_text}]
+                    for fi in loaded_files:
+                        if fi.get('bytes'):
+                            if fi.get('mime', '').startswith('image/'):
+                                curr_parts.append({
+                                    "type": "image",
+                                    "source": {
+                                        "type": "base64",
+                                        "media_type": fi['mime'],
+                                        "data": base64.b64encode(fi['bytes']).decode('utf-8')
+                                    }
+                                })
+                            elif fi.get('is_pdf') or fi.get('mime') == 'application/pdf':
+                                curr_parts.append({
+                                    "type": "document",
+                                    "source": {
+                                        "type": "base64",
+                                        "media_type": "application/pdf",
+                                        "data": base64.b64encode(fi['bytes']).decode('utf-8')
+                                    }
+                                })
+                    claude_messages.append({"role": "user", "content": curr_parts})
+
+                    # Claude Parameters
+                    claude_kwargs = {
+                        "model": model_key,
+                        "messages": claude_messages,
+                        "max_tokens": 8192,
+                    }
+                    if options.get('system_prompt'):
+                        claude_kwargs["system"] = options.get('system_prompt')
+                    
+                    if options.get('enable_thinking'):
+                        budget = 0
+                        try:
+                            budget = int(options.get('thinking_budget') or 4096)
+                        except: budget = 4096
+                        if budget < 1024: budget = 1024
+                        claude_kwargs["thinking"] = {"type": "enabled", "budget_tokens": budget}
+                        claude_kwargs["max_tokens"] = budget + 4096
+
+                    _mark_provider_request_started()
+                    with c_client.messages.stream(**claude_kwargs) as stream:
+                        for event in stream:
+                            if check_stop(thread_id, job_id):
+                                break
+                            
+                            if event.type == "content_block_start":
+                                if event.content_block.type == "thinking":
+                                    pub("thought_start", "")
+                            elif event.type == "content_block_delta":
+                                if event.delta.type == "thinking_delta":
+                                    thought = event.delta.thinking
+                                    thought_accumulated += thought
+                                    pub("thought", thought)
+                                elif event.delta.type == "text_delta":
+                                    txt = event.delta.text
+                                    full_res += txt
+                                    pub("content", txt)
+                            elif event.type == "content_block_stop":
+                                if thought_accumulated:
+                                    # Claude might have multiple content blocks, but usually thinking is one.
+                                    # For simplicity, if we were in thinking, we stop it.
+                                    # But Anthropic SDK stream handler might be better.
+                                    pass
+                        # After stream, finalize thoughts if any
+                        if thought_accumulated:
+                             pub("thought_stop", "")
+
+                    if not full_res and not thought_accumulated:
+                        pub("error", "Claude returned empty response.")
+
+                except Exception as e:
+                    logger.exception("Claude Branch Error")
+                    pub("error", f"Claude Error: {str(e)}")
 
             # --- 2. xAI Grok (Native SDK) ---
             elif is_grok and x_client and not options.get('enable_python'):
@@ -11477,6 +11618,7 @@ def handle_settings():
             'username': current_user.username, 
             'openai_key': decrypt_val(current_user.openai_api_key) or "", 
             'gemini_key': decrypt_val(current_user.gemini_api_key) or "", 
+            'anthropic_key': decrypt_val(current_user.anthropic_api_key) or "",
             'deepseek_key': decrypt_val(current_user.deepseek_api_key) or "",
             'model_api_keys': _load_user_model_api_key_map(current_user),
             'gemini_backend': _normalize_gemini_backend(current_user.gemini_backend),
@@ -11558,6 +11700,7 @@ def handle_settings():
         set_user_auto_system_prompt_notices_config(current_user, d.get('auto_system_prompt_notices_config'))
     if 'openai_key' in d: current_user.openai_api_key = encrypt_val(d['openai_key'])
     if 'gemini_key' in d: current_user.gemini_api_key = encrypt_val(d['gemini_key'])
+    if 'anthropic_key' in d: current_user.anthropic_api_key = encrypt_val(d['anthropic_key'])
     if 'deepseek_key' in d: current_user.deepseek_api_key = encrypt_val(d['deepseek_key'])
     if 'model_api_keys' in d: _save_user_model_api_key_map(current_user, d.get('model_api_keys'))
     if 'gemini_backend' in d: current_user.gemini_backend = _normalize_gemini_backend(d['gemini_backend'])
@@ -12751,6 +12894,10 @@ with app.app_context():
         pass
     try:
         ensure_user_deepseek_api_key_column()
+    except Exception:
+        pass
+    try:
+        ensure_user_anthropic_api_key_column()
     except Exception:
         pass
     try:

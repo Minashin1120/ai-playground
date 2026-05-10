@@ -75,3 +75,4 @@ xai-sdk==1.5.0
 yarl==1.22.0
 zipp==3.23.0
 Authlib==1.5.0
+anthropic==0.45.0

@@ -1365,6 +1365,9 @@ def secure_delete(path):
 
 # Speech-to-Speech (STS) model registry
 STS_MODELS = {
+    "gpt-realtime-2": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
+    "gpt-realtime-translate": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
+    "gpt-realtime-whisper": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gpt-realtime-1.5": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gpt-realtime": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gpt-realtime-mini": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
@@ -13414,5 +13417,8 @@ else:
 try:
     for m in ("gpt-4o", "gemini-1.5-pro"):
         _get_token_encoder(m)
+except:
+    pass
+m)
 except:
     pass

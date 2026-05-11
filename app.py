@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-11-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.507'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-11-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.508'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1644,7 +1644,13 @@ def _transcribe_audio_with_llm(audio_content, fname, llm_model_key, user):
 async def _openai_sts_realtime(pcm_bytes, api_key, model_key, voice="alloy", speed=None, rate=24000):
     # OpenAI Realtime currently supports 24kHz PCM audio for output; keep session aligned.
     rate = 24000
-    url = f"wss://api.openai.com/v1/realtime?model={model_key}"
+    if model_key == "gpt-realtime-translate":
+        url = f"wss://api.openai.com/v1/realtime/translations?model={model_key}"
+    elif model_key == "gpt-realtime-whisper":
+        url = f"wss://api.openai.com/v1/realtime/transcription_sessions?model={model_key}"
+    else:
+        url = f"wss://api.openai.com/v1/realtime?model={model_key}"
+    
     headers = {
         "Authorization": f"Bearer {api_key}",
         "OpenAI-Beta": "realtime=v1",
@@ -13419,6 +13425,4 @@ try:
         _get_token_encoder(m)
 except:
     pass
-m)
-except:
-    pass
+

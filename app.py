@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-12-007')
-app.config['SYSTEM_VERSION'] = 'V4.8.521'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-12-008')
+app.config['SYSTEM_VERSION'] = 'V4.8.522'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -8290,6 +8290,23 @@ def service_worker():
     resp.headers['Cache-Control'] = 'no-cache'
     resp.headers['Service-Worker-Allowed'] = '/'
     return resp
+
+
+@app.route('/manifest.webmanifest')
+def site_manifest():
+    resp = send_from_directory(app.static_folder, 'manifest.webmanifest')
+    resp.headers['Content-Type'] = 'application/manifest+json; charset=utf-8'
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
+
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(
+        os.path.join(app.static_folder, 'pwa'),
+        'icon-192.png',
+        mimetype='image/png'
+    )
 
 # -----------------------------------------------------------
 # Auth Routes

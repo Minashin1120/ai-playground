@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token }}">
+    {% include 'pwa_meta.html' %}
     <title>AI Chat Playground - 次世代AIチャット</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -78,6 +79,10 @@
         <div class="flex gap-4">
             <a href="/login" class="px-4 py-2 text-slate-300 hover:text-white transition">ログイン</a>
             <a href="/signup" class="px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-900 rounded-lg font-bold transition shadow-lg shadow-teal-500/30">アカウント作成</a>
+            <button type="button" data-pwa-install-button hidden class="px-4 py-2 border border-teal-400/40 text-teal-100 hover:bg-teal-400/10 rounded-lg font-bold transition flex items-center gap-2">
+                <i class="fas fa-mobile-screen-button"></i>
+                インストール
+            </button>
         </div>
     </header>
     <main class="flex-1 flex flex-col items-center justify-center text-center p-8 hero-bg">
@@ -159,5 +164,6 @@
             if (e.target.id === 'legal-modal') hideLegal();
         };
     </script>
+    <script src="{{ url_for('static', filename='js/pwa_install.js') }}?v={{ app_version }}" defer></script>
 </body>
 </html>

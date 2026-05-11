@@ -1,0 +1,14 @@
+<meta name="theme-color" content="#0f1720">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AI Chat Playground">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="application-name" content="AI Chat Playground">
+<link rel="manifest" href="{{ url_for('site_manifest') }}?v={{ app_version }}">
+<link rel="icon" href="{{ url_for('static', filename='pwa/icon-192.png') }}?v={{ app_version }}">
+<link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='pwa/icon-192.png') }}?v={{ app_version }}">
+<link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='pwa/icon-512.png') }}?v={{ app_version }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='pwa/apple-touch-icon.png') }}?v={{ app_version }}">
+<script>
+    window.APP_VERSION = {{ app_version|tojson }};
+</script>

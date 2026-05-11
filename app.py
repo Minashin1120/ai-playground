@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-11-007')
-app.config['SYSTEM_VERSION'] = 'V4.8.513'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-12-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.515'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1373,18 +1373,20 @@ STS_MODELS = {
     "gpt-realtime-mini": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gemini-2.5-flash-native-audio-preview-12-2025": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
     "gemini-3.1-flash-live-preview": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
+    "grok-voice-think-fast-1.0": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
+    "grok-voice-fast-1.0": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
     "grok-voice-agent": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
 }
 OPENAI_STS_VOICES = {
     "alloy","ash","ballad","coral","echo","sage","shimmer","verse","marin","cedar"
 }
-XAI_STS_VOICES = {"Ara","Rex","Sal","Eve","Leo"}
+XAI_STS_VOICES = {"ara", "rex", "sal", "eve", "leo"}
 GEMINI_STS_VOICES = {
     "Zephyr","Puck","Charon","Kore","Fenrir","Leda","Orus","Aoede","Callirrhoe","Autonoe",
     "Enceladus","Iapetus","Umbriel","Algieba","Despina","Erinome","Algenib","Rasalgethi","Laomedeia","Achernar",
     "Alnilam","Schedar","Gacrux","Pulcherrima","Achird","Zubenelgenubi","Vindemiatrix","Sadachbia","Sadaltager","Sulafat"
 }
-XAI_PCM_RATES = {8000,16000,21050,24000,32000,44100,48000}
+XAI_PCM_RATES = {8000, 16000, 22050, 24000, 32000, 44100, 48000}
 
 def is_sts_model(model_key):
     return model_key in STS_MODELS

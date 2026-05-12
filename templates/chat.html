@@ -783,7 +783,7 @@
                 </div>
             </div>
             <div class="flex justify-end gap-3 mt-6 shrink-0">
-                <button onclick="hideModal('thread-modal')" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white transition">キャンセル</button>
+                <button onclick="closeThreadModal()" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white transition">キャンセル</button>
                 <button id="save-thread-settings-btn" class="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded font-bold btn-modern">保存</button>
             </div>
         </div>
@@ -917,7 +917,7 @@
                 </div>
             </div>
             <div class="flex justify-end gap-3 mt-6 shrink-0 pt-4 border-t border-gray-700">
-                <button onclick="hideModal('compression-modal')" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white transition">閉じる</button>
+                <button onclick="closeCompressionModal()" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white transition">閉じる</button>
                 <button id="save-compression-settings-btn" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-modern">保存</button>
             </div>
         </div>
@@ -928,7 +928,7 @@
         <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-0 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[85vh] max-h-none overflow-hidden modal-panel">
             <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-900/50">
                 <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-robot text-blue-400"></i> Select Model</h2>
-                <button onclick="hideModal('model-modal')" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+                <button onclick="closeModelModal()" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-2 border-b border-gray-700 bg-gray-900/30">
                 <div class="relative">
@@ -971,7 +971,7 @@
                 </div>
             </div>
             <div class="flex justify-end gap-3 mt-6">
-                <button onclick="hideModal('gem-modal')" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+                <button onclick="closeGemModal()" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
                 <button id="save-gem-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-hover">Save Gem</button>
             </div>
         </div>
@@ -1223,7 +1223,7 @@
     <!-- Library Modal -->
     <div id="lib-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
         <div class="w-full h-full flex flex-col modal-panel">
-            <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button onclick="hideModal('lib-modal')" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div>
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0"><h2 class="text-xl font-bold text-white">ライブラリ</h2><button onclick="closeLibModal()" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700">✕</button></div>
             <div class="p-2 border-b border-gray-700 bg-gray-800/50 flex flex-wrap justify-between items-center gap-2 shrink-0">
                 <span id="lib-total-count" class="text-xs text-gray-400 px-2">0 files</span>
                 <div class="flex items-center gap-2 flex-1 min-w-[200px] max-w-md">
@@ -1258,7 +1258,7 @@
         <div class="bg-gray-800 rounded-lg w-full max-w-4xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[90vh] max-h-none modal-panel">
             <div class="flex items-center justify-between border-b border-gray-700 pb-3 mb-3">
                 <h2 class="text-lg font-bold text-white flex items-center"><i class="fas fa-sitemap mr-2 text-purple-400"></i>ブランチ管理</h2>
-                <button onclick="hideModal('branch-modal')" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+                <button onclick="closeBranchModal()" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
             </div>
             
             <div class="flex-1 overflow-y-auto flex flex-col sm:flex-row gap-4 min-h-0">
@@ -1445,10 +1445,16 @@
                     threadList.classList.remove('hide-compact');
                 }
                 showModal('history-modal');
+                if (location.pathname !== '/history') {
+                    history.pushState({ modal: 'history' }, '', '/history');
+                }
             };
 
-            window.closeHistoryModal = function() {
+            window.closeHistoryModal = function(skipHistory = false) {
                 hideModal('history-modal');
+                if (!skipHistory && location.pathname === '/history') {
+                    history.back();
+                }
                 // Ensure it returns after animation
                 setTimeout(ensureThreadListParent, 310);
             };

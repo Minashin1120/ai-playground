@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-12-010')
-app.config['SYSTEM_VERSION'] = 'V4.8.524'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-12-011')
+app.config['SYSTEM_VERSION'] = 'V4.8.525'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -8105,8 +8105,20 @@ def index():
     return render_template('landing.html')
 
 @app.route('/settings')
+@app.route('/upload')
+@app.route('/library')
+@app.route('/history')
+@app.route('/branch')
+@app.route('/paste')
+@app.route('/camera')
+@app.route('/edit-image')
+@app.route('/chat-settings')
+@app.route('/model')
+@app.route('/gem')
+@app.route('/compression')
+@app.route('/admin-bots')
 @login_required
-def settings_page():
+def modal_pages():
     if not current_user.is_setup_completed:
         return redirect(url_for('setup'))
     easy_login_used = bool(session.pop('easy_login_used', False))

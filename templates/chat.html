@@ -219,15 +219,6 @@
             </div>
         </div>
 
-        <!-- Floating UI Layer (No layout impact, handles fixed prompts and gem indicator) -->
-        <div class="max-w-3xl mx-auto w-full h-0 relative z-20 pointer-events-none px-4">
-            <!-- Fixed Prompts Bar (Top-most floating) -->
-            <div id="fixed-prompts-bar" class="hidden absolute bottom-[5.5rem] left-4 right-4 flex gap-2 overflow-x-auto no-scrollbar select-none bg-transparent pb-1 pointer-events-auto"></div>
-            
-            <!-- Gem Active Indicator (Floating just above footer) -->
-            <div id="gem-active-indicator" class="hidden absolute bottom-0 left-4 bg-blue-900/80 text-blue-200 text-xs px-3 py-1 rounded-t-lg border-t border-l border-r border-blue-700 flex items-center gap-2 fade-in max-w-full pointer-events-auto shadow-lg"><i class="fas fa-gem"></i> Using Gem: <span id="active-gem-name" class="font-bold"></span><button onclick="clearActiveGem()" class="ml-2 hover:text-white">×</button></div>
-        </div>
-
         <div class="bg-gray-800 border-t border-gray-700 p-3 safe-pb shrink-0 z-10">
             <div class="max-w-3xl mx-auto space-y-2 relative">
                 <div id="stop-container" class="absolute -top-12 left-1/2 transform -translate-x-1/2 hidden fade-in"><button id="stop-btn" class="bg-red-500/90 hover:bg-red-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm backdrop-blur-sm btn-hover"><i class="fas fa-stop"></i> 停止</button></div>
@@ -521,6 +512,11 @@
                     </div>
                 </div>
                 <div id="input-container" class="relative">
+                <div id="fixed-prompts-bar" class="hidden mb-2 flex gap-2 overflow-x-auto no-scrollbar select-none bg-transparent pb-1"></div>
+                <div id="gem-active-indicator" class="hidden mb-2 p-2 bg-blue-900/40 text-blue-200 text-xs rounded-lg border border-blue-700/50 flex items-center gap-2 fade-in animate-fadeIn">
+                    <i class="fas fa-gem"></i> Using Gem: <span id="active-gem-name" class="font-bold"></span>
+                    <button onclick="clearActiveGem()" class="ml-auto hover:text-white px-2">×</button>
+                </div>
                 <div id="chat-upload-status" class="hidden mb-2 p-2 bg-gray-800/80 rounded-lg border border-gray-700 backdrop-blur-sm animate-fadeIn"></div>
                 <div id="input-row" class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><input type="file" id="photo-input" class="hidden" accept="image/*,video/*" multiple><input type="file" id="mask-input" class="hidden" accept="image/*"><button id="upload-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="rich-paste-btn" data-progress-no-spinner="true" class="bg-amber-600 hover:bg-amber-500 p-3 rounded-lg text-white transition shrink-0 btn-hover" title="リッチ貼り付け → PDF化"><i class="fas fa-paste"></i></button><button id="mask-btn" data-progress-no-spinner="true" class="hidden bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Mask (GPT-Image)"><i class="fas fa-mask"></i></button><button id="mic-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
                 <div id="mic-recording-indicator" class="hidden mt-1 px-1 flex items-center gap-2 text-[11px] text-red-300">

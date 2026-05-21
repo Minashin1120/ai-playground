@@ -126,7 +126,7 @@ if [[ -n "$resolved_account_id" ]]; then
   echo "Resolved account: ${resolved_account_id}"
 fi
 
-hosts=("$zone_name")
+hosts=("ai.minashin1120.com")
 if [[ -n "${CF_PURGE_HOSTS:-}" ]]; then
   IFS=',' read -r -a hosts <<< "${CF_PURGE_HOSTS}"
 fi

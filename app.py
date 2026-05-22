@@ -12940,6 +12940,19 @@ with app.app_context():
             logger.error(f"db.create_all failed: {e}")
         except Exception:
             pass
+    # Run column additions BEFORE any model query to avoid SQLAlchemy metadata cache staleness
+    try:
+        try_alter("ALTER TABLE user ADD COLUMN last_gem_uuid VARCHAR(36)")
+    except: pass
+    try:
+        try_alter("ALTER TABLE gem ADD COLUMN uuid VARCHAR(36)")
+    except: pass
+    try:
+        import uuid as _uuid_backfill
+        for gem in Gem.query.filter(Gem.uuid.is_(None)).all():
+            gem.uuid = str(_uuid_backfill.uuid4())
+        safe_db_commit()
+    except: pass
     try:
         ensure_thread_last_model_column()
     except Exception:
@@ -13038,19 +13051,6 @@ with app.app_context():
             safe_db_commit()
     except Exception:
         pass
-    try:
-        try_alter("ALTER TABLE user ADD COLUMN last_gem_uuid VARCHAR(36)")
-    except: pass
-    try:
-        try_alter("ALTER TABLE gem ADD COLUMN uuid VARCHAR(36)")
-    except: pass
-    # Backfill UUIDs for existing gems without one
-    try:
-        import uuid as _uuid_backfill
-        for gem in Gem.query.filter(Gem.uuid.is_(None)).all():
-            gem.uuid = str(_uuid_backfill.uuid4())
-        safe_db_commit()
-    except: pass
     if RUN_SCHEMA_MIGRATIONS:
         try:
             try_alter("ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0")

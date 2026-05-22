@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-22-004')
-app.config['SYSTEM_VERSION'] = 'V4.8.533'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-22-005')
+app.config['SYSTEM_VERSION'] = 'V4.8.534'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2034,6 +2034,7 @@ class Gem(db.Model):
     description = db.Column(db.Text, nullable=True)
     instruction = db.Column(db.Text, nullable=False)
     fixed_prompts_json = db.Column(db.Text, nullable=True)
+    default_model = db.Column(db.String(64), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Feedback(db.Model):
@@ -2873,6 +2874,15 @@ def ensure_gem_fixed_prompts_column():
     except Exception:
         db.session.rollback()
 
+
+def ensure_gem_default_model_column():
+    try:
+        from sqlalchemy import text
+        db.session.execute(text("ALTER TABLE gem ADD COLUMN default_model VARCHAR(64)"))
+        db.session.commit()
+        logger.info("Column default_model added to gem table.")
+    except Exception:
+        db.session.rollback()
 def ensure_chat_latency_trace_columns():
     try:
         with db.engine.connect() as conn:
@@ -12037,9 +12047,9 @@ def webauthn_remove():
 def handle_gems():
     if request.method == 'GET':
         gems = Gem.query.filter_by(user_id=current_user.id).order_by(Gem.created_at.desc()).all()
-        return jsonify([{'id': g.id, 'name': g.name, 'description': g.description, 'instruction': g.instruction, 'fixed_prompts': g.fixed_prompts_json} for g in gems])
+        return jsonify([{'id': g.id, 'name': g.name, 'description': g.description, 'instruction': g.instruction, 'fixed_prompts': g.fixed_prompts_json, 'default_model': g.default_model} for g in gems])
     d = request.json
-    gem = Gem(user_id=current_user.id, name=d.get('name', 'My Gem'), description=d.get('description', ''), instruction=d.get('instruction', ''), fixed_prompts_json=d.get('fixed_prompts'))
+    gem = Gem(user_id=current_user.id, name=d.get('name', 'My Gem'), description=d.get('description', ''), instruction=d.get('instruction', ''), fixed_prompts_json=d.get('fixed_prompts'), default_model=d.get('default_model'))
     db.session.add(gem)
     safe_db_commit()
     return jsonify({'id': gem.id, 'name': gem.name})
@@ -12051,7 +12061,7 @@ def handle_gem_item(gid):
     if gem.user_id != current_user.id: return jsonify({'error': '403'}), 403
 
     if request.method == 'GET':
-        return jsonify({'id': gem.id, 'name': gem.name, 'description': gem.description, 'instruction': gem.instruction, 'fixed_prompts': gem.fixed_prompts_json})
+        return jsonify({'id': gem.id, 'name': gem.name, 'description': gem.description, 'instruction': gem.instruction, 'fixed_prompts': gem.fixed_prompts_json, 'default_model': gem.default_model})
 
     if request.method == 'PUT':
         d = request.json
@@ -12059,6 +12069,7 @@ def handle_gem_item(gid):
         gem.description = d.get('description', gem.description)
         gem.instruction = d.get('instruction', gem.instruction)
         gem.fixed_prompts_json = d.get('fixed_prompts', gem.fixed_prompts_json)
+        gem.default_model = d.get('default_model', gem.default_model)
         safe_db_commit()
         return jsonify({'id': gem.id, 'name': gem.name})
     if request.method == 'DELETE':
@@ -12967,6 +12978,10 @@ with app.app_context():
         pass
     try:
         ensure_gem_fixed_prompts_column()
+    except Exception:
+        pass
+    try:
+        ensure_gem_default_model_column()
     except Exception:
         pass
     try:

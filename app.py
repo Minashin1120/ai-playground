@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-23-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.540'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-23-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.541'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1921,7 +1921,7 @@ class User(UserMixin, db.Model):
     last_reasoning_effort = db.Column(db.String(16), default="medium")
     last_enable_system_prompt = db.Column(db.Boolean, default=False)
     last_safety_setting = db.Column(db.String(16), default="default")
-    last_gem_id = db.Column(db.Integer, nullable=True)
+    last_gem_uuid = db.Column(db.String(36), nullable=True)
     easy_login_hash = db.Column(db.Text, nullable=True)
     easy_login_expires_at = db.Column(db.DateTime, nullable=True)
     is_setup_completed = db.Column(db.Boolean, default=False)
@@ -2030,6 +2030,7 @@ class FileCache(db.Model):
 
 class Gem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    uuid = db.Column(db.String(36), unique=True, index=True, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)
@@ -11709,7 +11710,7 @@ def handle_settings():
             'rich_paste_prompt_default': current_user.rich_paste_prompt_default or "",
             'rich_paste_prompt_use_custom_default': current_user.rich_paste_prompt_use_custom_default if current_user.rich_paste_prompt_use_custom_default is not None else False,
             'last_model': current_user.last_model or "gemini-3.1-flash-lite-preview",
-            'last_gem_id': current_user.last_gem_id,
+            'last_gem_uuid': current_user.last_gem_uuid,
             'last_enable_search': current_user.last_enable_search,
             'last_enable_url_context': current_user.last_enable_url_context,
             'last_enable_maps': current_user.last_enable_maps,
@@ -11784,7 +11785,13 @@ def handle_settings():
     if 'auto_search_on_links' in d: current_user.auto_search_on_links = bool(d['auto_search_on_links'])
     if 'use_last_chat_settings' in d: current_user.use_last_chat_settings = bool(d['use_last_chat_settings'])
     if 'default_model' in d: current_user.default_model = d['default_model']
-    if 'last_gem_id' in d: current_user.last_gem_id = d['last_gem_id'] if d['last_gem_id'] is not None else None
+    if 'last_gem_uuid' in d:
+        val = d['last_gem_uuid']
+        if val is not None:
+            gem = Gem.query.filter_by(uuid=val).first()
+            if not gem or gem.user_id != current_user.id:
+                return jsonify({'error': 'Invalid gem UUID'}), 403
+        current_user.last_gem_uuid = val
     if 'temp_chat_timeout_seconds' in d:
         current_user.temp_chat_timeout_seconds = _normalize_temp_chat_timeout_seconds(
             d.get('temp_chat_timeout_seconds')
@@ -12050,21 +12057,22 @@ def webauthn_remove():
 def handle_gems():
     if request.method == 'GET':
         gems = Gem.query.filter_by(user_id=current_user.id).order_by(Gem.created_at.desc()).all()
-        return jsonify([{'id': g.id, 'name': g.name, 'description': g.description, 'instruction': g.instruction, 'fixed_prompts': g.fixed_prompts_json, 'default_model': g.default_model} for g in gems])
+        return jsonify([{'uuid': g.uuid, 'id': g.id, 'name': g.name, 'description': g.description, 'instruction': g.instruction, 'fixed_prompts': g.fixed_prompts_json, 'default_model': g.default_model} for g in gems])
     d = request.json
-    gem = Gem(user_id=current_user.id, name=d.get('name', 'My Gem'), description=d.get('description', ''), instruction=d.get('instruction', ''), fixed_prompts_json=d.get('fixed_prompts'), default_model=d.get('default_model'))
+    import uuid as _uuid
+    gem = Gem(uuid=str(_uuid.uuid4()), user_id=current_user.id, name=d.get('name', 'My Gem'), description=d.get('description', ''), instruction=d.get('instruction', ''), fixed_prompts_json=d.get('fixed_prompts'), default_model=d.get('default_model'))
     db.session.add(gem)
     safe_db_commit()
-    return jsonify({'id': gem.id, 'name': gem.name})
+    return jsonify({'uuid': gem.uuid, 'id': gem.id, 'name': gem.name})
 
-@app.route('/api/gems/<int:gid>', methods=['GET', 'PUT', 'DELETE'])
+@app.route('/api/gems/<string:gem_uuid>', methods=['GET', 'PUT', 'DELETE'])
 @login_required
-def handle_gem_item(gid):
-    gem = Gem.query.get_or_404(gid)
+def handle_gem_item(gem_uuid):
+    gem = Gem.query.filter_by(uuid=gem_uuid).first_or_404()
     if gem.user_id != current_user.id: return jsonify({'error': '403'}), 403
 
     if request.method == 'GET':
-        return jsonify({'id': gem.id, 'name': gem.name, 'description': gem.description, 'instruction': gem.instruction, 'fixed_prompts': gem.fixed_prompts_json, 'default_model': gem.default_model})
+        return jsonify({'uuid': gem.uuid, 'id': gem.id, 'name': gem.name, 'description': gem.description, 'instruction': gem.instruction, 'fixed_prompts': gem.fixed_prompts_json, 'default_model': gem.default_model})
 
     if request.method == 'PUT':
         d = request.json
@@ -12074,7 +12082,7 @@ def handle_gem_item(gid):
         gem.fixed_prompts_json = d.get('fixed_prompts', gem.fixed_prompts_json)
         gem.default_model = d.get('default_model', gem.default_model)
         safe_db_commit()
-        return jsonify({'id': gem.id, 'name': gem.name})
+        return jsonify({'uuid': gem.uuid, 'id': gem.id, 'name': gem.name})
     if request.method == 'DELETE':
         db.session.delete(gem)
         safe_db_commit()
@@ -13277,8 +13285,17 @@ with app.app_context():
             try_alter("ALTER TABLE thread ADD COLUMN is_temporary BOOLEAN DEFAULT 0")
         except: pass
         try:
-            try_alter("ALTER TABLE user ADD COLUMN last_gem_id INTEGER")
+            try_alter("ALTER TABLE user ADD COLUMN last_gem_uuid VARCHAR(36)")
         except: pass
+        try:
+            try_alter("ALTER TABLE gem ADD COLUMN uuid VARCHAR(36)")
+        except: pass
+        # Backfill UUIDs for existing gems without one
+        import uuid as _uuid_backfill
+        for gem in Gem.query.filter(Gem.uuid.is_(None)).all():
+            gem.uuid = str(_uuid_backfill.uuid4())
+        if Gem.query.filter(Gem.uuid.is_(None)).count() > 0:
+            safe_db_commit()
 
 @app.route('/api/metrics/first_token', methods=['POST'])
 @login_required

@@ -13037,6 +13037,19 @@ with app.app_context():
             safe_db_commit()
     except Exception:
         pass
+    try:
+        try_alter("ALTER TABLE user ADD COLUMN last_gem_uuid VARCHAR(36)")
+    except: pass
+    try:
+        try_alter("ALTER TABLE gem ADD COLUMN uuid VARCHAR(36)")
+    except: pass
+    # Backfill UUIDs for existing gems without one
+    try:
+        import uuid as _uuid_backfill
+        for gem in Gem.query.filter(Gem.uuid.is_(None)).all():
+            gem.uuid = str(_uuid_backfill.uuid4())
+        safe_db_commit()
+    except: pass
     if RUN_SCHEMA_MIGRATIONS:
         try:
             try_alter("ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0")
@@ -13284,18 +13297,6 @@ with app.app_context():
         try:
             try_alter("ALTER TABLE thread ADD COLUMN is_temporary BOOLEAN DEFAULT 0")
         except: pass
-        try:
-            try_alter("ALTER TABLE user ADD COLUMN last_gem_uuid VARCHAR(36)")
-        except: pass
-        try:
-            try_alter("ALTER TABLE gem ADD COLUMN uuid VARCHAR(36)")
-        except: pass
-        # Backfill UUIDs for existing gems without one
-        import uuid as _uuid_backfill
-        for gem in Gem.query.filter(Gem.uuid.is_(None)).all():
-            gem.uuid = str(_uuid_backfill.uuid4())
-        if Gem.query.filter(Gem.uuid.is_(None)).count() > 0:
-            safe_db_commit()
 
 @app.route('/api/metrics/first_token', methods=['POST'])
 @login_required

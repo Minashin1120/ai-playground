@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-22-007')
-app.config['SYSTEM_VERSION'] = 'V4.8.536'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-23-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.540'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1921,6 +1921,7 @@ class User(UserMixin, db.Model):
     last_reasoning_effort = db.Column(db.String(16), default="medium")
     last_enable_system_prompt = db.Column(db.Boolean, default=False)
     last_safety_setting = db.Column(db.String(16), default="default")
+    last_gem_id = db.Column(db.Integer, nullable=True)
     easy_login_hash = db.Column(db.Text, nullable=True)
     easy_login_expires_at = db.Column(db.DateTime, nullable=True)
     is_setup_completed = db.Column(db.Boolean, default=False)
@@ -11708,6 +11709,7 @@ def handle_settings():
             'rich_paste_prompt_default': current_user.rich_paste_prompt_default or "",
             'rich_paste_prompt_use_custom_default': current_user.rich_paste_prompt_use_custom_default if current_user.rich_paste_prompt_use_custom_default is not None else False,
             'last_model': current_user.last_model or "gemini-3.1-flash-lite-preview",
+            'last_gem_id': current_user.last_gem_id,
             'last_enable_search': current_user.last_enable_search,
             'last_enable_url_context': current_user.last_enable_url_context,
             'last_enable_maps': current_user.last_enable_maps,
@@ -11782,6 +11784,7 @@ def handle_settings():
     if 'auto_search_on_links' in d: current_user.auto_search_on_links = bool(d['auto_search_on_links'])
     if 'use_last_chat_settings' in d: current_user.use_last_chat_settings = bool(d['use_last_chat_settings'])
     if 'default_model' in d: current_user.default_model = d['default_model']
+    if 'last_gem_id' in d: current_user.last_gem_id = d['last_gem_id'] if d['last_gem_id'] is not None else None
     if 'temp_chat_timeout_seconds' in d:
         current_user.temp_chat_timeout_seconds = _normalize_temp_chat_timeout_seconds(
             d.get('temp_chat_timeout_seconds')
@@ -13272,6 +13275,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE thread ADD COLUMN is_temporary BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN last_gem_id INTEGER")
         except: pass
 
 @app.route('/api/metrics/first_token', methods=['POST'])

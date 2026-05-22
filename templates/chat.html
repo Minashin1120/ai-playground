@@ -41,42 +41,6 @@
     {% endif %}
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.custom.' ~ (system_version | lower) ~ '.css') }}?v={{ app_version }}">
-    <style>
-        #rich-paste-capture {
-            position: fixed;
-            left: -10000px;
-            top: 0;
-            width: 1px;
-            height: 1px;
-            opacity: 0;
-            pointer-events: none;
-        }
-        #rich-paste-storage {
-            position: fixed;
-            left: -10000px;
-            top: 0;
-            width: 1px;
-            height: 1px;
-            overflow: hidden;
-            opacity: 0;
-            pointer-events: none;
-        }
-        #rich-paste-storage img,
-        #rich-paste-storage video,
-        #rich-paste-storage iframe,
-        #rich-paste-storage table,
-        #rich-paste-storage pre,
-        #rich-paste-storage blockquote {
-            max-width: 100% !important;
-        }
-        #rich-paste-storage table {
-            display: block;
-            overflow-x: auto;
-        }
-        #rich-paste-storage * {
-            box-sizing: border-box;
-        }
-    </style>
 </head>
 <body class="h-[100dvh] flex overflow-hidden text-sm md:text-base">
     
@@ -126,7 +90,13 @@
         <i class="fas fa-check-circle mr-1"></i> System {{ system_version }} (Stable)    </div>
 
     <!-- Debug Console -->
-    <div id="debug-console"><div class="flex justify-between border-b border-gray-700 mb-2 pb-1"><span>System Logs</span><div><button onclick="refreshLogs()" class="text-blue-400 mr-2">Refresh</button><button onclick="document.getElementById('debug-console').style.display='none'" class="text-red-400">Close</button></div></div><div id="debug-content" class="whitespace-pre-wrap"></div></div>
+    <div id="debug-console">
+<div class="flex justify-between border-b border-gray-700 mb-2 pb-1">
+<span>System Logs</span>
+<div>
+<button onclick="refreshLogs()" class="text-blue-400 mr-2">Refresh</button>
+<button onclick="document.getElementById('debug-console').style.display='none'" class="text-red-400">Close</button></div></div>
+<div id="debug-content" class="whitespace-pre-wrap"></div></div>
     
     <!-- Sidebar -->
     <div id="sidebar" class="sidebar w-64 bg-gray-800 border-r border-gray-700 flex flex-col shrink-0">
@@ -156,7 +126,12 @@
                 <i class="fas fa-wifi mr-1"></i>低速回線モード
             </div>
         </div>
-        <div class="px-2 py-2 hide-compact"><div class="flex justify-between items-center px-2 mb-1"><span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Gems</span><button id="add-gem-btn" data-progress-no-spinner="true" class="text-xs text-blue-400 hover:text-blue-300 btn-hover"><i class="fas fa-plus"></i> New</button></div><div id="gem-list" class="space-y-1 overflow-y-auto max-h-40"></div></div>
+        <div class="px-2 py-2 hide-compact">
+<div class="flex justify-between items-center px-2 mb-1">
+<span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Gems</span>
+<button id="add-gem-btn" data-progress-no-spinner="true" class="text-xs text-blue-400 hover:text-blue-300 btn-hover">
+<i class="fas fa-plus"></i> New</button></div>
+<div id="gem-list" class="space-y-1 overflow-y-auto max-h-40"></div></div>
         <div class="border-t border-gray-700 my-1 hide-compact"></div>
         <div class="flex-1 overflow-y-auto p-2 space-y-1 hide-compact" id="thread-list">
             <!-- Threads loaded dynamically -->
@@ -175,7 +150,20 @@
 
     <!-- Main Content -->
     <div class="flex-1 flex flex-col w-full relative min-w-0">
-        <header class="bg-gray-800 border-b border-gray-700 p-3 shadow-md flex justify-between items-center gap-2 shrink-0 md:hidden"><button id="menu-btn" class="text-gray-300 p-2 shrink-0"><i class="fas fa-bars text-xl"></i></button><div class="min-w-0 flex-1"><div id="mobile-chat-temporary-label" class="hidden text-[9px] text-amber-200/50 leading-none mb-0.5">一時チャット</div><div class="flex items-center gap-1.5 min-w-0"><span id="mobile-chat-title" class="font-bold text-sm truncate">AI Playground</span><span id="mobile-chat-ttl" class="hidden shrink-0 text-[9px] text-amber-200 border border-amber-500/40 rounded px-1 py-0.5 leading-none"></span></div></div><div class="flex items-center shrink-0"><button id="mobile-new-chat-btn" class="text-blue-400 font-bold text-xl p-2">+</button><button onclick="exportCurrentThreadPdf()" class="text-gray-400 hover:text-red-300 p-2 rounded btn-hover" title="PDF出力"><i class="fas fa-file-pdf text-xs"></i></button></div></header>
+        <header class="bg-gray-800 border-b border-gray-700 p-3 shadow-md flex justify-between items-center gap-2 shrink-0 md:hidden"><button id="menu-btn" class="text-gray-300 p-2 shrink-0"><i class="fas fa-bars text-xl">
+/i>
+/button><div class="min-w-0 flex-1"><div id="mobile-chat-temporary-label" class="hidden text-[9px] text-amber-200/50 leading-none mb-0.5">一時チャット</div>
+<div class="flex items-center gap-1.5 min-w-0"><span id="mobile-chat-title" class="font-bold text-sm truncate">AI Playground</span>
+<span id="mobile-chat-ttl" class="hidden shrink-0 text-[9px] text-amber-200 border border-amber-500/40 rounded px-1 py-0.5 leading-none">
+/span>
+/div>
+/div>
+<div class="flex items-center shrink-0"><button id="mobile-new-chat-btn" class="text-blue-400 font-bold text-xl p-2">+</button>
+<button onclick="exportCurrentThreadPdf()" class="text-gray-400 hover:text-red-300 p-2 rounded btn-hover" title="PDF出力"><i class="fas fa-file-pdf text-xs">
+/i>
+/button>
+/div>
+/header>
         {% if easy_login_used %}
         <div class="bg-red-900/30 border-b border-red-700 text-red-200 text-xs px-4 py-2 flex items-center gap-2">
             <i class="fas fa-exclamation-triangle"></i>
@@ -285,8 +273,19 @@
                             <label class="text-[10px] text-purple-300/80">Budget</label>
                             <input id="thinking-budget" type="number" min="0" max="32768" step="256" value="4096" class="w-20 bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-[10px] text-white outline-none" title="Gemini 2.5のみ有効（tokens）">
                         </div>
-                        <div id="reasoning-effort-container" class="hidden flex items-center gap-1"><span class="text-gray-400">Effort:</span><select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="none">None</option><option value="low">Low</option><option value="medium" selected>Med</option><option value="high">High</option><option value="xhigh">XHigh</option></select></div>
-                        <div class="flex items-center gap-1 border-l border-gray-600 pl-2 ml-2"><span class="text-gray-400">Safety:</span><select id="safety-setting" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="default">Default</option><option value="none" class="text-red-300">None</option></select></div>
+                        <div id="reasoning-effort-container" class="hidden flex items-center gap-1">
+<span class="text-gray-400">Effort:</span>
+<select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none">
+<option value="none">None</option>
+<option value="low">Low</option>
+<option value="medium" selected>Med</option>
+<option value="high">High</option>
+<option value="xhigh">XHigh</option></select></div>
+                        <div class="flex items-center gap-1 border-l border-gray-600 pl-2 ml-2">
+<span class="text-gray-400">Safety:</span>
+<select id="safety-setting" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none">
+<option value="default">Default</option>
+<option value="none" class="text-red-300">None</option></select></div>
                         <div class="flex items-center gap-0.5 select-none ml-2">
                             <label class="flex items-center gap-1 cursor-pointer" title="Client-side Compression">
                                 <input type="checkbox" id="enable-compression" class="accent-blue-500 w-3 h-3" checked>
@@ -517,7 +516,25 @@
                     <button onclick="clearActiveGem()" class="ml-auto hover:text-white px-2">×</button>
                 </div>
                 <div id="chat-upload-status" class="hidden mb-2 p-2 bg-gray-800/80 rounded-lg border border-gray-700 backdrop-blur-sm animate-fadeIn"></div>
-                <div id="input-row" class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><input type="file" id="photo-input" class="hidden" accept="image/*,video/*" multiple><input type="file" id="mask-input" class="hidden" accept="image/*"><button id="upload-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="rich-paste-btn" data-progress-no-spinner="true" class="bg-amber-600 hover:bg-amber-500 p-3 rounded-lg text-white transition shrink-0 btn-hover" title="リッチ貼り付け → PDF化"><i class="fas fa-paste"></i></button><button id="mask-btn" data-progress-no-spinner="true" class="hidden bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Mask (GPT-Image)"><i class="fas fa-mask"></i></button><button id="mic-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
+                <div id="input-row" class="flex gap-2 items-end">
+<input type="file" id="file-input" class="hidden" multiple>
+<input type="file" id="photo-input" class="hidden" accept="image/*,video/*" multiple>
+<input type="file" id="mask-input" class="hidden" accept="image/*">
+<button id="upload-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Upload">
+<i class="fas fa-paperclip">
+/i>
+/button><button id="rich-paste-btn" data-progress-no-spinner="true" class="bg-amber-600 hover:bg-amber-500 p-3 rounded-lg text-white transition shrink-0 btn-hover" title="リッチ貼り付け → PDF化"><i class="fas fa-paste">
+/i>
+/button><button id="mask-btn" data-progress-no-spinner="true" class="hidden bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Mask (GPT-Image)"><i class="fas fa-mask">
+/i>
+/button><button id="mic-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone">
+/i>
+/button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;">
+/textarea>
+<button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane">
+/i>
+/button>
+/div>
                 <div id="mic-recording-indicator" class="hidden mt-1 px-1 flex items-center gap-2 text-[11px] text-red-300">
                     <span id="mic-recording-text" class="shrink-0">録音中…</span>
                     <div id="mic-waveform" class="h-4 w-28 sm:w-36 flex items-end rounded border px-1 overflow-hidden" style="gap: 2px; padding-top: 2px; padding-bottom: 2px; background: rgba(69, 10, 10, 0.25); border-color: rgba(185, 28, 28, 0.3);" aria-hidden="true"></div>
@@ -630,7 +647,7 @@
     </div>
 
     <!-- Camera Capture Modal -->
-    <div id="camera-capture-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto" style="z-index:60;">
+    <div id="camera-capture-modal" class="fixed inset-0 bg-gray-900/95 z-[60] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
         <div class="bg-gray-800 rounded-lg w-full max-w-xl p-4 shadow-2xl border border-gray-700 m-4 flex flex-col gap-3 modal-panel">
             <div class="flex items-center justify-between">
                 <h2 class="text-base font-bold text-white flex items-center gap-2"><i class="fas fa-camera text-emerald-400"></i> カメラ撮影</h2>
@@ -974,7 +991,11 @@
     </div>
 
     <!-- Settings Modal -->
-    <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto"><div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[90vh] max-h-none modal-panel"><div class="settings-header"><h2 class="text-xl font-bold text-white flex items-center"><i class="fas fa-cog mr-2 text-gray-400"></i>設定</h2>
+    <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+<div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[90vh] max-h-none modal-panel">
+<div class="settings-header">
+<h2 class="text-xl font-bold text-white flex items-center">
+<i class="fas fa-cog mr-2 text-gray-400"></i>設定</h2>
     <div class="flex border-b border-gray-700 mb-4 gap-4 overflow-x-auto settings-tabs">
         <button id="btn-tab-general" data-progress-no-spinner="true" class="px-4 py-2 text-blue-400 border-b-2 border-blue-400 font-bold whitespace-nowrap" onclick="switchTab('general')">一般</button>
         <button id="btn-tab-security" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white border-b-2 border-transparent whitespace-nowrap" onclick="switchTab('security')">セキュリティ</button>
@@ -1011,8 +1032,27 @@
                 <div><label class="text-xs text-gray-500 block">Gemini API Key</label><input type="password" id="set-gemini" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
                 <div><label class="text-xs text-gray-500 block">DeepSeek API Key</label><input type="password" id="set-deepseek" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
                 <div><label class="text-xs text-gray-500 block">Anthropic API Key</label><input type="password" id="set-anthropic" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
-                <div class="rounded border border-gray-700 bg-gray-950/50 p-3"><label class="text-xs text-gray-400 block mb-2">Gemini 接続方式</label><select id="set-gemini-backend" class="hidden"><option value="gemini_api">Gemini API</option><option value="vertex_ai">Vertex AI</option></select><div id="gemini-backend-toggle" class="grid grid-cols-1 sm:grid-cols-2 gap-2"><button type="button" data-gemini-backend="gemini_api" class="gemini-backend-btn text-left rounded border border-gray-600 bg-gray-800/70 px-3 py-2"><div class="text-xs font-bold text-white">Gemini API</div><div class="text-[10px] text-gray-400 mt-1">API Key で認証</div></button><button type="button" data-gemini-backend="vertex_ai" class="gemini-backend-btn text-left rounded border border-gray-600 bg-gray-800/70 px-3 py-2"><div class="text-xs font-bold text-white">Vertex AI</div><div class="text-[10px] text-gray-400 mt-1">Project/Location + ADC or JSON</div></button></div><div id="gemini-backend-status" class="mt-2 text-[11px] font-bold text-cyan-300"></div><div class="text-[10px] text-gray-500 mt-1" id="gemini-backend-note">Gemini API は API Key を使用します。Vertex AI は Project ID + Location と認証情報（ADC または Vertex Service Account JSON）が必要です。</div></div>
-                <div id="gemini-vertex-settings" class="space-y-2 hidden"><div><label class="text-xs text-gray-500 block">Vertex AI Project ID</label><input type="text" id="set-gemini-vertex-project" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="my-gcp-project"></div><div><label class="text-xs text-gray-500 block">Vertex AI Location</label><input type="text" id="set-gemini-vertex-location" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="global"></div><div class="text-[10px] text-gray-500">Vertex AI モードでは、このアプリの Gemini Files API 経路は使えません（大容量ファイル時は Gemini API モード推奨）。</div></div>
+                <div class="rounded border border-gray-700 bg-gray-950/50 p-3"><label class="text-xs text-gray-400 block mb-2">Gemini 接続方式</label>
+<select id="set-gemini-backend" class="hidden"><option value="gemini_api">Gemini API</option>
+<option value="vertex_ai">Vertex AI</option>
+/select><div id="gemini-backend-toggle" class="grid grid-cols-1 sm:grid-cols-2 gap-2"><button type="button" data-gemini-backend="gemini_api" class="gemini-backend-btn text-left rounded border border-gray-600 bg-gray-800/70 px-3 py-2"><div class="text-xs font-bold text-white">Gemini API</div>
+<div class="text-[10px] text-gray-400 mt-1">API Key で認証</div>
+/button><button type="button" data-gemini-backend="vertex_ai" class="gemini-backend-btn text-left rounded border border-gray-600 bg-gray-800/70 px-3 py-2"><div class="text-xs font-bold text-white">Vertex AI</div>
+<div class="text-[10px] text-gray-400 mt-1">Project/Location + ADC or JSON</div>
+/button>
+/div>
+<div id="gemini-backend-status" class="mt-2 text-[11px] font-bold text-cyan-300">
+/div>
+<div class="text-[10px] text-gray-500 mt-1" id="gemini-backend-note">Gemini API は API Key を使用します。Vertex AI は Project ID + Location と認証情報（ADC または Vertex Service Account JSON）が必要です。</div>
+/div>
+                <div id="gemini-vertex-settings" class="space-y-2 hidden"><div><label class="text-xs text-gray-500 block">Vertex AI Project ID</label>
+<input type="text" id="set-gemini-vertex-project" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="my-gcp-project">
+/div>
+<div><label class="text-xs text-gray-500 block">Vertex AI Location</label>
+<input type="text" id="set-gemini-vertex-location" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="global">
+/div>
+<div class="text-[10px] text-gray-500">Vertex AI モードでは、このアプリの Gemini Files API 経路は使えません（大容量ファイル時は Gemini API モード推奨）。</div>
+/div>
                 <div><label class="text-xs text-gray-500 block">xAI API Key</label><input type="password" id="set-xai" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
                 <div><label class="text-xs text-gray-500 block">Google API Key (TTS)</label><input type="password" id="set-google-key" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
                 <div><label class="text-xs text-gray-500 block">Google Cloud Project ID (TTS)</label><input type="text" id="set-google-project" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
@@ -1042,7 +1082,54 @@
                 </div>
             </div>
         </div>
-        <div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">音声設定</h3><div class="space-y-2"><label class="text-xs text-gray-500 block">マイク文字起こし方式</label><select id="set-mic-transcribe-mode" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"><option value="stt_api">OpenAI STT API（既定）</option><option value="llm">現在のLLM（既存モデル）</option></select><div class="text-[10px] text-gray-500">添付ボタン横のSTTボタンに適用されます（現在選択中モデルを使用）。</div><label class="text-xs text-gray-500 block pt-1">STTモデル</label><select id="set-stt-model" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"><option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe</option><option value="gpt-4o-transcribe">gpt-4o-transcribe</option><option value="gpt-4o-transcribe-diarize">gpt-4o-transcribe-diarize</option><option value="whisper-1">whisper-1 (latest)</option></select><div class="text-[10px] text-gray-500">「OpenAI STT API」選択時に使用するモデルです。</div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-3">システムプロンプト</h3><div class="space-y-4"><div><div class="text-xs text-gray-400 mb-2">全体システムプロンプト（全ユーザーに適用 / 参照のみ）</div><textarea id="app-global-sys-prompt-preview" readonly class="w-full h-32 bg-gray-950 border-gray-700 rounded p-3 text-sm text-gray-200" placeholder="全体システムプロンプト"></textarea><div id="app-global-sys-prompt-preview-status" class="text-[10px] text-gray-500 mt-2"></div></div><div class="mb-2"><div class="flex items-center justify-between mb-1"><label class="text-xs text-gray-500 block">全体システムプロンプトを適用</label><label class="flex items-center gap-1 text-[10px] text-gray-400"><input type="checkbox" id="set-apply-global-sys-prompt" class="accent-green-500 w-3 h-3"><span>使用</span></label></div><div class="text-[10px] text-gray-500">SysPromptのON/OFFに関わらず適用されます。OFFにすると全体システムプロンプト（空欄時の時刻プロンプトを含む）を自分のチャットに適用しません。</div></div><div><div class="flex items-center justify-between mb-1"><label class="text-xs text-gray-500 block">ユーザーシステムプロンプト</label><label class="flex items-center gap-1 text-[10px] text-gray-400"><input type="checkbox" id="set-global-sys-prompt-enabled" class="accent-green-500 w-3 h-3"><span>有効</span></label></div><textarea id="sys-prompt-text" class="w-full h-32 bg-gray-900 border-gray-600 rounded p-3 text-sm text-white" placeholder="自分だけに適用するシステムプロンプト"></textarea><div class="flex items-center gap-2 mt-2"><button id="reset-global-sys-prompt" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">リセット</button><span class="text-[10px] text-gray-500">この欄を空にして無効化します。</span></div></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">送信設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-enter-to-send" class="accent-blue-500 w-3 h-3"><span>Enterで送信（改行はShift+Enter）</span></label></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">プロンプトバー表示</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-compact-prompt-mode" class="accent-cyan-500 w-3 h-3"><span>コンパクト表示（モデル選択のみ表示）</span></label><div class="text-[10px] text-gray-500 mt-1">ON時は詳細設定を折りたたみ、下部バーをモデル選択中心にします。</div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">確認ダイアログ</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-gemini-local-python-dialog" class="accent-yellow-500 w-3 h-3"><span>Gemini音声/動画 + Python のローカル実行切替を送信前に確認</span></label><div class="text-[10px] text-gray-500 mt-1">OFF にすると確認を表示しません（このブラウザに保存）。</div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">チャット既定値</h3><div class="space-y-3 text-xs text-gray-300">
+        <div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">音声設定</h3>
+<div class="space-y-2"><label class="text-xs text-gray-500 block">マイク文字起こし方式</label>
+<select id="set-mic-transcribe-mode" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"><option value="stt_api">OpenAI STT API（既定）</option>
+<option value="llm">現在のLLM（既存モデル）</option>
+/select><div class="text-[10px] text-gray-500">添付ボタン横のSTTボタンに適用されます（現在選択中モデルを使用）。</div>
+<label class="text-xs text-gray-500 block pt-1">STTモデル</label>
+<select id="set-stt-model" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"><option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe</option>
+<option value="gpt-4o-transcribe">gpt-4o-transcribe</option>
+<option value="gpt-4o-transcribe-diarize">gpt-4o-transcribe-diarize</option>
+<option value="whisper-1">whisper-1 (latest)</option>
+/select><div class="text-[10px] text-gray-500">「OpenAI STT API」選択時に使用するモデルです。</div>
+/div>
+/div>
+<div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-3">システムプロンプト</h3>
+<div class="space-y-4"><div><div class="text-xs text-gray-400 mb-2">全体システムプロンプト（全ユーザーに適用 / 参照のみ）</div>
+<textarea id="app-global-sys-prompt-preview" readonly class="w-full h-32 bg-gray-950 border-gray-700 rounded p-3 text-sm text-gray-200" placeholder="全体システムプロンプト">
+/textarea>
+<div id="app-global-sys-prompt-preview-status" class="text-[10px] text-gray-500 mt-2">
+/div>
+/div><div class="mb-2"><div class="flex items-center justify-between mb-1"><label class="text-xs text-gray-500 block">全体システムプロンプトを適用</label>
+<label class="flex items-center gap-1 text-[10px] text-gray-400"><input type="checkbox" id="set-apply-global-sys-prompt" class="accent-green-500 w-3 h-3"><span>使用</span>
+/label>
+/div>
+<div class="text-[10px] text-gray-500">SysPromptのON/OFFに関わらず適用されます。OFFにすると全体システムプロンプト（空欄時の時刻プロンプトを含む）を自分のチャットに適用しません。</div>
+/div><div><div class="flex items-center justify-between mb-1"><label class="text-xs text-gray-500 block">ユーザーシステムプロンプト</label>
+<label class="flex items-center gap-1 text-[10px] text-gray-400"><input type="checkbox" id="set-global-sys-prompt-enabled" class="accent-green-500 w-3 h-3"><span>有効</span>
+/label>
+/div>
+<textarea id="sys-prompt-text" class="w-full h-32 bg-gray-900 border-gray-600 rounded p-3 text-sm text-white" placeholder="自分だけに適用するシステムプロンプト">
+/textarea>
+<div class="flex items-center gap-2 mt-2"><button id="reset-global-sys-prompt" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">リセット</button>
+<span class="text-[10px] text-gray-500">この欄を空にして無効化します。</span>
+/div>
+/div>
+/div>
+/div>
+<div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">送信設定</h3>
+<label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-enter-to-send" class="accent-blue-500 w-3 h-3"><span>Enterで送信（改行はShift+Enter）</span>
+/label>
+/div>
+<div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">プロンプトバー表示</h3>
+<label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-compact-prompt-mode" class="accent-cyan-500 w-3 h-3"><span>コンパクト表示（モデル選択のみ表示）</span>
+/label><div class="text-[10px] text-gray-500 mt-1">ON時は詳細設定を折りたたみ、下部バーをモデル選択中心にします。</div>
+/div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">確認ダイアログ</h3>
+<label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-gemini-local-python-dialog" class="accent-yellow-500 w-3 h-3"><span>Gemini音声/動画 + Python のローカル実行切替を送信前に確認</span>
+/label><div class="text-[10px] text-gray-500 mt-1">OFF にすると確認を表示しません（このブラウザに保存）。</div>
+/div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">チャット既定値</h3>
+<div class="space-y-3 text-xs text-gray-300">
     <div>
         <label class="text-xs text-gray-500 block mb-1">既定のモデル</label>
         <select id="set-default-model" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white">
@@ -1050,7 +1137,81 @@
         </select>
         <div class="text-[10px] text-gray-500 mt-1">新規チャット開始時に適用されるモデルです。</div>
     </div>
-    <label class="flex items-center gap-2"><input type="checkbox" id="set-use-last-settings" class="accent-blue-500 w-3 h-3"><span>前回の設定を保存して継続する</span></label><div class="text-[10px] text-gray-500">ONの場合は下の「デフォルト設定」は無視され、直近の送信時設定を引き継ぎます。</div><div class="flex flex-wrap gap-3 items-center"><label class="flex items-center gap-1"><input type="checkbox" id="set-default-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-url-context" class="accent-indigo-500 w-3 h-3"><span>URLs</span></label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-maps" class="accent-emerald-500 w-3 h-3"><span>Maps</span></label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-python" class="accent-yellow-500 w-3 h-3"><span class="text-yellow-200">Python</span></label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-thinking" class="accent-purple-500 w-3 h-3"><span class="text-purple-300">Thinking</span></label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-sys-prompt" class="accent-green-500 w-3 h-3"><span class="text-green-300">SysPrompt</span></label></div><div class="flex flex-wrap gap-3 items-center"><label class="text-[10px] text-gray-400">Thinking Level</label><select id="set-default-thinking-level" class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><option value="minimal">Min</option><option value="low">Low</option><option value="medium">Mid</option><option value="high">High</option></select><label class="text-[10px] text-gray-400">Budget</label><input id="set-default-thinking-budget" type="number" min="0" max="32768" step="256" value="4096" class="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-[10px] text-white"><label class="text-[10px] text-gray-400">Effort</label><select id="set-default-reasoning-effort" class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><option value="none">None</option><option value="low">Low</option><option value="medium">Med</option><option value="high">High</option><option value="xhigh">XHigh</option></select><label class="text-[10px] text-gray-400">Safety</label><select id="set-default-safety" class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><option value="default">Default</option><option value="none">None</option></select></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">検索設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-auto-search-links" class="accent-yellow-500 w-3 h-3"><span>Xリンク検出時に検索ON＋Grok 4 Fast Reasoningへ自動切替</span></label><div class="text-[10px] text-gray-500 mt-1">OFFにすると、リンク検出時は毎回確認します。</div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">簡易ログイン</h3><div class="space-y-3 text-xs text-gray-300"><div class="text-[10px] text-red-300">警告: 有効期間中は一時パスワードでログインでき、2FAはスキップされます。ログイン後は自動で無効化されます。</div><div class="flex items-center gap-2"><input type="number" id="easy-login-mins" value="5" min="1" max="120" class="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><span>分間有効</span><button id="easy-login-generate" class="ml-auto bg-orange-600 hover:bg-orange-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">一時パスワード発行</button><button id="easy-login-cancel" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">発行をキャンセル</button></div><div id="easy-login-result" class="hidden bg-gray-800 border border-orange-500/40 rounded p-2 text-[11px] text-orange-200"><div>一時パスワード: <span id="easy-login-code" class="font-mono select-all"></span></div><div>有効期限: <span id="easy-login-exp" class="font-mono"></span></div></div></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">キャッシュ設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-use-sw-cache" class="accent-blue-500 w-3 h-3"><span>高速キャッシュ（Service Worker）を有効化</span></label><div class="text-[10px] text-gray-500 mt-1">ページ読み込み時に更新確認を行い、差分があればキャッシュを更新します。</div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><div class="flex items-center justify-between"><h3 class="text-sm font-bold text-blue-400">ストレージ</h3><button id="storage-usage-refresh" class="text-[10px] text-gray-400 hover:text-white">更新</button></div><div class="mt-2 text-xs text-gray-300" id="storage-usage-text">読み込み中...</div><div class="mt-2 h-2 rounded bg-gray-800 overflow-hidden border border-gray-700"><div id="storage-usage-bar" class="h-2 bg-blue-500/80" style="width:0%"></div></div><div class="text-[10px] text-gray-500 mt-2">アップロード済みファイルの使用量を表示します。</div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">テーマ</h3><div class="space-y-3"><div class="flex items-center gap-3"><input type="color" id="set-theme-color" value="#14b8a6" class="w-10 h-10 rounded border border-gray-600 bg-transparent p-0"><input type="text" id="set-theme-color-text" class="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white" placeholder="#14b8a6"><button id="theme-reset-btn" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">リセット</button></div><div class="flex items-center gap-2" id="theme-presets"><button type="button" class="theme-swatch" data-color="#14b8a6" style="background: #14b8a6;"></button><button type="button" class="theme-swatch" data-color="#38bdf8" style="background: #38bdf8;"></button><button type="button" class="theme-swatch" data-color="#a855f7" style="background: #a855f7;"></button><button type="button" class="theme-swatch" data-color="#f97316" style="background: #f97316;"></button><button type="button" class="theme-swatch" data-color="#22c55e" style="background: #22c55e;"></button><button type="button" class="theme-swatch" data-color="#ff00bb" style="background: #ff00bb;"></button></div><div class="text-[10px] text-gray-500">主要アクセントカラーを変更します。</div></div></div>        <div class="bg-gray-900 p-4 rounded border border-gray-700">
+    <label class="flex items-center gap-2"><input type="checkbox" id="set-use-last-settings" class="accent-blue-500 w-3 h-3"><span>前回の設定を保存して継続する</span>
+/label><div class="text-[10px] text-gray-500">ONの場合は下の「デフォルト設定」は無視され、直近の送信時設定を引き継ぎます。</div>
+<div class="flex flex-wrap gap-3 items-center"><label class="flex items-center gap-1"><input type="checkbox" id="set-default-search" class="accent-blue-500 w-3 h-3"><span>Search</span>
+/label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-url-context" class="accent-indigo-500 w-3 h-3"><span>URLs</span>
+/label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-maps" class="accent-emerald-500 w-3 h-3"><span>Maps</span>
+/label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-python" class="accent-yellow-500 w-3 h-3"><span class="text-yellow-200">Python</span>
+/label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-thinking" class="accent-purple-500 w-3 h-3"><span class="text-purple-300">Thinking</span>
+/label><label class="flex items-center gap-1"><input type="checkbox" id="set-default-sys-prompt" class="accent-green-500 w-3 h-3"><span class="text-green-300">SysPrompt</span>
+/label>
+/div>
+<div class="flex flex-wrap gap-3 items-center"><label class="text-[10px] text-gray-400">Thinking Level</label>
+<select id="set-default-thinking-level" class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><option value="minimal">Min</option>
+<option value="low">Low</option>
+<option value="medium">Mid</option>
+<option value="high">High</option>
+/select><label class="text-[10px] text-gray-400">Budget</label>
+<input id="set-default-thinking-budget" type="number" min="0" max="32768" step="256" value="4096" class="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-[10px] text-white"><label class="text-[10px] text-gray-400">Effort</label>
+<select id="set-default-reasoning-effort" class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><option value="none">None</option>
+<option value="low">Low</option>
+<option value="medium">Med</option>
+<option value="high">High</option>
+<option value="xhigh">XHigh</option>
+/select><label class="text-[10px] text-gray-400">Safety</label>
+<select id="set-default-safety" class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><option value="default">Default</option>
+<option value="none">None</option>
+/select>
+/div>
+/div>
+/div>
+<div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">検索設定</h3>
+<label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-auto-search-links" class="accent-yellow-500 w-3 h-3"><span>Xリンク検出時に検索ON＋Grok 4 Fast Reasoningへ自動切替</span>
+/label><div class="text-[10px] text-gray-500 mt-1">OFFにすると、リンク検出時は毎回確認します。</div>
+/div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">簡易ログイン</h3>
+<div class="space-y-3 text-xs text-gray-300"><div class="text-[10px] text-red-300">警告: 有効期間中は一時パスワードでログインでき、2FAはスキップされます。ログイン後は自動で無効化されます。</div>
+<div class="flex items-center gap-2"><input type="number" id="easy-login-mins" value="5" min="1" max="120" class="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"><span>分間有効</span>
+<button id="easy-login-generate" class="ml-auto bg-orange-600 hover:bg-orange-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">一時パスワード発行</button>
+<button id="easy-login-cancel" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">発行をキャンセル</button>
+/div><div id="easy-login-result" class="hidden bg-gray-800 border border-orange-500/40 rounded p-2 text-[11px] text-orange-200"><div>一時パスワード: <span id="easy-login-code" class="font-mono select-all">
+/span>
+/div><div>有効期限: <span id="easy-login-exp" class="font-mono">
+/span>
+/div>
+/div>
+/div>
+/div>
+<div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">キャッシュ設定</h3>
+<label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-use-sw-cache" class="accent-blue-500 w-3 h-3"><span>高速キャッシュ（Service Worker）を有効化</span>
+/label><div class="text-[10px] text-gray-500 mt-1">ページ読み込み時に更新確認を行い、差分があればキャッシュを更新します。</div>
+/div><div class="bg-gray-900 p-4 rounded border border-gray-700"><div class="flex items-center justify-between"><h3 class="text-sm font-bold text-blue-400">ストレージ</h3>
+<button id="storage-usage-refresh" class="text-[10px] text-gray-400 hover:text-white">更新</button>
+/div><div class="mt-2 text-xs text-gray-300" id="storage-usage-text">読み込み中...</div>
+<div class="mt-2 h-2 rounded bg-gray-800 overflow-hidden border border-gray-700"><div id="storage-usage-bar" class="h-2 bg-blue-500/80" style="width:0%">
+/div>
+/div><div class="text-[10px] text-gray-500 mt-2">アップロード済みファイルの使用量を表示します。</div>
+/div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">テーマ</h3>
+<div class="space-y-3">
+<div class="flex items-center gap-3">
+<input type="color" id="set-theme-color" value="#14b8a6" class="w-10 h-10 rounded border border-gray-600 bg-transparent p-0">
+<input type="text" id="set-theme-color-text" class="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white" placeholder="#14b8a6">
+<button id="theme-reset-btn" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">リセット</button>
+/div><div class="flex items-center gap-2" id="theme-presets"><button type="button" class="theme-swatch" data-color="#14b8a6" style="background: #14b8a6;">
+/button>
+<button type="button" class="theme-swatch" data-color="#38bdf8" style="background: #38bdf8;">
+/button>
+<button type="button" class="theme-swatch" data-color="#a855f7" style="background: #a855f7;">
+/button>
+<button type="button" class="theme-swatch" data-color="#f97316" style="background: #f97316;">
+/button>
+<button type="button" class="theme-swatch" data-color="#22c55e" style="background: #22c55e;">
+/button>
+<button type="button" class="theme-swatch" data-color="#ff00bb" style="background: #ff00bb;">
+/button>
+/div><div class="text-[10px] text-gray-500">主要アクセントカラーを変更します。</div>
+/div>
+/div>        <div class="bg-gray-900 p-4 rounded border border-gray-700">
             <h3 class="text-sm font-bold text-blue-400 mb-2">デバッグ設定</h3>
             <div class="space-y-2">
                 <div class="flex items-center justify-between">
@@ -1075,7 +1236,86 @@
                 </div>
             </div>
         </div>
-<div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">アカウント設定</h3><div class="space-y-3"><div><label class="text-xs text-gray-500 block">ユーザー名変更</label><input type="text" id="set-username" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄"></div><div><label class="text-xs text-gray-500 block">パスワード変更</label><input type="password" id="set-password" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄"></div></div></div></div><div class="overflow-y-auto pr-2 space-y-4 flex-1 hidden animate-fadeIn" id="tab-security"><div id="mig-status-box" class="hidden mb-4 p-3 bg-blue-900/30 border border-blue-500/50 rounded text-xs text-blue-200"><i class="fas fa-sync fa-spin mr-2"></i> 暗号化データの移行処理中です...<div id="mig-progress-text" class="mt-1 text-[10px] text-blue-200/80"></div><div class="w-full bg-blue-950/40 h-2 rounded mt-2 overflow-hidden"><div id="mig-progress-bar" class="h-2 bg-blue-400/80" style="width:0%"></div></div></div>{% if is_admin %}<div class="bg-gray-900 p-4 rounded border border-gray-700"><div class="flex items-center justify-between"><div><div class="font-bold text-sm text-red-300">Bot Detection</div><div class="text-xs text-gray-500">すべての操作を監視し、高速クリックや機械的な操作を検出します。</div></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-bot-detect" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div></label></div><div id="bot-status" class="text-[11px] text-gray-400 mt-2 hidden"></div><div class="text-[10px] text-gray-500 mt-2">検出が有効な場合、疑わしい操作が続くとアカウントがBANされます。</div></div>{% endif %}{% if is_admin %}<div class="bg-gray-900 p-4 rounded border border-yellow-700/50"><div class="font-bold text-sm text-yellow-300 mb-2">管理者: Bot Detection 管理</div><div class="flex items-center justify-between"><div class="text-xs text-gray-500">全体で検出をON/OFF</div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-bot-detect-global" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div></label></div><div class="mt-3 flex items-center gap-2"><input type="text" id="bot-unban-username" class="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white" placeholder="BAN解除するユーザー名"><button id="bot-unban-btn" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">単独解除</button><button id="bot-unban-linked-btn" class="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">連鎖解除</button></div><div id="bot-unban-result" class="text-[11px] text-gray-400 mt-2 hidden"></div><div class="mt-3 rounded border border-yellow-600/30 bg-yellow-950/10 p-3"><div class="flex items-center justify-between gap-2"><div><div class="text-xs font-bold text-yellow-200">.env管理者アカウント回線速度テスト</div><div class="text-[10px] text-gray-400">PRIMARY_ADMIN_USERNAME でログイン中の管理者専用。ブラウザ⇔このサーバー間の ping / download / upload を測定します。</div></div><button id="bot-speed-test-btn" class="bg-yellow-700 hover:bg-yellow-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover whitespace-nowrap">回線速度テスト実行</button></div><div id="bot-speed-test-result" class="mt-2 text-[11px] text-gray-300 hidden whitespace-pre-wrap"></div></div><div class="mt-3"><button id="bot-admin-open" class="w-full bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded text-xs font-bold btn-hover">アカウント管理</button></div></div>{% endif %}{% if is_admin %}<div class="bg-gray-900 p-4 rounded border border-blue-700/40"><div class="flex items-center justify-between"><div><div class="font-bold text-sm text-blue-300">BAN異議申し立て</div><div class="text-xs text-gray-500">未読の申し立ては通知されます。</div></div><div class="text-xs text-blue-200">未読: <span id="ban-appeal-count">0</span></div></div><div class="mt-3 flex flex-wrap gap-2"><button id="ban-appeal-refresh" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">更新</button><button id="ban-appeal-mark-read" class="bg-blue-700 hover:bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">未読を既読に</button></div><div id="ban-appeal-list" class="mt-3 space-y-2 text-xs text-gray-300"></div></div>{% endif %}<div id="e2ee-card" class="bg-gray-900 p-4 rounded border border-gray-700"><div class="flex items-center justify-between"><div><div class="font-bold text-sm">E2EE (End-to-End Encryption)</div><div class="text-xs text-gray-500">チャット履歴とファイルを暗号化します。</div></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="set-e2ee" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div></label></div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">暗号化スキャン</h3><div class="flex flex-wrap gap-2"><button id="enc-scan-all" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">全体スキャン</button><button id="enc-scan-thread" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">このスレッド</button></div><div id="enc-scan-result" class="mt-2 text-[11px] text-gray-300">未実行</div></div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">ログインセッション</h3><div class="text-xs text-gray-500">現在ログイン中の端末を確認し、不要なセッションをログアウトできます。</div><div class="flex flex-wrap gap-2 mt-3"><button id="session-refresh-btn" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">更新</button><button id="session-revoke-others-btn" class="bg-orange-600 hover:bg-orange-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">他のセッションをログアウト</button><button id="session-revoke-all-btn" class="bg-red-700 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">全セッションを強制ログアウト</button></div><div id="session-list" class="mt-3 space-y-2"></div></div> {% if is_admin %}<div class="bg-gray-900 p-4 rounded border border-gray-700 mt-4"><h3 class="text-sm font-bold text-blue-400 mb-2">アカウント削除</h3><div class="text-xs text-gray-400">管理者アカウントのため、ここからはアカウント削除できません。</div></div>{% else %}<div class="bg-red-900/20 p-4 rounded border border-red-800 mt-4"><h3 class="text-sm font-bold text-red-500 mb-2">アカウント削除</h3><button id="delete-account-btn" class="w-full bg-red-800/50 hover:bg-red-700 text-red-200 border border-red-600 py-2 rounded text-sm transition btn-hover">アカウントを完全に削除</button></div>{% endif %}
+<div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">アカウント設定</h3>
+<div class="space-y-3"><div><label class="text-xs text-gray-500 block">ユーザー名変更</label>
+<input type="text" id="set-username" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄">
+/div>
+<div><label class="text-xs text-gray-500 block">パスワード変更</label>
+<input type="password" id="set-password" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄">
+/div>
+/div>
+/div>
+/div><div class="overflow-y-auto pr-2 space-y-4 flex-1 hidden animate-fadeIn" id="tab-security"><div id="mig-status-box" class="hidden mb-4 p-3 bg-blue-900/30 border border-blue-500/50 rounded text-xs text-blue-200"><i class="fas fa-sync fa-spin mr-2">
+/i> 暗号化データの移行処理中です...<div id="mig-progress-text" class="mt-1 text-[10px] text-blue-200/80">
+/div>
+<div class="w-full bg-blue-950/40 h-2 rounded mt-2 overflow-hidden"><div id="mig-progress-bar" class="h-2 bg-blue-400/80" style="width:0%">
+/div>
+/div>
+/div>{% if is_admin %}<div class="bg-gray-900 p-4 rounded border border-gray-700"><div class="flex items-center justify-between"><div><div class="font-bold text-sm text-red-300">Bot Detection</div>
+<div class="text-xs text-gray-500">すべての操作を監視し、高速クリックや機械的な操作を検出します。</div>
+/div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input type="checkbox" id="set-bot-detect" class="sr-only peer">
+<div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600">
+/div>
+/label>
+/div>
+<div id="bot-status" class="text-[11px] text-gray-400 mt-2 hidden">
+/div>
+<div class="text-[10px] text-gray-500 mt-2">検出が有効な場合、疑わしい操作が続くとアカウントがBANされます。</div>
+/div>{% endif %}{% if is_admin %}<div class="bg-gray-900 p-4 rounded border border-yellow-700/50"><div class="font-bold text-sm text-yellow-300 mb-2">管理者: Bot Detection 管理</div>
+<div class="flex items-center justify-between"><div class="text-xs text-gray-500">全体で検出をON/OFF</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input type="checkbox" id="set-bot-detect-global" class="sr-only peer">
+<div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500">
+/div>
+/label>
+/div>
+<div class="mt-3 flex items-center gap-2"><input type="text" id="bot-unban-username" class="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white" placeholder="BAN解除するユーザー名"><button id="bot-unban-btn" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">単独解除</button>
+<button id="bot-unban-linked-btn" class="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">連鎖解除</button>
+/div><div id="bot-unban-result" class="text-[11px] text-gray-400 mt-2 hidden">
+/div>
+<div class="mt-3 rounded border border-yellow-600/30 bg-yellow-950/10 p-3"><div class="flex items-center justify-between gap-2"><div><div class="text-xs font-bold text-yellow-200">.env管理者アカウント回線速度テスト</div>
+<div class="text-[10px] text-gray-400">PRIMARY_ADMIN_USERNAME でログイン中の管理者専用。ブラウザ⇔このサーバー間の ping / download / upload を測定します。</div>
+/div><button id="bot-speed-test-btn" class="bg-yellow-700 hover:bg-yellow-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover whitespace-nowrap">回線速度テスト実行</button>
+/div><div id="bot-speed-test-result" class="mt-2 text-[11px] text-gray-300 hidden whitespace-pre-wrap">
+/div>
+/div><div class="mt-3"><button id="bot-admin-open" class="w-full bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded text-xs font-bold btn-hover">アカウント管理</button>
+/div>
+/div>{% endif %}{% if is_admin %}<div class="bg-gray-900 p-4 rounded border border-blue-700/40"><div class="flex items-center justify-between"><div><div class="font-bold text-sm text-blue-300">BAN異議申し立て</div>
+<div class="text-xs text-gray-500">未読の申し立ては通知されます。</div>
+/div><div class="text-xs text-blue-200">未読: <span id="ban-appeal-count">0</span>
+/div>
+/div>
+<div class="mt-3 flex flex-wrap gap-2"><button id="ban-appeal-refresh" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">更新</button>
+<button id="ban-appeal-mark-read" class="bg-blue-700 hover:bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">未読を既読に</button>
+/div><div id="ban-appeal-list" class="mt-3 space-y-2 text-xs text-gray-300">
+/div>
+/div>{% endif %}<div id="e2ee-card" class="bg-gray-900 p-4 rounded border border-gray-700"><div class="flex items-center justify-between"><div><div class="font-bold text-sm">E2EE (End-to-End Encryption)</div>
+<div class="text-xs text-gray-500">チャット履歴とファイルを暗号化します。</div>
+/div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input type="checkbox" id="set-e2ee" class="sr-only peer">
+<div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600">
+/div>
+/label>
+/div>
+/div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">暗号化スキャン</h3>
+<div class="flex flex-wrap gap-2"><button id="enc-scan-all" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">全体スキャン</button>
+<button id="enc-scan-thread" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">このスレッド</button>
+/div><div id="enc-scan-result" class="mt-2 text-[11px] text-gray-300">未実行</div>
+/div><div class="bg-gray-900 p-4 rounded border border-gray-700"><h3 class="text-sm font-bold text-blue-400 mb-2">ログインセッション</h3>
+<div class="text-xs text-gray-500">現在ログイン中の端末を確認し、不要なセッションをログアウトできます。</div>
+<div class="flex flex-wrap gap-2 mt-3"><button id="session-refresh-btn" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">更新</button>
+<button id="session-revoke-others-btn" class="bg-orange-600 hover:bg-orange-500 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">他のセッションをログアウト</button>
+<button id="session-revoke-all-btn" class="bg-red-700 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">全セッションを強制ログアウト</button>
+/div><div id="session-list" class="mt-3 space-y-2">
+/div>
+/div> {% if is_admin %}<div class="bg-gray-900 p-4 rounded border border-gray-700 mt-4"><h3 class="text-sm font-bold text-blue-400 mb-2">アカウント削除</h3>
+<div class="text-xs text-gray-400">管理者アカウントのため、ここからはアカウント削除できません。</div>
+/div>{% else %}<div class="bg-red-900/20 p-4 rounded border border-red-800 mt-4"><h3 class="text-sm font-bold text-red-500 mb-2">アカウント削除</h3>
+<button id="delete-account-btn" class="w-full bg-red-800/50 hover:bg-red-700 text-red-200 border border-red-600 py-2 rounded text-sm transition btn-hover">アカウントを完全に削除</button>
+/div>{% endif %}
 
         <div class="bg-gray-900 p-4 rounded border border-gray-700 mt-4">
             <h3 class="text-sm font-bold text-blue-400 mb-3"><i class="fab fa-google mr-2"></i>Google 連携</h3>
@@ -1244,10 +1484,31 @@
     </div>
     
     <!-- Legal Modal -->
-    <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto"><div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[85vh] max-h-none modal-panel"><h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">利用規約</h2><div id="legal-content" class="overflow-y-auto pr-2 flex-1 text-sm text-gray-300 leading-relaxed space-y-4 prose prose-invert max-w-none"></div><div class="flex justify-end mt-4 shrink-0"><button onclick="hideModal('legal-modal')" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition">閉じる</button></div></div></div>
+    <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+<div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[85vh] max-h-none modal-panel">
+<h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">利用規約</h2>
+<div id="legal-content" class="overflow-y-auto pr-2 flex-1 text-sm text-gray-300 leading-relaxed space-y-4 prose prose-invert max-w-none">
+/div>
+<div class="flex justify-end mt-4 shrink-0"><button onclick="hideModal('legal-modal')" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition">閉じる</button>
+/div>
+/div>
+/div>
     
     <!-- Alpha Info Modal -->
-    <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto"><div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4 modal-panel"><h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2><div class="text-sm text-gray-300 space-y-3"><p>このアプリケーションは開発中の<strong>アルファ版</strong>です。</p><ul class="list-disc list-inside space-y-1 text-gray-400"><li>予告なくデータが削除される可能性があります。</li><li>予期せぬ動作やエラーが発生する場合があります。</li></ul></div><div class="flex justify-end mt-6"><button onclick="hideModal('alpha-info-modal')" class="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded font-bold btn-hover">理解しました</button></div></div></div>
+    <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+<div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4 modal-panel">
+<h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center">
+<i class="fas fa-exclamation-triangle mr-2">
+/i> アルファ版に関するご注意</h2>
+<div class="text-sm text-gray-300 space-y-3"><p>このアプリケーションは開発中の<strong>アルファ版</strong>です。</p>
+<ul class="list-disc list-inside space-y-1 text-gray-400"><li>予告なくデータが削除される可能性があります。</li>
+<li>予期せぬ動作やエラーが発生する場合があります。</li>
+/ul>
+/div>
+<div class="flex justify-end mt-6"><button onclick="hideModal('alpha-info-modal')" class="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded font-bold btn-hover">理解しました</button>
+/div>
+/div>
+/div>
 
     <!-- Branch Management Modal -->
     <div id="branch-modal" class="fixed inset-0 bg-gray-900/95 z-[100] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">

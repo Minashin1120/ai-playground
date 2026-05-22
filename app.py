@@ -2645,6 +2645,7 @@ def try_alter(sql):
         with db.engine.connect() as conn:
             conn.execute(text("SET SESSION lock_wait_timeout=1"))
             conn.execute(text(sql))
+            conn.commit()
     except Exception:
         pass
 

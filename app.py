@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-22-003')
-app.config['SYSTEM_VERSION'] = 'V4.8.532'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-22-004')
+app.config['SYSTEM_VERSION'] = 'V4.8.533'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -9263,6 +9263,11 @@ def chat_stream_resume():
     except Exception:
         pending_raw = None
     if not pending_raw:
+        # 接続エラー後のリロードで一時的にセッション読込不能になるのを防ぐため、古いpendingをクリア
+        try:
+            redis_conn.delete(f"pending_job:{current_user.id}:{t.id}")
+        except Exception:
+            pass
         return jsonify({'error': 'no pending job'}), 404
     pending_job = None
     try:

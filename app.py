@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-23-003')
-app.config['SYSTEM_VERSION'] = 'V4.8.541'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-23-004')
+app.config['SYSTEM_VERSION'] = 'V4.8.542'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1989,6 +1989,7 @@ class Thread(db.Model):
     custom_instruction = db.Column(db.Text, nullable=True)
     include_global_instruction = db.Column(db.Boolean, default=True)
     last_model = db.Column(db.String(64), nullable=True)
+    last_gem_uuid = db.Column(db.String(36), nullable=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     messages = db.relationship('Message', backref='thread', cascade="all, delete-orphan", lazy=True)
 
@@ -8072,6 +8073,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             if th:
                 th.updated_at = datetime.utcnow()
                 th.last_model = model_key
+                th.last_gem_uuid = options.get('gem_uuid')
             safe_db_commit()
             pub("done", "OK")
 
@@ -8958,6 +8960,7 @@ def chat_stream():
             current_user.last_reasoning_effort = (data.get('reasoning_effort') or current_user.last_reasoning_effort or "medium")
             current_user.last_enable_system_prompt = bool(data.get('enable_system_prompt'))
             current_user.last_safety_setting = (data.get('safety_setting') or current_user.last_safety_setting or "default")
+        t.last_gem_uuid = data.get('gem_uuid')
         safe_db_commit()
         thread_id = t.id
         thread_stream_id = t.public_id if t and t.public_id else str(thread_id)
@@ -9016,6 +9019,7 @@ def chat_stream():
             'grok_video_aspect': data.get('grok_video_aspect'),
             'grok_video_resolution': data.get('grok_video_resolution'),
             'attachment_name_map': attachment_name_map,
+            'gem_uuid': data.get('gem_uuid'),
         }
     if 'thread_custom_instruction' in data:
         options['thread_custom_instruction'] = data.get('thread_custom_instruction')
@@ -10014,6 +10018,7 @@ def handle_thread_item(thread_id):
                 'custom_instruction': t.custom_instruction,
                 'include_global_instruction': t.include_global_instruction if t.include_global_instruction is not None else True,
                 'last_model': t.last_model,
+                'last_gem_uuid': t.last_gem_uuid,
                 'is_temporary': bool(getattr(t, "is_temporary", False)),
                 'pending_job': pending_job
             })
@@ -12943,6 +12948,9 @@ with app.app_context():
     # Run column additions BEFORE any model query to avoid SQLAlchemy metadata cache staleness
     try:
         try_alter("ALTER TABLE user ADD COLUMN last_gem_uuid VARCHAR(36)")
+    except: pass
+    try:
+        try_alter("ALTER TABLE thread ADD COLUMN last_gem_uuid VARCHAR(36)")
     except: pass
     try:
         try_alter("ALTER TABLE gem ADD COLUMN uuid VARCHAR(36)")

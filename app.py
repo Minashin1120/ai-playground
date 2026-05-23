@@ -11797,7 +11797,13 @@ def handle_settings():
             gem = Gem.query.filter_by(uuid=val).first()
             if not gem or gem.user_id != current_user.id:
                 return jsonify({'error': 'Invalid gem UUID'}), 403
-        current_user.last_gem_uuid = val
+        thread_id = d.get('thread_id')
+        if thread_id:
+            th = resolve_thread_for_user(thread_id, current_user.id)
+            if th:
+                th.last_gem_uuid = val
+        else:
+            current_user.last_gem_uuid = val
     if 'temp_chat_timeout_seconds' in d:
         current_user.temp_chat_timeout_seconds = _normalize_temp_chat_timeout_seconds(
             d.get('temp_chat_timeout_seconds')

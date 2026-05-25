@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-25-007')
-app.config['SYSTEM_VERSION'] = 'V4.8.549'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-25-008')
+app.config['SYSTEM_VERSION'] = 'V4.8.550'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -9941,10 +9941,7 @@ def handle_thread_item(thread_id):
             if ms:
                 oldest_loaded_id = ms[0].id
             if before_id is None:
-                try:
-                    total_messages = Message.query.filter_by(thread_id=t.id).count()
-                except Exception:
-                    total_messages = None
+                total_messages = None
         else:
             # Ensure stable ordering even when timestamps collide (e.g., rapid edit/regenerate).
             ms = Message.query.filter_by(thread_id=t.id).order_by(Message.timestamp, Message.id).all()

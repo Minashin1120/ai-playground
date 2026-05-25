@@ -10,7 +10,7 @@
     <style id="initial-theme-vars">{{ initial_theme_css|safe }}</style>
     {% endif %}
     <title>AI Playground ({{ system_version }})</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.545.css') }}?v={{ app_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.546.css') }}?v={{ app_version }}">
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
@@ -1333,7 +1333,7 @@
     {% endif %}
 
     <!-- Version Update Notification Modal -->
-    <div id="version-update-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+    <div id="version-update-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
         <div class="bg-gray-800 rounded-lg w-full max-w-sm p-6 shadow-2xl border border-gray-700 m-4 modal-panel">
             <div class="flex items-start gap-3 mb-4">
                 <div class="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">

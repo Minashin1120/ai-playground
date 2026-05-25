@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-25-008')
-app.config['SYSTEM_VERSION'] = 'V4.8.550'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-25-009')
+app.config['SYSTEM_VERSION'] = 'V4.8.551'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2564,13 +2564,25 @@ def resolve_thread_for_user(identifier, user_id):
     return None
 
 def create_user_session(user):
+    ip = get_client_ip()
+    ua = request.headers.get('User-Agent', '')
+    now = datetime.utcnow()
+    old_sessions = UserSession.query.filter(
+        UserSession.user_id == user.id,
+        UserSession.is_revoked == False,
+        UserSession.ip_address == ip,
+        UserSession.user_agent == ua
+    ).all()
+    for s in old_sessions:
+        s.is_revoked = True
+        s.revoked_at = now
     sid = secrets.token_urlsafe(32)
     session['session_id'] = sid
     user_sess = UserSession(
         user_id=user.id,
         session_id=sid,
-        user_agent=request.headers.get('User-Agent', ''),
-        ip_address=get_client_ip()
+        user_agent=ua,
+        ip_address=ip
     )
     db.session.add(user_sess)
     safe_db_commit()

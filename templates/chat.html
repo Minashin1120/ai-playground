@@ -10,7 +10,7 @@
     <style id="initial-theme-vars">{{ initial_theme_css|safe }}</style>
     {% endif %}
     <title>AI Playground ({{ system_version }})</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.543.css') }}?v={{ app_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.544.css') }}?v={{ app_version }}">
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
@@ -1331,6 +1331,25 @@
         </div>
     </div>
     {% endif %}
+
+    <!-- Version Update Notification Modal -->
+    <div id="version-update-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-sm p-6 shadow-2xl border border-gray-700 m-4 modal-panel">
+            <div class="flex items-start gap-3 mb-4">
+                <div class="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-download text-blue-400 text-lg"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <h2 class="text-base font-bold text-white">新しいバージョンが利用可能です</h2>
+                    <p class="text-sm text-gray-400 mt-1">ページをリロードして最新版をご利用ください</p>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button id="version-update-dismiss" class="px-4 py-2 text-sm rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition">閉じる</button>
+                <button id="version-update-reload" class="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition font-medium">リロード</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         window.CHAT_CONFIG = {

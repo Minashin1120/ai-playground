@@ -10,7 +10,7 @@
     <style id="initial-theme-vars">{{ initial_theme_css|safe }}</style>
     {% endif %}
     <title>AI Playground ({{ system_version }})</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.546.css') }}?v={{ app_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.547.css') }}?v={{ app_version }}">
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
@@ -1247,7 +1247,7 @@
     <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto"><div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[85vh] max-h-none modal-panel"><h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">利用規約</h2><div id="legal-content" class="overflow-y-auto pr-2 flex-1 text-sm text-gray-300 leading-relaxed space-y-4 prose prose-invert max-w-none"></div><div class="flex justify-end mt-4 shrink-0"><button onclick="hideModal('legal-modal')" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition">閉じる</button></div></div></div>
     
     <!-- Alpha Info Modal -->
-    <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto"><div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4 modal-panel"><h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2><div class="text-sm text-gray-300 space-y-3"><p>このアプリケーションは開発中の<strong>アルファ版</strong>です。</p><ul class="list-disc list-inside space-y-1 text-gray-400"><li>予告なくデータが削除される可能性があります。</li><li>予期せぬ動作やエラーが発生する場合があります。</li></ul></div><div class="flex justify-end mt-6"><button onclick="hideModal('alpha-info-modal')" class="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded font-bold btn-hover">理解しました</button></div></div></div>
+    <div id="alpha-info-modal" class="fixed inset-0 bg-gray-900/95 z-[70] hidden items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto"><div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-orange-500 m-4 modal-panel"><h2 class="text-xl font-bold text-orange-500 mb-4 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> アルファ版に関するご注意</h2><div class="text-sm text-gray-300 space-y-3"><p>このアプリケーションは開発中の<strong>アルファ版</strong>です。</p><ul class="list-disc list-inside space-y-1 text-gray-400"><li>予告なくデータが削除される可能性があります。</li><li>予期せぬ動作やエラーが発生する場合があります。</li></ul></div><div class="flex justify-end mt-6"><button onclick="hideModal('alpha-info-modal')" class="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded font-bold btn-hover">理解しました</button></div></div></div>
 
     <!-- Branch Management Modal -->
     <div id="branch-modal" class="fixed inset-0 bg-gray-900/95 z-[100] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">

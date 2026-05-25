@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-25-006')
-app.config['SYSTEM_VERSION'] = 'V4.8.548'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-25-007')
+app.config['SYSTEM_VERSION'] = 'V4.8.549'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -9324,6 +9324,14 @@ def chat_stream_resume():
                         yield json.dumps({"type": "python", "content": py}) + "\n"
                     except Exception:
                         continue
+            cached_final = redis_conn.get(f"stream_acc:{job_id}:final")
+            if cached_final:
+                final_type = cached_final.decode("utf-8", "ignore").strip().lower()
+                if final_type == "error":
+                    yield json.dumps({"type": "error", "content": "The job has ended with an error. Please reload."}) + "\n"
+                else:
+                    yield json.dumps({"type": "done", "content": "OK"}) + "\n"
+                return
         except Exception:
             pass
         try:

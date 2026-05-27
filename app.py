@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-27-005')
-app.config['SYSTEM_VERSION'] = 'V4.8.556'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-05-27-006')
+app.config['SYSTEM_VERSION'] = 'V4.8.557'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -6885,8 +6885,45 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         response_tts = client_tts.synthesize_speech(input=synthesis_input, voice=voice, audio_config=audio_config)
                         audio_content = response_tts.audio_content
                         with open(speech_file_path, 'wb') as f: f.write(audio_content)
+
+                    elif 'grok-tts' in model_key or 'xai-tts' in model_key:
+                        # xAI standalone TTS (単独モデル化)
+                        xai_key = model_api_key_override or decrypt_val(user.xai_api_key)
+                        if not xai_key and _admin_env_fallback_enabled(user):
+                            xai_key = os.getenv('XAI_API_KEY')
+                        if not xai_key:
+                            raise RuntimeError("xAI API Key is not configured for Grok TTS.")
+
+                        raw_voice = (options.get('tts_voice') or "eve").strip()
+                        # xAI voices are case-insensitive; use title case as per docs
+                        xai_voice = raw_voice.capitalize()
+                        if xai_voice not in ("Eve", "Ara", "Rex", "Sal", "Leo"):
+                            xai_voice = "Eve"
+
+                        tts_lang = (options.get('tts_language') or "ja").strip() or "ja"
+                        speed_val = clamp_float(options.get('tts_speed'), 0.7, 1.5)
+
+                        payload = {
+                            "text": final_message_text,
+                            "voice_id": xai_voice,
+                            "language": tts_lang,
+                        }
+                        if speed_val is not None:
+                            payload["speed"] = speed_val
+
+                        headers = {
+                            "Authorization": f"Bearer {xai_key}",
+                            "Content-Type": "application/json"
+                        }
+                        tts_url = f"https://{_XAI_API_HOST}/v1/tts"
+                        resp = requests.post(tts_url, headers=headers, json=payload, timeout=180)
+                        resp.raise_for_status()
+
+                        with open(speech_file_path, 'wb') as f:
+                            f.write(resp.content)
+
                     else:
-                        # OpenAI TTS
+                        # OpenAI TTS (default for generic tts models)
                         tts_voice = (options.get('tts_voice') or "alloy").strip().lower() or "alloy"
                         speed_val = clamp_float(options.get('tts_speed'), 0.25, 4.0)
                         tts_kwargs = {
@@ -6896,9 +6933,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         }
                         if speed_val is not None:
                             tts_kwargs["speed"] = speed_val
-                    _mark_provider_request_started()
-                    with o_client.audio.speech.with_streaming_response.create(**tts_kwargs) as response:
+
+                        _mark_provider_request_started()
+                        with o_client.audio.speech.with_streaming_response.create(**tts_kwargs) as response:
                             response.stream_to_file(speech_file_path)
+
+                # For xAI and Google TTS, the file is already written above.
+                # The common post-processing (E2EE, audio tag, etc.) runs below for all TTS paths.
 
                     # Encryption if enabled
                     if user_config.get('enable_e2ee'):

@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-02-004')
-app.config['SYSTEM_VERSION'] = 'V4.8.569'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-02-005')
+app.config['SYSTEM_VERSION'] = 'V4.8.570'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -8409,8 +8409,8 @@ def login():
             return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
 
         if not verify_turnstile(form_data.get('cf-turnstile-response')):
-            if is_ajax: return jsonify({'error': "Auth Error"}), 401
-            return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Auth Error")
+            if is_ajax: return jsonify({'error': "認証エラーが発生しました"}), 401
+            return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="認証エラーが発生しました")
             
         username = (form_data.get('username') or '').strip()
         user = User.query.filter_by(username=username).first()
@@ -8464,14 +8464,14 @@ def login():
                 if is_ajax: return jsonify({'status': 'ok', 'redirect': url_for('index')})
                 return redirect(url_for('index'))
                 
-        if is_ajax: return jsonify({'error': "Invalid credentials"}), 401
+        if is_ajax: return jsonify({'error': "ユーザー名またはパスワードが正しくありません"}), 401
         g_client_id = os.getenv('GOOGLE_CLIENT_ID', '')
         if not g_client_id:
             log_force("DEBUG: GOOGLE_CLIENT_ID is missing in .env")
         return render_template('login.html', 
                                site_key=os.getenv('TURNSTILE_SITE_KEY'), 
                                google_client_id=g_client_id, 
-                               error="Invalid credentials")
+                               error="ユーザー名またはパスワードが正しくありません")
     
     g_client_id = os.getenv('GOOGLE_CLIENT_ID', '')
     return render_template('login.html', 

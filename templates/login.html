@@ -544,7 +544,20 @@
                     body: JSON.stringify(data)
                 });
 
-                const result = await res.json();
+                let result = {};
+                try {
+                    const contentType = res.headers.get('content-type') || '';
+                    if (contentType.includes('application/json')) {
+                        result = await res.json();
+                    } else {
+                        // Fallback: try to parse text as JSON, otherwise use status-based message
+                        const text = await res.text();
+                        try { result = JSON.parse(text); } catch (_) { result = {}; }
+                    }
+                } catch (parseErr) {
+                    result = {};
+                }
+
                 if (res.ok) {
                     if (result.status === 'ok') {
                         await showLoginButtonSuccess(btn);
@@ -554,11 +567,24 @@
                         init2FAUI(result.default_method);
                     }
                 } else {
-                    showLoginError(result.error || "ログインに失敗しました");
+                    // Prefer server-provided error, otherwise give a clear Japanese message based on status
+                    let msg = result.error || result.message;
+                    if (!msg) {
+                        if (res.status === 401 || res.status === 403) {
+                            msg = "ユーザー名またはパスワードが正しくありません";
+                        } else if (res.status >= 500) {
+                            msg = "サーバーエラーが発生しました。時間をおいて再度お試しください";
+                        } else {
+                            msg = "ログインに失敗しました";
+                        }
+                    }
+                    showLoginError(msg);
                     if (window.turnstile) window.turnstile.reset();
                     resetLoginSubmitButton();
                 }
             } catch (err) {
+                // True network / fetch failure
+                console.error('Login fetch error:', err);
                 showLoginError("ネットワークエラーが発生しました");
                 resetLoginSubmitButton();
             }
@@ -586,11 +612,24 @@
                     body: JSON.stringify({ totp_code: code })
                 });
 
-                const result = await res.json();
+                let result = {};
+                try {
+                    const ct = res.headers.get('content-type') || '';
+                    if (ct.includes('application/json')) {
+                        result = await res.json();
+                    } else {
+                        const t = await res.text();
+                        try { result = JSON.parse(t); } catch (_) {}
+                    }
+                } catch (_) {}
                 if (res.ok && result.status === 'ok') {
                     triggerSuccess(result.redirect);
                 } else {
-                    showLoginError(result.error || "認証に失敗しました");
+                    let msg = result.error || result.message;
+                    if (!msg) {
+                        msg = (res.status === 401 || res.status === 403) ? "認証に失敗しました" : "認証に失敗しました";
+                    }
+                    showLoginError(msg);
                     btn.classList.remove('btn-loading');
                     btn.disabled = false;
                     btn.innerText = "認証する";

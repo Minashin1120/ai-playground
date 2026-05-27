@@ -38,6 +38,7 @@
                         linear-gradient(180deg, var(--bg-1), var(--bg-2));
             color: var(--text);
             position: relative;
+            padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
         }
         body::before {
             content: "";
@@ -160,7 +161,7 @@
         .prose li { margin-bottom: 0.5rem; }
     </style>
 </head>
-<body class="text-white h-screen flex flex-col items-center justify-center p-4">
+<body class="text-white min-h-screen flex flex-col items-center justify-center">
     <div id="g_id_onload"
          data-client_id="{{ google_client_id }}"
          data-callback="handleGoogleCredentialResponse"

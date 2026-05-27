@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-02-006')
-app.config['SYSTEM_VERSION'] = 'V4.8.571'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-03-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.572'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1497,6 +1497,176 @@ DEFAULT_LLM_TRANSCRIBE_PROMPT = (
     "出力は文字起こし本文のみ。説明・要約・補足は不要です。"
 )
 LLM_TRANSCRIBE_PROMPT_MAX_CHARS = 4000
+
+# === AI-assisted settings (in settings modal) ===
+# Safe (non-secret, non-admin, low-risk) fields that can be changed via natural language prompt + tool use.
+# This list defines the tool schema and what _apply_ai_settings_update will accept.
+# Keep in sync with settings modal UI and handle_settings POST handling for these fields.
+AI_SAFE_EDITABLE_FIELDS = {
+    # Default chat behaviors
+    'default_model', 'default_enable_search', 'default_enable_url_context', 'default_enable_maps',
+    'default_enable_python', 'default_enable_thinking', 'default_thinking_level',
+    'default_thinking_budget', 'default_reasoning_effort', 'default_enable_system_prompt',
+    'default_safety_setting',
+    # User-level instruction / system prompts
+    'system_prompt', 'system_prompt_enabled', 'apply_global_system_prompt',
+    'apply_auto_system_prompt_notices', 'auto_system_prompt_notices_config',
+    # STT / voice transcription
+    'mic_transcribe_mode', 'stt_model', 'llm_transcribe_prompt',
+    # UI / behavior prefs (safe)
+    'enter_to_send', 'use_sw_cache', 'compact_prompt_mode', 'auto_search_on_links',
+    'use_last_chat_settings', 'temp_chat_timeout_seconds', 'theme_color',
+    # Rich paste custom prompt
+    'rich_paste_prompt_default', 'rich_paste_prompt_use_custom_default',
+    # Debug / metrics (user opt-in)
+    'enable_latency_metrics', 'enable_client_debug_log',
+    # Per-user bot detection preference
+    'bot_detection_enabled',
+    # Low-risk 2FA prefs (not passkey_only_login which risks lockout)
+    'skip_2fa_on_google_login', 'default_2fa_method',
+}
+
+# Fields that must NEVER be settable via AI prompt (secrets, high-impact, admin-only, or runtime)
+AI_NEVER_EDITABLE_FIELDS = {
+    # Secrets / credentials
+    'openai_key', 'gemini_key', 'anthropic_key', 'deepseek_key', 'xai_key', 'google_key',
+    'google_project', 'gemini_vertex_project', 'gemini_vertex_location',
+    'gemini_vertex_credentials_json', 'model_api_keys',
+    # High impact / special handling
+    'new_password', 'new_username', 'enable_e2ee', 'disable_2fa', 'passkey_only_login',
+    'last_gem_uuid',
+    # Admin-only (global)
+    'admin_api_key_mode', 'bot_detection_global_enabled',
+}
+
+def _apply_ai_settings_update(current_user, delta):
+    """
+    Apply a delta dict (from AI tool call) to current_user, but ONLY for AI_SAFE_EDITABLE_FIELDS.
+    Never touches secrets, admin-only, or high-risk fields. Mirrors the assignment logic
+    from handle_settings POST for consistency ("ロジックは同じ").
+    Does NOT commit. Caller must safe_db_commit() after.
+    Returns dict of actually applied field->new_value (for response summary).
+    """
+    if not delta or not isinstance(delta, dict):
+        return {}
+    applied = {}
+    for key, val in delta.items():
+        if key not in AI_SAFE_EDITABLE_FIELDS:
+            continue  # silently ignore unknown or disallowed
+        if key in AI_NEVER_EDITABLE_FIELDS:
+            continue
+        try:
+            if key == 'system_prompt':
+                if current_user.enable_e2ee:
+                    current_user.system_prompt = encrypt_val(val or "")
+                else:
+                    current_user.system_prompt = val or ""
+                applied[key] = "(更新)"
+            elif key == 'system_prompt_enabled':
+                current_user.system_prompt_enabled = bool(val)
+                applied[key] = current_user.system_prompt_enabled
+            elif key == 'apply_global_system_prompt':
+                current_user.apply_global_system_prompt = bool(val)
+                applied[key] = current_user.apply_global_system_prompt
+            elif key == 'apply_auto_system_prompt_notices':
+                current_user.apply_auto_system_prompt_notices = bool(val)
+                applied[key] = current_user.apply_auto_system_prompt_notices
+            elif key == 'auto_system_prompt_notices_config':
+                set_user_auto_system_prompt_notices_config(current_user, val)
+                applied[key] = "(更新)"
+            elif key in ('mic_transcribe_mode',):
+                current_user.mic_transcribe_mode = _normalize_mic_transcribe_mode(val)
+                applied[key] = current_user.mic_transcribe_mode
+            elif key == 'stt_model':
+                current_user.stt_model = str(val) if val else "gpt-4o-mini-transcribe"
+                applied[key] = current_user.stt_model
+            elif key == 'llm_transcribe_prompt':
+                current_user.llm_transcribe_prompt = _normalize_llm_transcribe_prompt(val)
+                applied[key] = "(更新)"
+            elif key == 'enter_to_send':
+                current_user.enter_to_send = bool(val)
+                applied[key] = current_user.enter_to_send
+            elif key == 'use_sw_cache':
+                current_user.use_sw_cache = bool(val)
+                applied[key] = current_user.use_sw_cache
+            elif key == 'compact_prompt_mode':
+                current_user.compact_prompt_mode = bool(val)
+                applied[key] = current_user.compact_prompt_mode
+            elif key == 'theme_color':
+                current_user.theme_color = normalize_theme_color(val)
+                applied[key] = current_user.theme_color
+            elif key == 'auto_search_on_links':
+                current_user.auto_search_on_links = bool(val)
+                applied[key] = current_user.auto_search_on_links
+            elif key == 'use_last_chat_settings':
+                current_user.use_last_chat_settings = bool(val)
+                applied[key] = current_user.use_last_chat_settings
+            elif key == 'temp_chat_timeout_seconds':
+                current_user.temp_chat_timeout_seconds = _normalize_temp_chat_timeout_seconds(val)
+                applied[key] = current_user.temp_chat_timeout_seconds
+            elif key == 'default_model':
+                current_user.default_model = str(val) if val else current_user.default_model
+                applied[key] = current_user.default_model
+            elif key == 'default_enable_search':
+                current_user.default_enable_search = bool(val)
+                applied[key] = current_user.default_enable_search
+            elif key == 'default_enable_url_context':
+                current_user.default_enable_url_context = bool(val)
+                applied[key] = current_user.default_enable_url_context
+            elif key == 'default_enable_maps':
+                current_user.default_enable_maps = bool(val)
+                applied[key] = current_user.default_enable_maps
+            elif key == 'default_enable_python':
+                current_user.default_enable_python = bool(val)
+                applied[key] = current_user.default_enable_python
+            elif key == 'default_enable_thinking':
+                current_user.default_enable_thinking = bool(val)
+                applied[key] = current_user.default_enable_thinking
+            elif key == 'default_thinking_level':
+                current_user.default_thinking_level = str(val) or "high"
+                applied[key] = current_user.default_thinking_level
+            elif key == 'default_thinking_budget':
+                try:
+                    current_user.default_thinking_budget = int(val)
+                    applied[key] = current_user.default_thinking_budget
+                except Exception:
+                    pass
+            elif key == 'default_reasoning_effort':
+                current_user.default_reasoning_effort = str(val) or "medium"
+                applied[key] = current_user.default_reasoning_effort
+            elif key == 'default_enable_system_prompt':
+                current_user.default_enable_system_prompt = bool(val)
+                applied[key] = current_user.default_enable_system_prompt
+            elif key == 'default_safety_setting':
+                current_user.default_safety_setting = str(val) or "default"
+                applied[key] = current_user.default_safety_setting
+            elif key == 'rich_paste_prompt_default':
+                current_user.rich_paste_prompt_default = str(val or "")
+                applied[key] = current_user.rich_paste_prompt_default
+            elif key == 'rich_paste_prompt_use_custom_default':
+                current_user.rich_paste_prompt_use_custom_default = bool(val)
+                applied[key] = current_user.rich_paste_prompt_use_custom_default
+            elif key == 'enable_latency_metrics':
+                current_user.enable_latency_metrics = bool(val)
+                applied[key] = current_user.enable_latency_metrics
+            elif key == 'enable_client_debug_log':
+                current_user.enable_client_debug_log = bool(val)
+                applied[key] = current_user.enable_client_debug_log
+                log_force(f"SETTINGS-AI-UPDATE: user={current_user.id} enable_client_debug_log={val}")
+            elif key == 'bot_detection_enabled':
+                if val is not None:
+                    current_user.bot_detection_enabled = bool(val)
+                    applied[key] = current_user.bot_detection_enabled
+            elif key == 'skip_2fa_on_google_login':
+                current_user.skip_2fa_on_google_login = bool(val)
+                applied[key] = current_user.skip_2fa_on_google_login
+            elif key == 'default_2fa_method':
+                current_user.default_2fa_method = str(val) if val in ('totp', 'webauthn') else 'totp'
+                applied[key] = current_user.default_2fa_method
+            # Note: auto_system_prompt_notices_config handled above; complex ones can be extended later
+        except Exception as e:
+            log_force(f"AI-SETTINGS-APPLY-ERR key={key} err={e}")
+    return applied
 
 def _normalize_mic_transcribe_mode(value):
     v = str(value or "").strip().lower()
@@ -11944,6 +12114,248 @@ def receive_client_log():
     except Exception as e:
         log_force(f"CLIENT-DEBUG-ERROR: user={getattr(current_user, 'id', 'unknown')} err={e}")
         return jsonify({'status': 'error'}), 400
+
+# --- AI Settings Prompt (tool use in settings modal) ---
+
+def _build_ai_settings_tool_schema():
+    """Return (openai_tools_list, gemini_tool) for the update_settings tool."""
+    # Common property descriptions (Japanese for better JP prompt understanding)
+    props = {
+        "default_model": {"type": "string", "description": "既定モデルID (例: gemini-3.1-flash-lite-preview, gpt-4o, claude-3-5-sonnet-latest など)"},
+        "default_enable_search": {"type": "boolean", "description": "Searchツールの既定ON/OFF"},
+        "default_enable_url_context": {"type": "boolean", "description": "URLs (URLコンテキスト) の既定ON/OFF"},
+        "default_enable_maps": {"type": "boolean", "description": "Maps (Google Maps grounding) の既定ON/OFF"},
+        "default_enable_python": {"type": "boolean", "description": "Python実行ツールの既定ON/OFF"},
+        "default_enable_thinking": {"type": "boolean", "description": "Thinking (拡張思考) の既定ON/OFF"},
+        "default_thinking_level": {"type": "string", "description": "Thinkingレベル: minimal, low, medium, high のいずれか"},
+        "default_thinking_budget": {"type": "integer", "description": "Thinking budget (トークン数, 例: 4096)"},
+        "default_reasoning_effort": {"type": "string", "description": "Reasoning effort: minimal, low, medium, high"},
+        "default_enable_system_prompt": {"type": "boolean", "description": "既定でシステムプロンプト(ユーザー定義)を使用するか"},
+        "default_safety_setting": {"type": "string", "description": "安全設定 (default など)"},
+        "system_prompt": {"type": "string", "description": "ユーザー個別システムプロンプト本文 (自然言語で詳細指示可)"},
+        "system_prompt_enabled": {"type": "boolean", "description": "ユーザー個別システムプロンプトのON/OFF"},
+        "apply_global_system_prompt": {"type": "boolean", "description": "全体システムプロンプトを適用するか (ユーザー設定)"},
+        "apply_auto_system_prompt_notices": {"type": "boolean", "description": "自動注入システムプロンプト (Python/Search等) を適用するか"},
+        "auto_system_prompt_notices_config": {"type": "object", "description": "自動注入の種類別ON/OFF設定 (JSONオブジェクト)"},
+        "mic_transcribe_mode": {"type": "string", "description": "マイク文字起こし方式: stt_api または llm"},
+        "stt_model": {"type": "string", "description": "STTに使用するモデル名 (gpt-4o-mini-transcribe など)"},
+        "llm_transcribe_prompt": {"type": "string", "description": "LLM文字起こし用の追加プロンプト"},
+        "enter_to_send": {"type": "boolean", "description": "Enterキーで送信するか (Shift+Enterで改行)"},
+        "use_sw_cache": {"type": "boolean", "description": "Service Workerキャッシュ使用"},
+        "compact_prompt_mode": {"type": "boolean", "description": "プロンプトバーをコンパクト表示 (モデル選択のみ)"},
+        "auto_search_on_links": {"type": "boolean", "description": "リンク検出時の自動検索"},
+        "use_last_chat_settings": {"type": "boolean", "description": "前回の送信設定を継続使用"},
+        "temp_chat_timeout_seconds": {"type": "integer", "description": "一時チャットの切断タイムアウト秒数 (30-86400)"},
+        "theme_color": {"type": "string", "description": "テーマカラー (HEX, 例: #10a37f)"},
+        "rich_paste_prompt_default": {"type": "string", "description": "リッチ貼り付け用カスタムプロンプト既定値"},
+        "rich_paste_prompt_use_custom_default": {"type": "boolean", "description": "リッチ貼り付けでカスタムプロンプトを使用"},
+        "enable_latency_metrics": {"type": "boolean", "description": "初回トークンレイテンシ計測を有効化"},
+        "enable_client_debug_log": {"type": "boolean", "description": "クライアントデバッグログのサーバー送信を有効化"},
+        "bot_detection_enabled": {"type": "boolean", "description": "Bot検出 (ユーザー単位) を有効化"},
+        "skip_2fa_on_google_login": {"type": "boolean", "description": "Googleログイン時に2FAをスキップ"},
+        "default_2fa_method": {"type": "string", "description": "既定2FA方式: totp または webauthn"},
+    }
+    # OpenAI / compat format
+    openai_tool = {
+        "type": "function",
+        "function": {
+            "name": "update_settings",
+            "description": "ユーザーの指示に基づき、設定モーダルで管理可能な安全な設定項目のみを更新します。管理者専用項目やAPIキーなどは一切変更しません。指示が曖昧な場合は最も自然な1つの解釈を選んで適用してください。",
+            "parameters": {
+                "type": "object",
+                "properties": props,
+                "additionalProperties": False,
+            },
+        },
+    }
+    # Gemini format (uses google.genai.types)
+    gemini_func_decl = None
+    try:
+        from google.genai import types as gtypes
+        gemini_func_decl = gtypes.FunctionDeclaration(
+            name="update_settings",
+            description=openai_tool["function"]["description"],
+            parameters=gtypes.Schema(
+                type="OBJECT",
+                properties={k: gtypes.Schema(**v) for k, v in props.items()},
+                additional_properties=False,
+            ),
+        )
+    except Exception:
+        gemini_func_decl = None
+    return [openai_tool], gemini_func_decl
+
+
+def _call_llm_for_settings_ai(model_id, instruction, current_settings_snapshot, user):
+    """
+    Perform a one-shot tool call to interpret the natural language instruction and return
+    a delta dict for _apply_ai_settings_update. Returns (delta_dict or None, error_msg or None).
+    Uses the user's API key resolution (same as chat) for the chosen model.
+    Supports Gemini and OpenAI-compatible families (GPT, DeepSeek, Grok via compat).
+    """
+    if not model_id:
+        return None, "モデルが指定されていません"
+    mid = str(model_id).lower()
+    is_gemini = "gemini" in mid
+    is_claude = "claude" in mid
+    is_grok = "grok" in mid and "gpt" not in mid
+    is_deepseek = "deepseek" in mid
+
+    if is_claude:
+        return None, "Claude (Anthropic) モデルは現在の設定AIツール呼び出しで未対応です。Gemini または GPT/DeepSeek/Grok 系モデルを選択してください。"
+
+    # Build messages for LLM
+    sys_prompt = (
+        "あなたはチャットアプリの『設定アシスタント』です。ユーザーが日本語または英語で自然言語の指示を出し、"
+        "設定モーダル内の安全な項目（APIキー・管理者専用・パスワードなどを除く）を変更したいと伝えています。"
+        "現在の設定スナップショットが与えられるので、それを参考に指示を正確に解釈し、update_settings ツールを1回だけ呼び出して変更を提案してください。"
+        "不要な項目は含めず、指示に合致するものだけを指定。曖昧さがある場合は最も妥当な1解釈を選んでください。"
+        "ツール呼び出し以外の応答は一切返さず、必ずツールを使用してください。"
+    )
+    user_content = f"指示: {instruction}\n\n現在の設定 (参考):\n{json.dumps(current_settings_snapshot or {}, ensure_ascii=False, indent=2)}"
+
+    openai_tools, gemini_decl = _build_ai_settings_tool_schema()
+
+    try:
+        if is_gemini:
+            # Gemini path (google.genai)
+            api_key = _get_model_specific_api_key(user, model_id) or decrypt_val(user.gemini_api_key)
+            if not api_key and _admin_env_fallback_enabled(user):
+                api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            if not api_key:
+                return None, "Gemini APIキーが設定されていません。設定モーダルでキーを入力するか、モデルを変更してください。"
+            client = genai.Client(api_key=api_key)
+            # Build contents
+            contents = [user_content]
+            tools_arg = None
+            if gemini_decl:
+                try:
+                    from google.genai import types as gtypes
+                    tools_arg = [gtypes.Tool(function_declarations=[gemini_decl])]
+                except Exception:
+                    tools_arg = None
+            resp = client.models.generate_content(
+                model=model_id,
+                contents=contents,
+                tools=tools_arg,
+                system_instruction=sys_prompt,
+            )
+            # Parse function call
+            try:
+                part = resp.candidates[0].content.parts[0]
+                if hasattr(part, "function_call") and part.function_call:
+                    fc = part.function_call
+                    args = dict(fc.args) if hasattr(fc, "args") else {}
+                    return args, None
+            except Exception as parse_e:
+                log_force(f"AI-SETTINGS-GEMINI-PARSE-ERR: {parse_e} resp={getattr(resp,'text',None)}")
+                return None, "Geminiからのツール呼び出し解析に失敗しました。"
+            # fallback if no tool call
+            text = getattr(resp, "text", "") or ""
+            return None, f"モデルがツール呼び出しを行いませんでした: {text[:200]}"
+        else:
+            # OpenAI compat path (gpt-*, deepseek, grok via x.ai openai compat)
+            api_key = _get_model_specific_api_key(user, model_id) or decrypt_val(user.openai_api_key)
+            base_url = None
+            if is_grok:
+                api_key = _get_model_specific_api_key(user, model_id) or decrypt_val(user.xai_api_key)
+                base_url = f"https://{_XAI_API_HOST}/v1"
+            elif is_deepseek:
+                api_key = _get_model_specific_api_key(user, model_id) or decrypt_val(user.deepseek_api_key)
+                base_url = "https://api.deepseek.com"
+            if not api_key and _admin_env_fallback_enabled(user):
+                api_key = os.getenv("OPENAI_API_KEY") or os.getenv("XAI_API_KEY")
+            if not api_key:
+                return None, "選択したモデルのAPIキーがありません。設定でキーを入力するか、別のモデルを選んでください。"
+            oai_client = _get_openai_client(api_key, base_url=base_url)
+            messages = [
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": user_content},
+            ]
+            resp = oai_client.chat.completions.create(
+                model=model_id,
+                messages=messages,
+                tools=openai_tools,
+                tool_choice="auto",
+                temperature=0.2,
+                max_tokens=800,
+            )
+            msg = resp.choices[0].message
+            if msg.tool_calls:
+                tc = msg.tool_calls[0]
+                try:
+                    args = json.loads(tc.function.arguments or "{}")
+                    return args, None
+                except Exception as je:
+                    log_force(f"AI-SETTINGS-OPENAI-JSON-ERR: {je}")
+                    return None, "ツール引数のJSON解析に失敗しました。"
+            return None, "モデルがツール呼び出しを行いませんでした。"
+    except Exception as e:
+        log_force(f"AI-SETTINGS-LLM-ERR model={model_id} err={e}")
+        return None, f"LLM呼び出しエラー: {str(e)[:150]}"
+
+
+@app.route('/api/settings/apply-ai-prompt', methods=['POST'])
+@login_required
+def apply_ai_settings_prompt():
+    """Interpret natural language prompt using chosen model's tool calling, apply safe settings only."""
+    try:
+        d = request.get_json(silent=True) or {}
+        instruction = (d.get('prompt') or '').strip()
+        model_id = (d.get('model') or '').strip()
+        if not instruction:
+            return jsonify({'error': 'prompt_required'}), 400
+        if len(instruction) > 2000:
+            return jsonify({'error': 'prompt_too_long'}), 400
+        if not model_id:
+            return jsonify({'error': 'model_required'}), 400
+
+        # Build safe current snapshot (no secrets)
+        snap = {
+            'default_model': current_user.default_model,
+            'default_enable_search': current_user.default_enable_search,
+            'default_enable_url_context': current_user.default_enable_url_context,
+            'default_enable_maps': current_user.default_enable_maps,
+            'default_enable_python': current_user.default_enable_python,
+            'default_enable_thinking': current_user.default_enable_thinking,
+            'default_thinking_level': current_user.default_thinking_level,
+            'default_enable_system_prompt': current_user.default_enable_system_prompt,
+            'system_prompt_enabled': current_user.system_prompt_enabled,
+            'apply_global_system_prompt': current_user.apply_global_system_prompt,
+            'apply_auto_system_prompt_notices': current_user.apply_auto_system_prompt_notices,
+            'compact_prompt_mode': current_user.compact_prompt_mode,
+            'auto_search_on_links': current_user.auto_search_on_links,
+            'use_last_chat_settings': current_user.use_last_chat_settings,
+            'enter_to_send': current_user.enter_to_send,
+            'bot_detection_enabled': current_user.bot_detection_enabled,
+        }
+
+        delta, err = _call_llm_for_settings_ai(model_id, instruction, snap, current_user)
+        if err:
+            return jsonify({'error': 'llm_error', 'message': err}), 200  # 200 so client can show nicely
+
+        if not delta:
+            return jsonify({'error': 'no_changes', 'message': 'モデルが有効な設定変更を提案しませんでした。指示をより具体的にしてみてください。'}), 200
+
+        # Apply (safe only by construction of the func)
+        applied = _apply_ai_settings_update(current_user, delta)
+        if not applied:
+            return jsonify({'error': 'no_valid_changes', 'message': '有効な安全設定の変更がありませんでした。'}), 200
+
+        safe_db_commit()
+        log_force(f"AI-SETTINGS-APPLIED user={current_user.id} model={model_id} keys={list(applied.keys())}")
+
+        # Re-fetch fresh snapshot for UI refresh (reuse part of GET logic is overkill, return applied + success)
+        return jsonify({
+            'status': 'ok',
+            'applied': applied,
+            'message': 'AIが設定を更新しました。',
+            'changed_count': len(applied),
+        })
+    except Exception as e:
+        log_force(f"AI-SETTINGS-ENDPOINT-ERR: {e}")
+        return jsonify({'error': 'internal', 'message': str(e)[:120]}), 500
+
 
 # --- Session Management ---
 

@@ -517,6 +517,14 @@
                     <i class="fas fa-gem"></i> Using Gem: <span id="active-gem-name" class="font-bold"></span>
                     <button onclick="clearActiveGem()" class="ml-auto hover:text-white px-2">×</button>
                 </div>
+
+                <!-- Slash command pending indicator (shows when a /command has been selected) -->
+                <div id="slash-command-indicator" class="hidden mb-2 p-1.5 bg-purple-900/40 text-purple-200 text-xs rounded-lg border border-purple-700/50 flex items-center gap-2 fade-in animate-fadeIn">
+                    <i class="fas fa-terminal"></i>
+                    <span>コマンドモード:</span>
+                    <span id="slash-command-name" class="font-mono font-bold"></span>
+                    <button id="slash-command-cancel-btn" class="ml-auto hover:text-white px-2 text-purple-300" title="キャンセル (Esc)">×</button>
+                </div>
                 <div id="chat-upload-status" class="hidden mb-2 p-2 bg-gray-800/80 rounded-lg border border-gray-700 backdrop-blur-sm animate-fadeIn"></div>
                 <div id="input-row" class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><input type="file" id="photo-input" class="hidden" accept="image/*,video/*" multiple><input type="file" id="mask-input" class="hidden" accept="image/*"><button id="upload-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="rich-paste-btn" data-progress-no-spinner="true" class="bg-amber-600 hover:bg-amber-500 p-3 rounded-lg text-white transition shrink-0 btn-hover" title="リッチ貼り付け → PDF化"><i class="fas fa-paste"></i></button><button id="mask-btn" data-progress-no-spinner="true" class="hidden bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Mask (GPT-Image)"><i class="fas fa-mask"></i></button><button id="mic-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
                 <div id="mic-recording-indicator" class="hidden mt-1 px-1 flex items-center gap-2 text-[11px] text-red-300">

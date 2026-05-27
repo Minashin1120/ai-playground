@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-03-003')
-app.config['SYSTEM_VERSION'] = 'V4.8.574'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-04-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.575'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -12259,19 +12259,49 @@ def _call_llm_for_settings_ai(model_id, instruction, current_settings_snapshot, 
                 except Exception:
                     tools_arg = None
                     cfg = None
+
             # Modern SDK pattern (config=) already used everywhere else in app.py for generate_content
-            if cfg is not None:
-                resp = client.models.generate_content(
-                    model=model_id,
-                    contents=contents,
-                    config=cfg,
-                )
-            else:
-                resp = client.models.generate_content(
-                    model=model_id,
-                    contents=contents,
-                    config=types.GenerateContentConfig(system_instruction=sys_prompt),
-                )
+            gemini_fallback_used = None
+            try:
+                if cfg is not None:
+                    resp = client.models.generate_content(
+                        model=model_id,
+                        contents=contents,
+                        config=cfg,
+                    )
+                else:
+                    resp = client.models.generate_content(
+                        model=model_id,
+                        contents=contents,
+                        config=types.GenerateContentConfig(system_instruction=sys_prompt),
+                    )
+            except Exception as gemini_err:
+                err_str = str(gemini_err)
+                # Common Google 404 for retired preview models (e.g. gemini-3.1-flash-lite-preview)
+                is_model_not_found = "404" in err_str or "NOT_FOUND" in err_str or "no longer available" in err_str.lower() or "model" in err_str.lower() and "not" in err_str.lower()
+                if is_model_not_found:
+                    # Temporary fallback to a currently stable model that supports function calling
+                    fallback_model = "gemini-2.5-flash"
+                    log_force(f"AI-SETTINGS-GEMINI-FALLBACK: original={model_id} -> {fallback_model} reason={err_str[:200]}")
+                    gemini_fallback_used = fallback_model
+                    try:
+                        if cfg is not None:
+                            resp = client.models.generate_content(
+                                model=fallback_model,
+                                contents=contents,
+                                config=cfg,
+                            )
+                        else:
+                            resp = client.models.generate_content(
+                                model=fallback_model,
+                                contents=contents,
+                                config=types.GenerateContentConfig(system_instruction=sys_prompt),
+                            )
+                    except Exception as fb_err:
+                        # Re-raise the fallback error with context
+                        raise RuntimeError(f"Gemini fallback also failed ({fallback_model}): {fb_err}") from gemini_err
+                else:
+                    raise
             # Parse function call
             try:
                 part = resp.candidates[0].content.parts[0]
@@ -12364,7 +12394,17 @@ def apply_ai_settings_prompt():
 
         delta, err = _call_llm_for_settings_ai(model_id, instruction, snap, current_user)
         if err:
-            return jsonify({'error': 'llm_error', 'message': err}), 200  # 200 so client can show nicely
+            # For admin accounts, return the raw detailed error so they can debug model availability etc.
+            is_admin = bool(getattr(current_user, 'is_admin', False))
+            payload = {
+                'error': 'llm_error',
+                'message': err,
+            }
+            if is_admin:
+                payload['raw_error'] = err
+                payload['original_model'] = model_id
+                payload['admin_note'] = "This detailed error is only shown to administrators."
+            return jsonify(payload), 200  # 200 so client can show nicely
 
         if not delta:
             return jsonify({'error': 'no_changes', 'message': 'モデルが有効な設定変更を提案しませんでした。指示をより具体的にしてみてください。'}), 200

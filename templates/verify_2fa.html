@@ -45,6 +45,79 @@
             pointer-events: none;
             opacity: 0.35;
         }
+
+        /* Animated Aurora / Mesh Gradient Background (login + auth pages) */
+        .aurora-bg {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .aurora-blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(78px);
+            will-change: transform;
+            opacity: 0.26;
+            mix-blend-mode: screen;
+        }
+        .blob-teal1 {
+            width: 720px; height: 720px;
+            background: radial-gradient(circle at 40% 45%, rgba(20,184,166,0.65), transparent 68%);
+            top: -18%; left: -12%;
+            animation: aurora-drift-1 37s ease-in-out infinite;
+        }
+        .blob-amber1 {
+            width: 640px; height: 640px;
+            background: radial-gradient(circle at 55% 35%, rgba(245,158,11,0.55), transparent 70%);
+            top: 28%; right: -18%;
+            animation: aurora-drift-2 29s ease-in-out infinite;
+            animation-delay: -12s;
+        }
+        .blob-cyan1 {
+            width: 580px; height: 580px;
+            background: radial-gradient(circle at 30% 60%, rgba(103,232,249,0.42), transparent 72%);
+            bottom: -12%; left: 18%;
+            animation: aurora-drift-3 41s ease-in-out infinite;
+            animation-delay: -22s;
+        }
+        .blob-violet1 {
+            width: 610px; height: 610px;
+            background: radial-gradient(circle at 65% 55%, rgba(167,139,250,0.32), transparent 74%);
+            top: 12%; right: 8%;
+            animation: aurora-drift-1 33s ease-in-out infinite;
+            animation-delay: -5s;
+            opacity: 0.22;
+        }
+
+        @keyframes aurora-drift-1 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            22% { transform: translate(7%, -5%) scale(1.035); }
+            48% { transform: translate(-5%, 8%) scale(0.965); }
+            73% { transform: translate(9%, 3%) scale(1.025); }
+        }
+        @keyframes aurora-drift-2 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            18% { transform: translate(-6%, 7%) scale(0.97); }
+            45% { transform: translate(8%, -4%) scale(1.04); }
+            68% { transform: translate(-3%, -8%) scale(0.98); }
+        }
+        @keyframes aurora-drift-3 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(5%, 6%) scale(1.03); }
+            52% { transform: translate(-8%, -3%) scale(0.96); }
+            78% { transform: translate(4%, 9%) scale(1.02); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .aurora-blob { animation: none !important; opacity: 0.12; filter: blur(60px); }
+        }
+        @media (max-width: 640px) {
+            .aurora-blob { filter: blur(58px); opacity: 0.22; }
+            .blob-teal1, .blob-amber1, .blob-cyan1, .blob-violet1 { width: 520px; height: 520px; }
+        }
+
         .auth-card {
             background: rgba(11,18,26,0.92);
             border: 1px solid rgba(148,163,184,0.2);
@@ -68,6 +141,14 @@
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen">
+    <!-- Animated aurora gradient background -->
+    <div class="aurora-bg" aria-hidden="true">
+        <div class="aurora-blob blob-teal1"></div>
+        <div class="aurora-blob blob-amber1"></div>
+        <div class="aurora-blob blob-cyan1"></div>
+        <div class="aurora-blob blob-violet1"></div>
+    </div>
+
     <div class="auth-card p-8 rounded-2xl w-full max-w-md">
         <h2 class="text-2xl font-bold mb-6 text-center text-white">2段階認証</h2>
         

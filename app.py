@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-03-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.573'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-03-003')
+app.config['SYSTEM_VERSION'] = 'V4.8.574'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -12169,19 +12169,38 @@ def _build_ai_settings_tool_schema():
         },
     }
     # Gemini format (uses google.genai.types)
+    # NOTE: We must NOT include additional_properties / additionalProperties here.
+    # Google Gemini API rejects unknown fields like "additional_properties" in tool schemas (400 INVALID_ARGUMENT).
+    # OpenAI side keeps additionalProperties: false (valid for OpenAI).
     gemini_func_decl = None
     try:
         from google.genai import types as gtypes
+        gemini_properties = {}
+        for k, v in props.items():
+            t = str(v.get("type", "string")).upper()
+            if t == "BOOLEAN":
+                t = "BOOLEAN"
+            elif t == "INTEGER":
+                t = "INTEGER"
+            elif t == "OBJECT":
+                t = "OBJECT"
+            else:
+                t = "STRING"
+            gemini_properties[k] = gtypes.Schema(
+                type=t,
+                description=v.get("description", "")
+            )
         gemini_func_decl = gtypes.FunctionDeclaration(
             name="update_settings",
             description=openai_tool["function"]["description"],
             parameters=gtypes.Schema(
                 type="OBJECT",
-                properties={k: gtypes.Schema(**v) for k, v in props.items()},
-                additional_properties=False,
+                properties=gemini_properties,
+                # deliberately omit additional_properties
             ),
         )
-    except Exception:
+    except Exception as e:
+        log_force(f"AI-SETTINGS-GEMINI-SCHEMA-BUILD-ERR: {e}")
         gemini_func_decl = None
     return [openai_tool], gemini_func_decl
 

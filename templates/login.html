@@ -287,7 +287,10 @@
                     </div>
                 </div>
                 {% if site_key %}
-                <div class="flex justify-center"><div class="cf-turnstile" data-sitekey="{{ site_key }}" data-theme="dark"></div></div>
+                <div class="flex justify-center"><div class="cf-turnstile" data-sitekey="{{ site_key }}" data-theme="dark"
+                     data-callback="onTurnstileSuccess"
+                     data-expired-callback="onTurnstileExpired"
+                     data-error-callback="onTurnstileError"></div></div>
                 {% endif %}
                 <button type="submit" class="w-full font-bold py-3 rounded-xl transition primary-btn">ログイン</button>
             </form>
@@ -520,6 +523,15 @@
         document.getElementById('login-form').onsubmit = async (e) => {
             e.preventDefault();
             clearLoginError();
+
+            // Turnstile must be completed before we even attempt credential validation
+            const turnstileToken = getTurnstileToken();
+            if (!turnstileToken) {
+                showLoginError("認証を完了してください");
+                resetLoginSubmitButton();
+                return;
+            }
+
             const btn = e.target.querySelector('button[type="submit"]');
             if (!btn.dataset.defaultText) btn.dataset.defaultText = btn.innerText;
             btn.classList.remove('btn-success');
@@ -688,6 +700,19 @@
             }
         }
 
+        // Turnstile state tracking (prevents credential check until CAPTCHA is solved)
+        let turnstileSolved = false;
+
+        window.onTurnstileSuccess = function () {
+            turnstileSolved = true;
+        };
+        window.onTurnstileExpired = function () {
+            turnstileSolved = false;
+        };
+        window.onTurnstileError = function () {
+            turnstileSolved = false;
+        };
+
         const getTurnstileToken = () => {
             const el = document.querySelector('[name="cf-turnstile-response"]');
             return el ? el.value : '';
@@ -710,6 +735,10 @@
             const username = (document.getElementById('passkey-username').value || (usernameInput ? usernameInput.value : '') || '').trim();
             if (!username) { showPasskeyError('ユーザー名を入力してください'); return; }
             const token = getTurnstileToken();
+            if (!token) {
+                showPasskeyError('認証を完了してください');
+                return;
+            }
             const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
             
             try {

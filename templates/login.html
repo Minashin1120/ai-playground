@@ -62,38 +62,38 @@
         .aurora-blob {
             position: absolute;
             border-radius: 50%;
-            filter: blur(78px);
+            filter: blur(46px);
             will-change: transform;
-            opacity: 0.26;
+            opacity: 0.38;
             mix-blend-mode: screen;
         }
         .blob-teal1 {
             width: 720px; height: 720px;
-            background: radial-gradient(circle at 40% 45%, rgba(20,184,166,0.65), transparent 68%);
+            background: radial-gradient(circle at 40% 45%, rgba(20,184,166,0.78), transparent 65%);
             top: -18%; left: -12%;
             animation: aurora-drift-1 37s ease-in-out infinite;
         }
         .blob-amber1 {
             width: 640px; height: 640px;
-            background: radial-gradient(circle at 55% 35%, rgba(245,158,11,0.55), transparent 70%);
+            background: radial-gradient(circle at 55% 35%, rgba(245,158,11,0.68), transparent 68%);
             top: 28%; right: -18%;
             animation: aurora-drift-2 29s ease-in-out infinite;
             animation-delay: -12s;
         }
         .blob-cyan1 {
             width: 580px; height: 580px;
-            background: radial-gradient(circle at 30% 60%, rgba(103,232,249,0.42), transparent 72%);
+            background: radial-gradient(circle at 30% 60%, rgba(103,232,249,0.55), transparent 70%);
             bottom: -12%; left: 18%;
             animation: aurora-drift-3 41s ease-in-out infinite;
             animation-delay: -22s;
         }
         .blob-violet1 {
             width: 610px; height: 610px;
-            background: radial-gradient(circle at 65% 55%, rgba(167,139,250,0.32), transparent 74%);
+            background: radial-gradient(circle at 65% 55%, rgba(167,139,250,0.45), transparent 72%);
             top: 12%; right: 8%;
             animation: aurora-drift-1 33s ease-in-out infinite;
             animation-delay: -5s;
-            opacity: 0.22;
+            opacity: 0.30;
         }
 
         @keyframes aurora-drift-1 {
@@ -116,10 +116,10 @@
         }
 
         @media (prefers-reduced-motion: reduce) {
-            .aurora-blob { animation: none !important; opacity: 0.12; filter: blur(60px); }
+            .aurora-blob { animation: none !important; opacity: 0.18; filter: blur(36px); }
         }
         @media (max-width: 640px) {
-            .aurora-blob { filter: blur(58px); opacity: 0.22; }
+            .aurora-blob { filter: blur(36px); opacity: 0.32; }
             .blob-teal1, .blob-amber1, .blob-cyan1, .blob-violet1 { width: 520px; height: 520px; }
         }
 

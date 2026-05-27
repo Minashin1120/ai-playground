@@ -524,6 +524,15 @@
                     <div id="mic-waveform" class="h-4 w-28 sm:w-36 flex items-end rounded border px-1 overflow-hidden" style="gap: 2px; padding-top: 2px; padding-bottom: 2px; background: rgba(69, 10, 10, 0.25); border-color: rgba(185, 28, 28, 0.3);" aria-hidden="true"></div>
                 </div>
                 <div id="prompt-token-estimate" class="hidden mt-1 px-1 text-[10px] text-gray-400"></div>
+
+                <!-- Slash command suggestions (command palette style, triggered by /) -->
+                <div id="slash-command-suggestions" class="hidden absolute z-[80] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl overflow-hidden text-sm min-w-[280px] max-w-[400px]">
+                    <div class="px-3 py-1.5 text-[10px] text-gray-500 border-b border-gray-700 flex items-center gap-2">
+                        <span>コマンド</span>
+                        <span class="ml-auto text-gray-600">↑↓ 選択 / Enter 確定 / Esc 閉じる</span>
+                    </div>
+                    <div id="slash-command-list" class="max-h-64 overflow-y-auto py-1"></div>
+                </div>
             </div>
         </div>
     </div>

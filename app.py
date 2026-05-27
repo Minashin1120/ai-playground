@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-03-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.572'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-03-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.573'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -12225,21 +12225,34 @@ def _call_llm_for_settings_ai(model_id, instruction, current_settings_snapshot, 
             if not api_key:
                 return None, "Gemini APIキーが設定されていません。設定モーダルでキーを入力するか、モデルを変更してください。"
             client = genai.Client(api_key=api_key)
-            # Build contents
-            contents = [user_content]
+            # Use top-level import (already present at module level)
+            contents = [types.Part(text=user_content)]
             tools_arg = None
+            cfg = None
             if gemini_decl:
                 try:
                     from google.genai import types as gtypes
                     tools_arg = [gtypes.Tool(function_declarations=[gemini_decl])]
+                    cfg = gtypes.GenerateContentConfig(
+                        tools=tools_arg,
+                        system_instruction=sys_prompt,
+                    )
                 except Exception:
                     tools_arg = None
-            resp = client.models.generate_content(
-                model=model_id,
-                contents=contents,
-                tools=tools_arg,
-                system_instruction=sys_prompt,
-            )
+                    cfg = None
+            # Modern SDK pattern (config=) already used everywhere else in app.py for generate_content
+            if cfg is not None:
+                resp = client.models.generate_content(
+                    model=model_id,
+                    contents=contents,
+                    config=cfg,
+                )
+            else:
+                resp = client.models.generate_content(
+                    model=model_id,
+                    contents=contents,
+                    config=types.GenerateContentConfig(system_instruction=sys_prompt),
+                )
             # Parse function call
             try:
                 part = resp.candidates[0].content.parts[0]

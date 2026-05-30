@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-04-007')
-app.config['SYSTEM_VERSION'] = 'V4.8.581'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-04-008')
+app.config['SYSTEM_VERSION'] = 'V4.8.582'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1530,6 +1530,13 @@ def _save_user_audio(user_id, data, suffix, encrypt):
     return fname, fpath
 
 MIC_TRANSCRIBE_MODES = {"stt_api", "llm"}
+
+# Valid values for enum-constrained AI settings fields
+VALID_THINKING_LEVELS = {"minimal", "low", "medium", "high"}
+VALID_REASONING_EFFORTS = {"none", "low", "medium", "high", "xhigh"}
+VALID_SAFETY_SETTINGS = {"default", "none"}
+VALID_STT_MODELS = {"gpt-4o-mini-transcribe", "gpt-4o-transcribe", "gpt-4o-transcribe-diarize", "whisper-1"}
+
 DEFAULT_LLM_TRANSCRIBE_PROMPT = (
     "この音声を正確に文字起こししてください。"
     "出力は文字起こし本文のみ。説明・要約・補足は不要です。"
@@ -1616,7 +1623,11 @@ def _apply_ai_settings_update(current_user, delta):
                 current_user.mic_transcribe_mode = _normalize_mic_transcribe_mode(val)
                 applied[key] = current_user.mic_transcribe_mode
             elif key == 'stt_model':
-                current_user.stt_model = str(val) if val else "gpt-4o-mini-transcribe"
+                _raw = str(val).strip() if val else ''
+                if _raw and _raw not in VALID_STT_MODELS:
+                    log_force(f"AI-SETTINGS-INVALID-STT: user={current_user.id} rejected={_raw}")
+                    continue
+                current_user.stt_model = _raw if _raw else "gpt-4o-mini-transcribe"
                 applied[key] = current_user.stt_model
             elif key == 'llm_transcribe_prompt':
                 current_user.llm_transcribe_prompt = _normalize_llm_transcribe_prompt(val)
@@ -1665,7 +1676,11 @@ def _apply_ai_settings_update(current_user, delta):
                 current_user.default_enable_thinking = bool(val)
                 applied[key] = current_user.default_enable_thinking
             elif key == 'default_thinking_level':
-                current_user.default_thinking_level = str(val) or "high"
+                _raw = str(val).strip() if val else ''
+                if _raw in VALID_THINKING_LEVELS:
+                    current_user.default_thinking_level = _raw
+                else:
+                    current_user.default_thinking_level = "high"
                 applied[key] = current_user.default_thinking_level
             elif key == 'default_thinking_budget':
                 try:
@@ -1674,13 +1689,21 @@ def _apply_ai_settings_update(current_user, delta):
                 except Exception:
                     pass
             elif key == 'default_reasoning_effort':
-                current_user.default_reasoning_effort = str(val) or "medium"
+                _raw = str(val).strip() if val else ''
+                if _raw in VALID_REASONING_EFFORTS:
+                    current_user.default_reasoning_effort = _raw
+                else:
+                    current_user.default_reasoning_effort = "medium"
                 applied[key] = current_user.default_reasoning_effort
             elif key == 'default_enable_system_prompt':
                 current_user.default_enable_system_prompt = bool(val)
                 applied[key] = current_user.default_enable_system_prompt
             elif key == 'default_safety_setting':
-                current_user.default_safety_setting = str(val) or "default"
+                _raw = str(val).strip() if val else ''
+                if _raw in VALID_SAFETY_SETTINGS:
+                    current_user.default_safety_setting = _raw
+                else:
+                    current_user.default_safety_setting = "default"
                 applied[key] = current_user.default_safety_setting
             elif key == 'rich_paste_prompt_default':
                 current_user.rich_paste_prompt_default = str(val or "")
@@ -12169,18 +12192,18 @@ def _build_ai_settings_tool_schema():
         "default_enable_maps": {"type": "boolean", "description": "Maps (Google Maps grounding) の既定ON/OFF"},
         "default_enable_python": {"type": "boolean", "description": "Python実行ツールの既定ON/OFF"},
         "default_enable_thinking": {"type": "boolean", "description": "Thinking (拡張思考) の既定ON/OFF"},
-        "default_thinking_level": {"type": "string", "description": "Thinkingレベル: minimal, low, medium, high のいずれか"},
+        "default_thinking_level": {"type": "string", "description": "Thinkingレベル", "enum": sorted(VALID_THINKING_LEVELS)},
         "default_thinking_budget": {"type": "integer", "description": "Thinking budget (トークン数, 例: 4096)"},
-        "default_reasoning_effort": {"type": "string", "description": "Reasoning effort: minimal, low, medium, high"},
+        "default_reasoning_effort": {"type": "string", "description": "Reasoning effort", "enum": sorted(VALID_REASONING_EFFORTS)},
         "default_enable_system_prompt": {"type": "boolean", "description": "既定でシステムプロンプト(ユーザー定義)を使用するか"},
-        "default_safety_setting": {"type": "string", "description": "安全設定 (default など)"},
+        "default_safety_setting": {"type": "string", "description": "安全設定", "enum": sorted(VALID_SAFETY_SETTINGS)},
         "system_prompt": {"type": "string", "description": "ユーザー個別システムプロンプト本文 (自然言語で詳細指示可)"},
         "system_prompt_enabled": {"type": "boolean", "description": "ユーザー個別システムプロンプトのON/OFF"},
         "apply_global_system_prompt": {"type": "boolean", "description": "全体システムプロンプトを適用するか (ユーザー設定)"},
         "apply_auto_system_prompt_notices": {"type": "boolean", "description": "自動注入システムプロンプト (Python/Search等) を適用するか"},
         "auto_system_prompt_notices_config": {"type": "object", "description": "自動注入の種類別ON/OFF設定 (JSONオブジェクト)"},
         "mic_transcribe_mode": {"type": "string", "description": "マイク文字起こし方式: stt_api または llm"},
-        "stt_model": {"type": "string", "description": "STTに使用するモデル名 (gpt-4o-mini-transcribe など)"},
+        "stt_model": {"type": "string", "description": "STTに使用するモデル名", "enum": sorted(VALID_STT_MODELS)},
         "llm_transcribe_prompt": {"type": "string", "description": "LLM文字起こし用の追加プロンプト"},
         "enter_to_send": {"type": "boolean", "description": "Enterキーで送信するか (Shift+Enterで改行)"},
         "use_sw_cache": {"type": "boolean", "description": "Service Workerキャッシュ使用"},

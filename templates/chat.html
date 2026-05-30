@@ -10,7 +10,7 @@
     <style id="initial-theme-vars">{{ initial_theme_css|safe }}</style>
     {% endif %}
     <title>AI Playground ({{ system_version }})</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.582.css') }}?v={{ app_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.v4.8.583.css') }}?v={{ app_version }}">
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
@@ -540,6 +540,15 @@
                         <span class="ml-auto text-gray-600">↑↓ 選択 / Enter 確定 / Esc 閉じる</span>
                     </div>
                     <div id="slash-command-list" class="overflow-y-auto py-1" style="max-height: 260px;"></div>
+                </div>
+
+                <!-- Gem suggestions (triggered by @) -->
+                <div id="gem-suggestions" class="hidden fixed z-[80] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl overflow-hidden text-sm min-w-[200px] max-w-[320px]">
+                    <div class="px-3 py-1.5 text-[10px] text-gray-500 border-b border-gray-700 flex items-center gap-2">
+                        <span>Gem</span>
+                        <span class="ml-auto text-gray-600">↑↓ 選択 / Enter 確定 / Esc 閉じる</span>
+                    </div>
+                    <div id="gem-suggestions-list" class="overflow-y-auto py-1" style="max-height: 260px;"></div>
                 </div>
             </div>
         </div>

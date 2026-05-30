@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-04-006')
-app.config['SYSTEM_VERSION'] = 'V4.8.580'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-04-007')
+app.config['SYSTEM_VERSION'] = 'V4.8.581'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1388,6 +1388,44 @@ GEMINI_STS_VOICES = {
 }
 XAI_PCM_RATES = {8000, 16000, 22050, 24000, 32000, 44100, 48000}
 
+# Canonical list of all valid model IDs (mirrors MODELS in chat_core.v4.*.js)
+# Used to validate AI-suggested model IDs in settings updates.
+# Includes deprecated models since existing threads may still reference them.
+ALL_VALID_MODEL_IDS = {
+    # Gemini 3.0
+    "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview", "gemini-3-flash-preview", "gemini-3-pro-preview",
+    # Gemini 2.5
+    "gemini-2.5-flash-lite", "gemini-2.5-flash",
+    # Gemini Image
+    "gemini-2.5-flash-image", "gemini-3.1-flash-image-preview", "gemini-3-pro-image-preview",
+    # OpenAI Image Gen
+    "gpt-image-2", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini",
+    # OpenAI GPT
+    "gpt-4o", "gpt-4o-mini",
+    "gpt-5.5", "gpt-5.5-mini", "gpt-5.5-nano", "gpt-5.5-pro",
+    "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4-pro",
+    "gpt-5.2", "gpt-5-search-api", "gpt-5.1", "gpt-5-mini",
+    # DeepSeek V4
+    "deepseek-v4-flash", "deepseek-v4-pro",
+    # Anthropic Claude
+    "claude-opus-4-6", "claude-sonnet-4-6",
+    # Audio (TTS)
+    "gemini-3.1-flash-tts-preview", "gpt-4o-mini-tts", "gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts",
+    "google-tts-studio", "google-tts-neural", "grok-tts",
+    # Realtime Audio (STS)
+    "gpt-realtime-2", "gpt-realtime-translate", "gpt-realtime-whisper", "gpt-realtime-1.5",
+    "gpt-realtime", "gpt-realtime-mini",
+    "gemini-2.5-flash-native-audio-preview-12-2025", "gemini-3.1-flash-live-preview",
+    "grok-voice-latest", "grok-voice-think-fast-1.0", "grok-voice-fast-1.0", "grok-voice-agent",
+    # Grok Imagine
+    "grok-imagine-image-quality", "grok-imagine-image", "grok-imagine-image-pro", "grok-imagine-video",
+    # xAI Grok
+    "grok-4.3", "grok-build-0.1",
+    "grok-4.20-reasoning", "grok-4.20-non-reasoning", "grok-4.20-multi-agent",
+    "grok-4-1-fast-reasoning", "grok-4-1-fast-non-reasoning",
+    "grok-4-fast-reasoning", "grok-4-fast-non-reasoning",
+}
+
 def is_sts_model(model_key):
     return model_key in STS_MODELS
 
@@ -1605,7 +1643,11 @@ def _apply_ai_settings_update(current_user, delta):
                 current_user.temp_chat_timeout_seconds = _normalize_temp_chat_timeout_seconds(val)
                 applied[key] = current_user.temp_chat_timeout_seconds
             elif key == 'default_model':
-                current_user.default_model = str(val) if val else current_user.default_model
+                _raw = str(val).strip() if val else ''
+                if _raw and _raw not in ALL_VALID_MODEL_IDS:
+                    log_force(f"AI-SETTINGS-INVALID-MODEL: user={current_user.id} rejected={_raw}")
+                    continue
+                current_user.default_model = _raw if _raw else current_user.default_model
                 applied[key] = current_user.default_model
             elif key == 'default_enable_search':
                 current_user.default_enable_search = bool(val)
@@ -12121,7 +12163,7 @@ def _build_ai_settings_tool_schema():
     """Return (openai_tools_list, gemini_tool) for the update_settings tool."""
     # Common property descriptions (Japanese for better JP prompt understanding)
     props = {
-        "default_model": {"type": "string", "description": "既定モデルID (例: gemini-3.1-flash-lite-preview, gpt-4o, claude-3-5-sonnet-latest など)"},
+        "default_model": {"type": "string", "description": "既定モデルID", "enum": sorted(ALL_VALID_MODEL_IDS)},
         "default_enable_search": {"type": "boolean", "description": "Searchツールの既定ON/OFF"},
         "default_enable_url_context": {"type": "boolean", "description": "URLs (URLコンテキスト) の既定ON/OFF"},
         "default_enable_maps": {"type": "boolean", "description": "Maps (Google Maps grounding) の既定ON/OFF"},
@@ -12188,7 +12230,8 @@ def _build_ai_settings_tool_schema():
                 t = "STRING"
             gemini_properties[k] = gtypes.Schema(
                 type=t,
-                description=v.get("description", "")
+                description=v.get("description", ""),
+                enum=v.get("enum"),
             )
         gemini_func_decl = gtypes.FunctionDeclaration(
             name="update_settings",

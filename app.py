@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-01-003')
-app.config['SYSTEM_VERSION'] = 'V4.8.586'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-01-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.585'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -4726,8 +4726,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         'role': current_node.role, 
                         'content': cnt, 
                         'image_url': current_node.image_url, 
-                        'signature': current_node.thought_signature,
-                        'gem_uuid': current_node.gem_uuid
+                        'signature': current_node.thought_signature
                     })
                     total_history_tokens += t_len
                     history_count += 1
@@ -4743,18 +4742,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 except Exception:
                     pass
             
-            history_rev = list(reversed(history_rev))
-            # Inject gem instruction as system messages when gem_uuid changes
-            last_gem_uuid = None
-            history = []
-            for entry in history_rev:
-                gem_uuid = entry.pop('gem_uuid', None)
-                if gem_uuid and gem_uuid != last_gem_uuid:
-                    gem = Gem.query.filter_by(uuid=gem_uuid).first()
-                    if gem and gem.instruction:
-                        history.append({'role': 'system', 'content': gem.instruction})
-                    last_gem_uuid = gem_uuid
-                history.append(entry)
+            history = list(reversed(history_rev))
 
             def _load_history_image_parts(include_roles=None, newest_first=False, include_only_images=True):
                 parts = []

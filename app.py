@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-01-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.584'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-01-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.585'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2244,6 +2244,8 @@ class Message(db.Model):
     quote_text = db.Column(db.Text)
     is_encrypted = db.Column(db.Boolean, default=False)
     thought_signature = db.Column(db.Text, nullable=True)
+    gem_uuid = db.Column(db.String(36), nullable=True)
+    gem_name = db.Column(db.String(100), nullable=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('message.id'), nullable=True)
     children = db.relationship('Message', backref=db.backref('parent', remote_side=[id]), lazy=True)
 
@@ -8348,13 +8350,21 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 elif completion_tokens_val is not None:
                     assistant_tokens_out = int(completion_tokens_val or 0) + int(reasoning_tokens_val or 0)
 
+            gem_uuid_val = options.get('gem_uuid')
+            gem_name_val = None
+            if gem_uuid_val:
+                gem = Gem.query.filter_by(uuid=gem_uuid_val).first()
+                if gem:
+                    gem_name_val = gem.name
             msg_entry = Message(
                 thread_id=thread_id, role='assistant', content=final_content, 
                 model=model_key, image_url=json.dumps(generated_images) if generated_images else None, 
                 thought_data=final_thought, tokens_out=assistant_tokens_out, tokens=sum_token_counts(None, assistant_tokens_out), 
                 is_encrypted=is_enc, thought_signature=final_signature,
                 parent_id=message_id,
-                tokens_thought=tokens_thought_val
+                tokens_thought=tokens_thought_val,
+                gem_uuid=gem_uuid_val,
+                gem_name=gem_name_val
             )
             db.session.add(msg_entry)
             th = Thread.query.get(thread_id)
@@ -9218,6 +9228,12 @@ def chat_stream():
         user_tokens_in = None
         if user_tokens_in is None:
             user_tokens_in = count_tokens(raw_msg_content or "", data.get('model'))
+        gem_uuid_val = data.get('gem_uuid')
+        gem_name_val = None
+        if gem_uuid_val:
+            gem = Gem.query.filter_by(uuid=gem_uuid_val, user_id=current_user.id).first()
+            if gem:
+                gem_name_val = gem.name
         user_msg = Message(
             thread=t,
             role='user',
@@ -9228,7 +9244,9 @@ def chat_stream():
             is_encrypted=user_config['enable_e2ee'],
             parent_id=parent_id,
             tokens_in=user_tokens_in,
-            tokens=sum_token_counts(user_tokens_in, None)
+            tokens=sum_token_counts(user_tokens_in, None),
+            gem_uuid=gem_uuid_val,
+            gem_name=gem_name_val
         )
         db.session.add(user_msg)
         if current_user.use_last_chat_settings:
@@ -10286,7 +10304,9 @@ def handle_thread_item(thread_id):
                 'tokens_thought': tokens_thought,
                 'is_encrypted': bool(m.is_encrypted),
                 'quote_text': m.quote_text,
-                'parent_id': m.parent_id
+                'parent_id': m.parent_id,
+                'gem_uuid': m.gem_uuid,
+                'gem_name': m.gem_name
             })
         payload = {
             'messages': res,

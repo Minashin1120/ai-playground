@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-04-009')
-app.config['SYSTEM_VERSION'] = 'V4.8.588'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-08-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.589'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -8483,7 +8483,10 @@ def _get_changelogs(page=1, limit=10):
                 return date_key, ver_nums, title
             return 0, (0,), base
         
-        files.sort(key=lambda p: _changelog_meta(p)[:2], reverse=True)
+        # Sort primarily by version number (higher versions first), then by date as tiebreaker.
+        # This ensures the changelog for the current/latest version always appears near the top,
+        # regardless of the release date embedded in older changelog filenames.
+        files.sort(key=lambda p: (_changelog_meta(p)[1], _changelog_meta(p)[0]), reverse=True)
         
         start = (page - 1) * limit
         end = start + limit

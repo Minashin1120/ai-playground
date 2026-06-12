@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-08-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.589'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-13-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.590'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1392,6 +1392,8 @@ XAI_PCM_RATES = {8000, 16000, 22050, 24000, 32000, 44100, 48000}
 # Used to validate AI-suggested model IDs in settings updates.
 # Includes deprecated models since existing threads may still reference them.
 ALL_VALID_MODEL_IDS = {
+    # Gemini 3.5
+    "gemini-3.5-flash",
     # Gemini 3.0
     "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview", "gemini-3-flash-preview", "gemini-3-pro-preview",
     # Gemini 2.5
@@ -5615,7 +5617,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 else:
                     # Text/Chat generation mode
                     rm = model_key
-                    if "gemini-3.1-pro" in model_key:
+                    if "gemini-3.5-flash" in model_key:
+                        rm = "gemini-3.5-flash"
+                    elif "gemini-3.1-pro" in model_key:
                         rm = "gemini-3.1-pro-preview"
                     elif "gemini-3.1-flash-lite" in model_key:
                         rm = "gemini-3.1-flash-lite-preview"

@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-13-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.590'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-13-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.591'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -7623,6 +7623,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     deepseek_kwargs = {
                         "model": model_key,
                         "messages": messages,
+                        "stream": True,
+                        "stream_options": {"include_usage": True},
                     }
                     enable_reasoning = bool(options.get('enable_thinking')) or (req_reasoning_effort and req_reasoning_effort != "none")
                     if enable_reasoning:
@@ -7632,39 +7634,34 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         deepseek_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
 
                     _mark_provider_request_started()
-                    resp = client.chat.completions.create(**deepseek_kwargs)
-                    if not resp or not getattr(resp, "choices", None):
-                        pub("error", "DeepSeek API Error: Empty response.")
-                        return
+                    final_openai_usage = None
+                    stream = client.chat.completions.create(**deepseek_kwargs)
+                    for chunk in stream:
+                        _latency_mark_once(job_id, "provider_first_chunk_ms")
+                        if check_stop():
+                            break
 
-                    msg = resp.choices[0].message
-                    reasoning_text = getattr(msg, "reasoning_content", None)
-                    if reasoning_text:
-                        thought_accumulated += reasoning_text
-                        pub("thought", reasoning_text)
+                        usage = getattr(chunk, 'usage', None)
+                        if usage:
+                            final_openai_usage = usage
 
-                    content = getattr(msg, "content", None)
-                    text_parts = []
-                    if isinstance(content, list):
-                        for part in content:
-                            if isinstance(part, dict):
-                                p_type = part.get("type")
-                                p_text = part.get("text")
-                            else:
-                                p_type = getattr(part, "type", None)
-                                p_text = getattr(part, "text", None)
-                            if p_type in (None, "text", "output_text") and p_text:
-                                text_parts.append(p_text)
-                    elif isinstance(content, str):
-                        if content:
-                            text_parts.append(content)
-                    elif content is not None:
-                        text_parts.append(str(content))
+                        choices = getattr(chunk, 'choices', None)
+                        if not choices:
+                            continue
 
-                    final_text = "".join(text_parts).strip()
-                    if final_text:
-                        full_res += final_text
-                        pub("content", final_text)
+                        delta = getattr(choices[0], 'delta', None)
+                        if not delta:
+                            continue
+
+                        r_content = getattr(delta, 'reasoning_content', None)
+                        if r_content:
+                            thought_accumulated += r_content
+                            pub("thought", r_content)
+
+                        c_content = getattr(delta, 'content', None)
+                        if c_content:
+                            full_res += c_content
+                            pub("content", c_content)
                 except Exception as e:
                     pub("error", f"DeepSeek Error: {str(e)}")
 

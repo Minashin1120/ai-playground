@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-13-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.591'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-13-003')
+app.config['SYSTEM_VERSION'] = 'V4.8.592'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -4516,6 +4516,18 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 log_force(f"STREAM-STOP-ERROR: Failed to check stop flag: {e}")
             return False
 
+        def _refresh_pending_job():
+            try:
+                pending_data = json.dumps({
+                    "job_id": job_id,
+                    "message_id": message_id,
+                    "created_at": int(time.time()),
+                    "model": model_key,
+                })
+                r.setex(f"pending_job:{user_id}:{thread_id}", 600, pending_data)
+            except Exception:
+                pass
+
         def _mark_provider_request_started():
             _latency_mark_once(job_id, "provider_request_started_ms")
         
@@ -7624,7 +7636,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         "model": model_key,
                         "messages": messages,
                         "stream": True,
-                        "stream_options": {"include_usage": True},
                     }
                     enable_reasoning = bool(options.get('enable_thinking')) or (req_reasoning_effort and req_reasoning_effort != "none")
                     if enable_reasoning:
@@ -7636,10 +7647,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     _mark_provider_request_started()
                     final_openai_usage = None
                     stream = client.chat.completions.create(**deepseek_kwargs)
+                    chunk_count = 0
                     for chunk in stream:
                         _latency_mark_once(job_id, "provider_first_chunk_ms")
                         if check_stop():
                             break
+
+                        # Refresh pending_job TTL periodically to prevent expiry during long thinking
+                        chunk_count += 1
+                        if chunk_count % 20 == 0:
+                            _refresh_pending_job()
 
                         usage = getattr(chunk, 'usage', None)
                         if usage:
@@ -7649,11 +7666,20 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if not choices:
                             continue
 
-                        delta = getattr(choices[0], 'delta', None)
-                        if not delta:
-                            continue
+                        delta = choices[0].delta
 
-                        r_content = getattr(delta, 'reasoning_content', None)
+                        # Extract reasoning_content — Pydantic extra field
+                        r_content = None
+                        try:
+                            r_content = delta.reasoning_content
+                        except AttributeError:
+                            pass
+                        if not r_content:
+                            try:
+                                extra = getattr(delta, '__pydantic_extra__', None) or {}
+                                r_content = extra.get('reasoning_content')
+                            except Exception:
+                                pass
                         if r_content:
                             thought_accumulated += r_content
                             pub("thought", r_content)
@@ -9465,8 +9491,15 @@ def chat_stream():
         except Exception:
             pass
         try:
+            refresh_count = 0
             for message in pubsub.listen():
                 if time.time() - start_time > 600: break
+                refresh_count += 1
+                if refresh_count % 20 == 0:
+                    try:
+                        redis_conn.expire(f"pending_job:{current_user.id}:{thread_id}", 600)
+                    except Exception:
+                        pass
                 if message['type'] == 'message':
                     _latency_mark_once(job_id, "stream_first_pubsub_ms")
                     evt = json.loads(message['data'])
@@ -9645,8 +9678,15 @@ def chat_stream_resume():
         except Exception:
             pass
         try:
+            refresh_count = 0
             for message in pubsub.listen():
                 if time.time() - start_time > 600: break
+                refresh_count += 1
+                if refresh_count % 20 == 0:
+                    try:
+                        redis_conn.expire(f"pending_job:{current_user.id}:{t.id}", 600)
+                    except Exception:
+                        pass
                 if message['type'] == 'message':
                     data = json.loads(message['data'])
                     yield json.dumps(data) + "\n"

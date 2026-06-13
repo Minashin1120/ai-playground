@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-13-003')
-app.config['SYSTEM_VERSION'] = 'V4.8.592'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-13-004')
+app.config['SYSTEM_VERSION'] = 'V4.8.593'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1545,6 +1545,15 @@ DEFAULT_LLM_TRANSCRIBE_PROMPT = (
 )
 LLM_TRANSCRIBE_PROMPT_MAX_CHARS = 4000
 
+DEFAULT_IMAGE_ANALYSIS_PROMPT = (
+    "Describe this image in extreme detail, covering every single element from corner to corner. "
+    "Include: all visible text (transcribed verbatim), objects, people (count, appearance, expressions, clothing), "
+    "colors, lighting, spatial layout, background/foreground relationships, any actions or interactions, "
+    "signs, symbols, logos, diagrams, charts (with exact values if readable), "
+    "and any subtle details that might be important. "
+    "Do not summarize or omit anything. Be exhaustive and precise."
+)
+
 # === AI-assisted settings (in settings modal) ===
 # Safe (non-secret, non-admin, low-risk) fields that can be changed via natural language prompt + tool use.
 # This list defines the tool schema and what _apply_ai_settings_update will accept.
@@ -1555,6 +1564,8 @@ AI_SAFE_EDITABLE_FIELDS = {
     'default_enable_python', 'default_enable_thinking', 'default_thinking_level',
     'default_thinking_budget', 'default_reasoning_effort', 'default_enable_system_prompt',
     'default_safety_setting',
+    # Vision model for image analysis
+    'default_vision_model', 'image_analysis_prompt',
     # User-level instruction / system prompts
     'system_prompt', 'system_prompt_enabled', 'apply_global_system_prompt',
     'apply_auto_system_prompt_notices', 'auto_system_prompt_notices_config',
@@ -1755,6 +1766,78 @@ def get_user_llm_transcribe_prompt(user):
     except Exception:
         raw = None
     return _normalize_llm_transcribe_prompt(raw) or DEFAULT_LLM_TRANSCRIBE_PROMPT
+
+def _analyze_image_with_vision_model(model_id, img_data, img_mime, prompt, api_keys):
+    try:
+        model_l = model_id.lower()
+        img_b64 = base64.b64encode(img_data).decode("utf-8")
+        data_uri = f"data:{img_mime};base64,{img_b64}"
+
+        # --- Gemini ---
+        if model_l.startswith("gemini-"):
+            g_key = api_keys.get("gemini")
+            if not g_key:
+                return None
+            try:
+                import google.genai.types as types
+                g_client = _get_gemini_client(api_key=g_key)
+                if not g_client:
+                    return None
+                resp = g_client.models.generate_content(
+                    model=model_id,
+                    contents=[prompt, types.Part.from_bytes(data=img_data, mime_type=img_mime)]
+                )
+                return resp.text if hasattr(resp, "text") else None
+            except Exception:
+                pass
+            return None
+
+        # --- OpenAI / xAI (Grok) ---
+        if model_l.startswith(("gpt-", "o1-", "o3-", "grok-")):
+            base_url = None
+            oa_key = None
+            if model_l.startswith("grok-"):
+                oa_key = api_keys.get("xai")
+                base_url = f"https://{_XAI_API_HOST}/v1"
+            else:
+                oa_key = api_keys.get("openai")
+            if not oa_key:
+                return None
+            oa_client = _get_openai_client(oa_key, base_url=base_url)
+            if not oa_client:
+                return None
+            resp = oa_client.chat.completions.create(
+                model=model_id,
+                messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": data_uri}}]}],
+                max_tokens=4096,
+            )
+            return getattr(resp.choices[0].message, "content", None) or ""
+
+        # --- Anthropic Claude ---
+        if model_l.startswith("claude-"):
+            c_key = api_keys.get("anthropic")
+            if not c_key:
+                return None
+            try:
+                from anthropic import Anthropic
+            except ImportError:
+                return None
+            c_client = Anthropic(api_key=c_key)
+            resp = c_client.messages.create(
+                model=model_id,
+                max_tokens=4096,
+                messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image", "source": {"type": "base64", "media_type": img_mime, "data": img_b64}}]}],
+            )
+            text_parts = []
+            for block in resp.content:
+                if block.type == "text":
+                    text_parts.append(block.text)
+            return "".join(text_parts) or None
+
+        return None
+    except Exception as e:
+        log_force(f"IMAGE_ANALYSIS_ERROR: model={model_id} error={e}")
+        return None
 
 def _extract_openai_response_text(resp):
     try:
@@ -2145,6 +2228,8 @@ class User(UserMixin, db.Model):
     default_reasoning_effort = db.Column(db.String(16), default="medium")
     default_enable_system_prompt = db.Column(db.Boolean, default=False)
     default_safety_setting = db.Column(db.String(16), default="default")
+    default_vision_model = db.Column(db.String(64), default="gemini-3-flash-preview")
+    image_analysis_prompt = db.Column(db.Text, nullable=True)
     rich_paste_prompt_default = db.Column(db.Text, nullable=True)
     rich_paste_prompt_use_custom_default = db.Column(db.Boolean, default=False)
     last_model = db.Column(db.String(64), nullable=True)
@@ -3306,6 +3391,22 @@ def ensure_performance_indexes():
         "idx_message_thread_id",
         "CREATE INDEX idx_message_thread_id ON message (thread_id, id)"
     )
+
+def ensure_user_vision_model_columns():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='default_vision_model'")).fetchone()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN default_vision_model VARCHAR(64) DEFAULT 'gemini-3-flash-preview'"))
+                conn.commit()
+            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='image_analysis_prompt'")).fetchone()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN image_analysis_prompt TEXT"))
+                conn.commit()
+    except Exception:
+        pass
 
 def _normalize_attachment_source(value):
     raw = str(value or "").strip().lower()
@@ -7605,9 +7706,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             elif is_deepseek:
                 log_force("Routing: DeepSeek V4 Branch (Chat Completions)")
                 try:
-                    if any(fi.get('bytes') and str(fi.get('mime', '')).startswith('image/') for fi in loaded_files):
-                        pub("error", "DeepSeek V4 does not support image inputs. Please remove images and retry.")
-                        return
                     if check_stop():
                         return
                     client = o_client
@@ -7623,9 +7721,48 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if quote_text:
                         user_text += f"User Quote:\n{quote_text}\n---\n"
                     user_text += message_text
+
+                    # Separate image files from text files
+                    image_files = [fi for fi in loaded_files if fi.get('bytes') and str(fi.get('mime', '')).startswith('image/')]
                     for fi in loaded_files:
-                        if fi.get('text'):
+                        if fi.get('text') and not (fi.get('bytes') and str(fi.get('mime', '')).startswith('image/')):
                             user_text += f"\n\n[File: {fi.get('send_name') or fi.get('name') or 'file'}]\n{fi['text']}"
+
+                    # If images are present, analyze them with a vision model (DeepSeek V4 does not support images)
+                    if image_files:
+                        vision_model = (options.get('image_vision_model') or "").strip()
+                        analysis_prompt = (options.get('image_analysis_prompt') or "").strip()
+                        if not analysis_prompt:
+                            analysis_prompt = DEFAULT_IMAGE_ANALYSIS_PROMPT
+                        if not vision_model:
+                            pub("error", "DeepSeek V4 does not support images. Please select a Vision Model in Settings > Default Vision Model to enable automatic image analysis.")
+                            return
+                        pub("status", "画像を vision model で解析中...")
+                        analysis_texts = []
+                        for idx, fi in enumerate(image_files):
+                            pub("image_analysis", f"画像 {idx+1}/{len(image_files)} 解析中...")
+                            if check_stop():
+                                return
+                            img_data = fi.get('bytes')
+                            img_mime = str(fi.get('mime', 'image/png'))
+                            analysis_result = _analyze_image_with_vision_model(
+                                vision_model, img_data, img_mime, analysis_prompt,
+                                api_keys
+                            )
+                            if analysis_result:
+                                analysis_texts.append(f"--- Image {idx+1} ---\n{analysis_result}")
+                                pub("image_analysis", f"画像 {idx+1}/{len(image_files)} 解析完了")
+                            else:
+                                pub("image_analysis", f"画像 {idx+1}/{len(image_files)} 解析失敗")
+                            if check_stop():
+                                return
+                        if analysis_texts:
+                            analysis_block = "The user attached the following image(s). Detailed descriptions are provided below:\n\n" + "\n\n".join(analysis_texts)
+                            messages.append({"role": "system", "content": analysis_block})
+                            pub("image_analysis", f"全{len(analysis_texts)}枚の画像解析完了。DeepSeek で応答生成中...")
+                        else:
+                            pub("error", "画像の解析に失敗しました。Vision Model の API 設定を確認してください。")
+                            return
 
                     if not user_text.strip():
                         pub("error", "DeepSeek request is empty.")
@@ -9355,6 +9492,8 @@ def chat_stream():
             'grok_video_aspect': data.get('grok_video_aspect'),
             'grok_video_resolution': data.get('grok_video_resolution'),
             'attachment_name_map': attachment_name_map,
+            'image_vision_model': data.get('image_vision_model'),
+            'image_analysis_prompt': data.get('image_analysis_prompt'),
             'gem_uuid': data.get('gem_uuid'),
         }
     if 'thread_custom_instruction' in data:
@@ -12072,6 +12211,8 @@ def handle_settings():
             'default_safety_setting': current_user.default_safety_setting or "default",
             'rich_paste_prompt_default': current_user.rich_paste_prompt_default or "",
             'rich_paste_prompt_use_custom_default': current_user.rich_paste_prompt_use_custom_default if current_user.rich_paste_prompt_use_custom_default is not None else False,
+            'default_vision_model': current_user.default_vision_model or "gemini-3-flash-preview",
+            'image_analysis_prompt': current_user.image_analysis_prompt or "",
             'last_model': current_user.last_model or "gemini-3.1-flash-lite-preview",
             'last_gem_uuid': current_user.last_gem_uuid,
             'last_enable_search': current_user.last_enable_search,
@@ -12181,6 +12322,8 @@ def handle_settings():
     if 'default_safety_setting' in d: current_user.default_safety_setting = d['default_safety_setting'] or "default"
     if 'rich_paste_prompt_default' in d: current_user.rich_paste_prompt_default = d['rich_paste_prompt_default'] or ""
     if 'rich_paste_prompt_use_custom_default' in d: current_user.rich_paste_prompt_use_custom_default = bool(d['rich_paste_prompt_use_custom_default'])
+    if 'default_vision_model' in d: current_user.default_vision_model = d['default_vision_model']
+    if 'image_analysis_prompt' in d: current_user.image_analysis_prompt = d['image_analysis_prompt'] or ""
     if 'passkey_only_login' in d:
         target = bool(d['passkey_only_login'])
         if target:
@@ -13709,6 +13852,10 @@ with app.app_context():
         pass
     try:
         ensure_user_default_model_columns()
+    except Exception:
+        pass
+    try:
+        ensure_user_vision_model_columns()
     except Exception:
         pass
     try:

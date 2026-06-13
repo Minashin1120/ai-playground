@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-13-004')
-app.config['SYSTEM_VERSION'] = 'V4.8.593'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-13-005')
+app.config['SYSTEM_VERSION'] = 'V4.8.594'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1565,7 +1565,7 @@ AI_SAFE_EDITABLE_FIELDS = {
     'default_thinking_budget', 'default_reasoning_effort', 'default_enable_system_prompt',
     'default_safety_setting',
     # Vision model for image analysis
-    'default_vision_model', 'image_analysis_prompt',
+    'default_vision_model',
     # User-level instruction / system prompts
     'system_prompt', 'system_prompt_enabled', 'apply_global_system_prompt',
     'apply_auto_system_prompt_notices', 'auto_system_prompt_notices_config',
@@ -2229,7 +2229,6 @@ class User(UserMixin, db.Model):
     default_enable_system_prompt = db.Column(db.Boolean, default=False)
     default_safety_setting = db.Column(db.String(16), default="default")
     default_vision_model = db.Column(db.String(64), default="gemini-3-flash-preview")
-    image_analysis_prompt = db.Column(db.Text, nullable=True)
     rich_paste_prompt_default = db.Column(db.Text, nullable=True)
     rich_paste_prompt_use_custom_default = db.Column(db.Boolean, default=False)
     last_model = db.Column(db.String(64), nullable=True)
@@ -3400,11 +3399,6 @@ def ensure_user_vision_model_columns():
                 conn.execute(text("SET SESSION lock_wait_timeout=1"))
                 conn.execute(text("ALTER TABLE user ADD COLUMN default_vision_model VARCHAR(64) DEFAULT 'gemini-3-flash-preview'"))
                 conn.commit()
-            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='image_analysis_prompt'")).fetchone()
-            if not res:
-                conn.execute(text("SET SESSION lock_wait_timeout=1"))
-                conn.execute(text("ALTER TABLE user ADD COLUMN image_analysis_prompt TEXT"))
-                conn.commit()
     except Exception:
         pass
 
@@ -3778,6 +3772,15 @@ AUTO_SYSTEM_PROMPT_NOTICE_MATHJAX = (
     "Inline formulas should be enclosed in \\( ... \\) and block formulas in $$ ... $$."
 )
 
+AUTO_SYSTEM_PROMPT_NOTICE_IMAGE_ANALYSIS = (
+    "Describe this image in extreme detail, covering every single element from corner to corner. "
+    "Include: all visible text (transcribed verbatim), objects, people (count, appearance, expressions, clothing), "
+    "colors, lighting, spatial layout, background/foreground relationships, any actions or interactions, "
+    "signs, symbols, logos, diagrams, charts (with exact values if readable), "
+    "and any subtle details that might be important. "
+    "Do not summarize or omit anything. Be exhaustive and precise."
+)
+
 AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
     "python",
     "gemini_local_python",
@@ -3786,6 +3789,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
     "marker",
     "attachment_names",
     "mathjax",
+    "image_analysis",
 )
 
 AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
@@ -3796,6 +3800,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
     "marker": "Marker編集時",
     "attachment_names": "添付ファイル名 (LLM入力時)",
     "mathjax": "MathJax (LaTeX数式)",
+    "image_analysis": "画像解析 (Vision Model指示文)",
 }
 
 AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS = {
@@ -3806,6 +3811,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS = {
     "marker": AUTO_SYSTEM_PROMPT_NOTICE_MARKER,
     "attachment_names": AUTO_SYSTEM_PROMPT_NOTICE_ATTACHMENT_NAMES,
     "mathjax": AUTO_SYSTEM_PROMPT_NOTICE_MATHJAX,
+    "image_analysis": AUTO_SYSTEM_PROMPT_NOTICE_IMAGE_ANALYSIS,
 }
 
 AUTO_SYSTEM_PROMPT_NOTICE_MAX_CHARS = 4000
@@ -7731,9 +7737,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     # If images are present, analyze them with a vision model (DeepSeek V4 does not support images)
                     if image_files:
                         vision_model = (options.get('image_vision_model') or "").strip()
-                        analysis_prompt = (options.get('image_analysis_prompt') or "").strip()
-                        if not analysis_prompt:
-                            analysis_prompt = DEFAULT_IMAGE_ANALYSIS_PROMPT
+                        analysis_prompt = _auto_notice_text("image_analysis") or DEFAULT_IMAGE_ANALYSIS_PROMPT
                         if not vision_model:
                             pub("error", "DeepSeek V4 does not support images. Please select a Vision Model in Settings > Default Vision Model to enable automatic image analysis.")
                             return
@@ -9493,7 +9497,6 @@ def chat_stream():
             'grok_video_resolution': data.get('grok_video_resolution'),
             'attachment_name_map': attachment_name_map,
             'image_vision_model': data.get('image_vision_model'),
-            'image_analysis_prompt': data.get('image_analysis_prompt'),
             'gem_uuid': data.get('gem_uuid'),
         }
     if 'thread_custom_instruction' in data:
@@ -12212,7 +12215,6 @@ def handle_settings():
             'rich_paste_prompt_default': current_user.rich_paste_prompt_default or "",
             'rich_paste_prompt_use_custom_default': current_user.rich_paste_prompt_use_custom_default if current_user.rich_paste_prompt_use_custom_default is not None else False,
             'default_vision_model': current_user.default_vision_model or "gemini-3-flash-preview",
-            'image_analysis_prompt': current_user.image_analysis_prompt or "",
             'last_model': current_user.last_model or "gemini-3.1-flash-lite-preview",
             'last_gem_uuid': current_user.last_gem_uuid,
             'last_enable_search': current_user.last_enable_search,
@@ -12323,7 +12325,6 @@ def handle_settings():
     if 'rich_paste_prompt_default' in d: current_user.rich_paste_prompt_default = d['rich_paste_prompt_default'] or ""
     if 'rich_paste_prompt_use_custom_default' in d: current_user.rich_paste_prompt_use_custom_default = bool(d['rich_paste_prompt_use_custom_default'])
     if 'default_vision_model' in d: current_user.default_vision_model = d['default_vision_model']
-    if 'image_analysis_prompt' in d: current_user.image_analysis_prompt = d['image_analysis_prompt'] or ""
     if 'passkey_only_login' in d:
         target = bool(d['passkey_only_login'])
         if target:

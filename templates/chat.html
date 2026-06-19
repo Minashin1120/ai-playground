@@ -248,12 +248,21 @@
                                 Canvasで表示中
                             </div>
                         </div>
-                        <div id="canvas-source-shell" class="rounded-xl border border-gray-700 bg-gray-950/80 overflow-hidden flex flex-col">
+                        <div id="canvas-block-shell" class="rounded-xl border border-gray-700 bg-gray-950/80 overflow-hidden flex flex-col min-h-0">
+                            <div class="flex items-center justify-between px-3 py-2 border-b border-gray-700/70 bg-gray-900/70">
+                                <span class="text-[10px] uppercase tracking-[0.18em] text-gray-400">Blocks</span>
+                                <span id="canvas-block-count" class="text-[10px] text-cyan-200">0</span>
+                            </div>
+                            <div id="canvas-block-list" class="canvas-block-list p-2"></div>
+                        </div>
+                        <div id="canvas-source-shell" class="rounded-xl border border-gray-700 bg-gray-950/80 overflow-hidden flex flex-col min-h-0">
                             <div class="flex items-center justify-between px-3 py-2 border-b border-gray-700/70 bg-gray-900/70">
                                 <span class="text-[10px] uppercase tracking-[0.18em] text-gray-400">Source</span>
                                 <span id="canvas-source-lang" class="text-[10px] text-cyan-200">-</span>
                             </div>
-                            <pre class="flex-1 min-h-0 overflow-auto p-3 text-[11px] leading-5 text-gray-200"><code id="canvas-code-text" class="font-mono whitespace-pre-wrap break-words"></code></pre>
+                            <div id="canvas-source-scroll" class="flex-1 min-h-0 overflow-auto">
+                                <pre class="p-3 text-[11px] leading-5 text-gray-200"><code id="canvas-code-text" class="font-mono whitespace-pre-wrap break-words"></code></pre>
+                            </div>
                         </div>
                     </div>
                 </aside>

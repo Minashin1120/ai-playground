@@ -14,19 +14,17 @@
     <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.268') }}"></script>
     <style>
         :root {
-            --bg-1: #0b0f14;
-            --bg-2: #0f1720;
-            --panel: #0c141e;
-            --line: #1c2636;
-            --text: #e5e7eb;
-            --muted: #9aa3b2;
-            --accent: #14b8a6;
+            --bg-1: #060b18;
+            --bg-2: #0a1128;
+            --panel: #0d1530;
+            --line: #1a2540;
+            --text: #e8eaef;
+            --muted: #8e9aaf;
+            --accent: #0dd4bf;
             --accent-2: #f59e0b;
         }
         body {
-            background: radial-gradient(1000px 620px at 15% -10%, rgba(20,184,166,0.2), transparent 55%),
-                        radial-gradient(900px 620px at 85% 0%, rgba(245,158,11,0.18), transparent 60%),
-                        linear-gradient(180deg, var(--bg-1), var(--bg-2));
+            background: #060b18;
             color: var(--text);
             font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
             position: relative;
@@ -35,26 +33,27 @@
             content: "";
             position: fixed;
             inset: 0;
-            background-image: linear-gradient(transparent 97%, rgba(148,163,184,0.05) 98%),
-                              linear-gradient(90deg, transparent 97%, rgba(148,163,184,0.05) 98%);
-            background-size: 44px 44px;
+            background-image: linear-gradient(transparent 97%, rgba(148,163,184,0.03) 98%),
+                              linear-gradient(90deg, transparent 97%, rgba(148,163,184,0.03) 98%);
+            background-size: 48px 48px;
             pointer-events: none;
-            opacity: 0.35;
+            opacity: 0.4;
+            z-index: -1;
         }
         .hero-bg {
-            background: radial-gradient(600px 280px at 50% 0%, rgba(20,184,166,0.18), transparent 65%);
+            background: radial-gradient(600px 280px at 50% 0%, rgba(13,212,191,0.15), transparent 65%);
         }
         .feature-card {
-            background: rgba(11,18,26,0.85);
-            border: 1px solid rgba(148,163,184,0.2);
+            background: rgba(10, 16, 35, 0.75);
+            border: 1px solid rgba(148,163,184,0.15);
             transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
-            box-shadow: 0 24px 60px rgba(0,0,0,0.3);
-            backdrop-filter: blur(14px);
+            box-shadow: 0 24px 60px rgba(0,0,0,0.4);
+            backdrop-filter: blur(18px);
         }
         .feature-card:hover {
             transform: translateY(-6px);
-            border-color: rgba(20,184,166,0.5);
-            box-shadow: 0 24px 70px rgba(20,184,166,0.12);
+            border-color: rgba(13,212,191,0.45);
+            box-shadow: 0 24px 70px rgba(13,212,191,0.1);
         }
         .glow-badge {
             background: rgba(245,158,11,0.15);

@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-01-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.601'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-01-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.602'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1399,7 +1399,7 @@ ALL_VALID_MODEL_IDS = {
     # Gemini 2.5
     "gemini-2.5-flash-lite", "gemini-2.5-flash",
     # Gemini Image
-    "gemini-2.5-flash-image", "gemini-3.1-flash-image-preview", "gemini-3-pro-image-preview",
+    "gemini-2.5-flash-image", "gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image", "gemini-3-pro-image-preview",
     # OpenAI Image Gen
     "gpt-image-2", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini",
     # OpenAI GPT
@@ -5610,7 +5610,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             img_prompt = f"{options.get('system_prompt')}\n\n{img_prompt}"
 
                         mk_lower = str(model_key or "").lower()
-                        if "gemini-3.1-flash-image" in mk_lower:
+                        if "gemini-3.1-flash-lite-image" in mk_lower:
+                            img_model = "gemini-3.1-flash-lite-image"
+                        elif "gemini-3.1-flash-image" in mk_lower:
                             img_model = "gemini-3.1-flash-image-preview"
                         elif "2.5" in mk_lower:
                             img_model = "gemini-2.5-flash-image"
@@ -5660,6 +5662,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             )
                             if options.get('enable_search'):
                                 config_kwargs["tools"] = [types.Tool(google_search=types.GoogleSearch())]
+                        elif img_model == "gemini-3.1-flash-lite-image":
+                            # Nano Banana 2 Lite: fast, cost-efficient. No thinking config or search tools.
+                            pass
                         if image_cfg_kwargs:
                             config_kwargs["image_config"] = types.ImageConfig(**image_cfg_kwargs)
 
@@ -5688,10 +5693,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                         text_outputs, image_outputs = _collect_gemini_image_output_parts(
                             resp,
-                            keep_only_last_image=(img_model == "gemini-3.1-flash-image-preview")
+                            keep_only_last_image=(img_model in ("gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image"))
                         )
 
-                        if not image_outputs and img_model == "gemini-3.1-flash-image-preview":
+                        if not image_outputs and img_model in ("gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image"):
                             log_force(
                                 f"Nano Banana 2 returned text-only output; retrying with image-only mode. "
                                 f"thread={thread_id} job={job_id}"

@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-28-005')
-app.config['SYSTEM_VERSION'] = 'V4.8.600'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-06-30-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.601'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -571,6 +571,8 @@ except Exception:
 app.config['UPLOAD_CONCURRENCY'] = max(1, min(8, _upload_concurrency))
 _user_storage_limit_mb = int(os.getenv('USER_STORAGE_LIMIT_MB', '100') or '100')
 app.config['USER_STORAGE_LIMIT_MB'] = _user_storage_limit_mb
+_MIN_PASSWORD_LENGTH = int(os.getenv('MIN_PASSWORD_LENGTH', '8') or '8')
+app.config['MIN_PASSWORD_LENGTH'] = max(4, _MIN_PASSWORD_LENGTH)
 _primary_admin_username = (os.getenv('PRIMARY_ADMIN_USERNAME') or '').strip()
 app.config['PRIMARY_ADMIN_USERNAME'] = _primary_admin_username or None
 app.config['MAINTENANCE_MODE'] = os.path.exists(os.path.join(os.path.dirname(__file__), 'maintenance.lock'))
@@ -4116,6 +4118,29 @@ def _maybe_gzip_response(response):
         return response
     except Exception:
         return response
+
+@app.after_request
+def add_security_headers(response):
+    try:
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", "interest-cohort=()")
+        if "text/html" in (response.mimetype or ""):
+            response.headers.setdefault(
+                "Content-Security-Policy",
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://accounts.google.com https://cdnjs.cloudflare.com; "
+                "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
+                "img-src 'self' data: blob: https:; "
+                "connect-src 'self' https: wss:; "
+                "font-src 'self' https://cdnjs.cloudflare.com; "
+                "frame-src 'self' https://accounts.google.com; "
+                "media-src 'self' data: blob:;"
+            )
+    except Exception:
+        pass
+    return response
 
 @app.after_request
 def set_client_token_cookie(response):
@@ -8934,8 +8959,10 @@ def login_google_callback():
         # Login/Signup flow
         user = User.query.filter_by(google_id=google_id).first()
         if not user:
-            # Try to link by email if user exists but google_id is not set
-            user = User.query.filter(or_(User.google_email == email, User.username == email)).first()
+            # Link by google_email only (NOT username) to prevent account takeover
+            # Username-based email matching is excluded because an attacker could
+            # register with a victim's email as username and intercept their Google login
+            user = User.query.filter(User.google_email == email).first()
             if user:
                 user.google_id = google_id
                 if not user.google_email:
@@ -8984,7 +9011,8 @@ def login_google_one_tap():
         
         user = User.query.filter_by(google_id=google_id).first()
         if not user:
-            user = User.query.filter(or_(User.google_email == email, User.username == email)).first()
+            # Link by google_email only (NOT username) to prevent account takeover
+            user = User.query.filter(User.google_email == email).first()
             if user:
                 user.google_id = google_id
                 if not user.google_email:
@@ -9241,10 +9269,14 @@ def signup():
         if not verify_turnstile(request.form.get('cf-turnstile-response')): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Auth Error")
         if is_request_banned_identifier():
             return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Signup blocked.")
-        if _is_primary_admin_username(request.form.get('username')): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Username taken")
-        if User.query.filter_by(username=request.form.get('username')).first(): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Username taken")
+        if _is_primary_admin_username(request.form.get('username')): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="このユーザー名は使用できません")
+        if User.query.filter_by(username=request.form.get('username')).first(): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="このユーザー名は使用できません")
+        pw = request.form.get('password') or ""
+        min_len = int(app.config.get('MIN_PASSWORD_LENGTH', 8))
+        if len(pw) < min_len:
+            return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error=f"パスワードは{min_len}文字以上必要です")
         new_user = User(username=request.form.get('username'), is_setup_completed=False)
-        new_user.set_password(request.form.get('password'))
+        new_user.set_password(pw)
         db.session.add(new_user)
         safe_db_commit()
         login_user(new_user)
@@ -11661,6 +11693,8 @@ def feedback():
 @app.route('/api/easy_login', methods=['POST'])
 @login_required
 def create_easy_login():
+    if not rate_limit(f"rl:easy_login:user:{current_user.id}", 5, 300):
+        return jsonify({'error': 'Too many attempts. Try again later.'}), 429
     try:
         data = request.json or {}
         if data.get('cancel'):
@@ -12349,7 +12383,12 @@ def handle_settings():
         set_app_setting("bot_detection_global_enabled", "1" if d['bot_detection_global_enabled'] else "0")
     
     log_force(f"DEBUG: handle_settings processing extra fields, d={d}")
-    if d.get('new_password'): current_user.set_password(d['new_password'])
+    if d.get('new_password'):
+        new_pw = d['new_password']
+        min_len = int(app.config.get('MIN_PASSWORD_LENGTH', 8))
+        if len(new_pw) < min_len:
+            return jsonify({'error': f'パスワードは{min_len}文字以上必要です'}), 400
+        current_user.set_password(new_pw)
     if d.get('new_username') and d['new_username'] != current_user.username:
         if _is_primary_admin_username(d['new_username']) and not getattr(current_user, "is_admin", False):
             pass
@@ -12359,6 +12398,13 @@ def handle_settings():
         task_queue.enqueue(migrate_e2ee_task, current_user.id, target_enable)
         flash("暗号化設定の変更処理を開始しました。完了までしばらくお待ちください。")
     if 'disable_2fa' in d and d['disable_2fa']:
+        if current_user.is_2fa_enabled:
+            code = d.get('totp_code') or d.get('2fa_code')
+            if not code:
+                return jsonify({'error': '2FA code required to disable 2FA'}), 400
+            secret = decrypt_val(current_user.totp_secret)
+            if not secret or not pyotp.TOTP(secret).verify(str(code)):
+                return jsonify({'error': 'Invalid 2FA code'}), 400
         current_user.is_2fa_enabled = False
         flash("2FAを無効化しました。")
     else:

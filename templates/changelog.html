@@ -11,19 +11,10 @@
     <script src="{{ url_for('static', filename='js/pwa_install.js') }}?v={{ app_version }}" defer></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app-design.css') }}?v={{ app_version }}">
     <style>
-        :root {
-            --bg-1: #060b18;
-            --bg-2: #0a1128;
-            --panel: #0d1530;
-            --line: #1a2540;
-            --text: #e8eaef;
-            --muted: #8e9aaf;
-            --accent: #0dd4bf;
-            --accent-2: #f59e0b;
-        }
         body {
-            background: #060b18;
+            background: var(--bg-1);
             color: var(--text);
             font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
             position: relative;
@@ -38,11 +29,11 @@
                               linear-gradient(90deg, transparent 97%, rgba(148,163,184,0.03) 98%);
             background-size: 48px 48px;
             pointer-events: none;
-            opacity: 0.4;
+            opacity: 0.35;
             z-index: -1;
         }
         .markdown-body { font-size: 1rem; line-height: 1.75; }
-        .markdown-body h1 { font-size: 1.5em; font-weight: 700; margin-bottom: 0.7em; color: #5eedd9; border-bottom: 1px solid rgba(148,163,184,0.2); }
+        .markdown-body h1 { font-size: 1.5em; font-weight: 700; margin-bottom: 0.7em; color: var(--theme-300); border-bottom: 1px solid rgba(148,163,184,0.2); }
         .markdown-body p { margin-bottom: 0.8em; color: var(--muted); font-size: 1rem; }
         .markdown-body ul { list-style-type: disc; padding-left: 1.4em; margin-bottom: 1em; color: #d1d5db; font-size: 1rem; }
         .markdown-body li { margin-bottom: 0.35em; }
@@ -53,19 +44,22 @@
             .markdown-body p { font-size: 0.95rem; }
             .markdown-body ul { font-size: 0.95rem; }
         }
-        .log-card { background: rgba(11,18,26,0.9); border: 1px solid rgba(148,163,184,0.2); box-shadow: 0 22px 50px rgba(0,0,0,0.4); backdrop-filter: blur(12px); }
+        .log-card {
+            background: rgba(10, 16, 35, 0.84);
+            border: 1px solid rgba(148,163,184,0.14);
+            box-shadow: 0 22px 50px rgba(0,0,0,0.4);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-radius: var(--radius-lg);
+        }
         .loading-spinner {
             border: 3px solid rgba(255, 255, 255, 0.1);
             border-top: 3px solid var(--accent);
             border-radius: 50%;
-            width: 24px;
-            height: 24px;
+            width: 24px; height: 24px;
             animation: spin 1s linear infinite;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="min-h-screen p-6 md:p-12">

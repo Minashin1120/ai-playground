@@ -3,26 +3,50 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#060b18">
   <title>オフライン | AI Chat Playground</title>
   <style>
-    :root { color-scheme: dark; }
+    :root {
+      color-scheme: dark;
+      --bg-1: #060b18;
+      --bg-2: #0a1128;
+      --text: #e8eaef;
+      --muted: #8e9aaf;
+      --theme-rgb: 13, 212, 191;
+    }
     body {
       margin: 0;
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: radial-gradient(circle at top, #1f2937, #0f172a 55%);
-      color: #e5e7eb;
-      font-family: "Segoe UI", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      background:
+        radial-gradient(700px 360px at 50% 0%, rgba(var(--theme-rgb), 0.12), transparent 60%),
+        linear-gradient(180deg, var(--bg-1), var(--bg-2));
+      color: var(--text);
+      font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
+      position: relative;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(transparent 97%, rgba(148,163,184,0.035) 98%),
+        linear-gradient(90deg, transparent 97%, rgba(148,163,184,0.035) 98%);
+      background-size: 48px 48px;
+      opacity: 0.35;
+      pointer-events: none;
     }
     .panel {
+      position: relative;
       width: min(92vw, 540px);
-      background: rgba(15, 23, 42, 0.82);
-      border: 1px solid rgba(251, 191, 36, 0.35);
-      border-radius: 16px;
+      background: rgba(10, 16, 35, 0.88);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      border-radius: 18px;
       padding: 24px;
-      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(20px);
     }
     .badge {
       display: inline-block;
@@ -31,8 +55,8 @@
       font-size: 12px;
       border-radius: 999px;
       color: #fef3c7;
-      border: 1px solid rgba(251, 191, 36, 0.55);
-      background: rgba(120, 53, 15, 0.45);
+      border: 1px solid rgba(245, 158, 11, 0.5);
+      background: rgba(120, 53, 15, 0.4);
     }
     h1 {
       margin: 0 0 8px;
@@ -41,7 +65,7 @@
     }
     p {
       margin: 0;
-      color: #cbd5e1;
+      color: var(--muted);
       line-height: 1.65;
       font-size: 14px;
     }

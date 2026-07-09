@@ -9,22 +9,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app-design.css') }}?v={{ app_version }}">
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.268') }}"></script>
     <style>
-        :root {
-            --bg-1: #060b18;
-            --bg-2: #0a1128;
-            --panel: #0d1530;
-            --line: #1a2540;
-            --text: #e8eaef;
-            --muted: #8e9aaf;
-            --accent: #0dd4bf;
-            --accent-2: #f59e0b;
-        }
         body {
-            background: #060b18;
+            background: var(--bg-1);
             color: var(--text);
             font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
             position: relative;
@@ -37,37 +28,9 @@
                               linear-gradient(90deg, transparent 97%, rgba(148,163,184,0.03) 98%);
             background-size: 48px 48px;
             pointer-events: none;
-            opacity: 0.4;
+            opacity: 0.35;
             z-index: -1;
         }
-        .hero-bg {
-            background: radial-gradient(600px 280px at 50% 0%, rgba(13,212,191,0.15), transparent 65%);
-        }
-        .feature-card {
-            background: rgba(10, 16, 35, 0.75);
-            border: 1px solid rgba(148,163,184,0.15);
-            transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
-            box-shadow: 0 24px 60px rgba(0,0,0,0.4);
-            backdrop-filter: blur(18px);
-        }
-        .feature-card:hover {
-            transform: translateY(-6px);
-            border-color: rgba(13,212,191,0.45);
-            box-shadow: 0 24px 70px rgba(13,212,191,0.1);
-        }
-        .glow-badge {
-            background: rgba(245,158,11,0.15);
-            border: 1px solid rgba(245,158,11,0.5);
-            color: #fcd34d;
-        }
-        .modal-overlay { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.3s ease, visibility 0.3s ease; }
-        .modal-overlay.modal-open { opacity: 1; visibility: visible; pointer-events: auto; }
-        .modal-panel { transform: translateY(16px) scale(0.96); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease; }
-        .modal-overlay.modal-open .modal-panel { transform: translateY(0) scale(1); }
-        .prose h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem; color: white; }
-        .prose h2 { font-size: 1.25rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.75rem; color: #5eead4; }
-        .prose ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
-        .prose li { margin-bottom: 0.5rem; }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">

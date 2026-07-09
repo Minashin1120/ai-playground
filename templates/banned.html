@@ -10,13 +10,13 @@
     <script src="{{ url_for('static', filename='js/pwa_install.js') }}?v={{ app_version }}" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        :root { --bg: #0b0f14; --panel: #0c141e; --text: #e5e7eb; --muted: #9aa3b2; --danger: #fb7185; }
+        :root { --bg: #060b18; --panel: #0d1530; --text: #e8eaef; --muted: #8e9aaf; --danger: #f9708d; --theme-rgb: 13, 212, 191; }
         body {
             margin:0;
             font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
-            background: radial-gradient(900px 520px at 20% -10%, rgba(251,113,133,0.18), transparent 55%),
-                        radial-gradient(700px 520px at 85% 0%, rgba(245,158,11,0.12), transparent 60%),
-                        linear-gradient(180deg, #0b0f14, #0f1720);
+            background: radial-gradient(900px 520px at 20% -10%, rgba(249,112,141,0.16), transparent 55%),
+                        radial-gradient(700px 520px at 85% 0%, rgba(13,212,191,0.08), transparent 60%),
+                        linear-gradient(180deg, #060b18, #0a1128);
             color: var(--text);
             display:flex;
             min-height:100vh;
@@ -35,13 +35,14 @@
             opacity: 0.35;
         }
         .card {
-            background: rgba(11,18,26,0.92);
-            border: 1px solid rgba(148,163,184,0.2);
+            background: rgba(10, 16, 35, 0.88);
+            border: 1px solid rgba(148,163,184,0.14);
             border-radius: 18px;
             padding: 28px;
             width: min(520px, 92vw);
-            box-shadow: 0 24px 60px rgba(0,0,0,0.45);
-            backdrop-filter: blur(14px);
+            box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+            backdrop-filter: blur(22px) saturate(170%);
+            -webkit-backdrop-filter: blur(22px) saturate(170%);
         }
         h1 { margin: 0 0 10px; font-size: 22px; color: var(--danger); }
         p { margin: 6px 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
@@ -57,7 +58,7 @@
             font-size: 13px;
             border: 1px solid rgba(148,163,184,0.2);
         }
-        .btn.primary { background: rgba(59,130,246,0.2); border-color: rgba(59,130,246,0.5); }
+        .btn.primary { background: rgba(var(--theme-rgb),0.16); border-color: rgba(var(--theme-rgb),0.45); color: #a5f7ed; }
         .btn:hover { filter: brightness(1.1); }
         .appeal-box { margin-top: 18px; padding-top: 14px; border-top: 1px dashed rgba(148,163,184,0.25); }
         .appeal-box h2 { margin: 0 0 8px; font-size: 15px; color: #e2e8f0; }
@@ -76,7 +77,7 @@
         .alert { margin-top: 10px; font-size: 12px; padding: 8px 10px; border-radius: 8px; }
         .alert.success { background: rgba(34,197,94,0.15); color: #a7f3d0; border: 1px solid rgba(34,197,94,0.35); }
         .alert.error { background: rgba(239,68,68,0.15); color: #fecaca; border: 1px solid rgba(239,68,68,0.35); }
-        .badge { display:inline-block; margin-left: 6px; font-size: 11px; padding: 2px 6px; border-radius: 999px; background: rgba(59,130,246,0.2); color: #bfdbfe; border: 1px solid rgba(59,130,246,0.4); }
+        .badge { display:inline-block; margin-left: 6px; font-size: 11px; padding: 2px 6px; border-radius: 999px; background: rgba(var(--theme-rgb),0.14); color: #a5f7ed; border: 1px solid rgba(var(--theme-rgb),0.35); }
     </style>
 </head>
 <body>

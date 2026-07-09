@@ -6,23 +6,24 @@
     {% include 'pwa_meta.html' %}
     <title>403 - Access Denied</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app-design.css') }}?v={{ app_version }}">
     <script src="{{ url_for('static', filename='js/pwa_install.js') }}?v={{ app_version }}" defer></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap');
         body {
             font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
-            background: radial-gradient(800px 520px at 15% -10%, rgba(245,158,11,0.2), transparent 55%),
-                        radial-gradient(700px 520px at 85% 0%, rgba(20,184,166,0.18), transparent 60%),
-                        linear-gradient(180deg, #0b0f14, #0f1720);
-            color: #e5e7eb;
+            background: radial-gradient(800px 520px at 15% -10%, rgba(245,158,11,0.18), transparent 55%),
+                        radial-gradient(700px 520px at 85% 0%, rgba(13,212,191,0.14), transparent 60%),
+                        linear-gradient(180deg, #060b18, #0a1128);
+            color: var(--text, #e8eaef);
         }
         body::before {
             content: "";
             position: fixed;
             inset: 0;
-            background-image: linear-gradient(transparent 97%, rgba(148,163,184,0.05) 98%),
-                              linear-gradient(90deg, transparent 97%, rgba(148,163,184,0.05) 98%);
-            background-size: 40px 40px;
+            background-image: linear-gradient(transparent 97%, rgba(148,163,184,0.035) 98%),
+                              linear-gradient(90deg, transparent 97%, rgba(148,163,184,0.035) 98%);
+            background-size: 48px 48px;
             pointer-events: none;
             opacity: 0.35;
         }

@@ -10,11 +10,12 @@
     <script src="{{ url_for('static', filename='js/pwa_install.js') }}?v={{ app_version }}" defer></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app-design.css') }}?v={{ app_version }}">
     <style>
         body {
             font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
-            background: #060b18;
-            color: #e8eaef;
+            background: var(--bg-1);
+            color: var(--text);
             position: relative;
         }
         body::before {
@@ -25,14 +26,21 @@
                               linear-gradient(90deg, transparent 97%, rgba(148,163,184,0.03) 98%);
             background-size: 48px 48px;
             pointer-events: none;
-            opacity: 0.4;
+            opacity: 0.35;
             z-index: -1;
         }
         .animate-enter { animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .btn-glow { transition: all 0.3s; }
-        .btn-glow:hover { box-shadow: 0 0 18px rgba(13, 212, 191, 0.4); transform: translateY(-1px); }
-        .setup-card { background: rgba(10, 16, 35, 0.82); border: 1px solid rgba(148,163,184,0.15); box-shadow: 0 26px 60px rgba(0,0,0,0.5); backdrop-filter: blur(20px); }
+        .btn-glow:hover { box-shadow: 0 0 18px rgba(var(--theme-rgb), 0.4); transform: translateY(-1px); }
+        .setup-card {
+            background: rgba(10, 16, 35, 0.84);
+            border: 1px solid rgba(148,163,184,0.14);
+            box-shadow: 0 26px 60px rgba(0,0,0,0.5);
+            backdrop-filter: blur(22px) saturate(170%);
+            -webkit-backdrop-filter: blur(22px) saturate(170%);
+            border-radius: var(--radius-xl);
+        }
     </style>
 </head>
 <body class="text-white min-h-screen flex items-center justify-center p-4">

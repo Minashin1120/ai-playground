@@ -106,7 +106,7 @@ body.app-shell::after {
     box-shadow: var(--shadow-glow);
     border-radius: var(--radius-md);
     font-weight: 700;
-    transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.2s ease, box-shadow 0.2s ease;
+    transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1), filter 0.18s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.26s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .btn-primary:hover,
 .primary-btn:hover {
@@ -200,7 +200,7 @@ body.app-shell::after {
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
     border-radius: var(--radius-lg);
-    transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.28s ease, box-shadow 0.28s ease;
+    transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.26s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.32s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .feature-card:hover {
     transform: translateY(-6px);
@@ -268,47 +268,47 @@ body.app-shell::after {
     width: 780px; height: 780px;
     background: radial-gradient(circle at 40% 45%, rgba(13, 212, 191, 0.85), transparent 60%);
     top: -10%; left: -8%;
-    animation: aurora-drift-1 18s ease-in-out infinite;
+    animation: aurora-drift-1 22s cubic-bezier(0.45, 0, 0.15, 1) infinite;
 }
 .blob-amber1 {
     width: 700px; height: 700px;
     background: radial-gradient(circle at 55% 35%, rgba(245, 158, 11, 0.75), transparent 64%);
     top: 22%; right: -10%;
-    animation: aurora-drift-2 14s ease-in-out infinite;
+    animation: aurora-drift-2 18s cubic-bezier(0.45, 0, 0.15, 1) infinite;
     animation-delay: -6s;
 }
 .blob-cyan1 {
     width: 620px; height: 620px;
     background: radial-gradient(circle at 30% 60%, rgba(103, 232, 249, 0.6), transparent 66%);
     bottom: -6%; left: 12%;
-    animation: aurora-drift-3 20s ease-in-out infinite;
+    animation: aurora-drift-3 24s cubic-bezier(0.45, 0, 0.15, 1) infinite;
     animation-delay: -11s;
 }
 .blob-violet1 {
     width: 660px; height: 660px;
     background: radial-gradient(circle at 65% 55%, rgba(139, 92, 246, 0.5), transparent 68%);
     top: 8%; right: -2%;
-    animation: aurora-drift-1 16s ease-in-out infinite;
+    animation: aurora-drift-1 20s cubic-bezier(0.45, 0, 0.15, 1) infinite;
     animation-delay: -3s;
     opacity: 0.38;
 }
 @keyframes aurora-drift-1 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    22% { transform: translate(7%, -5%) scale(1.035); }
-    48% { transform: translate(-5%, 8%) scale(0.965); }
-    73% { transform: translate(9%, 3%) scale(1.025); }
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    25% { transform: translate3d(5%, -4%, 0) scale(1.025); }
+    50% { transform: translate3d(-4%, 6%, 0) scale(0.98); }
+    75% { transform: translate3d(6%, 2%, 0) scale(1.015); }
 }
 @keyframes aurora-drift-2 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    18% { transform: translate(-6%, 7%) scale(0.97); }
-    45% { transform: translate(8%, -4%) scale(1.04); }
-    68% { transform: translate(-3%, -8%) scale(0.98); }
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    25% { transform: translate3d(-5%, 5%, 0) scale(0.985); }
+    50% { transform: translate3d(6%, -3%, 0) scale(1.03); }
+    75% { transform: translate3d(-2%, -5%, 0) scale(0.99); }
 }
 @keyframes aurora-drift-3 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    25% { transform: translate(5%, 6%) scale(1.03); }
-    52% { transform: translate(-8%, -3%) scale(0.96); }
-    78% { transform: translate(4%, 9%) scale(1.02); }
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    25% { transform: translate3d(4%, 4%, 0) scale(1.02); }
+    50% { transform: translate3d(-6%, -2%, 0) scale(0.975); }
+    75% { transform: translate3d(3%, 6%, 0) scale(1.01); }
 }
 @media (prefers-reduced-motion: reduce) {
     .aurora-blob { animation: none !important; opacity: 0.26; filter: blur(26px); }
@@ -319,10 +319,10 @@ body.app-shell::after {
 }
 
 /* ── Modal shared ── */
-.modal-overlay { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.3s ease, visibility 0.3s ease; }
+.modal-overlay { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.32s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.32s cubic-bezier(0.4, 0, 0.2, 1); }
 .modal-overlay.modal-open { opacity: 1; visibility: visible; pointer-events: auto; }
-.modal-panel { transform: translateY(16px) scale(0.96); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease; }
-.modal-overlay.modal-open .modal-panel { transform: translateY(0) scale(1); }
+.modal-panel { transform: translateY(14px) scale(0.975); opacity: 0; transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.32s cubic-bezier(0.4, 0, 0.2, 1); }
+.modal-overlay.modal-open .modal-panel { transform: translateY(0) scale(1); opacity: 1; }
 
 /* ── Legal prose (auth/landing) ── */
 .prose h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem; color: white; }

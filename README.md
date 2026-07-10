@@ -6,24 +6,11 @@
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 
 > [!WARNING]
-> **Only the latest tagged release is supported.** Versions `V4.8.615` and
-> earlier are deprecated and must not be used for new or production deployments.
-> They do not include all current security fixes. Upgrade to `V4.8.616` or later.
+> **Security notice:** Versions `V4.8.615` and earlier contain known security
+> weaknesses and are deprecated. Do not use them for new or production
+> deployments. Upgrade to `V4.8.616` or later.
 
 **AI Chat Playground** is a self-hosted, multi-model chat platform for power users who value privacy. It supports **OpenAI GPT-5.x**, **Google Gemini 3.0**, and **xAI Grok 4.1**, with **BYOK (Bring Your Own Key)**, **2FA (TOTP + Passkeys)**, and **E2EE** for chat data.
-
----
-
-## Supported Versions
-
-| Version | Status | Security updates |
-|---|---|---|
-| Latest tagged release | Supported | Yes |
-| `V4.8.615` and earlier | Deprecated | No |
-
-Release tags identify supported release boundaries, not every development
-commit. Historical tags remain available for source-history purposes only and
-must not be interpreted as supported releases.
 
 ---
 

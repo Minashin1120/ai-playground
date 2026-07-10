@@ -216,7 +216,7 @@ class SecurityRegressionTests(unittest.TestCase):
 
     def test_frontend_escapes_stored_values_and_forbids_iframes(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        script_path = os.path.join(root, "static", "js", "chat_core.v4.8.615.js")
+        script_path = os.path.join(root, "static", "js", "chat_core.v4.8.616.js")
         with open(script_path, encoding="utf-8") as script_file:
             script = script_file.read()
         with open(os.path.join(root, "templates", "chat.html"), encoding="utf-8") as template_file:

@@ -52,6 +52,38 @@
             -webkit-backdrop-filter: blur(16px);
             border-radius: var(--radius-lg);
         }
+        .log-card-enter {
+            animation: cardFadeIn 0.35s ease-out both;
+        }
+        .log-card-leave {
+            animation: cardFadeOut 0.25s ease-in both;
+        }
+        @keyframes cardFadeIn {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes cardFadeOut {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(-12px); }
+        }
+        .search-box {
+            background: rgba(10, 16, 35, 0.7);
+            border: 1px solid rgba(148,163,184,0.14);
+            color: #e2e8f0;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .search-box:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+            outline: none;
+        }
+        .search-box::placeholder { color: #64748b; }
+        .search-clear-btn {
+            color: #64748b;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .search-clear-btn:hover { color: #e2e8f0; }
         .loading-spinner {
             border: 3px solid rgba(255, 255, 255, 0.1);
             border-top: 3px solid var(--accent);
@@ -68,9 +100,18 @@
             <h1 class="text-3xl font-bold text-white"><i class="fas fa-history text-amber-300 mr-3"></i> 更新履歴</h1>
             <a href="/" class="px-4 py-2 bg-slate-900/70 hover:bg-slate-800 text-white rounded-lg border border-slate-700 transition">戻る</a>
         </div>
+        <div class="relative mb-8">
+            <div class="relative">
+                <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm"></i>
+                <input type="text" id="search-input" class="search-box w-full pl-11 pr-10 py-3 rounded-xl text-sm" placeholder="更新履歴を検索..." autocomplete="off">
+                <i id="search-clear" class="fas fa-times search-clear-btn absolute right-4 top-1/2 -translate-y-1/2 text-sm hidden"></i>
+            </div>
+            <div id="search-status" class="text-gray-500 text-xs mt-2 hidden"></div>
+        </div>
+
         <div id="changelog-container" class="space-y-8">
             {% for log in logs %}
-            <div class="log-card p-6 rounded-xl">
+            <div class="log-card p-6 rounded-xl log-card-enter" style="animation-delay: {{ loop.index0 * 0.05 }}s">
                 {% if log.title %}
                 <div class="text-teal-300 font-semibold text-sm mb-2">{{ log.title }}</div>
                 {% endif %}
@@ -91,19 +132,69 @@
         const totalItems = {{ total }};
         let isLoading = false;
         let hasMore = totalItems > limit;
+        let searchMode = false;
+        let searchDebounce = null;
 
         const container = document.getElementById('changelog-container');
         const trigger = document.getElementById('loading-trigger');
         const spinner = document.getElementById('spinner');
         const noMore = document.getElementById('no-more');
+        const searchInput = document.getElementById('search-input');
+        const searchClear = document.getElementById('search-clear');
+        const searchStatus = document.getElementById('search-status');
 
-        // Initial markdown rendering for first page
-        document.querySelectorAll('.markdown-body').forEach(el => {
+        function renderMarkdown(el) {
             if (el.dataset.rendered !== 'true') {
                 el.innerHTML = DOMPurify.sanitize(marked.parse(el.textContent));
                 el.dataset.rendered = 'true';
             }
-        });
+        }
+
+        function createCard(log, delay = 0) {
+            const card = document.createElement('div');
+            card.className = 'log-card p-6 rounded-xl log-card-enter';
+            if (delay) card.style.animationDelay = delay + 's';
+            let html = '';
+            if (log.title) {
+                html += `<div class="text-teal-300 font-semibold text-sm mb-2">${log.title}</div>`;
+            }
+            const markdownHtml = DOMPurify.sanitize(marked.parse(log.content));
+            html += `<div class="markdown-body">${markdownHtml}</div>`;
+            card.innerHTML = html;
+            return card;
+        }
+
+        function animateReplaceCards(newLogs) {
+            const existing = container.querySelectorAll('.log-card');
+
+            if (existing.length === 0) {
+                newLogs.forEach((log, i) => {
+                    const card = createCard(log, i * 0.05);
+                    container.appendChild(card);
+                });
+                return;
+            }
+
+            existing.forEach((el, i) => {
+                el.style.animationDelay = (i * 0.03) + 's';
+                el.classList.remove('log-card-enter');
+                el.classList.add('log-card-leave');
+            });
+
+            const lastLeave = existing[existing.length - 1];
+            const animDuration = 250 + (existing.length - 1) * 30;
+
+            setTimeout(() => {
+                container.innerHTML = '';
+                newLogs.forEach((log, i) => {
+                    const card = createCard(log, i * 0.05);
+                    container.appendChild(card);
+                });
+            }, animDuration);
+        }
+
+        // Initial markdown rendering
+        document.querySelectorAll('.markdown-body').forEach(renderMarkdown);
 
         async function loadMore() {
             if (isLoading || !hasMore) return;
@@ -119,18 +210,8 @@
                     hasMore = false;
                     noMore.classList.remove('hidden');
                 } else {
-                    data.logs.forEach(log => {
-                        const card = document.createElement('div');
-                        card.className = 'log-card p-6 rounded-xl';
-                        
-                        let html = '';
-                        if (log.title) {
-                            html += `<div class="text-teal-300 font-semibold text-sm mb-2">${log.title}</div>`;
-                        }
-                        const markdownHtml = DOMPurify.sanitize(marked.parse(log.content));
-                        html += `<div class="markdown-body">${markdownHtml}</div>`;
-                        
-                        card.innerHTML = html;
+                    data.logs.forEach((log, i) => {
+                        const card = createCard(log, i * 0.05);
                         container.appendChild(card);
                     });
 
@@ -147,14 +228,106 @@
             }
         }
 
-        const observer = new IntersectionObserver((entries) => {
-            if (entries[0].isIntersecting) {
-                loadMore();
+        async function doSearch(query) {
+            isLoading = true;
+            spinner.classList.remove('hidden');
+            trigger.classList.remove('hidden');
+            noMore.classList.add('hidden');
+
+            try {
+                const response = await fetch(`/api/changelogs/search?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                animateReplaceCards(data.logs);
+
+                if (data.total > 0) {
+                    searchStatus.textContent = `${data.total} 件の更新履歴が見つかりました`;
+                    searchStatus.classList.remove('hidden');
+                } else {
+                    searchStatus.textContent = '該当する更新履歴はありません';
+                    searchStatus.classList.remove('hidden');
+                }
+
+                if (data.total <= limit) {
+                    hasMore = false;
+                }
+
+                trigger.classList.add('hidden');
+            } catch (error) {
+                console.error('Search error:', error);
+            } finally {
+                isLoading = false;
+                spinner.classList.add('hidden');
             }
-        }, { threshold: 0.1 });
+        }
+
+        function resetToInitialView() {
+            searchMode = false;
+            searchStatus.classList.add('hidden');
+            hasMore = totalItems > limit;
+            currentPage = 1;
+            isLoading = false;
+
+            // Fetch first page fresh
+            trigger.classList.remove('hidden');
+            fetch(`/api/changelogs?page=1&limit=${limit}`).then(r => r.json()).then(data => {
+                animateReplaceCards(data.logs);
+                if (data.total > limit) {
+                    hasMore = true;
+                    if (!observerInited) initObserver();
+                } else {
+                    hasMore = false;
+                    noMore.classList.remove('hidden');
+                }
+            }).catch(() => {});
+        }
+
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchDebounce);
+            const q = searchInput.value.trim();
+
+            if (q.length > 0) {
+                searchClear.classList.remove('hidden');
+                searchDebounce = setTimeout(() => {
+                    searchMode = true;
+                    doSearch(q);
+                }, 300);
+            } else {
+                searchClear.classList.add('hidden');
+                searchStatus.classList.add('hidden');
+                clearTimeout(searchDebounce);
+                if (searchMode) {
+                    resetToInitialView();
+                }
+            }
+        });
+
+        searchClear.addEventListener('click', () => {
+            searchInput.value = '';
+            searchClear.classList.add('hidden');
+            searchStatus.classList.add('hidden');
+            clearTimeout(searchDebounce);
+            if (searchMode) {
+                resetToInitialView();
+            }
+        });
+
+        let observerInited = false;
+
+        function initObserver() {
+            if (observerInited) return;
+            observerInited = true;
+
+            const observer = new IntersectionObserver((entries) => {
+                if (entries[0].isIntersecting && !searchMode) {
+                    loadMore();
+                }
+            }, { threshold: 0.1 });
+
+            observer.observe(trigger);
+        }
 
         if (hasMore) {
-            observer.observe(trigger);
+            initObserver();
         } else if (totalItems > 0) {
             noMore.classList.remove('hidden');
         }

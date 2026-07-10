@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-10-006')
-app.config['SYSTEM_VERSION'] = 'V4.8.613'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-10-007')
+app.config['SYSTEM_VERSION'] = 'V4.8.614'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -8764,6 +8764,53 @@ def api_changelogs():
     limit = request.args.get('limit', 10, type=int)
     logs, total = _get_changelogs(page=page, limit=limit)
     return jsonify({'logs': logs, 'total': total, 'page': page, 'limit': limit})
+
+@app.route('/api/changelogs/search')
+def api_changelogs_search():
+    q = request.args.get('q', '').strip()
+    if not q:
+        return jsonify({'logs': [], 'total': 0})
+
+    log_dir = app.config.get('CHANGELOG_FOLDER', os.path.join(os.path.dirname(__file__), 'static/changelogs'))
+    results = []
+
+    if os.path.exists(log_dir):
+        files = glob.glob(os.path.join(log_dir, '*.md'))
+
+        def _changelog_meta(path):
+            base = os.path.splitext(os.path.basename(path))[0]
+            m = re.match(r'^(\d{4}-\d{2}-\d{2})_v(.+)$', base)
+            if not m:
+                m = re.match(r'^(\d{8})_v(.+)$', base)
+            if m:
+                date_raw, version = m.group(1), m.group(2)
+                if len(date_raw) == 8:
+                    date_fmt = f"{date_raw[0:4]}-{date_raw[4:6]}-{date_raw[6:8]}"
+                else:
+                    date_fmt = date_raw
+                date_key = int(date_fmt.replace('-', ''))
+                ver_nums = tuple(int(x) for x in re.findall(r'\d+', version)) or (0,)
+                title = f"V{version} ({date_fmt})"
+                return date_key, ver_nums, title
+            return 0, (0,), base
+
+        files.sort(key=lambda p: (_changelog_meta(p)[0], _changelog_meta(p)[1]), reverse=True)
+
+        q_lower = q.lower()
+        for f in files:
+            try:
+                with open(f, 'r', encoding='utf-8') as file:
+                    content = file.read()
+                title = None
+                if not content.lstrip().startswith('#'):
+                    _, _, title = _changelog_meta(f)
+
+                if q_lower in content.lower() or (title and q_lower in title.lower()):
+                    results.append({'content': content, 'title': title})
+            except Exception as e:
+                logger.error(f"Error reading changelog file {f}: {e}")
+
+    return jsonify({'logs': results, 'total': len(results)})
 
 @app.route('/banned')
 @login_required

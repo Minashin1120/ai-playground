@@ -44,7 +44,10 @@
         <div class="text-amber-300 text-6xl animate-pulse"><i class="fas fa-tools"></i></div>
         <h1 class="text-3xl font-bold">システムメンテナンス中</h1>
         <p class="text-slate-400">現在、データ移行処理などを行っております。<br>しばらくしてから再度アクセスしてください。</p>
-        <div class="mt-8"><a href="/logout" class="text-sm text-slate-400 hover:text-white underline">ログアウト</a></div>
+        <form method="POST" action="{{ url_for('logout') }}" class="mt-8">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="text-sm text-slate-400 hover:text-white underline">ログアウト</button>
+        </form>
     </div>
 </body>
 </html>

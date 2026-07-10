@@ -11,15 +11,16 @@
     {% endif %}
     <title>AI Playground ({{ system_version }})</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.' ~ (system_version | lower) ~ '.css') }}?v={{ app_version }}">
-    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js" integrity="sha384-QsSpx6a0USazT7nK7w8qXDgpSAPhFsb2XtpoLFQ5+X2yFN6hvCKnwEzN8M5FWaJb" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.11/purify.min.js" integrity="sha384-lCSH9WfVk9FgPeso6qS/Xq9VRYIGdgxLyJ0z9qUfOxJJZV0ch+eyQWv2rGffJm/t" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
     <script>
-        // Configure DOMPurify to allow video and other tags
+        // Media is allowed, but untrusted chat content must never create frames.
         DOMPurify.setConfig({
-            ADD_TAGS: ['video', 'source', 'iframe'],
-            ADD_ATTR: ['controls', 'src', 'class', 'autoplay', 'loop', 'muted', 'poster', 'width', 'height', 'allow', 'allowfullscreen', 'frameborder', 'scrolling', 'start', 'type', 'reversed']
+            ADD_TAGS: ['video', 'source'],
+            ADD_ATTR: ['controls', 'src', 'class', 'autoplay', 'loop', 'muted', 'poster', 'width', 'height', 'start', 'type', 'reversed'],
+            FORBID_TAGS: ['iframe', 'object', 'embed']
         });
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&family=Noto+Sans+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -165,7 +166,10 @@
         <div class="p-3 safe-pb border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500 relative">
             <div id="version-display" class="cursor-pointer hover:text-green-400 transition hide-compact" onclick="showAlphaInfo()">{{ system_version }} <span class="text-green-500 font-bold">Stable</span></div>
             <div class="flex justify-center gap-3 hide-compact"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div>
-            <a href="{{ url_for('logout') }}" class="block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover hide-compact">ログアウト</a>
+            <form method="POST" action="{{ url_for('logout') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="w-full block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover hide-compact">ログアウト</button>
+            </form>
             <button id="sidebar-toggle-btn" class="absolute bottom-2 right-2 text-gray-500 hover:text-white transition-all toggle-compact-btn" title="サイドバー切替">
                 <i class="fas fa-chevron-left" id="sidebar-toggle-icon"></i>
             </button>

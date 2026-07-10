@@ -23,10 +23,14 @@ import wave
 import asyncio
 import tempfile
 import zipfile
-import xml.etree.ElementTree as ET
+import warnings
+from defusedxml import ElementTree as ET
 from urllib.parse import urlparse, unquote
 import threading
 import hashlib
+import socket
+from contextlib import contextmanager
+from ipaddress import ip_address
 from collections import OrderedDict
 import httpx
 from webauthn import (
@@ -66,6 +70,9 @@ from cryptography.fernet import Fernet
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from authlib.integrations.flask_client import OAuth
+
+Image.MAX_IMAGE_PIXELS = 40_000_000
+warnings.simplefilter("error", Image.DecompressionBombWarning)
 
 try:
     from anthropic import Anthropic, APIError as AnthropicAPIError
@@ -312,6 +319,7 @@ def _resolve_gemini_runtime(user):
 _MODEL_API_KEY_MAX_ENTRIES = 256
 _MODEL_API_KEY_MODEL_MAX_LEN = 128
 _MODEL_API_KEY_VALUE_MAX_LEN = 1024
+_SECRET_MASK = "********"
 
 def _normalize_model_api_key_map(raw):
     if raw is None:
@@ -360,6 +368,20 @@ def _save_user_model_api_key_map(user, raw):
     payload = json.dumps(normalized, ensure_ascii=False, separators=(",", ":"))
     user.model_api_keys = encrypt_val(payload)
     return normalized
+
+def _merge_masked_model_api_key_map(user, raw):
+    submitted = _normalize_model_api_key_map(raw)
+    existing = _load_user_model_api_key_map(user)
+    merged = {}
+    for model_key, value in submitted.items():
+        if value == _SECRET_MASK:
+            value = existing.get(model_key)
+        if value:
+            merged[model_key] = value
+    return _save_user_model_api_key_map(user, merged)
+
+def _masked_secret(value):
+    return _SECRET_MASK if value else ""
 
 def _get_model_specific_api_key(user, model_key):
     mk = str(model_key or "").strip()
@@ -462,6 +484,41 @@ _OPENAI_CLIENT_CACHE = {}
 _GEMINI_CLIENT_CACHE = {}
 _XAI_CLIENT_CACHE = {}
 
+def _is_public_https_url(url):
+    try:
+        parsed = urlparse(str(url or ''))
+        if parsed.scheme.lower() != 'https' or not parsed.hostname or parsed.username or parsed.password:
+            return False
+        if parsed.port not in (None, 443):
+            return False
+        addresses = socket.getaddrinfo(parsed.hostname, 443, type=socket.SOCK_STREAM)
+        if not addresses:
+            return False
+        for entry in addresses:
+            address = entry[4][0]
+            if not ip_address(address).is_global:
+                return False
+        return True
+    except Exception:
+        return False
+
+def _download_public_https_bytes(url, max_bytes, timeout=60.0):
+    if not _is_public_https_url(url):
+        raise ValueError("Unsafe download URL")
+    chunks = []
+    total = 0
+    with httpx.stream('GET', url, timeout=timeout, follow_redirects=False) as response:
+        response.raise_for_status()
+        content_length = response.headers.get('Content-Length')
+        if content_length and int(content_length) > max_bytes:
+            raise ValueError("Download is too large")
+        for chunk in response.iter_bytes():
+            total += len(chunk)
+            if total > max_bytes:
+                raise ValueError("Download is too large")
+            chunks.append(chunk)
+    return b''.join(chunks)
+
 def _get_openai_client(api_key, base_url=None):
     sig = _key_sig(api_key, base_url or "openai")
     if not sig:
@@ -546,17 +603,25 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-10-007')
-app.config['SYSTEM_VERSION'] = 'V4.8.614'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-10-008')
+app.config['SYSTEM_VERSION'] = 'V4.8.615'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['REMEMBER_COOKIE_SECURE'] = True
+app.config['REMEMBER_COOKIE_HTTPONLY'] = True
+app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
+app.config['TRUSTED_HOSTS'] = [
+    host.strip() for host in os.getenv('TRUSTED_HOSTS', 'ai.minashin1120.com').split(',') if host.strip()
+]
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True, 'pool_recycle': 280}
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'instance/uploads')
 app.config['CHANGELOG_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static/changelogs')
+os.makedirs(app.config['UPLOAD_FOLDER'], mode=0o700, exist_ok=True)
+os.chmod(app.config['UPLOAD_FOLDER'], 0o700)
 _upload_max_mb = int(os.getenv('UPLOAD_MAX_MB', '512') or '512')
 app.config['MAX_CONTENT_LENGTH'] = _upload_max_mb * 1024 * 1024
 try:
@@ -624,11 +689,19 @@ login_manager.login_view = 'login'
 
 @app.before_request
 def _apply_per_user_upload_limits():
-    if request.endpoint not in ('upload', 'upload_chunk'):
+    endpoint = request.endpoint or ''
+    global_limit = app.config.get('MAX_CONTENT_LENGTH')
+    if endpoint not in ('upload', 'upload_chunk'):
+        endpoint_limit = 4 * 1024 * 1024
+        if endpoint in {'transcribe', 'speech_to_speech', 'save_sts_direct'}:
+            endpoint_limit = 32 * 1024 * 1024
+        elif endpoint == 'speedtest_upload':
+            endpoint_limit = 33 * 1024 * 1024
+        request.max_content_length = min(global_limit, endpoint_limit) if global_limit else endpoint_limit
         return
     try:
         if current_user.is_authenticated and _is_primary_admin_user(current_user):
-            request.max_content_length = None
+            request.max_content_length = min(global_limit or 12 * 1024 * 1024, 12 * 1024 * 1024) if endpoint == 'upload_chunk' else global_limit
         else:
             limit = _get_user_storage_limit_bytes(current_user) if current_user.is_authenticated else None
             if limit:
@@ -637,16 +710,16 @@ def _apply_per_user_upload_limits():
                     return jsonify({'error': f'File too large. Max {limit_mb}'}), 413
                 if request.endpoint == 'upload_chunk':
                     hard_cap = app.config.get('MAX_CONTENT_LENGTH') or limit
-                    request.max_content_length = min(hard_cap, limit)
+                    request.max_content_length = min(hard_cap, limit, 12 * 1024 * 1024)
                 else:
                     used = _get_user_storage_usage_bytes(current_user.id)
                     remaining = max(0, limit - used)
                     hard_cap = app.config.get('MAX_CONTENT_LENGTH') or remaining
                     request.max_content_length = min(hard_cap, remaining if remaining > 0 else 1)
             else:
-                request.max_content_length = app.config.get('MAX_CONTENT_LENGTH')
+                request.max_content_length = min(app.config.get('MAX_CONTENT_LENGTH') or 12 * 1024 * 1024, 12 * 1024 * 1024) if endpoint == 'upload_chunk' else app.config.get('MAX_CONTENT_LENGTH')
     except Exception:
-        request.max_content_length = app.config.get('MAX_CONTENT_LENGTH')
+        request.max_content_length = min(app.config.get('MAX_CONTENT_LENGTH') or 12 * 1024 * 1024, 12 * 1024 * 1024) if endpoint == 'upload_chunk' else app.config.get('MAX_CONTENT_LENGTH')
 
 class StorageLimitError(Exception):
     def __init__(self, message, used=None, limit=None):
@@ -697,6 +770,20 @@ def _get_user_storage_usage_bytes(user_id):
         if os.path.isdir(user_dir):
             for root, _, files in os.walk(user_dir):
                 for name in files:
+                    try:
+                        total += os.path.getsize(os.path.join(root, name))
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+    # Incomplete chunk uploads count against the same quota as completed files.
+    try:
+        chunk_dir = os.path.join(app.config['UPLOAD_FOLDER'], '.chunks', str(user_id))
+        if os.path.isdir(chunk_dir):
+            for root, _, files in os.walk(chunk_dir):
+                for name in files:
+                    if name != 'data.part':
+                        continue
                     try:
                         total += os.path.getsize(os.path.join(root, name))
                     except Exception:
@@ -762,6 +849,14 @@ def _normalize_upload_ref(ref):
     if norm.startswith("..") or os.path.isabs(norm):
         return None
     return norm
+
+def _path_is_within(base_dir, candidate):
+    try:
+        base_real = os.path.realpath(base_dir)
+        candidate_real = os.path.realpath(candidate)
+        return os.path.commonpath((base_real, candidate_real)) == base_real
+    except Exception:
+        return False
 
 def _resolve_user_upload_rel_path(filename, user_id):
     norm = _normalize_upload_ref(filename)
@@ -842,7 +937,12 @@ def _extract_text_from_docx(data):
     try:
         from io import BytesIO
         with zipfile.ZipFile(BytesIO(data)) as zf:
-            xml_content = zf.read('word/document.xml')
+            info = zf.getinfo('word/document.xml')
+            if info.file_size > 8 * 1024 * 1024:
+                return None
+            if info.compress_size > 0 and info.file_size / info.compress_size > 100:
+                return None
+            xml_content = zf.read(info)
         tree = ET.fromstring(xml_content)
         namespace = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
         paragraphs = []
@@ -854,12 +954,32 @@ def _extract_text_from_docx(data):
     except Exception:
         return None
 
+def _extract_text_from_pdf(data, max_pages=300, max_chars=2_000_000):
+    if not data or len(data) > 100 * 1024 * 1024:
+        return None
+    try:
+        reader = pypdf.PdfReader(BytesIO(data), strict=False)
+        if len(reader.pages) > max_pages:
+            return None
+        parts = []
+        total_chars = 0
+        for page in reader.pages:
+            text_value = page.extract_text() or ""
+            remaining = max_chars - total_chars
+            if remaining <= 0:
+                break
+            parts.append(text_value[:remaining])
+            total_chars += min(len(text_value), remaining)
+        return "\n".join(parts)
+    except Exception:
+        return None
+
 def _get_file_disk_info(rel_path):
     if not rel_path:
         return {"exists": False}
     base = os.path.join(app.config['UPLOAD_FOLDER'], rel_path)
     try:
-        if not os.path.realpath(base).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])):
+        if not _path_is_within(app.config['UPLOAD_FOLDER'], base):
             return {"exists": False}
     except Exception:
         return {"exists": False}
@@ -1116,11 +1236,7 @@ def _estimate_attachment_prompt_tokens(rel_path, model_key=None):
 
     extracted = None
     if is_pdf:
-        try:
-            reader = pypdf.PdfReader(BytesIO(data))
-            extracted = "".join([(p.extract_text() or "") + "\n" for p in reader.pages])
-        except Exception:
-            extracted = None
+        extracted = _extract_text_from_pdf(data)
     elif is_docx:
         extracted = _extract_text_from_docx(data)
     elif is_text:
@@ -1195,6 +1311,66 @@ def _sanitize_file_display_name(raw_name):
         name = name[:180].rstrip()
     return name or None
 
+def _normalize_thread_title(value):
+    title = str(value or "").replace("\x00", "").strip()
+    title = title.replace("<", "").replace(">", "")
+    title = re.sub(r"[\r\n\t]+", " ", title)
+    title = re.sub(r"\s{2,}", " ", title)
+    return (title or "Untitled")[:200]
+
+def _normalize_gem_payload(data, existing=None):
+    if not isinstance(data, dict):
+        raise ValueError("invalid_payload")
+
+    def value_for(key, default):
+        if key in data:
+            return data.get(key)
+        return getattr(existing, key, default) if existing is not None else default
+
+    name = str(value_for('name', 'My Gem') or '').replace('\x00', '').replace('<', '').replace('>', '').strip()
+    description = str(value_for('description', '') or '').replace('\x00', '').strip()
+    instruction = str(value_for('instruction', '') or '').replace('\x00', '').strip()
+    if not name or len(name) > 100:
+        raise ValueError("invalid_name")
+    if len(description) > 4000 or len(instruction) > 100_000:
+        raise ValueError("payload_too_large")
+
+    fixed_raw = value_for('fixed_prompts_json', None)
+    if 'fixed_prompts' in data:
+        fixed_raw = data.get('fixed_prompts')
+    fixed_prompts_json = None
+    if fixed_raw:
+        if isinstance(fixed_raw, str) and len(fixed_raw) > 200_000:
+            raise ValueError("payload_too_large")
+        try:
+            prompts = json.loads(fixed_raw) if isinstance(fixed_raw, str) else fixed_raw
+        except Exception as exc:
+            raise ValueError("invalid_fixed_prompts") from exc
+        if not isinstance(prompts, list) or len(prompts) > 50:
+            raise ValueError("invalid_fixed_prompts")
+        normalized_prompts = []
+        for item in prompts:
+            if not isinstance(item, dict):
+                raise ValueError("invalid_fixed_prompts")
+            prompt_name = str(item.get('name') or '').replace('\x00', '').replace('<', '').replace('>', '').strip()
+            prompt_content = str(item.get('content') or '').replace('\x00', '').strip()
+            if not prompt_name or not prompt_content or len(prompt_name) > 100 or len(prompt_content) > 20_000:
+                raise ValueError("invalid_fixed_prompts")
+            normalized_prompts.append({'name': prompt_name, 'content': prompt_content})
+        fixed_prompts_json = json.dumps(normalized_prompts, ensure_ascii=False, separators=(',', ':'))
+
+    default_model = value_for('default_model', None)
+    default_model = str(default_model or '').strip() or None
+    if default_model and default_model not in ALL_VALID_MODEL_IDS:
+        raise ValueError("invalid_default_model")
+    return {
+        'name': name,
+        'description': description,
+        'instruction': instruction,
+        'fixed_prompts_json': fixed_prompts_json,
+        'default_model': default_model,
+    }
+
 def _normalize_display_name_for_path(rel_path, raw_name):
     base = os.path.basename(rel_path or "")
     if not base:
@@ -1248,8 +1424,63 @@ def _chunk_root_dir():
 def _chunk_user_dir(user_id):
     return os.path.join(_chunk_root_dir(), str(user_id))
 
+_CHUNK_UPLOAD_ID_RE = re.compile(r"^up_[0-9]{10}_[0-9a-f]{8}$")
+_CHUNK_SIZE_BYTES = 10 * 1024 * 1024
+_CHUNK_UPLOAD_MAX_ACTIVE = 10
+_CHUNK_UPLOAD_MAX_AGE_SECONDS = 24 * 60 * 60
+
+def _is_valid_chunk_upload_id(upload_id):
+    return bool(_CHUNK_UPLOAD_ID_RE.fullmatch(str(upload_id or "")))
+
 def _chunk_session_dir(user_id, upload_id):
-    return os.path.join(_chunk_user_dir(user_id), upload_id)
+    if not _is_valid_chunk_upload_id(upload_id):
+        return None
+    user_dir = os.path.realpath(_chunk_user_dir(user_id))
+    candidate = os.path.realpath(os.path.join(user_dir, str(upload_id)))
+    try:
+        if os.path.commonpath((user_dir, candidate)) != user_dir:
+            return None
+    except Exception:
+        return None
+    return candidate
+
+@contextmanager
+def _chunk_upload_lock(session_dir):
+    lock_file = None
+    try:
+        lock_path = os.path.join(session_dir, '.lock')
+        lock_file = open(lock_path, 'a+b')
+        try:
+            import fcntl
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        except ImportError:
+            pass
+        yield
+    finally:
+        if lock_file is not None:
+            try:
+                import fcntl
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            except (ImportError, OSError):
+                pass
+            lock_file.close()
+
+def _cleanup_stale_chunk_uploads(user_id, now=None):
+    now = int(now or time.time())
+    user_dir = _chunk_user_dir(user_id)
+    active = 0
+    if not os.path.isdir(user_dir):
+        return active
+    for entry in os.scandir(user_dir):
+        if not entry.is_dir(follow_symlinks=False) or not _is_valid_chunk_upload_id(entry.name):
+            continue
+        meta = _load_chunk_meta(os.path.join(entry.path, 'meta.json')) or {}
+        created = int(meta.get('created') or 0)
+        if created <= 0 or now - created > _CHUNK_UPLOAD_MAX_AGE_SECONDS:
+            _secure_delete_tree(entry.path)
+            continue
+        active += 1
+    return active
 
 def _load_chunk_meta(path):
     try:
@@ -1259,32 +1490,53 @@ def _load_chunk_meta(path):
         return None
 
 def _save_chunk_meta(path, meta):
+    temp_path = None
     try:
-        with open(path, 'w', encoding='utf-8') as f:
+        fd, temp_path = tempfile.mkstemp(prefix='.meta-', suffix='.json', dir=os.path.dirname(path))
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
             json.dump(meta, f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_path, path)
         return True
     except Exception:
         return False
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
 
 KEY_FILE = os.path.join(os.path.dirname(__file__), 'secret.key')
 cipher = None
 try:
     if os.path.exists(KEY_FILE):
+        if os.path.islink(KEY_FILE):
+            raise RuntimeError('Encryption key must not be a symbolic link')
+        os.chmod(KEY_FILE, 0o600)
         with open(KEY_FILE, 'rb') as kf: cipher = Fernet(kf.read().strip())
     else:
         key = Fernet.generate_key()
-        with open(KEY_FILE, 'wb') as kf: kf.write(key)
+        fd = os.open(KEY_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'wb') as kf:
+            kf.write(key)
         cipher = Fernet(key)
-except Exception as e: logger.error(f'Encryption setup failed: {e}')
+except Exception as e:
+    raise RuntimeError(f'Encryption setup failed: {e}') from e
 
 _DECRYPT_CACHE_LOCK = threading.Lock()
 _DECRYPT_CACHE = OrderedDict()
 _DECRYPT_CACHE_MISS = object()
 
 def encrypt_val(val):
-    if not val or not cipher: return val
-    try: return cipher.encrypt(val.encode()).decode()
-    except: return val
+    if not val:
+        return val
+    if not cipher:
+        raise RuntimeError("Encryption is unavailable")
+    if not isinstance(val, str):
+        val = str(val)
+    return cipher.encrypt(val.encode()).decode()
 
 def decrypt_val(val):
     if not val or not cipher: return val
@@ -1307,7 +1559,8 @@ def decrypt_val(val):
         return val
 
 def encrypt_bytes(data):
-    if not cipher: return data
+    if not cipher:
+        raise RuntimeError("Encryption is unavailable")
     return cipher.encrypt(data)
 
 def decrypt_bytes(data):
@@ -1349,6 +1602,20 @@ def clamp_float(val, min_v, max_v):
     if v > max_v: v = max_v
     return v
 
+_AUDIO_INPUT_MAX_BYTES = 25 * 1024 * 1024
+
+def _decode_base64_limited(value, max_bytes):
+    encoded = str(value or '').strip()
+    if not encoded or len(encoded) > ((max_bytes + 2) // 3) * 4 + 8:
+        raise ValueError("Invalid or oversized base64 payload")
+    try:
+        decoded = base64.b64decode(encoded, validate=True)
+    except Exception as exc:
+        raise ValueError("Invalid base64 payload") from exc
+    if len(decoded) > max_bytes:
+        raise ValueError("Decoded payload is too large")
+    return decoded
+
 GEMINI_TTS_VOICES = {
     "Zephyr","Puck","Charon","Kore","Fenrir","Leda","Orus","Aoede","Callirrhoe","Autonoe",
     "Enceladus","Iapetus","Umbriel","Algieba","Despina","Erinome","Algenib","Rasalgethi","Laomedeia","Achernar",
@@ -1356,8 +1623,11 @@ GEMINI_TTS_VOICES = {
 }
 
 def secure_delete(path):
-    if os.path.exists(path):
+    if os.path.lexists(path):
         try:
+            if os.path.islink(path):
+                os.unlink(path)
+                return
             size = os.path.getsize(path)
             with open(path, "wb") as f: f.write(os.urandom(size))
             os.remove(path)
@@ -1484,6 +1754,8 @@ def _convert_audio_to_pcm(audio_bytes, src_suffix=".webm", rate=24000):
     cmd = [
         "ffmpeg", "-y",
         "-i", "pipe:0",
+        "-t", "300",
+        "-threads", "1",
         "-ac", "1",
         "-ar", str(rate),
         "-f", "s16le",
@@ -1535,26 +1807,39 @@ def _llm_transcript_is_no_speech(text, token="[[NO_SPEECH]]"):
         return True
     return False
 
-def _save_user_audio(user_id, data, suffix, encrypt):
+def _save_user_generated_bytes(user_id, data, filename, encrypt):
+    if not isinstance(data, (bytes, bytearray)) or not data:
+        raise ValueError("Generated file is empty")
+    filename = secure_filename(str(filename or ''))
+    if not filename:
+        raise ValueError("Invalid generated filename")
     user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
-    if not os.path.exists(user_dir): os.makedirs(user_dir, exist_ok=True)
-    user = None
+    if not os.path.exists(user_dir):
+        os.makedirs(user_dir, mode=0o700, exist_ok=True)
     try:
-        user = User.query.get(user_id)
-    except Exception:
-        user = None
-    if user:
-        ok, used, limit = _check_storage_capacity(user, len(data) if data else 0)
-        if not ok:
-            used_mb = _bytes_to_mb_str(used)
-            limit_mb = _bytes_to_mb_str(limit)
-            raise StorageLimitError(f"Storage limit exceeded ({used_mb} / {limit_mb})", used=used, limit=limit)
-    fname = f"audio_{int(time.time())}_{os.urandom(4).hex()}{suffix}"
-    fpath = os.path.join(user_dir, fname)
+        user = db.session.get(User, user_id)
+    except Exception as exc:
+        raise StorageLimitError("Unable to validate storage capacity") from exc
+    if user is None:
+        raise StorageLimitError("Unable to validate storage capacity")
+    ok, used, limit = _check_storage_capacity(user, len(data))
+    if not ok:
+        used_mb = _bytes_to_mb_str(used)
+        limit_mb = _bytes_to_mb_str(limit)
+        raise StorageLimitError(f"Storage limit exceeded ({used_mb} / {limit_mb})", used=used, limit=limit)
+    os.chmod(user_dir, 0o700)
+    fpath = os.path.join(user_dir, filename)
     if encrypt:
-        with open(fpath + '.enc', 'wb') as f: f.write(encrypt_bytes(data))
+        with open(fpath + '.enc', 'xb') as f:
+            f.write(encrypt_bytes(bytes(data)))
     else:
-        with open(fpath, 'wb') as f: f.write(data)
+        with open(fpath, 'xb') as f:
+            f.write(data)
+    return fpath
+
+def _save_user_audio(user_id, data, suffix, encrypt):
+    fname = f"audio_{int(time.time())}_{os.urandom(4).hex()}{suffix}"
+    fpath = _save_user_generated_bytes(user_id, data, fname, encrypt)
     return fname, fpath
 
 MIC_TRANSCRIBE_MODES = {"stt_api", "llm"}
@@ -2275,7 +2560,7 @@ class User(UserMixin, db.Model):
     enable_e2ee = db.Column(db.Boolean, default=False)
     # 2FA Fields
     is_2fa_enabled = db.Column(db.Boolean, default=False)
-    totp_secret = db.Column(db.String(32), nullable=True) # Encrypted
+    totp_secret = db.Column(db.String(255), nullable=True)  # Fernet-encrypted TOTP secret
     webauthn_credentials = db.Column(db.Text, nullable=True) # JSON list
     passkey_only_login = db.Column(db.Boolean, default=False)
     skip_2fa_on_google_login = db.Column(db.Boolean, default=False)
@@ -2510,10 +2795,21 @@ def get_csrf_token():
     return token
 
 def get_client_ip():
-    fwd = request.headers.get('X-Forwarded-For', '')
-    if fwd:
-        return fwd.split(',')[0].strip()
-    return request.remote_addr
+    # Apache appends its verified client address to the right side of XFF.
+    forwarded = [part.strip() for part in request.headers.get('X-Forwarded-For', '').split(',') if part.strip()]
+    candidates = list(reversed(forwarded))
+    if request.remote_addr:
+        candidates.append(str(request.remote_addr).strip())
+    for candidate in candidates:
+        try:
+            return ip_address(candidate).compressed
+        except ValueError:
+            continue
+    return None
+
+def get_request_user_agent():
+    value = str(request.headers.get('User-Agent', '') or '')
+    return re.sub(r'[\r\n\x00-\x1f\x7f]+', ' ', value)[:512]
 
 def _now_epoch_ms():
     return int(time.time() * 1000)
@@ -2894,6 +3190,27 @@ def generate_thread_public_id():
             return candidate
     return secrets.token_urlsafe(32)
 
+_JOB_ID_RE = re.compile(r"^job_[0-9]{10}_[0-9]+(?:_[0-9a-f]{16})?$")
+
+def _is_valid_job_id(job_id):
+    return bool(_JOB_ID_RE.fullmatch(str(job_id or '')))
+
+def _pending_job_id_for_thread(user_id, thread_db_id):
+    try:
+        pending_raw = redis_conn.get(f"pending_job:{user_id}:{thread_db_id}")
+    except Exception:
+        return None
+    if not pending_raw:
+        return None
+    try:
+        pending_obj = json.loads(pending_raw)
+        return str((pending_obj or {}).get('job_id') or '') or None
+    except Exception:
+        try:
+            return pending_raw.decode("utf-8", "ignore") or None
+        except Exception:
+            return None
+
 def resolve_thread_for_user(identifier, user_id):
     if identifier is None:
         return None
@@ -2916,7 +3233,7 @@ def resolve_thread_for_user(identifier, user_id):
 
 def create_user_session(user):
     ip = get_client_ip()
-    ua = request.headers.get('User-Agent', '')
+    ua = get_request_user_agent()
     now = datetime.utcnow()
     old_sessions = UserSession.query.filter(
         UserSession.user_id == user.id,
@@ -2967,9 +3284,12 @@ def inject_csrf():
 def validate_csrf():
     token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token')
     session_token = session.get('csrf_token')
-    res = bool(token and token == session_token)
-    log_force(f"DEBUG: validate_csrf header_token={token}, session_token={session_token}, result={res}")
-    return res
+    if not token or not session_token:
+        return False
+    try:
+        return secrets.compare_digest(str(token), str(session_token))
+    except Exception:
+        return False
 
 def get_app_setting(key, default=None):
     try:
@@ -3482,7 +3802,7 @@ def _delete_user_upload_ref(user_id, ref):
     if not norm.startswith(f"{user_id}/"):
         return False
     fp = os.path.join(app.config['UPLOAD_FOLDER'], norm)
-    if not os.path.realpath(fp).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])):
+    if not _path_is_within(app.config['UPLOAD_FOLDER'], fp):
         return False
     secure_delete(fp)
     secure_delete(fp + '.enc')
@@ -4183,19 +4503,36 @@ def set_client_token_cookie(response):
         )
     response = _apply_performance_cache_headers(response)
     response = _maybe_gzip_response(response)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Permissions-Policy",
+        "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()"
+    )
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'"
+    )
+    if _is_secure_request():
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    if request.path.startswith('/api/') or request.endpoint in {
+        'login', 'signup', 'verify_2fa', 'setup', 'banned'
+    }:
+        response.headers["Cache-Control"] = "private, no-store, max-age=0"
+        response.headers["Pragma"] = "no-cache"
     return response
 
 @app.before_request
 def check_maintenance():
     log_force(f"DEBUG: request reaching before_request: {request.method} {request.path}")
+    if request.method in ['POST', 'PUT', 'DELETE', 'PATCH']:
+        if not validate_csrf():
+            return jsonify({'error': 'CSRF token missing/invalid'}), 403
     if app.config.get('MAINTENANCE_MODE'):
         if request.endpoint in ['static', 'login', 'logout', 'toggle_maintenance', 'login_passkey_options', 'login_passkey_verify']: return
         if current_user.is_authenticated and getattr(current_user, "is_admin", False): return
         return render_template('maintenance.html'), 503
-    if request.method in ['POST', 'PUT', 'DELETE', 'PATCH']:
-        if request.endpoint not in ['static', 'receive_client_log', 'client_log']:
-            if not validate_csrf():
-                return jsonify({'error': 'CSRF token missing/invalid'}), 403
 
 @app.before_request
 def check_bot_ban():
@@ -4240,7 +4577,7 @@ def ensure_active_session():
     if not user_sess.last_seen_at or (now - user_sess.last_seen_at) > timedelta(seconds=30):
         user_sess.last_seen_at = now
         user_sess.ip_address = get_client_ip() or user_sess.ip_address
-        ua = request.headers.get('User-Agent', '')
+        ua = get_request_user_agent()
         if ua:
             user_sess.user_agent = ua
         try:
@@ -4259,6 +4596,23 @@ def verify_turnstile(token):
     try: return requests.post('https://challenges.cloudflare.com/turnstile/v0/siteverify', data={'secret': secret, 'response': token}, timeout=5).json().get('success', False)
     except: return False
 
+_LOCAL_RATE_LIMIT_LOCK = threading.Lock()
+_LOCAL_RATE_LIMITS = {}
+
+def _local_rate_limit(key, limit, window_seconds):
+    now = time.monotonic()
+    with _LOCAL_RATE_LIMIT_LOCK:
+        count, expires_at = _LOCAL_RATE_LIMITS.get(key, (0, now + window_seconds))
+        if now >= expires_at:
+            count, expires_at = 0, now + window_seconds
+        count += 1
+        _LOCAL_RATE_LIMITS[key] = (count, expires_at)
+        if len(_LOCAL_RATE_LIMITS) > 10_000:
+            expired = [entry_key for entry_key, (_, expiry) in _LOCAL_RATE_LIMITS.items() if now >= expiry]
+            for entry_key in expired:
+                _LOCAL_RATE_LIMITS.pop(entry_key, None)
+        return count <= limit
+
 def rate_limit(key, limit, window_seconds):
     try:
         cur = redis_conn.incr(key)
@@ -4266,7 +4620,7 @@ def rate_limit(key, limit, window_seconds):
             redis_conn.expire(key, window_seconds)
         return cur <= limit
     except Exception:
-        return True
+        return _local_rate_limit(key, limit, window_seconds)
 
 _TOKEN_ENCODER_BY_NAME = {}
 _TOKEN_ENCODER_BY_MODEL = {}
@@ -4575,6 +4929,12 @@ def safe_execute_python(code):
     bwrap = shutil.which("bwrap")
     if not bwrap:
         return "Error: Python execution disabled (sandbox not available)."
+    prlimit = shutil.which("prlimit")
+    if not prlimit:
+        return "Error: Python execution disabled (resource limiter not available)."
+    code = str(code or "")
+    if len(code.encode("utf-8", errors="ignore")) > 256 * 1024:
+        return "Error: Python code exceeds the 256KB limit."
 
     with tempfile.TemporaryDirectory() as td:
         code_path = os.path.join(td, "code.py")
@@ -4588,6 +4948,13 @@ def safe_execute_python(code):
             if os.path.exists(p):
                 binds.append(("--ro-bind", p, p))
         cmd = [
+            prlimit,
+            "--cpu=15",
+            "--as=536870912",
+            "--fsize=8388608",
+            "--nproc=64",
+            "--nofile=64",
+            "--",
             bwrap,
             "--unshare-net",
             "--unshare-uts",
@@ -4598,15 +4965,21 @@ def safe_execute_python(code):
             "--dev", "/dev",
             "--tmpfs", "/home",
             "--tmpfs", "/var",
-            "--dir", "/tmp",
-            "--chdir", "/tmp",
+            "--dir", "/tmp",  # nosec B108 - private path inside the bwrap mount namespace
+            "--chdir", "/tmp",  # nosec B108 - private path inside the bwrap mount namespace
         ]
         for b in binds:
             cmd.extend(list(b))
         cmd.extend(["--bind", td, "/work", py_path, "/work/code.py"])
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            out = (result.stdout or "") + (result.stderr or "")
+            with tempfile.TemporaryFile(mode="w+b") as output:
+                subprocess.run(cmd, stdout=output, stderr=subprocess.STDOUT, timeout=30, check=False)
+                output.seek(0)
+                raw = output.read(2 * 1024 * 1024 + 1)
+            truncated = len(raw) > 2 * 1024 * 1024
+            out = raw[:2 * 1024 * 1024].decode("utf-8", errors="replace")
+            if truncated:
+                out += "\n[Output truncated at 2MB]"
             return out if out.strip() else "Success (No output)"
         except subprocess.TimeoutExpired:
             return "Error: Execution timed out (30s limit)"
@@ -5373,12 +5746,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     send_name = _resolve_send_name(clean_fn, mime) if is_llm_model else None
 
                     if is_pdf:
-                        extracted = None
-                        try:
-                            reader = pypdf.PdfReader(BytesIO(data))
-                            extracted = "".join([p.extract_text() + "\n" for p in reader.pages])
-                        except Exception:
-                            extracted = None
+                        extracted = _extract_text_from_pdf(data)
                         loaded_files.append({
                             'name': clean_fn,
                             'path': clean_fn,
@@ -5584,15 +5952,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 wf.writeframes(audio_bytes)
                             wav_bytes = buf.getvalue()
 
-                            user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
-                            if not os.path.exists(user_dir): os.makedirs(user_dir, exist_ok=True)
                             speech_file_name = f"speech_{int(time.time())}_{os.urandom(4).hex()}.wav"
-                            speech_file_path = os.path.join(user_dir, speech_file_name)
-
-                            if user_config.get('enable_e2ee'):
-                                with open(speech_file_path + '.enc', 'wb') as f: f.write(encrypt_bytes(wav_bytes))
-                            else:
-                                with open(speech_file_path, 'wb') as f: f.write(wav_bytes)
+                            _save_user_generated_bytes(
+                                user_id, wav_bytes, speech_file_name, user_config.get('enable_e2ee')
+                            )
 
                             audio_url = f"/files/{user_id}/{speech_file_name}"
                             audio_tag = f'\n<audio controls src="{audio_url}" class="w-full mt-2"></audio>\n'
@@ -5633,8 +5996,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             return text_chunks, image_parts
 
                         def _save_gemini_image_part(part_obj):
-                            ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
-                            os.makedirs(ud, exist_ok=True)
                             mime = getattr(part_obj.inline_data, "mime_type", None) or "image/png"
                             ext_map = {
                                 "image/png": "png",
@@ -5643,16 +6004,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             }
                             ext = ext_map.get(mime, "png")
                             fn2 = f"gen_{int(time.time())}_{len(generated_images)}.{ext}"
-                            fp2 = os.path.join(ud, fn2)
                             img_data = part_obj.inline_data.data
                             if isinstance(img_data, str):
-                                img_data = base64.b64decode(img_data)
-                            if user_config.get('enable_e2ee'):
-                                with open(fp2 + '.enc', 'wb') as f:
-                                    f.write(encrypt_bytes(img_data))
-                            else:
-                                with open(fp2, 'wb') as f:
-                                    f.write(img_data)
+                                img_data = _decode_base64_limited(img_data, 50 * 1024 * 1024)
+                            _save_user_generated_bytes(
+                                user_id, img_data, fn2, user_config.get('enable_e2ee')
+                            )
                             generated_images.append(f"{user_id}/{fn2}")
                             return fn2
 
@@ -6629,22 +6986,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                                     if hasattr(part, 'inline_data') and part.inline_data:
                                         try:
-                                            ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
-                                            os.makedirs(ud, exist_ok=True)
                                             mime = getattr(part.inline_data, "mime_type", None) or "image/png"
                                             ext_map = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
                                             ext = ext_map.get(mime, "png")
                                             fn2 = f"agentic_{int(time.time())}_{len(generated_images)}.{ext}"
-                                            fp2 = os.path.join(ud, fn2)
-                                            
                                             img_data = part.inline_data.data
                                             if isinstance(img_data, str):
-                                                img_data = base64.b64decode(img_data)
-                                            
-                                            if user_config.get('enable_e2ee'):
-                                                with open(fp2 + '.enc', 'wb') as f: f.write(encrypt_bytes(img_data))
-                                            else:
-                                                with open(fp2, 'wb') as f: f.write(img_data)
+                                                img_data = _decode_base64_limited(img_data, 50 * 1024 * 1024)
+                                            _save_user_generated_bytes(
+                                                user_id, img_data, fn2, user_config.get('enable_e2ee')
+                                            )
                                                 
                                             img_md = f"\n![Agentic View](/files/{user_id}/{fn2})\n"
                                             full_res += img_md
@@ -6832,19 +7183,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             img_data_b64 = resp.data[0].b64_json
                     
                     if img_data_b64:
-                        img_bytes = base64.b64decode(img_data_b64)
-                        
-                        ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
-                        if not os.path.exists(ud): os.makedirs(ud, exist_ok=True)
-                        
+                        img_bytes = _decode_base64_limited(img_data_b64, 50 * 1024 * 1024)
                         ext = "png"
                         fn2 = f"gen_grok_{int(time.time())}_{len(generated_images)}.{ext}"
-                        fp2 = os.path.join(ud, fn2)
-                        
-                        if user_config.get('enable_e2ee'):
-                            with open(fp2 + '.enc', 'wb') as f: f.write(encrypt_bytes(img_bytes))
-                        else:
-                            with open(fp2, 'wb') as f: f.write(img_bytes)
+                        _save_user_generated_bytes(
+                            user_id, img_bytes, fn2, user_config.get('enable_e2ee')
+                        )
                             
                         generated_images.append(f"{user_id}/{fn2}")
                         pub("content", f"\n![Image](/files/{user_id}/{fn2})\n")
@@ -6972,25 +7316,23 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if video_url:
                         # Download and save the video locally
                         _mark_provider_request_started()
-                        v_resp = httpx.get(video_url, timeout=60.0)
-                        if v_resp.status_code == 200:
-                            ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
-                            if not os.path.exists(ud): os.makedirs(ud, exist_ok=True)
-                            
+                        try:
+                            video_bytes = _download_public_https_bytes(video_url, 128 * 1024 * 1024, timeout=60.0)
+                        except Exception as download_error:
+                            video_bytes = None
+                            log_force(f"Grok video download rejected: {download_error}")
+                        if video_bytes:
                             fn2 = f"gen_video_{int(time.time())}_{os.urandom(4).hex()}.mp4"
-                            fp2 = os.path.join(ud, fn2)
-                            
-                            if user_config.get('enable_e2ee'):
-                                with open(fp2 + '.enc', 'wb') as f: f.write(encrypt_bytes(v_resp.content))
-                            else:
-                                with open(fp2, 'wb') as f: f.write(v_resp.content)
+                            _save_user_generated_bytes(
+                                user_id, video_bytes, fn2, user_config.get('enable_e2ee')
+                            )
                                 
                             generated_images.append(f"{user_id}/{fn2}")
                             vid_tag = f'\n<video controls playsinline preload="metadata" src="/files/{user_id}/{fn2}" class="w-full mt-2"></video>\n'
                             pub("content", vid_tag)
                             full_res += f"Generated Video for: {final_message_text}\n"
                         else:
-                            pub("error", f"Failed to download generated video: {v_resp.status_code}")
+                            pub("error", "Failed to download generated video safely.")
                     else:
                         pub("error", "Video generation timed out or was canceled.")
                         
@@ -7277,9 +7619,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     pub("content", "**Processing Audio Generation...**\n")
                     
                     speech_file_name = f"speech_{int(time.time())}_{os.urandom(4).hex()}.mp3"
-                    user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
-                    if not os.path.exists(user_dir): os.makedirs(user_dir, exist_ok=True)
-                    speech_file_path = os.path.join(user_dir, speech_file_name)
+                    audio_content = None
 
                     if 'google-tts' in model_key:
                         # Google Cloud TTS (requires Google Cloud API key, not Gemini API key)
@@ -7315,7 +7655,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         audio_config = texttospeech.AudioConfig(**audio_kwargs)
                         response_tts = client_tts.synthesize_speech(input=synthesis_input, voice=voice, audio_config=audio_config)
                         audio_content = response_tts.audio_content
-                        with open(speech_file_path, 'wb') as f: f.write(audio_content)
 
                     elif 'grok-tts' in model_key or 'xai-tts' in model_key:
                         # xAI standalone TTS (単独モデル化)
@@ -7347,11 +7686,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             "Content-Type": "application/json"
                         }
                         tts_url = f"https://{_XAI_API_HOST}/v1/tts"
-                        resp = requests.post(tts_url, headers=headers, json=payload, timeout=180)
+                        resp = requests.post(tts_url, headers=headers, json=payload, timeout=180, stream=True)
                         resp.raise_for_status()
-
-                        with open(speech_file_path, 'wb') as f:
-                            f.write(resp.content)
+                        audio_buf = bytearray()
+                        for audio_chunk in resp.iter_content(chunk_size=64 * 1024):
+                            if not audio_chunk:
+                                continue
+                            audio_buf.extend(audio_chunk)
+                            if len(audio_buf) > _AUDIO_INPUT_MAX_BYTES:
+                                raise ValueError("Generated audio is too large")
+                        audio_content = bytes(audio_buf)
 
                     else:
                         # OpenAI TTS (default for generic tts models)
@@ -7367,16 +7711,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                         _mark_provider_request_started()
                         with o_client.audio.speech.with_streaming_response.create(**tts_kwargs) as response:
-                            response.stream_to_file(speech_file_path)
+                            audio_buf = bytearray()
+                            for audio_chunk in response.iter_bytes(chunk_size=64 * 1024):
+                                audio_buf.extend(audio_chunk)
+                                if len(audio_buf) > _AUDIO_INPUT_MAX_BYTES:
+                                    raise ValueError("Generated audio is too large")
+                            audio_content = bytes(audio_buf)
 
-                # For xAI and Google TTS, the file is already written above.
-                # The common post-processing (E2EE, audio tag, etc.) runs below for all TTS paths.
-
-                    # Encryption if enabled
-                    if user_config.get('enable_e2ee'):
-                        with open(speech_file_path, 'rb') as f: data = f.read()
-                        with open(speech_file_path + '.enc', 'wb') as f: f.write(encrypt_bytes(data))
-                        secure_delete(speech_file_path) # Delete original
+                    _save_user_generated_bytes(
+                        user_id, audio_content, speech_file_name, user_config.get('enable_e2ee')
+                    )
                     
                     audio_url = f"/files/{user_id}/{speech_file_name}"
                     audio_tag = f'\n<audio controls src="{audio_url}" class="w-full mt-2"></audio>\n'
@@ -7573,22 +7917,17 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if not image_data_b64:
                         raise RuntimeError("No image data found in the response.")
                     
-                    img_bytes = base64.b64decode(image_data_b64)
-                    ud = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
-                    if not os.path.exists(ud): os.makedirs(ud, exist_ok=True)
+                    img_bytes = _decode_base64_limited(image_data_b64, 50 * 1024 * 1024)
                     ext = "png"
                     if format_opt == "jpeg":
                         ext = "jpg"
                     elif format_opt == "webp":
                         ext = "webp"
                     fn2 = f"gen_gpt_{int(time.time())}_{len(generated_images)}.{ext}"
-                    fp2 = os.path.join(ud, fn2)
-                    
                     pub("status", "画像を保存して暗号化を適用中...")
-                    if user_config.get('enable_e2ee'):
-                        with open(fp2 + '.enc', 'wb') as f: f.write(encrypt_bytes(img_bytes))
-                    else:
-                        with open(fp2, 'wb') as f: f.write(img_bytes)
+                    _save_user_generated_bytes(
+                        user_id, img_bytes, fn2, user_config.get('enable_e2ee')
+                    )
                     generated_images.append(f"{user_id}/{fn2}")
                     pub("status", "完了")
                     pub("content", f"\n![Image](/files/{user_id}/{fn2})\n")
@@ -8859,7 +9198,7 @@ def submit_ban_appeal():
         ban_reason=current_user.bot_ban_reason,
         ban_at=current_user.bot_banned_at,
         ip_address=get_client_ip(),
-        user_agent=request.headers.get('User-Agent', '')
+        user_agent=get_request_user_agent()
     )
     db.session.add(appeal)
     safe_db_commit()
@@ -8942,11 +9281,12 @@ def login():
                   'application/json' in request.headers.get('Accept', '')
         
         if request.is_json:
-            form_data = request.get_json()
+            form_data = request.get_json(silent=True) or {}
         else:
             form_data = request.form
 
-        if not rate_limit(f"rl:login:ip:{request.remote_addr}", 20, 300):
+        login_ip = get_client_ip() or request.remote_addr or 'unknown'
+        if not rate_limit(f"rl:login:ip:{login_ip}", 20, 300):
             if is_ajax: return jsonify({'error': "Too many attempts. Try again later."}), 429
             return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
 
@@ -8955,6 +9295,11 @@ def login():
             return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="認証エラーが発生しました")
             
         username = (form_data.get('username') or '').strip()
+        pw = form_data.get('password') or ""
+        if len(username) > 80 or len(pw) > 512:
+            if is_ajax:
+                return jsonify({'error': "ユーザー名またはパスワードが正しくありません"}), 401
+            return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="ユーザー名またはパスワードが正しくありません"), 401
         user = User.query.filter_by(username=username).first()
         # Allow login even if IP/Cookie is banned; ban screen will handle after login.
         if user:
@@ -8962,7 +9307,6 @@ def login():
                 if is_ajax: return jsonify({'error': "Too many attempts. Try again later."}), 429
                 return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
             
-            pw = form_data.get('password') or ""
             now = datetime.utcnow()
             easy_ok = False
             try:
@@ -9036,12 +9380,14 @@ def login_google_callback():
     try:
         token = oauth.google.authorize_access_token()
         user_info = token.get('userinfo')
-        if not user_info:
+        if not user_info or user_info.get('email_verified') is not True:
             flash("Google からユーザー情報を取得できませんでした。")
             return redirect(url_for('login' if not current_user.is_authenticated else 'index'))
         
-        google_id = str(user_info.get('sub'))
-        email = user_info.get('email')
+        google_id = str(user_info.get('sub') or '').strip()
+        email = str(user_info.get('email') or '').strip().lower()
+        if not google_id or not email or len(email) > 128:
+            raise ValueError("Invalid Google identity")
         
         if current_user.is_authenticated:
             # Explicit linking from settings
@@ -9105,8 +9451,12 @@ def login_google_one_tap():
         # Verify the ID token
         idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), os.getenv('GOOGLE_CLIENT_ID'))
 
-        google_id = str(idinfo['sub'])
-        email = idinfo['email']
+        if idinfo.get('email_verified') is not True:
+            return jsonify({'error': 'Google email is not verified'}), 400
+        google_id = str(idinfo.get('sub') or '').strip()
+        email = str(idinfo.get('email') or '').strip().lower()
+        if not google_id or not email or len(email) > 128:
+            return jsonify({'error': 'Invalid Google identity'}), 400
         
         user = User.query.filter_by(google_id=google_id).first()
         if not user:
@@ -9164,7 +9514,8 @@ def unlink_google():
 def login_passkey_options():
     if current_user.is_authenticated:
         return jsonify({'error': 'already_authenticated'}), 400
-    if not rate_limit(f"rl:login:ip:{request.remote_addr}", 20, 300):
+    login_ip = get_client_ip() or request.remote_addr or 'unknown'
+    if not rate_limit(f"rl:login:ip:{login_ip}", 20, 300):
         return jsonify({'error': 'Too many attempts. Try again later.'}), 429
     data = request.json or {}
     if not verify_turnstile(data.get('turnstile')):
@@ -9186,7 +9537,7 @@ def login_passkey_options():
         allow_credentials=[
             PublicKeyCredentialDescriptor(id=base64url_to_bytes(c['id'])) for c in creds
         ],
-        user_verification=UserVerificationRequirement.PREFERRED
+        user_verification=UserVerificationRequirement.REQUIRED
     )
     session['passkey_login_user_id'] = user.id
     session['webauthn_login_challenge'] = base64.b64encode(options.challenge).decode('utf-8')
@@ -9222,7 +9573,7 @@ def login_passkey_verify():
             expected_origin=request.url_root.rstrip('/'),
             credential_public_key=base64url_to_bytes(current_cred['public_key']),
             credential_current_sign_count=current_cred['sign_count'],
-            require_user_verification=False
+            require_user_verification=True
         )
         current_cred['sign_count'] = verification.new_sign_count
         _save_user_webauthn_credentials(user, creds)
@@ -9362,15 +9713,22 @@ def verify_2fa_webauthn_verify():
 def signup():
     if current_user.is_authenticated: return redirect(url_for('index'))
     if request.method == 'POST':
-        if not rate_limit(f"rl:signup:ip:{request.remote_addr}", 10, 3600):
+        signup_ip = get_client_ip() or request.remote_addr or 'unknown'
+        if not rate_limit(f"rl:signup:ip:{signup_ip}", 10, 3600):
             return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
         if not verify_turnstile(request.form.get('cf-turnstile-response')): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Auth Error")
         if is_request_banned_identifier():
             return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Signup blocked.")
-        if _is_primary_admin_username(request.form.get('username')): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Username taken")
-        if User.query.filter_by(username=request.form.get('username')).first(): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Username taken")
-        new_user = User(username=request.form.get('username'), is_setup_completed=False)
-        new_user.set_password(request.form.get('password'))
+        username = str(request.form.get('username') or '').replace('\x00', '').strip()
+        password = str(request.form.get('password') or '')
+        if len(username) < 3 or len(username) > 80 or re.search(r'[\x00-\x1f\x7f]', username):
+            return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Username must be 3-80 characters.")
+        if len(password) < 8 or len(password) > 256:
+            return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Password must be 8-256 characters.")
+        if _is_primary_admin_username(username): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Username taken")
+        if User.query.filter_by(username=username).first(): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Username taken")
+        new_user = User(username=username, is_setup_completed=False)
+        new_user.set_password(password)
         db.session.add(new_user)
         safe_db_commit()
         login_user(new_user)
@@ -9404,7 +9762,7 @@ def setup():
         return redirect(url_for('index'))
     return render_template('setup.html')
 
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
 def logout():
     if current_user.is_authenticated:
         sid = session.get('session_id')
@@ -9429,9 +9787,21 @@ def logout():
 @app.route('/chat_stream', methods=['POST'])
 @login_required
 def chat_stream():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Invalid request'}), 400
+    raw_message = data.get('message')
+    if not isinstance(raw_message, str) or not raw_message.strip() or len(raw_message) > 500_000:
+        return jsonify({'error': 'Invalid or oversized message'}), 400
+    model_key = str(data.get('model') or '').strip()
+    if model_key not in ALL_VALID_MODEL_IDS:
+        return jsonify({'error': 'Invalid model'}), 400
+    for bounded_key in ('quote_text', 'system_prompt', 'marker_system_prompt', 'thread_custom_instruction'):
+        bounded_value = data.get(bounded_key)
+        if bounded_value is not None and len(str(bounded_value)) > 100_000:
+            return jsonify({'error': f'{bounded_key} is too large'}), 400
     user_config = {'enable_e2ee': current_user.enable_e2ee}
-    job_id = f"job_{int(time.time())}_{current_user.id}"
+    job_id = f"job_{int(time.time())}_{current_user.id}_{secrets.token_hex(8)}"
     _latency_mark_once(job_id, "route_received_ms")
 
     temporary_requested = _coerce_bool_or_none(data.get('temporary_chat'))
@@ -9469,7 +9839,7 @@ def chat_stream():
     user_msg = None
     attachment_name_map = {}
     try:
-        raw_msg_content = data.get('message')
+        raw_msg_content = raw_message
         msg_content = raw_msg_content
         if user_config['enable_e2ee']: msg_content = encrypt_val(msg_content)
         raw_image_urls = data.get('image_urls') or []
@@ -9546,7 +9916,7 @@ def chat_stream():
             thread=t,
             role='user',
             content=msg_content,
-            model=data.get('model'),
+            model=model_key,
             image_url=json.dumps(norm_image_urls) if norm_image_urls else None,
             quote_text=data.get('quote_text'),
             is_encrypted=user_config['enable_e2ee'],
@@ -9905,10 +10275,10 @@ def estimate_prompt_tokens_api():
 @app.route('/chat_stream_resume', methods=['POST'])
 @login_required
 def chat_stream_resume():
-    data = request.json or {}
-    job_id = data.get('job_id')
+    data = request.get_json(silent=True) or {}
+    job_id = str(data.get('job_id') or '')
     thread_id = data.get('thread_id')
-    if not job_id or not thread_id:
+    if not _is_valid_job_id(job_id) or not thread_id:
         return jsonify({'error': 'job_id and thread_id required'}), 400
     t = resolve_thread_for_user(thread_id, current_user.id)
     if not t:
@@ -9997,29 +10367,19 @@ def chat_stream_resume():
 @app.route('/api/stop_chat', methods=['POST'])
 @login_required
 def stop_chat():
-    data = request.json or {}
-    job_id = data.get('job_id')
-    stop_source = 'job_id'
-    if not job_id:
-        thread_ref = data.get('thread_id')
-        t = resolve_thread_for_user(thread_ref, current_user.id) if thread_ref else None
-        if t:
-            pending_raw = None
-            try:
-                pending_raw = redis_conn.get(f"pending_job:{current_user.id}:{t.id}")
-            except Exception:
-                pending_raw = None
-            if pending_raw:
-                try:
-                    pending_obj = json.loads(pending_raw)
-                    job_id = (pending_obj or {}).get('job_id')
-                except Exception:
-                    try:
-                        job_id = pending_raw.decode("utf-8", "ignore")
-                    except Exception:
-                        job_id = None
-                if job_id:
-                    stop_source = 'thread_id'
+    data = request.get_json(silent=True) or {}
+    requested_job_id = str(data.get('job_id') or '') or None
+    if requested_job_id and not _is_valid_job_id(requested_job_id):
+        return jsonify({'error': 'invalid job_id'}), 400
+    thread_ref = data.get('thread_id')
+    t = resolve_thread_for_user(thread_ref, current_user.id) if thread_ref else None
+    if not t:
+        return jsonify({'error': 'valid thread_id required'}), 400
+    pending_job_id = _pending_job_id_for_thread(current_user.id, t.id)
+    if requested_job_id and pending_job_id != requested_job_id:
+        return jsonify({'error': 'job mismatch'}), 404
+    job_id = requested_job_id or pending_job_id
+    stop_source = 'job_id' if requested_job_id else 'thread_id'
     
     log_force(f"STREAM-STOP-SIGNAL: Received stop request for job_id={job_id} via {stop_source}")
     if job_id:
@@ -10059,9 +10419,11 @@ def temporary_chat_heartbeat():
 def generate_title_api():
     """Auto-generate chat title with multi-model fallback, prioritizing requested model"""
     try:
-        data = request.json
+        data = request.get_json(silent=True) or {}
         thread_id = data.get('thread_id')
-        requested_model = data.get('model_id')  # Captured from frontend
+        requested_model = str(data.get('model_id') or '').strip() or None
+        if requested_model and requested_model not in ALL_VALID_MODEL_IDS:
+            return jsonify({'error': 'Invalid model'}), 400
         
         thread = resolve_thread_for_user(thread_id, current_user.id)
         if not thread:
@@ -10208,6 +10570,7 @@ def generate_title_api():
             else:
                 title = "New Chat"
 
+        title = _normalize_thread_title(title)
         thread.title = title
         safe_db_commit()
         return jsonify({'status': 'ok', 'title': title})
@@ -10217,7 +10580,10 @@ def generate_title_api():
 @app.route('/api/gemini/session', methods=['POST'])
 @login_required
 def gemini_session():
-    model_key = (request.json.get('model') or "gemini-3.1-flash-live-preview").strip()
+    data = request.get_json(silent=True) or {}
+    model_key = (data.get('model') or "gemini-3.1-flash-live-preview").strip()
+    if model_key not in STS_MODELS or get_sts_provider(model_key) != 'google':
+        return jsonify({'error': 'Invalid Gemini Live model'}), 400
     
     # Resolve API key and runtime
     gemini_runtime = _resolve_gemini_runtime(current_user)
@@ -10241,9 +10607,9 @@ def gemini_session():
         return jsonify({'error': 'Gemini client not configured'}), 400
 
     # Thinking configuration and other setup
-    thinking_level = request.json.get('thinking_level') or 'minimal'
-    include_thoughts = request.json.get('include_thoughts') == True
-    voice = (request.json.get('voice') or "Kore").strip()
+    thinking_level = data.get('thinking_level') or 'minimal'
+    include_thoughts = data.get('include_thoughts') is True
+    voice = (data.get('voice') or "Kore").strip()
     
     generation_config = {
         'response_modalities': ['AUDIO'],
@@ -10281,7 +10647,7 @@ def gemini_session():
 @app.route('/api/gemini/save_sts', methods=['POST'])
 @login_required
 def save_sts_direct():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     thread_id = data.get('thread_id')
     model_key = data.get('model')
     user_text = data.get('user_text')
@@ -10293,12 +10659,18 @@ def save_sts_direct():
     t = resolve_thread_for_user(thread_id, current_user.id)
     if not t:
         return jsonify({'error': 'Invalid thread'}), 403
+    if model_key not in STS_MODELS or get_sts_provider(model_key) != 'google':
+        return jsonify({'error': 'Invalid Gemini Live model'}), 400
+    thread_db_id = t.id
+    for text_value in (user_text, assistant_text, assistant_thought):
+        if text_value is not None and len(str(text_value)) > 500_000:
+            return jsonify({'error': 'Transcript is too large'}), 413
 
     # Save Assistant Audio (Gemini returns PCM 24kHz)
     audio_url = None
     if audio_base64:
         try:
-            audio_data = base64.b64decode(audio_base64)
+            audio_data = _decode_base64_limited(audio_base64, _AUDIO_INPUT_MAX_BYTES)
             wav_bytes = _pcm_to_wav_bytes(audio_data, rate=24000)
             out_fname, _ = _save_user_audio(current_user.id, wav_bytes, ".wav", current_user.enable_e2ee)
             audio_url = f"/files/{current_user.id}/{out_fname}"
@@ -10309,7 +10681,7 @@ def save_sts_direct():
     in_fname = None
     if user_audio_base64:
         try:
-            user_audio_data = base64.b64decode(user_audio_base64)
+            user_audio_data = _decode_base64_limited(user_audio_base64, _AUDIO_INPUT_MAX_BYTES)
             in_fname, _ = _save_user_audio(current_user.id, user_audio_data, ".webm", current_user.enable_e2ee)
         except Exception as e:
             logger.error(f"Failed to save user audio: {e}")
@@ -10331,11 +10703,11 @@ def save_sts_direct():
             assistant_tokens_out += count_tokens_for_display(assistant_thought_clean, model_key)
         
         parent_id = None
-        last_msg = Message.query.filter_by(thread_id=thread_id).order_by(Message.id.desc()).first()
+        last_msg = Message.query.filter_by(thread_id=thread_db_id).order_by(Message.id.desc()).first()
         if last_msg: parent_id = last_msg.id
 
         user_msg = Message(
-            thread_id=thread_id,
+            thread_id=thread_db_id,
             role='user',
             content=u_content,
             image_url=json.dumps([f"{current_user.id}/{in_fname}"]) if in_fname else None,
@@ -10349,7 +10721,7 @@ def save_sts_direct():
         safe_db_commit()
 
         assistant_msg = Message(
-            thread_id=thread_id,
+            thread_id=thread_db_id,
             role='assistant',
             content=a_content,
             model=model_key,
@@ -10457,7 +10829,7 @@ def serve_file(filename):
     if not actual_rel_path:
         abort(403)
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], actual_rel_path)
-    if not os.path.realpath(file_path).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])):
+    if not _path_is_within(app.config['UPLOAD_FOLDER'], file_path):
         abort(403)
     
     enc_path = file_path + '.enc'
@@ -11017,7 +11389,8 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
             rendered = f'<font face="{mono_font}" backColor="#eeeeee">{rendered}</font>'
         elif tag_name == "a":
             href = str(node.get("href") or "").strip()
-            if href:
+            parsed_href = urlparse(href) if href else None
+            if href and parsed_href and parsed_href.scheme.lower() in {"http", "https", "mailto"}:
                 rendered = f'<a href="{esc(href)}">{rendered}</a>'
         rendered = apply_inline_styles(rendered, node)
         return rendered
@@ -11143,20 +11516,16 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
         try:
             if src.startswith("data:"):
                 header, encoded = src.split(",", 1)
-                if ";base64" in header:
-                    image_bytes = base64.b64decode(encoded)
-                else:
-                    image_bytes = unquote(encoded).encode("utf-8")
-            elif src.startswith("http://") or src.startswith("https://"):
-                response = requests.get(src, timeout=10)
-                if response.ok:
-                    image_bytes = response.content
-            elif src.startswith("/"):
-                local_path = os.path.join(app.root_path, src.lstrip("/"))
-                if os.path.exists(local_path):
-                    with open(local_path, "rb") as fh:
-                        image_bytes = fh.read()
+                if header.lower().startswith("data:image/") and ";base64" in header.lower() and len(encoded) <= 14_000_000:
+                    image_bytes = base64.b64decode(encoded, validate=True)
+            elif src.startswith("/files/") and current_user.is_authenticated:
+                rel_path = _resolve_user_upload_rel_path(src, current_user.id)
+                info = _get_file_disk_info(rel_path) if rel_path else None
+                if info and info.get("exists") and int(info.get("size") or 0) <= 10 * 1024 * 1024:
+                    image_bytes = _load_user_file_bytes(rel_path, info)
         except Exception:
+            image_bytes = None
+        if image_bytes and len(image_bytes) > 10 * 1024 * 1024:
             image_bytes = None
         if not image_bytes:
             alt = normalize_text(node.get("alt") or "image")
@@ -11429,6 +11798,8 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
 def rich_paste_pdf():
     if not getattr(current_user, "is_admin", False):
         return jsonify({'error': '403'}), 403
+    if request.content_length and request.content_length > 2 * 1024 * 1024:
+        return jsonify({'error': 'payload_too_large'}), 413
     
     log_force(
         "[DEBUG] rich_paste_pdf start "
@@ -11472,8 +11843,8 @@ def rich_paste_pdf():
         d = {}
 
     content_html = str(d.get('html') or '').strip()
-    title = str(d.get('title') or 'Clipboard Export').strip() or 'Clipboard Export'
-    created_at = str(d.get('created_at') or datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')).strip()
+    title = (str(d.get('title') or 'Clipboard Export').strip() or 'Clipboard Export')[:200]
+    created_at = str(d.get('created_at') or datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')).strip()[:100]
 
     log_force(
         "[DEBUG] rich_paste_pdf payload info "
@@ -11485,6 +11856,8 @@ def rich_paste_pdf():
     if not content_html:
         log_force("[DEBUG] rich_paste_pdf error: missing_html")
         return jsonify({'error': 'missing_html'}), 400
+    if len(content_html) > 2 * 1024 * 1024:
+        return jsonify({'error': 'payload_too_large'}), 413
 
     log_force(f"[DEBUG] rich_paste_pdf starting _build_rich_paste_pdf_bytes for title={title}")
     try:
@@ -11573,9 +11946,12 @@ def update_thread_settings(thread_id):
             **_get_temp_chat_runtime_meta(t, user=current_user)
         })
     d = request.json or {}
-    log_force(f"DEBUG: update_thread_settings received json: {d}")
+    log_force(f"DEBUG: update_thread_settings received keys: {sorted(d.keys())}")
     if 'custom_instruction' in d:
-        t.custom_instruction = d['custom_instruction']
+        custom_instruction = str(d.get('custom_instruction') or '')
+        if len(custom_instruction) > 100_000:
+            return jsonify({'error': 'payload_too_large'}), 413
+        t.custom_instruction = custom_instruction
     if 'include_global_instruction' in d:
         t.include_global_instruction = bool(d['include_global_instruction'])
     if 'is_temporary' in d:
@@ -11610,7 +11986,8 @@ def update_thread_settings(thread_id):
 def update_title(thread_id):
     t = resolve_thread_for_user(thread_id, current_user.id)
     if not t: return jsonify({'error': '403'}), 403
-    t.title = request.json.get('title', 'Untitled')
+    data = request.get_json(silent=True) or {}
+    t.title = _normalize_thread_title(data.get('title', 'Untitled'))
     safe_db_commit()
     return jsonify({'status': 'ok', 'title': t.title})
 
@@ -11730,7 +12107,7 @@ def delete_files_batch():
         if norm.startswith("..") or os.path.isabs(norm): continue
         if norm.startswith(f"{current_user.id}/"):
             fp = os.path.join(app.config['UPLOAD_FOLDER'], norm)
-            if not os.path.realpath(fp).startswith(os.path.realpath(app.config['UPLOAD_FOLDER'])): continue
+            if not _path_is_within(app.config['UPLOAD_FOLDER'], fp): continue
             secure_delete(fp)
             secure_delete(fp + '.enc')
             _delete_file_cache_for_path(current_user.id, norm)
@@ -12299,10 +12676,14 @@ def handle_settings():
     if request.method == 'GET':
         # Ensure we have the latest data from DB
         db.session.refresh(current_user)
-        status = redis_conn.get(f"migration_status:{current_user.id}")
-        mig_status = status.decode() if status else "idle"
-        prog = redis_conn.get(f"migration_progress:{current_user.id}")
-        mig_progress = prog.decode() if prog else ""
+        try:
+            status = redis_conn.get(f"migration_status:{current_user.id}")
+            mig_status = status.decode() if status else "idle"
+            prog = redis_conn.get(f"migration_progress:{current_user.id}")
+            mig_progress = prog.decode() if prog else ""
+        except Exception:
+            mig_status = "idle"
+            mig_progress = ""
         sp = current_user.system_prompt
         if current_user.enable_e2ee and sp: sp = decrypt_val(sp)
         # 2FA Status
@@ -12334,17 +12715,19 @@ def handle_settings():
             'global_system_prompt_effective': global_prompt_effective,
             'global_system_prompt_uses_time_fallback': global_prompt_uses_time_fallback,
             'username': current_user.username, 
-            'openai_key': decrypt_val(current_user.openai_api_key) or "", 
-            'gemini_key': decrypt_val(current_user.gemini_api_key) or "", 
-            'anthropic_key': decrypt_val(current_user.anthropic_api_key) or "",
-            'deepseek_key': decrypt_val(current_user.deepseek_api_key) or "",
-            'model_api_keys': _load_user_model_api_key_map(current_user),
+            'openai_key': _masked_secret(current_user.openai_api_key),
+            'gemini_key': _masked_secret(current_user.gemini_api_key),
+            'anthropic_key': _masked_secret(current_user.anthropic_api_key),
+            'deepseek_key': _masked_secret(current_user.deepseek_api_key),
+            'model_api_keys': {
+                model_key: _SECRET_MASK for model_key in _load_user_model_api_key_map(current_user)
+            },
             'gemini_backend': _normalize_gemini_backend(current_user.gemini_backend),
             'gemini_vertex_project': decrypt_val(current_user.gemini_vertex_project) or "",
             'gemini_vertex_location': _normalize_gemini_vertex_location(current_user.gemini_vertex_location),
-            'gemini_vertex_credentials_json': decrypt_val(current_user.gemini_vertex_credentials_json) or "",
-            'xai_key': decrypt_val(current_user.xai_api_key) or "",
-            'google_key': decrypt_val(current_user.google_api_key) or "",
+            'gemini_vertex_credentials_json': _masked_secret(current_user.gemini_vertex_credentials_json),
+            'xai_key': _masked_secret(current_user.xai_api_key),
+            'google_key': _masked_secret(current_user.google_api_key),
             'google_project': decrypt_val(current_user.google_cloud_project) or "",
             'mic_transcribe_mode': _normalize_mic_transcribe_mode(getattr(current_user, 'mic_transcribe_mode', None)),
             'stt_model': current_user.stt_model or "gpt-4o-mini-transcribe",
@@ -12406,7 +12789,29 @@ def handle_settings():
         if getattr(current_user, 'is_admin', False):
             payload['admin_api_key_mode'] = _normalize_admin_api_key_mode(current_user.admin_api_key_mode)
         return jsonify(payload)
-    d = request.json
+    d = request.get_json(silent=True) or {}
+    if not isinstance(d, dict):
+        return jsonify({'error': 'invalid_payload'}), 400
+    if len(json.dumps(d, ensure_ascii=False, default=str)) > 2 * 1024 * 1024:
+        return jsonify({'error': 'payload_too_large'}), 413
+    for secret_key in (
+        'openai_key', 'gemini_key', 'anthropic_key', 'deepseek_key', 'xai_key',
+        'google_key', 'google_project', 'gemini_vertex_project'
+    ):
+        if secret_key in d and len(str(d.get(secret_key) or '')) > 4096:
+            return jsonify({'error': f'{secret_key}_too_large'}), 400
+    for text_key, max_chars in (
+        ('system_prompt', 500_000), ('llm_transcribe_prompt', 100_000),
+        ('rich_paste_prompt_default', 100_000), ('gemini_vertex_credentials_json', 100_000)
+    ):
+        if text_key in d and len(str(d.get(text_key) or '')) > max_chars:
+            return jsonify({'error': f'{text_key}_too_large'}), 400
+    if 'default_model' in d and d.get('default_model') not in ALL_VALID_MODEL_IDS:
+        return jsonify({'error': 'invalid_default_model'}), 400
+    if 'default_vision_model' in d and d.get('default_vision_model') not in ALL_VALID_MODEL_IDS:
+        return jsonify({'error': 'invalid_vision_model'}), 400
+    if 'stt_model' in d and d.get('stt_model') not in VALID_STT_MODELS:
+        return jsonify({'error': 'invalid_stt_model'}), 400
     if 'system_prompt' in d: 
         if current_user.enable_e2ee: current_user.system_prompt = encrypt_val(d['system_prompt'])
         else: current_user.system_prompt = d['system_prompt']
@@ -12418,22 +12823,22 @@ def handle_settings():
         current_user.apply_auto_system_prompt_notices = bool(d['apply_auto_system_prompt_notices'])
     if 'auto_system_prompt_notices_config' in d:
         set_user_auto_system_prompt_notices_config(current_user, d.get('auto_system_prompt_notices_config'))
-    if 'openai_key' in d: current_user.openai_api_key = encrypt_val(d['openai_key'])
-    if 'gemini_key' in d: current_user.gemini_api_key = encrypt_val(d['gemini_key'])
-    if 'anthropic_key' in d: current_user.anthropic_api_key = encrypt_val(d['anthropic_key'])
-    if 'deepseek_key' in d: current_user.deepseek_api_key = encrypt_val(d['deepseek_key'])
-    if 'model_api_keys' in d: _save_user_model_api_key_map(current_user, d.get('model_api_keys'))
+    if 'openai_key' in d and d['openai_key'] != _SECRET_MASK: current_user.openai_api_key = encrypt_val(d['openai_key'])
+    if 'gemini_key' in d and d['gemini_key'] != _SECRET_MASK: current_user.gemini_api_key = encrypt_val(d['gemini_key'])
+    if 'anthropic_key' in d and d['anthropic_key'] != _SECRET_MASK: current_user.anthropic_api_key = encrypt_val(d['anthropic_key'])
+    if 'deepseek_key' in d and d['deepseek_key'] != _SECRET_MASK: current_user.deepseek_api_key = encrypt_val(d['deepseek_key'])
+    if 'model_api_keys' in d: _merge_masked_model_api_key_map(current_user, d.get('model_api_keys'))
     if 'gemini_backend' in d: current_user.gemini_backend = _normalize_gemini_backend(d['gemini_backend'])
     if 'gemini_vertex_project' in d: current_user.gemini_vertex_project = encrypt_val(d['gemini_vertex_project'])
     if 'gemini_vertex_location' in d: current_user.gemini_vertex_location = _normalize_gemini_vertex_location(d['gemini_vertex_location'])
-    if 'gemini_vertex_credentials_json' in d:
+    if 'gemini_vertex_credentials_json' in d and d['gemini_vertex_credentials_json'] != _SECRET_MASK:
         try:
             normalized_vertex_json = _normalize_gemini_vertex_credentials_json(d['gemini_vertex_credentials_json'])
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
         current_user.gemini_vertex_credentials_json = encrypt_val(normalized_vertex_json)
-    if 'xai_key' in d: current_user.xai_api_key = encrypt_val(d['xai_key'])
-    if 'google_key' in d: current_user.google_api_key = encrypt_val(d['google_key'])
+    if 'xai_key' in d and d['xai_key'] != _SECRET_MASK: current_user.xai_api_key = encrypt_val(d['xai_key'])
+    if 'google_key' in d and d['google_key'] != _SECRET_MASK: current_user.google_api_key = encrypt_val(d['google_key'])
     if 'google_project' in d: current_user.google_cloud_project = encrypt_val(d['google_project'])
     if 'mic_transcribe_mode' in d:
         current_user.mic_transcribe_mode = _normalize_mic_transcribe_mode(d['mic_transcribe_mode'])
@@ -12504,18 +12909,30 @@ def handle_settings():
     if getattr(current_user, 'is_admin', False) and 'bot_detection_global_enabled' in d:
         set_app_setting("bot_detection_global_enabled", "1" if d['bot_detection_global_enabled'] else "0")
     
-    log_force(f"DEBUG: handle_settings processing extra fields, d={d}")
-    if d.get('new_password'): current_user.set_password(d['new_password'])
+    log_force(f"DEBUG: handle_settings processing keys={sorted(d.keys())}")
+    if d.get('new_password'):
+        new_password = str(d['new_password'])
+        if len(new_password) < 8 or len(new_password) > 256:
+            return jsonify({'error': 'Password must be 8-256 characters'}), 400
+        current_user.set_password(new_password)
+        revoke_user_sessions(current_user.id, exclude_session_id=session.get('session_id'))
     if d.get('new_username') and d['new_username'] != current_user.username:
-        if _is_primary_admin_username(d['new_username']) and not getattr(current_user, "is_admin", False):
+        new_username = str(d['new_username']).replace('\x00', '').strip()
+        if len(new_username) < 3 or len(new_username) > 80 or re.search(r'[\x00-\x1f\x7f]', new_username):
+            return jsonify({'error': 'Username must be 3-80 characters'}), 400
+        if _is_primary_admin_username(new_username) and not getattr(current_user, "is_admin", False):
             pass
-        elif not User.query.filter_by(username=d['new_username']).first(): current_user.username = d['new_username']
+        elif not User.query.filter_by(username=new_username).first(): current_user.username = new_username
     if 'enable_e2ee' in d and d['enable_e2ee'] != current_user.enable_e2ee:
         target_enable = d['enable_e2ee']
         task_queue.enqueue(migrate_e2ee_task, current_user.id, target_enable)
         flash("暗号化設定の変更処理を開始しました。完了までしばらくお待ちください。")
     if 'disable_2fa' in d and d['disable_2fa']:
         current_user.is_2fa_enabled = False
+        current_user.totp_secret = None
+        current_user.webauthn_credentials = None
+        current_user.passkey_only_login = False
+        current_user.default_2fa_method = 'totp'
         flash("2FAを無効化しました。")
     else:
         log_force("DEBUG: handle_settings calling _refresh_user_2fa_state")
@@ -12535,9 +12952,12 @@ def receive_client_log():
     try:
         d = request.get_json(silent=True) or {}
         level = str(d.get('level') or 'info').upper()
+        if level not in {'DEBUG', 'INFO', 'WARNING', 'ERROR'}:
+            level = 'INFO'
         msg = str(d.get('message') or '')
         if not msg:
             return jsonify({'status': 'ignored', 'reason': 'empty'}), 200
+        msg = re.sub(r'[\r\n\x00-\x08\x0b\x0c\x0e-\x1f\x7f]+', ' ', msg)[:8192]
         log_force(f"CLIENT-DEBUG [{level}]: {msg}")
         return jsonify({'status': 'ok'})
     except Exception as e:
@@ -13042,9 +13462,13 @@ def handle_gems():
     if request.method == 'GET':
         gems = Gem.query.filter_by(user_id=current_user.id).order_by(Gem.created_at.desc()).all()
         return jsonify([{'uuid': g.uuid, 'id': g.id, 'name': g.name, 'description': g.description, 'instruction': g.instruction, 'fixed_prompts': g.fixed_prompts_json, 'default_model': g.default_model} for g in gems])
-    d = request.json
+    d = request.get_json(silent=True) or {}
+    try:
+        payload = _normalize_gem_payload(d)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
     import uuid as _uuid
-    gem = Gem(uuid=str(_uuid.uuid4()), user_id=current_user.id, name=d.get('name', 'My Gem'), description=d.get('description', ''), instruction=d.get('instruction', ''), fixed_prompts_json=d.get('fixed_prompts'), default_model=d.get('default_model'))
+    gem = Gem(uuid=str(_uuid.uuid4()), user_id=current_user.id, **payload)
     db.session.add(gem)
     safe_db_commit()
     return jsonify({'uuid': gem.uuid, 'id': gem.id, 'name': gem.name})
@@ -13059,12 +13483,13 @@ def handle_gem_item(gem_uuid):
         return jsonify({'uuid': gem.uuid, 'id': gem.id, 'name': gem.name, 'description': gem.description, 'instruction': gem.instruction, 'fixed_prompts': gem.fixed_prompts_json, 'default_model': gem.default_model})
 
     if request.method == 'PUT':
-        d = request.json
-        gem.name = d.get('name', gem.name)
-        gem.description = d.get('description', gem.description)
-        gem.instruction = d.get('instruction', gem.instruction)
-        gem.fixed_prompts_json = d.get('fixed_prompts', gem.fixed_prompts_json)
-        gem.default_model = d.get('default_model', gem.default_model)
+        d = request.get_json(silent=True) or {}
+        try:
+            payload = _normalize_gem_payload(d, existing=gem)
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+        for key, value in payload.items():
+            setattr(gem, key, value)
         safe_db_commit()
         return jsonify({'uuid': gem.uuid, 'id': gem.id, 'name': gem.name})
     if request.method == 'DELETE':
@@ -13098,12 +13523,15 @@ def toggle_maintenance():
 @app.route('/synthesize', methods=['POST'])
 @login_required
 def synthesize():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     text_content = data.get('text')
     voice_type = data.get('voice_type', 'neural') # studio, neural, standard
     language = data.get('language', 'ja-JP')
     
-    if not text_content: return jsonify({'error': 'No text provided'}), 400
+    if not isinstance(text_content, str) or not text_content.strip():
+        return jsonify({'error': 'No text provided'}), 400
+    if len(text_content) > 20_000:
+        return jsonify({'error': 'Text is too large'}), 413
     
     try:
         g_key = decrypt_val(current_user.google_api_key)
@@ -13147,17 +13575,11 @@ def synthesize():
                 limit_mb = _bytes_to_mb_str(limit)
                 return jsonify({'error': f'Storage limit exceeded ({used_mb} / {limit_mb})'}), 413
         except Exception:
-            pass
-        user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
-        if not os.path.exists(user_dir): os.makedirs(user_dir, exist_ok=True)
-        
+            return jsonify({'error': 'Unable to validate storage capacity'}), 500
         fname = f"tts_{int(time.time())}_{os.urandom(4).hex()}.mp3"
-        fpath = os.path.join(user_dir, fname)
-        
-        if current_user.enable_e2ee:
-            with open(fpath + '.enc', 'wb') as f: f.write(encrypt_bytes(response.audio_content))
-        else:
-            with open(fpath, 'wb') as f: f.write(response.audio_content)
+        _save_user_generated_bytes(
+            current_user.id, response.audio_content, fname, current_user.enable_e2ee
+        )
             
         return jsonify({'url': f"/files/{current_user.id}/{fname}", 'filename': f"{current_user.id}/{fname}"})
     except Exception as e:
@@ -13175,32 +13597,27 @@ def transcribe():
         if not f or not f.filename:
             return jsonify({'error': 'No file'}), 400
         fname = secure_filename(f.filename)
-        audio_content = f.read()
+        audio_content = f.read(_AUDIO_INPUT_MAX_BYTES + 1)
     else:
-        data = request.json or {}
+        data = request.get_json(silent=True) or {}
         filename = data.get('filename')
         if not filename: return jsonify({'error': 'No filename'}), 400
-        
-        # Path handling (same as /files route)
-        parts = filename.split('/')
-        if len(parts) != 2: return jsonify({'error': 'Invalid path'}), 400
-        uid, fname = parts
-        if uid != str(current_user.id): return jsonify({'error': 'Unauthorized'}), 403
-        
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], uid, fname)
-        if current_user.enable_e2ee:
-            if not os.path.exists(file_path + '.enc'):
-                return jsonify({'error': 'File not found'}), 404
-            with open(file_path + '.enc', 'rb') as f:
-                audio_content = decrypt_bytes(f.read())
-        else:
-            if not os.path.exists(file_path):
-                return jsonify({'error': 'File not found'}), 404
-            with open(file_path, 'rb') as f:
-                audio_content = f.read()
+
+        rel_path = _resolve_user_upload_rel_path(filename, current_user.id)
+        if not rel_path:
+            return jsonify({'error': 'Unauthorized'}), 403
+        info = _get_file_disk_info(rel_path)
+        if not info or not info.get('exists'):
+            return jsonify({'error': 'File not found'}), 404
+        if int(info.get('size') or 0) > _AUDIO_INPUT_MAX_BYTES:
+            return jsonify({'error': 'Audio file is too large'}), 413
+        audio_content = _load_user_file_bytes(rel_path, info)
+        fname = os.path.basename(rel_path)
 
     if not audio_content:
         return jsonify({'error': 'Empty audio'}), 400
+    if len(audio_content) > _AUDIO_INPUT_MAX_BYTES:
+        return jsonify({'error': 'Audio file is too large'}), 413
 
     try:
         transcribe_mode = _normalize_mic_transcribe_mode(getattr(current_user, 'mic_transcribe_mode', None))
@@ -13288,9 +13705,11 @@ def speech_to_speech():
         return jsonify({'error': 'Invalid thread'}), 403
     thread_id = t.id
 
-    audio_bytes = f.read()
+    audio_bytes = f.read(_AUDIO_INPUT_MAX_BYTES + 1)
     if not audio_bytes:
         return jsonify({'error': 'Empty audio'}), 400
+    if len(audio_bytes) > _AUDIO_INPUT_MAX_BYTES:
+        return jsonify({'error': 'Audio file is too large'}), 413
 
     provider = get_sts_provider(model_key)
     meta = STS_MODELS.get(model_key, {})
@@ -13604,6 +14023,8 @@ def upload():
     ALLOWED_EXTENSIONS = {'.txt', '.pdf', '.docx', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm', '.mp4', '.mov', '.mkv', '.avi', '.m4v'}
     files = request.files.getlist('file')
     if not files: return jsonify({'error': 'No file'}), 400
+    if len(files) > int(app.config.get('ATTACHMENT_MAX_FILES') or 30):
+        return jsonify({'error': 'Too many files'}), 400
     try:
         if not _is_primary_admin_user(current_user):
             hard_limit = _get_user_storage_limit_bytes(current_user)
@@ -13626,7 +14047,7 @@ def upload():
                 limit_mb = _bytes_to_mb_str(limit)
                 return jsonify({'error': f'Storage limit exceeded ({used_mb} / {limit_mb})'}), 413
     except Exception:
-        pass
+        return jsonify({'error': 'Unable to validate upload size'}), 400
     ud = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
     if not os.path.exists(ud):
         os.makedirs(ud, exist_ok=True)
@@ -13709,9 +14130,14 @@ def upload():
 @app.route('/upload/init', methods=['POST'])
 @login_required
 def upload_init():
-    data = request.json or {}
+    if not rate_limit(f"rl:upload_init:user:{current_user.id}", 30, 60):
+        return jsonify({'error': 'Too many upload requests'}), 429
+    data = request.get_json(silent=True) or {}
     filename = secure_filename((data.get('filename') or '').strip())
-    total_size = int(data.get('size') or 0)
+    try:
+        total_size = int(data.get('size') or 0)
+    except (TypeError, ValueError):
+        total_size = 0
     if not filename or total_size <= 0:
         return jsonify({'error': 'Invalid upload'}), 400
 
@@ -13731,8 +14157,13 @@ def upload_init():
             limit_mb = _bytes_to_mb_str(limit)
             return jsonify({'error': f'Storage limit exceeded ({used_mb} / {limit_mb})'}), 413
 
+    if _cleanup_stale_chunk_uploads(current_user.id) >= _CHUNK_UPLOAD_MAX_ACTIVE:
+        return jsonify({'error': 'Too many active uploads'}), 429
+
     upload_id = f"up_{int(time.time())}_{os.urandom(4).hex()}"
     session_dir = _chunk_session_dir(current_user.id, upload_id)
+    if not session_dir:
+        return jsonify({'error': 'Init failed'}), 500
     os.makedirs(session_dir, exist_ok=True)
     os.chmod(session_dir, 0o700)
     meta = {
@@ -13740,40 +14171,75 @@ def upload_init():
         "size": total_size,
         "received": 0,
         "created": int(time.time()),
-        "ext": ext
+        "ext": ext,
+        "chunk_size": _CHUNK_SIZE_BYTES,
+        "total_chunks": (total_size + _CHUNK_SIZE_BYTES - 1) // _CHUNK_SIZE_BYTES,
+        "state": "receiving"
     }
     if not _save_chunk_meta(os.path.join(session_dir, 'meta.json'), meta):
         return jsonify({'error': 'Init failed'}), 500
-    chunk_size = 10 * 1024 * 1024
-    return jsonify({'upload_id': upload_id, 'chunk_size': chunk_size})
+    return jsonify({'upload_id': upload_id, 'chunk_size': _CHUNK_SIZE_BYTES})
 
 @app.route('/upload/chunk', methods=['POST'])
 @login_required
 def upload_chunk():
+    if not rate_limit(f"rl:upload_chunk:user:{current_user.id}", 240, 60):
+        return jsonify({'error': 'Too many upload requests'}), 429
     upload_id = (request.form.get('upload_id') or '').strip()
     index = request.form.get('index')
     total = request.form.get('total')
     f = request.files.get('chunk')
-    if not upload_id or f is None:
+    if not _is_valid_chunk_upload_id(upload_id) or f is None:
         return jsonify({'error': 'Invalid chunk'}), 400
     session_dir = _chunk_session_dir(current_user.id, upload_id)
-    meta_path = os.path.join(session_dir, 'meta.json')
-    meta = _load_chunk_meta(meta_path)
-    if not meta:
+    if not session_dir or not os.path.isdir(session_dir):
         return jsonify({'error': 'Upload not found'}), 404
+    meta_path = os.path.join(session_dir, 'meta.json')
     try:
         index = int(index) if index is not None else 0
         total = int(total) if total is not None else 0
     except Exception:
         return jsonify({'error': 'Invalid chunk index'}), 400
-
     part_path = os.path.join(session_dir, 'data.part')
     try:
-        with open(part_path, 'ab') as out:
-            chunk_data = f.read()
-            out.write(chunk_data)
-        meta['received'] = int(meta.get('received') or 0) + len(chunk_data)
-        _save_chunk_meta(meta_path, meta)
+        with _chunk_upload_lock(session_dir):
+            meta = _load_chunk_meta(meta_path)
+            if not meta:
+                return jsonify({'error': 'Upload not found'}), 404
+            if meta.get('state') != 'receiving':
+                return jsonify({'error': 'Upload is not accepting chunks'}), 409
+            declared_size = int(meta.get('size') or 0)
+            received = int(meta.get('received') or 0)
+            chunk_size = int(meta.get('chunk_size') or _CHUNK_SIZE_BYTES)
+            expected_total = int(meta.get('total_chunks') or 0)
+            if received >= declared_size:
+                return jsonify({'error': 'Upload already complete'}), 409
+            if chunk_size != _CHUNK_SIZE_BYTES or expected_total <= 0 or total != expected_total:
+                return jsonify({'error': 'Invalid chunk count'}), 400
+            expected_index = received // chunk_size
+            if index != expected_index or index < 0 or index >= expected_total:
+                return jsonify({'error': 'Invalid chunk order'}), 409
+            current_size = os.path.getsize(part_path) if os.path.exists(part_path) else 0
+            if current_size != received:
+                return jsonify({'error': 'Upload state mismatch'}), 409
+            remaining = declared_size - received
+            expected_bytes = min(chunk_size, remaining)
+            chunk_data = f.read(chunk_size + 1)
+            if expected_bytes <= 0 or len(chunk_data) != expected_bytes:
+                return jsonify({'error': 'Invalid chunk size'}), 400
+            if not _is_primary_admin_user(current_user):
+                limit = _get_user_storage_limit_bytes(current_user)
+                used = _get_user_storage_usage_bytes(current_user.id)
+                if limit and used + len(chunk_data) > limit:
+                    return jsonify({'error': 'Storage limit exceeded'}), 413
+            with open(part_path, 'ab') as out:
+                out.write(chunk_data)
+                out.flush()
+            meta['received'] = received + len(chunk_data)
+            if not _save_chunk_meta(meta_path, meta):
+                with open(part_path, 'r+b') as out:
+                    out.truncate(received)
+                return jsonify({'error': 'Chunk state write failed'}), 500
     except Exception:
         return jsonify({'error': 'Chunk write failed'}), 500
 
@@ -13782,21 +14248,29 @@ def upload_chunk():
 @app.route('/upload/complete', methods=['POST'])
 @login_required
 def upload_complete():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     upload_id = (data.get('upload_id') or '').strip()
-    if not upload_id:
+    if not _is_valid_chunk_upload_id(upload_id):
         return jsonify({'error': 'Invalid upload'}), 400
     session_dir = _chunk_session_dir(current_user.id, upload_id)
-    meta_path = os.path.join(session_dir, 'meta.json')
-    meta = _load_chunk_meta(meta_path)
-    if not meta:
+    if not session_dir or not os.path.isdir(session_dir):
         return jsonify({'error': 'Upload not found'}), 404
-
+    meta_path = os.path.join(session_dir, 'meta.json')
     part_path = os.path.join(session_dir, 'data.part')
-    if not os.path.exists(part_path):
-        return jsonify({'error': 'Upload missing'}), 400
-    if int(meta.get('received') or 0) != int(meta.get('size') or 0):
-        return jsonify({'error': 'Upload incomplete'}), 400
+    with _chunk_upload_lock(session_dir):
+        meta = _load_chunk_meta(meta_path)
+        if not meta:
+            return jsonify({'error': 'Upload not found'}), 404
+        if meta.get('state') != 'receiving':
+            return jsonify({'error': 'Upload is already finalizing'}), 409
+        if not os.path.exists(part_path):
+            return jsonify({'error': 'Upload missing'}), 400
+        declared_size = int(meta.get('size') or 0)
+        if int(meta.get('received') or 0) != declared_size or os.path.getsize(part_path) != declared_size:
+            return jsonify({'error': 'Upload incomplete'}), 400
+        meta['state'] = 'finalizing'
+        if not _save_chunk_meta(meta_path, meta):
+            return jsonify({'error': 'Finalize state failed'}), 500
 
     ud = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
     if not os.path.exists(ud):
@@ -13882,6 +14356,9 @@ def upload_complete():
         try:
             if os.path.exists(meta_path):
                 os.remove(meta_path)
+            lock_path = os.path.join(session_dir, '.lock')
+            if os.path.exists(lock_path):
+                os.remove(lock_path)
             os.rmdir(session_dir)
         except Exception:
             pass
@@ -14366,7 +14843,7 @@ def first_token_metric():
             latency_ms=latency_ms,
             client_sent_at=client_sent_at,
             ip_address=get_client_ip(),
-            user_agent=request.headers.get('User-Agent', '')
+            user_agent=get_request_user_agent()
         )
         db.session.add(row)
         safe_db_commit()
@@ -14473,9 +14950,12 @@ def client_log():
     try:
         d = request.get_json(silent=True) or {}
         level = str(d.get('level') or 'info').upper()
+        if level not in {'DEBUG', 'INFO', 'WARNING', 'ERROR'}:
+            level = 'INFO'
         msg = str(d.get('message') or '')
         if not msg:
             return jsonify({'status': 'ignored', 'reason': 'empty'}), 200
+        msg = re.sub(r'[\r\n\x00-\x08\x0b\x0c\x0e-\x1f\x7f]+', ' ', msg)[:8192]
         log_force(f"CLIENT-DEBUG [LEGACY {level}]: {msg}")
         return jsonify({'status': 'ok'})
     except Exception:
@@ -14491,7 +14971,11 @@ def handle_not_found(_error):
 
 if __name__ == '__main__':
     log_force("DEBUG: App starting in main")
-    app.run(debug=True)
+    app.run(
+        host=os.getenv('FLASK_RUN_HOST', '127.0.0.1'),
+        port=_env_int('FLASK_RUN_PORT', 5000),
+        debug=_env_bool('FLASK_DEBUG', False)
+    )
 else:
     log_force("DEBUG: App imported/starting in worker or gunicorn")
 

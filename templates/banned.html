@@ -117,7 +117,10 @@
             </form>
             {% endif %}
         </div>
-        <a class="btn" href="{{ url_for('logout') }}">ログアウト</a>
+        <form method="POST" action="{{ url_for('logout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="btn" type="submit">ログアウト</button>
+        </form>
     </div>
 </body>
 </html>

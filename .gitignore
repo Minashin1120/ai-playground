@@ -6,6 +6,9 @@ __pycache__/
 maintenance.lock
 db_fix.py
 *.log
+*.bak*
+*_bak_*
+cookie.txt
 .DS_Store
 instance/uploads/*
 static/uploads/*

@@ -347,6 +347,12 @@
                         </div>
                         <div id="reasoning-effort-container" class="hidden flex items-center gap-1"><span class="text-gray-400">Effort:</span><select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="none">None</option><option value="low">Low</option><option value="medium" selected>Med</option><option value="high">High</option><option value="xhigh">XHigh</option></select></div>
                         <div class="flex items-center gap-1 border-l border-gray-600 pl-2 ml-2"><span class="text-gray-400">Safety:</span><select id="safety-setting" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="default">Default</option><option value="none" class="text-red-300">None</option></select></div>
+                        <div id="prompt-cache-container" class="flex items-center gap-0.5 select-none ml-2">
+                            <label class="flex items-center gap-1 cursor-pointer" title="プロンプトキャッシュを有効化（同一APIプロバイダ内のモデルのみ切替可）">
+                                <input type="checkbox" id="enable-prompt-cache" class="accent-teal-500 w-3 h-3">
+                                <span class="text-teal-300 text-[10px]">PromptCache</span>
+                            </label>
+                        </div>
                         <div class="flex items-center gap-0.5 select-none ml-2">
                             <label class="flex items-center gap-1 cursor-pointer" title="Client-side Compression">
                                 <input type="checkbox" id="enable-compression" class="accent-blue-500 w-3 h-3" checked>

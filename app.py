@@ -546,8 +546,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-10-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.608'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-10-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.609'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1443,6 +1443,32 @@ def is_anthropic_model_key(model_key):
     mk = str(model_key or "").lower()
     return "claude" in mk
 
+def get_model_api_provider(model_key):
+    """Return the API provider id for a model (used by prompt-cache lock)."""
+    mk = str(model_key or "").lower().strip()
+    if not mk:
+        return None
+    if "claude" in mk:
+        return "anthropic"
+    if "deepseek" in mk:
+        return "deepseek"
+    if "grok" in mk and "gpt" not in mk:
+        return "xai"
+    if "google-tts" in mk:
+        return "google"
+    if "gemini" in mk:
+        return "gemini"
+    return "openai"
+
+_PROVIDER_LABELS = {
+    "openai": "OpenAI",
+    "gemini": "Gemini",
+    "anthropic": "Anthropic (Claude)",
+    "xai": "xAI (Grok)",
+    "deepseek": "DeepSeek",
+    "google": "Google Cloud",
+}
+
 def is_deepseek_model_key(model_key):
     return _is_deepseek_model_key(model_key)
 
@@ -2311,6 +2337,8 @@ class Thread(db.Model):
     include_global_instruction = db.Column(db.Boolean, default=True)
     last_model = db.Column(db.String(64), nullable=True)
     last_gem_uuid = db.Column(db.String(36), nullable=True)
+    enable_prompt_caching = db.Column(db.Boolean, default=False)
+    prompt_cache_provider = db.Column(db.String(32), nullable=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     messages = db.relationship('Message', backref='thread', cascade="all, delete-orphan", lazy=True)
 
@@ -3012,6 +3040,30 @@ def ensure_thread_temporary_column():
             if not res:
                 conn.execute(text("SET SESSION lock_wait_timeout=1"))
                 conn.execute(text("ALTER TABLE thread ADD COLUMN is_temporary BOOLEAN DEFAULT 0"))
+    except Exception:
+        pass
+
+def ensure_thread_prompt_caching_columns():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='thread' "
+                "AND COLUMN_NAME='enable_prompt_caching'"
+            )).scalar()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE thread ADD COLUMN enable_prompt_caching BOOLEAN DEFAULT 0"))
+            res2 = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='thread' "
+                "AND COLUMN_NAME='prompt_cache_provider'"
+            )).scalar()
+            if not res2:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE thread ADD COLUMN prompt_cache_provider VARCHAR(32)"))
     except Exception:
         pass
 
@@ -7004,8 +7056,19 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         "messages": claude_messages,
                         "max_tokens": 8192,
                     }
-                    if options.get('system_prompt'):
-                        claude_kwargs["system"] = options.get('system_prompt')
+                    sys_prompt_claude = options.get('system_prompt')
+                    if options.get('enable_prompt_caching'):
+                        # Automatic prompt caching (Claude): top-level cache_control
+                        claude_kwargs["cache_control"] = {"type": "ephemeral"}
+                        if sys_prompt_claude:
+                            claude_kwargs["system"] = [{
+                                "type": "text",
+                                "text": sys_prompt_claude,
+                                "cache_control": {"type": "ephemeral"},
+                            }]
+                        log_force("Claude Prompt Caching enabled")
+                    elif sys_prompt_claude:
+                        claude_kwargs["system"] = sys_prompt_claude
                     
                     if options.get('enable_thinking'):
                         budget = 0
@@ -7088,6 +7151,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 create_kwargs["use_encrypted_content"] = True # Request encrypted reasoning if available
                 if options.get('enable_python') and XAI_SDK_AVAILABLE:
                     create_kwargs["tools"] = [x_code_execution()]
+                if options.get('enable_prompt_caching') and options.get('prompt_cache_key'):
+                    create_kwargs["conversation_id"] = options.get('prompt_cache_key')
+                    log_force(f"Grok Prompt Caching conversation_id={options.get('prompt_cache_key')}")
 
                 _mark_provider_request_started()
                 chat_session = x_client.chat.create(**create_kwargs)
@@ -7789,6 +7855,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         deepseek_kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
                     else:
                         deepseek_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+                    if options.get('enable_prompt_caching') and options.get('prompt_cache_key'):
+                        # DeepSeek / OpenAI-compatible: stable prompt_cache_key improves hit rates
+                        deepseek_kwargs["extra_body"] = dict(deepseek_kwargs.get("extra_body") or {})
+                        deepseek_kwargs["extra_body"]["prompt_cache_key"] = options.get('prompt_cache_key')
+                        log_force(f"DeepSeek Prompt Caching key={options.get('prompt_cache_key')}")
 
                     _mark_provider_request_started()
                     final_openai_usage = None
@@ -7969,6 +8040,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     "stream": True,
                     "store": store_flag,
                 }
+                if options.get('enable_prompt_caching') and options.get('prompt_cache_key'):
+                    kwargs["prompt_cache_key"] = options.get('prompt_cache_key')
+                    log_force(f"Responses API Prompt Caching key={options.get('prompt_cache_key')}")
 
                 if is_grok and grok_enable_search:
                     kwargs['tools'] = [{"type": "web_search"}, {"type": "x_search"}]
@@ -9333,6 +9407,17 @@ def chat_stream():
         thread_was_created = True
     thread_id = t.id
     thread_stream_id = t.public_id if t and t.public_id else None
+
+    # Prompt-cache provider lock: reject before saving the user message
+    enable_pc_request = bool(data.get('enable_prompt_caching'))
+    provider_for_pc = get_model_api_provider(data.get('model'))
+    locked_provider = getattr(t, 'prompt_cache_provider', None)
+    if enable_pc_request and locked_provider and provider_for_pc and locked_provider != provider_for_pc:
+        locked_label = _PROVIDER_LABELS.get(locked_provider, locked_provider)
+        next_label = _PROVIDER_LABELS.get(provider_for_pc, provider_for_pc)
+        return jsonify({
+            'error': f'PromptCache有効中は他API（{next_label}）のモデルに変更できません。ロック中: {locked_label}'
+        }), 400
     
     user_msg = None
     attachment_name_map = {}
@@ -9503,7 +9588,24 @@ def chat_stream():
             'attachment_name_map': attachment_name_map,
             'image_vision_model': data.get('image_vision_model'),
             'gem_uuid': data.get('gem_uuid'),
+            'enable_prompt_caching': enable_pc_request,
+            'prompt_cache_key': None,
         }
+    # Persist prompt-cache flags on the thread (provider locked while enabled)
+    try:
+        if enable_pc_request:
+            t.enable_prompt_caching = True
+            if provider_for_pc:
+                t.prompt_cache_provider = provider_for_pc
+            cache_id = t.public_id or str(t.id)
+            options['prompt_cache_key'] = f"thread-{cache_id}"
+        else:
+            t.enable_prompt_caching = False
+            t.prompt_cache_provider = None
+        db.session.add(t)
+        safe_db_commit()
+    except Exception as e:
+        logger.warning(f"prompt caching thread flags update failed: {e}")
     if 'thread_custom_instruction' in data:
         options['thread_custom_instruction'] = data.get('thread_custom_instruction')
 
@@ -10523,6 +10625,8 @@ def handle_thread_item(thread_id):
                 'include_global_instruction': t.include_global_instruction if t.include_global_instruction is not None else True,
                 'last_model': t.last_model,
                 'last_gem_uuid': t.last_gem_uuid,
+                'enable_prompt_caching': bool(getattr(t, "enable_prompt_caching", False)),
+                'prompt_cache_provider': getattr(t, "prompt_cache_provider", None),
                 'is_temporary': bool(getattr(t, "is_temporary", False)),
                 'pending_job': pending_job
             })
@@ -13797,6 +13901,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_thread_prompt_caching_columns()
+    except Exception:
+        pass
+    try:
         ensure_message_token_io_columns()
     except Exception:
         pass
@@ -14136,6 +14244,12 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE thread ADD COLUMN is_temporary BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE thread ADD COLUMN enable_prompt_caching BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE thread ADD COLUMN prompt_cache_provider VARCHAR(32)")
         except: pass
 
 @app.route('/api/metrics/first_token', methods=['POST'])

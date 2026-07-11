@@ -244,11 +244,15 @@
             '.viewer-meta',
             '#quote-bar',
             '#slash-command-suggestions',
-            '#gem-suggestions'
+            '#gem-suggestions',
+            '#total-token-bar'
         ].join(',');
         const refreshLiquidGlassSurfaces = () => {
             document.querySelectorAll(LIQUID_GLASS_SURFACE_SELECTOR).forEach((element) => {
                 element.classList.add('liquid-glass-surface');
+                if (element.matches('.viewer-toolbar, .viewer-meta')) {
+                    element.classList.add('liquid-glass-clear');
+                }
             });
         };
         const applyLiquidGlassMode = (enabled) => {
@@ -267,6 +271,24 @@
             surface.style.setProperty('--glass-light-x', `${x.toFixed(1)}%`);
             surface.style.setProperty('--glass-light-y', `${y.toFixed(1)}%`);
         }, { passive: true });
+        document.addEventListener('pointerout', (event) => {
+            const surface = event.target.closest ? event.target.closest(LIQUID_GLASS_SURFACE_SELECTOR) : null;
+            if (!surface || (event.relatedTarget && surface.contains(event.relatedTarget))) return;
+            surface.style.removeProperty('--glass-light-x');
+            surface.style.removeProperty('--glass-light-y');
+            surface.classList.remove('liquid-glass-pressed');
+        }, { passive: true });
+        document.addEventListener('pointerdown', (event) => {
+            if (!document.body || !document.body.classList.contains('liquid-glass-mode')) return;
+            const surface = event.target.closest ? event.target.closest(LIQUID_GLASS_SURFACE_SELECTOR) : null;
+            if (surface) surface.classList.add('liquid-glass-pressed');
+        }, { passive: true });
+        const releaseLiquidGlassPress = (event) => {
+            const surface = event.target.closest ? event.target.closest(LIQUID_GLASS_SURFACE_SELECTOR) : null;
+            if (surface) surface.classList.remove('liquid-glass-pressed');
+        };
+        document.addEventListener('pointerup', releaseLiquidGlassPress, { passive: true });
+        document.addEventListener('pointercancel', releaseLiquidGlassPress, { passive: true });
         const MODAL_ANIM_MS = 280;
         const formatBytes = (bytes) => {
             if (bytes === null || bytes === undefined) return '0MB';

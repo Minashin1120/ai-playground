@@ -233,6 +233,12 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("LIQUID_GLASS_SURFACE_SELECTOR", script)
         self.assertIn("--glass-light-x", script)
         self.assertIn("document.addEventListener('pointermove'", script)
+        self.assertIn("document.addEventListener('pointerout'", script)
+        self.assertIn("liquid-glass-pressed", script)
+        self.assertIn("liquid-glass-clear", script)
+        self.assertIn("Liquid Glass V3: self-contained optical material", css)
+        self.assertIn("--glass-caustic-opacity", css)
+        self.assertIn("prefers-reduced-transparency: reduce", css)
         surface_rule = css.split("body.liquid-glass-mode .liquid-glass-surface {", 1)[1].split("}", 1)[0]
         self.assertNotIn("position: relative", surface_rule)
         self.assertIn("body.liquid-glass-mode #sidebar {\n        position: fixed;", css)

@@ -1087,6 +1087,137 @@
     }
 }
 
+/*
+ * Liquid Glass V3: self-contained optical material (V4.8.622)
+ * The material keeps its tint, edge thickness, internal scatter and caustic
+ * highlights even over a flat background. These overrides intentionally leave
+ * all V2 geometry intact, including the mobile fixed/absolute positioning.
+ */
+body.liquid-glass-mode {
+    --glass-light-x: 50%;
+    --glass-light-y: 0%;
+    --glass-fill-top: rgba(255,255,255,0.25);
+    --glass-fill-middle: rgba(77,105,140,0.16);
+    --glass-fill-bottom: rgba(7,15,29,0.55);
+    --glass-rim: rgba(255,255,255,0.46);
+    --glass-rim-dim: rgba(139,183,224,0.16);
+    --glass-caustic-opacity: 0.3;
+    --glass-control-fill: rgba(255,255,255,0.105);
+}
+
+body.liquid-glass-mode .liquid-glass-surface {
+    background:
+        radial-gradient(130px 96px at var(--glass-light-x) var(--glass-light-y), rgba(255,255,255,calc(var(--glass-caustic-opacity) + 0.12)) 0%, rgba(198,230,255,var(--glass-caustic-opacity)) 18%, transparent 68%),
+        linear-gradient(112deg, rgba(255,255,255,0.24) 0%, rgba(255,255,255,0.055) 19%, transparent 39%, transparent 67%, rgba(130,197,255,0.105) 84%, rgba(255,255,255,0.17) 100%),
+        radial-gradient(115% 82% at 8% -18%, rgba(255,255,255,0.2), transparent 52%),
+        radial-gradient(80% 100% at 102% 98%, rgba(var(--theme-rgb),0.14), transparent 64%),
+        linear-gradient(158deg, var(--glass-fill-top) 0%, var(--glass-fill-middle) 42%, var(--glass-fill-bottom) 100%) !important;
+    border-color: var(--glass-rim) !important;
+    background-clip: padding-box !important;
+    box-shadow:
+        inset 0 1.5px 0 rgba(255,255,255,0.64),
+        inset 1.5px 0 0 rgba(255,255,255,0.2),
+        inset -1px 0 0 rgba(99,163,218,0.1),
+        inset 0 -1.5px 0 var(--glass-rim-dim),
+        inset 0 -22px 38px rgba(2,7,17,0.15),
+        0 2px 3px rgba(255,255,255,0.05),
+        0 18px 48px rgba(0,0,0,0.32),
+        0 5px 20px rgba(var(--theme-rgb),0.09) !important;
+    backdrop-filter: blur(22px) saturate(190%) contrast(1.06) brightness(1.07) !important;
+    -webkit-backdrop-filter: blur(22px) saturate(190%) contrast(1.06) brightness(1.07) !important;
+    transition: background-position 80ms linear, border-color 240ms var(--ease-standard), box-shadow 360ms var(--ease-out), transform 420ms cubic-bezier(.2,.9,.2,1) !important;
+}
+
+/* Foreground planes are thicker and remain glass-like over a plain backdrop. */
+body.liquid-glass-mode .modal-panel,
+body.liquid-glass-mode .modal-glass-panel,
+body.liquid-glass-mode #settings-modal > div,
+body.liquid-glass-mode #model-modal > div,
+body.liquid-glass-mode #gem-modal > div {
+    --glass-fill-top: rgba(255,255,255,0.29);
+    --glass-fill-middle: rgba(60,83,116,0.2);
+    --glass-fill-bottom: rgba(5,12,24,0.68);
+    --glass-caustic-opacity: 0.34;
+    box-shadow:
+        inset 0 2px 0 rgba(255,255,255,0.68),
+        inset 1px 0 0 rgba(255,255,255,0.22),
+        inset 0 -2px 0 rgba(114,169,218,0.15),
+        inset 0 -30px 54px rgba(2,7,17,0.18),
+        0 34px 90px rgba(0,0,0,0.5),
+        0 8px 28px rgba(var(--theme-rgb),0.11) !important;
+}
+
+/* Clear variant: media remains visible while a smoke layer protects labels. */
+body.liquid-glass-mode .liquid-glass-clear {
+    --glass-fill-top: rgba(255,255,255,0.2);
+    --glass-fill-middle: rgba(24,34,52,0.16);
+    --glass-fill-bottom: rgba(2,6,14,0.34);
+    --glass-caustic-opacity: 0.38;
+    backdrop-filter: blur(18px) saturate(200%) contrast(1.1) brightness(0.94) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(200%) contrast(1.1) brightness(0.94) !important;
+}
+
+body.liquid-glass-mode .liquid-glass-surface:focus-within {
+    --glass-caustic-opacity: 0.42;
+    border-color: rgba(255,255,255,0.62) !important;
+    box-shadow:
+        inset 0 1.5px 0 rgba(255,255,255,0.72),
+        inset 1px 0 0 rgba(255,255,255,0.24),
+        inset 0 -1px 0 rgba(135,192,240,0.2),
+        0 22px 58px rgba(0,0,0,0.34),
+        0 6px 24px rgba(var(--theme-rgb),0.16) !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    body.liquid-glass-mode .liquid-glass-surface:hover {
+        --glass-caustic-opacity: 0.4;
+        transform: translateY(-1px) scale(1.002);
+    }
+}
+body.liquid-glass-mode .liquid-glass-surface.liquid-glass-pressed {
+    --glass-caustic-opacity: 0.5;
+    transform: scale(0.992) !important;
+    box-shadow:
+        inset 0 3px 8px rgba(0,0,0,0.16),
+        inset 0 1px 0 rgba(255,255,255,0.58),
+        inset 0 -1px 0 rgba(143,199,245,0.2),
+        0 10px 28px rgba(0,0,0,0.3) !important;
+    transition-duration: 100ms !important;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    body.liquid-glass-mode .liquid-glass-surface {
+        --glass-fill-top: rgba(51,66,89,0.98);
+        --glass-fill-middle: rgba(24,37,57,0.98);
+        --glass-fill-bottom: rgba(8,16,30,0.99);
+    }
+}
+@media (prefers-contrast: more) {
+    body.liquid-glass-mode .liquid-glass-surface {
+        --glass-fill-top: rgba(42,57,79,0.98);
+        --glass-fill-middle: rgba(20,32,50,0.98);
+        --glass-fill-bottom: rgba(5,12,24,0.99);
+        color: #fff;
+        border-color: rgba(255,255,255,0.82) !important;
+    }
+}
+@media (prefers-reduced-transparency: reduce) {
+    body.liquid-glass-mode .liquid-glass-surface {
+        --glass-fill-top: rgba(42,57,79,0.97);
+        --glass-fill-middle: rgba(20,32,50,0.98);
+        --glass-fill-bottom: rgba(5,12,24,0.99);
+        --glass-caustic-opacity: 0.16;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    body.liquid-glass-mode .liquid-glass-surface:hover,
+    body.liquid-glass-mode .liquid-glass-surface.liquid-glass-pressed {
+        transform: none !important;
+    }
+}
+
 /* Prompt Details Animation (Compact Mode) */
 #prompt-details-controls {
     transition: max-height 0.34s var(--ease-out), opacity 0.26s var(--ease-standard), margin-top 0.26s var(--ease-standard), margin-bottom 0.26s var(--ease-standard);
@@ -2602,4 +2733,66 @@ body.liquid-glass-mode #sidebar a:active {
     body.liquid-glass-mode #gem-modal > div {
         border-radius: 16px !important;
     }
+}
+
+/* V3 paint must remain last in the cascade; V2 above owns geometry only. */
+body.liquid-glass-mode {
+    --glass-fill-top: rgba(255,255,255,0.25);
+    --glass-fill-middle: rgba(77,105,140,0.16);
+    --glass-fill-bottom: rgba(7,15,29,0.55);
+    --glass-rim: rgba(255,255,255,0.46);
+    --glass-rim-dim: rgba(139,183,224,0.16);
+    --glass-caustic-opacity: 0.3;
+    --glass-control-fill: rgba(255,255,255,0.105);
+}
+body.liquid-glass-mode .liquid-glass-surface {
+    background:
+        radial-gradient(130px 96px at var(--glass-light-x) var(--glass-light-y), rgba(255,255,255,calc(var(--glass-caustic-opacity) + 0.12)) 0%, rgba(198,230,255,var(--glass-caustic-opacity)) 18%, transparent 68%),
+        linear-gradient(112deg, rgba(255,255,255,0.24) 0%, rgba(255,255,255,0.055) 19%, transparent 39%, transparent 67%, rgba(130,197,255,0.105) 84%, rgba(255,255,255,0.17) 100%),
+        radial-gradient(115% 82% at 8% -18%, rgba(255,255,255,0.2), transparent 52%),
+        radial-gradient(80% 100% at 102% 98%, rgba(var(--theme-rgb),0.14), transparent 64%),
+        linear-gradient(158deg, var(--glass-fill-top) 0%, var(--glass-fill-middle) 42%, var(--glass-fill-bottom) 100%) !important;
+    border-color: var(--glass-rim) !important;
+    background-clip: padding-box !important;
+    box-shadow:
+        inset 0 1.5px 0 rgba(255,255,255,0.64), inset 1.5px 0 0 rgba(255,255,255,0.2),
+        inset -1px 0 0 rgba(99,163,218,0.1), inset 0 -1.5px 0 var(--glass-rim-dim),
+        inset 0 -22px 38px rgba(2,7,17,0.15), 0 2px 3px rgba(255,255,255,0.05),
+        0 18px 48px rgba(0,0,0,0.32), 0 5px 20px rgba(var(--theme-rgb),0.09) !important;
+    backdrop-filter: blur(22px) saturate(190%) contrast(1.06) brightness(1.07) !important;
+    -webkit-backdrop-filter: blur(22px) saturate(190%) contrast(1.06) brightness(1.07) !important;
+}
+body.liquid-glass-mode .modal-panel,
+body.liquid-glass-mode .modal-glass-panel,
+body.liquid-glass-mode #settings-modal > div,
+body.liquid-glass-mode #model-modal > div,
+body.liquid-glass-mode #gem-modal > div {
+    --glass-fill-top: rgba(255,255,255,0.29);
+    --glass-fill-middle: rgba(60,83,116,0.2);
+    --glass-fill-bottom: rgba(5,12,24,0.68);
+    --glass-caustic-opacity: 0.34;
+}
+body.liquid-glass-mode .liquid-glass-clear {
+    --glass-fill-top: rgba(255,255,255,0.2);
+    --glass-fill-middle: rgba(24,34,52,0.16);
+    --glass-fill-bottom: rgba(2,6,14,0.34);
+    --glass-caustic-opacity: 0.38;
+    backdrop-filter: blur(18px) saturate(200%) contrast(1.1) brightness(0.94) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(200%) contrast(1.1) brightness(0.94) !important;
+}
+body.liquid-glass-mode .liquid-glass-surface:focus-within {
+    --glass-caustic-opacity: 0.42;
+    border-color: rgba(255,255,255,0.62) !important;
+}
+@media (hover: hover) and (pointer: fine) {
+    body.liquid-glass-mode .liquid-glass-surface:hover {
+        --glass-caustic-opacity: 0.4;
+        transform: translateY(-1px) scale(1.002);
+    }
+}
+body.liquid-glass-mode .liquid-glass-surface.liquid-glass-pressed {
+    --glass-caustic-opacity: 0.5;
+    transform: scale(0.992) !important;
+    box-shadow: inset 0 3px 8px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.58), 0 10px 28px rgba(0,0,0,0.3) !important;
+    transition-duration: 100ms !important;
 }

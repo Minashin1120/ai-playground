@@ -3090,6 +3090,25 @@
                 await Promise.all(regs.map(r => r.unregister()));
             }
         }
+        async function clearSiteCacheAndReload(triggerEl) {
+            const oldLabel = triggerEl ? triggerEl.innerText : '';
+            if (triggerEl) {
+                triggerEl.disabled = true;
+                triggerEl.innerText = '削除中...';
+            }
+            try {
+                await purgeCaches();
+                showToast('サイトキャッシュを削除しました。再読み込みします。', 'success');
+                window.setTimeout(() => location.reload(), 900);
+            } catch (e) {
+                showToast('サイトキャッシュの削除に失敗しました', 'error', true);
+            } finally {
+                if (triggerEl) {
+                    triggerEl.disabled = false;
+                    triggerEl.innerText = oldLabel || 'サイトキャッシュを削除';
+                }
+            }
+        }
         async function applyCacheMode(enable) {
             if (!('serviceWorker' in navigator)) return;
             if (enable) {
@@ -5680,6 +5699,13 @@
             });
             const storageRefreshBtn = get('storage-usage-refresh');
             if (storageRefreshBtn) storageRefreshBtn.onclick = () => loadStorageUsage();
+            const clearSiteCacheBtn = get('clear-site-cache-btn');
+            if (clearSiteCacheBtn) {
+                clearSiteCacheBtn.onclick = async () => {
+                    if (!confirm('サイトキャッシュを削除しますか？\nCookie は削除されません。')) return;
+                    await clearSiteCacheAndReload(clearSiteCacheBtn);
+                };
+            }
             const encScanResult = get('enc-scan-result');
             const runEncScan = async (threadId = null) => {
                 if (encScanResult) encScanResult.textContent = 'スキャン中...';

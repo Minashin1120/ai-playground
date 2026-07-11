@@ -2798,7 +2798,7 @@ body.liquid-glass-mode .liquid-glass-surface.liquid-glass-pressed {
 }
 
 /*
- * Liquid Glass V4: adaptive background-aware material (V4.8.623)
+ * Liquid Glass V4: adaptive background-aware material (V4.8.624)
  * Regular glass refracts a real backdrop. The explicit no-background fallback
  * suppresses lensing and relies on tint, specular edges and internal highlight.
  */

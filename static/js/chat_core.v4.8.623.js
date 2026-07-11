@@ -253,6 +253,9 @@
                 if (element.matches('.viewer-toolbar, .viewer-meta')) {
                     element.classList.add('liquid-glass-clear');
                 }
+                const hasNoBackground = element.matches('[data-liquid-glass-background="none"]')
+                    || !!element.closest('.liquid-glass-no-backdrop');
+                element.classList.toggle('liquid-glass-no-background', hasNoBackground);
             });
         };
         const applyLiquidGlassMode = (enabled) => {
@@ -289,6 +292,15 @@
         };
         document.addEventListener('pointerup', releaseLiquidGlassPress, { passive: true });
         document.addEventListener('pointercancel', releaseLiquidGlassPress, { passive: true });
+        let liquidGlassScrollTimer = 0;
+        document.addEventListener('scroll', () => {
+            if (!document.body || !document.body.classList.contains('liquid-glass-mode')) return;
+            document.body.classList.add('liquid-glass-scrolling');
+            window.clearTimeout(liquidGlassScrollTimer);
+            liquidGlassScrollTimer = window.setTimeout(() => {
+                if (document.body) document.body.classList.remove('liquid-glass-scrolling');
+            }, 140);
+        }, { passive: true, capture: true });
         const MODAL_ANIM_MS = 280;
         const formatBytes = (bytes) => {
             if (bytes === null || bytes === undefined) return '0MB';

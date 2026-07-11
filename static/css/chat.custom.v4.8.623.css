@@ -2796,3 +2796,131 @@ body.liquid-glass-mode .liquid-glass-surface.liquid-glass-pressed {
     box-shadow: inset 0 3px 8px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.58), 0 10px 28px rgba(0,0,0,0.3) !important;
     transition-duration: 100ms !important;
 }
+
+/*
+ * Liquid Glass V4: adaptive background-aware material (V4.8.623)
+ * Regular glass refracts a real backdrop. The explicit no-background fallback
+ * suppresses lensing and relies on tint, specular edges and internal highlight.
+ */
+body.liquid-glass-mode {
+    --glass-fill-top: rgba(255,255,255,0.18);
+    --glass-fill-middle: rgba(78,104,136,0.105);
+    --glass-fill-bottom: rgba(7,15,29,0.43);
+    --glass-rim: rgba(255,255,255,0.4);
+    --glass-rim-dim: rgba(139,183,224,0.13);
+    --glass-caustic-opacity: 0.19;
+    --glass-control-fill: rgba(255,255,255,0.085);
+}
+
+/* Regular: backdrop is present, so transparency and restrained lensing lead. */
+body.liquid-glass-mode .liquid-glass-surface {
+    background:
+        radial-gradient(112px 82px at var(--glass-light-x) var(--glass-light-y), rgba(255,255,255,calc(var(--glass-caustic-opacity) + 0.1)) 0%, rgba(190,225,255,var(--glass-caustic-opacity)) 19%, transparent 66%),
+        linear-gradient(112deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.035) 21%, transparent 43%, transparent 72%, rgba(140,202,255,0.07) 100%),
+        radial-gradient(100% 72% at 8% -12%, rgba(255,255,255,0.14), transparent 56%),
+        linear-gradient(158deg, var(--glass-fill-top) 0%, var(--glass-fill-middle) 45%, var(--glass-fill-bottom) 100%) !important;
+    border-color: var(--glass-rim) !important;
+    box-shadow:
+        inset 0 1px 1px rgba(255,255,255,0.48),
+        inset 1px 0 0 rgba(255,255,255,0.13),
+        inset 0 -1px 0 var(--glass-rim-dim),
+        0 4px 30px rgba(0,0,0,0.17),
+        0 2px 10px rgba(var(--theme-rgb),0.055) !important;
+    backdrop-filter: blur(20px) saturate(180%) contrast(1.1) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(180%) contrast(1.1) !important;
+    transition: background-position 90ms linear, border-color 240ms var(--ease-standard), box-shadow 360ms var(--ease-out), transform 420ms cubic-bezier(.16,1,.3,1) !important;
+}
+
+/* No backdrop: no simulated refraction; a quieter, more opaque material stands alone. */
+body.liquid-glass-mode .liquid-glass-no-background {
+    --glass-fill-top: rgba(66,82,104,0.9);
+    --glass-fill-middle: rgba(30,44,64,0.91);
+    --glass-fill-bottom: rgba(10,20,36,0.94);
+    --glass-caustic-opacity: 0;
+    background:
+        linear-gradient(112deg, rgba(255,255,255,0.17) 0%, rgba(255,255,255,0.035) 25%, transparent 52%),
+        radial-gradient(90% 64% at 10% -8%, rgba(255,255,255,0.13), transparent 58%),
+        linear-gradient(158deg, var(--glass-fill-top), var(--glass-fill-middle) 48%, var(--glass-fill-bottom)) !important;
+    border-color: rgba(255,255,255,0.28) !important;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.24), inset 0 1px 1px rgba(255,255,255,0.5), inset 0 -1px 0 rgba(130,170,210,0.11) !important;
+    backdrop-filter: blur(12px) saturate(120%) !important;
+    -webkit-backdrop-filter: blur(12px) saturate(120%) !important;
+}
+
+/* Clear is reserved for rich media and always carries a smoke layer for labels. */
+body.liquid-glass-mode .liquid-glass-clear:not(.liquid-glass-no-background) {
+    --glass-fill-top: rgba(255,255,255,0.12);
+    --glass-fill-middle: rgba(16,25,41,0.09);
+    --glass-fill-bottom: rgba(2,6,14,0.25);
+    --glass-caustic-opacity: 0.24;
+    backdrop-filter: blur(17px) saturate(190%) contrast(1.08) brightness(0.9) !important;
+    -webkit-backdrop-filter: blur(17px) saturate(190%) contrast(1.08) brightness(0.9) !important;
+}
+
+/* Foreground layers gain depth without becoming opaque floating slabs. */
+body.liquid-glass-mode .modal-panel,
+body.liquid-glass-mode .modal-glass-panel,
+body.liquid-glass-mode #settings-modal > div,
+body.liquid-glass-mode #model-modal > div,
+body.liquid-glass-mode #gem-modal > div {
+    --glass-fill-top: rgba(255,255,255,0.22);
+    --glass-fill-middle: rgba(55,76,105,0.15);
+    --glass-fill-bottom: rgba(5,12,24,0.58);
+    --glass-caustic-opacity: 0.22;
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.55), inset 0 -1px 0 rgba(120,174,220,0.12), 0 28px 78px rgba(0,0,0,0.45) !important;
+}
+
+body.liquid-glass-mode .liquid-glass-surface:focus-within {
+    --glass-caustic-opacity: 0.29;
+    border-color: rgba(255,255,255,0.55) !important;
+}
+@media (hover: hover) and (pointer: fine) {
+    body.liquid-glass-mode .liquid-glass-surface:hover {
+        --glass-caustic-opacity: 0.28;
+        transform: translateY(-1px) scale(1.001);
+    }
+    body.liquid-glass-mode .liquid-glass-no-background:hover {
+        --glass-caustic-opacity: 0;
+    }
+}
+body.liquid-glass-mode .liquid-glass-surface.liquid-glass-pressed {
+    --glass-caustic-opacity: 0.34;
+    transform: scale(0.993) !important;
+    box-shadow: inset 0 3px 7px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.48), 0 8px 24px rgba(0,0,0,0.26) !important;
+}
+body.liquid-glass-mode .liquid-glass-no-background.liquid-glass-pressed {
+    --glass-caustic-opacity: 0;
+}
+
+/* Scroll temporarily thins the material and shadow, then eases back at rest. */
+body.liquid-glass-mode.liquid-glass-scrolling .liquid-glass-surface {
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.42), 0 3px 18px rgba(0,0,0,0.14) !important;
+    backdrop-filter: blur(17px) saturate(170%) contrast(1.08) !important;
+    -webkit-backdrop-filter: blur(17px) saturate(170%) contrast(1.08) !important;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    body.liquid-glass-mode .liquid-glass-surface {
+        background: linear-gradient(158deg, rgba(53,68,90,0.96), rgba(23,36,55,0.97) 48%, rgba(7,15,29,0.98)) !important;
+    }
+}
+@media (prefers-contrast: more) {
+    body.liquid-glass-mode .liquid-glass-surface {
+        --glass-fill-top: rgba(47,62,83,0.97);
+        --glass-fill-middle: rgba(21,34,52,0.98);
+        --glass-fill-bottom: rgba(5,12,24,0.99);
+        border-color: rgba(255,255,255,0.78) !important;
+    }
+}
+@media (prefers-reduced-transparency: reduce) {
+    body.liquid-glass-mode .liquid-glass-surface {
+        background: linear-gradient(158deg, rgba(45,60,81,0.98), rgba(20,32,50,0.99) 48%, rgba(5,12,24,1)) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    body.liquid-glass-mode.liquid-glass-scrolling .liquid-glass-surface {
+        box-shadow: inset 0 1px 1px rgba(255,255,255,0.48), 0 4px 30px rgba(0,0,0,0.17) !important;
+    }
+}

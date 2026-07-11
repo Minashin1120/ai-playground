@@ -1917,6 +1917,7 @@
         let threadHasOlderMessages = false;
         let oldestLoadedMessageId = null;
         let loadingOlderMessages = false;
+        let threadLoadSequence = 0;
         
         // Tree State
         let allMessages = [];
@@ -2432,6 +2433,13 @@
                 return `<div class="flex ${align} mb-4 chat-load-skeleton-row" style="animation-delay:${(idx * 0.07).toFixed(2)}s" aria-hidden="true"><div class="${bubbleCls}"><div class="content-area pending-shimmer skeleton-pending chat-load-skeleton-body" data-skeleton-kind="text"><div class="skeleton-lines">${lines}</div></div></div></div>`;
             }).join('');
             return `<div class="chat-load-skeleton" role="status" aria-live="polite" aria-label="チャットを読み込み中">${items}<div class="chat-load-skeleton-caption"><span class="chat-load-skeleton-caption-dot"></span>チャットを読み込み中...</div></div>`;
+        }
+        function showChatLoadError(threadId) {
+            const container = get('chat-container');
+            if (!container) return;
+            container.innerHTML = '<div class="min-h-[45vh] flex items-center justify-center px-4"><div class="max-w-md w-full rounded-2xl border border-red-500/40 bg-red-950/30 p-5 text-center" role="alert"><i class="fas fa-triangle-exclamation text-red-300 text-xl mb-3"></i><p class="text-sm font-semibold text-red-100">チャットを読み込めませんでした</p><p class="mt-2 text-xs text-red-200/80">通信状態を確認して、もう一度お試しください。</p><button type="button" data-chat-load-retry class="mt-4 rounded-lg border border-red-300/40 px-4 py-2 text-sm text-red-100 hover:bg-red-500/20"><i class="fas fa-rotate-right mr-1"></i>再試行</button></div></div>';
+            const retry = container.querySelector('[data-chat-load-retry]');
+            if (retry) retry.addEventListener('click', () => loadMessages(threadId));
         }
         function hashString(str) {
             let h = 0;
@@ -4373,6 +4381,41 @@
             const modelEl = get('model-select');
             return getModelApiProvider(modelEl ? modelEl.value : '');
         };
+        const updatePromptCacheUi = () => {
+            const cacheCont = get('prompt-cache-container');
+            const cacheChk = get('enable-prompt-cache');
+            const modelBtn = get('model-selector-btn');
+            if (!cacheChk) return;
+            const enabled = !!cacheChk.checked;
+            if (cacheCont) {
+                cacheCont.classList.toggle('ring-1', enabled);
+                cacheCont.classList.toggle('ring-teal-500/50', enabled);
+                cacheCont.classList.toggle('rounded', enabled);
+                cacheCont.classList.toggle('px-1', enabled);
+            }
+            if (modelBtn) {
+                if (enabled) {
+                    modelBtn.title = 'PromptCache有効: 同一APIプロバイダのモデルのみ選択可能';
+                    modelBtn.classList.add('border-teal-500/60');
+                } else {
+                    modelBtn.title = '';
+                    modelBtn.classList.remove('border-teal-500/60');
+                }
+            }
+        };
+        const bindPromptCacheControls = () => {
+            const cacheChk = get('enable-prompt-cache');
+            if (!cacheChk || cacheChk.dataset.bound === '1') return;
+            cacheChk.dataset.bound = '1';
+            cacheChk.addEventListener('change', () => {
+                updatePromptCacheUi();
+                if (cacheChk.checked) {
+                    const prov = getModelApiProvider(get('model-select') ? get('model-select').value : '');
+                    const label = PROVIDER_LABELS[prov] || prov || '現在のAPI';
+                    showToast(`PromptCache を有効化しました。以降は ${label} 以外のモデルに変更できません。`, 'info', true);
+                }
+            });
+        };
         const getModelMediaSupport = (model) => {
             const m = (model || '').toLowerCase();
             if (!m.includes('gemini')) return { audio: false, video: false };
@@ -5034,41 +5077,6 @@
                 el.innerHTML = '';
             }
         }
-            const updatePromptCacheUi = () => {
-                const cacheCont = get('prompt-cache-container');
-                const cacheChk = get('enable-prompt-cache');
-                const modelBtn = get('model-selector-btn');
-                if (!cacheChk) return;
-                const enabled = !!cacheChk.checked;
-                if (cacheCont) {
-                    cacheCont.classList.toggle('ring-1', enabled);
-                    cacheCont.classList.toggle('ring-teal-500/50', enabled);
-                    cacheCont.classList.toggle('rounded', enabled);
-                    cacheCont.classList.toggle('px-1', enabled);
-                }
-                if (modelBtn) {
-                    if (enabled) {
-                        modelBtn.title = 'PromptCache有効: 同一APIプロバイダのモデルのみ選択可能';
-                        modelBtn.classList.add('border-teal-500/60');
-                    } else {
-                        modelBtn.title = '';
-                        modelBtn.classList.remove('border-teal-500/60');
-                    }
-                }
-            };
-            const bindPromptCacheControls = () => {
-                const cacheChk = get('enable-prompt-cache');
-                if (!cacheChk || cacheChk.dataset.bound === '1') return;
-                cacheChk.dataset.bound = '1';
-                cacheChk.addEventListener('change', () => {
-                    updatePromptCacheUi();
-                    if (cacheChk.checked) {
-                        const prov = getModelApiProvider(get('model-select') ? get('model-select').value : '');
-                        const label = PROVIDER_LABELS[prov] || prov || '現在のAPI';
-                        showToast(`PromptCache を有効化しました。以降は ${label} 以外のモデルに変更できません。`, 'info', true);
-                    }
-                });
-            };
             function toggleOptions() { 
                 const modelEl = get('model-select');
                 if (!modelEl) return;
@@ -12795,6 +12803,7 @@
         }
 
         async function loadMessages(tid, opts = {}) { 
+            const loadSequence = ++threadLoadSequence;
             if (window.closeHistoryModal) window.closeHistoryModal();
             const preserveDraft = !!opts.preserveDraft;
             const silent = !!opts.silent;
@@ -12821,12 +12830,16 @@
                 // Show shimmer skeleton while history loads (open from list / page reload)
                 get('chat-container').innerHTML = buildChatLoadingSkeletonHtml();
             }
-            const threadUrl = new URL(CHAT_CONFIG.urls.handleThreadItem.replace('0', tid), window.location.origin);
-            threadUrl.searchParams.set('limit', String(getEffectiveThreadInitialMessageLimit()));
-            const r = await apiFetch(threadUrl.toString()); 
-            const threadData = await r.json();
+            try {
+                const threadUrl = new URL(CHAT_CONFIG.urls.handleThreadItem.replace('0', tid), window.location.origin);
+                threadUrl.searchParams.set('limit', String(getEffectiveThreadInitialMessageLimit()));
+                const r = await apiFetch(threadUrl.toString());
+                if (!r.ok) throw new Error(`thread request failed (${r.status})`);
+                const threadData = await r.json();
+                if (!threadData || !Array.isArray(threadData.messages)) throw new Error('invalid thread response');
+                if (loadSequence !== threadLoadSequence) return;
             setCurrentChatHeaderTitle(threadData && threadData.title);
-            allMessages = threadData.messages || []; 
+            allMessages = threadData.messages;
             threadHasOlderMessages = !!threadData.has_older_messages;
             oldestLoadedMessageId = threadData.oldest_loaded_id || (allMessages.length ? allMessages[0].id : null);
 
@@ -12901,6 +12914,12 @@
             }
             if (!preserveDraft) schedulePromptTokenEstimate(true);
             if(window.innerWidth < 768) get('overlay').click(); 
+            } catch (err) {
+                if (loadSequence !== threadLoadSequence) return;
+                console.error('Failed to load chat thread:', err);
+                if (!silent) showChatLoadError(tid);
+                showToast('チャットの読み込みに失敗しました', 'error', true);
+            }
         }
 
         async function loadOlderMessages() {
@@ -13419,6 +13438,7 @@
             }
         }
         function startNewChat(opts = {}) { 
+            threadLoadSequence++;
             if(abortController) abortController.abort(); 
             cancelEdit(); 
             resetUploadState(); 

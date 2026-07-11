@@ -203,6 +203,19 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertEqual(chat_response.status_code, 200, chat_response.get_data(as_text=True))
         self.assertIn("liquid-glass-mode", chat_response.get_data(as_text=True))
 
+    def test_liquid_glass_column_is_repaired_when_migrations_are_disabled(self):
+        with target.app.app_context():
+            target.db.session.remove()
+            target.db.session.execute(target.text("ALTER TABLE user DROP COLUMN liquid_glass_enabled"))
+            target.db.session.commit()
+            before = {column["name"] for column in target.inspect(target.db.engine).get_columns("user")}
+            self.assertNotIn("liquid_glass_enabled", before)
+
+            target.ensure_user_liquid_glass_column()
+
+            after = {column["name"] for column in target.inspect(target.db.engine).get_columns("user")}
+            self.assertIn("liquid_glass_enabled", after)
+
     def test_stop_chat_requires_owned_pending_job(self):
         with target.app.app_context():
             thread = target.Thread(user_id=self.user_id, public_id=target.generate_thread_public_id())

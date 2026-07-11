@@ -54,7 +54,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from sqlalchemy import or_, exc, text, func
+from sqlalchemy import or_, exc, text, func, inspect
 from dotenv import load_dotenv
 from openai import OpenAI, APITimeoutError, APIError, APIConnectionError, RateLimitError
 from google.oauth2 import id_token
@@ -603,8 +603,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-11-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.617'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-11-003')
+app.config['SYSTEM_VERSION'] = 'V4.8.618'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3338,6 +3338,23 @@ def try_alter(sql):
             conn.commit()
     except Exception:
         pass
+
+def ensure_user_liquid_glass_column():
+    """Ensure the login-critical Liquid Glass preference exists before any User query."""
+    table_names = set(inspect(db.engine).get_table_names())
+    if 'user' not in table_names:
+        return
+    column_names = {column['name'] for column in inspect(db.engine).get_columns('user')}
+    if 'liquid_glass_enabled' not in column_names:
+        with db.engine.begin() as conn:
+            if db.engine.dialect.name in ('mysql', 'mariadb'):
+                conn.execute(text("SET SESSION lock_wait_timeout=5"))
+            conn.execute(text(
+                "ALTER TABLE user ADD COLUMN liquid_glass_enabled BOOLEAN DEFAULT 0"
+            ))
+    verified_columns = {column['name'] for column in inspect(db.engine).get_columns('user')}
+    if 'liquid_glass_enabled' not in verified_columns:
+        raise RuntimeError("Required database column user.liquid_glass_enabled is missing")
 
 def ensure_thread_last_model_column():
     try:
@@ -14410,6 +14427,9 @@ with app.app_context():
         except Exception:
             pass
     # Run column additions BEFORE any model query to avoid SQLAlchemy metadata cache staleness
+    # This column is required by every authenticated User SELECT, so it must not depend on
+    # RUN_SCHEMA_MIGRATIONS. Fail startup clearly instead of serving HTTP 500 to all sessions.
+    ensure_user_liquid_glass_column()
     try:
         try_alter("ALTER TABLE user ADD COLUMN last_gem_uuid VARCHAR(36)")
     except: pass
@@ -14621,9 +14641,6 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN theme_color VARCHAR(16)")
-        except: pass
-        try:
-            try_alter("ALTER TABLE user ADD COLUMN liquid_glass_enabled BOOLEAN DEFAULT 0")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN auto_search_on_links BOOLEAN DEFAULT 1")

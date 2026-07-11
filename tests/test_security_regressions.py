@@ -233,6 +233,11 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("LIQUID_GLASS_SURFACE_SELECTOR", script)
         self.assertIn("--glass-light-x", script)
         self.assertIn("document.addEventListener('pointermove'", script)
+        surface_rule = css.split("body.liquid-glass-mode .liquid-glass-surface {", 1)[1].split("}", 1)[0]
+        self.assertNotIn("position: relative", surface_rule)
+        self.assertIn("body.liquid-glass-mode #sidebar {\n        position: fixed;", css)
+        self.assertIn("body.liquid-glass-mode .composer-dock {\n        margin: 0;", css)
+        self.assertIn("body.liquid-glass-mode > .flex-1 > header {\n        margin: 0;", css)
 
     def test_stop_chat_requires_owned_pending_job(self):
         with target.app.app_context():

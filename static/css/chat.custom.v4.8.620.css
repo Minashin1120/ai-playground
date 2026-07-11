@@ -2347,7 +2347,7 @@ body.liquid-glass-mode .modal-panel {
 }
 
 /*
- * Liquid Glass V2 (V4.8.619)
+ * Liquid Glass V2 mobile layout fix (V4.8.620)
  * Functional glass floats above a standard content layer. The layered gradients,
  * adaptive rim light and pointer-driven specular highlight approximate lensing
  * without turning messages and content cards into nested glass.
@@ -2379,8 +2379,6 @@ body.liquid-glass-mode::after {
 }
 
 body.liquid-glass-mode .liquid-glass-surface {
-    position: relative;
-    isolation: isolate;
     background:
         radial-gradient(circle at var(--glass-light-x, 50%) var(--glass-light-y, 0%), rgba(255,255,255,0.24) 0%, rgba(255,255,255,0.075) 12%, transparent 34%),
         linear-gradient(115deg, rgba(255,255,255,0.18) 0%, transparent 24%, transparent 68%, rgba(160,210,255,0.075) 100%),
@@ -2579,17 +2577,29 @@ body.liquid-glass-mode #sidebar a:active {
         transform: none !important;
     }
 }
-@media (max-width: 767px) {
+@media (max-width: 768px) {
     body.liquid-glass-mode {
         gap: 0;
     }
     body.liquid-glass-mode #sidebar {
-        height: 100dvh;
+        position: fixed;
+        height: 100%;
         margin: 0;
         border-radius: 0 28px 28px 0;
     }
     body.liquid-glass-mode .composer-dock {
-        margin: 0 8px max(8px, env(safe-area-inset-bottom));
-        border-radius: 24px;
+        margin: 0;
+        border-radius: 0;
+    }
+    body.liquid-glass-mode > .flex-1 > header {
+        margin: 0;
+        border-radius: 0;
+    }
+    body.liquid-glass-mode .modal-panel,
+    body.liquid-glass-mode .modal-glass-panel,
+    body.liquid-glass-mode #settings-modal > div,
+    body.liquid-glass-mode #model-modal > div,
+    body.liquid-glass-mode #gem-modal > div {
+        border-radius: 16px !important;
     }
 }

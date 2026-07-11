@@ -234,10 +234,39 @@
                 applyThemeColor(THEME_DEFAULT, false);
             }
         };
+        const LIQUID_GLASS_SURFACE_SELECTOR = [
+            '#sidebar',
+            '.composer-dock',
+            'body > .flex-1 > header',
+            '.modal-panel',
+            '.modal-glass-panel',
+            '.viewer-toolbar',
+            '.viewer-meta',
+            '#quote-bar',
+            '#slash-command-suggestions',
+            '#gem-suggestions'
+        ].join(',');
+        const refreshLiquidGlassSurfaces = () => {
+            document.querySelectorAll(LIQUID_GLASS_SURFACE_SELECTOR).forEach((element) => {
+                element.classList.add('liquid-glass-surface');
+            });
+        };
         const applyLiquidGlassMode = (enabled) => {
             if (!document.body) return;
             document.body.classList.toggle('liquid-glass-mode', !!enabled);
+            if (enabled) refreshLiquidGlassSurfaces();
         };
+        document.addEventListener('pointermove', (event) => {
+            if (!document.body || !document.body.classList.contains('liquid-glass-mode')) return;
+            const surface = event.target.closest ? event.target.closest(LIQUID_GLASS_SURFACE_SELECTOR) : null;
+            if (!surface) return;
+            const rect = surface.getBoundingClientRect();
+            if (!rect.width || !rect.height) return;
+            const x = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100));
+            const y = Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100));
+            surface.style.setProperty('--glass-light-x', `${x.toFixed(1)}%`);
+            surface.style.setProperty('--glass-light-y', `${y.toFixed(1)}%`);
+        }, { passive: true });
         const MODAL_ANIM_MS = 280;
         const formatBytes = (bytes) => {
             if (bytes === null || bytes === undefined) return '0MB';

@@ -216,6 +216,24 @@ class SecurityRegressionTests(unittest.TestCase):
             after = {column["name"] for column in target.inspect(target.db.engine).get_columns("user")}
             self.assertIn("liquid_glass_enabled", after)
 
+    def test_liquid_glass_uses_functional_layer_and_dynamic_highlights(self):
+        root = os.path.dirname(os.path.dirname(__file__))
+        version = target.app.config["SYSTEM_VERSION"].lower()
+        css_path = os.path.join(root, "static", "css", f"chat.custom.{version}.css")
+        js_path = os.path.join(root, "static", "js", f"chat_core.{version}.js")
+        with open(css_path, encoding="utf-8") as css_file:
+            css = css_file.read()
+        with open(js_path, encoding="utf-8") as js_file:
+            script = js_file.read()
+
+        self.assertIn("Functional glass floats above a standard content layer", css)
+        self.assertIn("Standard content materials: deliberately not Liquid Glass", css)
+        self.assertIn("body.liquid-glass-mode .message-bubble.bg-gray-700", css)
+        self.assertIn("backdrop-filter: none !important", css)
+        self.assertIn("LIQUID_GLASS_SURFACE_SELECTOR", script)
+        self.assertIn("--glass-light-x", script)
+        self.assertIn("document.addEventListener('pointermove'", script)
+
     def test_stop_chat_requires_owned_pending_job(self):
         with target.app.app_context():
             thread = target.Thread(user_id=self.user_id, public_id=target.generate_thread_public_id())

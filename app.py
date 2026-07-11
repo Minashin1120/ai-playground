@@ -603,8 +603,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-11-009')
-app.config['SYSTEM_VERSION'] = 'V4.8.624'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-12-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.625'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2526,6 +2526,7 @@ class User(UserMixin, db.Model):
     llm_transcribe_prompt = db.Column(db.Text, nullable=True)
     enter_to_send = db.Column(db.Boolean, default=False)
     use_sw_cache = db.Column(db.Boolean, default=False)
+    clear_cache_on_version_update = db.Column(db.Boolean, default=False)
     theme_color = db.Column(db.String(16), default="")
     liquid_glass_enabled = db.Column(db.Boolean, default=False)
     auto_search_on_links = db.Column(db.Boolean, default=True)
@@ -3681,6 +3682,17 @@ def ensure_user_debug_settings_columns():
             if not res:
                 conn.execute(text("SET SESSION lock_wait_timeout=1"))
                 conn.execute(text("ALTER TABLE user ADD COLUMN enable_client_debug_log BOOLEAN DEFAULT 0"))
+                conn.commit()
+    except Exception:
+        pass
+
+def ensure_user_cache_settings_columns():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='clear_cache_on_version_update'")).fetchone()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN clear_cache_on_version_update BOOLEAN DEFAULT 0"))
                 conn.commit()
     except Exception:
         pass
@@ -12758,6 +12770,7 @@ def handle_settings():
             'llm_transcribe_prompt_default': DEFAULT_LLM_TRANSCRIBE_PROMPT,
             'enter_to_send': current_user.enter_to_send,
             'use_sw_cache': current_user.use_sw_cache,
+            'clear_cache_on_version_update': current_user.clear_cache_on_version_update if current_user.clear_cache_on_version_update is not None else False,
             'theme_color': current_user.theme_color or "",
             'liquid_glass_enabled': bool(getattr(current_user, 'liquid_glass_enabled', False)),
             'auto_search_on_links': current_user.auto_search_on_links,
@@ -12871,6 +12884,7 @@ def handle_settings():
         current_user.llm_transcribe_prompt = _normalize_llm_transcribe_prompt(d.get('llm_transcribe_prompt'))
     if 'enter_to_send' in d: current_user.enter_to_send = bool(d['enter_to_send'])
     if 'use_sw_cache' in d: current_user.use_sw_cache = bool(d['use_sw_cache'])
+    if 'clear_cache_on_version_update' in d: current_user.clear_cache_on_version_update = bool(d['clear_cache_on_version_update'])
     if 'compact_prompt_mode' in d: current_user.compact_prompt_mode = bool(d['compact_prompt_mode'])
     if 'theme_color' in d: current_user.theme_color = normalize_theme_color(d.get('theme_color'))
     if 'liquid_glass_enabled' in d: current_user.liquid_glass_enabled = bool(d['liquid_glass_enabled'])
@@ -14518,6 +14532,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_user_cache_settings_columns()
+    except Exception:
+        pass
+    try:
         ensure_user_default_model_columns()
     except Exception:
         pass
@@ -14638,6 +14656,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN use_sw_cache BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN clear_cache_on_version_update BOOLEAN DEFAULT 0")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN theme_color VARCHAR(16)")

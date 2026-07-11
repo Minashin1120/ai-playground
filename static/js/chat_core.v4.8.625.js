@@ -309,6 +309,79 @@
             const gb = mb / 1024;
             return `${gb.toFixed(2)}GB`;
         };
+        const inspectSiteCacheStorage = async () => {
+            const summary = {
+                cacheCount: 0,
+                entryCount: 0,
+                totalBytes: 0,
+                storageUsageBytes: null,
+                storageQuotaBytes: null,
+            };
+            if ('caches' in window) {
+                try {
+                    const names = await caches.keys();
+                    summary.cacheCount = names.length;
+                    for (const name of names) {
+                        const cache = await caches.open(name);
+                        const requests = await cache.keys();
+                        summary.entryCount += requests.length;
+                        for (const request of requests) {
+                            try {
+                                const response = await cache.match(request);
+                                if (!response) continue;
+                                const contentLength = parseInt(response.headers.get('content-length') || '', 10);
+                                if (Number.isFinite(contentLength) && contentLength >= 0) {
+                                    summary.totalBytes += contentLength;
+                                } else {
+                                    const blob = await response.clone().blob();
+                                    summary.totalBytes += blob.size || 0;
+                                }
+                            } catch (err) {}
+                        }
+                    }
+                } catch (err) {}
+            }
+            if (navigator.storage && navigator.storage.estimate) {
+                try {
+                    const estimate = await navigator.storage.estimate();
+                    summary.storageUsageBytes = Number(estimate.usage || 0);
+                    summary.storageQuotaBytes = Number(estimate.quota || 0);
+                } catch (err) {}
+            }
+            return summary;
+        };
+        const loadSiteCacheUsage = async () => {
+            const textEl = get('site-cache-usage-text');
+            const detailEl = get('site-cache-usage-detail');
+            if (!textEl && !detailEl) return;
+            if (textEl) textEl.innerText = '読み込み中...';
+            if (detailEl) detailEl.innerText = '';
+            try {
+                const summary = await inspectSiteCacheStorage();
+                const main = `キャッシュ使用量: ${formatBytes(summary.totalBytes)} (${summary.cacheCount}キャッシュ / ${summary.entryCount}件)`;
+                if (summary.storageQuotaBytes) {
+                    const quotaPct = Math.min(100, Math.round((summary.totalBytes / summary.storageQuotaBytes) * 100));
+                    if (textEl) textEl.innerText = `${main} / 保存領域上限 ${formatBytes(summary.storageQuotaBytes)} (${quotaPct}%)`;
+                    if (detailEl) {
+                        const usageLine = summary.storageUsageBytes !== null
+                            ? `保存領域使用量: ${formatBytes(summary.storageUsageBytes)}`
+                            : '保存領域使用量: 取得できませんでした';
+                        detailEl.innerText = `${usageLine} / ブラウザの実測値です`;
+                    }
+                } else {
+                    if (textEl) textEl.innerText = main;
+                    if (detailEl) {
+                        detailEl.innerText = summary.storageUsageBytes !== null
+                            ? `保存領域使用量: ${formatBytes(summary.storageUsageBytes)}`
+                            : '保存領域上限はこのブラウザでは取得できません';
+                    }
+                }
+            } catch (e) {
+                if (textEl) textEl.innerText = 'キャッシュ容量の取得に失敗しました';
+                if (detailEl) detailEl.innerText = '';
+            }
+        };
+        let versionUpdateCachePreferenceSavePromise = Promise.resolve();
         const loadStorageUsage = async () => {
             const textEl = get('storage-usage-text');
             const barEl = get('storage-usage-bar');
@@ -335,6 +408,45 @@
                 barEl.style.width = '0%';
                 barEl.style.opacity = '0.5';
             }
+        };
+        const clearSiteCacheAndReload = async (triggerEl, options = {}) => {
+            const { scanFirst = true } = options || {};
+            const oldLabel = triggerEl ? triggerEl.innerText : '';
+            if (triggerEl) {
+                triggerEl.disabled = true;
+                triggerEl.innerText = '削除中...';
+            }
+            try {
+                const summary = scanFirst ? await inspectSiteCacheStorage() : null;
+                await purgeCaches();
+                const cacheMsg = summary ? `ローカルキャッシュ ${formatBytes(summary.totalBytes)} を削除しました。` : 'ローカルキャッシュを削除しました。';
+                showToast(`${cacheMsg} 再読み込みします。`, 'success');
+                window.setTimeout(() => location.reload(), 900);
+            } catch (e) {
+                showToast('ローカルキャッシュの削除に失敗しました', 'error', true);
+            } finally {
+                if (triggerEl) {
+                    triggerEl.disabled = false;
+                    triggerEl.innerText = oldLabel || 'サイトキャッシュを削除';
+                }
+            }
+        };
+        const syncVersionUpdateCachePreferenceUi = () => {
+            const el = get('version-update-clear-cache');
+            if (!el) return;
+            el.checked = !!(window.CHAT_CONFIG && window.CHAT_CONFIG.clearCacheOnVersionUpdate);
+        };
+        const saveVersionUpdateCachePreference = async (enabled) => {
+            if (window.CHAT_CONFIG) {
+                window.CHAT_CONFIG.clearCacheOnVersionUpdate = !!enabled;
+            }
+            try {
+                await apiFetch(CHAT_CONFIG.urls.handleSettings, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ clear_cache_on_version_update: !!enabled })
+                });
+            } catch (e) {}
         };
         initThemeFromServer();
         applyLiquidGlassMode(INITIAL_LIQUID_GLASS_ENABLED);
@@ -3090,25 +3202,6 @@
                 await Promise.all(regs.map(r => r.unregister()));
             }
         }
-        async function clearSiteCacheAndReload(triggerEl) {
-            const oldLabel = triggerEl ? triggerEl.innerText : '';
-            if (triggerEl) {
-                triggerEl.disabled = true;
-                triggerEl.innerText = '削除中...';
-            }
-            try {
-                await purgeCaches();
-                showToast('サイトキャッシュを削除しました。再読み込みします。', 'success');
-                window.setTimeout(() => location.reload(), 900);
-            } catch (e) {
-                showToast('サイトキャッシュの削除に失敗しました', 'error', true);
-            } finally {
-                if (triggerEl) {
-                    triggerEl.disabled = false;
-                    triggerEl.innerText = oldLabel || 'サイトキャッシュを削除';
-                }
-            }
-        }
         async function applyCacheMode(enable) {
             if (!('serviceWorker' in navigator)) return;
             if (enable) {
@@ -3125,6 +3218,7 @@
             const notified = localStorage.getItem("version_notified") || "";
             if (notified === latest) return;
             localStorage.setItem("app_version", latest);
+            syncVersionUpdateCachePreferenceUi();
             showModal("version-update-modal");
         }
         async function checkVersion() {
@@ -5491,7 +5585,22 @@
                 if (latest) localStorage.setItem("version_notified", latest);
                 hideModal('version-update-modal');
             });
-            get('version-update-reload')?.addEventListener('click', () => location.reload());
+            const versionUpdateClearCacheSetting = get('version-update-clear-cache');
+            if (versionUpdateClearCacheSetting) {
+                versionUpdateClearCacheSetting.checked = !!(window.CHAT_CONFIG && window.CHAT_CONFIG.clearCacheOnVersionUpdate);
+                versionUpdateClearCacheSetting.addEventListener('change', () => {
+                    versionUpdateCachePreferenceSavePromise = saveVersionUpdateCachePreference(versionUpdateClearCacheSetting.checked);
+                });
+            }
+            get('version-update-reload')?.addEventListener('click', async () => {
+                await versionUpdateCachePreferenceSavePromise.catch(() => {});
+                const clearCacheEnabled = !!get('version-update-clear-cache')?.checked;
+                if (clearCacheEnabled) {
+                    await clearSiteCacheAndReload(get('version-update-reload'), { scanFirst: true });
+                } else {
+                    location.reload();
+                }
+            });
             startConnectionMonitor();
             window.addEventListener('online', probeServerConnection);
             window.addEventListener('offline', () => {
@@ -5699,6 +5808,8 @@
             });
             const storageRefreshBtn = get('storage-usage-refresh');
             if (storageRefreshBtn) storageRefreshBtn.onclick = () => loadStorageUsage();
+            const siteCacheRefreshBtn = get('site-cache-usage-refresh');
+            if (siteCacheRefreshBtn) siteCacheRefreshBtn.onclick = () => loadSiteCacheUsage();
             const clearSiteCacheBtn = get('clear-site-cache-btn');
             if (clearSiteCacheBtn) {
                 clearSiteCacheBtn.onclick = async () => {
@@ -6040,9 +6151,10 @@
                 if (ss) { ss.value = ''; }
                 filterSettings();
                 populateDefaultModelOptions();
-            populateDefaultVisionModelOptions();
+                populateDefaultVisionModelOptions();
                 showModal('settings-modal');
                 loadStorageUsage();
+                loadSiteCacheUsage();
                 ensureLlmTranscribePromptSettingsUi();
                 if (location.pathname !== '/settings') {
                     history.pushState({ modal: 'settings', from: location.pathname }, '', '/settings');
@@ -6104,7 +6216,8 @@
                     updateGoogleLinkUI(d);
                     if(get('set-enter-to-send')) get('set-enter-to-send').checked = !!d.enter_to_send;
                     if(get('set-compact-prompt-mode')) get('set-compact-prompt-mode').checked = !!d.compact_prompt_mode;
-                    if(get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;
+                        if(get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;
+                        if(get('set-clear-cache-on-version-update')) get('set-clear-cache-on-version-update').checked = !!d.clear_cache_on_version_update;
                     if(get('set-liquid-glass')) get('set-liquid-glass').checked = !!d.liquid_glass_enabled;
                     if(get('set-auto-search-links')) get('set-auto-search-links').checked = d.auto_search_on_links !== false;
                     if(get('set-use-last-settings')) get('set-use-last-settings').checked = !!d.use_last_chat_settings;
@@ -6341,6 +6454,7 @@
                     enter_to_send: get('set-enter-to-send') ? get('set-enter-to-send').checked : false,
                     compact_prompt_mode: get('set-compact-prompt-mode') ? get('set-compact-prompt-mode').checked : false,
                     use_sw_cache: get('set-use-sw-cache') ? get('set-use-sw-cache').checked : false,
+                    clear_cache_on_version_update: get('set-clear-cache-on-version-update') ? get('set-clear-cache-on-version-update').checked : false,
                     liquid_glass_enabled: get('set-liquid-glass') ? get('set-liquid-glass').checked : false,
                     auto_search_on_links: get('set-auto-search-links') ? get('set-auto-search-links').checked : true,
                     use_last_chat_settings: get('set-use-last-settings') ? get('set-use-last-settings').checked : false,
@@ -6394,6 +6508,9 @@
                     enterToSend = b.enter_to_send;
                     autoSearchOnLinks = b.auto_search_on_links;
                     useSwCache = b.use_sw_cache;
+                    if (window.CHAT_CONFIG) {
+                        window.CHAT_CONFIG.clearCacheOnVersionUpdate = !!b.clear_cache_on_version_update;
+                    }
                     compactPromptMode = b.compact_prompt_mode;
                     temporaryChatTimeoutSeconds = b.temp_chat_timeout_seconds;
                     

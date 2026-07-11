@@ -2,6 +2,7 @@
         const THEME_DEFAULT = '#0dd4bf';
         const THEME_STORAGE_KEY = 'theme_color';
         const INITIAL_THEME_COLOR = (window.CHAT_CONFIG && window.CHAT_CONFIG.initialThemeColor) || null;
+        const INITIAL_LIQUID_GLASS_ENABLED = !!(window.CHAT_CONFIG && window.CHAT_CONFIG.initialLiquidGlassEnabled);
         const RICH_PASTE_DEFAULT_PROMPT = 'このPDFをMarkdown形式に変換し、コードブロックに書き出してください。';
         const GEMINI_LOCAL_PY_DIALOG_KEY = 'gemini_local_py_dialog_enabled';
         const COMPRESSION_SIZE_KEY = 'compression_max_size_mb';
@@ -233,6 +234,10 @@
                 applyThemeColor(THEME_DEFAULT, false);
             }
         };
+        const applyLiquidGlassMode = (enabled) => {
+            if (!document.body) return;
+            document.body.classList.toggle('liquid-glass-mode', !!enabled);
+        };
         const MODAL_ANIM_MS = 280;
         const formatBytes = (bytes) => {
             if (bytes === null || bytes === undefined) return '0MB';
@@ -269,6 +274,7 @@
             }
         };
         initThemeFromServer();
+        applyLiquidGlassMode(INITIAL_LIQUID_GLASS_ENABLED);
         const showModal = (id) => {
             const el = get(id);
             if (!el) return;
@@ -4815,6 +4821,8 @@
                 if (get('set-enter-to-send')) get('set-enter-to-send').checked = !!d.enter_to_send;
                 if (get('set-compact-prompt-mode')) get('set-compact-prompt-mode').checked = !!d.compact_prompt_mode;
                 if (get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;
+                if (get('set-liquid-glass')) get('set-liquid-glass').checked = !!d.liquid_glass_enabled;
+                applyLiquidGlassMode(!!d.liquid_glass_enabled);
                 if (get('set-auto-search-links')) get('set-auto-search-links').checked = d.auto_search_on_links !== false;
                 if (get('set-use-last-settings')) get('set-use-last-settings').checked = !!d.use_last_chat_settings;
                 if (get('set-latency-metrics')) get('set-latency-metrics').checked = !!d.enable_latency_metrics;
@@ -4856,6 +4864,7 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             initThemeFromServer();
+            applyLiquidGlassMode(INITIAL_LIQUID_GLASS_ENABLED);
             updateCurrentChatHeaderUi();
             ensureCurrentChatHeaderTicker();
             const bar = document.getElementById('alpha-bar'); setTimeout(() => { if(bar) { const target = document.getElementById('version-display'); if(target) { const barRect = bar.getBoundingClientRect(); const targetRect = target.getBoundingClientRect(); const tx = targetRect.left + (targetRect.width/2) - (barRect.left + barRect.width/2); const ty = targetRect.top + (targetRect.height/2) - (barRect.top + barRect.height/2); bar.style.transform = `translate(${tx}px, ${ty}px) scale(0.1)`; bar.style.opacity = '0'; setTimeout(() => { target.classList.add('pulse-target'); setTimeout(() => target.classList.remove('pulse-target'), 2000); bar.remove(); }, 800); } else { bar.style.opacity = '0'; setTimeout(() => bar.remove(), 1000); } } }, 3000);
@@ -5999,6 +6008,7 @@
                     if(get('set-enter-to-send')) get('set-enter-to-send').checked = !!d.enter_to_send;
                     if(get('set-compact-prompt-mode')) get('set-compact-prompt-mode').checked = !!d.compact_prompt_mode;
                     if(get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;
+                    if(get('set-liquid-glass')) get('set-liquid-glass').checked = !!d.liquid_glass_enabled;
                     if(get('set-auto-search-links')) get('set-auto-search-links').checked = d.auto_search_on_links !== false;
                     if(get('set-use-last-settings')) get('set-use-last-settings').checked = !!d.use_last_chat_settings;
                     if(get('set-default-model')) get('set-default-model').value = d.default_model || 'gemini-3.1-flash-lite-preview';
@@ -6234,6 +6244,7 @@
                     enter_to_send: get('set-enter-to-send') ? get('set-enter-to-send').checked : false,
                     compact_prompt_mode: get('set-compact-prompt-mode') ? get('set-compact-prompt-mode').checked : false,
                     use_sw_cache: get('set-use-sw-cache') ? get('set-use-sw-cache').checked : false,
+                    liquid_glass_enabled: get('set-liquid-glass') ? get('set-liquid-glass').checked : false,
                     auto_search_on_links: get('set-auto-search-links') ? get('set-auto-search-links').checked : true,
                     use_last_chat_settings: get('set-use-last-settings') ? get('set-use-last-settings').checked : false,
                     default_model: get('set-default-model') ? get('set-default-model').value : null,
@@ -6292,6 +6303,7 @@
                     // Apply theme color
                     applyThemeColor(b.theme_color, true);
                     syncThemeInputs(b.theme_color);
+                    applyLiquidGlassMode(b.liquid_glass_enabled);
                     
                     // Update UI components
                     setCompactPromptMode(compactPromptMode);

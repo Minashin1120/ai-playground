@@ -186,6 +186,23 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertEqual(payload["gemini_vertex_credentials_json"], target._SECRET_MASK)
         self.assertEqual(payload["model_api_keys"]["gpt-test"], target._SECRET_MASK)
 
+    def test_liquid_glass_setting_round_trip_and_initial_render(self):
+        client = self.authenticated_client()
+        response = client.post(
+            "/api/settings",
+            json={"liquid_glass_enabled": True},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+
+        settings_response = client.get("/api/settings", base_url="https://localhost")
+        self.assertTrue(settings_response.get_json()["liquid_glass_enabled"])
+
+        chat_response = client.get("/", base_url="https://localhost")
+        self.assertEqual(chat_response.status_code, 200, chat_response.get_data(as_text=True))
+        self.assertIn("liquid-glass-mode", chat_response.get_data(as_text=True))
+
     def test_stop_chat_requires_owned_pending_job(self):
         with target.app.app_context():
             thread = target.Thread(user_id=self.user_id, public_id=target.generate_thread_public_id())
@@ -216,7 +233,8 @@ class SecurityRegressionTests(unittest.TestCase):
 
     def test_frontend_escapes_stored_values_and_forbids_iframes(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        script_path = os.path.join(root, "static", "js", "chat_core.v4.8.616.js")
+        script_version = target.app.config["SYSTEM_VERSION"].lower()
+        script_path = os.path.join(root, "static", "js", f"chat_core.{script_version}.js")
         with open(script_path, encoding="utf-8") as script_file:
             script = script_file.read()
         with open(os.path.join(root, "templates", "chat.html"), encoding="utf-8") as template_file:

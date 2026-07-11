@@ -603,8 +603,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-11-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.616'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-11-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.617'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1884,7 +1884,7 @@ AI_SAFE_EDITABLE_FIELDS = {
     'mic_transcribe_mode', 'stt_model', 'llm_transcribe_prompt',
     # UI / behavior prefs (safe)
     'enter_to_send', 'use_sw_cache', 'compact_prompt_mode', 'auto_search_on_links',
-    'use_last_chat_settings', 'temp_chat_timeout_seconds', 'theme_color',
+    'use_last_chat_settings', 'temp_chat_timeout_seconds', 'theme_color', 'liquid_glass_enabled',
     # Rich paste custom prompt
     'rich_paste_prompt_default', 'rich_paste_prompt_use_custom_default',
     # Debug / metrics (user opt-in)
@@ -1968,6 +1968,9 @@ def _apply_ai_settings_update(current_user, delta):
             elif key == 'theme_color':
                 current_user.theme_color = normalize_theme_color(val)
                 applied[key] = current_user.theme_color
+            elif key == 'liquid_glass_enabled':
+                current_user.liquid_glass_enabled = bool(val)
+                applied[key] = current_user.liquid_glass_enabled
             elif key == 'auto_search_on_links':
                 current_user.auto_search_on_links = bool(val)
                 applied[key] = current_user.auto_search_on_links
@@ -2524,6 +2527,7 @@ class User(UserMixin, db.Model):
     enter_to_send = db.Column(db.Boolean, default=False)
     use_sw_cache = db.Column(db.Boolean, default=False)
     theme_color = db.Column(db.String(16), default="")
+    liquid_glass_enabled = db.Column(db.Boolean, default=False)
     auto_search_on_links = db.Column(db.Boolean, default=True)
     compact_prompt_mode = db.Column(db.Boolean, default=False)
     use_last_chat_settings = db.Column(db.Boolean, default=False)
@@ -3270,6 +3274,7 @@ def revoke_user_sessions(user_id, exclude_session_id=None):
 def inject_csrf():
     is_admin = current_user.is_authenticated and bool(getattr(current_user, "is_admin", False))
     initial_theme_color = normalize_theme_color(getattr(current_user, 'theme_color', '')) if current_user.is_authenticated else ""
+    initial_liquid_glass_enabled = bool(getattr(current_user, 'liquid_glass_enabled', False)) if current_user.is_authenticated else False
     return {
         'csrf_token': get_csrf_token(),
         'app_version': app.config.get('APP_VERSION'),
@@ -3279,6 +3284,7 @@ def inject_csrf():
         'upload_concurrency': app.config.get('UPLOAD_CONCURRENCY', 3),
         'initial_theme_color': initial_theme_color,
         'initial_theme_css': build_theme_css_vars(initial_theme_color),
+        'initial_liquid_glass_enabled': initial_liquid_glass_enabled,
     }
 
 def validate_csrf():
@@ -12736,6 +12742,7 @@ def handle_settings():
             'enter_to_send': current_user.enter_to_send,
             'use_sw_cache': current_user.use_sw_cache,
             'theme_color': current_user.theme_color or "",
+            'liquid_glass_enabled': bool(getattr(current_user, 'liquid_glass_enabled', False)),
             'auto_search_on_links': current_user.auto_search_on_links,
             'compact_prompt_mode': current_user.compact_prompt_mode if current_user.compact_prompt_mode is not None else False,
             'use_last_chat_settings': current_user.use_last_chat_settings,
@@ -12849,6 +12856,7 @@ def handle_settings():
     if 'use_sw_cache' in d: current_user.use_sw_cache = bool(d['use_sw_cache'])
     if 'compact_prompt_mode' in d: current_user.compact_prompt_mode = bool(d['compact_prompt_mode'])
     if 'theme_color' in d: current_user.theme_color = normalize_theme_color(d.get('theme_color'))
+    if 'liquid_glass_enabled' in d: current_user.liquid_glass_enabled = bool(d['liquid_glass_enabled'])
     if 'auto_search_on_links' in d: current_user.auto_search_on_links = bool(d['auto_search_on_links'])
     if 'use_last_chat_settings' in d: current_user.use_last_chat_settings = bool(d['use_last_chat_settings'])
     if 'default_model' in d: current_user.default_model = d['default_model']
@@ -12996,6 +13004,7 @@ def _build_ai_settings_tool_schema():
         "use_last_chat_settings": {"type": "boolean", "description": "前回の送信設定を継続使用"},
         "temp_chat_timeout_seconds": {"type": "integer", "description": "一時チャットの切断タイムアウト秒数 (30-86400)"},
         "theme_color": {"type": "string", "description": "テーマカラー (HEX, 例: #10a37f)"},
+        "liquid_glass_enabled": {"type": "boolean", "description": "Liquid Glass表示モードのON/OFF"},
         "rich_paste_prompt_default": {"type": "string", "description": "リッチ貼り付け用カスタムプロンプト既定値"},
         "rich_paste_prompt_use_custom_default": {"type": "boolean", "description": "リッチ貼り付けでカスタムプロンプトを使用"},
         "enable_latency_metrics": {"type": "boolean", "description": "初回トークンレイテンシ計測を有効化"},
@@ -14612,6 +14621,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN theme_color VARCHAR(16)")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN liquid_glass_enabled BOOLEAN DEFAULT 0")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN auto_search_on_links BOOLEAN DEFAULT 1")

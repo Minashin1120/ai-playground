@@ -42,11 +42,20 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("surface !== liquidGlassPointerSurface || !liquidGlassPointerRect", source)
         self.assertIn("liquidGlassPointerRect = null", source)
 
+    def test_model_modal_preserves_desktop_and_touch_scrolling(self):
+        source = _current_asset("css", "chat.custom.v4.8.*.css")
+
+        model_list_css = source[source.index("#model-list-container {") :]
+        model_list_css = model_list_css[: model_list_css.index("body.liquid-glass-mode .modal-overlay")]
+        self.assertIn("min-height: 0", model_list_css)
+        self.assertIn("touch-action: pan-y", model_list_css)
+        self.assertIn("overflow-y: visible", model_list_css)
+        self.assertNotIn("overscroll-behavior: contain", model_list_css)
+        self.assertNotIn("content-visibility", model_list_css)
+
     def test_modal_glass_keeps_effect_with_reduced_paint_cost(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")
 
-        self.assertIn("#model-list-container .model-list-group", source)
-        self.assertIn("content-visibility: auto", source)
         self.assertIn("backdrop-filter: blur(22px) saturate(170%)", source)
         self.assertIn("body.liquid-glass-mode .modal-overlay .modal-panel", source)
         self.assertIn("transition: opacity 0.24s", source)

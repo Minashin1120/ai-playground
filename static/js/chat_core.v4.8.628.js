@@ -312,23 +312,68 @@
             document.body.classList.toggle('liquid-glass-mode', !!enabled);
             if (enabled) refreshLiquidGlassSurfaces();
         };
+        let pendingLiquidGlassPointer = null;
+        let liquidGlassPointerFrame = 0;
+        let liquidGlassPointerPaintAt = 0;
+        let liquidGlassPointerSurface = null;
+        let liquidGlassPointerRect = null;
+        const paintLiquidGlassPointer = (timestamp) => {
+            if (!pendingLiquidGlassPointer || !document.body || !document.body.classList.contains('liquid-glass-mode')) {
+                liquidGlassPointerFrame = 0;
+                return;
+            }
+            // Expensive translucent surfaces do not benefit from repainting faster than ~30fps.
+            if (timestamp - liquidGlassPointerPaintAt < 30) {
+                liquidGlassPointerFrame = requestAnimationFrame(paintLiquidGlassPointer);
+                return;
+            }
+            const pointer = pendingLiquidGlassPointer;
+            pendingLiquidGlassPointer = null;
+            const surface = pointer.target && pointer.target.closest
+                ? pointer.target.closest(LIQUID_GLASS_SURFACE_SELECTOR)
+                : null;
+            if (!surface) {
+                liquidGlassPointerFrame = 0;
+                return;
+            }
+            if (surface !== liquidGlassPointerSurface || !liquidGlassPointerRect) {
+                liquidGlassPointerSurface = surface;
+                liquidGlassPointerRect = surface.getBoundingClientRect();
+            }
+            const rect = liquidGlassPointerRect;
+            if (rect.width && rect.height) {
+                const x = Math.max(0, Math.min(100, ((pointer.clientX - rect.left) / rect.width) * 100));
+                const y = Math.max(0, Math.min(100, ((pointer.clientY - rect.top) / rect.height) * 100));
+                surface.style.setProperty('--glass-light-x', `${x.toFixed(1)}%`);
+                surface.style.setProperty('--glass-light-y', `${y.toFixed(1)}%`);
+                liquidGlassPointerPaintAt = timestamp;
+            }
+            liquidGlassPointerFrame = pendingLiquidGlassPointer
+                ? requestAnimationFrame(paintLiquidGlassPointer)
+                : 0;
+        };
         document.addEventListener('pointermove', (event) => {
             if (!document.body || !document.body.classList.contains('liquid-glass-mode')) return;
-            const surface = event.target.closest ? event.target.closest(LIQUID_GLASS_SURFACE_SELECTOR) : null;
-            if (!surface) return;
-            const rect = surface.getBoundingClientRect();
-            if (!rect.width || !rect.height) return;
-            const x = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100));
-            const y = Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100));
-            surface.style.setProperty('--glass-light-x', `${x.toFixed(1)}%`);
-            surface.style.setProperty('--glass-light-y', `${y.toFixed(1)}%`);
+            pendingLiquidGlassPointer = {
+                target: event.target,
+                clientX: event.clientX,
+                clientY: event.clientY,
+            };
+            if (!liquidGlassPointerFrame) {
+                liquidGlassPointerFrame = requestAnimationFrame(paintLiquidGlassPointer);
+            }
         }, { passive: true });
         document.addEventListener('pointerout', (event) => {
             const surface = event.target.closest ? event.target.closest(LIQUID_GLASS_SURFACE_SELECTOR) : null;
             if (!surface || (event.relatedTarget && surface.contains(event.relatedTarget))) return;
+            pendingLiquidGlassPointer = null;
             surface.style.removeProperty('--glass-light-x');
             surface.style.removeProperty('--glass-light-y');
             surface.classList.remove('liquid-glass-pressed');
+            if (surface === liquidGlassPointerSurface) {
+                liquidGlassPointerSurface = null;
+                liquidGlassPointerRect = null;
+            }
         }, { passive: true });
         document.addEventListener('pointerdown', (event) => {
             if (!document.body || !document.body.classList.contains('liquid-glass-mode')) return;
@@ -344,12 +389,16 @@
         let liquidGlassScrollTimer = 0;
         document.addEventListener('scroll', () => {
             if (!document.body || !document.body.classList.contains('liquid-glass-mode')) return;
+            liquidGlassPointerRect = null;
             document.body.classList.add('liquid-glass-scrolling');
             window.clearTimeout(liquidGlassScrollTimer);
             liquidGlassScrollTimer = window.setTimeout(() => {
                 if (document.body) document.body.classList.remove('liquid-glass-scrolling');
             }, 140);
         }, { passive: true, capture: true });
+        window.addEventListener('resize', () => {
+            liquidGlassPointerRect = null;
+        }, { passive: true });
         const MODAL_ANIM_MS = 280;
         const formatBytes = (bytes) => {
             if (bytes === null || bytes === undefined) return '0MB';
@@ -499,27 +548,47 @@
         };
         initThemeFromServer();
         applyLiquidGlassMode(INITIAL_LIQUID_GLASS_ENABLED);
+        const modalCloseTimers = new WeakMap();
+        const modalOpenFrames = new WeakMap();
+        const cancelModalTransitions = (el) => {
+            const closeTimer = modalCloseTimers.get(el);
+            if (closeTimer) {
+                clearTimeout(closeTimer);
+                modalCloseTimers.delete(el);
+            }
+            const frames = modalOpenFrames.get(el);
+            if (frames) {
+                cancelAnimationFrame(frames.first);
+                if (frames.second) cancelAnimationFrame(frames.second);
+                modalOpenFrames.delete(el);
+            }
+        };
         const showModal = (id) => {
             const el = get(id);
             if (!el) return;
+            if (el.classList.contains('modal-open')) return;
+            cancelModalTransitions(el);
             el.classList.remove('hidden');
             el.style.display = 'flex';
             el.classList.remove('modal-close');
             el.classList.remove('modal-open');
             el.classList.add('modal-prep');
-            // Force a reflow so the first open animates reliably, then double-rAF for a smoother first paint.
-            void el.offsetHeight;
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
+            // Two compositor frames establish the start state without a synchronous layout flush.
+            const frames = { first: 0, second: 0 };
+            frames.first = requestAnimationFrame(() => {
+                frames.second = requestAnimationFrame(() => {
+                    modalOpenFrames.delete(el);
                     el.classList.remove('modal-prep');
                     el.classList.add('modal-open');
                 });
             });
+            modalOpenFrames.set(el, frames);
         };
         window.showModal = showModal;
         const hideModal = (id, options = {}) => {
             const el = get(id);
             if (!el) return;
+            cancelModalTransitions(el);
             const skipConfirm = !!(options && options.skipConfirm);
             const skipReset = !!(options && options.skipReset);
             if (id === 'camera-capture-modal' && cameraCapturePendingFiles.length > 0) {
@@ -552,12 +621,14 @@
             }
             el.classList.remove('modal-open');
             el.classList.add('modal-close');
-            setTimeout(() => {
+            const closeTimer = setTimeout(() => {
                 el.style.display = 'none';
                 el.classList.remove('modal-close');
                 el.classList.remove('modal-prep');
                 el.classList.add('hidden');
+                modalCloseTimers.delete(el);
             }, MODAL_ANIM_MS);
+            modalCloseTimers.set(el, closeTimer);
         };
         const RICH_PASTE_ALLOWED_TAGS = [
             'a', 'abbr', 'b', 'blockquote', 'br', 'caption', 'code', 'col', 'colgroup', 'div',
@@ -4928,89 +4999,149 @@
             });
         }
 
-        function renderModelList(filter = "") {
+        const modelListGroups = [];
+        let modelListBanner = null;
+        let modelListEmpty = null;
+        let modelListBuilt = false;
+        let modelListAnimated = false;
+        let modelListRenderFrame = 0;
+        function buildModelList() {
+            const container = get('model-list-container');
+            if (!container || modelListBuilt) return;
+            container.innerHTML = '';
+            modelListBanner = document.createElement('div');
+            modelListBanner.className = 'hidden mb-4 px-3 py-2 rounded-lg border border-teal-500/40 bg-teal-900/20 text-[11px] text-teal-200';
+            container.appendChild(modelListBanner);
+
+            MODELS.forEach(group => {
+                const availableItems = group.items.filter(m => !m.deprecated);
+                if (!availableItems.length) return;
+                const groupEl = document.createElement('section');
+                groupEl.className = 'model-list-group';
+                groupEl.innerHTML = `
+                    <div class="flex items-center gap-2 mb-3 px-2">
+                        <i class="${group.icon}"></i>
+                        <div>
+                            <h3 class="font-bold text-gray-200 text-sm">${group.category}</h3>
+                            <p class="text-[10px] text-gray-500">${group.description}</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-6"></div>
+                `;
+                const grid = groupEl.querySelector('.grid');
+                const entries = availableItems.map(m => {
+                    const item = document.createElement('button');
+                    const priceHtml = m.price ? `<div class="text-[10px] text-amber-400/90 mt-1.5 font-mono flex items-start gap-1"><i class="fas fa-tag text-[9px] mt-0.5 opacity-70 shrink-0"></i><span>${m.price}</span></div>` : '';
+                    item.type = 'button';
+                    item.className = 'flex flex-col text-left p-3 rounded-lg border transition bg-gray-800 border-gray-700 hover:border-gray-500 hover:bg-gray-750';
+                    item.dataset.selected = '0';
+                    item.onclick = () => selectModel(m.id, m.name);
+                    item.innerHTML = `
+                        <div class="flex justify-between items-center w-full mb-1">
+                            <span class="font-bold text-sm text-gray-200">${m.name}</span>
+                            <i class="model-selected-icon fas fa-check-circle text-blue-400 hidden"></i>
+                        </div>
+                        <span class="text-[10px] text-gray-400">${m.desc}</span>
+                        ${priceHtml}
+                    `;
+                    grid.appendChild(item);
+                    return {
+                        model: m,
+                        button: item,
+                        searchText: `${m.name} ${m.id}`.toLowerCase(),
+                        provider: getModelApiProvider(m.id),
+                        tags: new Set(getModelTags(m, group)),
+                    };
+                });
+                modelListGroups.push({ element: groupEl, entries });
+                container.appendChild(groupEl);
+            });
+
+            modelListEmpty = document.createElement('div');
+            modelListEmpty.className = 'hidden text-center text-gray-500 py-8';
+            container.appendChild(modelListEmpty);
+            modelListBuilt = true;
+        }
+
+        function updateModelButtonSelection(entry, selectedModel) {
+            const isSelected = selectedModel === entry.model.id;
+            if (entry.button.dataset.selected === (isSelected ? '1' : '0')) return;
+            entry.button.dataset.selected = isSelected ? '1' : '0';
+            entry.button.classList.toggle('bg-blue-600/20', isSelected);
+            entry.button.classList.toggle('border-blue-500', isSelected);
+            entry.button.classList.toggle('ring-1', isSelected);
+            entry.button.classList.toggle('ring-blue-500', isSelected);
+            entry.button.classList.toggle('bg-gray-800', !isSelected);
+            entry.button.classList.toggle('border-gray-700', !isSelected);
+            entry.button.classList.toggle('hover:border-gray-500', !isSelected);
+            entry.button.classList.toggle('hover:bg-gray-750', !isSelected);
+            const icon = entry.button.querySelector('.model-selected-icon');
+            if (icon) icon.classList.toggle('hidden', !isSelected);
+        }
+
+        function renderModelList(filter = "", options = {}) {
             const container = get('model-list-container');
             if (!container) return;
-            container.classList.remove('model-list-animate');
-            container.innerHTML = '';
+            buildModelList();
             const f = filter.toLowerCase();
             const lockedProvider = window._visionPickerActive ? null : getPromptCacheLockedProvider();
             const lockedLabel = lockedProvider ? (PROVIDER_LABELS[lockedProvider] || lockedProvider) : '';
-            
+            const selectedModel = get('model-select') ? get('model-select').value : '';
+            let visibleCount = 0;
+
+            modelListBanner.classList.toggle('hidden', !lockedProvider);
             if (lockedProvider) {
-                const banner = document.createElement('div');
-                banner.className = 'mb-4 px-3 py-2 rounded-lg border border-teal-500/40 bg-teal-900/20 text-[11px] text-teal-200';
-                banner.innerHTML = `<i class="fas fa-database mr-1.5"></i>PromptCache 有効中: <strong>${lockedLabel}</strong> のモデルのみ選択できます（他APIへの切替は不可）`;
-                container.appendChild(banner);
+                modelListBanner.innerHTML = `<i class="fas fa-database mr-1.5"></i>PromptCache 有効中: <strong>${lockedLabel}</strong> のモデルのみ選択できます（他APIへの切替は不可）`;
             }
 
-            MODELS.forEach(group => {
-                const matches = group.items.filter(m => {
-                    if (m.deprecated) return false;
-                    const hit = m.name.toLowerCase().includes(f) || m.id.toLowerCase().includes(f);
-                    if (!hit) return false;
-                    if (lockedProvider && getModelApiProvider(m.id) !== lockedProvider) return false;
-                    if (activeModelTag === 'all') return true;
-                    return getModelTags(m, group).includes(activeModelTag);
+            modelListGroups.forEach(group => {
+                let groupVisibleCount = 0;
+                group.entries.forEach(entry => {
+                    const visible = entry.searchText.includes(f)
+                        && (!lockedProvider || entry.provider === lockedProvider)
+                        && (activeModelTag === 'all' || entry.tags.has(activeModelTag));
+                    entry.button.classList.toggle('hidden', !visible);
+                    updateModelButtonSelection(entry, selectedModel);
+                    if (visible) groupVisibleCount += 1;
                 });
-                if (matches.length > 0) {
-                    const groupEl = document.createElement('div');
-                    groupEl.innerHTML = `
-                        <div class="flex items-center gap-2 mb-3 px-2">
-                            <i class="${group.icon}"></i>
-                            <div>
-                                <h3 class="font-bold text-gray-200 text-sm">${group.category}</h3>
-                                <p class="text-[10px] text-gray-500">${group.description}</p>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-6"></div>
-                    `;
-                    const grid = groupEl.querySelector('.grid');
-                    
-                    matches.forEach(m => {
-                        const item = document.createElement('button');
-                        const selectedForHighlight = get('model-select') ? get('model-select').value : '';
-                        const isSelected = selectedForHighlight === m.id;
-                        const priceHtml = m.price ? `<div class="text-[10px] text-amber-400/90 mt-1.5 font-mono flex items-start gap-1"><i class="fas fa-tag text-[9px] mt-0.5 opacity-70 shrink-0"></i><span>${m.price}</span></div>` : '';
-                        item.className = `flex flex-col text-left p-3 rounded-lg border transition ${isSelected ? 'bg-blue-600/20 border-blue-500 ring-1 ring-blue-500' : 'bg-gray-800 border-gray-700 hover:border-gray-500 hover:bg-gray-750'}`;
-                        item.onclick = () => selectModel(m.id, m.name);
-                        item.innerHTML = `
-                            <div class="flex justify-between items-center w-full mb-1">
-                                <span class="font-bold text-sm text-gray-200">${m.name}</span>
-                                ${isSelected ? '<i class="fas fa-check-circle text-blue-400"></i>' : ''}
-                            </div>
-                            <span class="text-[10px] text-gray-400">${m.desc}</span>
-                            ${priceHtml}
-                        `;
-                        grid.appendChild(item);
-                    });
-                    container.appendChild(groupEl);
-                }
+                group.element.classList.toggle('hidden', groupVisibleCount === 0);
+                visibleCount += groupVisibleCount;
             });
-            
-            if (container.children.length === 0 || (lockedProvider && container.children.length === 1 && !container.querySelector('.grid'))) {
-                const empty = document.createElement('div');
-                empty.className = 'text-center text-gray-500 py-8';
-                empty.textContent = lockedProvider
+
+            modelListEmpty.classList.toggle('hidden', visibleCount !== 0);
+            if (visibleCount === 0) {
+                modelListEmpty.textContent = lockedProvider
                     ? `No ${lockedLabel} models found.`
                     : 'No models found.';
-                container.appendChild(empty);
             }
-            requestAnimationFrame(() => container.classList.add('model-list-animate'));
+            if (options.animate && !modelListAnimated) {
+                modelListAnimated = true;
+                container.classList.add('model-list-animate');
+            }
+        }
+
+        function scheduleModelListRender(filter) {
+            if (modelListRenderFrame) cancelAnimationFrame(modelListRenderFrame);
+            modelListRenderFrame = requestAnimationFrame(() => {
+                modelListRenderFrame = 0;
+                renderModelList(filter);
+            });
         }
 
         function openModelModal() {
-            showModal('model-modal');
             if (location.pathname !== '/model') {
                 history.pushState({ modal: 'model' }, '', '/model');
             }
-            get('model-search').value = '';
-            // Prevent auto-focus on mobile to avoid keyboard popup
-            if (window.innerWidth > 768) {
-                get('model-search').focus();
-            }
+            const search = get('model-search');
+            if (search) search.value = '';
             updateModelTagUi();
-            renderModelList();
+            // Build/update while hidden so opening animation never competes with DOM construction.
+            renderModelList('', { animate: true });
+            showModal('model-modal');
+            // Prevent auto-focus on mobile to avoid keyboard popup
+            if (search && window.innerWidth > 768) {
+                requestAnimationFrame(() => search.focus({ preventScroll: true }));
+            }
         }
         window.closeModelModal = (skipHistory = false) => {
             hideModal('model-modal');
@@ -5103,7 +5234,9 @@
             } catch (e) { /* element missing ok */ }
         }
 
-        get('model-search').addEventListener('input', (e) => renderModelList(e.target.value));
+        if (get('model-search')) {
+            get('model-search').addEventListener('input', (e) => scheduleModelListRender(e.target.value));
+        }
         if (get('model-tag-bar')) {
             get('model-tag-bar').addEventListener('click', (e) => {
                 const btn = e.target.closest('.model-tag-btn');

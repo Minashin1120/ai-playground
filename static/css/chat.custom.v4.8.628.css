@@ -2899,6 +2899,38 @@ body.liquid-glass-mode.liquid-glass-scrolling .liquid-glass-surface {
     -webkit-backdrop-filter: blur(17px) saturate(170%) contrast(1.08) !important;
 }
 
+/* V4.8.628 — Modal rendering performance
+   Keep the glass appearance, but avoid moving a live backdrop-filter layer while it repaints. */
+#model-list-container {
+    overscroll-behavior: contain;
+    contain: layout paint;
+}
+#model-list-container .model-list-group {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 260px;
+}
+body.liquid-glass-mode .modal-overlay {
+    background-color: rgba(3, 8, 18, 0.54) !important;
+    backdrop-filter: blur(6px) saturate(118%) !important;
+    -webkit-backdrop-filter: blur(6px) saturate(118%) !important;
+}
+body.liquid-glass-mode .modal-panel,
+body.liquid-glass-mode .modal-glass-panel,
+body.liquid-glass-mode #settings-modal > div,
+body.liquid-glass-mode #model-modal > div,
+body.liquid-glass-mode #gem-modal > div {
+    backdrop-filter: blur(22px) saturate(170%) contrast(1.03) !important;
+    -webkit-backdrop-filter: blur(22px) saturate(170%) contrast(1.03) !important;
+}
+body.liquid-glass-mode .modal-overlay .modal-panel {
+    transform: none;
+    transition: opacity 0.24s var(--ease-standard);
+}
+body.liquid-glass-mode .modal-overlay.modal-prep .modal-panel,
+body.liquid-glass-mode .modal-overlay.modal-close .modal-panel {
+    transform: none;
+}
+
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     body.liquid-glass-mode .liquid-glass-surface {
         background: linear-gradient(158deg, rgba(53,68,90,0.96), rgba(23,36,55,0.97) 48%, rgba(7,15,29,0.98)) !important;

@@ -38,10 +38,10 @@ class ProgressSpinnerRegressionTests(unittest.TestCase):
 
     def test_spinner_cache_version_matches_system_version(self):
         app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
-        self.assertIn("SYSTEM_VERSION'] = 'V4.8.627'", app_source)
+        self.assertIn("SYSTEM_VERSION'] = 'V4.8.628'", app_source)
         for name in ("chat", "login", "signup", "verify_2fa", "setup", "landing", "banned"):
             template = (APP_ROOT / "templates" / f"{name}.html").read_text(encoding="utf-8")
-            self.assertIn("filename='js/progress_spinner.js', v='4.8.627'", template)
+            self.assertIn("filename='js/progress_spinner.js', v='4.8.628'", template)
 
     def test_chat_streams_remain_tracked_until_body_consumption_finishes(self):
         assets = list((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))

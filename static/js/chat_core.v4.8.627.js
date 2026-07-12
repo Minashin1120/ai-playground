@@ -12429,6 +12429,11 @@
                 else if (eventType === 'thought') firstThoughtLatencySent = true;
                 else if (eventType === 'content') firstContentLatencySent = true;
             };
+            // fetch() resolves when response headers arrive, before its streaming body is done.
+            // Keep the global progress operation alive until the reader loop and final sync finish.
+            const finishStreamProgress = window.ProgressSpinner
+                ? window.ProgressSpinner.start('送信中...')
+                : null;
             try { 
                 if (p.thread_id && activeGem) {
                     threadGemMap[p.thread_id] = activeGem;
@@ -12710,6 +12715,7 @@
                 // Restore old message if error occurred during edit
                 if (editingId && !syncedAfterAbort) restoreHiddenBranch();
             } finally { 
+                if (finishStreamProgress) finishStreamProgress();
                 setSendBtnToSendMode();
                 updateFilePreview();
                 if (activeStreamingBubbleId === aid) activeStreamingBubbleId = null;
@@ -12774,6 +12780,9 @@
             let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null, hadError=false;
             const pyBoxes = {};
             let lastRenderTime = 0;
+            const finishResumeProgress = window.ProgressSpinner
+                ? window.ProgressSpinner.start('生成中...')
+                : null;
             try {
                 const r = await apiFetch("/chat_stream_resume", {
                     method: 'POST',
@@ -12957,6 +12966,7 @@
                     showToast(msg, "error", true);
                 }
             } finally {
+                if (finishResumeProgress) finishResumeProgress();
                 setSendBtnToSendMode();
                 updateFilePreview();
                 if (activeStreamingBubbleId === bubbleId) activeStreamingBubbleId = null;

@@ -1,4 +1,53 @@
         const get = (id) => document.getElementById(id);
+        const externalScriptLoads = new Map();
+        const loadExternalScript = (src, globalReady) => {
+            if (typeof globalReady === 'function' && globalReady()) return Promise.resolve();
+            if (externalScriptLoads.has(src)) return externalScriptLoads.get(src);
+            const pending = new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.async = true;
+                script.crossOrigin = 'anonymous';
+                script.referrerPolicy = 'no-referrer';
+                script.onload = () => resolve();
+                script.onerror = () => reject(new Error(`ライブラリを読み込めませんでした: ${src}`));
+                document.head.appendChild(script);
+            });
+            externalScriptLoads.set(src, pending);
+            return pending;
+        };
+        const ensurePdfLibraries = () => Promise.all([
+            loadExternalScript(
+                'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+                () => typeof window.html2canvas === 'function'
+            ),
+            loadExternalScript(
+                'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+                () => !!(window.jspdf && window.jspdf.jsPDF)
+            )
+        ]);
+        const ensureImageCompression = () => loadExternalScript(
+            'https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js',
+            () => typeof window.imageCompression === 'function'
+        );
+        let webauthnJsonLoad = null;
+        const ensureWebAuthnJson = async () => {
+            if (window.webauthnJSON) return window.webauthnJSON;
+            if (!webauthnJsonLoad) {
+                webauthnJsonLoad = import('https://esm.sh/@github/webauthn-json@2.1.1')
+                    .then(({ create, get: getCredential }) => ({ create, get: getCredential }));
+            }
+            window.webauthnJSON = await webauthnJsonLoad;
+            return window.webauthnJSON;
+        };
+        // Media is allowed, but untrusted chat content must never create frames.
+        if (window.DOMPurify) {
+            window.DOMPurify.setConfig(window.CHAT_DOMPURIFY_CONFIG || {
+                ADD_TAGS: ['video', 'source'],
+                ADD_ATTR: ['controls', 'src', 'class', 'autoplay', 'loop', 'muted', 'poster', 'width', 'height', 'start', 'type', 'reversed'],
+                FORBID_TAGS: ['iframe', 'object', 'embed']
+            });
+        }
         const THEME_DEFAULT = '#0dd4bf';
         const THEME_STORAGE_KEY = 'theme_color';
         const INITIAL_THEME_COLOR = (window.CHAT_CONFIG && window.CHAT_CONFIG.initialThemeColor) || null;
@@ -1412,6 +1461,7 @@
             if (!editor) throw new Error('PDF化する内容がありません');
             const title = inferRichPasteTitle();
             const contentHtml = sanitizeRichPasteHtml(editor.innerHTML || '');
+            await ensurePdfLibraries();
             const JsPdfCtor = window.jspdf && window.jspdf.jsPDF ? window.jspdf.jsPDF : null;
             if (!JsPdfCtor) throw new Error('jsPDF ライブラリが読み込まれていません');
             const html2canvasFn = window.html2canvas;
@@ -7143,7 +7193,8 @@
                         showToast(options.error || 'パスキー登録の準備に失敗しました', 'error', true);
                         return;
                     }
-                    const credential = await window.webauthnJSON.create({ publicKey: options });
+                    const webauthnJSON = await ensureWebAuthnJson();
+                    const credential = await webauthnJSON.create({ publicKey: options });
                     const verifyRes = await apiFetch('/api/2fa/webauthn/register/verify', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
@@ -10686,7 +10737,8 @@
                                 // If formatOnly is true but outputType is original, do nothing.
                                 throw new Error('formatOnly with original type');
                             }
-                            const c = await imageCompression(f, o);
+                            await ensureImageCompression();
+                            const c = await window.imageCompression(f, o);
                             const compressedFile = new File([c], f.name, { type: c.type });
                             if (compressedFile.size > f.size) {
                                 showToast(`圧縮後にサイズが増加しました: ${formatBytes(f.size)} -> ${formatBytes(compressedFile.size)}（元ファイルを使用）`, "warning", true);

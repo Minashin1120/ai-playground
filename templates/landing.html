@@ -6,7 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     {% include 'pwa_meta.html' %}
     <title>AI Chat Playground - 次世代AIチャット</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.' ~ (system_version | lower) ~ '.css') }}?v={{ app_version }}">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app-design.css') }}?v={{ app_version }}">

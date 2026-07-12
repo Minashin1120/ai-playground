@@ -7,17 +7,13 @@
     <title>ログイン - AI Chat</title>
     <meta name="csrf-token" content="{{ csrf_token }}">
     <meta name="google-signin-client_id" content="{{ google_client_id }}">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.' ~ (system_version | lower) ~ '.css') }}?v={{ app_version }}">
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <script src="https://accounts.google.com/gsi/client" async defer onload="initGoogleOneTap()"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js" integrity="sha384-QsSpx6a0USazT7nK7w8qXDgpSAPhFsb2XtpoLFQ5+X2yFN6hvCKnwEzN8M5FWaJb" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.11/purify.min.js" integrity="sha384-lCSH9WfVk9FgPeso6qS/Xq9VRYIGdgxLyJ0z9qUfOxJJZV0ch+eyQWv2rGffJm/t" crossorigin="anonymous"></script>
     <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.268') }}"></script>
     <script src="{{ url_for('static', filename='js/pwa_install.js') }}?v={{ app_version }}" defer></script>
-    <script type="module">
-        import { get } from 'https://esm.sh/@github/webauthn-json@2.1.1';
-        window.webauthnJSON = { get };
-    </script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app-design.css') }}?v={{ app_version }}">
     <style>
@@ -534,7 +530,8 @@
                     throw new Error(errData.error || "Failed to get options");
                 }
                 const options = await optsRes.json();
-                const credential = await window.webauthnJSON.get({ publicKey: options });
+                const { get: getCredential } = await import('https://esm.sh/@github/webauthn-json@2.1.1');
+                const credential = await getCredential({ publicKey: options });
                 const verifyRes = await fetch('/verify-2fa/webauthn/verify', {
                     method: 'POST',
                     headers: {
@@ -620,7 +617,8 @@
                     btn.innerHTML = originalText;
                     return; 
                 }
-                const credential = await window.webauthnJSON.get({ publicKey: options });
+                const { get: getCredential } = await import('https://esm.sh/@github/webauthn-json@2.1.1');
+                const credential = await getCredential({ publicKey: options });
                 const verifyRes = await fetch('/login/passkey/verify', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},

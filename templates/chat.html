@@ -11,25 +11,21 @@
     {% endif %}
     <title>AI Playground ({{ system_version }})</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.' ~ (system_version | lower) ~ '.css') }}?v={{ app_version }}">
-    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js" integrity="sha384-QsSpx6a0USazT7nK7w8qXDgpSAPhFsb2XtpoLFQ5+X2yFN6hvCKnwEzN8M5FWaJb" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.11/purify.min.js" integrity="sha384-lCSH9WfVk9FgPeso6qS/Xq9VRYIGdgxLyJ0z9qUfOxJJZV0ch+eyQWv2rGffJm/t" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js" integrity="sha384-QsSpx6a0USazT7nK7w8qXDgpSAPhFsb2XtpoLFQ5+X2yFN6hvCKnwEzN8M5FWaJb" crossorigin="anonymous" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.11/purify.min.js" integrity="sha384-lCSH9WfVk9FgPeso6qS/Xq9VRYIGdgxLyJ0z9qUfOxJJZV0ch+eyQWv2rGffJm/t" crossorigin="anonymous" defer></script>
     <script>
-        // Media is allowed, but untrusted chat content must never create frames.
-        DOMPurify.setConfig({
+        window.CHAT_DOMPURIFY_CONFIG = {
             ADD_TAGS: ['video', 'source'],
             ADD_ATTR: ['controls', 'src', 'class', 'autoplay', 'loop', 'muted', 'poster', 'width', 'height', 'start', 'type', 'reversed'],
             FORBID_TAGS: ['iframe', 'object', 'embed']
-        });
+        };
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&family=Noto+Sans+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js" defer></script>
-    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.268') }}"></script>
-    <script type="module">
-        import { create, get } from 'https://esm.sh/@github/webauthn-json@2.1.1';
-        window.webauthnJSON = { create, get };
-    </script>
+    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.268') }}" defer></script>
     {% if bot_config and bot_config.turnstileSiteKey %}
     <script>
         window.__turnstileApiLoaded = false;

@@ -12,6 +12,16 @@ def _current_chat_core_source():
 
 
 class ChatLoadingRegressionTests(unittest.TestCase):
+    def test_markdown_rendering_survives_a_missing_library_without_unsafe_html(self):
+        source = _current_chat_core_source()
+        sanitizer = source[source.index("function sanitizeMarkdownHtml(text)") :]
+        sanitizer = sanitizer[: sanitizer.index("function getCanvasModeElements()")]
+
+        self.assertIn("!window.marked", sanitizer)
+        self.assertIn("!window.DOMPurify", sanitizer)
+        self.assertIn("return escapeHtml(source).replace(/\\n/g, '<br>')", sanitizer)
+        self.assertIn("window.DOMPurify.sanitize(window.marked.parse(source))", sanitizer)
+
     def test_prompt_cache_ui_helper_is_available_to_thread_loader(self):
         source = _current_chat_core_source()
         helper = "const updatePromptCacheUi = () => {"

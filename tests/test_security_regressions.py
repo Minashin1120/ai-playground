@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import io
 import os
 import tempfile
@@ -288,10 +290,33 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn('${escapeHtml(g.name)}', script)
         self.assertIn('Error: ${escapeHtml(j.content)}', script)
         self.assertIn("FORBID_TAGS: ['iframe', 'object', 'embed']", template)
-        self.assertIn("dompurify/3.4.11/", template)
+        self.assertIn("filename='vendor/dompurify-3.4.11.min.js'", template)
+        self.assertNotIn("cdnjs.cloudflare.com/ajax/libs/dompurify", template)
         self.assertIn('sandbox="allow-scripts allow-forms allow-modals allow-popups"', template)
         self.assertIn("openSandboxedHtmlTab(safe)", script)
         self.assertIn("frame.setAttribute('sandbox', '')", script)
+
+    def test_critical_markdown_libraries_are_self_hosted_with_matching_sri(self):
+        root = os.path.dirname(os.path.dirname(__file__))
+        expected = {
+            "marked-4.3.0.min.js": "QsSpx6a0USazT7nK7w8qXDgpSAPhFsb2XtpoLFQ5+X2yFN6hvCKnwEzN8M5FWaJb",
+            "dompurify-3.4.11.min.js": "o44XUELLEnv/iSlA1NWxBweqbD4TSR0qgq2VzVsxtkHS989JJjGKSE9vkfo5MN4K",
+        }
+        for filename, sri_hash in expected.items():
+            with self.subTest(filename=filename):
+                asset_path = os.path.join(root, "static", "vendor", filename)
+                with open(asset_path, "rb") as asset_file:
+                    actual = base64.b64encode(hashlib.sha384(asset_file.read()).digest()).decode("ascii")
+                self.assertEqual(actual, sri_hash)
+
+        for template_name in ("chat.html", "landing.html", "login.html", "changelog.html"):
+            with self.subTest(template=template_name):
+                with open(os.path.join(root, "templates", template_name), encoding="utf-8") as template_file:
+                    template = template_file.read()
+                self.assertIn("filename='vendor/marked-4.3.0.min.js'", template)
+                self.assertIn("filename='vendor/dompurify-3.4.11.min.js'", template)
+                self.assertNotIn("cdn.jsdelivr.net/npm/marked@4.3.0", template)
+                self.assertNotIn("cdnjs.cloudflare.com/ajax/libs/dompurify", template)
 
 
 if __name__ == "__main__":

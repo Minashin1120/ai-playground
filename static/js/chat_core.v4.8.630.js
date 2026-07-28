@@ -915,14 +915,18 @@
             return best ? best.innerHTML : (doc.body ? doc.body.innerHTML : '');
         };
         const sanitizeRichPasteHtml = (html) => {
+            if (!window.DOMPurify || typeof window.DOMPurify.sanitize !== 'function') {
+                const fallbackDoc = new DOMParser().parseFromString(String(html || ''), 'text/html');
+                return escapeHtml(fallbackDoc.body ? fallbackDoc.body.textContent : '');
+            }
             let articleHtml = extractRichPasteArticleHtml(html);
-            let safeHtml = DOMPurify.sanitize(articleHtml || '', {
+            let safeHtml = window.DOMPurify.sanitize(articleHtml || '', {
                 ALLOWED_TAGS: RICH_PASTE_ALLOWED_TAGS,
                 ALLOWED_ATTR: RICH_PASTE_ALLOWED_ATTR,
                 KEEP_CONTENT: true
             });
             if ((!safeHtml || safeHtml.trim() === '') && html && html.trim() !== '') {
-                safeHtml = DOMPurify.sanitize(html, {
+                safeHtml = window.DOMPurify.sanitize(html, {
                     ALLOWED_TAGS: RICH_PASTE_ALLOWED_TAGS,
                     ALLOWED_ATTR: RICH_PASTE_ALLOWED_ATTR,
                     KEEP_CONTENT: true
@@ -5695,7 +5699,7 @@
                     get('sts-speed-label').textContent = `${Number(get('sts-speed').value || 1).toFixed(2)}x`;
                 });
             }
-            marked.use({
+            if (window.marked && typeof window.marked.use === 'function') window.marked.use({
                 renderer: {
                     code(c, i, e) {
                         const l = (i || '').match(/\S*/)[0];
@@ -10930,8 +10934,18 @@
         }
         
         const messageMeta = {};
+        let markdownLibraryFallbackReported = false;
         function sanitizeMarkdownHtml(text) {
-            return DOMPurify.sanitize(marked.parse(text || ''));
+            const source = String(text || '');
+            if (!window.marked || typeof window.marked.parse !== 'function'
+                || !window.DOMPurify || typeof window.DOMPurify.sanitize !== 'function') {
+                if (!markdownLibraryFallbackReported) {
+                    markdownLibraryFallbackReported = true;
+                    console.error('Markdown sanitizer is unavailable; rendering escaped plain text.');
+                }
+                return escapeHtml(source).replace(/\n/g, '<br>');
+            }
+            return window.DOMPurify.sanitize(window.marked.parse(source));
         }
         function getCanvasModeElements() {
             const panel = get('canvas-panel');
@@ -14695,7 +14709,7 @@
             const res = await apiFetch("/static/legal/" + t + ".md?t=" + Date.now()); 
             if(!res.ok) return; 
             const text = await res.text(); 
-            get('legal-content').innerHTML = DOMPurify.sanitize(marked.parse(text)); 
+            get('legal-content').innerHTML = sanitizeMarkdownHtml(text);
         }
         window.showAlphaInfo = () => {
             if (typeof showModal === 'function') {

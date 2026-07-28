@@ -15,8 +15,8 @@
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js" integrity="sha384-QsSpx6a0USazT7nK7w8qXDgpSAPhFsb2XtpoLFQ5+X2yFN6hvCKnwEzN8M5FWaJb" crossorigin="anonymous" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.11/purify.min.js" integrity="sha384-lCSH9WfVk9FgPeso6qS/Xq9VRYIGdgxLyJ0z9qUfOxJJZV0ch+eyQWv2rGffJm/t" crossorigin="anonymous" defer></script>
+    <script src="{{ url_for('static', filename='vendor/marked-4.3.0.min.js') }}?v={{ app_version }}" integrity="sha384-QsSpx6a0USazT7nK7w8qXDgpSAPhFsb2XtpoLFQ5+X2yFN6hvCKnwEzN8M5FWaJb" defer></script>
+    <script src="{{ url_for('static', filename='vendor/dompurify-3.4.11.min.js') }}?v={{ app_version }}" integrity="sha384-o44XUELLEnv/iSlA1NWxBweqbD4TSR0qgq2VzVsxtkHS989JJjGKSE9vkfo5MN4K" defer></script>
     <script>
         window.CHAT_DOMPURIFY_CONFIG = {
             ADD_TAGS: ['video', 'source'],
@@ -25,7 +25,7 @@
         };
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&family=Noto+Sans+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.629') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.630') }}" defer></script>
     {% if bot_config and bot_config.turnstileSiteKey %}
     <script>
         window.__turnstileApiLoaded = false;

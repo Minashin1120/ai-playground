@@ -830,7 +830,163 @@
             });
             return safe.join('; ');
         };
-        const prepareRichPastePdfClone = (clonedDoc) => {
+        let richPasteColorCanvasContext = null;
+        const parseRichPasteCssColor = (value) => {
+            const cssValue = String(value || '').trim();
+            if (!cssValue || cssValue === 'inherit' || cssValue === 'currentcolor' || cssValue === 'transparent') {
+                return null;
+            }
+            if (window.CSS && typeof window.CSS.supports === 'function' && !window.CSS.supports('color', cssValue)) {
+                return null;
+            }
+            try {
+                if (!richPasteColorCanvasContext) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 1;
+                    canvas.height = 1;
+                    richPasteColorCanvasContext = canvas.getContext('2d', { willReadFrequently: true });
+                }
+                const context = richPasteColorCanvasContext;
+                if (!context) return null;
+                context.clearRect(0, 0, 1, 1);
+                context.fillStyle = 'rgba(1, 2, 3, 0.004)';
+                context.fillStyle = cssValue;
+                context.fillRect(0, 0, 1, 1);
+                const pixel = context.getImageData(0, 0, 1, 1).data;
+                if (!pixel || pixel[3] === 0) return null;
+                return {
+                    r: pixel[0],
+                    g: pixel[1],
+                    b: pixel[2],
+                    a: pixel[3] / 255
+                };
+            } catch (e) {
+                return null;
+            }
+        };
+        const richPasteColorLuminance = (color) => {
+            if (!color) return 0;
+            const channel = (value) => {
+                const normalized = Math.max(0, Math.min(255, Number(value) || 0)) / 255;
+                return normalized <= 0.04045
+                    ? normalized / 12.92
+                    : Math.pow((normalized + 0.055) / 1.055, 2.4);
+            };
+            return (0.2126 * channel(color.r)) + (0.7152 * channel(color.g)) + (0.0722 * channel(color.b));
+        };
+        const richPasteColorContrast = (first, second) => {
+            const firstLum = richPasteColorLuminance(first);
+            const secondLum = richPasteColorLuminance(second);
+            return (Math.max(firstLum, secondLum) + 0.05) / (Math.min(firstLum, secondLum) + 0.05);
+        };
+        const richPasteColorCss = (color) => {
+            if (!color) return '';
+            return `rgb(${Math.round(color.r)}, ${Math.round(color.g)}, ${Math.round(color.b)})`;
+        };
+        const makeRichPasteTheme = (background, foreground) => {
+            const dark = richPasteColorLuminance(background) < 0.32;
+            let resolvedForeground = foreground;
+            if (!resolvedForeground || richPasteColorContrast(background, resolvedForeground) < 3) {
+                resolvedForeground = dark
+                    ? { r: 244, g: 244, b: 245, a: 1 }
+                    : { r: 17, g: 24, b: 39, a: 1 };
+            }
+            return {
+                mode: dark ? 'dark' : 'light',
+                background: richPasteColorCss(background),
+                foreground: richPasteColorCss(resolvedForeground),
+                muted: dark ? 'rgb(161, 161, 170)' : 'rgb(100, 116, 139)',
+                border: dark ? 'rgb(63, 63, 70)' : 'rgb(203, 213, 225)',
+                surface: dark ? 'rgb(33, 33, 33)' : 'rgb(248, 250, 252)',
+                quote: dark ? 'rgb(39, 39, 42)' : 'rgb(255, 249, 235)',
+                link: dark ? 'rgb(125, 211, 252)' : 'rgb(15, 118, 110)'
+            };
+        };
+        const detectRichPasteTheme = (contentHtml) => {
+            const fallbackBackground = { r: 255, g: 255, b: 255, a: 1 };
+            const fallbackForeground = { r: 17, g: 24, b: 39, a: 1 };
+            const template = document.createElement('template');
+            template.innerHTML = String(contentHtml || '');
+            if (!template.content.querySelector('*')) {
+                return makeRichPasteTheme(fallbackBackground, fallbackForeground);
+            }
+
+            const probe = document.createElement('div');
+            probe.setAttribute('aria-hidden', 'true');
+            probe.style.position = 'fixed';
+            probe.style.left = '-100000px';
+            probe.style.top = '0';
+            probe.style.width = '794px';
+            probe.style.visibility = 'hidden';
+            probe.style.pointerEvents = 'none';
+            probe.style.color = '#111827';
+            probe.style.background = 'transparent';
+            probe.appendChild(template.content.cloneNode(true));
+            document.body.appendChild(probe);
+
+            try {
+                const nodes = [probe, ...Array.from(probe.querySelectorAll('*')).slice(0, 5000)];
+                const backgroundCandidates = [];
+                const foregroundWeights = new Map();
+                let totalForegroundWeight = 0;
+                const directTextLength = (node) => Array.from(node.childNodes || []).reduce((total, child) => {
+                    if (child && child.nodeType === Node.TEXT_NODE) {
+                        return total + String(child.textContent || '').replace(/\s+/g, ' ').trim().length;
+                    }
+                    return total;
+                }, 0);
+
+                nodes.forEach((node) => {
+                    if (!node || node === probe || !node.style) return;
+                    const computed = window.getComputedStyle(node);
+                    const directWeight = directTextLength(node);
+                    if (directWeight > 0) {
+                        const foreground = parseRichPasteCssColor(computed.color);
+                        if (foreground && foreground.a >= 0.5) {
+                            const key = richPasteColorCss(foreground);
+                            const previous = foregroundWeights.get(key) || { color: foreground, weight: 0 };
+                            previous.weight += directWeight;
+                            foregroundWeights.set(key, previous);
+                            totalForegroundWeight += directWeight;
+                        }
+                    }
+
+                    const hasInlineBackground = !!(
+                        String(node.style.backgroundColor || '').trim() ||
+                        String(node.style.background || '').trim()
+                    );
+                    if (hasInlineBackground) {
+                        const background = parseRichPasteCssColor(computed.backgroundColor);
+                        if (background && background.a >= 0.72) {
+                            const subtreeWeight = String(node.textContent || '').replace(/\s+/g, ' ').trim().length;
+                            backgroundCandidates.push({
+                                color: background,
+                                weight: Math.max(1, subtreeWeight)
+                            });
+                        }
+                    }
+                });
+
+                const foregroundEntries = Array.from(foregroundWeights.values()).sort((a, b) => b.weight - a.weight);
+                const dominantForeground = foregroundEntries.length ? foregroundEntries[0].color : null;
+                const lightTextWeight = foregroundEntries.reduce((total, entry) => (
+                    total + (richPasteColorLuminance(entry.color) >= 0.6 ? entry.weight : 0)
+                ), 0);
+                backgroundCandidates.sort((a, b) => b.weight - a.weight);
+                let background = backgroundCandidates.length ? backgroundCandidates[0].color : null;
+                if (!background) {
+                    background = totalForegroundWeight > 0 && lightTextWeight / totalForegroundWeight >= 0.55
+                        ? { r: 11, g: 11, b: 12, a: 1 }
+                        : fallbackBackground;
+                }
+                return makeRichPasteTheme(background, dominantForeground || fallbackForeground);
+            } catch (e) {
+                return makeRichPasteTheme(fallbackBackground, fallbackForeground);
+            } finally {
+                if (probe.parentNode) probe.parentNode.removeChild(probe);
+            }
+        };
+        const prepareRichPastePdfClone = (clonedDoc, theme) => {
             if (!clonedDoc) return;
             const head = clonedDoc.head || clonedDoc.querySelector('head');
             if (head) {
@@ -840,8 +996,8 @@
             }
             if (clonedDoc.body) {
                 clonedDoc.body.style.margin = '0';
-                clonedDoc.body.style.background = '#ffffff';
-                clonedDoc.body.style.color = '#111827';
+                clonedDoc.body.style.background = theme.background;
+                clonedDoc.body.style.color = theme.foreground;
             }
         };
         const normalizeRichPasteTree = (root) => {
@@ -922,6 +1078,80 @@
             const template = document.createElement('template');
             template.innerHTML = safeHtml;
             normalizeRichPasteTree(template.content);
+            return template.innerHTML;
+        };
+        const normalizeRichPastePrintHtml = (contentHtml) => {
+            const template = document.createElement('template');
+            template.innerHTML = String(contentHtml || '');
+            const nodes = Array.from(template.content.querySelectorAll('*'));
+            const complexLayoutCount = nodes.reduce((total, node) => {
+                const display = String(node.style && node.style.display || '').trim().toLowerCase();
+                return total + (['flex', 'inline-flex', 'grid', 'inline-grid'].includes(display) ? 1 : 0);
+            }, 0);
+            const screenLayoutCount = nodes.reduce((total, node) => {
+                if (!node || !node.style || !['article', 'div', 'main', 'section'].includes(String(node.tagName || '').toLowerCase())) {
+                    return total;
+                }
+                const styleText = String(node.getAttribute('style') || '');
+                const largeSidePadding = Array.from(
+                    styleText.matchAll(/(?:^|;)\s*padding(?:-left|-right|-inline|-inline-start|-inline-end)?\s*:\s*([^;]+)/gi)
+                ).some((match) => Array.from(match[1].matchAll(/(-?\d+(?:\.\d+)?)px/gi))
+                    .some((pixelMatch) => Math.abs(Number(pixelMatch[1]) || 0) >= 96));
+                const oversizedWidth = Array.from(
+                    styleText.matchAll(/(?:^|;)\s*(?:width|min-width)\s*:\s*(-?\d+(?:\.\d+)?)px/gi)
+                ).some((match) => Math.abs(Number(match[1]) || 0) > 720);
+                return total + (largeSidePadding || oversizedWidth ? 1 : 0);
+            }, 0);
+            if (nodes.length <= 500 && complexLayoutCount <= 24 && screenLayoutCount === 0) {
+                return template.innerHTML;
+            }
+
+            const layoutProps = new Set([
+                'align-items', 'align-self', 'column-gap', 'flex', 'flex-basis', 'flex-direction',
+                'flex-grow', 'flex-shrink', 'flex-wrap', 'gap', 'grid', 'grid-auto-columns',
+                'grid-auto-flow', 'grid-auto-rows', 'grid-column', 'grid-column-end',
+                'grid-column-start', 'grid-row', 'grid-row-end', 'grid-row-start', 'grid-template',
+                'grid-template-areas', 'grid-template-columns', 'grid-template-rows',
+                'justify-content', 'justify-items', 'justify-self', 'order', 'row-gap'
+            ]);
+            const blockWidthTags = new Set(['article', 'div', 'main', 'section']);
+            const sidePaddingProps = new Set([
+                'padding', 'padding-left', 'padding-right', 'padding-inline',
+                'padding-inline-start', 'padding-inline-end'
+            ]);
+            nodes.forEach((node) => {
+                if (!node || !node.style) return;
+                const tag = String(node.tagName || '').toLowerCase();
+                const declarations = [];
+                String(node.getAttribute('style') || '').split(';').forEach((declaration) => {
+                    if (!declaration || declaration.indexOf(':') < 0) return;
+                    const separator = declaration.indexOf(':');
+                    const prop = declaration.slice(0, separator).trim().toLowerCase();
+                    let value = declaration.slice(separator + 1).trim();
+                    if (!prop || !value || layoutProps.has(prop)) return;
+                    if (['height', 'max-height', 'min-height', 'overflow', 'overflow-x', 'overflow-y'].includes(prop)) {
+                        return;
+                    }
+                    if (['width', 'min-width'].includes(prop) && blockWidthTags.has(tag)) {
+                        return;
+                    }
+                    if (sidePaddingProps.has(prop) && blockWidthTags.has(tag)) {
+                        const pixelValues = Array.from(value.matchAll(/(-?\d+(?:\.\d+)?)px/gi))
+                            .map((match) => Math.abs(Number(match[1]) || 0));
+                        if (pixelValues.some((pixelValue) => pixelValue >= 96)) {
+                            value = '0px';
+                        }
+                    }
+                    if (prop === 'display') {
+                        const displayValue = value.toLowerCase();
+                        if (['flex', 'grid'].includes(displayValue)) value = 'block';
+                        else if (['inline-flex', 'inline-grid'].includes(displayValue)) value = 'inline-block';
+                    }
+                    declarations.push(`${prop}: ${value}`);
+                });
+                if (declarations.length) node.setAttribute('style', declarations.join('; '));
+                else node.removeAttribute('style');
+            });
             return template.innerHTML;
         };
         const getRichPasteSelectionRange = (editor) => {
@@ -1410,7 +1640,9 @@
             if (!editor) return '';
             const title = inferRichPasteTitle();
             const createdAt = new Date().toLocaleString('ja-JP');
-            const contentHtml = sanitizeRichPasteHtml(editor.innerHTML || '');
+            const sanitizedHtml = sanitizeRichPasteHtml(editor.innerHTML || '');
+            const theme = detectRichPasteTheme(sanitizedHtml);
+            const contentHtml = normalizeRichPastePrintHtml(sanitizedHtml);
             const isPdf = mode === 'pdf';
             return `<!DOCTYPE html>
 <html lang="ja">
@@ -1419,20 +1651,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(title)} - Preview</title>
   <style>
-	    body { margin: 0; background: ${isPdf ? '#ffffff' : '#eef2f7'}; color: #111827; font-family: "Noto Sans JP", system-ui, sans-serif; }
+        :root {
+          color-scheme: ${theme.mode};
+          --rp-background: ${theme.background};
+          --rp-foreground: ${theme.foreground};
+          --rp-muted: ${theme.muted};
+          --rp-border: ${theme.border};
+          --rp-surface: ${theme.surface};
+          --rp-quote: ${theme.quote};
+          --rp-link: ${theme.link};
+        }
+	    body { margin: 0; background: ${isPdf ? 'var(--rp-background)' : '#eef2f7'}; color: var(--rp-foreground); font-family: "Noto Sans JP", system-ui, sans-serif; }
 	    .page { max-width: ${isPdf ? '794px' : '920px'}; margin: 0 auto; padding: ${isPdf ? '28px 30px 36px' : '24px'}; }
-	    .card { background: #ffffff; border: 1px solid #dbe3ee; border-radius: 18px; padding: 20px; box-shadow: ${isPdf ? 'none' : '0 18px 45px rgba(15,23,42,0.14)'}; }
-	    .title { margin: 0; font-size: ${isPdf ? '22px' : '24px'}; line-height: 1.35; color: #0f172a; }
-	    .meta { margin-top: 8px; color: #64748b; font-size: 12px; }
-	    .content { margin-top: 18px; color: #111827; font-size: 15px; line-height: 1.7; word-break: break-word; overflow-wrap: anywhere; }
+	    .card { background: var(--rp-background); color: var(--rp-foreground); border: 1px solid var(--rp-border); border-radius: 18px; padding: 20px; box-shadow: ${isPdf ? 'none' : '0 18px 45px rgba(15,23,42,0.14)'}; }
+	    .title { margin: 0; font-size: ${isPdf ? '22px' : '24px'}; line-height: 1.35; color: var(--rp-foreground); }
+	    .meta { margin-top: 8px; color: var(--rp-muted); font-size: 12px; }
+	    .content { margin-top: 18px; color: var(--rp-foreground); font-size: 15px; line-height: 1.7; word-break: break-word; overflow-wrap: anywhere; }
 	    .content img, .content video, .content iframe, .content table, .content pre, .content blockquote { max-width: 100%; }
 	    .content table { display: block; overflow-x: auto; border-collapse: collapse; }
-	    .content th, .content td { border: 1px solid #cbd5e1; padding: 8px 10px; }
-	    .content pre { padding: 14px 16px; border-radius: 14px; background: #f8fafc; overflow: auto; }
-	    .content blockquote { margin: 1em 0; padding: 12px 16px; border-left: 4px solid #f59e0b; background: #fff9eb; border-radius: 12px; }
-	    .content a { color: #0f766e; }
+	    .content th, .content td { border: 1px solid var(--rp-border); padding: 8px 10px; }
+	    .content th { background: var(--rp-surface); }
+	    .content pre { padding: 14px 16px; border: 1px solid var(--rp-border); border-radius: 14px; background: var(--rp-surface); color: var(--rp-foreground); overflow: auto; }
+	    .content code { background: var(--rp-surface); color: var(--rp-foreground); }
+	    .content pre code { background: transparent; }
+	    .content blockquote { margin: 1em 0; padding: 12px 16px; border-left: 4px solid #f59e0b; background: var(--rp-quote); color: var(--rp-foreground); border-radius: 12px; }
+	    .content a { color: var(--rp-link); }
     .toolbar { display:${isPdf ? 'none' : 'flex'}; gap:10px; margin-top: 16px; flex-wrap: wrap; }
-    .toolbar button { border: 1px solid #334155; background: #0f172a; color: #e2e8f0; border-radius: 999px; padding: 8px 12px; cursor: pointer; }
+    .toolbar button { border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-foreground); border-radius: 999px; padding: 8px 12px; cursor: pointer; }
     ${isPdf ? '.card { border-radius: 0; } .page { max-width: none; padding: 0; }' : ''}
   </style>
 </head>
@@ -1521,7 +1766,9 @@
             const editor = getRichPasteEditor();
             if (!editor) throw new Error('PDF化する内容がありません');
             const title = inferRichPasteTitle();
-            const contentHtml = sanitizeRichPasteHtml(editor.innerHTML || '');
+            const sanitizedHtml = sanitizeRichPasteHtml(editor.innerHTML || '');
+            const theme = detectRichPasteTheme(sanitizedHtml);
+            const contentHtml = normalizeRichPastePrintHtml(sanitizedHtml);
             await ensurePdfLibraries();
             const JsPdfCtor = window.jspdf && window.jspdf.jsPDF ? window.jspdf.jsPDF : null;
             if (!JsPdfCtor) throw new Error('jsPDF ライブラリが読み込まれていません');
@@ -1535,19 +1782,30 @@
 	            wrapper.style.left = '-10000px';
 	            wrapper.style.top = '0';
 	            wrapper.style.width = '794px';
-            wrapper.style.background = '#ffffff';
+            wrapper.style.background = theme.background;
+            wrapper.style.color = theme.foreground;
             wrapper.style.boxSizing = 'border-box';
             wrapper.style.fontFamily = '"Noto Sans JP", "Segoe UI", "Helvetica Neue", Arial, sans-serif';
             wrapper.innerHTML = `
                 <style>
+                        :root {
+                            color-scheme: ${theme.mode};
+                            --rp-background: ${theme.background};
+                            --rp-foreground: ${theme.foreground};
+                            --rp-muted: ${theme.muted};
+                            --rp-border: ${theme.border};
+                            --rp-surface: ${theme.surface};
+                            --rp-quote: ${theme.quote};
+                            --rp-link: ${theme.link};
+                        }
 	                    .pdf-root-wrapper {
-	                        background-color: #ffffff;
-	                        color: #111827;
+	                        background-color: var(--rp-background);
+	                        color: var(--rp-foreground);
 	                        padding: 40px;
 	                        width: 794px;
 	                        min-height: 1123px;
 	                        box-sizing: border-box;
-	                        color-scheme: light;
+	                        color-scheme: ${theme.mode};
 	                        line-height: 1.6;
 	                        font-size: 15px;
 	                    }
@@ -1567,13 +1825,14 @@
 	                        font-size: 26px;
 	                        font-weight: bold;
 	                        margin: 0 0 15px 0;
-	                        border-bottom: 2px solid #000;
+	                        border-bottom: 2px solid var(--rp-border);
 	                        padding-bottom: 10px;
 	                        line-height: 1.2;
+                            color: var(--rp-foreground);
 	                    }
 	                    .pdf-meta {
 	                        font-size: 12px;
-	                        color: #555;
+	                        color: var(--rp-muted);
 	                        margin-bottom: 30px;
 	                    }
 	                    .pdf-content {
@@ -1588,12 +1847,13 @@
 	                    .pdf-content iframe {
 	                        max-width: 100%;
 	                    }
-	                    .pdf-content table { max-width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #666; }
-	                    .pdf-content th, .pdf-content td { border: 1px solid #666; padding: 10px; text-align: left; word-break: break-word; vertical-align: top; }
-	                    .pdf-content th { background-color: #f0f0f0; font-weight: bold; }
+	                    .pdf-content table { max-width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid var(--rp-border); }
+	                    .pdf-content th, .pdf-content td { border: 1px solid var(--rp-border); padding: 10px; text-align: left; word-break: break-word; vertical-align: top; }
+	                    .pdf-content th { background-color: var(--rp-surface); color: var(--rp-foreground); font-weight: bold; }
 	                    .pdf-content pre {
-	                        background-color: #f5f5f5;
-	                        border: 1px solid #ccc;
+	                        background-color: var(--rp-surface);
+	                        color: var(--rp-foreground);
+	                        border: 1px solid var(--rp-border);
 	                        padding: 15px;
 	                        border-radius: 5px;
 	                        white-space: pre-wrap;
@@ -1608,7 +1868,8 @@
 	                    }
 	                    .pdf-content code {
 	                        font-family: "Noto Sans Mono", monospace;
-	                        background-color: #eeeeee;
+	                        background-color: var(--rp-surface);
+	                        color: var(--rp-foreground);
 	                        padding: 1px 4px;
 	                        border-radius: 3px;
 	                        font-size: 0.9em;
@@ -1629,13 +1890,15 @@
 	                        color: inherit;
 	                    }
 	                    .pdf-content blockquote {
-	                        border-left: 5px solid #ddd;
+	                        border-left: 5px solid #f59e0b;
+                            background: var(--rp-quote);
+                            color: var(--rp-foreground);
 	                        padding: 5px 0 5px 20px;
 	                        margin: 1em 0;
 	                        font-style: italic;
 	                    }
 	                    .pdf-content a {
-	                        color: #0f766e;
+	                        color: var(--rp-link);
 	                        text-decoration: underline;
 	                    }
 	                    .pdf-content ul,
@@ -1678,10 +1941,10 @@
 	                    const canvas = await new Promise((resolve, reject) => {
                         const timer = setTimeout(() => reject(new Error('PDF chunk rendering timed out')), 120000);
                         html2canvasFn(wrapper, {
-                            scale: 1, // Use scale 1 for large documents to avoid canvas limits
-                            useCORS: true,
+	                            scale: 1, // Use scale 1 for large documents to avoid canvas limits
+	                            useCORS: true,
 	                            allowTaint: false,
-	                            backgroundColor: '#ffffff',
+	                            backgroundColor: theme.background,
 	                            logging: false,
 	                            imageTimeout: 5000,
 	                            x: 0,
@@ -1693,7 +1956,7 @@
 	                            scrollY: 0,
 	                            signal: richPasteAbortController ? richPasteAbortController.signal : undefined,
 	                            onclone: (clonedDoc) => {
-	                                prepareRichPastePdfClone(clonedDoc);
+	                                prepareRichPastePdfClone(clonedDoc, theme);
 	                                const root = clonedDoc.querySelector('.pdf-root-wrapper');
                                 if (root) {
                                     root.style.position = 'relative';
@@ -1745,10 +2008,12 @@
             if (!editor) throw new Error('PDF化する内容がありません');
             const rawHtml = String(editor.innerHTML || '').trim();
             const rawText = String(editor.textContent || '').trim();
+            const contentHtml = rawHtml || (rawText ? `<p>${escapeHtml(rawText).replace(/\n/g, '<br/>')}</p>` : '');
             return {
                 title: inferRichPasteTitle(),
-                html: rawHtml || (rawText ? `<p>${escapeHtml(rawText).replace(/\n/g, '<br/>')}</p>` : ''),
-                created_at: new Date().toLocaleString('ja-JP')
+                html: contentHtml,
+                created_at: new Date().toLocaleString('ja-JP'),
+                theme: detectRichPasteTheme(sanitizeRichPasteHtml(contentHtml))
             };
         };
         const attachRichPastePdfAndSend = async (pdfBlob, fileName, promptText, previousPrompt) => {

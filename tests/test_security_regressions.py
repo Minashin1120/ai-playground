@@ -173,6 +173,58 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("Primary documentation content", safe)
         self.assertNotIn("nav129", safe)
 
+    def test_rich_paste_theme_preserves_dark_and_light_contrast(self):
+        dark = target._resolve_rich_paste_theme(
+            '<main style="background:#000;color:rgb(220,220,220)">'
+            '<p style="color:rgb(220,220,220)">Dark document text</p></main>'
+        )
+        inferred_dark = target._resolve_rich_paste_theme(
+            '<p style="color:rgb(245,245,245)">Light text with a missing copied page background</p>'
+        )
+        light = target._resolve_rich_paste_theme(
+            '<main style="background:#fff;color:#111827"><p>Light document text</p></main>'
+        )
+        modern_dark = target._resolve_rich_paste_theme(
+            '<main style="background:oklch(12% 0.02 260);color:oklch(92% 0.01 260)">'
+            'Modern CSS color document</main>'
+        )
+
+        self.assertEqual(dark["mode"], "dark")
+        self.assertEqual(dark["background"], "rgb(0, 0, 0)")
+        self.assertEqual(inferred_dark["mode"], "dark")
+        self.assertEqual(light["mode"], "light")
+        self.assertEqual(modern_dark["mode"], "dark")
+        dark_background = target._parse_rich_paste_css_color(dark["background"])
+        dark_foreground = target._parse_rich_paste_css_color(dark["foreground"])
+        self.assertGreaterEqual(target._rich_paste_color_contrast(dark_background, dark_foreground), 4.5)
+
+    def test_rich_paste_print_layout_removes_screen_offsets_without_losing_theme(self):
+        normalized = target._normalize_rich_paste_print_layout(
+            '<main style="display:flex;width:1030px;padding:0 0 0 240px;'
+            'background-color:#000;color:#eee;font-size:16px">'
+            '<article style="width:750px"><p>Readable document</p></article></main>'
+        )
+        self.assertIn("background-color: #000", normalized)
+        self.assertIn("color: #eee", normalized)
+        self.assertIn("font-size: 16px", normalized)
+        self.assertIn("display: block", normalized)
+        self.assertNotIn("1030px", normalized)
+        self.assertNotIn("750px", normalized)
+        self.assertNotIn("240px", normalized)
+
+    def test_rich_paste_weasyprint_uses_detected_page_theme(self):
+        completed = mock.Mock(returncode=0, stdout=b"%PDF-theme-test", stderr=b"")
+        with mock.patch.object(target.subprocess, "run", return_value=completed) as run_mock:
+            pdf = target._build_rich_paste_pdf_bytes_weasyprint(
+                "Dark export",
+                '<main style="background:#000;color:#eee"><p>Visible text</p></main>',
+            )
+        self.assertEqual(pdf, b"%PDF-theme-test")
+        document_html = run_mock.call_args.kwargs["input"].decode("utf-8")
+        self.assertIn("color-scheme: dark", document_html)
+        self.assertIn("background: rgb(0, 0, 0)", document_html)
+        self.assertIn("color: rgb(238, 238, 238)", document_html)
+
     def test_plain_labels_remove_markup_delimiters(self):
         self.assertEqual(target._normalize_thread_title('<img src=x onerror="alert(1)">'), 'img src=x onerror="alert(1)"')
         payload = target._normalize_gem_payload({
@@ -357,7 +409,7 @@ class SecurityRegressionTests(unittest.TestCase):
                 self.assertNotIn("cdn.jsdelivr.net/npm/marked@4.3.0", template)
                 self.assertNotIn("cdnjs.cloudflare.com/ajax/libs/dompurify", template)
 
-        with open(os.path.join(root, "static", "js", "chat_core.v4.8.631.js"), encoding="utf-8") as script_file:
+        with open(os.path.join(root, "static", "js", "chat_core.v4.8.632.js"), encoding="utf-8") as script_file:
             script = script_file.read()
         self.assertIn("/static/vendor/html2canvas-pro-2.3.2.min.js", script)
         self.assertIn("/static/vendor/jspdf-2.5.1.umd.min.js", script)

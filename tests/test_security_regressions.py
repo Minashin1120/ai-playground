@@ -136,6 +136,43 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertTrue(pdf.startswith(b"%PDF"))
         get_mock.assert_not_called()
 
+    def test_rich_paste_sanitizer_preserves_safe_layout_styles(self):
+        safe = target._sanitize_rich_paste_html(
+            '<style>.x{position:fixed}</style>'
+            '<script>alert(1)</script>'
+            '<div class="x" onclick="alert(2)" '
+            'style="display:grid;grid-template-columns:1fr 2fr;gap:12px;'
+            'background:linear-gradient(#fff,#ddd);padding:10px;'
+            'border:2px solid oklch(50% .2 250);position:fixed;'
+            'background-image:url(http://127.0.0.1/private)">'
+            '<p style="color:#dc2626;text-decoration:underline">Styled text</p>'
+            '<img src="http://127.0.0.1/private" alt="blocked remote">'
+            '</div>'
+        )
+        self.assertNotIn("<script", safe)
+        self.assertNotIn("<style", safe)
+        self.assertNotIn("onclick", safe)
+        self.assertNotIn('class="x"', safe)
+        self.assertNotIn("position:", safe)
+        self.assertNotIn("url(", safe)
+        self.assertNotIn("127.0.0.1", safe)
+        self.assertIn("display: grid", safe)
+        self.assertIn("grid-template-columns: 1fr 2fr", safe)
+        self.assertIn("linear-gradient", safe)
+        self.assertIn("padding: 10px", safe)
+        self.assertIn("oklch", safe)
+        self.assertIn("[Image: blocked remote]", safe)
+
+    def test_rich_paste_sanitizer_extracts_dominant_article_from_full_page_copy(self):
+        navigation = "<nav>" + "".join(f"<span>nav{i}</span>" for i in range(130)) + "</nav>"
+        article_text = "Primary documentation content " * 120
+        safe = target._sanitize_rich_paste_html(
+            f"<main>{navigation}<article><h1>Documentation</h1><p>{article_text}</p></article></main>"
+        )
+        self.assertIn("Documentation", safe)
+        self.assertIn("Primary documentation content", safe)
+        self.assertNotIn("nav129", safe)
+
     def test_plain_labels_remove_markup_delimiters(self):
         self.assertEqual(target._normalize_thread_title('<img src=x onerror="alert(1)">'), 'img src=x onerror="alert(1)"')
         payload = target._normalize_gem_payload({
@@ -301,6 +338,8 @@ class SecurityRegressionTests(unittest.TestCase):
         expected = {
             "marked-4.3.0.min.js": "QsSpx6a0USazT7nK7w8qXDgpSAPhFsb2XtpoLFQ5+X2yFN6hvCKnwEzN8M5FWaJb",
             "dompurify-3.4.11.min.js": "o44XUELLEnv/iSlA1NWxBweqbD4TSR0qgq2VzVsxtkHS989JJjGKSE9vkfo5MN4K",
+            "html2canvas-pro-2.3.2.min.js": "M073WWOJRzkLDop7Z6uvyVa8j05SMm0z5YU8Iv8BoA5wa/jzs0M9s87NQ5aQvVJE",
+            "jspdf-2.5.1.umd.min.js": "JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk",
         }
         for filename, sri_hash in expected.items():
             with self.subTest(filename=filename):
@@ -317,6 +356,13 @@ class SecurityRegressionTests(unittest.TestCase):
                 self.assertIn("filename='vendor/dompurify-3.4.11.min.js'", template)
                 self.assertNotIn("cdn.jsdelivr.net/npm/marked@4.3.0", template)
                 self.assertNotIn("cdnjs.cloudflare.com/ajax/libs/dompurify", template)
+
+        with open(os.path.join(root, "static", "js", "chat_core.v4.8.631.js"), encoding="utf-8") as script_file:
+            script = script_file.read()
+        self.assertIn("/static/vendor/html2canvas-pro-2.3.2.min.js", script)
+        self.assertIn("/static/vendor/jspdf-2.5.1.umd.min.js", script)
+        self.assertNotIn("cdnjs.cloudflare.com/ajax/libs/html2canvas", script)
+        self.assertNotIn("cdnjs.cloudflare.com/ajax/libs/jspdf", script)
 
 
 if __name__ == "__main__":

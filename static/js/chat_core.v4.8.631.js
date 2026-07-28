@@ -14,15 +14,16 @@
                 document.head.appendChild(script);
             });
             externalScriptLoads.set(src, pending);
+            pending.catch(() => externalScriptLoads.delete(src));
             return pending;
         };
         const ensurePdfLibraries = () => Promise.all([
             loadExternalScript(
-                'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+                '/static/vendor/html2canvas-pro-2.3.2.min.js',
                 () => typeof window.html2canvas === 'function'
             ),
             loadExternalScript(
-                'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+                '/static/vendor/jspdf-2.5.1.umd.min.js',
                 () => !!(window.jspdf && window.jspdf.jsPDF)
             )
         ]);
@@ -631,22 +632,58 @@
             modalCloseTimers.set(el, closeTimer);
         };
         const RICH_PASTE_ALLOWED_TAGS = [
-            'a', 'abbr', 'b', 'blockquote', 'br', 'caption', 'code', 'col', 'colgroup', 'div',
-            'em', 'figcaption', 'figure', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img',
-            'li', 'mark', 'ol', 'p', 'pre', 's', 'section', 'small', 'span', 'strong', 'sub',
-            'sup', 'table', 'tbody', 'td', 'th', 'thead', 'tfoot', 'tr', 'u', 'ul'
+            'a', 'abbr', 'address', 'article', 'b', 'blockquote', 'br', 'caption', 'cite', 'code',
+            'col', 'colgroup', 'dd', 'del', 'details', 'div', 'dl', 'dt', 'em', 'figcaption',
+            'figure', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'kbd', 'li', 'main',
+            'mark', 'ol', 'p', 'pre', 'q', 's', 'samp', 'section', 'small', 'span', 'strong',
+            'sub', 'summary', 'sup', 'table', 'tbody', 'td', 'th', 'thead', 'tfoot', 'time', 'tr',
+            'u', 'ul', 'var'
         ];
         const RICH_PASTE_ALLOWED_ATTR = [
-            'align', 'alt', 'cellpadding', 'cellspacing', 'class', 'colspan', 'href', 'height',
-            'rel', 'rowspan', 'src', 'style', 'target', 'title', 'width'
+            'align', 'alt', 'cellpadding', 'cellspacing', 'class', 'colspan', 'datetime', 'dir',
+            'headers', 'height', 'href', 'lang', 'open', 'rel', 'reversed', 'rowspan', 'scope',
+            'src', 'start', 'style', 'target', 'title', 'type', 'value', 'width'
         ];
         const RICH_PASTE_SAFE_STYLE_PROPS = new Set([
-            'background-color', 'color', 'font-family', 'font-size', 'font-style', 'font-weight',
-            'letter-spacing', 'line-height', 'text-align', 'text-decoration', 'text-transform',
-            'vertical-align', 'white-space'
+            'align-items', 'align-self', 'background', 'background-color', 'background-image',
+            'border', 'border-block-color', 'border-block-style', 'border-block-width',
+            'border-bottom', 'border-bottom-color', 'border-bottom-left-radius',
+            'border-bottom-right-radius', 'border-bottom-style', 'border-bottom-width',
+            'border-collapse', 'border-color', 'border-image', 'border-inline-color',
+            'border-inline-style', 'border-inline-width', 'border-left', 'border-left-color',
+            'border-left-style', 'border-left-width', 'border-radius', 'border-right',
+            'border-right-color', 'border-right-style', 'border-right-width', 'border-spacing',
+            'border-style', 'border-top', 'border-top-color', 'border-top-left-radius',
+            'border-top-right-radius', 'border-top-style', 'border-top-width', 'border-width',
+            'box-shadow', 'box-sizing', 'break-after', 'break-before', 'break-inside', 'clear',
+            'clip-path', 'color', 'column-gap', 'direction', 'display', 'flex', 'flex-basis',
+            'flex-direction', 'flex-grow', 'flex-shrink', 'flex-wrap', 'float', 'font',
+            'font-family', 'font-feature-settings', 'font-kerning', 'font-language-override',
+            'font-optical-sizing', 'font-size', 'font-size-adjust', 'font-stretch', 'font-style',
+            'font-variant', 'font-variant-caps', 'font-variant-ligatures',
+            'font-variation-settings', 'font-weight', 'gap', 'grid', 'grid-auto-columns',
+            'grid-auto-flow', 'grid-auto-rows', 'grid-column', 'grid-column-end',
+            'grid-column-start', 'grid-row', 'grid-row-end', 'grid-row-start', 'grid-template',
+            'grid-template-areas', 'grid-template-columns', 'grid-template-rows', 'height',
+            'hyphens', 'justify-content', 'justify-items', 'justify-self', 'letter-spacing',
+            'line-break', 'line-height', 'list-style', 'list-style-position', 'list-style-type',
+            'margin', 'margin-block', 'margin-block-end', 'margin-block-start', 'margin-bottom',
+            'margin-inline', 'margin-inline-end', 'margin-inline-start', 'margin-left',
+            'margin-right', 'margin-top', 'max-height', 'max-width', 'min-height', 'min-width',
+            'object-fit', 'object-position', 'opacity', 'order', 'orphans', 'outline',
+            'outline-color', 'outline-offset', 'outline-style', 'outline-width', 'overflow',
+            'overflow-wrap', 'overflow-x', 'overflow-y', 'padding', 'padding-block',
+            'padding-block-end', 'padding-block-start', 'padding-bottom', 'padding-inline',
+            'padding-inline-end', 'padding-inline-start', 'padding-left', 'padding-right',
+            'padding-top', 'page-break-after', 'page-break-before', 'page-break-inside',
+            'row-gap', 'table-layout', 'text-align', 'text-decoration', 'text-decoration-color',
+            'text-decoration-line', 'text-decoration-style', 'text-decoration-thickness',
+            'text-indent', 'text-overflow', 'text-shadow', 'text-transform',
+            'text-underline-offset', 'vertical-align', 'visibility', 'white-space', 'widows',
+            'width', 'word-break', 'word-spacing', 'writing-mode', '-webkit-text-stroke',
+            '-webkit-text-stroke-color', '-webkit-text-stroke-width'
         ]);
         const RICH_PASTE_NOISE_TAGS = new Set(['script', 'style', 'link', 'meta', 'noscript', 'iframe', 'canvas', 'svg', 'object', 'embed']);
-        const RICH_PASTE_NOISE_ROLE_RE = /(^|[\s_-])(nav|navbar|menu|footer|header|aside|sidebar|ads?|ad-|promo|cookie|banner|share|social|comments?|related|recommend|breadcrumb|subscription|popup|modal|overlay|toolbar|dialog|toast|sponsor)([\s_-]|$)/i;
         let userSettingsSnapshot = null;
         let userSettingsSnapshotPromise = null;
         let richPastePromptSaveTimer = null;
@@ -769,16 +806,6 @@
         const sanitizeRichPasteStyle = (styleText) => {
             if (!styleText) return '';
             const safe = [];
-            const hasUnsupportedColorSyntax = (value) => {
-                const lower = String(value || '').toLowerCase();
-                return (
-                    lower.includes('oklab(') ||
-                    lower.includes('oklch(') ||
-                    lower.includes('color-mix(') ||
-                    lower.includes('lab(') ||
-                    lower.includes('lch(')
-                );
-            };
             String(styleText).split(';').forEach((decl) => {
                 const part = decl.trim();
                 if (!part) return;
@@ -787,12 +814,18 @@
                 const prop = part.slice(0, idx).trim().toLowerCase();
                 const value = part.slice(idx + 1).trim();
                 if (!RICH_PASTE_SAFE_STYLE_PROPS.has(prop)) return;
+                if (!value || value.length > 1000) return;
                 const lower = value.toLowerCase();
-                if (lower.includes('position:') || lower.includes('fixed') || lower.includes('absolute') || lower.includes('sticky')) return;
-                if (lower.includes('z-index') || lower.includes('overflow') || lower.includes('transform') || lower.includes('filter')) return;
-                if (lower.includes('url(') || lower.includes('expression(')) return;
-                if (hasUnsupportedColorSyntax(value)) return;
-                if (prop === 'font-size' && /calc\s*\(/i.test(value)) return;
+                if (
+                    lower.includes('url(') ||
+                    lower.includes('expression(') ||
+                    lower.includes('javascript:') ||
+                    lower.includes('@import') ||
+                    lower.includes('behavior:') ||
+                    lower.includes('-moz-binding') ||
+                    lower.includes('var(') ||
+                    lower.includes('env(')
+                ) return;
                 safe.push(`${prop}: ${value}`);
             });
             return safe.join('; ');
@@ -820,25 +853,13 @@
                     node.remove();
                     return;
                 }
-                const textLen = (node.textContent || '').trim().length;
-                if (textLen > 160) return; 
-
-                const role = String(node.getAttribute('role') || '').trim().toLowerCase();
-                const aria = String(node.getAttribute('aria-label') || '').trim();
-                const cls = String(node.className || '').trim();
-                const id = String(node.id || '').trim();
-                const noiseText = `${role} ${aria} ${cls} ${id}`;
-                if (RICH_PASTE_NOISE_ROLE_RE.test(noiseText)) {
-                    node.remove();
-                    return;
-                }
                 node.removeAttribute('class');
                 node.removeAttribute('id');
-                node.removeAttribute('width');
-                node.removeAttribute('height');
+                node.removeAttribute('role');
+                node.removeAttribute('aria-label');
                 if (tag === 'img') {
-                    node.setAttribute('loading', 'lazy');
-                    node.setAttribute('decoding', 'async');
+                    node.setAttribute('loading', 'eager');
+                    node.setAttribute('decoding', 'sync');
                     node.removeAttribute('srcset');
                     node.removeAttribute('sizes');
                 }
@@ -848,71 +869,36 @@
                     if (safeStyle) node.setAttribute('style', safeStyle);
                     else node.removeAttribute('style');
                 }
-                if (tag === 'table') {
-                    node.removeAttribute('border');
-                }
             });
         };
         const extractRichPasteArticleHtml = (html) => {
             const parser = new DOMParser();
             const doc = parser.parseFromString(String(html || ''), 'text/html');
-            const candidates = [];
-            const pushCandidate = (node, boost = 0) => {
-                if (!node) return;
-                const textLen = (node.textContent || '').replace(/\s+/g, ' ').trim().length;
-                if (textLen <= 0) return;
-                const mediaCount = node.querySelectorAll ? node.querySelectorAll('img,table,figure,video,picture,pre,blockquote').length : 0;
-                candidates.push({ node, score: textLen + (mediaCount * 120) + boost });
-            };
-            pushCandidate(doc.body, 0);
-            const queryList = [
-                'article',
-                'main',
-                '[role="main"]',
-                '[role="article"]',
-                'section',
-                '.article',
-                '.article-body',
-                '.post',
-                '.post-content',
-                '.content',
-                '.entry-content',
-                '.article-content',
-                '.story-body'
+            if (!doc.body) return '';
+            const bodyTextLength = (doc.body.textContent || '').replace(/\s+/g, ' ').trim().length;
+            const bodyTagCount = doc.body.querySelectorAll('*').length;
+            if (bodyTextLength < 1000 || bodyTagCount < 120) {
+                return doc.body.innerHTML;
+            }
+            const candidates = [
+                ...Array.from(doc.body.querySelectorAll('article')),
+                ...Array.from(doc.body.querySelectorAll('main')),
+                ...Array.from(doc.body.querySelectorAll('[role="main"],[role="article"]'))
             ];
-            queryList.forEach((sel, idx) => {
-                doc.querySelectorAll(sel).forEach((node) => pushCandidate(node, 1000 - idx * 10));
+            const eligible = candidates.filter((node) => {
+                const textLength = (node.textContent || '').replace(/\s+/g, ' ').trim().length;
+                return textLength >= bodyTextLength * 0.65;
             });
-            if (!candidates.length) {
-                return doc.body ? doc.body.innerHTML : '';
+            eligible.sort((a, b) => {
+                const headingDelta = Number(!!b.querySelector('h1')) - Number(!!a.querySelector('h1'));
+                if (headingDelta) return headingDelta;
+                return a.querySelectorAll('*').length - b.querySelectorAll('*').length;
+            });
+            const best = eligible[0] || null;
+            if (best) {
+                return best.outerHTML;
             }
-            candidates.sort((a, b) => b.score - a.score);
-            const best = candidates[0].node ? candidates[0].node.cloneNode(true) : doc.body.cloneNode(true);
-            if (best && best.querySelectorAll) {
-                best.querySelectorAll('header,footer,nav,aside,form,button,input,textarea,select,label,script,style,link,meta,noscript').forEach((node) => {
-                    const textLen = (node.textContent || '').trim().length;
-                    if (textLen > 150) return;
-                    if (node && node.remove) node.remove();
-                });
-                best.querySelectorAll('[role="navigation"],[role="complementary"],[role="banner"],[role="contentinfo"],[aria-hidden="true"]').forEach((node) => {
-                    const textLen = (node.textContent || '').trim().length;
-                    if (textLen > 150) return;
-                    if (node && node.remove) node.remove();
-                });
-                best.querySelectorAll('div,section,article,main,span,p').forEach((node) => {
-                    const cls = String(node.className || '').trim();
-                    const id = String(node.id || '').trim();
-                    const role = String(node.getAttribute('role') || '').trim().toLowerCase();
-                    const label = String(node.getAttribute('aria-label') || '').trim();
-                    const noiseText = `${cls} ${id} ${role} ${label}`;
-                    const textLen = (node.textContent || '').trim().length;
-                    if (textLen > 150) return;
-                    if (RICH_PASTE_NOISE_ROLE_RE.test(noiseText) && node.parentNode) {
-                        node.remove();
-                    }
-                });
-            }
-            return best ? best.innerHTML : (doc.body ? doc.body.innerHTML : '');
+            return doc.body.innerHTML;
         };
         const sanitizeRichPasteHtml = (html) => {
             if (!window.DOMPurify || typeof window.DOMPurify.sanitize !== 'function') {
@@ -1011,7 +997,7 @@
                     }
                 }
                 const imageType = itemTypes.find((type) => type && type.startsWith('image/'));
-                if (imageType) {
+                if (!htmlInserted && imageType) {
                     const imageBlob = await item.getType(imageType);
                     if (await insertClipboardImageBlob(imageBlob, 'clipboard-image')) {
                         inserted = true;
@@ -1041,7 +1027,7 @@
                 .filter((item) => item && item.kind === 'file')
                 .map((item) => item.getAsFile())
                 .filter((file) => file && file.type && file.type.startsWith('image/'));
-            if (imageFiles.length) {
+            if (!htmlInserted && imageFiles.length) {
                 for (const imageFile of imageFiles) {
                     try {
                         if (await insertClipboardImageBlob(imageFile, imageFile.name || 'clipboard-image')) {
@@ -1433,18 +1419,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(title)} - Preview</title>
   <style>
-    body { margin: 0; background: ${isPdf ? '#ffffff' : '#0b1220'}; color: ${isPdf ? '#111827' : '#e5e7eb'}; font-family: "Noto Sans JP", system-ui, sans-serif; }
-    .page { max-width: ${isPdf ? '794px' : '920px'}; margin: 0 auto; padding: ${isPdf ? '28px 30px 36px' : '24px'}; }
-    .card { background: ${isPdf ? '#ffffff' : '#111827'}; border: 1px solid ${isPdf ? '#dbe3ee' : '#243244'}; border-radius: 18px; padding: 20px; box-shadow: ${isPdf ? 'none' : '0 18px 45px rgba(0,0,0,0.35)'}; }
-    .title { margin: 0; font-size: ${isPdf ? '22px' : '24px'}; line-height: 1.35; color: ${isPdf ? '#0f172a' : '#f8fafc'}; }
-    .meta { margin-top: 8px; color: ${isPdf ? '#64748b' : '#94a3b8'}; font-size: 12px; }
-    .content { margin-top: 18px; color: ${isPdf ? '#111827' : '#e5e7eb'}; font-size: ${isPdf ? '15px' : '15px'}; line-height: 1.85; word-break: break-word; overflow-wrap: anywhere; }
-    .content img, .content video, .content iframe, .content table, .content pre, .content blockquote { max-width: 100%; }
-    .content table { display: block; overflow-x: auto; border-collapse: collapse; }
-    .content th, .content td { border: 1px solid ${isPdf ? '#cbd5e1' : '#334155'}; padding: 8px 10px; }
-    .content pre { padding: 14px 16px; border-radius: 14px; background: ${isPdf ? '#f8fafc' : '#020617'}; overflow: auto; color: ${isPdf ? '#111827' : 'inherit'}; }
-    .content blockquote { margin: 1em 0; padding: 12px 16px; border-left: 4px solid ${isPdf ? '#f59e0b' : '#f59e0b'}; background: ${isPdf ? '#fff9eb' : 'rgba(245,158,11,0.08)'}; border-radius: 12px; color: ${isPdf ? '#334155' : 'inherit'}; }
-    .content a { color: ${isPdf ? '#0f766e' : '#7dd3fc'}; }
+	    body { margin: 0; background: ${isPdf ? '#ffffff' : '#eef2f7'}; color: #111827; font-family: "Noto Sans JP", system-ui, sans-serif; }
+	    .page { max-width: ${isPdf ? '794px' : '920px'}; margin: 0 auto; padding: ${isPdf ? '28px 30px 36px' : '24px'}; }
+	    .card { background: #ffffff; border: 1px solid #dbe3ee; border-radius: 18px; padding: 20px; box-shadow: ${isPdf ? 'none' : '0 18px 45px rgba(15,23,42,0.14)'}; }
+	    .title { margin: 0; font-size: ${isPdf ? '22px' : '24px'}; line-height: 1.35; color: #0f172a; }
+	    .meta { margin-top: 8px; color: #64748b; font-size: 12px; }
+	    .content { margin-top: 18px; color: #111827; font-size: 15px; line-height: 1.7; word-break: break-word; overflow-wrap: anywhere; }
+	    .content img, .content video, .content iframe, .content table, .content pre, .content blockquote { max-width: 100%; }
+	    .content table { display: block; overflow-x: auto; border-collapse: collapse; }
+	    .content th, .content td { border: 1px solid #cbd5e1; padding: 8px 10px; }
+	    .content pre { padding: 14px 16px; border-radius: 14px; background: #f8fafc; overflow: auto; }
+	    .content blockquote { margin: 1em 0; padding: 12px 16px; border-left: 4px solid #f59e0b; background: #fff9eb; border-radius: 12px; }
+	    .content a { color: #0f766e; }
     .toolbar { display:${isPdf ? 'none' : 'flex'}; gap:10px; margin-top: 16px; flex-wrap: wrap; }
     .toolbar button { border: 1px solid #334155; background: #0f172a; color: #e2e8f0; border-radius: 999px; padding: 8px 12px; cursor: pointer; }
     ${isPdf ? '.card { border-radius: 0; } .page { max-width: none; padding: 0; }' : ''}
@@ -1514,7 +1500,7 @@
                 progressContainer.classList.remove('hidden');
                 progressContainer.style.setProperty('display', 'block', 'important');
             }
-            
+
             if (progressBar) {
                 // Initialize without transition to prevent initial jump
                 progressBar.style.transition = 'none';
@@ -1526,7 +1512,7 @@
                 // Set the smooth transition
                 progressBar.style.transition = 'transform 0.45s cubic-bezier(0.22, 1, 0.36, 1)';
             }
-            
+
             updateProgress(0);
 
             // Give browser a moment to paint the progress bar
@@ -1544,132 +1530,120 @@
 
             updateProgress(5);
 
-            const wrapper = document.createElement('div');
-            wrapper.style.position = 'absolute';
-            wrapper.style.left = '-10000px';
-            wrapper.style.top = '-20000px';
-            wrapper.style.width = '794px';
+	            const wrapper = document.createElement('div');
+	            wrapper.style.position = 'absolute';
+	            wrapper.style.left = '-10000px';
+	            wrapper.style.top = '0';
+	            wrapper.style.width = '794px';
             wrapper.style.background = '#ffffff';
             wrapper.style.boxSizing = 'border-box';
             wrapper.style.fontFamily = '"Noto Sans JP", "Segoe UI", "Helvetica Neue", Arial, sans-serif';
             wrapper.innerHTML = `
                 <style>
-                    /* Proper Light Mode Reset */
-                    .pdf-root-wrapper {
-                        background-color: #ffffff !important;
-                        color: #000000 !important;
-                        padding: 40px;
-                        width: 794px;
-                        min-height: 1123px;
-                        color-scheme: light !important;
-                        line-height: 1.5 !important;
-                        text-align: left !important;
-                        font-size: 15px !important;
-                    }
-                    .pdf-root-wrapper * {
-                        box-sizing: border-box !important;
-                        text-shadow: none !important;
-                        box-shadow: none !important;
-                        letter-spacing: normal !important;
-                        word-spacing: normal !important;
-                        vertical-align: baseline !important;
-                    }
+	                    .pdf-root-wrapper {
+	                        background-color: #ffffff;
+	                        color: #111827;
+	                        padding: 40px;
+	                        width: 794px;
+	                        min-height: 1123px;
+	                        box-sizing: border-box;
+	                        color-scheme: light;
+	                        line-height: 1.6;
+	                        font-size: 15px;
+	                    }
+	                    .pdf-root-wrapper * {
+	                        box-sizing: border-box;
+	                    }
                     .pdf-root-wrapper h1,
                     .pdf-root-wrapper h2,
                     .pdf-root-wrapper h3,
                     .pdf-root-wrapper h4,
                     .pdf-root-wrapper h5,
                     .pdf-root-wrapper h6 {
-                        line-height: 1.25 !important;
-                        margin: 1.1em 0 0.55em 0 !important;
-                    }
-                    .pdf-title { 
-                        font-size: 26px !important; 
-                        font-weight: bold !important; 
-                        margin: 0 0 15px 0 !important; 
-                        border-bottom: 2px solid #000 !important; 
-                        padding-bottom: 10px !important; 
-                        line-height: 1.2 !important;
-                    }
-                    .pdf-meta { 
-                        font-size: 12px !important; 
-                        color: #555 !important; 
-                        margin-bottom: 30px !important; 
-                    }
-                    .pdf-content { 
-                        font-size: 15px !important; 
-                        line-height: 1.6 !important; 
-                        color: inherit !important;
-                    }
-                    .pdf-content p { margin: 0 0 1em 0 !important; }
-                    .pdf-content img { max-width: 100% !important; height: auto !important; display: block !important; margin: 20px auto !important; }
-                    .pdf-content video,
-                    .pdf-content iframe {
-                        max-width: 100% !important;
-                        display: block !important;
-                        margin: 20px auto !important;
-                    }
-                    .pdf-content table { width: 100% !important; border-collapse: collapse !important; margin: 20px 0 !important; table-layout: fixed !important; border: 1px solid #666 !important; }
-                    .pdf-content th, .pdf-content td { border: 1px solid #666 !important; padding: 10px !important; text-align: left !important; word-break: break-word !important; vertical-align: top !important; }
-                    .pdf-content th { background-color: #f0f0f0 !important; font-weight: bold !important; }
-                    .pdf-content pre { 
-                        background-color: #f5f5f5 !important; 
-                        border: 1px solid #ccc !important; 
-                        padding: 15px !important; 
-                        border-radius: 5px !important; 
-                        white-space: pre-wrap !important; 
-                        word-break: break-word !important;
-                        font-family: "Noto Sans Mono", monospace !important; 
-                        font-size: 13px !important; 
-                        margin: 1.2em 0 !important; 
-                        line-height: 1.4 !important;
-                        display: block !important;
-                        width: 100% !important;
-                        overflow-wrap: anywhere !important;
-                    }
-                    .pdf-content code { 
-                        font-family: "Noto Sans Mono", monospace !important; 
-                        background-color: #eeeeee !important; 
-                        padding: 1px 4px !important; 
-                        border-radius: 3px !important; 
-                        font-size: 0.9em !important; 
-                        display: inline-block !important;
-                        line-height: 1.2 !important;
-                        margin: 1px 0 !important;
-                        vertical-align: middle !important;
-                    }
-                    .pdf-content pre code {
-                        display: block !important;
-                        padding: 0 !important;
-                        margin: 0 !important;
-                        border-radius: 0 !important;
-                        background: transparent !important;
-                        color: inherit !important;
-                        font-size: inherit !important;
-                        line-height: inherit !important;
-                        white-space: pre-wrap !important;
-                    }
-                    .pdf-content pre code * {
-                        background: transparent !important;
-                        color: inherit !important;
-                    }
-                    .pdf-content blockquote { 
-                        border-left: 5px solid #ddd !important; 
-                        padding: 5px 0 5px 20px !important; 
-                        margin: 1em 0 !important; 
-                        font-style: italic !important; 
-                        color: #333 !important;
-                    }
-                    .pdf-content a {
-                        color: #0f766e !important;
-                        text-decoration: underline !important;
-                    }
-                    .pdf-content ul,
-                    .pdf-content ol {
-                        margin: 0 0 1em 0 !important;
-                        padding-left: 1.5em !important;
-                    }
-                    .pdf-content li { margin-bottom: 0.4em !important; }
+	                        line-height: 1.25;
+	                        margin: 1.1em 0 0.55em 0;
+	                    }
+	                    .pdf-title {
+	                        font-size: 26px;
+	                        font-weight: bold;
+	                        margin: 0 0 15px 0;
+	                        border-bottom: 2px solid #000;
+	                        padding-bottom: 10px;
+	                        line-height: 1.2;
+	                    }
+	                    .pdf-meta {
+	                        font-size: 12px;
+	                        color: #555;
+	                        margin-bottom: 30px;
+	                    }
+	                    .pdf-content {
+	                        font-size: 15px;
+	                        line-height: 1.6;
+	                        color: inherit;
+	                        overflow-wrap: anywhere;
+	                    }
+	                    .pdf-content p { margin: 0 0 1em 0; }
+	                    .pdf-content img { max-width: 100%; height: auto; }
+	                    .pdf-content video,
+	                    .pdf-content iframe {
+	                        max-width: 100%;
+	                    }
+	                    .pdf-content table { max-width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #666; }
+	                    .pdf-content th, .pdf-content td { border: 1px solid #666; padding: 10px; text-align: left; word-break: break-word; vertical-align: top; }
+	                    .pdf-content th { background-color: #f0f0f0; font-weight: bold; }
+	                    .pdf-content pre {
+	                        background-color: #f5f5f5;
+	                        border: 1px solid #ccc;
+	                        padding: 15px;
+	                        border-radius: 5px;
+	                        white-space: pre-wrap;
+	                        word-break: break-word;
+	                        font-family: "Noto Sans Mono", monospace;
+	                        font-size: 13px;
+	                        margin: 1.2em 0;
+	                        line-height: 1.4;
+	                        display: block;
+	                        width: 100%;
+	                        overflow-wrap: anywhere;
+	                    }
+	                    .pdf-content code {
+	                        font-family: "Noto Sans Mono", monospace;
+	                        background-color: #eeeeee;
+	                        padding: 1px 4px;
+	                        border-radius: 3px;
+	                        font-size: 0.9em;
+	                    }
+	                    .pdf-content pre code {
+	                        display: block;
+	                        padding: 0;
+	                        margin: 0;
+	                        border-radius: 0;
+	                        background: transparent;
+	                        color: inherit;
+	                        font-size: inherit;
+	                        line-height: inherit;
+	                        white-space: pre-wrap;
+	                    }
+	                    .pdf-content pre code * {
+	                        background: transparent;
+	                        color: inherit;
+	                    }
+	                    .pdf-content blockquote {
+	                        border-left: 5px solid #ddd;
+	                        padding: 5px 0 5px 20px;
+	                        margin: 1em 0;
+	                        font-style: italic;
+	                    }
+	                    .pdf-content a {
+	                        color: #0f766e;
+	                        text-decoration: underline;
+	                    }
+	                    .pdf-content ul,
+	                    .pdf-content ol {
+	                        margin: 0 0 1em 0;
+	                        padding-left: 1.5em;
+	                    }
+	                    .pdf-content li { margin-bottom: 0.4em; }
                 </style>
                 <div class="pdf-root-wrapper">
                     <div class="pdf-title">${escapeHtml(title)}</div>
@@ -1684,37 +1658,43 @@
             try {
                 const pdf = new JsPdfCtor({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
                 const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pageHeightMm = pdf.internal.pageSize.getHeight();
-                
-                // Get total height of the wrapper
-                const totalHeight = wrapper.scrollHeight || wrapper.offsetHeight;
-                const chunkHeight = 1500; // Chunk size in pixels for rendering
-                let currentY = 0;
-                let isFirstPage = true;
-                
-                const totalChunks = Math.ceil(totalHeight / chunkHeight);
-                let chunkIndex = 0;
+	                const pageHeightMm = pdf.internal.pageSize.getHeight();
+	                const captureWidthPx = 794;
+	                const pageHeightPx = Math.floor((pageHeightMm / pdfWidth) * captureWidthPx);
+
+	                // Get total height of the wrapper
+	                const totalHeight = wrapper.scrollHeight || wrapper.offsetHeight;
+	                let currentY = 0;
+	                let isFirstPage = true;
+
+	                const totalChunks = Math.ceil(totalHeight / pageHeightPx);
+	                let chunkIndex = 0;
 
                 while (currentY < totalHeight) {
                     if (richPasteAbortController && richPasteAbortController.signal.aborted) {
                         throw new DOMException('Aborted', 'AbortError');
                     }
-                    const h = Math.min(chunkHeight, totalHeight - currentY);
-                    const canvas = await new Promise((resolve, reject) => {
+	                    const h = Math.min(pageHeightPx, totalHeight - currentY);
+	                    const canvas = await new Promise((resolve, reject) => {
                         const timer = setTimeout(() => reject(new Error('PDF chunk rendering timed out')), 120000);
                         html2canvasFn(wrapper, {
                             scale: 1, // Use scale 1 for large documents to avoid canvas limits
                             useCORS: true,
-                            allowTaint: true,
-                            backgroundColor: '#ffffff',
-                            logging: false,
-                            x: 0,
-                            y: currentY,
-                            width: 794,
-                            height: h,
-                            windowWidth: 794,
-                            onclone: (clonedDoc) => {
-                                const root = clonedDoc.querySelector('.pdf-root-wrapper');
+	                            allowTaint: false,
+	                            backgroundColor: '#ffffff',
+	                            logging: false,
+	                            imageTimeout: 5000,
+	                            x: 0,
+	                            y: currentY,
+	                            width: captureWidthPx,
+	                            height: h,
+	                            windowWidth: captureWidthPx,
+	                            scrollX: 0,
+	                            scrollY: 0,
+	                            signal: richPasteAbortController ? richPasteAbortController.signal : undefined,
+	                            onclone: (clonedDoc) => {
+	                                prepareRichPastePdfClone(clonedDoc);
+	                                const root = clonedDoc.querySelector('.pdf-root-wrapper');
                                 if (root) {
                                     root.style.position = 'relative';
                                     root.style.left = '0';
@@ -1724,23 +1704,23 @@
                         }).then(c => { clearTimeout(timer); resolve(c); }).catch(e => { clearTimeout(timer); reject(e); });
                     });
 
-                    const imgData = canvas.toDataURL('image/jpeg', 0.9);
-                    const imgProps = pdf.getImageProperties(imgData);
-                    const chunkHeightMm = (imgProps.height * pdfWidth) / imgProps.width;
-                    
+	                    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+	                    const imgProps = pdf.getImageProperties(imgData);
+	                    const chunkHeightMm = Math.min(pageHeightMm, (imgProps.height * pdfWidth) / imgProps.width);
+
                     if (!isFirstPage) {
                         pdf.addPage();
                     }
 
                     pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, chunkHeightMm);
                     isFirstPage = false;
-                    currentY += chunkHeight;
+	                    currentY += h;
                     chunkIndex++;
-                    
+
                     // Update progress after each chunk
                     const progress = Math.min(100, 15 + Math.round((chunkIndex / totalChunks) * 85));
                     updateProgress(progress);
-                    
+
                     // Small delay to prevent UI freezing and allow progress update
                     await new Promise(res => setTimeout(res, 100));
                 }
@@ -1889,7 +1869,7 @@
                     const blob = await response.blob();
                     const fileName = response.headers.get('X-Rich-Paste-Filename') || buildRichPastePdfFilename();
                     const downloadOnly = !!(get('rich-paste-download-only') && get('rich-paste-download-only').checked);
-                    
+
                     if (downloadOnly) {
                         setRichPasteProgress(90, 'ダウンロード中...');
                         downloadBlob(blob, fileName);
@@ -2065,12 +2045,12 @@
         const CONNECTION_UNSTABLE_HOLD_MS = 45000;
         const CONNECTION_RECOVERED_BANNER_MS = 5000;
         let activeGem = null, editingGemUuid = null, currentImageUrls = [], currentMaskImage = null, abortController = null, richPasteAbortController = null, userAutoScroll = true, searchTimeout;
-        
+
         // Prompt History
         let promptHistory = [];
         let historyIndex = -1;
         let tempPrompt = "";
-         
+
         const markerAppliedUploads = new Set();
         const attachmentSourceByPath = new Map();
         const attachmentNameByPath = new Map();
@@ -2105,7 +2085,7 @@
         const threadGemMap = {};
         let pendingGemForNewThread = null;
         let loadedGems = [];
-        let currentJobId = null; 
+        let currentJobId = null;
         let currentThreadPending = null;
         let currentVisionModel = null;
         let activeStreamingBubbleId = null;
@@ -2189,7 +2169,7 @@
         let oldestLoadedMessageId = null;
         let loadingOlderMessages = false;
         let threadLoadSequence = 0;
-        
+
         // Tree State
         let allMessages = [];
         let currentLeafId = null;
@@ -2293,7 +2273,7 @@
             if (!container || !maybeNeedsHighlight(text, container)) return;
             // Skip redundant highlighting during active streaming (already handled by custom renderer)
             if (activeStreamingBubbleId && container.closest(`#${activeStreamingBubbleId}`)) return;
-            
+
             ensureHighlightLoaded()
                 .then(() => {
                     if (!window.hljs) return;
@@ -2486,7 +2466,7 @@
                 });
             }
         }
-        
+
         function escapeHtml(t) {
             if (t === null || t === undefined) return '';
             return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
@@ -3056,7 +3036,7 @@
             if (!details || !toggleBtn) return;
             const showDetails = !compactPromptMode || promptControlsExpanded;
             if (row) row.classList.toggle('compact-collapsed', compactPromptMode && !showDetails);
-            
+
             if (compactPromptMode) {
                 if (showDetails) {
                     details.classList.remove('collapsed');
@@ -3179,10 +3159,10 @@
             input.focus();
             input.style.height = 'auto';
             input.style.height = input.scrollHeight + 'px';
-            
+
             const msg = allMessages.find(m => m.id == id);
             const meta = messageMeta[id] || {};
-            
+
             // Set parent_id for branching
             if (msg) {
                 currentParentId = (msg.parent_id === undefined ? null : msg.parent_id);
@@ -3989,7 +3969,7 @@
             if (ss) ss.value = '';
             switchTab(t);
         }
-        function switchTab(t) { 
+        function switchTab(t) {
             if (t === activeSettingsTab) return;
             const prev = get('tab-' + activeSettingsTab);
             if (prev) {
@@ -4021,7 +4001,7 @@
         }
         get('chat-container').addEventListener('scroll', function() { userAutoScroll = (this.scrollHeight - this.scrollTop - this.clientHeight) < 50; }, { passive: true });
         function scrollToBottom() { if(userAutoScroll) { const c = get('chat-container'); c.scrollTop = c.scrollHeight; } }
-        
+
         // Image Viewer Logic
         let viewerImages = [];
         let viewerIndex = 0;
@@ -4034,7 +4014,7 @@
                 filename: img.dataset.viewerFilename || img.title || (img.dataset.viewerSrc || img.currentSrc || img.src).split('/').pop(),
                 element: img
             }));
-            
+
             // Find index of startUrl
             viewerIndex = viewerImages.findIndex(item => item.url === startUrl);
             if (viewerIndex === -1) {
@@ -4042,7 +4022,7 @@
                 viewerImages = [{ url: startUrl, filename: startUrl.split('/').pop() }];
                 viewerIndex = 0;
             }
-            
+
             updateViewerState();
             get('image-viewer').classList.add('visible');
             document.addEventListener('keydown', handleViewerKeydown);
@@ -4070,7 +4050,7 @@
 
             img.style.opacity = '0.5';
             img.style.transform = 'scale(0.95)';
-            
+
             setTimeout(() => {
                 img.src = item.url;
                 img.onload = () => {
@@ -4132,7 +4112,7 @@
                     path = decodeURIComponent(urlObj.pathname.replace('/files/', ''));
                 }
             } catch(e) {}
-            
+
             if (path) {
                 if (!currentImageUrls.includes(path)) {
                     currentImageUrls.push(path);
@@ -4213,7 +4193,7 @@
                 handleQuotePopover();
             }
         });
-        
+
         get('quote-popover').onclick = () => {
             currentQuote = window.getSelection().toString().trim();
             if(currentQuote) {
@@ -4604,7 +4584,7 @@
                 v = String(value.path || value.url || value.name || value.filename || value.filepath || '');
             }
             if (!v) return '';
-            
+
             try {
                 if (v.includes('://')) {
                     v = new URL(v, window.location.origin).pathname || '';
@@ -4883,12 +4863,12 @@
                 setSelectOptions(voiceSel, OPENAI_TTS_VOICES, voiceSel.value || 'alloy');
                 voiceCustomWrap.classList.add('hidden');
                 langWrap.classList.add('hidden');
-                if (speedInput) { 
-                    speedInput.min = 0.25; speedInput.max = 4; speedInput.step = 0.05; 
+                if (speedInput) {
+                    speedInput.min = 0.25; speedInput.max = 4; speedInput.step = 0.05;
                     if (!speedInput.value) speedInput.value = 1;
                     if (Number(speedInput.value) < 0.25) speedInput.value = 0.25;
                     if (Number(speedInput.value) > 4) speedInput.value = 4;
-                    speedInput.disabled = false; 
+                    speedInput.disabled = false;
                 }
                 if (speedNote) speedNote.textContent = '';
             } else if (provider === 'gemini') {
@@ -4910,12 +4890,12 @@
                 }
                 langWrap.classList.remove('hidden');
                 if (langInput && !langInput.value) langInput.value = 'ja-JP';
-                if (speedInput) { 
-                    speedInput.min = 0.25; speedInput.max = 2; speedInput.step = 0.05; 
+                if (speedInput) {
+                    speedInput.min = 0.25; speedInput.max = 2; speedInput.step = 0.05;
                     if (!speedInput.value) speedInput.value = 1;
                     if (Number(speedInput.value) < 0.25) speedInput.value = 0.25;
                     if (Number(speedInput.value) > 2) speedInput.value = 2;
-                    speedInput.disabled = false; 
+                    speedInput.disabled = false;
                 }
                 if (speedNote) speedNote.textContent = '';
             } else if (provider === 'xai') {
@@ -4923,12 +4903,12 @@
                 voiceCustomWrap.classList.remove('hidden');
                 langWrap.classList.remove('hidden');
                 if (langInput && !langInput.value) langInput.value = 'ja';
-                if (speedInput) { 
-                    speedInput.min = 0.7; speedInput.max = 1.5; speedInput.step = 0.05; 
+                if (speedInput) {
+                    speedInput.min = 0.7; speedInput.max = 1.5; speedInput.step = 0.05;
                     if (!speedInput.value) speedInput.value = 1;
                     if (Number(speedInput.value) < 0.7) speedInput.value = 0.7;
                     if (Number(speedInput.value) > 1.5) speedInput.value = 1.5;
-                    speedInput.disabled = false; 
+                    speedInput.disabled = false;
                 }
                 if (speedNote) speedNote.textContent = 'xAI TTS supports speed 0.7–1.5 and speech tags';
             }
@@ -5327,7 +5307,7 @@
             } else {
                 wrap.classList.add('hidden');
             }
-            
+
             // Modal part
             const modalWrap = get('modal-grok-image-options');
             if (modalWrap) {
@@ -5411,23 +5391,23 @@
                 el.innerHTML = '';
             }
         }
-            function toggleOptions() { 
+            function toggleOptions() {
                 const modelEl = get('model-select');
                 if (!modelEl) return;
-                const model = modelEl.value; 
+                const model = modelEl.value;
                 const modelLower = String(model || '').toLowerCase();
                 const isDeepSeek = modelLower.includes('deepseek');
-                const thinkOpts = get('thinking-options'); 
-                const reasonOpts = get('reasoning-effort-container'); 
-                const thinkChk = get('enable-thinking'); 
+                const thinkOpts = get('thinking-options');
+                const reasonOpts = get('reasoning-effort-container');
+                const thinkChk = get('enable-thinking');
                 const thinkLvl = get('thinking-level');
                 const thinkBudget = get('thinking-budget');
-                const searchChk = get('enable-search'); 
-                const searchCont = get('search-container'); 
+                const searchChk = get('enable-search');
+                const searchCont = get('search-container');
                 const urlCont = get('url-context-container');
                 const mapsChk = get('enable-maps');
                 const mapsCont = get('maps-grounding-container');
-                const sysChk = get('enable-sys-prompt'); const sysLbl = get('sys-prompt-option'); 
+                const sysChk = get('enable-sys-prompt'); const sysLbl = get('sys-prompt-option');
                 const pyChk = get('enable-python'); const pyCont = get('python-container');
                 const cacheCont = get('prompt-cache-container');
                 const cacheChk = get('enable-prompt-cache');
@@ -5446,9 +5426,9 @@
                     }
                 }
                 updatePromptCacheUi();
-                
-                if (thinkOpts) thinkOpts.classList.add('hidden'); 
-                if (reasonOpts) reasonOpts.classList.add('hidden'); 
+
+                if (thinkOpts) thinkOpts.classList.add('hidden');
+                if (reasonOpts) reasonOpts.classList.add('hidden');
                 const vmi = get('vision-model-info');
                 if (vmi) vmi.classList.add('hidden');
                 if (reasonOpts) {
@@ -5467,8 +5447,8 @@
                 }
                 if(urlCont) urlCont.classList.add('hidden');
                 if(mapsCont) mapsCont.classList.add('hidden');
-                if(thinkChk) thinkChk.disabled = false; 
-                
+                if(thinkChk) thinkChk.disabled = false;
+
                 if(thinkBudget) {
                     thinkBudget.disabled = true;
                     thinkBudget.classList.add('opacity-50');
@@ -5509,8 +5489,8 @@
                         opt.disabled = true; // Claude thinking only uses budget and enabled flag
                     });
                     if (pyCont) { pyChk.checked = false; pyCont.classList.add('opacity-50', 'pointer-events-none'); }
-                } else if(model.includes('gemini') && !isGeminiImage) { 
-                    thinkOpts.classList.remove('hidden'); 
+                } else if(model.includes('gemini') && !isGeminiImage) {
+                    thinkOpts.classList.remove('hidden');
                     if(urlCont) {
                         urlCont.classList.remove('hidden', 'opacity-50', 'pointer-events-none');
                     }
@@ -5528,8 +5508,8 @@
                         if(['minimal', 'medium'].includes(opt.value)) { opt.disabled = !isFlash; }
                     });
                     if(!isFlash && ['minimal', 'medium'].includes(thinkLvl.value)) { thinkLvl.value = 'high'; }
-                    if(isGemini3) { 
-                        if(thinkChk) { thinkChk.checked = true; thinkChk.disabled = true; } 
+                    if(isGemini3) {
+                        if(thinkChk) { thinkChk.checked = true; thinkChk.disabled = true; }
                     } else if(thinkChk) {
                         thinkChk.disabled = false;
                     }
@@ -5541,10 +5521,10 @@
                         thinkBudget.disabled = true;
                         thinkBudget.classList.add('opacity-50');
                     }
-                } 
-                else if((modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3') || modelLower.includes('grok-4.3') || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || (modelLower.includes('gpt') && !modelLower.includes('tts')))) { 
-                    reasonOpts.classList.remove('hidden'); 
-                    if(searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none'); 
+                }
+                else if((modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3') || modelLower.includes('grok-4.3') || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || (modelLower.includes('gpt') && !modelLower.includes('tts')))) {
+                    reasonOpts.classList.remove('hidden');
+                    if(searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none');
                 } else if (isDeepSeek) {
                     reasonOpts.classList.remove('hidden');
                     const vmi = get('vision-model-info');
@@ -5568,15 +5548,15 @@
                         pyCont.classList.add('hidden', 'opacity-50', 'pointer-events-none');
                         pyChk.disabled = true;
                     }
-                } 
-                else { 
-                    if(searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none'); 
+                }
+                else {
+                    if(searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none');
                     if(mapsCont && mapsChk) {
                         mapsChk.checked = false;
                         mapsCont.classList.add('hidden', 'opacity-50', 'pointer-events-none');
                     }
-                } 
-                
+                }
+
                 // TTS Special Handling
                 if(isTts) {
                     if(pyCont) pyCont.classList.add('opacity-50', 'pointer-events-none');
@@ -5758,13 +5738,13 @@
                 breaks: true,
                 gfm: true
             });
-            
+
             // Infinite Scroll Observer
             threadObserver = new IntersectionObserver((entries) => {
                 if(entries[0].isIntersecting && hasMoreThreads) loadThreads(true);
             }, { root: get('thread-list'), threshold: 0.1 });
             threadObserver.observe(get('scroll-sentinel'));
-            
+
             initLowBandwidthMode();
             checkVersion();
             get('version-update-dismiss')?.addEventListener('click', () => {
@@ -5946,10 +5926,10 @@
                 }
             }).catch(() => {});
             loadThreads(); loadGems();
- 
-            get('send-btn').onclick = () => { if (isStopMode) stopGeneration(); else sendMessage(); }; 
-            get('new-chat-btn').onclick = () => startNewChat(); 
-            get('upload-btn').onclick = () => openUploadModal(); 
+
+            get('send-btn').onclick = () => { if (isStopMode) stopGeneration(); else sendMessage(); };
+            get('new-chat-btn').onclick = () => startNewChat();
+            get('upload-btn').onclick = () => openUploadModal();
             const vmBtn = get('vision-model-change-btn');
             if (vmBtn) vmBtn.onclick = () => _openVisionModelSelector();
             const onlyEl = get('compression-format-only');
@@ -6036,12 +6016,12 @@
             if (encScanAllBtn) encScanAllBtn.onclick = () => runEncScan(null);
             const encScanThreadBtn = get('enc-scan-thread');
             if (encScanThreadBtn) encScanThreadBtn.onclick = () => currentThreadId ? runEncScan(currentThreadId) : showToast('スレッドがありません', 'error', true);
-            get('file-input').onchange = (e) => { 
+            get('file-input').onchange = (e) => {
                 const files = Array.from(e.target.files || []);
                 // Clear after copying to avoid losing selections during async uploads.
                 e.target.value = '';
-                if (files.length) handleFiles(files); 
-            }; 
+                if (files.length) handleFiles(files);
+            };
             if (get('photo-input')) {
                 get('photo-input').onchange = (e) => {
                     const files = Array.from(e.target.files || []);
@@ -6348,7 +6328,7 @@
                 }
                     refreshBanAppealSummary(true);
                     loadBanAppeals();
-                    apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).then(r=>r.json()).then(d=>{ 
+                    apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).then(r=>r.json()).then(d=>{
                         cacheUserSettings(d);
                         const globalPreview = get('app-global-sys-prompt-preview');
                         if (globalPreview) {
@@ -6364,18 +6344,18 @@
                                 globalPreviewStatus.textContent = '管理者が設定した全体システムプロンプトが適用されています。';
                             }
                         }
-                        if(get('sys-prompt-text')) get('sys-prompt-text').value = d.system_prompt || ''; 
+                        if(get('sys-prompt-text')) get('sys-prompt-text').value = d.system_prompt || '';
                         if(get('set-global-sys-prompt-enabled')) get('set-global-sys-prompt-enabled').checked = d.system_prompt_enabled !== false;
 
                         window.ensureAutoSystemPromptSettingsCard();
                         if(get('set-apply-global-sys-prompt')) get('set-apply-global-sys-prompt').checked = d.apply_global_system_prompt !== false;
                         if(get('set-apply-auto-sys-prompt-notices')) get('set-apply-auto-sys-prompt-notices').checked = d.apply_auto_system_prompt_notices !== false;
                         window.applyAutoSystemPromptConfigToForm('set', d.auto_system_prompt_notices_config || {});
-                        
+
                         if(get('set-latency-metrics')) get('set-latency-metrics').checked = d.enable_latency_metrics === true;
                         if(get('set-client-debug-log')) syncClientDebugLogToggle(d.enable_client_debug_log === true, 'settings modal sync');
-                        if(get('set-openai')) get('set-openai').value = d.openai_key || ''; 
-                        if(get('set-gemini')) get('set-gemini').value = d.gemini_key || ''; 
+                        if(get('set-openai')) get('set-openai').value = d.openai_key || '';
+                        if(get('set-gemini')) get('set-gemini').value = d.gemini_key || '';
                         if(get('set-deepseek')) get('set-deepseek').value = d.deepseek_key || '';
                         if(get('set-anthropic')) get('set-anthropic').value = d.anthropic_key || '';
                         if(get('set-gemini-backend')) get('set-gemini-backend').value = normalizeGeminiBackend(d.gemini_backend || 'gemini_api');
@@ -6386,9 +6366,9 @@
                         syncGeminiBackendUi();
                         if(get('set-admin-api-key-mode')) get('set-admin-api-key-mode').value = normalizeAdminApiKeyMode(d.admin_api_key_mode || 'env_fallback');
                         syncAdminApiKeyModeUi();
-                        if(get('set-xai')) get('set-xai').value = d.xai_key || ''; 
-                    if(get('set-google-key')) get('set-google-key').value = d.google_key || ''; 
-                    if(get('set-google-project')) get('set-google-project').value = d.google_project || ''; 
+                        if(get('set-xai')) get('set-xai').value = d.xai_key || '';
+                    if(get('set-google-key')) get('set-google-key').value = d.google_key || '';
+                    if(get('set-google-project')) get('set-google-project').value = d.google_project || '';
                     modelApiKeyMap = normalizeModelApiKeyMap(d.model_api_keys || {});
                     syncModelApiKeyModelOptions();
                     renderModelApiKeyList();
@@ -6421,7 +6401,7 @@
                     if(get('set-default-thinking-budget')) get('set-default-thinking-budget').value = d.default_thinking_budget || 4096;
                     if(get('set-default-reasoning-effort')) get('set-default-reasoning-effort').value = d.default_reasoning_effort || 'medium';
                     if(get('set-default-safety')) get('set-default-safety').value = d.default_safety_setting || 'default';
-                    get('set-e2ee').checked = d.enable_e2ee; 
+                    get('set-e2ee').checked = d.enable_e2ee;
                     if(get('set-bot-detect')) get('set-bot-detect').checked = d.bot_detection_enabled !== false;
                     if(get('set-bot-detect-global')) get('set-bot-detect-global').checked = d.bot_detection_global_enabled !== false;
                     const botStatus = get('bot-status');
@@ -6442,8 +6422,8 @@
                     }
                     syncGeminiLocalPyDialogSetting();
                     syncCompressionSettingsUi();
-                    if(get('set-username')) get('set-username').value = d.username; 
-                    
+                    if(get('set-username')) get('set-username').value = d.username;
+
                     // 2FA UI Update
                     const badge = get('2fa-badge');
                     const disBtn = get('disable-2fa-btn');
@@ -6494,7 +6474,7 @@
                         if (migBar) migBar.style.width = '0%';
                         if (migText) migText.innerText = '';
                     }
-                }); 
+                });
                 loadFeedback();
                 bindSessionButtons();
                 loadSessions();
@@ -6564,10 +6544,10 @@
                     };
                 }
             };
-            get('settings-btn').onclick = () => { 
+            get('settings-btn').onclick = () => {
                 openSettingsModal();
-            }; 
-            get('close-settings-btn').onclick = () => closeSettingsModal(); 
+            };
+            get('close-settings-btn').onclick = () => closeSettingsModal();
             const settingsSearchInput = get('settings-search');
             if (settingsSearchInput) {
                 settingsSearchInput.addEventListener('input', filterSettings);
@@ -6685,12 +6665,12 @@
                 if (get('set-bot-detect')) b.bot_detection_enabled = get('set-bot-detect').checked;
                 if (get('set-bot-detect-global')) b.bot_detection_global_enabled = get('set-bot-detect-global').checked;
                 const res = await apiFetch(CHAT_CONFIG.urls.handleSettings, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)});
-                if (res.ok) { 
+                if (res.ok) {
                     closeSettingsModal();
-                    
+
                     const oldUsername = currentUsername;
                     const oldE2EE = CHAT_CONFIG.enableE2EE;
-                    
+
                     // Update client-side variables
                     enterToSend = b.enter_to_send;
                     autoSearchOnLinks = b.auto_search_on_links;
@@ -6700,15 +6680,15 @@
                     }
                     compactPromptMode = b.compact_prompt_mode;
                     temporaryChatTimeoutSeconds = b.temp_chat_timeout_seconds;
-                    
+
                     // Apply theme color
                     applyThemeColor(b.theme_color, true);
                     syncThemeInputs(b.theme_color);
                     applyLiquidGlassMode(b.liquid_glass_enabled);
-                    
+
                     // Update UI components
                     setCompactPromptMode(compactPromptMode);
-                    
+
                     showToast("設定を保存しました", "success");
                     syncClientDebugLogToggle(b.enable_client_debug_log, 'settings saved');
 
@@ -6725,9 +6705,9 @@
                     showToast(d.error || "設定の保存に失敗しました", "error", true);
                 }
             };
-            get('disable-2fa-btn').onclick = async () => { 
-                if(confirm("Disable 2FA?")) { 
-                    const res = await apiFetch(CHAT_CONFIG.urls.handleSettings, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({disable_2fa: true})}); 
+            get('disable-2fa-btn').onclick = async () => {
+                if(confirm("Disable 2FA?")) {
+                    const res = await apiFetch(CHAT_CONFIG.urls.handleSettings, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({disable_2fa: true})});
                     if (res.ok) {
                         showToast("2FAを無効化しました", "success");
                         get('disable-2fa-btn').classList.add('hidden');
@@ -6739,7 +6719,7 @@
                     } else {
                         showToast("2FAの無効化に失敗しました", "error", true);
                     }
-                } 
+                }
             };
             if (get('bot-unban-btn')) {
                 get('bot-unban-btn').onclick = async () => {
@@ -7190,7 +7170,7 @@
                         }
                     }
                 });
-                
+
                 // If we navigated TO a modal path, open it
                 const config = MODAL_CONFIG[location.pathname];
                 if (config) {
@@ -7296,7 +7276,7 @@
                     adminPanel.classList.add('hidden');
                 }
             }
-            
+
             window.setupTOTP = async () => {
                 const r = await apiFetch("/api/2fa/totp/setup", {method:'POST'});
                 const d = await r.json();
@@ -7304,12 +7284,12 @@
                 get('totp-secret-disp').innerText = d.secret;
                 get('totp-setup-area').classList.remove('hidden');
             };
-            
+
             window.enableTOTP = async () => {
                 const c = get('totp-verify-code').value;
                 if(!c) return;
                 const r = await apiFetch("/api/2fa/totp/enable", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:c})});
-                if(r.ok) { 
+                if(r.ok) {
                     showToast("TOTPが有効になりました", "success");
                     get('totp-setup-area').classList.add('hidden');
                     get('totp-verify-code').value = '';
@@ -7317,7 +7297,7 @@
                 }
                 else showToast("認証コードが正しくありません", "error", true);
             };
-            
+
             window.registerWebAuthn = async () => {
                 const btn = get('register-webauthn-btn');
                 const nameInput = get('webauthn-name');
@@ -7399,7 +7379,7 @@
                     if (e.key === 'Enter') {
                         e.preventDefault();
                         // Pick the currently highlighted (or first)
-                        const filtered = SLASH_COMMANDS.filter(c => 
+                        const filtered = SLASH_COMMANDS.filter(c =>
                             c.label.toLowerCase().includes(input.value.trim().substring(1).toLowerCase())
                         );
                         if (filtered[slashSelectedIndex]) {
@@ -7528,10 +7508,10 @@
             if (get('cancel-edit-btn')) get('cancel-edit-btn').onclick = cancelEdit;
             updatePromptPlaceholder();
             if (get('search-box')) {
-                get('search-box').addEventListener('input', () => { 
-                    clearTimeout(searchTimeout); 
-                    searchTimeout = setTimeout(() => { threadPage=1; get('thread-list').innerHTML='<div id="scroll-sentinel"></div>'; loadThreads(); }, 300); 
-                }); 
+                get('search-box').addEventListener('input', () => {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => { threadPage=1; get('thread-list').innerHTML='<div id="scroll-sentinel"></div>'; loadThreads(); }, 300);
+                });
             }
             if (get('mobile-new-chat-btn')) get('mobile-new-chat-btn').onclick = () => startNewChat();
             if (get('sts-mic-btn')) get('sts-mic-btn').onclick = () => { if (isStsModel()) get('mic-btn').click(); };
@@ -7625,7 +7605,7 @@
                 if (e.target.id === 'file-viewer') closeFileViewer();
             });
             document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeImageViewer(); });
-            
+
             // Microphone / STT or STS
             let mediaRecorder;
             let currentGeminiLive = null;
@@ -7798,7 +7778,7 @@
                     this.model = model;
                     this.ws = new WebSocket(`${url}?access_token=${token}`);
                     this.ws.binaryType = 'arraybuffer';
-                    
+
                     this.ws.onopen = () => {
                         console.log("Gemini Live WebSocket opened. Sending setup...");
                         // Refined setup message based on docs and SDK patterns
@@ -7813,12 +7793,12 @@
                                 outputAudioTranscription: {}
                             }
                         };
-                        
+
                         // speechConfig is inside generationConfig
                         if (config.speechConfig) {
                             setupMsg.setup.generationConfig.speechConfig = config.speechConfig;
                         }
-                        
+
                         // thinkingConfig is also inside generationConfig in the Live API schema
                         if (config.thinkingConfig) {
                             setupMsg.setup.generationConfig.thinkingConfig = config.thinkingConfig;
@@ -7829,26 +7809,26 @@
                     };
 
                     this.ws.onmessage = (e) => this._handleMessage(e);
-                    this.ws.onerror = (e) => { 
+                    this.ws.onerror = (e) => {
                         console.error("Gemini Live WebSocket error:", e);
-                        if (this.onError) this.onError(e); 
+                        if (this.onError) this.onError(e);
                     };
-                    this.ws.onclose = (e) => { 
+                    this.ws.onclose = (e) => {
                         console.log("Gemini Live WebSocket closed:", e.code, e.reason);
-                        if (this.onClose) this.onClose(e); 
+                        if (this.onClose) this.onClose(e);
                     };
-                    
+
                     this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
                     this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     const source = this.audioContext.createMediaStreamSource(this.stream);
                     this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
-                    
+
                     this.userAudioChunks = [];
                     const backupRecorder = new MediaRecorder(this.stream);
                     backupRecorder.ondataavailable = (e) => {
                         if (e.data.size > 0) this.userAudioChunks.push(e.data);
                     };
-                    backupRecorder.start(500); 
+                    backupRecorder.start(500);
                     this.backupRecorder = backupRecorder;
 
                     this.processor.onaudioprocess = (e) => {
@@ -7873,7 +7853,7 @@
                 _handleMessage(e) {
                     const data = JSON.parse(e.data);
                     console.log("Gemini Live raw message received:", data);
-                    
+
                     if (data.setupComplete) {
                         console.log("Gemini Live setup complete confirmed");
                         this.setupComplete = true;
@@ -7960,16 +7940,16 @@
                     const pcm = new Int16Array(bytes.buffer);
                     const float32 = new Float32Array(pcm.length);
                     for (let i = 0; i < pcm.length; i++) float32[i] = pcm[i] / 32768.0;
-                    
+
                     const buffer = this.ctx.createBuffer(1, float32.length, this.ctx.sampleRate);
                     buffer.getChannelData(0).set(float32);
-                    
+
                     if (this.ctx.state === 'suspended') await this.ctx.resume();
-                    
+
                     const source = this.ctx.createBufferSource();
                     source.buffer = buffer;
                     source.connect(this.ctx.destination);
-                    
+
                     if (!this.started) {
                         this.nextStartTime = this.ctx.currentTime + this.bufferDelay;
                         this.started = true;
@@ -8056,13 +8036,13 @@
                     const client = currentGeminiLive;
                     currentGeminiLive = null;
                     client.stop();
-                    
+
                     get('mic-btn').classList.remove('bg-red-600', 'animate-pulse');
                     get('mic-btn').classList.add('bg-gray-700');
 
                     try {
                         const finalData = await client.getFinalData();
-                        
+
                         if (!currentThreadId) {
                             const r = await apiFetch(CHAT_CONFIG.urls.handleThreads, {
                                 method:'POST',
@@ -8077,13 +8057,13 @@
 
                         finalData.thread_id = currentThreadId;
                         finalData.model = get('model-select').value;
-                        
+
                         await apiFetch('/api/gemini/save_sts', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(finalData)
                         });
-                        
+
                         setStsStatus('Saved', false);
                         setTimeout(() => setStsStatus('Tap to speak', false), 1000);
                         await loadMessages(currentThreadId);
@@ -8126,7 +8106,7 @@
                             });
                             if (!res.ok) throw new Error("Failed to get session token");
                             const { token, url } = await res.json();
-                            
+
                             const modelKey = get('model-select').value;
                             const voice = get('sts-voice') ? get('sts-voice').value : 'Kore';
                             const thinking_level = get('sts-thinking-level') ? get('sts-thinking-level').value : 'minimal';
@@ -8136,13 +8116,13 @@
                             if (stsOpt('sts-auto-play')) {
                                 currentGeminiLive.rtPlayer = new RealTimeAudioPlayer();
                             }
-                            
+
                             await currentGeminiLive.start(token, url, modelKey, {
                                 speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
                                 thinkingConfig: { thinkingLevel: thinking_level, includeThoughts: include_thoughts }
                             });
                             mediaRecorder = currentGeminiLive.backupRecorder; // For silence monitor
-                            
+
                             // Bind onstop to trigger the save logic (clicking mic-btn again)
                             mediaRecorder.onstop = () => {
                                 if (currentGeminiLive) get('mic-btn').click();
@@ -8174,10 +8154,10 @@
                                             container.appendChild(msgEl);
                                             container.scrollTop = container.scrollHeight;
                                         }
-                                        
+
                                         const thoughtEl = msgEl.querySelector('.thought-container');
                                         const contentEl = msgEl.querySelector('.message-content');
-                                        
+
                                         if (currentGeminiLive.assistantThought) {
                                             thoughtEl.classList.remove('hidden');
                                             thoughtEl.innerText = currentGeminiLive.assistantThought;
@@ -8187,7 +8167,7 @@
                                     }
                                 }
                             };
-                            
+
                             setStsStatus('Listening...', true);
                             get('mic-btn').classList.remove('bg-gray-700');
                             get('mic-btn').classList.add('bg-red-600', 'animate-pulse');
@@ -8285,7 +8265,7 @@
                                 while (true) {
                                     const { done, value } = await reader.read();
                                     if (done) break;
-                                    
+
                                     buffer += decoder.decode(value, { stream: true });
                                     const lines = buffer.split('\n');
                                     buffer = lines.pop();
@@ -8294,7 +8274,7 @@
                                         if (!line.trim()) continue;
                                         const chunk = JSON.parse(line);
                                         if (chunk.error) throw new Error(chunk.error);
-                                        
+
                                         if (chunk.audio_delta && rtPlayer) {
                                             if (firstChunk) {
                                                 setStsStatus('Gemini is speaking...', false);
@@ -8317,7 +8297,7 @@
                                         setTimeout(() => {
                                             setStsStatus('Listening...', true);
                                             get('mic-btn').click();
-                                        }, 500); 
+                                        }, 500);
                                     } else {
                                         setStsStatus('Tap to speak', false);
                                     }
@@ -8475,9 +8455,9 @@
                         method: method,
                         headers:{'Content-Type':'application/json'},
                         body:JSON.stringify({name, description:desc, instruction:inst, fixed_prompts, default_model: get('gem-default-model').value || null})
-                    }); 
-                    window.closeGemModal(); 
-                    loadGems(); 
+                    });
+                    window.closeGemModal();
+                    loadGems();
                     if (editingGemUuid && activeGem && activeGem.uuid === editingGemUuid) {
                        activeGem.name = name;
                        activeGem.instruction = inst;
@@ -8486,12 +8466,12 @@
                     }
                 } else alert("Name and Instruction are required.");
             };
-            document.addEventListener('click', function(e) { 
-                if (e.target.closest('.edit-btn')) { 
-                    const btn = e.target.closest('.edit-btn'); 
-                    const id = btn.getAttribute('data-id'); 
+            document.addEventListener('click', function(e) {
+                if (e.target.closest('.edit-btn')) {
+                    const btn = e.target.closest('.edit-btn');
+                    const id = btn.getAttribute('data-id');
                     beginEditMessage(id);
-                } 
+                }
                 if (e.target.closest('.code-toggle')) {
                     const btn = e.target.closest('.code-toggle');
                     const wrapper = btn.closest('.code-wrapper');
@@ -8565,7 +8545,7 @@
             if(currentThreadId) { loadMessages(currentThreadId); }
             else { schedulePromptTokenEstimate(true); }
         });
-        
+
         function updateFilePreview() {
             const preview = get('file-preview');
             const nameEl = get('file-name');
@@ -8578,11 +8558,11 @@
             const modalProgressBar = get('upload-modal-total-progress-bar');
 
             if (!preview || !nameEl) return;
-            
+
             // Sync Thumbnails from the upload list (modal)
             if (thumbContainer) {
                 const uploadRows = document.querySelectorAll('#upload-list .upload-row');
-                
+
                 // Rebuild thumbnail list
                 thumbContainer.innerHTML = '';
                 uploadRows.forEach((row, index) => {
@@ -8590,7 +8570,7 @@
                     const filename = row.getAttribute('data-filename');
                     // Check if it's meant to be an image
                     const isImage = row.querySelector('img.upload-preview') !== null;
-                    
+
                     let el;
                     if (isImage) {
                         let src = localUrl;
@@ -8598,7 +8578,7 @@
                             const displayPath = filename.replace(/^\d+\//, '');
                             src = buildAttachmentPreviewUrl(displayPath);
                         }
-                        
+
                         if (src) {
                             el = document.createElement('img');
                             el.src = src;
@@ -8615,15 +8595,15 @@
                             };
                         }
                     }
-                    
+
                     if (!el) {
                         el = createFileThumb('FILE');
                     }
-                    
+
                     el.style.animationDelay = `${index * 32}ms`;
                     thumbContainer.appendChild(el);
                 });
-                
+
                 if (uploadRows.length > 0) thumbContainer.classList.remove('hidden');
                 else thumbContainer.classList.add('hidden');
             }
@@ -8634,7 +8614,7 @@
                 el.innerText = text;
                 return el;
             }
-            
+
             const pendingUrls = collectImageUrlsForSend();
             const total = uploadProgressState.total;
             const completed = uploadProgressState.completed;
@@ -9287,7 +9267,7 @@
             updateMaskPreview();
             const list = get('upload-list');
             if (list) list.innerHTML = '<div class="text-xs text-gray-500">まだアップロードがありません。</div>';
-            
+
             const input = get('file-input');
             if (input) input.value = '';
             const photoInput = get('photo-input');
@@ -9540,15 +9520,15 @@
             if (attachBtn) attachBtn.disabled = true;
             if (clearBtn) clearBtn.disabled = true;
             const filesToUpload = Array.from(cameraCapturePendingFiles).reverse();
-            
+
             // モーダルを即座に閉じて他の操作を可能にする
             // skipReset: true を指定して、アップロード中にファイルが消されないようにする
             closeCameraCaptureModal({ skipReset: true });
             // closeUploadModal(); // Prevent history conflict
-            
+
             // stopCameraCaptureStream が busy = false にしてしまうため、戻す
             cameraCaptureBusy = true;
-            
+
             setCameraCaptureStatus(`${filesToUpload.length}枚を添付中...`);
             try {
                 await handleFiles(filesToUpload, { openModal: false });
@@ -9893,7 +9873,7 @@
                         const localUrl = row.row.getAttribute('data-local-url');
                         if (localUrl) URL.revokeObjectURL(localUrl);
                         row.row.removeAttribute('data-local-url');
-                        
+
                         // Update source to server URL
                         const img = row.row.querySelector('img.upload-preview');
                         if (img) {
@@ -10820,7 +10800,7 @@
             } else {
                 syncUploadRowsFromCurrent();
             }
-            
+
             uploadProgressState.total += allowedIncoming.length;
             uploadProgressState.active += allowedIncoming.length;
             updateFilePreview();
@@ -10932,7 +10912,7 @@
                 e.target.value = '';
             });
         }
-        
+
         const messageMeta = {};
         let markdownLibraryFallbackReported = false;
         function sanitizeMarkdownHtml(text) {
@@ -11494,11 +11474,11 @@
                 frame.appendChild(svg);
             });
         }
-        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, gemName = null) { 
-            const isUser = role === 'user'; 
-            const bg = isUser ? 'bg-blue-600' : 'bg-gray-700'; 
-            const align = isUser ? 'justify-end' : 'justify-start'; 
-            messageStore[id] = text; 
+        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, gemName = null) {
+            const isUser = role === 'user';
+            const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
+            const align = isUser ? 'justify-end' : 'justify-start';
+            messageStore[id] = text;
             let totalTokens = tokenCount;
             if (totalTokens === null || totalTokens === undefined) {
                 const inVal = (tokenIn !== null && tokenIn !== undefined) ? Number(tokenIn) : 0;
@@ -11521,26 +11501,26 @@
                 image_url: imgUrl,
                 gem_name: gemName
             };
-            
+
             let qh = '';
             if (quoteText) {
                 qh = `<div class="mb-2 p-2 bg-black/20 rounded border-l-4 border-blue-400 text-xs text-gray-300 italic truncate max-w-full"><i class="fas fa-quote-left mr-1 opacity-50"></i>${escapeHtml(quoteText)}</div>`;
             }
 
-            let th = ''; 
-            if (thoughtData && !isUser) { 
-                let tx = ""; 
-                try { const o = JSON.parse(thoughtData); tx = o.text || ""; } catch(e) { tx = thoughtData; } 
-                if (tx) th = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content collapsed">${escapeHtml(tx)}</div></div>`; 
-            } 
-            
-            let at = ''; 
-            if(imgUrl) { 
-                try { 
-                    const imgs = JSON.parse(imgUrl); 
-                    if(imgs.length) { 
+            let th = '';
+            if (thoughtData && !isUser) {
+                let tx = "";
+                try { const o = JSON.parse(thoughtData); tx = o.text || ""; } catch(e) { tx = thoughtData; }
+                if (tx) th = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content collapsed">${escapeHtml(tx)}</div></div>`;
+            }
+
+            let at = '';
+            if(imgUrl) {
+                try {
+                    const imgs = JSON.parse(imgUrl);
+                    if(imgs.length) {
                         const items = [];
-                        imgs.forEach(u => { 
+                        imgs.forEach(u => {
                             let path = u;
                             let source = 'unknown';
                             if (path && typeof path === 'object') {
@@ -11553,30 +11533,30 @@
                             const displayPath = path.replace(/^\d+\//, '');
                             const url = buildFileUrl(displayPath);
                             const previewUrl = buildAttachmentPreviewUrl(displayPath);
-                            const fn = path.split('/').pop(); 
-                            const ext = fn.split('.').pop().toLowerCase(); 
+                            const fn = path.split('/').pop();
+                            const ext = fn.split('.').pop().toLowerCase();
                             if(['jpg','jpeg','png','webp','gif'].includes(ext)) {
                                 items.push(`<img src="${previewUrl}" data-viewer-src="${url}" data-viewer-filename="${escapeHtml(fn)}" class="chat-image" loading="lazy" onclick="openImageViewer('${url}')" title="${fn}">`);
                             } else {
                                 items.push(`<div class="file-thumb bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700" onclick="window.open('${url}')" title="${fn}"><i class="fas fa-file text-2xl text-gray-400 mb-1"></i><span class="text-[9px] truncate w-20 text-center">${fn}</span></div>`);
                             }
-                        }); 
-                        
+                        });
+
                         if (items.length > 0) {
                             let gridClass = 'grid-multi';
                             if (items.length === 1) gridClass = 'grid-1';
                             else if (items.length === 2) gridClass = 'grid-2';
                             else if (items.length === 3) gridClass = 'grid-3';
                             else if (items.length === 4) gridClass = 'grid-4';
-                            
+
                             at = `<div class="image-grid ${gridClass}">${items.join('')}</div>`;
                         }
-                    } 
-                } catch(e){} 
-            } 
-            
+                    }
+                } catch(e){}
+            }
+
             const regenBtn = !isUser ? `<button class="ctrl-btn" onclick="regenerateMessage('${id}')"><i class="fas fa-rotate-right"></i></button>` : '';
-            const ctrl = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${isUser?`<button class="ctrl-btn edit-btn" data-id="${id}"><i class="fas fa-pen"></i></button>`:''}${regenBtn}<button class="ctrl-btn" onclick="deleteMessage('${id}')"><i class="fas fa-trash"></i></button></div>`; 
+            const ctrl = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${isUser?`<button class="ctrl-btn edit-btn" data-id="${id}"><i class="fas fa-pen"></i></button>`:''}${regenBtn}<button class="ctrl-btn" onclick="deleteMessage('${id}')"><i class="fas fa-trash"></i></button></div>`;
             const footerParts = [];
             if (!isUser && modelName) footerParts.push(escapeHtml(modelName));
             if (gemName) {
@@ -11604,8 +11584,8 @@
                 const lockTitle = isEncrypted ? 'Encrypted' : 'Plain';
                 footerParts.push(`<button class="text-slate-300/80 hover:text-white" title="${lockTitle}" onclick="openEncryptionSettings('${id}')"><i class="fas ${lockIcon}"></i></button>`);
             }
-            const mHtml = footerParts.length ? `<div class="text-[10px] text-slate-300/90 mt-2 text-right font-mono">${footerParts.join(' • ')}</div>` : ''; 
-            
+            const mHtml = footerParts.length ? `<div class="text-[10px] text-slate-300/90 mt-2 text-right font-mono">${footerParts.join(' • ')}</div>` : '';
+
             let contentHtml;
             if (isUser) {
                 // User message: RAW TEXT DISPLAY (Preserve whitespace, no markdown)
@@ -11632,17 +11612,17 @@
                     </div>
                 `;
             }
-            
-            const fadeClass = animate ? 'fade-in' : ''; 
+
+            const fadeClass = animate ? 'fade-in' : '';
             const msgEl = document.createElement('div');
             msgEl.className = `flex ${align} mb-4 ${fadeClass} relative message-group group`;
             msgEl.id = `msg-${id}`;
-            msgEl.innerHTML = `<div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">${ctrl}${qh}${th}${contentHtml}${at}${versionSwitcher}${mHtml}</div>`; 
+            msgEl.innerHTML = `<div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">${ctrl}${qh}${th}${contentHtml}${at}${versionSwitcher}${mHtml}</div>`;
 
             const container = target || get('chat-container');
             if (container) {
                 container.appendChild(msgEl);
-                if (doScroll) scrollToBottom(); 
+                if (doScroll) scrollToBottom();
                 if (!isUser) {
                     queueMessageDecorations(msgEl, text);
                 }
@@ -11732,7 +11712,7 @@
                 setTimeout(() => card.classList.remove('ring-1', 'ring-amber-400/70'), 1400);
             }, 150);
         }
-        
+
         const isGeminiLocalPythonMode = (modelId, hasAudio, hasVideo, pyEnabled) => {
             const m = (modelId || '').toLowerCase();
             if (!m.includes('gemini')) return false;
@@ -11939,7 +11919,7 @@
             }
             return false;
         }
-        
+
         function vibrateHelper(pattern) {
             try {
                 if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -12193,7 +12173,7 @@
             input.dispatchEvent(new Event('input', { bubbles: true }));
         }
 
-        async function sendMessage() { 
+        async function sendMessage() {
             vibrateHelper(50);
             if (abortController) {
                 showToast("回答生成中です。完了までお待ちいただくか、停止してください。", "warning", true);
@@ -12369,7 +12349,7 @@
                 setEditUi(false);
             }
             playSendAnimation();
-            get('welcome-screen').classList.add('hidden'); 
+            get('welcome-screen').classList.add('hidden');
 
             const hiddenBranch = [];
             const hideRenderedBranchFrom = (startId) => {
@@ -12397,8 +12377,8 @@
             }
 
             // Render UI immediately to reduce perceived latency.
-            renderMessage(Date.now(), 'user', t, JSON.stringify(imageUrlsToSend), null, null, null, true, currentQuote, null, null, null, null, null, null, null, true, capturedParentId, activeGem ? activeGem.name : null); 
-            get('prompt-input').value = ''; get('prompt-input').style.height = 'auto'; 
+            renderMessage(Date.now(), 'user', t, JSON.stringify(imageUrlsToSend), null, null, null, true, currentQuote, null, null, null, null, null, null, null, true, capturedParentId, activeGem ? activeGem.name : null);
+            get('prompt-input').value = ''; get('prompt-input').style.height = 'auto';
             schedulePromptTokenEstimate(true);
 
             let disableAutoSearch = false;
@@ -12449,27 +12429,27 @@
                     }
                 }
             }
-            
-            const p = { 
-                thread_id: currentThreadId, 
-                message: t, 
-                model: get('model-select').value, 
-                image_urls: imageUrlsToSend, 
+
+            const p = {
+                thread_id: currentThreadId,
+                message: t,
+                model: get('model-select').value,
+                image_urls: imageUrlsToSend,
                 image_items: attachmentItemsToSend,
                 uploaded_image_urls: uploadedImageUrlsToSend,
                 temporary_chat: temporaryChatEnabled,
-                enable_search: get('enable-search').checked, 
+                enable_search: get('enable-search').checked,
                 enable_url_context: get('enable-url-context') ? get('enable-url-context').checked : false,
                 enable_maps: get('enable-maps') ? get('enable-maps').checked : false,
-                enable_python: get('enable-python').checked, 
-                enable_thinking: get('enable-thinking').checked, 
-                thinking_level: get('thinking-level').value, 
+                enable_python: get('enable-python').checked,
+                enable_thinking: get('enable-thinking').checked,
+                thinking_level: get('thinking-level').value,
                 thinking_budget: get('thinking-budget') ? get('thinking-budget').value : null,
-                reasoning_effort: get('reasoning-effort').value, 
+                reasoning_effort: get('reasoning-effort').value,
                 enable_system_prompt: get('enable-sys-prompt').checked,
                 enable_prompt_caching: get('enable-prompt-cache') ? get('enable-prompt-cache').checked : false,
                 marker_system_prompt: markerSysPrompt,
-                safety_setting: get('safety-setting').value, 
+                safety_setting: get('safety-setting').value,
                 tts_voice: isTtsModel() && get('tts-voice') ? get('tts-voice').value : null,
                 tts_voice_custom: isTtsModel() && get('tts-voice-custom') ? get('tts-voice-custom').value : null,
                 tts_language: isTtsModel() && get('tts-language') ? get('tts-language').value : null,
@@ -12491,13 +12471,13 @@
                 parent_id_explicit: parentIdExplicit,
                 disable_auto_search: disableAutoSearch,
                 image_vision_model: currentVisionModel || null
-            }; 
+            };
             const threadCustomInstructionEl = get('thread-custom-instruction');
             if (threadCustomInstructionEl) {
                 p.thread_custom_instruction = threadCustomInstructionEl.value || '';
             }
             if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; p.gem_uuid = activeGem.uuid; } else { p.gem_uuid = null; }
-            resetUploadState(); setSendBtnToStopMode(); userAutoScroll = true; const aid = 'ai-' + Date.now(); clearQuote(); 
+            resetUploadState(); setSendBtnToStopMode(); userAutoScroll = true; const aid = 'ai-' + Date.now(); clearQuote();
             const modelLower = String(p.model || '').toLowerCase();
             const effortLower = String(p.reasoning_effort || '').toLowerCase();
             const reasoningRequested = !!p.enable_thinking || (!!effortLower && effortLower !== 'none');
@@ -12508,10 +12488,10 @@
                 modelLower.includes('gpt-5') ||
                 (modelLower.includes('reasoning') && !modelLower.includes('non-reasoning'));
             const shouldShowReasoningProgress = reasoningRequested && reasoningCapableModel;
-        
+
             let initialHtml = buildPendingSkeletonHtml(p.model, 'APIに送信中...');
-            get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aid}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${initialHtml}</div></div>`); 
-            scrollToBottom(); 
+            get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aid}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${initialHtml}</div></div>`);
+            scrollToBottom();
             const adiv = get(aid);
             activeStreamingBubbleId = aid;
             if (canvasModeEnabled) {
@@ -12537,8 +12517,8 @@
             if (shouldShowReasoningProgress) {
                 ensureThoughtPlaceholder('推論プロセスを準備中...');
             }
-            
-            abortController = new AbortController(); 
+
+            abortController = new AbortController();
             const streamStartedThreadId = currentThreadId;
             const sendStartPerfMs = nowPerfMs();
             const sendStartEpochMs = Date.now();
@@ -12558,7 +12538,7 @@
                 if (eventType === 'thought' && firstThoughtLatencySent) return;
                 if (eventType === 'content' && firstContentLatencySent) return;
                 const elapsedMs = Math.max(0, nowPerfMs() - sendStartPerfMs);
-                
+
                 if (eventType === 'status') firstStatusLatencyMs = elapsedMs;
                 else if (eventType === 'thought') firstThoughtLatencyMs = elapsedMs;
                 else if (eventType === 'content') firstContentLatencyMs = elapsedMs;
@@ -12581,12 +12561,12 @@
             const finishStreamProgress = window.ProgressSpinner
                 ? window.ProgressSpinner.start('送信中...')
                 : null;
-            try { 
+            try {
                 if (p.thread_id && activeGem) {
                     threadGemMap[p.thread_id] = activeGem;
                     pendingGemForNewThread = null;
                 }
-                const r = await apiFetch(CHAT_CONFIG.urls.chatStream, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p), signal:abortController.signal}); 
+                const r = await apiFetch(CHAT_CONFIG.urls.chatStream, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p), signal:abortController.signal});
                 sendClientDebugLog('info', `Prompt stream response status: ${r.status}`);
                 const markApiAccepted = () => {
                     if (!adiv) return;
@@ -12602,24 +12582,24 @@
                     }
                 };
                 markApiAccepted();
-                const reader = r.body.getReader(); 
-                const dec = new TextDecoder(); 
-                let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null, hadError=false; 
-                const pyBoxes = {}; 
+                const reader = r.body.getReader();
+                const dec = new TextDecoder();
+                let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null, hadError=false;
+                const pyBoxes = {};
                 let lastRenderTime = 0;
-            
-                while(true) { 
-                    const {done, value} = await reader.read(); 
-                    if(done) break; 
-                    buf += dec.decode(value, {stream:true}); 
-                    let ls = buf.split("\n"); 
-                    buf = ls.pop(); 
+
+                while(true) {
+                    const {done, value} = await reader.read();
+                    if(done) break;
+                    buf += dec.decode(value, {stream:true});
+                    let ls = buf.split("\n");
+                    buf = ls.pop();
                     let contentChanged = false;
                     let thoughtChanged = false;
-                    for(let l of ls) { 
-                        if(!l.trim()) continue; 
-                        try { 
-                            const j = JSON.parse(l); 
+                    for(let l of ls) {
+                        if(!l.trim()) continue;
+                        try {
+                            const j = JSON.parse(l);
                             if (j.type === 'thread_id') {
                                 markApiAccepted();
                                 const streamThreadId = j.content !== null && j.content !== undefined ? String(j.content) : j.content;
@@ -12668,24 +12648,24 @@
                                 }
                                 continue;
                             }
-                            if(first){ 
+                            if(first){
                                  beginPendingToStreamTransition(adiv);
                                  const ca = adiv.querySelector('.content-area');
                                  if(ca) ca.innerHTML = '';
-                                 first=false; 
+                                 first=false;
                             }
-                            if(j.type==='thought'){ 
+                            if(j.type==='thought'){
                                 if(!thEl){
                                     thEl = adiv.querySelector('.thought-content');
                                 }
-                                tht+=j.content; 
+                                tht+=j.content;
                                 maybeReportFirstEventLatency('thought', !!j.content);
-                                if(!thEl){ 
-                                    const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>`; 
-                                    if(searchBox) searchBox.insertAdjacentHTML('afterend', tHtml); 
-                                    else adiv.insertAdjacentHTML('afterbegin', tHtml); 
-                                    thEl=adiv.querySelector('.thought-content'); 
-                                } 
+                                if(!thEl){
+                                    const tHtml = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>`;
+                                    if(searchBox) searchBox.insertAdjacentHTML('afterend', tHtml);
+                                    else adiv.insertAdjacentHTML('afterbegin', tHtml);
+                                    thEl=adiv.querySelector('.thought-content');
+                                }
                                 if (thEl && thEl.getAttribute('data-placeholder') === '1') {
                                     thEl.textContent = '';
                                     thEl.removeAttribute('data-placeholder');
@@ -12709,18 +12689,18 @@
                                 }
                                 const iaTxt = iaEl.querySelector('.image-analysis-text');
                                 if (iaTxt) iaTxt.textContent = iaText;
-                            } else if(j.type==='python'){ 
-                                const py = j.content || {}; 
-                                const pyId = py.id || `py_${Date.now()}`; 
-                                if(!pyBoxes[pyId]){ 
-                                    const boxHtml = `<div class="code-wrapper python-box collapsed" data-py-id="${pyId}" data-collapsed="true" data-code-key="${pyId}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button><button class="copy-btn" data-copy="code" data-code=""><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code=""><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output"></code></pre></div></div></div>`; 
-                                    if(searchBox) searchBox.insertAdjacentHTML('afterend', boxHtml); 
-                                    else adiv.insertAdjacentHTML('afterbegin', boxHtml); 
-                                    pyBoxes[pyId] = adiv.querySelector(`[data-py-id="${pyId}"]`); 
-                                } 
-                                const box = pyBoxes[pyId]; 
-                                if(box){ 
-                                    if(py.code !== undefined){ 
+                            } else if(j.type==='python'){
+                                const py = j.content || {};
+                                const pyId = py.id || `py_${Date.now()}`;
+                                if(!pyBoxes[pyId]){
+                                    const boxHtml = `<div class="code-wrapper python-box collapsed" data-py-id="${pyId}" data-collapsed="true" data-code-key="${pyId}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button><button class="copy-btn" data-copy="code" data-code=""><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code=""><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output"></code></pre></div></div></div>`;
+                                    if(searchBox) searchBox.insertAdjacentHTML('afterend', boxHtml);
+                                    else adiv.insertAdjacentHTML('afterbegin', boxHtml);
+                                    pyBoxes[pyId] = adiv.querySelector(`[data-py-id="${pyId}"]`);
+                                }
+                                const box = pyBoxes[pyId];
+                                if(box){
+                                    if(py.code !== undefined){
                                         const codeText = py.code == null ? '' : String(py.code);
                                         const codeEl = box.querySelector('.python-code');
                                         if (codeEl) {
@@ -12730,32 +12710,32 @@
                                         }
                                         const codeBtn = box.querySelector('.copy-btn[data-copy="code"]');
                                         if (codeBtn) codeBtn.setAttribute('data-code', encodeURIComponent(codeText).replace(/'/g, "%27"));
-                                    } 
-                                    if(py.output !== undefined){ 
+                                    }
+                                    if(py.output !== undefined){
                                         const outText = py.output == null ? '' : String(py.output);
                                         const outEl = box.querySelector('.python-output');
                                         if (outEl) outEl.textContent = outText;
                                         const outBtn = box.querySelector('.copy-btn[data-copy="output"]');
                                         if (outBtn) outBtn.setAttribute('data-code', encodeURIComponent(outText).replace(/'/g, "%27"));
-                                    } 
-                                } 
-                            } else if(j.type==='content'){ 
+                                    }
+                                }
+                            } else if(j.type==='content'){
                                 const contentDelta = (j.content === null || j.content === undefined) ? '' : String(j.content);
-                                acc += contentDelta; 
-                                if(!cEl){ 
-                                    cEl = adiv.querySelector('.content-area') || document.createElement('div'); 
-                                    cEl.className='prose prose-invert text-sm break-words'; 
-                                    if(!adiv.contains(cEl)) adiv.appendChild(cEl); 
-                                } 
+                                acc += contentDelta;
+                                if(!cEl){
+                                    cEl = adiv.querySelector('.content-area') || document.createElement('div');
+                                    cEl.className='prose prose-invert text-sm break-words';
+                                    if(!adiv.contains(cEl)) adiv.appendChild(cEl);
+                                }
                                 contentChanged = true;
                                 maybeReportFirstEventLatency('content', !!contentDelta);
-                            } else if(j.type==='error'){ 
+                            } else if(j.type==='error'){
                                 hadError = true;
                                 adiv.insertAdjacentHTML('beforeend', `<div class="text-red-400 text-xs mt-2 border border-red-500 p-2 rounded">Error: ${escapeHtml(j.content)}</div>`);
                                 showToast(j.content || "Unknown error", "error", true);
-                            } 
-                        } catch(e){} 
-                    } 
+                            }
+                        } catch(e){}
+                    }
                     if (thoughtChanged && thEl) {
                         thEl.textContent = tht;
                         if (userAutoScroll) thEl.scrollTop = thEl.scrollHeight;
@@ -12769,8 +12749,8 @@
                             lastRenderTime = now;
                         }
                     }
-                    scrollToBottom(); 
-                } 
+                    scrollToBottom();
+                }
                 // Final render to catch any remaining content
                 if (cEl) {
                     const collapseState = snapshotCodeCollapse(cEl);
@@ -12787,7 +12767,7 @@
 
                     if (enableLatencyMetrics) {
                         const totalLatencyMs = nowPerfMs() - sendStartPerfMs;
-                        
+
                         // Send total latency to server
                         reportFirstTokenLatency({
                             is_total: true,
@@ -12801,17 +12781,17 @@
                         });
 
                         let latencyHtml = `<div class="mt-2 pt-2 border-t border-gray-700/30 flex flex-col gap-1 items-end opacity-70 text-[10px] font-mono text-gray-400">`;
-                        
+
                         // First Token
                         let firstAnyMs = null;
                         if (firstStatusLatencyMs !== null) firstAnyMs = firstStatusLatencyMs;
                         if (firstThoughtLatencyMs !== null && (firstAnyMs === null || firstThoughtLatencyMs < firstAnyMs)) firstAnyMs = firstThoughtLatencyMs;
                         if (firstContentLatencyMs !== null && (firstAnyMs === null || firstContentLatencyMs < firstAnyMs)) firstAnyMs = firstContentLatencyMs;
-                        
+
                         if (firstAnyMs !== null) {
                             latencyHtml += `<div>Initial: ${(firstAnyMs/1000).toFixed(2)}s</div>`;
                         }
-                        
+
                         // Breakdown if available
                         if (firstContentLatencyMs !== null && firstContentLatencyMs !== firstAnyMs) {
                             latencyHtml += `<div>Content: ${(firstContentLatencyMs/1000).toFixed(2)}s</div>`;
@@ -12841,33 +12821,33 @@
                 if (!hadError) {
                     await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
                 }
-                
+
                 // Only auto-scroll if user was already at bottom or auto-scroll is active
                 if(userAutoScroll) scrollToBottom();
 
                 if (document.querySelectorAll('.message-group').length <= 2 || !currentThreadTitle || currentThreadTitle === 'New Chat' || currentThreadTitle === 'No Title') {
                      apiFetch("/api/generate_title", {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({thread_id: currentThreadId, model_id: get('model-select').value})}).then(r=>r.json()).then(d=>{ if(d.title) { document.title = d.title + " - AI Chat"; setCurrentChatHeaderTitle(d.title); loadThreads(); } });
-                } else loadThreads(false); 
+                } else loadThreads(false);
 
-            } catch(e){ 
+            } catch(e){
                 let syncedAfterAbort = false;
                 if (e.name === 'AbortError' && !isManualStopAbortForThread(streamStartedThreadId)) {
                     syncedAfterAbort = await syncThreadAfterAbortedStream(streamStartedThreadId, { retries: 2, retryDelayMs: 180, notifyOnFailure: true });
                 }
                 sendClientDebugLog('error', `Prompt send error: ${e.message}`);
-                if(e.name!=='AbortError') { 
+                if(e.name!=='AbortError') {
                     const msg = "Connection Error: " + e.message;
                     showToast(msg, "error", true);
                 }
                 // Restore old message if error occurred during edit
                 if (editingId && !syncedAfterAbort) restoreHiddenBranch();
-            } finally { 
+            } finally {
                 if (finishStreamProgress) finishStreamProgress();
                 setSendBtnToSendMode();
                 updateFilePreview();
                 if (activeStreamingBubbleId === aid) activeStreamingBubbleId = null;
-                abortController=null; currentJobId=null; editingMessageId=null; setEditUi(false); 
-            } 
+                abortController=null; currentJobId=null; editingMessageId=null; setEditUi(false);
+            }
         }
 
         async function resumePendingStream(pending) {
@@ -13137,35 +13117,35 @@
             });
         }
 
-        async function loadThreads(append=false) { 
-            if(threadLoading) return; 
+        async function loadThreads(append=false) {
+            if(threadLoading) return;
             threadLoading = true;
-            if(!append) { 
-                threadPage = 1; 
-                hasMoreThreads = true; 
-                get('thread-list').innerHTML = '<div id="scroll-sentinel"></div>'; 
+            if(!append) {
+                threadPage = 1;
+                hasMoreThreads = true;
+                get('thread-list').innerHTML = '<div id="scroll-sentinel"></div>';
                 if (threadObserver) {
                     threadObserver.disconnect();
                     threadObserver.observe(get('scroll-sentinel'));
                 }
             }
-            
-            const r = await apiFetch(`${CHAT_CONFIG.urls.handleThreads}?q=${encodeURIComponent(get('search-box').value)}&page=${threadPage}`); 
-            const d = await r.json(); 
+
+            const r = await apiFetch(`${CHAT_CONFIG.urls.handleThreads}?q=${encodeURIComponent(get('search-box').value)}&page=${threadPage}`);
+            const d = await r.json();
             const l = get('thread-list');
             const sentinel = get('scroll-sentinel');
-            
-            d.threads.forEach((t, i) => { 
+
+            d.threads.forEach((t, i) => {
                 const tid = String(t.id);
-                const d = document.createElement('div'); 
+                const d = document.createElement('div');
                 const star = t.is_bookmarked ? 'text-yellow-400' : 'text-gray-500';
                 const tempBadge = t.is_temporary ? '<span class="text-[9px] text-amber-300 border border-amber-500/50 rounded px-1 py-0">一時</span>' : '';
-                
+
                 // Active highlighting
                 const isActive = (tid === String(currentThreadId));
                 const activeClass = isActive ? 'bg-gray-700/60 border-l-2 border-blue-500' : '';
-                
-                d.className = `p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 truncate flex justify-between items-center group model-list-animate opacity-0 ${activeClass}`; 
+
+                d.className = `p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 truncate flex justify-between items-center group model-list-animate opacity-0 ${activeClass}`;
                 d.dataset.threadId = tid;
                 d.style.animationDelay = `${i * 0.035}s`;
                 d.innerHTML = `<div class="flex items-center gap-1 truncate flex-1"><button class="${star} hover:text-yellow-400 px-1" onclick="toggleBookmark(event, '${tid}')"><i class="fas fa-star text-[10px]"></i></button><span class="truncate">${escapeHtml(t.title || "No Title")}</span>${tempBadge}</div><div class="flex gap-1 opacity-0 group-hover:opacity-100" data-thread-actions="1"><button class="text-gray-500 hover:text-white px-1" onclick="renameThread(event, '${tid}')"><i class="fas fa-pen text-xs"></i></button><button class="text-gray-500 hover:text-red-400 px-1" onclick="deleteThread(event, '${tid}')"><i class="fas fa-trash text-xs"></i></button></div>`;
@@ -13173,9 +13153,9 @@
                     if (e.target.closest('button') || e.target.closest('[data-thread-actions]')) return;
                     loadMessages(tid);
                 };
-                l.insertBefore(d, sentinel); 
+                l.insertBefore(d, sentinel);
             });
-            
+
             hasMoreThreads = d.has_next;
             if(hasMoreThreads) threadPage++;
             threadLoading = false;
@@ -13188,7 +13168,7 @@
             loadThreads();
         }
 
-        async function loadMessages(tid, opts = {}) { 
+        async function loadMessages(tid, opts = {}) {
             const loadSequence = ++threadLoadSequence;
             if (window.closeHistoryModal) window.closeHistoryModal();
             const preserveDraft = !!opts.preserveDraft;
@@ -13207,11 +13187,11 @@
             } else {
                 cancelEdit();
             }
-            currentThreadId = tid !== null && tid !== undefined ? String(tid) : tid; 
-            history.pushState({}, '', '/c/' + tid); 
+            currentThreadId = tid !== null && tid !== undefined ? String(tid) : tid;
+            history.pushState({}, '', '/c/' + tid);
             updateThreadHighlighting();
-            syncActiveGemForThread(currentThreadId); 
-            get('welcome-screen').classList.add('hidden'); 
+            syncActiveGemForThread(currentThreadId);
+            get('welcome-screen').classList.add('hidden');
             if (!silent) {
                 // Show shimmer skeleton while history loads (open from list / page reload)
                 get('chat-container').innerHTML = buildChatLoadingSkeletonHtml();
@@ -13233,7 +13213,7 @@
             const threadUserPrompts = (allMessages || [])
                 .filter(m => m.role === 'user' && m.content)
                 .map(m => m.content);
-            
+
             // Deduplicate (latest sent should be first in promptHistory for ArrowUp)
             promptHistory = [...new Set(threadUserPrompts.slice().reverse())];
             historyIndex = -1;
@@ -13243,7 +13223,7 @@
             setTemporaryChatUiState(!!(threadData && threadData.is_temporary));
             applyTemporaryChatRuntimeMeta(threadData || {});
             ensureTemporaryChatHeartbeat(true);
-            
+
             // Update thread-specific settings UI
             if (get('thread-custom-instruction')) {
                 get('thread-custom-instruction').value = threadData.custom_instruction || '';
@@ -13262,7 +13242,7 @@
                     applyActiveGem(gem);
                 }
             }
-            
+
             // Set default leaf (latest message or fixed branch)
             const storedFixedId = localStorage.getItem(`fixed_branch_${currentThreadId}`);
             if (storedFixedId && allMessages.find(m => String(m.id) === String(storedFixedId))) {
@@ -13272,7 +13252,7 @@
             } else {
                 currentLeafId = null;
             }
-            
+
             renderThreadTree({ silent });
             if (silent && codeState) {
                 applyCodeCollapseByMessage(get('chat-container'), codeState, true);
@@ -13299,7 +13279,7 @@
                 schedulePromptTokenEstimate(true);
             }
             if (!preserveDraft) schedulePromptTokenEstimate(true);
-            if(window.innerWidth < 768) get('overlay').click(); 
+            if(window.innerWidth < 768) get('overlay').click();
             } catch (err) {
                 if (loadSequence !== threadLoadSequence) return;
                 console.error('Failed to load chat thread:', err);
@@ -13354,11 +13334,11 @@
             const keepScroll = !!opts.keepScroll;
             const container = get('chat-container');
             if (!container) return;
-            
+
             // Always clear and rebuild to ensure the UI reflects the current state (allMessages/currentLeafId).
             // Silent mode in loadMessages handles skipping the spinner, but we still need to swap the content here.
             container.innerHTML = '';
-            
+
             if (allMessages.length === 0) {
                 currentParentId = null;
                 updateTotalTokenBar(0);
@@ -13410,7 +13390,7 @@
                     total: siblings.length,
                     siblings: siblings
                 } : null;
-                
+
                 renderMessage(
                     m.id,
                     m.role,
@@ -13445,7 +13425,7 @@
                     renderPendingMessage(fragment, animateMessages, false, bubbleId, pending.model || null);
                 }
             }
-            
+
             container.appendChild(fragment);
 
             updateTotalTokenBar(pathTotals.tokens_total, pathTotals, allBranchTotals);
@@ -13490,20 +13470,20 @@
             currentLeafId = currId;
             renderThreadTree({ animate: true });
         }
-        async function loadGems() { 
-            const r = await apiFetch(CHAT_CONFIG.urls.handleGems); 
-            const gs = await r.json(); 
+        async function loadGems() {
+            const r = await apiFetch(CHAT_CONFIG.urls.handleGems);
+            const gs = await r.json();
             loadedGems = gs;
-            const l = get('gem-list'); 
-            l.innerHTML = ''; 
-            gs.forEach((g, i) => { 
-                const d = document.createElement('div'); 
-                d.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group model-list-animate opacity-0'; 
+            const l = get('gem-list');
+            l.innerHTML = '';
+            gs.forEach((g, i) => {
+                const d = document.createElement('div');
+                d.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group model-list-animate opacity-0';
                 d.style.animationDelay = `${i * 0.05}s`;
                 d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${escapeHtml(g.name)}</span></div><div class="flex items-center gap-1"><button class="text-gray-400 hover:text-blue-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="openEditGemModal(event,'${g.uuid}')"><i class="fas fa-pencil-alt text-[10px]"></i></button><button class="text-gray-400 hover:text-red-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="deleteGem(event,'${g.uuid}')"><i class="fas fa-trash text-[10px]"></i></button></div>`;
-                d.onclick = (e) => { if(!e.target.closest('button')) activateGem(g); }; 
-                l.appendChild(d); 
-            }); 
+                d.onclick = (e) => { if(!e.target.closest('button')) activateGem(g); };
+                l.appendChild(d);
+            });
         }
         async function openEditGemModal(e, id) {
             e.stopPropagation();
@@ -13537,14 +13517,14 @@
                 }
                 get('active-gem-name').innerText = activeGem.name;
                 get('gem-active-indicator').classList.remove('hidden');
-                
+
                 if (bar) {
                     bar.innerHTML = '';
                     let prompts = [];
                     try {
                         if (activeGem.fixed_prompts) prompts = JSON.parse(activeGem.fixed_prompts);
                     } catch(e) {}
-                    
+
                     if (prompts.length > 0) {
                         bar.classList.remove('hidden');
                         prompts.forEach((p, i) => {
@@ -13823,30 +13803,30 @@
                 return false;
             }
         }
-        function startNewChat(opts = {}) { 
+        function startNewChat(opts = {}) {
             threadLoadSequence++;
-            if(abortController) abortController.abort(); 
-            cancelEdit(); 
-            resetUploadState(); 
+            if(abortController) abortController.abort();
+            cancelEdit();
+            resetUploadState();
             stopTemporaryChatHeartbeat();
             setTemporaryChatUiState(false);
             currentThreadTitle = null;
             tempChatExpiresAtMs = null;
-            currentThreadId = null; 
-            allMessages = []; 
+            currentThreadId = null;
+            allMessages = [];
             promptHistory = [];
             historyIndex = -1;
             tempPrompt = "";
             threadHasOlderMessages = false;
             oldestLoadedMessageId = null;
             loadingOlderMessages = false;
-            currentLeafId = null; 
-            currentParentId = null; 
+            currentLeafId = null;
+            currentParentId = null;
             currentThreadPending = null;
-            updateTotalTokenBar(0); 
-            history.pushState({}, '', '/'); 
-            get('chat-container').innerHTML = ''; 
-            get('welcome-screen').classList.remove('hidden'); 
+            updateTotalTokenBar(0);
+            history.pushState({}, '', '/');
+            get('chat-container').innerHTML = '';
+            get('welcome-screen').classList.remove('hidden');
             updateCurrentChatHeaderUi();
             if (get('thread-custom-instruction')) get('thread-custom-instruction').value = '';
             if (get('enable-prompt-cache')) {
@@ -13859,8 +13839,8 @@
                 applyActiveGem(activeGem);
             }
             loadThreads();
- 
-            if(window.innerWidth < 768) get('overlay').click(); 
+
+            if(window.innerWidth < 768) get('overlay').click();
         }
 
         let threadModalLoadSeq = 0;
@@ -13871,9 +13851,9 @@
                         method:'POST',
                         headers:{'Content-Type':'application/json'},
                         body: JSON.stringify({ is_temporary: temporaryChatEnabled })
-                    }); 
-                    const d = await r.json(); 
-                    currentThreadId = d.id !== null && d.id !== undefined ? String(d.id) : d.id; 
+                    });
+                    const d = await r.json();
+                    currentThreadId = d.id !== null && d.id !== undefined ? String(d.id) : d.id;
                     setTemporaryChatUiState(!!(d && d.is_temporary));
                     setCurrentChatHeaderTitle(d && d.title);
                     applyTemporaryChatRuntimeMeta(d || {});
@@ -13901,7 +13881,7 @@
                 if (modalThreadId !== targetThreadId) return;
                 if (settingsRes.ok) {
                     const d = await settingsRes.json();
-                    
+
                     const threadGlobalPreview = get('thread-app-global-sys-prompt-preview');
                     if (threadGlobalPreview) {
                         threadGlobalPreview.value = d.global_system_prompt_effective || '';
@@ -13918,7 +13898,7 @@
                     }
                     if (get('thread-global-sys-prompt')) get('thread-global-sys-prompt').value = d.system_prompt || '';
                     if (get('thread-global-sys-prompt-enabled')) get('thread-global-sys-prompt-enabled').checked = d.system_prompt_enabled !== false;
-                    
+
                     window.ensureThreadAutoSystemPromptCard();
                     if (get('thread-apply-auto-sys-prompt-notices')) get('thread-apply-auto-sys-prompt-notices').checked = d.apply_auto_system_prompt_notices !== false;
                     window.applyAutoSystemPromptConfigToForm('thread', d.auto_system_prompt_notices_config || {});
@@ -13971,7 +13951,7 @@
             } catch (payloadErr) {
                 sendClientDebugLog('error', "Payload construction failed: " + payloadErr.message);
             }
-            
+
             try {
                 sendClientDebugLog('info', "Starting PUT request for thread: " + targetId);
                 const res = await apiFetch(`/api/threads/${targetId}/settings`, {
@@ -14466,14 +14446,14 @@
             });
         }
         function renderLibraryItem(f, i = 0) {
-            const el = document.createElement('div'); 
-            el.className = "relative group bg-gray-700 library-thumb-card rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400 model-list-animate overflow-hidden"; 
+            const el = document.createElement('div');
+            el.className = "relative group bg-gray-700 library-thumb-card rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400 model-list-animate overflow-hidden";
             if (i !== null && i !== undefined) el.style.animationDelay = `${i * 0.03}s`;
             const thumbSrc = f.thumbnail_url || f.thumb_url || f.url;
             const content = f.type==='image' ? `<img src="${escapeHtml(thumbSrc)}" loading="lazy" decoding="async" class="library-thumb-media">` : `<div class="library-thumb-file flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-full text-center">${escapeHtml(f.filename)}</span></div>`;
             const overlay = `<div class="lib-overlay absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${escapeHtml(f.url)}" download="${escapeHtml(f.filename)}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><button class="lib-open-btn p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-eye"></i></button></div>`;
             const actions = `<div class="absolute top-1 right-1 flex gap-1 z-20"><button class="lib-open-btn w-7 h-7 rounded-full bg-gray-900/70 border border-gray-600 text-gray-200 text-[10px]" title="開く"><i class="fas fa-eye"></i></button><button class="lib-del-btn w-7 h-7 rounded-full bg-gray-900/70 border border-gray-600 text-red-300 text-[10px]" title="削除"><i class="fas fa-trash"></i></button></div>`;
-            el.innerHTML = content + overlay + actions; 
+            el.innerHTML = content + overlay + actions;
             el.onclick = () => {
                 if (lib.selected.has(f.filepath)) {
                     lib.selected.delete(f.filepath);
@@ -14485,7 +14465,7 @@
                     el.classList.remove('border-gray-600');
                 }
                 window.updateLibSelectionUi();
-            }; 
+            };
             if (lib.selected && lib.selected.has(f.filepath)) {
                 el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500');
                 el.classList.remove('border-gray-600');
@@ -14582,7 +14562,7 @@
                 showToast("削除に失敗しました", "error", true);
             }
         }
-        async function loadLibraryFiles() { 
+        async function loadLibraryFiles() {
             const grid = get('lib-grid');
             if (grid) grid.innerHTML = '<div class="text-xs text-gray-500">読み込み中...</div>';
             let files = null;
@@ -14591,7 +14571,7 @@
             for (let i = 0; i < 2; i++) {
                 try {
                     const url = i === 0 ? baseUrl : (baseUrl + (baseUrl.includes('?') ? '&' : '?') + 't=' + Date.now());
-                    const r = await apiFetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json' } }); 
+                    const r = await apiFetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json' } });
                     if (!r.ok) throw new Error('HTTP ' + r.status);
                     const raw = await r.text();
                     let parsed = [];
@@ -14624,7 +14604,7 @@
             try {
                 if (grid) grid.innerHTML = '';
                 if (!lib.selected) lib.selected = new Set();
-                lib.selected.clear(); 
+                lib.selected.clear();
                 lib.files = files.filter(f => f && f.filepath && f.url);
                 lib.files.forEach((f) => {
                     if (f && f.filepath) setAttachmentNameForPath(f.filepath, f.filename || f.original_filename || '');
@@ -14702,13 +14682,13 @@
             });
             showToast(`${selected.length}件のファイルをダウンロードしました`, "success");
         }
-        window.showLegal = async (t) => { 
+        window.showLegal = async (t) => {
             const title = t === 'terms' ? '利用規約' : 'プライバシーポリシー';
             get('legal-title').innerText = title;
-            showModal('legal-modal'); 
-            const res = await apiFetch("/static/legal/" + t + ".md?t=" + Date.now()); 
-            if(!res.ok) return; 
-            const text = await res.text(); 
+            showModal('legal-modal');
+            const res = await apiFetch("/static/legal/" + t + ".md?t=" + Date.now());
+            if(!res.ok) return;
+            const text = await res.text();
             get('legal-content').innerHTML = sanitizeMarkdownHtml(text);
         }
         window.showAlphaInfo = () => {
@@ -14755,16 +14735,16 @@
             panel.style.display = isVisible ? 'none' : 'block';
             if (!isVisible) refreshLogs();
         };
-        window.copyCode = (btn, code) => { 
+        window.copyCode = (btn, code) => {
             const text = decodeURIComponent(code);
-            copyToClipboard(text, 
+            copyToClipboard(text,
                 () => { btn.innerHTML = '<i class="fas fa-check"></i> Copied'; setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i> Copy', 2000); },
                 (err) => { console.error(err); btn.innerHTML = '<i class="fas fa-times"></i>'; setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i> Copy', 2000); }
             );
         };
-        window.copyMessage = (id, btn) => { 
-            const txt = messageStore[id] || ""; 
-            copyToClipboard(txt, 
+        window.copyMessage = (id, btn) => {
+            const txt = messageStore[id] || "";
+            copyToClipboard(txt,
                 () => { btn.innerHTML = '<i class="fas fa-check"></i>'; setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i>', 2000); },
                 (err) => { console.error(err); btn.innerHTML = '<i class="fas fa-times"></i>'; setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i>', 2000); }
             );
@@ -14811,7 +14791,7 @@
             let curr = nodeId;
             const msgMap = {};
             (allMessages || []).forEach(m => msgMap[m.id] = m);
-            
+
             while (curr && msgMap[curr]) {
                 const m = msgMap[curr];
                 const model = m.model || 'Unknown';
@@ -14874,11 +14854,11 @@
                 const isFixed = (node.id === threadFixedBranchId);
                 const name = branchLabelNames[node.id] || (node.role === 'user' ? 'User' : 'AI');
                 const pathTokens = getCumulativeTokensForNode(node.id);
-                
+
                 item.className = `ui-enter-scale px-3 py-2 rounded-lg border cursor-pointer transition-all text-[10px] min-w-[120px] max-w-[180px] text-center relative ${
                     selectedBranchNodeId === node.id ? 'ring-2 ring-purple-500 border-purple-400' : 'border-gray-700 hover:border-gray-500'
                 } ${isCurrent ? 'bg-blue-900/40 border-blue-500/50' : 'bg-gray-800'}`;
-                
+
                 item.innerHTML = `
                     <div class="font-bold truncate">${name}</div>
                     <div class="text-[9px] text-gray-500 flex justify-between mt-1 gap-2">
@@ -14927,12 +14907,12 @@
             const nodeTokens = (node.tokens || (Number(node.tokens_in || 0) + Number(node.tokens_out || 0)));
             const pathTokens = getCumulativeTokensForNode(node.id);
             get('br-tokens').innerHTML = `<span title="Current message tokens">${nodeTokens}</span> <span class="text-gray-500">/</span> <span class="text-purple-400 font-bold" title="Path total tokens">${pathTokens} total</span>`;
-            
+
             // Render Per-Model Breakdown
             const breakdownContainer = get('branch-model-breakdown');
             const modelStats = getPerModelTokensForPath(node.id);
             breakdownContainer.innerHTML = '';
-            
+
             Object.entries(modelStats).sort((a, b) => b[1].total - a[1].total).forEach(([model, stats]) => {
                 const div = document.createElement('div');
                 div.className = 'bg-gray-800/50 p-2 rounded border border-gray-700/50';
@@ -14975,7 +14955,7 @@
         };
         get('br-fix-btn').onclick = () => {
             if (!selectedBranchNodeId) return;
-            if (threadFixedBranchId === selectedBranchNodeId) { threadFixedBranchId = null; showToast('固定を解除しました'); } 
+            if (threadFixedBranchId === selectedBranchNodeId) { threadFixedBranchId = null; showToast('固定を解除しました'); }
             else { threadFixedBranchId = selectedBranchNodeId; showToast('メインルートに固定しました'); }
             saveBranchData(); renderBranchTreeVisualization(); updateBranchDetailPane();
         };
@@ -15041,7 +15021,7 @@
             window.addEventListener('unhandledrejection', function(event) {
                 sendToServer('promise-rejection', [event.reason]);
             });
-            
+
             // Trigger initial log to confirm system is active
             setTimeout(() => {
                 console.log("Extended debug logging system active. Version: v4.8.506");

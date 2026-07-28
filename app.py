@@ -95,6 +95,8 @@ except ImportError:
 # Logger Setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+logging.getLogger("weasyprint").setLevel(logging.ERROR)
+logging.getLogger("fontTools").setLevel(logging.WARNING)
 VERBOSE_DEBUG_LOGS = str(os.getenv("VERBOSE_DEBUG_LOGS", "0")).strip().lower() in ("1", "true", "yes", "on")
 
 def log_force(msg):
@@ -603,8 +605,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-29-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.630'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-29-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.631'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -11337,7 +11339,7 @@ def _rich_paste_pdf_filename(title):
     return f"{slug}_{ts}.pdf"
 
 
-def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
+def _build_rich_paste_pdf_bytes_reportlab(title, content_html, created_at=None):
     from io import BytesIO
     from bs4 import BeautifulSoup, NavigableString, Tag
     from reportlab import rl_config
@@ -11826,6 +11828,386 @@ def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
         doc.build(fallback_story)
 
     return doc_buffer.getvalue()
+
+
+_RICH_PASTE_ALLOWED_TAGS = frozenset({
+    "a", "abbr", "address", "article", "b", "blockquote", "br", "caption", "cite", "code",
+    "col", "colgroup", "dd", "del", "details", "div", "dl", "dt", "em", "figcaption",
+    "figure", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "img", "kbd", "li", "main",
+    "mark", "ol", "p", "pre", "q", "s", "samp", "section", "small", "span", "strong",
+    "sub", "summary", "sup", "table", "tbody", "td", "th", "thead", "tfoot", "time", "tr",
+    "u", "ul", "var",
+})
+_RICH_PASTE_ALLOWED_ATTRS = frozenset({
+    "align", "alt", "cellpadding", "cellspacing", "colspan", "datetime", "dir", "headers",
+    "height", "href", "lang", "open", "rel", "reversed", "rowspan", "scope", "src", "start",
+    "style", "target", "title", "type", "value", "width",
+})
+_RICH_PASTE_SAFE_STYLE_PROPS = frozenset({
+    "align-items", "align-self", "background", "background-color", "background-image", "border",
+    "border-block-color", "border-block-style", "border-block-width", "border-bottom",
+    "border-bottom-color", "border-bottom-left-radius", "border-bottom-right-radius",
+    "border-bottom-style", "border-bottom-width", "border-collapse", "border-color",
+    "border-image", "border-inline-color", "border-inline-style", "border-inline-width",
+    "border-left", "border-left-color", "border-left-style", "border-left-width", "border-radius",
+    "border-right", "border-right-color", "border-right-style", "border-right-width",
+    "border-spacing", "border-style", "border-top", "border-top-color", "border-top-left-radius",
+    "border-top-right-radius", "border-top-style", "border-top-width", "border-width",
+    "box-shadow", "box-sizing", "break-after", "break-before", "break-inside", "clear",
+    "clip-path", "color", "column-gap", "direction", "display", "flex", "flex-basis",
+    "flex-direction", "flex-grow", "flex-shrink", "flex-wrap", "float", "font", "font-family",
+    "font-feature-settings", "font-kerning", "font-language-override", "font-optical-sizing",
+    "font-size", "font-size-adjust", "font-stretch", "font-style", "font-variant",
+    "font-variant-caps", "font-variant-ligatures", "font-variation-settings", "font-weight", "gap",
+    "grid", "grid-auto-columns", "grid-auto-flow", "grid-auto-rows", "grid-column",
+    "grid-column-end", "grid-column-start", "grid-row", "grid-row-end", "grid-row-start",
+    "grid-template", "grid-template-areas", "grid-template-columns", "grid-template-rows", "height",
+    "hyphens", "justify-content", "justify-items", "justify-self", "letter-spacing", "line-break",
+    "line-height", "list-style", "list-style-position", "list-style-type", "margin",
+    "margin-block", "margin-block-end", "margin-block-start", "margin-bottom", "margin-inline",
+    "margin-inline-end", "margin-inline-start", "margin-left", "margin-right", "margin-top",
+    "max-height", "max-width", "min-height", "min-width", "object-fit", "object-position",
+    "opacity", "order", "orphans", "outline", "outline-color", "outline-offset", "outline-style",
+    "outline-width", "overflow", "overflow-wrap", "overflow-x", "overflow-y", "padding",
+    "padding-block", "padding-block-end", "padding-block-start", "padding-bottom",
+    "padding-inline", "padding-inline-end", "padding-inline-start", "padding-left",
+    "padding-right", "padding-top", "page-break-after", "page-break-before",
+    "page-break-inside", "row-gap", "table-layout", "text-align", "text-decoration",
+    "text-decoration-color", "text-decoration-line", "text-decoration-style",
+    "text-decoration-thickness", "text-indent", "text-overflow", "text-shadow", "text-transform",
+    "text-underline-offset", "vertical-align", "visibility", "white-space", "widows", "width",
+    "word-break", "word-spacing", "writing-mode", "-webkit-text-stroke",
+    "-webkit-text-stroke-color", "-webkit-text-stroke-width",
+})
+_RICH_PASTE_DROP_TAGS = frozenset({
+    "script", "style", "link", "meta", "noscript", "iframe", "canvas", "svg", "object",
+    "embed", "base", "form", "input", "button", "select", "textarea",
+})
+_RICH_PASTE_UNSAFE_STYLE_RE = re.compile(
+    r"url\s*\(|expression\s*\(|javascript\s*:|@import|behavior\s*:|-moz-binding|var\s*\(|env\s*\(",
+    re.IGNORECASE,
+)
+_RICH_PASTE_DATA_IMAGE_RE = re.compile(
+    r"^data:image/(?:png|jpe?g|gif|webp);base64,[a-z0-9+/=\s]+$",
+    re.IGNORECASE,
+)
+
+
+def _sanitize_rich_paste_style(style_text):
+    safe = []
+    for declaration in str(style_text or "").split(";"):
+        if ":" not in declaration:
+            continue
+        prop, value = declaration.split(":", 1)
+        prop = prop.strip().lower()
+        value = re.sub(r"\s*!important\s*$", "", value.strip(), flags=re.IGNORECASE)
+        if prop not in _RICH_PASTE_SAFE_STYLE_PROPS or not value or len(value) > 1000:
+            continue
+        if _RICH_PASTE_UNSAFE_STYLE_RE.search(value):
+            continue
+        if any(ch in value for ch in "{}"):
+            continue
+        safe.append(f"{prop}: {value}")
+    return "; ".join(safe)
+
+
+def _sanitize_rich_paste_html(content_html):
+    from bs4 import BeautifulSoup, Comment, Doctype, Tag
+
+    soup = BeautifulSoup(str(content_html or ""), "html.parser")
+    body_text_length = len(re.sub(r"\s+", " ", soup.get_text(" ", strip=True)))
+    body_tag_count = len(soup.find_all(True))
+    if body_text_length >= 1000 and body_tag_count >= 120:
+        candidates = []
+        candidates.extend(soup.find_all("article"))
+        candidates.extend(soup.find_all("main"))
+        candidates.extend(soup.select('[role="main"],[role="article"]'))
+        if candidates:
+            eligible = [
+                node for node in candidates
+                if len(re.sub(r"\s+", " ", node.get_text(" ", strip=True))) >= body_text_length * 0.65
+            ]
+            if eligible:
+                best = min(
+                    eligible,
+                    key=lambda node: (0 if node.find("h1") else 1, len(node.find_all(True))),
+                )
+                soup = BeautifulSoup(str(best), "html.parser")
+    all_tags = list(soup.find_all(True))
+    if len(all_tags) > 25_000:
+        raise ValueError("rich_paste_html_too_complex")
+
+    for node in list(soup.contents):
+        if isinstance(node, (Comment, Doctype)):
+            node.extract()
+    for node in list(soup.find_all(string=lambda text: isinstance(text, (Comment, Doctype)))):
+        node.extract()
+
+    for node in all_tags:
+        if not isinstance(node, Tag) or node.parent is None:
+            continue
+        tag_name = str(node.name or "").lower()
+        if tag_name in _RICH_PASTE_DROP_TAGS:
+            node.decompose()
+            continue
+        if tag_name not in _RICH_PASTE_ALLOWED_TAGS:
+            node.unwrap()
+            continue
+
+        clean_attrs = {}
+        for raw_name, raw_value in list(node.attrs.items()):
+            attr_name = str(raw_name or "").lower()
+            if attr_name not in _RICH_PASTE_ALLOWED_ATTRS:
+                continue
+            if isinstance(raw_value, (list, tuple)):
+                attr_value = " ".join(str(part) for part in raw_value)
+            elif raw_value is None:
+                attr_value = ""
+            else:
+                attr_value = str(raw_value)
+            if len(attr_value) > 2_100_000:
+                continue
+            if attr_name == "style":
+                attr_value = _sanitize_rich_paste_style(attr_value)
+                if not attr_value:
+                    continue
+            elif attr_name == "href":
+                href = attr_value.strip()
+                parsed = urlparse(href)
+                if parsed.scheme and parsed.scheme.lower() not in {"http", "https", "mailto"}:
+                    continue
+                attr_value = href
+            elif attr_name == "src":
+                src = attr_value.strip()
+                if tag_name != "img":
+                    continue
+                if src.startswith("data:"):
+                    if len(src) > 2_100_000 or not _RICH_PASTE_DATA_IMAGE_RE.fullmatch(src):
+                        continue
+                elif not src.startswith("/files/"):
+                    continue
+                attr_value = src
+            elif attr_name in {"width", "height", "colspan", "rowspan", "start", "value"}:
+                if not re.fullmatch(r"-?\d+(?:\.\d+)?%?", attr_value.strip()):
+                    continue
+            clean_attrs[attr_name] = attr_value
+        node.attrs = clean_attrs
+
+        if tag_name == "a" and node.get("target") == "_blank":
+            node["rel"] = "noopener noreferrer"
+        if tag_name == "img" and not node.get("src"):
+            alt = str(node.get("alt") or node.get("title") or "image").strip()
+            replacement = soup.new_tag("span")
+            replacement["style"] = (
+                "display: block; color: #64748b; font-style: italic; "
+                "border: 1px dashed #cbd5e1; padding: 8px"
+            )
+            replacement.string = f"[Image: {alt[:300]}]"
+            node.replace_with(replacement)
+
+    return str(soup)
+
+
+def _normalize_rich_paste_print_layout(content_html):
+    """Flatten deeply nested screen layouts that can make paged layout non-terminating."""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(str(content_html or ""), "html.parser")
+    styled_nodes = list(soup.find_all(style=True))
+    complex_layout_count = 0
+    for node in styled_nodes:
+        style = str(node.get("style") or "")
+        if re.search(r"(?:^|;)\s*display\s*:\s*(?:inline-)?(?:flex|grid)\b", style, re.IGNORECASE):
+            complex_layout_count += 1
+    if len(soup.find_all(True)) <= 500 and complex_layout_count <= 24:
+        return str(soup)
+
+    layout_props = {
+        "align-items", "align-self", "column-gap", "flex", "flex-basis", "flex-direction",
+        "flex-grow", "flex-shrink", "flex-wrap", "gap", "grid", "grid-auto-columns",
+        "grid-auto-flow", "grid-auto-rows", "grid-column", "grid-column-end",
+        "grid-column-start", "grid-row", "grid-row-end", "grid-row-start", "grid-template",
+        "grid-template-areas", "grid-template-columns", "grid-template-rows", "justify-content",
+        "justify-items", "justify-self", "order", "row-gap",
+    }
+    block_width_tags = {"article", "div", "main", "section"}
+    for node in styled_nodes:
+        declarations = []
+        for declaration in str(node.get("style") or "").split(";"):
+            if ":" not in declaration:
+                continue
+            prop, value = declaration.split(":", 1)
+            prop = prop.strip().lower()
+            value = value.strip()
+            if prop in layout_props:
+                continue
+            if prop in {"height", "max-height", "min-height", "overflow", "overflow-x", "overflow-y"}:
+                continue
+            if prop in {"width", "min-width"} and str(node.name or "").lower() in block_width_tags:
+                continue
+            if prop == "display":
+                display_value = value.lower()
+                if display_value in {"flex", "grid"}:
+                    value = "block"
+                elif display_value in {"inline-flex", "inline-grid"}:
+                    value = "inline-block"
+            declarations.append(f"{prop}: {value}")
+        if declarations:
+            node["style"] = "; ".join(declarations)
+        elif node.has_attr("style"):
+            del node["style"]
+    return str(soup)
+
+
+def _build_rich_paste_pdf_bytes_weasyprint(title, content_html, created_at=None):
+    safe_title = html.escape(str(title or "Clipboard Export").strip() or "Clipboard Export")
+    safe_created_at = html.escape(
+        str(created_at or datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")).strip()
+    )
+    document_html = f"""<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>{safe_title}</title>
+<style>
+@page {{
+  size: A4;
+  margin: 16mm 16mm 18mm;
+  @bottom-right {{
+    content: "Page " counter(page) " / " counter(pages);
+    color: #64748b;
+    font-size: 8.5pt;
+  }}
+}}
+html {{ color-scheme: light; background: #ffffff; }}
+body {{
+  margin: 0;
+  background: #ffffff;
+  color: #111827;
+  font-family: "IPAPGothic", "IPAGothic", "Droid Sans Fallback", sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}}
+*, *::before, *::after {{ box-sizing: border-box; }}
+.document-title {{
+  margin: 0 0 3mm;
+  padding: 0 0 3mm;
+  border-bottom: 1.5pt solid #0f172a;
+  color: #0f172a;
+  font-size: 18pt;
+  line-height: 1.25;
+}}
+.document-meta {{ margin: 0 0 7mm; color: #64748b; font-size: 8.5pt; }}
+.rich-content {{ color: #111827; }}
+.rich-content h1, .rich-content h2, .rich-content h3,
+.rich-content h4, .rich-content h5, .rich-content h6 {{
+  line-height: 1.3;
+  break-after: avoid;
+}}
+.rich-content p {{ margin: 0 0 0.85em; }}
+.rich-content img {{ display: block; max-width: 100%; height: auto; margin: 0.9em auto; }}
+.rich-content table {{
+  max-width: 100%;
+  margin: 1em 0;
+  border-collapse: collapse;
+  break-inside: auto;
+}}
+.rich-content thead {{ display: table-header-group; }}
+.rich-content tr {{ break-inside: avoid; }}
+.rich-content th, .rich-content td {{
+  border: 0.6pt solid #cbd5e1;
+  padding: 5pt 6pt;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}}
+.rich-content th {{ background: #f1f5f9; font-weight: 700; }}
+.rich-content pre {{
+  max-width: 100%;
+  margin: 1em 0;
+  padding: 9pt;
+  border: 0.6pt solid #cbd5e1;
+  border-radius: 3pt;
+  background: #f8fafc;
+  font-family: "WenQuanYi Zen Hei Mono", "Droid Sans Fallback", monospace;
+  font-size: 8.8pt;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}}
+.rich-content code, .rich-content kbd, .rich-content samp {{
+  padding: 0.08em 0.28em;
+  border-radius: 2pt;
+  background: #f1f5f9;
+  font-family: "WenQuanYi Zen Hei Mono", "Droid Sans Fallback", monospace;
+}}
+.rich-content pre code {{ padding: 0; background: transparent; }}
+.rich-content blockquote {{
+  margin: 1em 0;
+  padding: 8pt 10pt;
+  border-left: 3pt solid #f59e0b;
+  background: #fff9eb;
+}}
+.rich-content a {{ color: #0f766e; text-decoration: underline; }}
+.rich-content hr {{ margin: 1em 0; border: 0; border-top: 0.7pt solid #cbd5e1; }}
+.rich-content figure {{ max-width: 100%; margin: 1em 0; }}
+.rich-content figcaption {{ color: #64748b; font-size: 9pt; text-align: center; }}
+</style>
+</head>
+<body>
+<h1 class="document-title">{safe_title}</h1>
+<p class="document-meta">Created at: {safe_created_at}</p>
+<main class="rich-content">{content_html}</main>
+</body>
+</html>"""
+    weasyprint_bin = os.path.join(os.path.dirname(sys.executable), "weasyprint")
+    if not os.path.isfile(weasyprint_bin):
+        raise RuntimeError("weasyprint_command_not_found")
+    completed = subprocess.run(
+        [
+            weasyprint_bin,
+            "--quiet",
+            "--presentational-hints",
+            "--optimize-images",
+            "--jpeg-quality", "92",
+            "--dpi", "180",
+            "--timeout", "3",
+            "--allowed-protocols", "data",
+            "--no-http-redirects",
+            "-", "-",
+        ],
+        input=document_html.encode("utf-8"),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=75,
+        check=False,
+    )
+    if completed.returncode != 0:
+        stderr = completed.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(f"weasyprint_failed: {stderr[-1000:]}")
+    pdf_bytes = completed.stdout
+    if not isinstance(pdf_bytes, bytes) or not pdf_bytes.startswith(b"%PDF"):
+        raise RuntimeError("weasyprint_invalid_pdf")
+    return pdf_bytes
+
+
+def _build_rich_paste_pdf_bytes(title, content_html, created_at=None):
+    safe_html = _sanitize_rich_paste_html(content_html)
+    print_html = _normalize_rich_paste_print_layout(safe_html)
+    try:
+        return _build_rich_paste_pdf_bytes_weasyprint(
+            title,
+            print_html,
+            created_at=created_at,
+        )
+    except Exception:
+        logger.exception("WeasyPrint rich paste rendering failed; using ReportLab fallback")
+        return _build_rich_paste_pdf_bytes_reportlab(
+            title,
+            print_html,
+            created_at=created_at,
+        )
 
 
 @app.route('/api/rich-paste/pdf', methods=['POST'])

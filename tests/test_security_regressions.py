@@ -409,7 +409,7 @@ class SecurityRegressionTests(unittest.TestCase):
                 self.assertNotIn("cdn.jsdelivr.net/npm/marked@4.3.0", template)
                 self.assertNotIn("cdnjs.cloudflare.com/ajax/libs/dompurify", template)
 
-        with open(os.path.join(root, "static", "js", "chat_core.v4.8.632.js"), encoding="utf-8") as script_file:
+        with open(os.path.join(root, "static", "js", "chat_core.v4.8.633.js"), encoding="utf-8") as script_file:
             script = script_file.read()
         self.assertIn("/static/vendor/html2canvas-pro-2.3.2.min.js", script)
         self.assertIn("/static/vendor/jspdf-2.5.1.umd.min.js", script)

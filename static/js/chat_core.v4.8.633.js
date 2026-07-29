@@ -2869,6 +2869,7 @@
             if (m.includes('video')) return 'video';
             if (
                 m.includes('tts') ||
+                m.includes('transcribe') ||
                 m.includes('realtime') ||
                 m.includes('voice') ||
                 m.includes('native-audio') ||
@@ -4586,6 +4587,15 @@
                 ]
             },
             {
+                category: "OpenAI Transcription",
+                icon: "fas fa-closed-captioning text-emerald-400",
+                description: "Speech-to-text models (audio in / text out)",
+                items: [
+                    { id: "gpt-transcribe", name: "GPT Transcribe", desc: "High-accuracy file and committed-turn transcription.", price: "$0.0045 / minute" },
+                    { id: "gpt-live-transcribe", name: "GPT Live Transcribe", desc: "Low-latency realtime transcription.", price: "$0.017 / minute" }
+                ]
+            },
+            {
                 category: "Realtime Audio (STS)",
                 icon: "fas fa-headset text-cyan-400",
                 description: "Realtime voice models (audio in / audio out)",
@@ -4814,6 +4824,8 @@
         let gemSelectedIndex = 0;
 
         const STS_MODELS = new Set([
+            'gpt-transcribe',
+            'gpt-live-transcribe',
             'gpt-realtime-2',
             'gpt-realtime-translate',
             'gpt-realtime-whisper',
@@ -4968,6 +4980,7 @@
             const m = (get('model-select').value || '').toLowerCase();
             if (
                 m.includes('tts') ||
+                m.includes('transcribe') ||
                 m.includes('realtime') ||
                 m.includes('voice-agent') ||
                 m.includes('native-audio') ||
@@ -4988,10 +5001,14 @@
         };
 
         const isStsModel = () => STS_MODELS.has(get('model-select').value);
+        const isTranscriptionModel = () => {
+            const model = get('model-select') ? get('model-select').value : '';
+            return model === 'gpt-transcribe' || model === 'gpt-live-transcribe';
+        };
         const isGeminiLiveModel = () => get('model-select').value === 'gemini-3.1-flash-live-preview';
         const getStsProvider = (model) => {
             const m = (model || '').toLowerCase();
-            if (m.includes('gpt-realtime')) return 'openai';
+            if (m.includes('gpt-realtime') || m === 'gpt-transcribe' || m === 'gpt-live-transcribe') return 'openai';
             if (m.includes('grok-voice')) return 'xai';
             if (m.includes('gemini') && (m.includes('native-audio') || m.includes('live'))) return 'gemini';
             return null;
@@ -5038,8 +5055,27 @@
             const rateOut = get('sts-rate-out');
             const thinkingWrap = get('sts-thinking-wrap');
             const note = get('sts-note');
+            const voiceWrap = get('sts-voice-wrap');
+            const autoPlayWrap = get('sts-auto-play-wrap');
+            const modeLabel = get('sts-mode-label');
+            const transcription = isTranscriptionModel();
 
-            if (provider === 'openai') {
+            if (transcription) {
+                if (modeLabel) modeLabel.textContent = 'Realtime Speech-to-Text';
+                if (voiceWrap) voiceWrap.classList.add('hidden');
+                if (autoPlayWrap) autoPlayWrap.classList.add('hidden');
+                if (speedWrap) speedWrap.classList.add('hidden');
+                if (rateWrap) rateWrap.classList.add('hidden');
+                if (thinkingWrap) thinkingWrap.classList.add('hidden');
+                if (note) {
+                    note.textContent = model === 'gpt-live-transcribe'
+                        ? '低遅延ライブ文字起こし（24kHz PCM）'
+                        : '高精度なコミット単位の文字起こし（24kHz PCM）';
+                }
+            } else if (provider === 'openai') {
+                if (modeLabel) modeLabel.textContent = 'Speech-to-Speech Live';
+                if (voiceWrap) voiceWrap.classList.remove('hidden');
+                if (autoPlayWrap) autoPlayWrap.classList.remove('hidden');
                 setSelectOptions(voiceSel, OPENAI_STS_VOICES, voiceSel.value || 'alloy');
                 if (speedWrap) speedWrap.classList.remove('hidden');
                 if (speedInput) {
@@ -5052,6 +5088,9 @@
                 if (thinkingWrap) thinkingWrap.classList.add('hidden');
                 if (note) note.textContent = 'OpenAI Realtimeは24kHz PCM固定';
             } else if (provider === 'xai') {
+                if (modeLabel) modeLabel.textContent = 'Speech-to-Speech Live';
+                if (voiceWrap) voiceWrap.classList.remove('hidden');
+                if (autoPlayWrap) autoPlayWrap.classList.remove('hidden');
                 setSelectOptions(voiceSel, GROK_STS_VOICES, voiceSel.value || 'Ara');
                 if (speedWrap) speedWrap.classList.add('hidden');
                 if (rateWrap) rateWrap.classList.remove('hidden');
@@ -5060,6 +5099,9 @@
                 setSelectOptions(rateOut, GROK_PCM_RATES, Number(rateOut.value || 24000));
                 if (note) note.textContent = 'xAIはPCMサンプルレート変更可';
             } else if (provider === 'gemini') {
+                if (modeLabel) modeLabel.textContent = 'Speech-to-Speech Live';
+                if (voiceWrap) voiceWrap.classList.remove('hidden');
+                if (autoPlayWrap) autoPlayWrap.classList.remove('hidden');
                 setSelectOptions(voiceSel, GEMINI_STS_VOICES, voiceSel.value || 'Kore');
                 if (speedWrap) speedWrap.classList.add('hidden');
                 if (rateWrap) rateWrap.classList.add('hidden');
@@ -8524,7 +8566,7 @@
                                     currentRtPlayer = rtPlayer;
                                 }
 
-                                setStsStatus('Gemini is thinking...', true);
+                                setStsStatus(isTranscriptionModel() ? 'Transcribing...' : 'Processing audio...', true);
 
                                 let firstChunk = true;
                                 while (true) {
@@ -8542,7 +8584,7 @@
 
                                         if (chunk.audio_delta && rtPlayer) {
                                             if (firstChunk) {
-                                                setStsStatus('Gemini is speaking...', false);
+                                                setStsStatus('Playing response...', false);
                                                 firstChunk = false;
                                             }
                                             await rtPlayer.addChunk(chunk.audio_delta);
@@ -8556,7 +8598,7 @@
                                     }
                                 }
 
-                                if (stsData && stsData.audio_url) {
+                                if (stsData && (stsData.audio_url || stsData.transcription_only)) {
                                     if (stsOpt('sts-auto-restart') && isStsModel()) {
                                         // Wait a bit for rtPlayer to finish if it's still playing
                                         setTimeout(() => {

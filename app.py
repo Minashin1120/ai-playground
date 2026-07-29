@@ -606,8 +606,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-29-003')
-app.config['SYSTEM_VERSION'] = 'V4.8.632'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-29-004')
+app.config['SYSTEM_VERSION'] = 'V4.8.633'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1638,6 +1638,8 @@ def secure_delete(path):
 
 # Speech-to-Speech (STS) model registry
 STS_MODELS = {
+    "gpt-transcribe": {"provider": "openai", "mode": "transcription", "rate_in": 24000, "rate_out": 24000},
+    "gpt-live-transcribe": {"provider": "openai", "mode": "transcription", "rate_in": 24000, "rate_out": 24000},
     "gpt-realtime-2": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gpt-realtime-translate": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gpt-realtime-whisper": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
@@ -1688,6 +1690,7 @@ ALL_VALID_MODEL_IDS = {
     "gemini-3.1-flash-tts-preview", "gpt-4o-mini-tts", "gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts",
     "google-tts-studio", "google-tts-neural", "grok-tts",
     # Realtime Audio (STS)
+    "gpt-transcribe", "gpt-live-transcribe",
     "gpt-realtime-2", "gpt-realtime-translate", "gpt-realtime-whisper", "gpt-realtime-1.5",
     "gpt-realtime", "gpt-realtime-mini",
     "gemini-2.5-flash-native-audio-preview-12-2025", "gemini-3.1-flash-live-preview",
@@ -1851,7 +1854,13 @@ MIC_TRANSCRIBE_MODES = {"stt_api", "llm"}
 VALID_THINKING_LEVELS = {"minimal", "low", "medium", "high"}
 VALID_REASONING_EFFORTS = {"none", "low", "medium", "high", "xhigh"}
 VALID_SAFETY_SETTINGS = {"default", "none"}
-VALID_STT_MODELS = {"gpt-4o-mini-transcribe", "gpt-4o-transcribe", "gpt-4o-transcribe-diarize", "whisper-1"}
+VALID_STT_MODELS = {
+    "gpt-transcribe",
+    "gpt-4o-mini-transcribe",
+    "gpt-4o-transcribe",
+    "gpt-4o-transcribe-diarize",
+    "whisper-1",
+}
 
 DEFAULT_LLM_TRANSCRIBE_PROMPT = (
     "この音声を正確に文字起こししてください。"
@@ -2351,6 +2360,60 @@ async def _openai_sts_realtime(pcm_bytes, api_key, model_key, voice="alloy", spe
             elif mtype in ("response.output_audio.done", "response.done"):
                 break
     return bytes(audio_out), transcript_out
+
+async def _openai_realtime_transcribe(pcm_bytes, api_key, model_key, rate=24000):
+    """Transcribe one committed PCM turn through an OpenAI Realtime transcription session."""
+    if model_key not in {"gpt-transcribe", "gpt-live-transcribe"}:
+        raise ValueError("Unsupported OpenAI transcription model")
+
+    rate = 24000
+    # Transcription models are selected inside session.audio.input.transcription;
+    # they are not Realtime conversation models for the WebSocket query string.
+    url = "wss://api.openai.com/v1/realtime?intent=transcription"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    transcript_deltas = []
+
+    async with websockets.connect(url, additional_headers=headers, max_size=None) as ws:
+        await ws.send(json.dumps({
+            "type": "session.update",
+            "session": {
+                "type": "transcription",
+                "audio": {
+                    "input": {
+                        "format": {"type": "audio/pcm", "rate": rate},
+                        "transcription": {"model": model_key},
+                        "turn_detection": None,
+                    }
+                },
+            },
+        }))
+        await ws.send(json.dumps({"type": "input_audio_buffer.clear"}))
+        for chunk in _chunk_bytes(pcm_bytes):
+            await ws.send(json.dumps({
+                "type": "input_audio_buffer.append",
+                "audio": base64.b64encode(chunk).decode("ascii"),
+            }))
+        await ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
+
+        while True:
+            raw = await asyncio.wait_for(ws.recv(), timeout=60)
+            event = json.loads(raw)
+            event_type = event.get("type")
+            if event_type == "conversation.item.input_audio_transcription.delta":
+                delta = event.get("delta")
+                if delta:
+                    transcript_deltas.append(str(delta))
+            elif event_type == "conversation.item.input_audio_transcription.completed":
+                completed = str(event.get("transcript") or "").strip()
+                return completed or "".join(transcript_deltas).strip()
+            elif event_type == "conversation.item.input_audio_transcription.failed":
+                error = event.get("error") or {}
+                message = error.get("message") if isinstance(error, dict) else str(error)
+                raise RuntimeError(message or "Realtime transcription failed")
+            elif event_type == "error":
+                error = event.get("error") or {}
+                message = error.get("message") if isinstance(error, dict) else str(error)
+                raise RuntimeError(message or "OpenAI Realtime API error")
 
 async def _xai_sts_realtime(pcm_bytes, api_key, model_key="grok-voice-agent", voice="Ara", rate_in=24000, rate_out=24000):
     url = f"wss://{_XAI_API_HOST}/v1/realtime?model={model_key}"
@@ -14402,6 +14465,7 @@ def transcribe():
             return jsonify({'transcript': transcript, 'mode': 'llm'})
 
         allowed_models = {
+            "gpt-transcribe",
             "gpt-4o-mini-transcribe",
             "gpt-4o-transcribe",
             "gpt-4o-transcribe-diarize",
@@ -14676,7 +14740,97 @@ def speech_to_speech():
         resp.headers['Cache-Control'] = 'no-cache'
         return resp
 
+    if provider == "openai" and meta.get("mode") == "transcription":
+        key = model_specific_key or decrypt_val(current_user.openai_api_key)
+        if not key and _admin_env_fallback_enabled(current_user):
+            key = os.getenv('OPENAI_API_KEY')
+        if not key:
+            return jsonify({'error': 'OpenAI API Key not configured'}), 400
+
+        src_ext = os.path.splitext(secure_filename(f.filename))[1].lower() or ".webm"
+        try:
+            pcm_bytes = _convert_audio_to_pcm(audio_bytes, src_ext, rate=rate_in)
+            transcript = asyncio.run(
+                _openai_realtime_transcribe(pcm_bytes, key, model_key, rate=rate_in)
+            ).strip()
+        except Exception as e:
+            logger.error(f"OpenAI realtime transcription failed: {e}")
+            return jsonify({'error': str(e)}), 500
+        if not transcript:
+            return jsonify({'error': 'No transcript returned'}), 500
+
+        try:
+            ok, used, limit = _check_storage_capacity(current_user, len(audio_bytes))
+            if not ok:
+                used_mb = _bytes_to_mb_str(used)
+                limit_mb = _bytes_to_mb_str(limit)
+                return jsonify({'error': f'Storage limit exceeded ({used_mb} / {limit_mb})'}), 413
+        except Exception:
+            return jsonify({'error': 'Unable to validate storage capacity'}), 500
+
+        in_fname = None
+        try:
+            in_suffix = src_ext if src_ext.startswith('.') else f".{src_ext}"
+            in_fname, _ = _save_user_audio(
+                current_user.id, audio_bytes, in_suffix, current_user.enable_e2ee
+            )
+        except Exception as e:
+            logger.error(f"Realtime transcription audio save failed: {e}")
+
+        try:
+            last_msg = Message.query.filter_by(thread_id=thread_id).order_by(Message.id.desc()).first()
+            user_text = "音声文字起こし"
+            user_msg = Message(
+                thread_id=thread_id,
+                role='user',
+                content=encrypt_val(user_text) if current_user.enable_e2ee else user_text,
+                image_url=json.dumps([f"{current_user.id}/{in_fname}"]) if in_fname else None,
+                is_encrypted=current_user.enable_e2ee,
+                parent_id=last_msg.id if last_msg else None,
+                model=model_key,
+                tokens_in=count_tokens_for_display(user_text, model_key),
+            )
+            user_msg.tokens = sum_token_counts(user_msg.tokens_in, None)
+            db.session.add(user_msg)
+            safe_db_commit()
+
+            assistant_msg = Message(
+                thread_id=thread_id,
+                role='assistant',
+                content=encrypt_val(transcript) if current_user.enable_e2ee else transcript,
+                model=model_key,
+                is_encrypted=current_user.enable_e2ee,
+                parent_id=user_msg.id,
+                tokens_out=count_tokens_for_display(transcript, model_key),
+            )
+            assistant_msg.tokens = sum_token_counts(None, assistant_msg.tokens_out)
+            db.session.add(assistant_msg)
+            safe_db_commit()
+        except Exception as e:
+            logger.error(f"Realtime transcription message save failed: {e}")
+
+        payload = {
+            'final': True,
+            'transcription_only': True,
+            'transcript': transcript,
+            'input_transcript': transcript,
+        }
+        resp = Response(
+            json.dumps(payload, ensure_ascii=False) + "\n",
+            content_type='application/x-ndjson',
+        )
+        resp.headers['X-Accel-Buffering'] = 'no'
+        resp.headers['Cache-Control'] = 'no-cache'
+        return resp
+
     # Original sync logic for OpenAI/xAI
+    src_ext = os.path.splitext(secure_filename(f.filename))[1].lower() or ".webm"
+    try:
+        pcm_bytes = _convert_audio_to_pcm(audio_bytes, src_ext, rate=rate_in)
+    except Exception as e:
+        logger.error(f"STS audio conversion failed: {e}")
+        return jsonify({'error': f'Audio conversion failed: {e}'}), 400
+
     assistant_audio = b""
     assistant_text = ""
     assistant_thought = ""

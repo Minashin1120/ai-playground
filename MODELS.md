@@ -1,9 +1,9 @@
-# Supported Models (V4.8.608)
+# Supported Models (V4.8.633)
 
-全対応モデルの一覧です。モデル定義の一次ソースは `static/js/chat_core.v4.8.608.js` の `MODELS` 配列です。
+全対応モデルの一覧です。モデル定義の一次ソースは `static/js/chat_core.v4.8.633.js` の `MODELS` 配列です。
 モデル選択モーダルには各モデルの公式 API 価格（`price` フィールド）が表示されます。
 
-**価格最終確認:** 2026-07-10  
+**価格最終確認:** 2026-07-29
 **出典:** OpenAI / Google Gemini / Anthropic / DeepSeek / xAI 公式 pricing ページ
 
 ---
@@ -36,6 +36,8 @@
 | OpenAI GPT | gpt-5-mini | In $0.25/1M, Out $2.00/1M |
 | OpenAI GPT | gpt-4o | In $2.50/1M, Out $10.00/1M |
 | OpenAI GPT | gpt-4o-mini | In $0.15/1M, Out $0.60/1M |
+| OpenAI Transcription | gpt-transcribe | $0.0045 / min |
+| OpenAI Transcription | gpt-live-transcribe | $0.017 / min |
 | Claude | claude-opus-4-6 | In $5.00/1M, Out $25.00/1M |
 | Claude | claude-sonnet-4-6 | In $3.00/1M, Out $15.00/1M |
 | DeepSeek | deepseek-v4-flash | In $0.14/1M (miss), Out $0.28/1M |
@@ -52,5 +54,5 @@
 
 ---
 
-*最終更新: 2026-07-10 (V4.8.608)*  
-*ソース: `static/js/chat_core.v4.8.608.js` MODELS配列*
+*最終更新: 2026-07-29 (V4.8.633)*
+*ソース: `static/js/chat_core.v4.8.633.js` MODELS配列*

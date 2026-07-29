@@ -890,6 +890,10 @@
         #thread-modal > div { max-height: calc(100dvh - 32px); overflow: hidden; }
         #thread-modal .thread-modal-body { min-height: 0; padding-right: 4px; }
         #settings-modal .settings-header { position: sticky; top: 0; z-index: 8; padding: 6px 0 8px; background: rgba(13, 21, 36, 0.98); }
+        #settings-search { transition: padding-left 0.16s var(--ease-standard), border-color 0.16s, box-shadow 0.16s; }
+        #settings-search + .settings-search-icon { pointer-events: none; transition: opacity 0.12s var(--ease-standard), transform 0.12s var(--ease-standard); }
+        #settings-search:focus { padding-left: 0.75rem; }
+        #settings-search:focus + .settings-search-icon { opacity: 0; transform: translate(-0.25rem, -50%); }
         #settings-search:focus { border-color: rgba(var(--theme-rgb),0.6); box-shadow: 0 0 0 3px rgba(var(--theme-rgb),0.15); }
         #settings-modal .settings-no-results { border-left: none; }
         #settings-modal .settings-search-result-item { border: 1px solid rgba(255,255,255,0.04); background: rgba(13, 21, 36, 0.7); }

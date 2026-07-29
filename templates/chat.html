@@ -25,7 +25,7 @@
         };
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&family=Noto+Sans+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.639') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.640') }}" defer></script>
     {% if bot_config and bot_config.turnstileSiteKey %}
     <script>
         window.__turnstileApiLoaded = false;
@@ -1071,7 +1071,7 @@
     <div id="settings-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto"><div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[90vh] max-h-none modal-panel"><div class="settings-header"><h2 class="text-xl font-bold text-white flex items-center"><i class="fas fa-cog mr-2 text-gray-400"></i>設定</h2>
     <div class="relative mb-3 mt-1">
         <input type="text" id="settings-search" placeholder="設定を検索..." autocomplete="off" class="w-full bg-gray-900/80 border border-gray-600 rounded-lg px-3 py-2 pl-9 pr-8 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition">
-        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs"></i>
+        <i class="settings-search-icon fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs" aria-hidden="true"></i>
         <button id="settings-search-clear" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white hidden text-xs w-4 h-4 flex items-center justify-center"><i class="fas fa-times"></i></button>
     </div>
     <div class="flex border-b border-gray-700 mb-4 gap-4 overflow-x-auto settings-tabs">

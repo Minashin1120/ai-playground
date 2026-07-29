@@ -4684,6 +4684,30 @@
             if (txt.length <= 8) return '********';
             return `${txt.slice(0, 4)}...${txt.slice(-4)}`;
         };
+        const getModelProviderInfo = (modelId) => {
+            const id = String(modelId || '').toLowerCase().trim();
+            if (!id) return null;
+            if (id.startsWith('gemini')) return { provider: 'gemini', keyField: 'gemini_key', inputId: 'set-gemini', label: 'Gemini API Key' };
+            if (id.startsWith('gpt') || id.startsWith('o1') || id.startsWith('o3')) return { provider: 'openai', keyField: 'openai_key', inputId: 'set-openai', label: 'OpenAI API Key' };
+            if (id.startsWith('deepseek')) return { provider: 'deepseek', keyField: 'deepseek_key', inputId: 'set-deepseek', label: 'DeepSeek API Key' };
+            if (id.startsWith('kimi')) return { provider: 'kimi', keyField: 'kimi_key', inputId: 'set-kimi', label: 'Kimi (Moonshot) API Key' };
+            if (id.startsWith('claude')) return { provider: 'anthropic', keyField: 'anthropic_key', inputId: 'set-anthropic', label: 'Anthropic API Key' };
+            if (id.startsWith('grok')) return { provider: 'xai', keyField: 'xai_key', inputId: 'set-xai', label: 'xAI (Grok) API Key' };
+            if (id.startsWith('google')) return { provider: 'google', keyField: 'google_key', inputId: 'set-google-key', label: 'Google API Key (TTS)' };
+            return { provider: 'openai', keyField: 'openai_key', inputId: 'set-openai', label: 'OpenAI API Key' };
+        };
+        const checkApiKeyForModel = async (modelId) => {
+            const id = String(modelId || '').toLowerCase().trim();
+            if (!id) return true;
+            if (modelApiKeyMap && modelApiKeyMap[id]) return true;
+            const info = getModelProviderInfo(id);
+            if (!info) return true;
+            try {
+                const settings = await ensureUserSettingsSnapshot();
+                if (settings && settings[info.keyField]) return true;
+            } catch (e) {}
+            return false;
+        };
         const setModelApiKeyPanelOpen = (open) => {
             const panel = get('model-api-keys-panel');
             const btn = get('toggle-model-api-keys-btn');
@@ -12644,6 +12668,19 @@
                 return; // Do not proceed to normal chat send
             }
 
+            if (modelId && !(await checkApiKeyForModel(modelId))) {
+                const action = await showApiKeyRequiredModalAsync(modelId);
+                if (action === 'set') {
+                    return sendMessage();
+                } else if (action === 'switch') {
+                    showModal('model-modal');
+                    return;
+                } else {
+                    const modelName = getModelNameById(modelId);
+                    showToast(`${modelName} のAPIキーが設定されていません`, 'error', true);
+                    return;
+                }
+            }
             if (isGeminiLocalPythonMode(modelId, hasAudio, hasVideo, pyEnabled)) {
                 const proceed = await confirmGeminiLocalPythonSwitch();
                 if (!proceed) return;
@@ -15284,6 +15321,77 @@
             setTimeout(() => { renderBranchTreeVisualization(); updateBranchDetailPane(); }, 500);
         };
 
+        const showApiKeyRequiredModalAsync = (modelId) => new Promise((resolve) => {
+            const modelName = getModelNameById(modelId);
+            const info = getModelProviderInfo(modelId);
+            get('api-key-modal-model-name').textContent = `${modelName}（${modelId}）`;
+            get('api-key-modal-desc').textContent = `このモデルを使用するには${info ? info.label : 'APIキー'}の設定が必要です。`;
+            get('api-key-modal-key-label').textContent = info ? info.label : 'API Key';
+            const existingInput = info ? get(info.inputId) : null;
+            get('api-key-modal-input').value = existingInput ? existingInput.value : '';
+            get('api-key-modal-input').placeholder = 'APIキーを入力';
+            const saveBtn = get('api-key-modal-save-btn');
+            const fallbackBtn = get('api-key-modal-fallback-btn');
+            const cancelBtn = get('api-key-modal-cancel-btn');
+            const cleanup = () => {
+                saveBtn.onclick = null;
+                fallbackBtn.onclick = null;
+                cancelBtn.onclick = null;
+            };
+            const onKeydown = (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
+            };
+            get('api-key-modal-input').addEventListener('keydown', onKeydown);
+            saveBtn.onclick = async () => {
+                const key = get('api-key-modal-input').value.trim();
+                if (!key) {
+                    showToast('APIキーを入力してください', 'error');
+                    return;
+                }
+                if (info) {
+                    const input = get(info.inputId);
+                    if (input) input.value = key;
+                    try {
+                        const res = await apiFetch(CHAT_CONFIG.urls.handleSettings, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ [info.keyField]: key })
+                        });
+                        if (!res.ok) {
+                            showToast('APIキーの保存に失敗しました', 'error', true);
+                            return;
+                        }
+                        if (userSettingsSnapshot) {
+                            userSettingsSnapshot[info.keyField] = key;
+                        }
+                    } catch (e) {
+                        showToast('APIキーの保存に失敗しました', 'error', true);
+                        return;
+                    }
+                }
+                hideModal('api-key-required-modal');
+                get('api-key-modal-input').removeEventListener('keydown', onKeydown);
+                cleanup();
+                resolve('set');
+            };
+            fallbackBtn.onclick = () => {
+                hideModal('api-key-required-modal');
+                get('api-key-modal-input').removeEventListener('keydown', onKeydown);
+                cleanup();
+                resolve('switch');
+            };
+            cancelBtn.onclick = () => {
+                hideModal('api-key-required-modal');
+                get('api-key-modal-input').removeEventListener('keydown', onKeydown);
+                cleanup();
+                resolve('cancel');
+            };
+            showModal('api-key-required-modal');
+            setTimeout(() => {
+                const input = get('api-key-modal-input');
+                if (input) input.focus();
+            }, 350);
+        });
         // --- Extended Client-Side Debug Logging System ---
         (function() {
             const originalLog = console.log;

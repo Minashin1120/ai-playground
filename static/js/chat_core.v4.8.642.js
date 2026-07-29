@@ -4706,6 +4706,14 @@
             if (!info) return true;
             try {
                 const settings = await ensureUserSettingsSnapshot();
+                const savedModelApiKeys = settings && settings.model_api_keys;
+                if (savedModelApiKeys && typeof savedModelApiKeys === 'object') {
+                    const hasSavedModelKey = Object.entries(savedModelApiKeys).some(([savedModelId, apiKey]) => (
+                        String(savedModelId || '').toLowerCase().trim() === id
+                        && !!String(apiKey || '').trim()
+                    ));
+                    if (hasSavedModelKey) return true;
+                }
                 if (settings && settings[info.keyField]) return true;
             } catch (e) {}
             return false;

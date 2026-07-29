@@ -1014,31 +1014,29 @@
 
     <!-- Model Selector Modal -->
     <div id="model-modal" class="fixed inset-0 bg-gray-900/95 z-[60] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
-            <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-0 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[85vh] max-h-none lg:overflow-hidden modal-panel">
-            <div class="sticky top-0 z-10">
-                <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-900/50">
-                    <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-robot text-blue-400"></i> Select Model</h2>
-                    <button onclick="closeModelModal()" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+            <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-0 shadow-2xl border border-gray-700 m-4 flex flex-col max-h-[calc(100dvh-2rem)] modal-panel">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-900/50 flex-shrink-0">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-robot text-blue-400"></i> Select Model</h2>
+                <button onclick="closeModelModal()" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-2 border-b border-gray-700 bg-gray-900/30 flex-shrink-0">
+                <div class="relative">
+                    <i class="fas fa-search absolute left-3 top-2.5 text-gray-500 text-xs"></i>
+                    <input type="text" id="model-search" placeholder="Search models..." class="w-full bg-gray-800 border border-gray-700 rounded pl-9 pr-3 py-2 text-sm text-white focus:border-blue-500 outline-none transition placeholder-gray-600">
                 </div>
-                <div class="p-2 border-b border-gray-700 bg-gray-900/30">
-                    <div class="relative">
-                        <i class="fas fa-search absolute left-3 top-2.5 text-gray-500 text-xs"></i>
-                        <input type="text" id="model-search" placeholder="Search models..." class="w-full bg-gray-800 border border-gray-700 rounded pl-9 pr-3 py-2 text-sm text-white focus:border-blue-500 outline-none transition placeholder-gray-600">
-                    </div>
-                    <div id="model-tag-bar" class="flex flex-wrap gap-2 mt-2 px-1">
-                        <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">All</button>
-                        <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">OpenAI</button>
-                        <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Gemini</button>
-                        <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">DeepSeek</button>
-                        <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">xAI</button>
-                        <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Image</button>
-                        <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Audio</button>
-                        <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Reasoning</button>
-                        <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Fast</button>
-                    </div>
+                <div id="model-tag-bar" class="flex flex-wrap gap-2 mt-2 px-1">
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">All</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">OpenAI</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Gemini</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">DeepSeek</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">xAI</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Image</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Audio</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Reasoning</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Fast</button>
                 </div>
             </div>
-            <div id="model-list-container" class="overflow-y-auto p-4 flex-1 space-y-6">
+            <div id="model-list-container" class="overflow-y-auto p-4 flex-1 min-h-0 space-y-6">
                 <!-- Models rendered by JS -->
             </div>
         </div>

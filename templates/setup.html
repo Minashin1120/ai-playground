@@ -6,7 +6,7 @@
     {% include 'pwa_meta.html' %}
     <title>初期セットアップ - AI Chat</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.' ~ (system_version | lower) ~ '.css') }}?v={{ app_version }}">
-    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.633') }}"></script>
+    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.634') }}"></script>
     <script src="{{ url_for('static', filename='js/pwa_install.js') }}?v={{ app_version }}" defer></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -114,6 +114,9 @@
                                 <option value="claude-opus-4-6">Claude Opus 4.6</option>
                                 <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
                             </optgroup>
+                            <optgroup label="Kimi (Moonshot)">
+                                <option value="kimi-k3">Kimi K3 (2.8T param, 1M context)</option>
+                            </optgroup>
                             <optgroup label="xAI Grok">
                                 <option value="grok-voice-latest">Grok Voice Latest (Recommended)</option>
                                 <option value="grok-voice-think-fast-1.0">Grok Voice Think Fast 1.0</option>
@@ -148,6 +151,10 @@
                     <div class="relative group">
                         <label class="block text-xs text-slate-400 mb-1">DeepSeek API Key</label>
                         <input type="password" name="deepseek_key" class="w-full bg-[#0b121a] border border-slate-700 rounded-xl p-3 text-white text-sm outline-none focus:border-teal-500 transition" placeholder="sk-...">
+                    </div>
+                    <div class="relative group">
+                        <label class="block text-xs text-slate-400 mb-1">Kimi (Moonshot) API Key</label>
+                        <input type="password" name="kimi_key" class="w-full bg-[#0b121a] border border-slate-700 rounded-xl p-3 text-white text-sm outline-none focus:border-teal-500 transition" placeholder="MOONSHOT_API_KEY">
                     </div>
                     <div class="relative group">
                         <label class="block text-xs text-slate-400 mb-1">Anthropic API Key</label>

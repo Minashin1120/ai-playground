@@ -606,8 +606,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-29-004')
-app.config['SYSTEM_VERSION'] = 'V4.8.633'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.634'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1702,6 +1702,8 @@ ALL_VALID_MODEL_IDS = {
     "grok-4.20-reasoning", "grok-4.20-non-reasoning", "grok-4.20-multi-agent",
     "grok-4-1-fast-reasoning", "grok-4-1-fast-non-reasoning",
     "grok-4-fast-reasoning", "grok-4-fast-non-reasoning",
+    # Kimi K3
+    "kimi-k3",
 }
 
 def is_sts_model(model_key):
@@ -1734,6 +1736,8 @@ def get_model_api_provider(model_key):
         return "google"
     if "gemini" in mk:
         return "gemini"
+    if "kimi" in mk:
+        return "kimi"
     return "openai"
 
 _PROVIDER_LABELS = {
@@ -1742,6 +1746,7 @@ _PROVIDER_LABELS = {
     "anthropic": "Anthropic (Claude)",
     "xai": "xAI (Grok)",
     "deepseek": "DeepSeek",
+    "kimi": "Kimi (Moonshot)",
     "google": "Google Cloud",
 }
 
@@ -2579,6 +2584,7 @@ class User(UserMixin, db.Model):
     gemini_api_key = db.Column(db.Text, nullable=True)
     anthropic_api_key = db.Column(db.Text, nullable=True)
     deepseek_api_key = db.Column(db.Text, nullable=True)
+    kimi_api_key = db.Column(db.Text, nullable=True)
     model_api_keys = db.Column(db.Text, nullable=True)
     gemini_backend = db.Column(db.String(24), default="gemini_api")
     gemini_vertex_project = db.Column(db.Text, nullable=True)
@@ -3566,6 +3572,21 @@ def ensure_user_deepseek_api_key_column():
             if not res:
                 conn.execute(text("SET SESSION lock_wait_timeout=1"))
                 conn.execute(text("ALTER TABLE user ADD COLUMN deepseek_api_key TEXT"))
+    except Exception:
+        pass
+
+def ensure_user_kimi_api_key_column():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='user' "
+                "AND COLUMN_NAME='kimi_api_key'"
+            )).scalar()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN kimi_api_key TEXT"))
     except Exception:
         pass
 
@@ -5530,6 +5551,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             is_gem = is_gemini_model_key(model_key_l)
             is_claude = is_anthropic_model_key(model_key_l)
             is_deepseek = is_deepseek_model_key(model_key_l)
+            is_kimi = 'kimi' in model_key_l
             is_grok = 'grok' in model_key_l and 'gpt' not in model_key_l
             gemini_backend_mode = "gemini_api"
             def _is_non_llm_model(m):
@@ -5669,6 +5691,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     return "high"
                 return "high"
 
+            def _kimi_reasoning_effort():
+                raw = (options.get('reasoning_effort') or "").lower().strip()
+                if raw in ("low", "high", "max"):
+                    return raw
+                return "max"
+
             def _grok_system_prompt(base_prompt, enable_search):
                 if not enable_search:
                     return base_prompt
@@ -5705,7 +5733,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 'gemini': gemini_runtime.get('api_key'),
                 'anthropic': get_k(user.anthropic_api_key, 'ANTHROPIC_API_KEY'),
                 'xai': get_k(user.xai_api_key, 'XAI_API_KEY'),
-                'deepseek': get_k(user.deepseek_api_key, 'DEEPSEEK_API_KEY')
+                'deepseek': get_k(user.deepseek_api_key, 'DEEPSEEK_API_KEY'),
+                'kimi': get_k(user.kimi_api_key, 'MOONSHOT_API_KEY')
             }
 
             key = None
@@ -5713,6 +5742,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             elif is_claude: key = model_api_key_override or api_keys.get('anthropic')
             elif is_grok: key = model_api_key_override or api_keys.get('xai')
             elif is_deepseek: key = model_api_key_override or api_keys.get('deepseek')
+            elif is_kimi: key = model_api_key_override or api_keys.get('kimi')
             else: key = model_api_key_override or api_keys.get('openai')
 
             if is_gem:
@@ -5723,6 +5753,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 elif not key:
                     pub("error", "Gemini API Key missing")
                     return
+            elif is_kimi and not key:
+                pub("error", "Kimi API Key (MOONSHOT_API_KEY) が未設定です。設定画面で API Key を入力するか、環境変数 MOONSHOT_API_KEY を設定してください。")
+                return
             elif not key:
                 pub("error", "API Key missing")
                 return
@@ -5757,6 +5790,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 o_client = _get_openai_client(key, base_url=f"https://{_XAI_API_HOST}/v1")
             elif is_deepseek:
                 o_client = _get_openai_client(key, base_url="https://api.deepseek.com")
+            elif is_kimi:
+                o_client = _get_openai_client(key, base_url="https://api.moonshot.ai/v1")
             else: o_client = _get_openai_client(key, base_url=None)
 
             loaded_files = []
@@ -8348,6 +8383,131 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 except Exception as e:
                     pub("error", f"DeepSeek Error: {str(e)}")
 
+            elif is_kimi:
+                log_force("Routing: Kimi K3 Branch (Chat Completions)")
+                try:
+                    if check_stop():
+                        return
+                    client = o_client
+                    messages = []
+                    sys_prompt = options.get('system_prompt') or ""
+                    if sys_prompt:
+                        messages.append({"role": "system", "content": sys_prompt})
+
+                    for m in history:
+                        messages.append({"role": m['role'], "content": m['content']})
+
+                    user_text = ""
+                    if quote_text:
+                        user_text += f"User Quote:\n{quote_text}\n---\n"
+                    user_text += message_text
+
+                    # Separate image files from text files
+                    image_files = [fi for fi in loaded_files if fi.get('bytes') and str(fi.get('mime', '')).startswith('image/')]
+                    for fi in loaded_files:
+                        if fi.get('text') and not (fi.get('bytes') and str(fi.get('mime', '')).startswith('image/')):
+                            user_text += f"\n\n[File: {fi.get('send_name') or fi.get('name') or 'file'}]\n{fi['text']}"
+
+                    # If images are present, analyze them with a vision model (Kimi K3 supports images directly)
+                    if image_files:
+                        vision_model = (options.get('image_vision_model') or "").strip()
+                        analysis_prompt = _auto_notice_text("image_analysis") or DEFAULT_IMAGE_ANALYSIS_PROMPT
+                        if not vision_model:
+                            pub("error", "Kimi K3 supports images directly, but no Vision Model is configured for automatic image analysis. Please select a Vision Model in Settings > Default Vision Model.")
+                            return
+                        pub("status", "画像を vision model で解析中...")
+                        analysis_texts = []
+                        for idx, fi in enumerate(image_files):
+                            pub("image_analysis", f"画像 {idx+1}/{len(image_files)} 解析中...")
+                            if check_stop():
+                                return
+                            img_data = fi.get('bytes')
+                            img_mime = str(fi.get('mime', 'image/png'))
+                            analysis_result = _analyze_image_with_vision_model(
+                                vision_model, img_data, img_mime, analysis_prompt,
+                                api_keys
+                            )
+                            if analysis_result:
+                                analysis_texts.append(f"--- Image {idx+1} ---\n{analysis_result}")
+                                pub("image_analysis", f"画像 {idx+1}/{len(image_files)} 解析完了")
+                            else:
+                                pub("image_analysis", f"画像 {idx+1}/{len(image_files)} 解析失敗")
+                            if check_stop():
+                                return
+                        if analysis_texts:
+                            analysis_block = "The user attached the following image(s). Detailed descriptions are provided below:\n\n" + "\n\n".join(analysis_texts)
+                            messages.append({"role": "system", "content": analysis_block})
+                            pub("image_analysis", f"全{len(analysis_texts)}枚の画像解析完了。Kimi K3 で応答生成中...")
+                        else:
+                            pub("error", "画像の解析に失敗しました。Vision Model の API 設定を確認してください。")
+                            return
+
+                    if not user_text.strip():
+                        pub("error", "Kimi K3 request is empty.")
+                        return
+
+                    messages.append({"role": "user", "content": user_text})
+                    kimi_kwargs = {
+                        "model": model_key,
+                        "messages": messages,
+                        "stream": True,
+                        "stream_options": {"include_usage": True},
+                    }
+                    # Kimi K3 always thinks; reasoning_effort is top-level (low/high/max, default max)
+                    enable_reasoning = bool(options.get('enable_thinking')) or (req_reasoning_effort and req_reasoning_effort != "none")
+                    if enable_reasoning:
+                        kimi_kwargs["reasoning_effort"] = _kimi_reasoning_effort()
+                    if options.get('enable_prompt_caching') and options.get('prompt_cache_key'):
+                        kimi_kwargs["extra_body"] = dict(kimi_kwargs.get("extra_body") or {})
+                        kimi_kwargs["extra_body"]["prompt_cache_key"] = options.get('prompt_cache_key')
+                        log_force(f"Kimi Prompt Caching key={options.get('prompt_cache_key')}")
+
+                    _mark_provider_request_started()
+                    final_openai_usage = None
+                    stream = client.chat.completions.create(**kimi_kwargs)
+                    chunk_count = 0
+                    for chunk in stream:
+                        _latency_mark_once(job_id, "provider_first_chunk_ms")
+                        if check_stop():
+                            break
+
+                        chunk_count += 1
+                        if chunk_count % 20 == 0:
+                            _refresh_pending_job()
+
+                        usage = getattr(chunk, 'usage', None)
+                        if usage:
+                            final_openai_usage = usage
+
+                        choices = getattr(chunk, 'choices', None)
+                        if not choices:
+                            continue
+
+                        delta = choices[0].delta
+
+                        # Extract reasoning_content
+                        r_content = None
+                        try:
+                            r_content = delta.reasoning_content
+                        except AttributeError:
+                            pass
+                        if not r_content:
+                            try:
+                                extra = getattr(delta, '__pydantic_extra__', None) or {}
+                                r_content = extra.get('reasoning_content')
+                            except Exception:
+                                pass
+                        if r_content:
+                            thought_accumulated += r_content
+                            pub("thought", r_content)
+
+                        c_content = getattr(delta, 'content', None)
+                        if c_content:
+                            full_res += c_content
+                            pub("content", c_content)
+                except Exception as e:
+                    pub("error", f"Kimi Error: {str(e)}")
+
             # --- 4. OpenAI Responses API (or Grok Fallback) ---
             else:
                 log_force("Routing: Responses API Branch")
@@ -9849,6 +10009,7 @@ def setup():
         current_user.openai_api_key = encrypt_val(request.form.get('openai_key'))
         current_user.gemini_api_key = encrypt_val(request.form.get('gemini_key'))
         current_user.deepseek_api_key = encrypt_val(request.form.get('deepseek_key'))
+        current_user.kimi_api_key = encrypt_val(request.form.get('kimi_key'))
         current_user.gemini_backend = _normalize_gemini_backend(request.form.get('gemini_backend'))
         current_user.gemini_vertex_project = encrypt_val(request.form.get('gemini_vertex_project'))
         current_user.gemini_vertex_location = _normalize_gemini_vertex_location(request.form.get('gemini_vertex_location'))
@@ -13551,6 +13712,7 @@ def handle_settings():
             'gemini_key': _masked_secret(current_user.gemini_api_key),
             'anthropic_key': _masked_secret(current_user.anthropic_api_key),
             'deepseek_key': _masked_secret(current_user.deepseek_api_key),
+            'kimi_key': _masked_secret(current_user.kimi_api_key),
             'model_api_keys': {
                 model_key: _SECRET_MASK for model_key in _load_user_model_api_key_map(current_user)
             },
@@ -13661,6 +13823,7 @@ def handle_settings():
     if 'gemini_key' in d and d['gemini_key'] != _SECRET_MASK: current_user.gemini_api_key = encrypt_val(d['gemini_key'])
     if 'anthropic_key' in d and d['anthropic_key'] != _SECRET_MASK: current_user.anthropic_api_key = encrypt_val(d['anthropic_key'])
     if 'deepseek_key' in d and d['deepseek_key'] != _SECRET_MASK: current_user.deepseek_api_key = encrypt_val(d['deepseek_key'])
+    if 'kimi_key' in d and d['kimi_key'] != _SECRET_MASK: current_user.kimi_api_key = encrypt_val(d['kimi_key'])
     if 'model_api_keys' in d: _merge_masked_model_api_key_map(current_user, d.get('model_api_keys'))
     if 'gemini_backend' in d: current_user.gemini_backend = _normalize_gemini_backend(d['gemini_backend'])
     if 'gemini_vertex_project' in d: current_user.gemini_vertex_project = encrypt_val(d['gemini_vertex_project'])
@@ -13906,6 +14069,7 @@ def _call_llm_for_settings_ai(model_id, instruction, current_settings_snapshot, 
     is_claude = "claude" in mid
     is_grok = "grok" in mid and "gpt" not in mid
     is_deepseek = "deepseek" in mid
+    is_kimi = "kimi" in mid
 
     if is_claude:
         return None, "Claude (Anthropic) モデルは現在の設定AIツール呼び出しで未対応です。Gemini または GPT/DeepSeek/Grok 系モデルを選択してください。"
@@ -14012,8 +14176,11 @@ def _call_llm_for_settings_ai(model_id, instruction, current_settings_snapshot, 
             elif is_deepseek:
                 api_key = _get_model_specific_api_key(user, model_id) or decrypt_val(user.deepseek_api_key)
                 base_url = "https://api.deepseek.com"
+            elif is_kimi:
+                api_key = _get_model_specific_api_key(user, model_id) or decrypt_val(user.kimi_api_key)
+                base_url = "https://api.moonshot.ai/v1"
             if not api_key and _admin_env_fallback_enabled(user):
-                api_key = os.getenv("OPENAI_API_KEY") or os.getenv("XAI_API_KEY")
+                api_key = os.getenv("OPENAI_API_KEY") or os.getenv("XAI_API_KEY") or os.getenv("MOONSHOT_API_KEY")
             if not api_key:
                 return None, "選択したモデルのAPIキーがありません。設定でキーを入力するか、別のモデルを選んでください。"
             oai_client = _get_openai_client(api_key, base_url=base_url)
@@ -15376,6 +15543,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_user_kimi_api_key_column()
+    except Exception:
+        pass
+    try:
         ensure_user_anthropic_api_key_column()
     except Exception:
         pass
@@ -15505,6 +15676,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN deepseek_api_key TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN kimi_api_key TEXT")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN admin_api_key_mode VARCHAR(24) DEFAULT 'env_fallback'")

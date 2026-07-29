@@ -4564,6 +4564,14 @@
                 ]
             },
             {
+                category: "Kimi K3",
+                icon: "fas fa-brain text-violet-400",
+                description: "Moonshot AI's flagship 2.8T-parameter model with 1M context and always-on thinking",
+                items: [
+                    { id: "kimi-k3", name: "Kimi K3", desc: "Always-reasoning flagship model with 1M context, vision, tool calling.", price: "In $3.00/1M (miss), $0.30/1M (hit), Out $15.00/1M" }
+                ]
+            },
+            {
                 category: "Anthropic Claude",
                 icon: "fas fa-brain text-orange-400",
                 description: "Anthropic's latest deep reasoning models",
@@ -6664,6 +6672,7 @@
                         if(get('set-openai')) get('set-openai').value = d.openai_key || '';
                         if(get('set-gemini')) get('set-gemini').value = d.gemini_key || '';
                         if(get('set-deepseek')) get('set-deepseek').value = d.deepseek_key || '';
+                        if(get('set-kimi')) get('set-kimi').value = d.kimi_key || '';
                         if(get('set-anthropic')) get('set-anthropic').value = d.anthropic_key || '';
                         if(get('set-gemini-backend')) get('set-gemini-backend').value = normalizeGeminiBackend(d.gemini_backend || 'gemini_api');
                         if(get('set-gemini-vertex-project')) get('set-gemini-vertex-project').value = d.gemini_vertex_project || '';
@@ -6959,6 +6968,7 @@
                 if (get('set-openai')) b.openai_key = get('set-openai').value;
                 if (get('set-gemini')) b.gemini_key = get('set-gemini').value;
                 if (get('set-deepseek')) b.deepseek_key = get('set-deepseek').value;
+                if (get('set-kimi')) b.kimi_key = get('set-kimi').value;
                 if (get('set-anthropic')) b.anthropic_key = get('set-anthropic').value;
                 b.model_api_keys = normalizeModelApiKeyMap(modelApiKeyMap);
                 if (get('set-gemini-backend')) b.gemini_backend = normalizeGeminiBackend(get('set-gemini-backend').value);

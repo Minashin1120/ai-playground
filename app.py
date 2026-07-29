@@ -606,8 +606,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-007')
-app.config['SYSTEM_VERSION'] = 'V4.8.640'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-008')
+app.config['SYSTEM_VERSION'] = 'V4.8.641'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1667,8 +1667,8 @@ XAI_PCM_RATES = {8000, 16000, 22050, 24000, 32000, 44100, 48000}
 # Used to validate AI-suggested model IDs in settings updates.
 # Includes deprecated models since existing threads may still reference them.
 ALL_VALID_MODEL_IDS = {
-    # Gemini 3.5
-    "gemini-3.5-flash",
+    # Gemini 3.6 / 3.5
+    "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite",
     # Gemini 3.0
     "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview", "gemini-3-flash-preview", "gemini-3-pro-preview",
     # Gemini 2.5
@@ -2605,7 +2605,7 @@ class User(UserMixin, db.Model):
     compact_prompt_mode = db.Column(db.Boolean, default=False)
     use_last_chat_settings = db.Column(db.Boolean, default=False)
     temp_chat_timeout_seconds = db.Column(db.Integer, default=_TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS)
-    default_model = db.Column(db.String(64), default="gemini-3.1-flash-lite-preview")
+    default_model = db.Column(db.String(64), default="gemini-3.6-flash")
     default_enable_search = db.Column(db.Boolean, default=False)
     default_enable_url_context = db.Column(db.Boolean, default=False)
     default_enable_maps = db.Column(db.Boolean, default=False)
@@ -3790,13 +3790,25 @@ def ensure_user_default_model_columns():
             # check default_model
             res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='default_model'")).fetchone()
             if not res:
-                conn.execute(text("ALTER TABLE user ADD COLUMN default_model VARCHAR(64) DEFAULT 'gemini-3.1-flash-lite-preview'"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN default_model VARCHAR(64) DEFAULT 'gemini-3.6-flash'"))
                 conn.commit()
             # check last_model
             res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='last_model'")).fetchone()
             if not res:
                 conn.execute(text("ALTER TABLE user ADD COLUMN last_model VARCHAR(64)"))
                 conn.commit()
+            # The Gemini API preview endpoint is retired. Preserve thread-level
+            # model references for history, but move user defaults/last-used
+            # settings to its stable low-cost successor.
+            conn.execute(text(
+                "UPDATE user SET default_model='gemini-3.5-flash-lite' "
+                "WHERE default_model='gemini-3.1-flash-lite-preview'"
+            ))
+            conn.execute(text(
+                "UPDATE user SET last_model='gemini-3.5-flash-lite' "
+                "WHERE last_model='gemini-3.1-flash-lite-preview'"
+            ))
+            conn.commit()
             # check default_enable_url_context / default_enable_maps
             res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='default_enable_url_context'")).fetchone()
             if not res:
@@ -6286,7 +6298,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 else:
                     # Text/Chat generation mode
                     rm = model_key
-                    if "gemini-3.5-flash" in model_key:
+                    if "gemini-3.6-flash" in model_key:
+                        rm = "gemini-3.6-flash"
+                    elif "gemini-3.5-flash-lite" in model_key:
+                        rm = "gemini-3.5-flash-lite"
+                    elif "gemini-3.5-flash" in model_key:
                         rm = "gemini-3.5-flash"
                     elif "gemini-3.1-pro" in model_key:
                         rm = "gemini-3.1-pro-preview"
@@ -6301,13 +6317,21 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     elif "gemini-2.5" in model_key:
                         rm = "gemini-2.5-flash"
 
-                    conf = {'temperature': 0.7}
+                    is_latest_flash = rm in ("gemini-3.6-flash", "gemini-3.5-flash-lite")
+                    # Gemini 3.6 Flash / 3.5 Flash-Lite deprecate sampling
+                    # parameters. Omit them so future API generations do not
+                    # reject otherwise valid requests.
+                    conf = {} if is_latest_flash else {'temperature': 0.7}
                     if is_gemini_3:
                         # Gemini 3 does not support fully disabling thinking; force enabled.
                         options['enable_thinking'] = True
                     if options.get('enable_thinking'):
                         raw_lvl = (options.get('thinking_level') or 'high').lower()
                         lvl = raw_lvl if raw_lvl in ("minimal", "low", "medium", "high") else "high"
+                        if rm == "gemini-3.6-flash" and lvl not in ("medium", "high"):
+                            lvl = "medium"
+                        elif rm == "gemini-3.5-flash-lite" and lvl not in ("minimal", "medium", "high"):
+                            lvl = "minimal"
                         if "gemini-2.5" in model_key:
                             budget_map = {"low": 1024, "medium": 4096, "high": 8192}
                             manual_budget = options.get('thinking_budget')
@@ -10017,7 +10041,7 @@ def setup():
         current_user.xai_api_key = encrypt_val(request.form.get('xai_key'))
         current_user.google_api_key = encrypt_val(request.form.get('google_key'))
         current_user.google_cloud_project = encrypt_val(request.form.get('google_project'))
-        current_user.default_model = request.form.get('default_model') or "gemini-3.1-flash-lite-preview"
+        current_user.default_model = request.form.get('default_model') or "gemini-3.6-flash"
         current_user.enable_e2ee = (request.form.get('enable_e2ee') == 'on')
         current_user.is_setup_completed = True
         safe_db_commit()
@@ -13736,7 +13760,7 @@ def handle_settings():
             'compact_prompt_mode': current_user.compact_prompt_mode if current_user.compact_prompt_mode is not None else False,
             'use_last_chat_settings': current_user.use_last_chat_settings,
             'temp_chat_timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user),
-            'default_model': current_user.default_model or "gemini-3.1-flash-lite-preview",
+            'default_model': current_user.default_model or "gemini-3.6-flash",
             'default_enable_search': current_user.default_enable_search,
             'default_enable_url_context': current_user.default_enable_url_context,
             'default_enable_maps': current_user.default_enable_maps,
@@ -13750,7 +13774,7 @@ def handle_settings():
             'rich_paste_prompt_default': current_user.rich_paste_prompt_default or "",
             'rich_paste_prompt_use_custom_default': current_user.rich_paste_prompt_use_custom_default if current_user.rich_paste_prompt_use_custom_default is not None else False,
             'default_vision_model': current_user.default_vision_model or "gemini-3-flash-preview",
-            'last_model': current_user.last_model or "gemini-3.1-flash-lite-preview",
+            'last_model': current_user.last_model or "gemini-3.6-flash",
             'last_gem_uuid': current_user.last_gem_uuid,
             'last_enable_search': current_user.last_enable_search,
             'last_enable_url_context': current_user.last_enable_url_context,

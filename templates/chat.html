@@ -197,7 +197,8 @@
                         <div id="welcome-default-content" class="flex flex-col items-center justify-center space-y-4 w-full">
                             <h2 class="text-2xl font-bold flex items-center gap-2 slide-in-animate opacity-0" style="animation-delay: 0.05s"><i class="fas fa-gem"></i> AI Gems & Chat</h2>
                             <div class="grid grid-cols-1 gap-2 w-full max-w-md px-4">
-                                <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.1s" onclick="quickStart('gemini-3.5-flash')">⚡ Gemini 3.5 Flash</button>
+                                <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.1s" onclick="quickStart('gemini-3.6-flash')">⚡ Gemini 3.6 Flash</button>
+                                <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.11s" onclick="quickStart('gemini-3.5-flash-lite')">🚀 Gemini 3.5 Flash-Lite</button>
                                 <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.12s" onclick="quickStart('grok-build-0.1')">🛠️ Grok Build 0.1 (Coding)</button>
                                 <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.14s" onclick="quickStart('grok-voice-latest')">🎤 Grok Voice</button>
                                 <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.16s" onclick="quickStart('grok-tts')">🔊 Grok TTS</button>
@@ -296,10 +297,10 @@
 
                 <div id="prompt-controls-row" class="flex flex-wrap justify-between items-center text-xs text-gray-400 gap-2">
                     <div id="prompt-primary-controls" class="flex items-center gap-2 min-w-0">
-                        <input type="hidden" id="model-select" value="gemini-3.5-flash">
+                        <input type="hidden" id="model-select" value="gemini-3.6-flash">
                         <button id="model-selector-btn" onclick="openModelModal()" class="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-white text-xs hover:bg-gray-600 transition flex items-center gap-2 max-w-[200px] truncate">
                             <i class="fas fa-robot text-blue-400"></i>
-                            <span id="model-selector-text">Gemini 3.5 Flash</span>
+                            <span id="model-selector-text">Gemini 3.6 Flash</span>
                             <i class="fas fa-chevron-down text-[10px] text-gray-400 ml-auto"></i>
                         </button>
                         <label id="canvas-mode-container" class="flex items-center gap-1 cursor-pointer select-none px-2 py-1 rounded border border-cyan-500/30 bg-cyan-900/15 text-cyan-200" title="コードブロックを右側のCanvasでプレビューします">

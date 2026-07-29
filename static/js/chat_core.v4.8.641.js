@@ -4484,11 +4484,13 @@
 
         const MODELS = [
             {
-                category: "Gemini 3.5",
+                category: "Gemini 3.6 / 3.5",
                 icon: "fas fa-star text-yellow-400",
                 description: "Google's latest multimodal models",
                 items: [
+                    { id: "gemini-3.6-flash", name: "Gemini 3.6 Flash", desc: "Latest Flash model for agentic, coding, and multimodal tasks.", price: "In $1.50/1M, Out $7.50/1M" },
                     { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash", desc: "Most intelligent Gemini 3.5 model built for speed.", price: "In $1.50/1M, Out $9.00/1M" },
+                    { id: "gemini-3.5-flash-lite", name: "Gemini 3.5 Flash-Lite", desc: "Fastest, lowest-cost Gemini 3.5 model for high-throughput execution.", price: "In $0.30/1M, Out $2.50/1M" },
                 ]
             },
             {
@@ -4497,7 +4499,7 @@
                 description: "Previous Gemini 3.x generation models",
                 items: [
                     { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro", desc: "Next-gen native multimodal model.", price: "In $2.00/1M, Out $12.00/1M (≤200k)" },
-                    { id: "gemini-3.1-flash-lite-preview", name: "Gemini 3.1 Flash-Lite", desc: "Fastest and most cost-efficient Gemini 3.1 model.", price: "In $0.25/1M, Out $1.50/1M" },
+                    { id: "gemini-3.1-flash-lite-preview", name: "Gemini 3.1 Flash-Lite", desc: "Retired preview model retained for chat history compatibility.", price: "In $0.25/1M, Out $1.50/1M", deprecated: true },
                     { id: "gemini-3-flash-preview", name: "Gemini 3.0 Flash", desc: "Fastest and most cost-efficient.", price: "In $0.50/1M, Out $3.00/1M" },
                     { id: "gemini-3-pro-preview", name: "Gemini 3.0 Pro", desc: "Best performing model for complex tasks.", price: "In $2.00/1M, Out $12.00/1M (≤200k)" }
                 ]
@@ -5833,7 +5835,7 @@
                     if(urlCont) {
                         urlCont.classList.remove('hidden', 'opacity-50', 'pointer-events-none');
                     }
-                    const isGemini3 = model.includes('gemini-3') || model.includes('gemini-3.1');
+                    const isGemini3 = model.includes('gemini-3');
                     if (mapsCont) {
                         if (isGemini3) {
                             mapsCont.classList.remove('hidden', 'opacity-50', 'pointer-events-none');
@@ -5844,9 +5846,23 @@
                     }
                     const isFlash = model.includes('flash');
                     Array.from(thinkLvl.options).forEach(opt => {
-                        if(['minimal', 'medium'].includes(opt.value)) { opt.disabled = !isFlash; }
+                        if (model === 'gemini-3.6-flash') {
+                            opt.disabled = !['medium', 'high'].includes(opt.value);
+                        } else if (model === 'gemini-3.5-flash-lite') {
+                            opt.disabled = !['minimal', 'medium', 'high'].includes(opt.value);
+                        } else if(['minimal', 'medium'].includes(opt.value)) {
+                            opt.disabled = !isFlash;
+                        } else {
+                            opt.disabled = false;
+                        }
                     });
-                    if(!isFlash && ['minimal', 'medium'].includes(thinkLvl.value)) { thinkLvl.value = 'high'; }
+                    if (model === 'gemini-3.6-flash' && !['medium', 'high'].includes(thinkLvl.value)) {
+                        thinkLvl.value = 'medium';
+                    } else if (model === 'gemini-3.5-flash-lite' && !['minimal', 'medium', 'high'].includes(thinkLvl.value)) {
+                        thinkLvl.value = 'minimal';
+                    } else if(!isFlash && ['minimal', 'medium'].includes(thinkLvl.value)) {
+                        thinkLvl.value = 'high';
+                    }
                     if(isGemini3) {
                         if(thinkChk) { thinkChk.checked = true; thinkChk.disabled = true; }
                     } else if(thinkChk) {
@@ -6728,7 +6744,7 @@
                     if(get('set-liquid-glass')) get('set-liquid-glass').checked = !!d.liquid_glass_enabled;
                     if(get('set-auto-search-links')) get('set-auto-search-links').checked = d.auto_search_on_links !== false;
                     if(get('set-use-last-settings')) get('set-use-last-settings').checked = !!d.use_last_chat_settings;
-                    if(get('set-default-model')) get('set-default-model').value = d.default_model || 'gemini-3.1-flash-lite-preview';
+                    if(get('set-default-model')) get('set-default-model').value = d.default_model || 'gemini-3.6-flash';
                     if(get('set-default-vision-model')) get('set-default-vision-model').value = d.default_vision_model || 'gemini-3-flash-preview';
                     applyTemporaryChatTimeoutSeconds(d.temp_chat_timeout_seconds);
                     if(get('set-default-search')) get('set-default-search').checked = !!d.default_enable_search;

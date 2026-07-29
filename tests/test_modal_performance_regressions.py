@@ -45,13 +45,25 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
     def test_model_modal_preserves_desktop_and_touch_scrolling(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")
 
+        modal_shell_css = source[source.index("#model-modal {") :]
+        modal_shell_css = modal_shell_css[: modal_shell_css.index("#model-list-container {")]
+        self.assertIn("overflow: hidden", modal_shell_css)
+        self.assertIn("max-height: calc(100dvh - 2rem)", modal_shell_css)
+
         model_list_css = source[source.index("#model-list-container {") :]
         model_list_css = model_list_css[: model_list_css.index("body.liquid-glass-mode .modal-overlay")]
         self.assertIn("min-height: 0", model_list_css)
+        self.assertIn("overflow-y: auto", model_list_css)
         self.assertIn("touch-action: pan-y", model_list_css)
-        self.assertIn("overflow-y: visible", model_list_css)
+        self.assertNotIn("overflow-y: visible", model_list_css)
         self.assertNotIn("overscroll-behavior: contain", model_list_css)
         self.assertNotIn("content-visibility", model_list_css)
+
+        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        modal_open = template[template.index('<div id="model-modal"') :]
+        modal_open = modal_open[: modal_open.index(">") + 1]
+        self.assertIn("overflow-hidden", modal_open)
+        self.assertNotIn("overflow-y-auto", modal_open)
 
     def test_modal_glass_keeps_effect_with_reduced_paint_cost(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")

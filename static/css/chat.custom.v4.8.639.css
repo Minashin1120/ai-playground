@@ -2899,18 +2899,19 @@ body.liquid-glass-mode.liquid-glass-scrolling .liquid-glass-surface {
     -webkit-backdrop-filter: blur(17px) saturate(170%) contrast(1.08) !important;
 }
 
-/* V4.8.629 — Modal rendering performance and scroll safety
-   Keep the glass appearance, but avoid moving a live backdrop-filter layer while it repaints. */
+/* V4.8.639 — The modal shell stays fixed; only the model list scrolls. */
+#model-modal {
+    overflow: hidden;
+}
+#model-modal > .modal-panel {
+    min-height: 0;
+    max-height: calc(100dvh - 2rem);
+}
 #model-list-container {
     min-height: 0;
+    overflow-y: auto;
     touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
-}
-@media (max-width: 1023px) {
-    /* The overlay owns scrolling when the panel is content-height on mobile/tablet. */
-    #model-list-container {
-        overflow-y: visible;
-    }
 }
 body.liquid-glass-mode .modal-overlay {
     background-color: rgba(3, 8, 18, 0.54) !important;

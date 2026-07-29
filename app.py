@@ -401,6 +401,85 @@ def _get_model_specific_api_key(user, model_key):
             return val or None
     return None
 
+def _resolve_chat_model_auth(user, model_key):
+    """Resolve chat credentials exactly as the worker does, without calling a provider."""
+    mk = str(model_key or "").strip()
+    mk_l = mk.lower()
+    model_key_override = _get_model_specific_api_key(user, mk)
+
+    def user_or_admin_env(field_name, env_name):
+        value = decrypt_val(getattr(user, field_name, None)) if user else None
+        if value and str(value).strip():
+            return str(value).strip()
+        if _admin_env_fallback_enabled(user):
+            env_value = os.getenv(env_name)
+            if env_value and str(env_value).strip():
+                return str(env_value).strip()
+        return None
+
+    provider = "openai"
+    api_key = None
+    gemini_runtime = None
+    error_code = None
+    error_message = None
+
+    if "google-tts" in mk_l:
+        provider = "google"
+        api_key = model_key_override or user_or_admin_env("google_api_key", "GOOGLE_API_KEY")
+    elif is_gemini_model_key(mk_l):
+        provider = "gemini"
+        gemini_runtime = _resolve_gemini_runtime(user)
+        api_key = model_key_override or gemini_runtime.get("api_key")
+        if gemini_runtime.get("backend") == "vertex_ai":
+            if not gemini_runtime.get("vertex_project"):
+                error_code = "provider_configuration_missing"
+                error_message = (
+                    "Vertex AI Project ID が未設定です。設定で Gemini Backend を "
+                    "Vertex AI にした場合は Project ID を入力してください。"
+                )
+        elif not api_key:
+            error_code = "api_key_missing"
+            error_message = "Gemini APIキーが設定されていません。"
+    elif is_anthropic_model_key(mk_l):
+        provider = "anthropic"
+        api_key = model_key_override or user_or_admin_env("anthropic_api_key", "ANTHROPIC_API_KEY")
+    elif is_deepseek_model_key(mk_l):
+        provider = "deepseek"
+        api_key = model_key_override or user_or_admin_env("deepseek_api_key", "DEEPSEEK_API_KEY")
+    elif "kimi" in mk_l:
+        provider = "kimi"
+        api_key = model_key_override or user_or_admin_env("kimi_api_key", "MOONSHOT_API_KEY")
+    elif "grok" in mk_l and "gpt" not in mk_l:
+        provider = "xai"
+        api_key = model_key_override or user_or_admin_env("xai_api_key", "XAI_API_KEY")
+    else:
+        api_key = model_key_override or user_or_admin_env("openai_api_key", "OPENAI_API_KEY")
+
+    if not error_code and not api_key and not (
+        provider == "gemini"
+        and gemini_runtime
+        and gemini_runtime.get("backend") == "vertex_ai"
+    ):
+        error_code = "api_key_missing"
+        provider_labels = {
+            "openai": "OpenAI",
+            "gemini": "Gemini",
+            "anthropic": "Anthropic",
+            "deepseek": "DeepSeek",
+            "kimi": "Kimi",
+            "xai": "xAI",
+            "google": "Google",
+        }
+        error_message = f"{provider_labels.get(provider, provider)} APIキーが設定されていません。"
+
+    return {
+        "provider": provider,
+        "api_key": api_key,
+        "gemini_runtime": gemini_runtime,
+        "error_code": error_code,
+        "error": error_message,
+    }
+
 def _closest_aspect_ratio(width, height, allowed):
     try:
         if not width or not height:
@@ -606,8 +685,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-009')
-app.config['SYSTEM_VERSION'] = 'V4.8.642'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-010')
+app.config['SYSTEM_VERSION'] = 'V4.8.643'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -5140,7 +5219,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 r.expire(key, 600)
             except Exception:
                 pass
-        def pub(dt, d):
+        def pub(dt, d, **metadata):
             if dt == "status":
                 _latency_mark_once(job_id, "provider_first_status_ms")
             elif dt == "thought":
@@ -5149,7 +5228,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 _latency_mark_once(job_id, "provider_first_content_ms")
             elif dt in ("done", "error"):
                 _latency_mark_once(job_id, "worker_done_ms")
-            r.publish(channel, json.dumps({"type": dt, "content": d}))
+            event_payload = {"type": dt, "content": d}
+            event_payload.update(metadata)
+            r.publish(channel, json.dumps(event_payload))
             try:
                 if dt == "content":
                     _append_limited(f"stream_acc:{job_id}:content", d)
@@ -5166,6 +5247,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     r.setex(f"stream_acc:{job_id}:search", 600, d)
                 elif dt in ["error", "done"]:
                     r.setex(f"stream_acc:{job_id}:final", 600, dt)
+                    if dt == "error":
+                        r.setex(f"stream_acc:{job_id}:error", 600, json.dumps(event_payload))
             except Exception:
                 pass
         
@@ -5737,7 +5820,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     return os.getenv(env_key)
                 return None
 
-            gemini_runtime = _resolve_gemini_runtime(user)
+            resolved_auth = _resolve_chat_model_auth(user, model_key)
+            gemini_runtime = resolved_auth.get("gemini_runtime") or _resolve_gemini_runtime(user)
             model_api_key_override = _get_model_specific_api_key(user, model_key)
 
             api_keys = {
@@ -5749,27 +5833,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 'kimi': get_k(user.kimi_api_key, 'MOONSHOT_API_KEY')
             }
 
-            key = None
-            if is_gem: key = model_api_key_override or api_keys.get('gemini')
-            elif is_claude: key = model_api_key_override or api_keys.get('anthropic')
-            elif is_grok: key = model_api_key_override or api_keys.get('xai')
-            elif is_deepseek: key = model_api_key_override or api_keys.get('deepseek')
-            elif is_kimi: key = model_api_key_override or api_keys.get('kimi')
-            else: key = model_api_key_override or api_keys.get('openai')
-
-            if is_gem:
-                if gemini_runtime.get("backend") == "vertex_ai":
-                    if not gemini_runtime.get("vertex_project"):
-                        pub("error", "Vertex AI Project ID が未設定です。設定で Gemini Backend を Vertex AI にした場合は Project ID を入力してください。")
-                        return
-                elif not key:
-                    pub("error", "Gemini API Key missing")
-                    return
-            elif is_kimi and not key:
-                pub("error", "Kimi API Key (MOONSHOT_API_KEY) が未設定です。設定画面で API Key を入力するか、環境変数 MOONSHOT_API_KEY を設定してください。")
-                return
-            elif not key:
-                pub("error", "API Key missing")
+            key = resolved_auth.get("api_key")
+            if resolved_auth.get("error_code"):
+                pub(
+                    "error",
+                    resolved_auth.get("error") or "APIキーが設定されていません。",
+                    code=resolved_auth["error_code"],
+                    model=model_key,
+                    provider=resolved_auth.get("provider"),
+                )
                 return
 
             g_client = None; o_client = None; x_client = None; c_client = None
@@ -10082,6 +10154,14 @@ def chat_stream():
     model_key = str(data.get('model') or '').strip()
     if model_key not in ALL_VALID_MODEL_IDS:
         return jsonify({'error': 'Invalid model'}), 400
+    resolved_auth = _resolve_chat_model_auth(current_user, model_key)
+    if resolved_auth.get("error_code"):
+        return jsonify({
+            "error": resolved_auth.get("error") or "APIキーが設定されていません。",
+            "code": resolved_auth["error_code"],
+            "model": model_key,
+            "provider": resolved_auth.get("provider"),
+        }), 400
     for bounded_key in ('quote_text', 'system_prompt', 'marker_system_prompt', 'thread_custom_instruction'):
         bounded_value = data.get(bounded_key)
         if bounded_value is not None and len(str(bounded_value)) > 100_000:
@@ -10623,7 +10703,11 @@ def chat_stream_resume():
             if cached_final:
                 final_type = cached_final.decode("utf-8", "ignore").strip().lower()
                 if final_type == "error":
-                    yield json.dumps({"type": "error", "content": "The job has ended with an error. Please reload."}) + "\n"
+                    cached_error = redis_conn.get(f"stream_acc:{job_id}:error")
+                    if cached_error:
+                        yield cached_error.decode("utf-8", "ignore") + "\n"
+                    else:
+                        yield json.dumps({"type": "error", "content": "The job has ended with an error. Please reload."}) + "\n"
                 else:
                     yield json.dumps({"type": "done", "content": "OK"}) + "\n"
                 return

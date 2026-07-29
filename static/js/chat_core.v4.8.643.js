@@ -4698,26 +4698,6 @@
             if (id.startsWith('google')) return { provider: 'google', keyField: 'google_key', inputId: 'set-google-key', label: 'Google API Key (TTS)' };
             return { provider: 'openai', keyField: 'openai_key', inputId: 'set-openai', label: 'OpenAI API Key' };
         };
-        const checkApiKeyForModel = async (modelId) => {
-            const id = String(modelId || '').toLowerCase().trim();
-            if (!id) return true;
-            if (modelApiKeyMap && modelApiKeyMap[id]) return true;
-            const info = getModelProviderInfo(id);
-            if (!info) return true;
-            try {
-                const settings = await ensureUserSettingsSnapshot();
-                const savedModelApiKeys = settings && settings.model_api_keys;
-                if (savedModelApiKeys && typeof savedModelApiKeys === 'object') {
-                    const hasSavedModelKey = Object.entries(savedModelApiKeys).some(([savedModelId, apiKey]) => (
-                        String(savedModelId || '').toLowerCase().trim() === id
-                        && !!String(apiKey || '').trim()
-                    ));
-                    if (hasSavedModelKey) return true;
-                }
-                if (settings && settings[info.keyField]) return true;
-            } catch (e) {}
-            return false;
-        };
         const setModelApiKeyPanelOpen = (open) => {
             const panel = get('model-api-keys-panel');
             const btn = get('toggle-model-api-keys-btn');
@@ -12692,19 +12672,6 @@
                 return; // Do not proceed to normal chat send
             }
 
-            if (modelId && !(await checkApiKeyForModel(modelId))) {
-                const action = await showApiKeyRequiredModalAsync(modelId);
-                if (action === 'set') {
-                    return sendMessage();
-                } else if (action === 'switch') {
-                    showModal('model-modal');
-                    return;
-                } else {
-                    const modelName = getModelNameById(modelId);
-                    showToast(`${modelName} のAPIキーが設定されていません`, 'error', true);
-                    return;
-                }
-            }
             if (isGeminiLocalPythonMode(modelId, hasAudio, hasVideo, pyEnabled)) {
                 const proceed = await confirmGeminiLocalPythonSwitch();
                 if (!proceed) return;
@@ -12755,9 +12722,8 @@
             }
 
             // Render UI immediately to reduce perceived latency.
-            renderMessage(Date.now(), 'user', t, JSON.stringify(imageUrlsToSend), null, null, null, true, currentQuote, null, null, null, null, null, null, null, true, capturedParentId, activeGem ? activeGem.name : null);
-            get('prompt-input').value = ''; get('prompt-input').style.height = 'auto';
-            schedulePromptTokenEstimate(true);
+            const optimisticUserId = Date.now();
+            const optimisticUserMessageEl = renderMessage(optimisticUserId, 'user', t, JSON.stringify(imageUrlsToSend), null, null, null, true, currentQuote, null, null, null, null, null, null, null, true, capturedParentId, activeGem ? activeGem.name : null);
 
             let disableAutoSearch = false;
             const xLinkPattern = /(https?:\/\/)?(x\.com|twitter\.com)\//i;
@@ -12855,7 +12821,7 @@
                 p.thread_custom_instruction = threadCustomInstructionEl.value || '';
             }
             if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; p.gem_uuid = activeGem.uuid; } else { p.gem_uuid = null; }
-            resetUploadState(); setSendBtnToStopMode(); userAutoScroll = true; const aid = 'ai-' + Date.now(); clearQuote();
+            setSendBtnToStopMode(); userAutoScroll = true; const aid = 'ai-' + Date.now();
             const modelLower = String(p.model || '').toLowerCase();
             const effortLower = String(p.reasoning_effort || '').toLowerCase();
             const reasoningRequested = !!p.enable_thinking || (!!effortLower && effortLower !== 'none');
@@ -12939,6 +12905,8 @@
             const finishStreamProgress = window.ProgressSpinner
                 ? window.ProgressSpinner.start('送信中...')
                 : null;
+            let requestAccepted = false;
+            let retryAfterApiKeySetup = false;
             try {
                 if (p.thread_id && activeGem) {
                     threadGemMap[p.thread_id] = activeGem;
@@ -12946,6 +12914,19 @@
                 }
                 const r = await apiFetch(CHAT_CONFIG.urls.chatStream, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p), signal:abortController.signal});
                 sendClientDebugLog('info', `Prompt stream response status: ${r.status}`);
+                if (!r.ok) {
+                    const errorPayload = await r.json().catch(() => ({}));
+                    const requestError = new Error(errorPayload.error || `HTTP ${r.status}`);
+                    requestError.serverCode = errorPayload.code || null;
+                    requestError.serverModel = errorPayload.model || p.model;
+                    throw requestError;
+                }
+                requestAccepted = true;
+                get('prompt-input').value = '';
+                get('prompt-input').style.height = 'auto';
+                schedulePromptTokenEstimate(true);
+                resetUploadState();
+                clearQuote();
                 const markApiAccepted = () => {
                     if (!adiv) return;
                     const ca = adiv.querySelector('.content-area');
@@ -13213,7 +13194,24 @@
                     syncedAfterAbort = await syncThreadAfterAbortedStream(streamStartedThreadId, { retries: 2, retryDelayMs: 180, notifyOnFailure: true });
                 }
                 sendClientDebugLog('error', `Prompt send error: ${e.message}`);
-                if(e.name!=='AbortError') {
+                if (!requestAccepted) {
+                    if (optimisticUserMessageEl) optimisticUserMessageEl.remove();
+                    const pendingBubbleGroup = adiv && adiv.closest('.fade-in');
+                    if (pendingBubbleGroup) pendingBubbleGroup.remove();
+                    delete messageStore[optimisticUserId];
+                    delete messageMeta[optimisticUserId];
+                }
+                if (e.serverCode === 'api_key_missing') {
+                    const missingKeyModel = e.serverModel || p.model;
+                    const action = await showApiKeyRequiredModalAsync(missingKeyModel);
+                    if (action === 'set') {
+                        retryAfterApiKeySetup = true;
+                    } else if (action === 'switch') {
+                        showModal('model-modal');
+                    } else {
+                        showToast(e.message || `${getModelNameById(missingKeyModel)} のAPIキーが設定されていません`, "error", true);
+                    }
+                } else if(e.name!=='AbortError') {
                     const msg = "Connection Error: " + e.message;
                     showToast(msg, "error", true);
                 }
@@ -13226,6 +13224,7 @@
                 if (activeStreamingBubbleId === aid) activeStreamingBubbleId = null;
                 abortController=null; currentJobId=null; editingMessageId=null; setEditUi(false);
             }
+            if (retryAfterApiKeySetup) return sendMessage();
         }
 
         async function resumePendingStream(pending) {

@@ -57,6 +57,63 @@ class SecurityRegressionTests(unittest.TestCase):
             sess["csrf_token"] = "csrf-test-token"
         return client
 
+    def test_chat_auth_resolver_covers_saved_model_and_admin_fallback_keys(self):
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+
+            missing = target._resolve_chat_model_auth(user, "gpt-5.4")
+            self.assertEqual(missing["error_code"], "api_key_missing")
+            self.assertEqual(missing["provider"], "openai")
+
+            user.openai_api_key = target.encrypt_val("saved-openai-key")
+            saved = target._resolve_chat_model_auth(user, "gpt-5.4")
+            self.assertIsNone(saved["error_code"])
+            self.assertEqual(saved["api_key"], "saved-openai-key")
+
+            user.openai_api_key = None
+            target._save_user_model_api_key_map(user, {"gpt-5.4": "model-key"})
+            model_specific = target._resolve_chat_model_auth(user, "gpt-5.4")
+            self.assertIsNone(model_specific["error_code"])
+            self.assertEqual(model_specific["api_key"], "model-key")
+
+            user.model_api_keys = None
+            user.is_admin = True
+            user.admin_api_key_mode = "env_fallback"
+            with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "admin-env-key"}):
+                admin_fallback = target._resolve_chat_model_auth(user, "gpt-5.4")
+            self.assertIsNone(admin_fallback["error_code"])
+            self.assertEqual(admin_fallback["api_key"], "admin-env-key")
+
+    def test_chat_auth_failure_is_returned_before_thread_or_message_is_saved(self):
+        client = self.authenticated_client()
+        response = client.post(
+            "/chat_stream",
+            json={"message": "hello", "model": "gpt-5.4"},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.get_json()
+        self.assertEqual(payload["code"], "api_key_missing")
+        self.assertEqual(payload["model"], "gpt-5.4")
+        self.assertEqual(payload["provider"], "openai")
+        with target.app.app_context():
+            self.assertEqual(target.Thread.query.count(), 0)
+            self.assertEqual(target.Message.query.count(), 0)
+
+    def test_google_tts_auth_does_not_depend_on_openai_key(self):
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.google_api_key = target.encrypt_val("google-tts-key")
+            user.openai_api_key = None
+
+            resolved = target._resolve_chat_model_auth(user, "google-tts-studio")
+
+            self.assertIsNone(resolved["error_code"])
+            self.assertEqual(resolved["provider"], "google")
+            self.assertEqual(resolved["api_key"], "google-tts-key")
+
     def test_chunk_upload_id_rejects_path_traversal(self):
         self.assertTrue(target._is_valid_chunk_upload_id("up_1752156000_deadbeef"))
         self.assertIsNone(target._chunk_session_dir(self.user_id, "../../app"))

@@ -685,8 +685,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-012')
-app.config['SYSTEM_VERSION'] = 'V4.8.645'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-013')
+app.config['SYSTEM_VERSION'] = 'V4.8.646'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -5201,9 +5201,43 @@ def safe_execute_python(code):
 
 CODING_MODE_SYSTEM_PROMPT = """[Coding Mode]
 You are editing the supplied existing code block. Minimize output tokens: never repeat the whole file.
-Return exactly one JSON object and no Markdown fences or commentary:
-{"summary":"short description","edits":[{"search":"exact existing text","replace":"replacement text"}]}
-Each search value must be non-empty and occur exactly once in the current code at the time that edit is applied. Include only the smallest exact span needed to make it unique. Use replace="" to delete. For insertion, replace a short unique anchor with the anchor plus the insertion. Apply multiple edits in array order. Preserve indentation and line endings. If no code change is needed, return {"summary":"reason","edits":[]}. You may use an available Python tool to inspect or validate the change, but your final answer must still be only the JSON object."""
+Choose the code block that best matches the user's request unless the candidate list contains only an explicitly selected block. Return exactly one JSON object and no Markdown fences or commentary:
+{"target_id":"candidate id","summary":"short description","edits":[{"search":"exact existing text","replace":"replacement text"}]}
+Each search value must be non-empty and occur exactly once in the current code at the time that edit is applied. Include only the smallest exact span needed to make it unique. Use replace="" to delete. For insertion, replace a short unique anchor with the anchor plus the insertion. Apply multiple edits in array order. Preserve indentation and line endings. If no code change is needed, still include target_id and return an empty edits array. You may use an available Python tool to inspect or validate the change, but your final answer must still be only the JSON object."""
+
+def extract_markdown_code_blocks(markdown_text):
+    completed = []
+    active = None
+    for line in str(markdown_text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        if active is None:
+            opening = re.match(r"^\s*(`{3,}|~{3,})(.*)$", line)
+            if not opening:
+                continue
+            info = str(opening.group(2) or "").strip()
+            language = (info.split()[0] if info else "text")
+            language = re.sub(r"^\{?\.?", "", language)
+            language = re.sub(r"\}$", "", language) or "text"
+            active = {
+                "marker_char": opening.group(1)[0],
+                "marker_length": len(opening.group(1)),
+                "language": language,
+                "buffer": [],
+            }
+            continue
+        trimmed = str(line or "").strip()
+        closing_pattern = rf"^{re.escape(active['marker_char'])}{{{active['marker_length']},}}\s*$"
+        if re.match(closing_pattern, trimmed):
+            code = "\n".join(active["buffer"])
+            if code.strip():
+                completed.append({"code": code, "language": active["language"]})
+            active = None
+            continue
+        active["buffer"].append(line)
+    return completed
+
+def extract_latest_markdown_code_block(markdown_text):
+    completed = extract_markdown_code_blocks(markdown_text)
+    return completed[-1] if completed else None
 
 def _parse_coding_mode_edit_payload(model_output):
     raw = str(model_output or "").strip()
@@ -5241,7 +5275,11 @@ def _parse_coding_mode_edit_payload(model_output):
         if len(search) > 100_000 or len(replace) > 100_000:
             raise ValueError("1件の編集が大きすぎます")
         normalized.append({"search": search, "replace": replace})
-    return {"summary": summary, "edits": normalized}
+    return {
+        "target_id": str(payload.get("target_id") or "").strip()[:100] or None,
+        "summary": summary,
+        "edits": normalized,
+    }
 
 def _markdown_fence_for_code(code):
     longest = max((len(run) for run in re.findall(r"`+", str(code or ""))), default=0)
@@ -5261,6 +5299,38 @@ def apply_coding_mode_edits(model_output, target_code, language="text"):
     fence = _markdown_fence_for_code(code)
     summary = payload["summary"] or ("変更を適用しました" if payload["edits"] else "変更はありません")
     return f"**Coding Mode:** {summary}\n\n{fence}{safe_language}\n{code}\n{fence}"
+
+def apply_coding_mode_candidate_edits(model_output, candidates, default_target_id=None):
+    payload = _parse_coding_mode_edit_payload(model_output)
+    candidate_map = {
+        str(item.get("id")): item
+        for item in (candidates or [])
+        if isinstance(item, dict) and item.get("id")
+    }
+    target_id = payload.get("target_id")
+    selected = candidate_map.get(target_id) if target_id else None
+    if selected is None and payload["edits"]:
+        first_search = payload["edits"][0]["search"]
+        matching = [
+            item for item in candidate_map.values()
+            if str(item.get("code") or "").count(first_search) == 1
+        ]
+        if len(matching) == 1:
+            selected = matching[0]
+        elif target_id:
+            raise ValueError("モデルが指定した編集対象IDが無効です")
+        else:
+            raise ValueError(f"編集対象を一意に判定できません（候補{len(matching)}件）")
+    if selected is None:
+        selected = candidate_map.get(str(default_target_id or ""))
+    if selected is None:
+        raise ValueError("編集対象コードを決定できません")
+    normalized_output = json.dumps(payload, ensure_ascii=False)
+    return apply_coding_mode_edits(
+        normalized_output,
+        selected.get("code"),
+        selected.get("language"),
+    )
 
 def background_chat_task(job_id, thread_id, model_key, message_id, options, user_id, user_config):
     with app.app_context():
@@ -6150,13 +6220,39 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             original_quote_text = quote_text
             if options.get("coding_mode"):
                 coding_target = options.get("coding_target") or {}
+                coding_candidates = options.get("coding_candidates") or []
                 target_code = str(coding_target.get("code") or "")
                 target_language = str(coding_target.get("language") or "text")
-                coding_context = (
-                    f"[Coding Mode Target]\nLanguage: {target_language}\n"
-                    f"Character count: {len(target_code)}\n"
-                    f"--- BEGIN TARGET CODE ---\n{target_code}\n--- END TARGET CODE ---"
+                explicitly_selected = (
+                    len(coding_candidates) == 1
+                    and str(coding_candidates[0].get("id") or "").startswith("selected-")
                 )
+                if explicitly_selected:
+                    coding_context = (
+                        f"[Coding Mode Target]\nYou must edit candidate selected-1.\n"
+                        f"Language: {target_language}\nCharacter count: {len(target_code)}\n"
+                        f"--- BEGIN TARGET CODE ---\n{target_code}\n--- END TARGET CODE ---"
+                    )
+                else:
+                    candidate_lines = []
+                    for candidate in coding_candidates:
+                        candidate_code = str(candidate.get("code") or "")
+                        preview = next(
+                            (line.strip() for line in candidate_code.splitlines() if line.strip()),
+                            "",
+                        )[:160]
+                        candidate_lines.append(
+                            f"- id={candidate.get('id')}; source={candidate.get('source')}; "
+                            f"language={candidate.get('language')}; chars={len(candidate_code)}; "
+                            f"first_line={preview!r}"
+                        )
+                    coding_context = (
+                        "[Coding Mode Candidates]\n"
+                        "Choose the candidate that best matches User Message and return its id as target_id. "
+                        "Prompt candidates correspond to Markdown code blocks in User Message; history candidates "
+                        "correspond to code blocks in the conversation in chronological order.\n"
+                        + "\n".join(candidate_lines)
+                    )
                 quote_text = f"{quote_text}\n\n{coding_context}" if quote_text else coding_context
             final_message_text = message_text
             if quote_text:
@@ -9288,10 +9384,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             if options.get("coding_mode"):
                 coding_target = options.get("coding_target") or {}
                 try:
-                    final_content = apply_coding_mode_edits(
+                    final_content = apply_coding_mode_candidate_edits(
                         full_res,
-                        coding_target.get("code"),
-                        coding_target.get("language"),
+                        options.get("coding_candidates") or [],
+                        coding_target.get("default_target_id") or coding_target.get("id"),
                     )
                 except ValueError as exc:
                     logger.warning("Coding Mode edit application failed for job %s: %s", job_id, exc)
@@ -10254,21 +10350,54 @@ def chat_stream():
         return jsonify({'error': 'Invalid model'}), 400
     coding_mode = data.get('coding_mode') is True
     coding_target = data.get('coding_target')
+    coding_candidates = []
     if coding_mode:
         if any(marker in model_key.lower() for marker in ("image", "video", "tts", "audio", "native-audio")):
             return jsonify({'error': 'Coding Mode requires a text generation model'}), 400
         if not isinstance(coding_target, dict):
             return jsonify({'error': 'Coding Mode target is required'}), 400
-        target_code = coding_target.get('code')
-        if not isinstance(target_code, str) or not target_code.strip() or len(target_code) > 300_000:
-            return jsonify({'error': 'Invalid or oversized Coding Mode target'}), 400
-        target_language = str(coding_target.get('language') or 'text')
-        coding_target = {
-            'code': target_code,
-            'language': re.sub(r'[^A-Za-z0-9_+.#-]', '', target_language)[:40] or 'text',
-            'key': str(coding_target.get('key') or '')[:100] or None,
-            'message_id': str(coding_target.get('message_id') or '')[:100] or None,
-        }
+        raw_candidates = data.get('coding_candidates')
+        if not isinstance(raw_candidates, list) or not raw_candidates or len(raw_candidates) > 30:
+            return jsonify({'error': 'Coding Mode candidates are required'}), 400
+        prompt_blocks = extract_markdown_code_blocks(raw_message)
+        candidate_ids = set()
+        total_candidate_chars = 0
+        for raw_candidate in raw_candidates:
+            if not isinstance(raw_candidate, dict):
+                return jsonify({'error': 'Invalid Coding Mode candidate'}), 400
+            candidate_id = str(raw_candidate.get('id') or '')[:100]
+            if not re.fullmatch(r'[A-Za-z0-9_-]{1,100}', candidate_id) or candidate_id in candidate_ids:
+                return jsonify({'error': 'Invalid Coding Mode candidate ID'}), 400
+            candidate_ids.add(candidate_id)
+            source = 'prompt' if raw_candidate.get('source') == 'prompt' else 'history'
+            if source == 'prompt':
+                try:
+                    prompt_index = int(raw_candidate.get('prompt_index'))
+                except (TypeError, ValueError):
+                    return jsonify({'error': 'Invalid prompt code block index'}), 400
+                if prompt_index < 0 or prompt_index >= len(prompt_blocks):
+                    return jsonify({'error': 'Prompt code block was not found'}), 400
+                code = prompt_blocks[prompt_index]['code']
+                language = prompt_blocks[prompt_index]['language']
+            else:
+                code = raw_candidate.get('code')
+                language = raw_candidate.get('language') or 'text'
+            if not isinstance(code, str) or not code.strip() or len(code) > 300_000:
+                return jsonify({'error': 'Invalid or oversized Coding Mode target'}), 400
+            total_candidate_chars += len(code)
+            if total_candidate_chars > 300_000:
+                return jsonify({'error': 'Coding Mode candidates are too large'}), 400
+            coding_candidates.append({
+                'id': candidate_id,
+                'code': code,
+                'language': re.sub(r'[^A-Za-z0-9_+.#-]', '', str(language))[:40] or 'text',
+                'source': source,
+            })
+        default_target_id = str(coding_target.get('id') or '')[:100]
+        if default_target_id not in candidate_ids:
+            default_target_id = coding_candidates[-1]['id']
+        default_candidate = next(item for item in coding_candidates if item['id'] == default_target_id)
+        coding_target = {**default_candidate, 'default_target_id': default_target_id}
     resolved_auth = _resolve_chat_model_auth(current_user, model_key)
     if resolved_auth.get("error_code"):
         return jsonify({
@@ -10490,6 +10619,7 @@ def chat_stream():
             'prompt_cache_key': None,
             'coding_mode': coding_mode,
             'coding_target': coding_target if coding_mode else None,
+            'coding_candidates': coding_candidates if coding_mode else [],
         }
     # Persist prompt-cache flags on the thread (provider locked while enabled)
     try:

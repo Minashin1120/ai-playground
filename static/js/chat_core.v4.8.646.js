@@ -3007,13 +3007,101 @@
             }
             return null;
         }
-        function resolveCodingTarget() {
+        function extractPromptCodingTargets(promptText) {
+            const lines = String(promptText || '').replace(/\r\n?/g, '\n').split('\n');
+            const completed = [];
+            let active = null;
+            for (const line of lines) {
+                if (!active) {
+                    const opening = line.match(/^\s*(`{3,}|~{3,})(.*)$/);
+                    if (!opening) continue;
+                    const info = String(opening[2] || '').trim();
+                    active = {
+                        markerChar: opening[1][0],
+                        markerLength: opening[1].length,
+                        language: (info.split(/\s+/)[0] || 'text').replace(/^\{?\.?/, '').replace(/\}$/, '') || 'text',
+                        buffer: []
+                    };
+                    continue;
+                }
+                const trimmed = String(line || '').trim();
+                const closingPattern = new RegExp(`^\\${active.markerChar}{${active.markerLength},}\\s*$`);
+                if (closingPattern.test(trimmed)) {
+                    const code = active.buffer.join('\n');
+                    if (code.trim()) {
+                        completed.push({
+                            code,
+                            language: active.language,
+                            key: hashString(`prompt\\n${active.language}\\n${code}`),
+                            candidate_id: `prompt-${completed.length + 1}`,
+                            prompt_index: completed.length,
+                            message_id: null,
+                            thread_id: currentThreadId ? String(currentThreadId) : null,
+                            prompt_source: true
+                        });
+                    }
+                    active = null;
+                    continue;
+                }
+                active.buffer.push(line);
+            }
+            return completed;
+        }
+        function extractLatestPromptCodingTarget(promptText) {
+            const completed = extractPromptCodingTargets(promptText);
+            return completed.length ? completed[completed.length - 1] : null;
+        }
+        function collectCodingCandidates(promptText) {
+            if (codingTargetSelection) {
+                const selectedThread = codingTargetSelection.thread_id;
+                if (!selectedThread || !currentThreadId || String(selectedThread) === String(currentThreadId)) {
+                    return [{
+                        ...codingTargetSelection,
+                        candidate_id: 'selected-1',
+                        source: 'history',
+                        explicit: true
+                    }];
+                }
+                codingTargetSelection = null;
+            }
+            const candidates = extractPromptCodingTargets(promptText);
+            const seen = new Set(candidates.map(item => `${item.language}\n${item.code}`));
+            const root = get('chat-container');
+            const historyTargets = [];
+            if (root) {
+                Array.from(root.querySelectorAll('.message-group .coding-target-btn')).forEach((btn) => {
+                    const target = getCodingTargetFromButton(btn);
+                    if (!target) return;
+                    const signature = `${target.language}\n${target.code}`;
+                    if (seen.has(signature)) return;
+                    seen.add(signature);
+                    historyTargets.push(target);
+                });
+            }
+            historyTargets.slice(-20).forEach((target, index) => {
+                candidates.push({
+                    ...target,
+                    candidate_id: `history-${index + 1}`,
+                    source: 'history',
+                    explicit: false
+                });
+            });
+            return candidates;
+        }
+        function resolveCodingTarget(promptText = null) {
+            const inputText = promptText === null
+                ? String(get('prompt-input')?.value || '')
+                : String(promptText || '');
             if (codingTargetSelection) {
                 const selectedThread = codingTargetSelection.thread_id;
                 if (!selectedThread || !currentThreadId || String(selectedThread) === String(currentThreadId)) {
                     return { ...codingTargetSelection, explicit: true };
                 }
                 codingTargetSelection = null;
+            }
+            const promptTarget = extractLatestPromptCodingTarget(inputText);
+            if (promptTarget) {
+                return { ...promptTarget, explicit: false };
             }
             const latest = findLatestCodingTarget();
             return latest ? { ...latest, explicit: false } : null;
@@ -3044,9 +3132,18 @@
             const clearBtn = get('clear-coding-target-btn');
             if (bar) bar.classList.toggle('visible', codingModeEnabled);
             const target = resolveCodingTarget();
+            const candidates = codingTargetSelection
+                ? [target].filter(Boolean)
+                : collectCodingCandidates(String(get('prompt-input')?.value || ''));
             if (textEl) {
                 if (codingTargetSelection && target) {
                     textEl.textContent = `編集対象: ${target.language || 'text'} コードブロック`;
+                } else if (candidates.length > 1) {
+                    const promptCount = candidates.filter(item => item.prompt_source).length;
+                    const historyCount = candidates.length - promptCount;
+                    textEl.textContent = `モデルが編集対象を判断: 入力${promptCount}件 / 履歴${historyCount}件`;
+                } else if (target && target.prompt_source) {
+                    textEl.textContent = `入力中: ${target.language || 'text'} コードブロック`;
                 } else if (target) {
                     textEl.textContent = `自動選択: 最新の ${target.language || 'text'} コードブロック`;
                 } else {
@@ -7944,6 +8041,9 @@
                     this.style.height = 'auto';
                     this.style.height = (this.scrollHeight) + 'px';
                     schedulePromptTokenEstimate();
+                    if (codingModeEnabled) {
+                        syncCodingModeUi(true, { persist: false });
+                    }
 
                     // Slash command / gem suggestion triggers
                     const val = this.value.trim();
@@ -12801,13 +12901,36 @@
                 if (!proceed) return;
             }
             let codingTargetForSend = null;
+            let codingCandidatesForSend = [];
             if (codingModeEnabled) {
                 const codingModel = String(get('model-select')?.value || '').toLowerCase();
                 if (/(image|video|tts|audio|native-audio)/.test(codingModel)) {
                     showToast('Coding Modeではテキスト生成モデルを選択してください', 'error', true);
                     return;
                 }
-                codingTargetForSend = resolveCodingTarget();
+                const allCandidates = collectCodingCandidates(rawText);
+                const promptCandidates = allCandidates.filter(item => item.prompt_source);
+                const historyCandidates = allCandidates.filter(item => !item.prompt_source);
+                const promptChars = promptCandidates.reduce((sum, item) => sum + String(item.code || '').length, 0);
+                if (promptChars > 300000) {
+                    showToast('入力内の編集候補コード合計が大きすぎます（上限300,000文字）', 'error', true);
+                    return;
+                }
+                let remainingChars = 300000 - promptChars;
+                const selectedHistory = [];
+                for (let index = historyCandidates.length - 1; index >= 0; index--) {
+                    const candidateLength = String(historyCandidates[index].code || '').length;
+                    if (candidateLength > remainingChars) continue;
+                    selectedHistory.unshift(historyCandidates[index]);
+                    remainingChars -= candidateLength;
+                }
+                codingCandidatesForSend = codingTargetSelection
+                    ? selectedHistory.slice(-1)
+                    : [...promptCandidates, ...selectedHistory];
+                const latestPromptTarget = promptCandidates.length ? promptCandidates[promptCandidates.length - 1] : null;
+                codingTargetForSend = codingTargetSelection
+                    ? codingCandidatesForSend[0]
+                    : (latestPromptTarget || codingCandidatesForSend[codingCandidatesForSend.length - 1] || null);
                 if (!codingTargetForSend || !String(codingTargetForSend.code || '').trim()) {
                     showToast('編集対象のコードブロックがありません。先にコードを生成するか、編集対象ボタンで指定してください', 'warning', true);
                     return;
@@ -12958,11 +13081,20 @@
                 image_vision_model: currentVisionModel || null,
                 coding_mode: codingModeEnabled,
                 coding_target: codingTargetForSend ? {
-                    code: codingTargetForSend.code,
+                    id: codingTargetForSend.candidate_id,
+                    code: codingTargetForSend.prompt_source ? null : codingTargetForSend.code,
                     language: codingTargetForSend.language || 'text',
                     key: codingTargetForSend.key || null,
-                    message_id: codingTargetForSend.message_id || null
-                } : null
+                    message_id: codingTargetForSend.message_id || null,
+                    source: codingTargetForSend.prompt_source ? 'prompt' : 'history'
+                } : null,
+                coding_candidates: codingCandidatesForSend.map((candidate) => ({
+                    id: candidate.candidate_id,
+                    source: candidate.prompt_source ? 'prompt' : 'history',
+                    prompt_index: candidate.prompt_source ? candidate.prompt_index : null,
+                    code: candidate.prompt_source ? null : candidate.code,
+                    language: candidate.language || 'text'
+                }))
             };
             const threadCustomInstructionEl = get('thread-custom-instruction');
             if (threadCustomInstructionEl) {
@@ -13073,6 +13205,9 @@
                 get('prompt-input').value = '';
                 get('prompt-input').style.height = 'auto';
                 schedulePromptTokenEstimate(true);
+                if (codingModeEnabled) {
+                    syncCodingModeUi(true, { persist: false });
+                }
                 resetUploadState();
                 clearQuote();
                 const markApiAccepted = () => {

@@ -685,8 +685,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-010')
-app.config['SYSTEM_VERSION'] = 'V4.8.643'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-011')
+app.config['SYSTEM_VERSION'] = 'V4.8.644'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1748,8 +1748,9 @@ XAI_PCM_RATES = {8000, 16000, 22050, 24000, 32000, 44100, 48000}
 ALL_VALID_MODEL_IDS = {
     # Gemini 3.6 / 3.5
     "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite",
-    # Gemini 3.0
-    "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview", "gemini-3-flash-preview", "gemini-3-pro-preview",
+    # Gemini 3.1 / previous Gemini 3.x
+    "gemini-3.1-flash-lite", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview",
+    "gemini-3-flash-preview", "gemini-3-pro-preview",
     # Gemini 2.5
     "gemini-2.5-flash-lite", "gemini-2.5-flash",
     # Gemini Image
@@ -3876,15 +3877,14 @@ def ensure_user_default_model_columns():
             if not res:
                 conn.execute(text("ALTER TABLE user ADD COLUMN last_model VARCHAR(64)"))
                 conn.commit()
-            # The Gemini API preview endpoint is retired. Preserve thread-level
-            # model references for history, but move user defaults/last-used
-            # settings to its stable low-cost successor.
+            # The preview endpoint is retired. Preserve thread-level references
+            # for history, but move any remaining user settings to the GA model.
             conn.execute(text(
-                "UPDATE user SET default_model='gemini-3.5-flash-lite' "
+                "UPDATE user SET default_model='gemini-3.1-flash-lite' "
                 "WHERE default_model='gemini-3.1-flash-lite-preview'"
             ))
             conn.execute(text(
-                "UPDATE user SET last_model='gemini-3.5-flash-lite' "
+                "UPDATE user SET last_model='gemini-3.1-flash-lite' "
                 "WHERE last_model='gemini-3.1-flash-lite-preview'"
             ))
             conn.commit()
@@ -6378,7 +6378,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         rm = "gemini-3.5-flash"
                     elif "gemini-3.1-pro" in model_key:
                         rm = "gemini-3.1-pro-preview"
-                    elif "gemini-3.1-flash-lite" in model_key:
+                    elif model_key == "gemini-3.1-flash-lite":
+                        rm = "gemini-3.1-flash-lite"
+                    elif "gemini-3.1-flash-lite-preview" in model_key:
                         rm = "gemini-3.1-flash-lite-preview"
                     elif "gemini-3-flash" in model_key or "gemini-3.0-flash" in model_key:
                         rm = "gemini-3-flash-preview"

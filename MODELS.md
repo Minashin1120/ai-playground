@@ -1,6 +1,6 @@
-# Supported Models (V4.8.643)
+# Supported Models (V4.8.644)
 
-全対応モデルの一覧です。モデル定義の一次ソースは `static/js/chat_core.v4.8.643.js` の `MODELS` 配列です。
+全対応モデルの一覧です。モデル定義の一次ソースは `static/js/chat_core.v4.8.644.js` の `MODELS` 配列です。
 モデル選択モーダルには各モデルの公式 API 価格（`price` フィールド）が表示されます。
 
 **価格最終確認:** 2026-07-30
@@ -24,6 +24,7 @@
 | Gemini 3.6 | gemini-3.6-flash | In $1.50/1M, Out $7.50/1M |
 | Gemini 3.5 | gemini-3.5-flash | In $1.50/1M, Out $9.00/1M |
 | Gemini 3.5 | gemini-3.5-flash-lite | In $0.30/1M, Out $2.50/1M |
+| Gemini 3.1 | gemini-3.1-flash-lite | In $0.25/1M, Out $1.50/1M |
 | Gemini 3.x | gemini-3.1-pro-preview | In $2.00/1M, Out $12.00/1M (≤200k) |
 | Gemini 2.5 | gemini-2.5-flash-lite | In $0.10/1M, Out $0.40/1M |
 | Gemini 2.5 | gemini-2.5-flash | In $0.30/1M, Out $2.50/1M |
@@ -55,5 +56,5 @@
 
 ---
 
-*最終更新: 2026-07-30 (V4.8.643)*
-*ソース: `static/js/chat_core.v4.8.643.js` MODELS配列*
+*最終更新: 2026-07-30 (V4.8.644)*
+*ソース: `static/js/chat_core.v4.8.644.js` MODELS配列*

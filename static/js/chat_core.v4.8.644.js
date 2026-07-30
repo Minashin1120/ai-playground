@@ -4494,12 +4494,13 @@
                 ]
             },
             {
-                category: "Gemini 3.0",
+                category: "Gemini 3.1 / Previous",
                 icon: "fas fa-star text-yellow-400",
                 description: "Previous Gemini 3.x generation models",
                 items: [
+                    { id: "gemini-3.1-flash-lite", name: "Gemini 3.1 Flash-Lite", desc: "Stable, cost-efficient model for high-volume lightweight tasks.", price: "In $0.25/1M, Out $1.50/1M" },
                     { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro", desc: "Next-gen native multimodal model.", price: "In $2.00/1M, Out $12.00/1M (≤200k)" },
-                    { id: "gemini-3.1-flash-lite-preview", name: "Gemini 3.1 Flash-Lite", desc: "Retired preview model retained for chat history compatibility.", price: "In $0.25/1M, Out $1.50/1M", deprecated: true },
+                    { id: "gemini-3.1-flash-lite-preview", name: "Gemini 3.1 Flash-Lite Preview", desc: "Retired preview model retained for chat history compatibility.", price: "In $0.25/1M, Out $1.50/1M", deprecated: true },
                     { id: "gemini-3-flash-preview", name: "Gemini 3.0 Flash", desc: "Fastest and most cost-efficient.", price: "In $0.50/1M, Out $3.00/1M" },
                     { id: "gemini-3-pro-preview", name: "Gemini 3.0 Pro", desc: "Best performing model for complex tasks.", price: "In $2.00/1M, Out $12.00/1M (≤200k)" }
                 ]

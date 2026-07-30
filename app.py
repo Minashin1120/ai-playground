@@ -687,8 +687,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-31-004')
-app.config['SYSTEM_VERSION'] = 'V4.8.653'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-31-005')
+app.config['SYSTEM_VERSION'] = 'V4.8.654'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -6864,6 +6864,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                             def _append_parts(parts_seq):
                                 for _part in parts_seq or []:
+                                    # Gemini 3 image models can return intermediate thought
+                                    # images/text. They are reasoning artifacts, not user-facing
+                                    # output, and must not be saved as the final generated image.
+                                    if bool(getattr(_part, "thought", False)):
+                                        continue
                                     part_id = id(_part)
                                     if part_id in seen_part_ids:
                                         continue
@@ -6915,7 +6920,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             img_model = "gemini-2.5-flash-image"
                         else:
                             img_model = "gemini-3-pro-image-preview"
-                        aspect_allowed = {"1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9", "auto"}
+                        aspect_allowed = {
+                            "1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1",
+                            "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9",
+                            "auto"
+                        }
                         size_allowed = {"1K", "2K", "4K"}
                         aspect_val = options.get('gemini_image_aspect')
                         if aspect_val:
@@ -6930,7 +6939,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         image_cfg_kwargs = {}
                         if aspect_val:
                             image_cfg_kwargs["aspect_ratio"] = aspect_val
-                        if size_val and "gemini-3-pro-image-preview" in img_model:
+                        if img_model == "gemini-3.1-flash-lite-image":
+                            # Nano Banana 2 Lite supports 1K output only.
+                            image_cfg_kwargs["image_size"] = "1K"
+                        elif size_val and "gemini-3-pro-image-preview" in img_model:
                             image_cfg_kwargs["image_size"] = size_val
                         config_kwargs = {
                             "temperature": 0.7,
@@ -6943,25 +6955,25 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE")
                             ]
                         }
-                        if img_model == "gemini-3.1-flash-image-preview":
-                            raw_lvl = str(options.get('thinking_level') or 'high').lower()
+                        if img_model in ("gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image"):
+                            default_level = "minimal" if img_model == "gemini-3.1-flash-lite-image" else "high"
+                            raw_lvl = str(options.get('thinking_level') or default_level).lower()
                             if raw_lvl in ("low", "minimal"):
                                 nano_banana2_lvl = "minimal"
                             elif raw_lvl in ("medium", "high"):
                                 nano_banana2_lvl = "high"
                             else:
-                                nano_banana2_lvl = "high"
-                            # Gemini 3.1 Flash Image supports only minimal/high thinking levels.
+                                nano_banana2_lvl = default_level
+                            # Both Gemini 3.1 Flash image models support only minimal/high.
                             # The UI checkbox controls thought output visibility; internal thinking remains model-driven.
                             config_kwargs["thinking_config"] = types.ThinkingConfig(
                                 include_thoughts=bool(options.get('enable_thinking')),
                                 thinking_level=nano_banana2_lvl
                             )
-                            if options.get('enable_search'):
+                            # Google Search grounding is supported by Nano Banana 2,
+                            # but explicitly unsupported by Nano Banana 2 Lite.
+                            if img_model == "gemini-3.1-flash-image-preview" and options.get('enable_search'):
                                 config_kwargs["tools"] = [types.Tool(google_search=types.GoogleSearch())]
-                        elif img_model == "gemini-3.1-flash-lite-image":
-                            # Nano Banana 2 Lite: fast, cost-efficient. No thinking config or search tools.
-                            pass
                         if image_cfg_kwargs:
                             config_kwargs["image_config"] = types.ImageConfig(**image_cfg_kwargs)
 
@@ -6970,8 +6982,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         history_image_refs_included = set()
                         for fi in loaded_files:
                             if fi.get('bytes') and fi.get('mime', '').startswith('image/'):
+                                if img_model == "gemini-3.1-flash-lite-image" and len(gemini_image_parts) >= 14:
+                                    break
                                 gemini_image_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime']))
                         for hp in history_image_parts:
+                            if img_model == "gemini-3.1-flash-lite-image" and len(gemini_image_parts) >= 14:
+                                break
                             ref = hp.get("ref")
                             if ref and ref in history_image_refs_included:
                                 continue

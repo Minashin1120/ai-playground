@@ -4804,7 +4804,7 @@
                 items: [
                     { id: "gemini-2.5-flash-image", name: "Nano Banana", desc: "Fast image generation.", price: "In $0.30/1M, Out $0.039/image" },
                     { id: "gemini-3.1-flash-image-preview", name: "Nano Banana 2", desc: "Fast image generation with Gemini 3.1 Flash Image.", price: "In $0.50/1M, Out $0.067/1K image ($60/1M img tokens)" },
-                    { id: "gemini-3.1-flash-lite-image", name: "Nano Banana 2 Lite", desc: "Fastest and cheapest Gemini Image model from Nano Banana family.", price: "In $0.25/1M, Out $0.0336/1K image ($30/1M img)" },
+                    { id: "gemini-3.1-flash-lite-image", name: "Nano Banana 2 Lite", desc: "Low-latency Gemini image generation and editing with 1K output.", price: "In $0.25/1M; Text/Thinking Out $1.50/1M; Image Out $30/1M ($0.0336/1K image)" },
                     { id: "gemini-3-pro-image-preview", name: "Nano Banana Pro", desc: "High quality image generation.", price: "In $2.00/1M, Out $0.134 (1K/2K) or $0.24 (4K)" }
                 ]
             },
@@ -5894,17 +5894,15 @@
                     wrap.classList.add('hidden');
                 }
                 const model = (get('model-select').value || '').toLowerCase();
-                const sizeEl = get('gemini-image-size');
-                if (!sizeEl) return;
-                const isFlashImage = model.includes('gemini') && model.includes('flash-image');
-                Array.from(sizeEl.options).forEach(opt => {
-                    if (opt.value !== '1K') {
-                        opt.disabled = isFlashImage;
-                    }
+                const isFlashImage = model.includes('gemini-3.1-flash-image') ||
+                    model.includes('gemini-3.1-flash-lite-image');
+                [get('gemini-image-size'), get('modal-gemini-image-size')].forEach(sizeEl => {
+                    if (!sizeEl) return;
+                    Array.from(sizeEl.options).forEach(opt => {
+                        if (opt.value !== '1K') opt.disabled = isFlashImage;
+                    });
+                    if (isFlashImage && sizeEl.value !== '1K') sizeEl.value = '1K';
                 });
-                if (isFlashImage && sizeEl.value !== '1K') {
-                    sizeEl.value = '1K';
-                }
             }
         function updateGrokImageUi() {
             const wrap = get('grok-image-options');
@@ -5963,8 +5961,8 @@
                 if (model.includes('gemini-3.1-flash-lite-image')) {
                     html = [
                         '<div class="font-bold text-gray-300 mb-1">Nano Banana 2 Lite 入力目安</div>',
-                        '<div>画像入力は最大1枚を推奨（Gemini 3.1 Flash Lite Image）</div>',
-                        '<div>複数参照入力やマルチターン編集には最適化されていません</div>'
+                        '<div>画像生成・編集 / 1K出力 / 最大14枚の参照画像に対応</div>',
+                        '<div>複数参照や連続編集より、低遅延・大量生成向けです</div>'
                     ].join('');
                 } else if (model.includes('gemini-3.1-flash-image')) {
                     html = [
@@ -6026,7 +6024,8 @@
                 const cacheChk = get('enable-prompt-cache');
                 const isSearchModel = model === 'gpt-5-search-api';
                 const isTts = model.includes('tts');
-                const isNanoBanana2 = modelLower.includes('gemini-3.1-flash-image') && !modelLower.includes('lite');
+                const isNanoBanana2Lite = modelLower.includes('gemini-3.1-flash-lite-image');
+                const isNanoBanana2 = modelLower.includes('gemini-3.1-flash-image') && !isNanoBanana2Lite;
                 const isClaude = isClaudeModelKey(model);
                 const promptCacheSupported = isLlmModel() && !isTts && !modelLower.includes('realtime') && !modelLower.includes('native-audio') && !modelLower.includes('live');
                 if (cacheCont) {
@@ -6073,7 +6072,7 @@
                     if(mapsCont && mapsChk) { mapsChk.checked = false; mapsCont.classList.add('opacity-50', 'pointer-events-none'); }
                     if(pyCont) { pyChk.checked = false; pyCont.classList.add('opacity-50', 'pointer-events-none'); }
                     sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50');
-                } else if (isNanoBanana2) {
+                } else if (isNanoBanana2 || isNanoBanana2Lite) {
                     if (mapsCont && mapsChk) {
                         mapsChk.checked = false;
                         mapsCont.classList.add('hidden', 'opacity-50', 'pointer-events-none');
@@ -6084,9 +6083,16 @@
                         if (['minimal', 'high'].includes(opt.value)) opt.disabled = false;
                     });
                     if (!['minimal', 'high'].includes(thinkLvl.value)) {
-                        thinkLvl.value = 'high';
+                        thinkLvl.value = isNanoBanana2Lite ? 'minimal' : 'high';
                     }
                     if (thinkChk) thinkChk.disabled = false;
+                    if (isNanoBanana2Lite) {
+                        if (searchChk) {
+                            searchChk.checked = false;
+                            searchChk.disabled = true;
+                        }
+                        if (searchCont) searchCont.classList.add('opacity-50', 'pointer-events-none');
+                    }
                 } else if (isGeminiImage) {
                     if (mapsCont && mapsChk) {
                         mapsChk.checked = false;
@@ -6211,7 +6217,7 @@
                         pyChk.disabled = true;
                         pyCont.classList.add('opacity-50', 'pointer-events-none');
                     }
-                } else if (searchChk && !model.includes('tts') && !isDeepSeek) {
+                } else if (searchChk && !model.includes('tts') && !isDeepSeek && !isNanoBanana2Lite) {
                     searchChk.disabled = false;
                 }
                 const maskBtn = get('mask-btn');

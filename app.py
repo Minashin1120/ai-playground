@@ -687,8 +687,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-31-006')
-app.config['SYSTEM_VERSION'] = 'V4.8.655'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-31-007')
+app.config['SYSTEM_VERSION'] = 'V4.8.656'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1761,7 +1761,7 @@ ALL_VALID_MODEL_IDS = {
     "gpt-image-2", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini",
     # OpenAI GPT
     "gpt-4o", "gpt-4o-mini",
-    "gpt-5.6-sol",
+    "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
     "gpt-5.5", "gpt-5.5-mini", "gpt-5.5-nano", "gpt-5.5-pro",
     "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4-pro",
     "gpt-5.2", "gpt-5-search-api", "gpt-5.1", "gpt-5-mini",

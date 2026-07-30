@@ -3167,6 +3167,38 @@
                 showToast('編集対象を選択しました。プロンプトバーのCodingをオンにすると使用します', 'info');
             }
         }
+        function renderCodingDiffLines(diffText) {
+            return String(diffText || '').split('\n').map((line) => {
+                let cls = 'coding-diff-context';
+                if (line.startsWith('+++') || line.startsWith('---')) cls = 'coding-diff-file';
+                else if (line.startsWith('@@')) cls = 'coding-diff-hunk';
+                else if (line.startsWith('+')) cls = 'coding-diff-added';
+                else if (line.startsWith('-')) cls = 'coding-diff-removed';
+                return `<span class="${cls}">${escapeHtml(line || ' ')}</span>`;
+            }).join('\n');
+        }
+        function appendCodingLiveDiff(root, payload) {
+            if (!root || !payload || !payload.diff) return;
+            let panel = root.querySelector('.coding-live-diff');
+            if (!panel) {
+                panel = document.createElement('div');
+                panel.className = 'coding-live-diff';
+                panel.innerHTML = '<div class="coding-live-diff-header"><span><i class="fas fa-code-branch"></i> Live Code Changes</span><span class="coding-live-diff-count">0 edits</span></div><div class="coding-live-diff-list"></div>';
+                root.appendChild(panel);
+            }
+            const editIndex = Math.max(0, Number(payload.edit_index || 0));
+            if (editIndex && panel.querySelector(`[data-coding-edit-index="${editIndex}"]`)) return;
+            const list = panel.querySelector('.coding-live-diff-list');
+            const edit = document.createElement('div');
+            edit.className = 'coding-live-diff-edit';
+            if (editIndex) edit.setAttribute('data-coding-edit-index', String(editIndex));
+            edit.innerHTML = `<div class="coding-live-diff-meta">Edit ${editIndex} · ${escapeHtml(payload.language || 'text')}</div><pre>${renderCodingDiffLines(payload.diff)}</pre>`;
+            if (list) list.appendChild(edit);
+            const count = panel.querySelector('.coding-live-diff-count');
+            const editCount = panel.querySelectorAll('.coding-live-diff-edit').length;
+            if (count) count.textContent = `${editCount} edit${editCount === 1 ? '' : 's'}`;
+            panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
         function isHtmlPreviewCandidate(lang, codeRaw) {
             const token = String(lang || '').trim().toLowerCase();
             if (token === 'html' || token === 'htm' || token === 'xhtml') return true;
@@ -6287,7 +6319,9 @@
                             previewBtn = `<button class="html-preview-btn" data-code="${enc}" ${isSuspicious ? 'data-suspicious="1"' : ''}><i class="fas ${icon}"></i> ${label}</button>`;
                         }
                         const downloadBtn = `<button class="download-btn" data-code="${enc}" data-lang="${l || 'txt'}"><i class="fas fa-download"></i> Download</button>`;
-                        const codingBtn = `<button class="coding-target-btn" data-code="${enc}" data-code-key="${codeKey}" data-coding-lang="${escapeHtml(l || 'text')}" aria-pressed="false" title="Coding Modeの編集対象に指定"><i class="fas fa-quote-right"></i> 編集対象</button>`;
+                        const codingBtn = lowerLang === 'diff'
+                            ? ''
+                            : `<button class="coding-target-btn" data-code="${enc}" data-code-key="${codeKey}" data-coding-lang="${escapeHtml(l || 'text')}" aria-pressed="false" title="Coding Modeの編集対象に指定"><i class="fas fa-quote-right"></i> 編集対象</button>`;
                         const langLabel = (l || 'TEXT') + (isSuspicious ? ' <span class="suspicious-badge" title="polyfill.io などの危険スクリプトURLを検出しました">⚠</span>' : '');
                         return `<div class="code-wrapper collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${langLabel}</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button>${codingBtn}${previewBtn}${downloadBtn}<button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`;
                     },
@@ -13296,7 +13330,10 @@
                                  if(ca) ca.innerHTML = '';
                                  first=false;
                             }
-                            if(j.type==='thought'){
+                            if(j.type==='coding_diff'){
+                                appendCodingLiveDiff(adiv, j.content || {});
+                                maybeReportFirstEventLatency('content', true);
+                            } else if(j.type==='thought'){
                                 if(!thEl){
                                     thEl = adiv.querySelector('.thought-content');
                                 }
@@ -13633,7 +13670,9 @@
                                 if (ca) ca.innerHTML = '';
                                 first = false;
                             }
-                            if (j.type === 'thought') {
+                            if (j.type === 'coding_diff') {
+                                appendCodingLiveDiff(adiv, j.content || {});
+                            } else if (j.type === 'thought') {
                                 if (!thEl) {
                                     thEl = adiv.querySelector('.thought-content');
                                 }

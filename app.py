@@ -30,6 +30,7 @@ from urllib.parse import urlparse, unquote
 import threading
 import hashlib
 import socket
+import difflib
 from contextlib import contextmanager
 from ipaddress import ip_address
 from collections import OrderedDict
@@ -685,8 +686,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-013')
-app.config['SYSTEM_VERSION'] = 'V4.8.646'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-014')
+app.config['SYSTEM_VERSION'] = 'V4.8.647'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -5201,9 +5202,13 @@ def safe_execute_python(code):
 
 CODING_MODE_SYSTEM_PROMPT = """[Coding Mode]
 You are editing the supplied existing code block. Minimize output tokens: never repeat the whole file.
-Choose the code block that best matches the user's request unless the candidate list contains only an explicitly selected block. Return exactly one JSON object and no Markdown fences or commentary:
-{"target_id":"candidate id","summary":"short description","edits":[{"search":"exact existing text","replace":"replacement text"}]}
-Each search value must be non-empty and occur exactly once in the current code at the time that edit is applied. Include only the smallest exact span needed to make it unique. Use replace="" to delete. For insertion, replace a short unique anchor with the anchor plus the insertion. Apply multiple edits in array order. Preserve indentation and line endings. If no code change is needed, still include target_id and return an empty edits array. You may use an available Python tool to inspect or validate the change, but your final answer must still be only the JSON object."""
+Choose the code block that best matches the user's request unless the candidate list contains only an explicitly selected block.
+Your final output must be newline-delimited JSON (NDJSON), with one compact JSON object per line and no Markdown fences or commentary:
+{"type":"target","target_id":"candidate id","summary":"short description"}
+{"type":"edit","search":"exact existing text","replace":"replacement text"}
+{"type":"edit","search":"another exact existing text","replace":"replacement text"}
+{"type":"done"}
+Emit each edit line immediately after you decide it; do not wait to batch edits. Each search value must be non-empty and occur exactly once in the current code at the time that edit is applied. Include only the smallest exact span needed to make it unique. Use replace="" to delete. For insertion, replace a short unique anchor with the anchor plus the insertion. Apply multiple edits in output order. Preserve indentation and line endings. If no code change is needed, emit target and done without edit lines. You may use an available Python tool to inspect or validate the change, but the final output must still follow this NDJSON protocol."""
 
 def extract_markdown_code_blocks(markdown_text):
     completed = []
@@ -5243,19 +5248,77 @@ def _parse_coding_mode_edit_payload(model_output):
     raw = str(model_output or "").strip()
     if not raw:
         raise ValueError("モデルから編集内容が返されませんでした")
+    ndjson_target_id = None
+    ndjson_summary = ""
+    ndjson_edits = []
+    saw_ndjson_protocol = False
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line or line.startswith("```"):
+            continue
+        try:
+            event = json.loads(line)
+        except Exception:
+            continue
+        if not isinstance(event, dict):
+            continue
+        event_type = str(event.get("type") or "").strip().lower()
+        if event_type == "target":
+            saw_ndjson_protocol = True
+            ndjson_target_id = str(event.get("target_id") or "").strip()[:100] or None
+            ndjson_summary = str(event.get("summary") or "").strip()[:2000]
+        elif event_type == "edit":
+            saw_ndjson_protocol = True
+            ndjson_edits.append({
+                "search": event.get("search"),
+                "replace": event.get("replace"),
+            })
+        elif event_type == "done":
+            saw_ndjson_protocol = True
+    if saw_ndjson_protocol:
+        payload = {
+            "target_id": ndjson_target_id,
+            "summary": ndjson_summary,
+            "edits": ndjson_edits,
+        }
+    else:
+        payload = None
     if raw.startswith("```"):
         raw = re.sub(r"^```(?:json)?\s*", "", raw, count=1, flags=re.IGNORECASE)
         raw = re.sub(r"\s*```\s*$", "", raw, count=1)
-    payload = None
-    decoder = json.JSONDecoder()
-    for match in re.finditer(r"\{", raw):
-        try:
-            candidate, _ = decoder.raw_decode(raw[match.start():])
-        except Exception:
-            continue
-        if isinstance(candidate, dict) and isinstance(candidate.get("edits"), list):
-            payload = candidate
-            break
+    if payload is None:
+        decoder = json.JSONDecoder()
+        scanned_target_id = None
+        scanned_summary = ""
+        scanned_edits = []
+        scanned_protocol = False
+        for match in re.finditer(r"\{", raw):
+            try:
+                candidate, _ = decoder.raw_decode(raw[match.start():])
+            except Exception:
+                continue
+            if not isinstance(candidate, dict):
+                continue
+            candidate_type = str(candidate.get("type") or "").strip().lower()
+            if candidate_type == "target":
+                scanned_protocol = True
+                scanned_target_id = str(candidate.get("target_id") or "").strip()[:100] or None
+                scanned_summary = str(candidate.get("summary") or "").strip()[:2000]
+            elif candidate_type == "edit":
+                scanned_protocol = True
+                scanned_edits.append({
+                    "search": candidate.get("search"),
+                    "replace": candidate.get("replace"),
+                })
+            elif isinstance(candidate.get("edits"), list):
+                payload = candidate
+                break
+        if payload is None and scanned_protocol:
+            payload = {
+                "target_id": scanned_target_id,
+                "summary": scanned_summary,
+                "edits": scanned_edits,
+            }
     if payload is None:
         raise ValueError("editsを含む編集JSONを解析できません")
     edits = payload.get("edits")
@@ -5285,8 +5348,35 @@ def _markdown_fence_for_code(code):
     longest = max((len(run) for run in re.findall(r"`+", str(code or ""))), default=0)
     return "`" * max(3, longest + 1)
 
+def build_coding_mode_unified_diff(before_code, after_code, language="text"):
+    safe_language = re.sub(r"[^A-Za-z0-9_+.#-]", "", str(language or "text"))[:40] or "text"
+    before_lines = str(before_code or "").splitlines(keepends=True)
+    after_lines = str(after_code or "").splitlines(keepends=True)
+    diff_lines = difflib.unified_diff(
+        before_lines,
+        after_lines,
+        fromfile=f"before.{safe_language}",
+        tofile=f"after.{safe_language}",
+        lineterm="\n",
+    )
+    return "".join(diff_lines).rstrip()
+
+def build_coding_mode_final_markdown(summary, before_code, after_code, language="text"):
+    safe_language = re.sub(r"[^A-Za-z0-9_+.#-]", "", str(language or "text"))[:40] or "text"
+    code_fence = _markdown_fence_for_code(after_code)
+    diff = build_coding_mode_unified_diff(before_code, after_code, safe_language)
+    diff_section = f"```diff\n{diff}\n```\n\n" if diff else ""
+    safe_summary = str(summary or "").strip() or ("変更を適用しました" if diff else "変更はありません")
+    return (
+        f"**Coding Mode:** {safe_summary}\n\n"
+        f"{diff_section}"
+        f"**更新後コード:**\n\n"
+        f"{code_fence}{safe_language}\n{after_code}\n{code_fence}"
+    )
+
 def apply_coding_mode_edits(model_output, target_code, language="text"):
-    code = str(target_code or "")
+    original_code = str(target_code or "")
+    code = original_code
     payload = _parse_coding_mode_edit_payload(model_output)
     for index, edit in enumerate(payload["edits"], start=1):
         occurrences = code.count(edit["search"])
@@ -5295,10 +5385,12 @@ def apply_coding_mode_edits(model_output, target_code, language="text"):
         code = code.replace(edit["search"], edit["replace"], 1)
         if len(code) > 500_000:
             raise ValueError("適用後のコードが大きすぎます")
-    safe_language = re.sub(r"[^A-Za-z0-9_+.#-]", "", str(language or "text"))[:40] or "text"
-    fence = _markdown_fence_for_code(code)
-    summary = payload["summary"] or ("変更を適用しました" if payload["edits"] else "変更はありません")
-    return f"**Coding Mode:** {summary}\n\n{fence}{safe_language}\n{code}\n{fence}"
+    return build_coding_mode_final_markdown(
+        payload["summary"],
+        original_code,
+        code,
+        language,
+    )
 
 def apply_coding_mode_candidate_edits(model_output, candidates, default_target_id=None):
     payload = _parse_coding_mode_edit_payload(model_output)
@@ -5337,6 +5429,98 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
         channel = f"ai_chat:channel:{job_id}"
         r = redis.from_url(REDIS_URL)
         _latency_mark_once(job_id, "worker_started_ms")
+        coding_stream_buffer = ""
+        coding_stream_target_id = None
+        coding_stream_code = None
+        coding_stream_language = "text"
+        coding_stream_edit_index = 0
+        coding_candidate_map = {
+            str(item.get("id")): item
+            for item in (options.get("coding_candidates") or [])
+            if isinstance(item, dict) and item.get("id")
+        }
+
+        def _emit_coding_diff(content):
+            event_payload = {"type": "coding_diff", "content": content}
+            r.publish(channel, json.dumps(event_payload, ensure_ascii=False))
+            try:
+                cache_key = f"stream_acc:{job_id}:coding_diff"
+                r.rpush(cache_key, json.dumps(content, ensure_ascii=False))
+                r.ltrim(cache_key, -50, -1)
+                r.expire(cache_key, 600)
+            except Exception:
+                pass
+
+        def _process_coding_stream_line(raw_line):
+            nonlocal coding_stream_target_id
+            nonlocal coding_stream_code
+            nonlocal coding_stream_language
+            nonlocal coding_stream_edit_index
+            line = str(raw_line or "").strip()
+            if not line or line.startswith("```"):
+                return
+            try:
+                event = json.loads(line)
+            except Exception:
+                return
+            if not isinstance(event, dict):
+                return
+            event_type = str(event.get("type") or "").strip().lower()
+            if event_type == "target":
+                target_id = str(event.get("target_id") or "").strip()
+                candidate = coding_candidate_map.get(target_id)
+                if candidate:
+                    coding_stream_target_id = target_id
+                    coding_stream_code = str(candidate.get("code") or "")
+                    coding_stream_language = str(candidate.get("language") or "text")
+                return
+            if event_type != "edit":
+                return
+            search = event.get("search")
+            replace = event.get("replace")
+            if not isinstance(search, str) or not search or not isinstance(replace, str):
+                return
+            if coding_stream_code is None:
+                matching = [
+                    candidate for candidate in coding_candidate_map.values()
+                    if str(candidate.get("code") or "").count(search) == 1
+                ]
+                if len(matching) != 1:
+                    return
+                candidate = matching[0]
+                coding_stream_target_id = str(candidate.get("id") or "")
+                coding_stream_code = str(candidate.get("code") or "")
+                coding_stream_language = str(candidate.get("language") or "text")
+            if coding_stream_code.count(search) != 1:
+                return
+            before_code = coding_stream_code
+            after_code = before_code.replace(search, replace, 1)
+            if len(after_code) > 500_000:
+                return
+            coding_stream_code = after_code
+            coding_stream_edit_index += 1
+            _latency_mark_once(job_id, "provider_first_content_ms")
+            _emit_coding_diff({
+                "target_id": coding_stream_target_id,
+                "language": coding_stream_language,
+                "edit_index": coding_stream_edit_index,
+                "diff": build_coding_mode_unified_diff(
+                    before_code,
+                    after_code,
+                    coding_stream_language,
+                ),
+            })
+
+        def _consume_coding_stream_chunk(chunk, flush=False):
+            nonlocal coding_stream_buffer
+            coding_stream_buffer += str(chunk or "")
+            while "\n" in coding_stream_buffer:
+                line, coding_stream_buffer = coding_stream_buffer.split("\n", 1)
+                _process_coding_stream_line(line)
+            if flush and coding_stream_buffer.strip():
+                _process_coding_stream_line(coding_stream_buffer)
+                coding_stream_buffer = ""
+
         def _append_limited(key, chunk, limit=1_000_000):
             try:
                 if chunk is None:
@@ -5354,6 +5538,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 pass
         def pub(dt, d, **metadata):
             if options.get("coding_mode") and dt == "content" and not metadata.get("coding_final"):
+                _consume_coding_stream_chunk(d)
                 return
             if dt == "status":
                 _latency_mark_once(job_id, "provider_first_status_ms")
@@ -9382,6 +9567,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 thought_accumulated = " "
             final_content = full_res
             if options.get("coding_mode"):
+                _consume_coding_stream_chunk("", flush=True)
                 coding_target = options.get("coding_target") or {}
                 try:
                     final_content = apply_coding_mode_candidate_edits(
@@ -9536,6 +9722,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 r.delete(f"stream_acc:{job_id}:status")
                 r.delete(f"stream_acc:{job_id}:final")
                 r.delete(f"stream_acc:{job_id}:python")
+                r.delete(f"stream_acc:{job_id}:coding_diff")
             except Exception:
                 pass
 
@@ -10767,6 +10954,15 @@ def chat_stream():
             if cached_status:
                 _latency_mark_once(job_id, "stream_first_status_to_client_ms")
                 yield json.dumps({"type": "status", "content": cached_status.decode("utf-8", "ignore")}) + "\n"
+            cached_coding_diffs = redis_conn.lrange(f"stream_acc:{job_id}:coding_diff", 0, -1)
+            for raw_diff in cached_coding_diffs:
+                try:
+                    yield json.dumps({
+                        "type": "coding_diff",
+                        "content": json.loads(raw_diff),
+                    }, ensure_ascii=False) + "\n"
+                except Exception:
+                    continue
         except Exception:
             pass
         try:
@@ -10935,6 +11131,15 @@ def chat_stream_resume():
             cached_content = redis_conn.get(f"stream_acc:{job_id}:content")
             if cached_content:
                 yield json.dumps({"type": "content", "content": cached_content.decode("utf-8", "ignore")}) + "\n"
+            cached_coding_diffs = redis_conn.lrange(f"stream_acc:{job_id}:coding_diff", 0, -1)
+            for raw_diff in cached_coding_diffs:
+                try:
+                    yield json.dumps({
+                        "type": "coding_diff",
+                        "content": json.loads(raw_diff),
+                    }, ensure_ascii=False) + "\n"
+                except Exception:
+                    continue
             cached_search = redis_conn.get(f"stream_acc:{job_id}:search")
             if cached_search:
                 yield json.dumps({"type": "search_status", "content": cached_search.decode("utf-8", "ignore")}) + "\n"

@@ -29,7 +29,8 @@ class CodingModeTests(unittest.TestCase):
         self.assertIn("**Coding Mode:** 挨拶を変更", result)
         self.assertIn("```python", result)
         self.assertIn("return f'Hi {name}!'", result)
-        self.assertNotIn("return f'Hello {name}'", result)
+        updated_section = result[result.index("**更新後コード:**"):]
+        self.assertNotIn("return f'Hello {name}'", updated_section)
 
     def test_rejects_ambiguous_or_missing_search_text(self):
         response = '{"summary":"変更","edits":[{"search":"same","replace":"new"}]}'
@@ -88,6 +89,25 @@ class CodingModeTests(unittest.TestCase):
         self.assertIn("value = 2", result)
         self.assertNotIn("const value", result)
 
+    def test_ndjson_edits_are_saved_with_diff_and_updated_code(self):
+        response = "\n".join([
+            '{"type":"target","target_id":"python","summary":"値を更新"}',
+            '{"type":"edit","search":"value = 1","replace":"value = 2"}',
+            '{"type":"done"}',
+        ])
+        candidates = [
+            {"id": "python", "language": "python", "code": "value = 1\nprint(value)\n"},
+        ]
+
+        result = target.apply_coding_mode_candidate_edits(response, candidates, "python")
+
+        self.assertIn("```diff", result)
+        self.assertIn("-value = 1", result)
+        self.assertIn("+value = 2", result)
+        self.assertIn("**更新後コード:**", result)
+        self.assertIn("```python\nvalue = 2\nprint(value)", result)
+        self.assertLess(result.index("```diff"), result.index("**更新後コード:**"))
+
     def test_unique_edit_can_infer_candidate_when_model_omits_target_id(self):
         response = (
             '{"summary":"対象推定","edits":'
@@ -119,6 +139,10 @@ class CodingModeTests(unittest.TestCase):
         self.assertIn("coding_mode: codingModeEnabled", source)
         self.assertIn("coding_target: codingTargetForSend", source)
         self.assertIn("codingTargetForSend.prompt_source ? null", source)
+        self.assertGreaterEqual(source.count("j.type === 'coding_diff'"), 1)
+        self.assertIn("appendCodingLiveDiff", source)
+        self.assertIn("Live Code Changes", source)
+        self.assertIn("lowerLang === 'diff'", source)
         selection_at = source.index("if (codingTargetSelection)", source.index("function resolveCodingTarget"))
         prompt_at = source.index("extractLatestPromptCodingTarget", selection_at)
         self.assertLess(selection_at, prompt_at)
@@ -133,6 +157,12 @@ class CodingModeTests(unittest.TestCase):
         self.assertIn("CODING_MODE_SYSTEM_PROMPT", source)
         self.assertIn("extract_markdown_code_blocks(raw_message)", source)
         self.assertIn("apply_coding_mode_candidate_edits", source)
+        self.assertIn('{"type":"edit","search":"exact existing text"', source)
+        self.assertIn('event_payload = {"type": "coding_diff"', source)
+        self.assertIn('stream_acc:{job_id}:coding_diff', source)
+        final_at = source.index("final_content = apply_coding_mode_candidate_edits")
+        save_at = source.index("msg_entry = Message(", final_at)
+        self.assertLess(final_at, save_at)
         self.assertIn('metadata.get("coding_final")', source)
 
 

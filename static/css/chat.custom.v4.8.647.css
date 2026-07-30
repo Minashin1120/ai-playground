@@ -401,6 +401,34 @@
             background: rgba(6, 95, 70, 0.36);
             box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.12), 0 0 18px rgba(16, 185, 129, 0.12);
         }
+        .coding-live-diff {
+            margin: 0.75rem 0;
+            overflow: hidden;
+            border: 1px solid rgba(52, 211, 153, 0.32);
+            border-radius: 12px;
+            background: rgba(2, 18, 17, 0.82);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+            animation: barSlideIn 0.22s var(--ease-out) both;
+        }
+        .coding-live-diff-header {
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+            padding: 8px 10px; color: #a7f3d0; background: rgba(6, 78, 59, 0.28);
+            border-bottom: 1px solid rgba(52, 211, 153, 0.2); font-size: 11px; font-weight: 700;
+        }
+        .coding-live-diff-count { color: #6ee7b7; font-size: 10px; font-weight: 500; }
+        .coding-live-diff-list { max-height: 420px; overflow: auto; }
+        .coding-live-diff-edit + .coding-live-diff-edit { border-top: 1px solid rgba(148, 163, 184, 0.16); }
+        .coding-live-diff-meta { padding: 6px 10px; color: #94a3b8; font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .coding-live-diff pre {
+            margin: 0; padding: 8px 0 10px; overflow-x: auto; background: rgba(2, 6, 23, 0.58);
+            font: 11px/1.55 "JetBrains Mono", "Noto Sans Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        }
+        .coding-live-diff pre span { display: block; min-width: max-content; padding: 0 10px; white-space: pre; }
+        .coding-diff-added { color: #bbf7d0; background: rgba(22, 163, 74, 0.16); }
+        .coding-diff-removed { color: #fecaca; background: rgba(220, 38, 38, 0.14); }
+        .coding-diff-hunk { color: #c4b5fd; background: rgba(124, 58, 237, 0.1); }
+        .coding-diff-file { color: #7dd3fc; font-weight: 700; }
+        .coding-diff-context { color: #cbd5e1; }
         @keyframes barSlideIn {
             from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(0); }

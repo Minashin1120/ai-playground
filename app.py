@@ -687,8 +687,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-31-003')
-app.config['SYSTEM_VERSION'] = 'V4.8.652'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-31-004')
+app.config['SYSTEM_VERSION'] = 'V4.8.653'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -7998,7 +7998,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             elif model_key in ("grok-imagine-image", "grok-imagine-image-pro", "grok-imagine-image-quality"):
                 log_force("Routing: Grok Imagine Branch")
                 try:
-                    pub("content", "**Generating Image (Grok)...**\n")
+                    pub("status", "画像を生成中...")
                     
                     aspect_ratio = options.get('grok_image_aspect') or "1:1"
                     resolution = options.get('grok_image_resolution') or "1k"
@@ -8643,7 +8643,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 log_force("Routing: GPT Image Branch")
                 try:
                     pub("status", "画像生成の準備中...")
-                    pub("content", "**Generating Image (OpenAI)...**\n")
                     # GPT Image models always return base64; response_format is not supported for them.
                     # Use a dedicated timeout/retry so image generation can be slower without timing out.
                     img_client = o_client.with_options(

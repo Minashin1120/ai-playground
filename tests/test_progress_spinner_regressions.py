@@ -38,7 +38,7 @@ class ProgressSpinnerRegressionTests(unittest.TestCase):
 
     def test_spinner_cache_version_matches_system_version(self):
         app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
-        self.assertIn("SYSTEM_VERSION'] = 'V4.8.652'", app_source)
+        self.assertIn("SYSTEM_VERSION'] = 'V4.8.653'", app_source)
         for name in ("chat", "login", "signup", "verify_2fa", "setup", "landing", "banned"):
             template = (APP_ROOT / "templates" / f"{name}.html").read_text(encoding="utf-8")
             self.assertIn("filename='js/progress_spinner.js', v='4.8.640'", template)
@@ -52,6 +52,14 @@ class ProgressSpinnerRegressionTests(unittest.TestCase):
         self.assertEqual(source.count("window.ProgressSpinner.start('生成中...')"), 1)
         self.assertEqual(source.count("if (finishStreamProgress) finishStreamProgress()"), 1)
         self.assertEqual(source.count("if (finishResumeProgress) finishResumeProgress()"), 1)
+
+    def test_image_generation_progress_does_not_replace_pending_skeleton(self):
+        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+
+        self.assertNotIn('pub("content", "**Generating Image (Grok)...**', app_source)
+        self.assertNotIn('pub("content", "**Generating Image (OpenAI)...**', app_source)
+        self.assertIn('pub("status", "画像を生成中...")', app_source)
+        self.assertIn('pub("status", "画像生成の準備中...")', app_source)
 
 
 if __name__ == "__main__":

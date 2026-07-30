@@ -1,6 +1,6 @@
-# Supported Models (V4.8.647)
+# Supported Models (V4.8.648)
 
-全対応モデルの一覧です。モデル定義の一次ソースは `static/js/chat_core.v4.8.647.js` の `MODELS` 配列です。
+全対応モデルの一覧です。モデル定義の一次ソースは `static/js/chat_core.v4.8.648.js` の `MODELS` 配列です。
 モデル選択モーダルには各モデルの公式 API 価格（`price` フィールド）が表示されます。
 
 **価格最終確認:** 2026-07-30
@@ -56,5 +56,5 @@
 
 ---
 
-*最終更新: 2026-07-30 (V4.8.647)*
-*ソース: `static/js/chat_core.v4.8.647.js` MODELS配列*
+*最終更新: 2026-07-30 (V4.8.648)*
+*ソース: `static/js/chat_core.v4.8.648.js` MODELS配列*

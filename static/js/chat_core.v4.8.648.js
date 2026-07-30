@@ -2177,15 +2177,51 @@
                 richPasteAbortController = null;
             }
         };
-        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-        const apiFetch = (url, opts = {}) => {
+        let csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+        let csrfRefreshPromise = null;
+        const refreshCsrfToken = async () => {
+            if (csrfRefreshPromise) return csrfRefreshPromise;
+            csrfRefreshPromise = (async () => {
+                const response = await fetch('/api/csrf_token', {
+                    method: 'GET',
+                    credentials: 'include',
+                    cache: 'no-store',
+                    headers: {'Accept': 'application/json'}
+                });
+                if (!response.ok) return false;
+                const data = await response.json().catch(() => ({}));
+                const refreshedToken = data && typeof data.csrf_token === 'string'
+                    ? data.csrf_token
+                    : '';
+                if (!refreshedToken) return false;
+                csrfToken = refreshedToken;
+                const meta = document.querySelector('meta[name="csrf-token"]');
+                if (meta) meta.setAttribute('content', refreshedToken);
+                return true;
+            })().catch(() => false).finally(() => {
+                csrfRefreshPromise = null;
+            });
+            return csrfRefreshPromise;
+        };
+        const apiFetch = async (url, opts = {}) => {
             const method = (opts.method || 'GET').toUpperCase();
             const headers = Object.assign({}, opts.headers || {});
-            if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+            const requiresCsrf = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+            if (requiresCsrf) {
                 headers['X-CSRF-Token'] = csrfToken;
             }
             const credentials = opts.credentials || 'include';
-            return fetch(url, Object.assign({}, opts, { headers, credentials }));
+            let response = await fetch(url, Object.assign({}, opts, { headers, credentials }));
+            // Apache's error override can surface an application CSRF 403 as a 404 page.
+            // Refresh from the current signed session and replay an unsafe request at most once.
+            if (requiresCsrf && (response.status === 403 || response.status === 404)) {
+                const refreshed = await refreshCsrfToken();
+                if (refreshed) {
+                    headers['X-CSRF-Token'] = csrfToken;
+                    response = await fetch(url, Object.assign({}, opts, { headers, credentials }));
+                }
+            }
+            return response;
         };
 
         window.updateGoogleLinkUI = (d) => {

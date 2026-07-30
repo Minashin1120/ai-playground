@@ -6,6 +6,7 @@ import os
 import tempfile
 import unittest
 import zipfile
+from pathlib import Path
 from unittest import mock
 
 
@@ -16,6 +17,9 @@ os.environ.setdefault("RUN_SCHEMA_MIGRATIONS", "0")
 os.environ.setdefault("VERBOSE_DEBUG_LOGS", "0")
 
 import app as target
+
+
+APP_ROOT = Path(__file__).resolve().parents[1]
 
 
 def make_docx(document_xml):
@@ -309,6 +313,28 @@ class SecurityRegressionTests(unittest.TestCase):
 
         untrusted_host = client.get("/api/version", base_url="https://evil.example")
         self.assertEqual(untrusted_host.status_code, 400)
+
+    def test_csrf_token_endpoint_returns_current_session_token_without_cache(self):
+        client = self.authenticated_client()
+
+        response = client.get("/api/csrf_token", base_url="https://localhost")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["csrf_token"], "csrf-test-token")
+        self.assertIn("no-store", response.headers.get("Cache-Control", ""))
+        self.assertEqual(response.headers.get("Pragma"), "no-cache")
+
+    def test_client_refreshes_stale_csrf_token_and_retries_once(self):
+        assets = list((APP_ROOT / "static/js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1)
+        source = assets[0].read_text(encoding="utf-8")
+
+        self.assertIn("let csrfToken =", source)
+        self.assertIn("const refreshCsrfToken = async () =>", source)
+        self.assertIn("fetch('/api/csrf_token'", source)
+        self.assertIn("response.status === 403 || response.status === 404", source)
+        self.assertIn("headers['X-CSRF-Token'] = csrfToken", source)
+        self.assertEqual(source.count("const refreshed = await refreshCsrfToken();"), 1)
 
     def test_client_ip_uses_proxy_appended_address(self):
         with target.app.test_request_context(

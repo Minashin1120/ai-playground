@@ -686,8 +686,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-014')
-app.config['SYSTEM_VERSION'] = 'V4.8.647'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-015')
+app.config['SYSTEM_VERSION'] = 'V4.8.648'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -9961,6 +9961,13 @@ def api_ban_appeal_status():
 def api_version():
     resp = jsonify({'version': app.config.get('APP_VERSION', '')})
     resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+@app.route('/api/csrf_token')
+def api_csrf_token():
+    resp = jsonify({'csrf_token': get_csrf_token()})
+    resp.headers['Cache-Control'] = 'private, no-store, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
     return resp
 
 @app.route('/api/assets/fonts/japanese.ttf')

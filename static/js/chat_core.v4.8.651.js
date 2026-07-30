@@ -2423,6 +2423,9 @@
         const CODING_MODE_STORAGE_KEY = 'coding_mode_enabled_v1';
         let canvasModeEnabled = false;
         let codingModeEnabled = false;
+        // UI preference and model-facing behavior are intentionally separate.
+        // This becomes true only after a complete code block exists.
+        let codingModeEffective = false;
         let codingTargetSelection = null;
         const canvasPreviewState = {
             blocks: [],
@@ -3171,6 +3174,7 @@
             const candidates = codingTargetSelection
                 ? [target].filter(Boolean)
                 : collectCodingCandidates(String(get('prompt-input')?.value || ''));
+            codingModeEffective = codingModeEnabled && candidates.length > 0;
             if (textEl) {
                 if (codingTargetSelection && target) {
                     textEl.textContent = `編集対象: ${target.language || 'text'} コードブロック`;
@@ -3183,11 +3187,19 @@
                 } else if (target) {
                     textEl.textContent = `自動選択: 最新の ${target.language || 'text'} コードブロック`;
                 } else {
-                    textEl.textContent = '最新のコードブロックを自動選択';
+                    textEl.textContent = 'コードブロック生成後に自動有効化';
                 }
             }
             if (clearBtn) clearBtn.classList.toggle('hidden', !codingTargetSelection);
             syncCodingTargetButtons();
+        }
+        function activateDeferredCodingModeFromStream(markdownText) {
+            if (!codingModeEnabled || codingModeEffective) return false;
+            if (extractPromptCodingTargets(markdownText).length === 0) return false;
+            codingModeEffective = true;
+            const textEl = get('coding-target-text');
+            if (textEl) textEl.textContent = 'コードブロックを検出: 次の送信から有効';
+            return true;
         }
         function selectCodingTargetFromButton(btn) {
             const target = getCodingTargetFromButton(btn);
@@ -12976,11 +12988,6 @@
             let codingTargetForSend = null;
             let codingCandidatesForSend = [];
             if (codingModeEnabled) {
-                const codingModel = String(get('model-select')?.value || '').toLowerCase();
-                if (/(image|video|tts|audio|native-audio)/.test(codingModel)) {
-                    showToast('Coding Modeではテキスト生成モデルを選択してください', 'error', true);
-                    return;
-                }
                 const allCandidates = collectCodingCandidates(rawText);
                 const promptCandidates = allCandidates.filter(item => item.prompt_source);
                 const historyCandidates = allCandidates.filter(item => !item.prompt_source);
@@ -13004,15 +13011,22 @@
                 codingTargetForSend = codingTargetSelection
                     ? codingCandidatesForSend[0]
                     : (latestPromptTarget || codingCandidatesForSend[codingCandidatesForSend.length - 1] || null);
-                if (!codingTargetForSend || !String(codingTargetForSend.code || '').trim()) {
-                    showToast('編集対象のコードブロックがありません。先にコードを生成するか、編集対象ボタンで指定してください', 'warning', true);
-                    return;
-                }
-                if (codingTargetForSend.code.length > 300000) {
+                codingModeEffective = !!(codingTargetForSend && String(codingTargetForSend.code || '').trim());
+                if (codingModeEffective && codingTargetForSend.code.length > 300000) {
                     showToast('編集対象コードが大きすぎます（上限300,000文字）', 'error', true);
                     return;
                 }
+                if (codingModeEffective) {
+                    const codingModel = String(get('model-select')?.value || '').toLowerCase();
+                    if (/(image|video|tts|audio|native-audio)/.test(codingModel)) {
+                        showToast('Coding Modeではテキスト生成モデルを選択してください', 'error', true);
+                        return;
+                    }
+                }
             }
+            // Freeze the model-facing state for this request. A code fence completed
+            // by the streaming response may arm the next request, never this one.
+            const codingModeActiveForSend = codingModeEnabled && codingModeEffective;
             sendClientDebugLog(
                 'info',
                 `Prompt send start: model=${get('model-select').value} thread=${currentThreadId || '-'} text_len=${rawText.length} attachments=${imageUrlsToSend.length} search=${get('enable-search').checked}`
@@ -13152,8 +13166,8 @@
                 parent_id_explicit: parentIdExplicit,
                 disable_auto_search: disableAutoSearch,
                 image_vision_model: currentVisionModel || null,
-                coding_mode: codingModeEnabled,
-                coding_target: codingTargetForSend ? {
+                coding_mode: codingModeActiveForSend,
+                coding_target: codingModeActiveForSend ? {
                     id: codingTargetForSend.candidate_id,
                     code: codingTargetForSend.prompt_source ? null : codingTargetForSend.code,
                     language: codingTargetForSend.language || 'text',
@@ -13162,14 +13176,14 @@
                     source: codingTargetForSend.prompt_source ? 'prompt' : 'history',
                     explicit: codingTargetForSend.explicit === true
                 } : null,
-                coding_candidates: codingCandidatesForSend.map((candidate) => ({
+                coding_candidates: codingModeActiveForSend ? codingCandidatesForSend.map((candidate) => ({
                     id: candidate.candidate_id,
                     source: candidate.prompt_source ? 'prompt' : 'history',
                     prompt_index: candidate.prompt_source ? candidate.prompt_index : null,
                     code: candidate.prompt_source ? null : candidate.code,
                     language: candidate.language || 'text',
                     explicit: candidate.explicit === true
-                }))
+                })) : []
             };
             const threadCustomInstructionEl = get('thread-custom-instruction');
             if (threadCustomInstructionEl) {
@@ -13442,6 +13456,7 @@
                             } else if(j.type==='content'){
                                 const contentDelta = (j.content === null || j.content === undefined) ? '' : String(j.content);
                                 acc += contentDelta;
+                                if (/[`~]/.test(contentDelta)) activateDeferredCodingModeFromStream(acc);
                                 if(!cEl){
                                     cEl = adiv.querySelector('.content-area') || document.createElement('div');
                                     cEl.className='prose prose-invert text-sm break-words';
@@ -13780,6 +13795,7 @@
                             } else if (j.type === 'content') {
                                 const contentDelta = (j.content === null || j.content === undefined) ? '' : String(j.content);
                                 acc += contentDelta;
+                                if (/[`~]/.test(contentDelta)) activateDeferredCodingModeFromStream(acc);
                                 if (!cEl) {
                                     cEl = adiv.querySelector('.content-area') || document.createElement('div');
                                     cEl.className = 'prose prose-invert text-sm break-words';

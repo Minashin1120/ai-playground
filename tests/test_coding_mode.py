@@ -122,6 +122,41 @@ class CodingModeTests(unittest.TestCase):
 
         self.assertIn("updated_python()", result)
 
+    def test_failed_edit_preserves_working_code_for_automatic_repair(self):
+        payload = target._parse_coding_mode_edit_payload("\n".join([
+            '{"type":"target","target_id":"selected-1","summary":"3か所変更"}',
+            '{"type":"edit","search":"first = 1","replace":"first = 10"}',
+            '{"type":"edit","search":"second = 2","replace":"second = 20"}',
+            '{"type":"edit","search":"missing = 3","replace":"third = 30"}',
+            '{"type":"done"}',
+        ]))
+
+        with self.assertRaises(target.CodingModeEditApplicationError) as raised:
+            target._apply_coding_mode_payload(
+                payload,
+                "first = 1\nsecond = 2\nthird = 3\n",
+            )
+
+        failure = raised.exception
+        self.assertEqual(failure.edit_index, 3)
+        self.assertIn("first = 10", failure.current_code)
+        self.assertIn("second = 20", failure.current_code)
+        self.assertIn("third = 3", failure.current_code)
+        repair_prompt = target.build_coding_mode_repair_prompt(
+            "3か所を更新",
+            "selected-1",
+            "python",
+            failure.current_code,
+            failure,
+            payload["edits"][failure.edit_index - 1:],
+            explicitly_selected=True,
+            attempt=1,
+        )
+        self.assertIn("explicitly selected by the user", repair_prompt)
+        self.assertIn('"target_id": "selected-1"', repair_prompt)
+        self.assertIn("first = 10", repair_prompt)
+        self.assertIn("missing = 3", repair_prompt)
+
     def test_client_requires_explicit_mode_and_supports_target_selection(self):
         assets = list((APP_ROOT / "static/js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(assets), 1)
@@ -138,6 +173,7 @@ class CodingModeTests(unittest.TestCase):
         self.assertIn("selectCodingTargetFromButton", source)
         self.assertIn("coding_mode: codingModeEnabled", source)
         self.assertIn("coding_target: codingTargetForSend", source)
+        self.assertIn("explicit: codingTargetForSend.explicit === true", source)
         self.assertIn("codingTargetForSend.prompt_source ? null", source)
         self.assertGreaterEqual(source.count("j.type === 'coding_diff'"), 1)
         self.assertIn("appendCodingLiveDiff", source)
@@ -160,7 +196,11 @@ class CodingModeTests(unittest.TestCase):
         self.assertIn('{"type":"edit","search":"exact existing text"', source)
         self.assertIn('event_payload = {"type": "coding_diff"', source)
         self.assertIn('stream_acc:{job_id}:coding_diff', source)
-        final_at = source.index("final_content = apply_coding_mode_candidate_edits")
+        self.assertIn("for repair_attempt in range(1, 3)", source)
+        self.assertIn("_call_coding_mode_repair_model", source)
+        self.assertIn("coding_target.get(\"explicit\") is True", source)
+        self.assertIn("自動修復も完了できませんでした", source)
+        final_at = source.index("final_content = build_coding_mode_final_markdown")
         save_at = source.index("msg_entry = Message(", final_at)
         self.assertLess(final_at, save_at)
         self.assertIn('metadata.get("coding_final")', source)

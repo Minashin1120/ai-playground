@@ -686,8 +686,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-015')
-app.config['SYSTEM_VERSION'] = 'V4.8.648'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-016')
+app.config['SYSTEM_VERSION'] = 'V4.8.649'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -5374,17 +5374,43 @@ def build_coding_mode_final_markdown(summary, before_code, after_code, language=
         f"{code_fence}{safe_language}\n{after_code}\n{code_fence}"
     )
 
-def apply_coding_mode_edits(model_output, target_code, language="text"):
-    original_code = str(target_code or "")
-    code = original_code
-    payload = _parse_coding_mode_edit_payload(model_output)
+class CodingModeEditApplicationError(ValueError):
+    def __init__(self, edit_index, occurrences, current_code, failed_edit, applied_steps):
+        super().__init__(f"編集{edit_index}のsearch一致数が{occurrences}件です（1件必要）")
+        self.edit_index = edit_index
+        self.occurrences = occurrences
+        self.current_code = current_code
+        self.failed_edit = failed_edit
+        self.applied_steps = applied_steps
+
+def _apply_coding_mode_payload(payload, target_code):
+    code = str(target_code or "")
+    applied_steps = []
     for index, edit in enumerate(payload["edits"], start=1):
         occurrences = code.count(edit["search"])
         if occurrences != 1:
-            raise ValueError(f"編集{index}のsearch一致数が{occurrences}件です（1件必要）")
+            raise CodingModeEditApplicationError(
+                index,
+                occurrences,
+                code,
+                edit,
+                applied_steps,
+            )
+        before_code = code
         code = code.replace(edit["search"], edit["replace"], 1)
         if len(code) > 500_000:
             raise ValueError("適用後のコードが大きすぎます")
+        applied_steps.append({
+            "before_code": before_code,
+            "after_code": code,
+            "edit": edit,
+        })
+    return code, applied_steps
+
+def apply_coding_mode_edits(model_output, target_code, language="text"):
+    original_code = str(target_code or "")
+    payload = _parse_coding_mode_edit_payload(model_output)
+    code, _ = _apply_coding_mode_payload(payload, original_code)
     return build_coding_mode_final_markdown(
         payload["summary"],
         original_code,
@@ -5392,7 +5418,7 @@ def apply_coding_mode_edits(model_output, target_code, language="text"):
         language,
     )
 
-def apply_coding_mode_candidate_edits(model_output, candidates, default_target_id=None):
+def _resolve_coding_mode_candidate(model_output, candidates, default_target_id=None):
     payload = _parse_coding_mode_edit_payload(model_output)
     candidate_map = {
         str(item.get("id")): item
@@ -5417,12 +5443,119 @@ def apply_coding_mode_candidate_edits(model_output, candidates, default_target_i
         selected = candidate_map.get(str(default_target_id or ""))
     if selected is None:
         raise ValueError("編集対象コードを決定できません")
+    return selected, payload
+
+def apply_coding_mode_candidate_edits(model_output, candidates, default_target_id=None):
+    selected, payload = _resolve_coding_mode_candidate(
+        model_output,
+        candidates,
+        default_target_id,
+    )
     normalized_output = json.dumps(payload, ensure_ascii=False)
     return apply_coding_mode_edits(
         normalized_output,
         selected.get("code"),
         selected.get("language"),
     )
+
+def build_coding_mode_repair_prompt(
+    user_instruction,
+    target_id,
+    language,
+    current_code,
+    failure,
+    remaining_edits,
+    explicitly_selected=False,
+    attempt=1,
+):
+    selection_note = (
+        "This target was explicitly selected by the user and must remain locked."
+        if explicitly_selected
+        else "The target was already chosen for this edit and must remain locked."
+    )
+    failed_edit = failure.failed_edit if isinstance(failure, CodingModeEditApplicationError) else {}
+    repair_context = {
+        "attempt": int(attempt),
+        "target_id": str(target_id or ""),
+        "language": str(language or "text"),
+        "explicitly_selected": bool(explicitly_selected),
+        "failure": str(failure),
+        "failed_edit": failed_edit,
+        "remaining_original_edits": remaining_edits or [],
+    }
+    return (
+        "[Coding Mode Automatic Repair]\n"
+        f"{selection_note}\n"
+        "Continue from the CURRENT WORKING CODE below. Successful earlier edits are already included. "
+        "Do not repeat them. Correct the failed edit and complete the user's original request. "
+        "Return NDJSON only, using the same target_id. Emit at least one edit before done.\n\n"
+        f"Original user request:\n{str(user_instruction or '')[:100000]}\n\n"
+        f"Repair context:\n{json.dumps(repair_context, ensure_ascii=False)}\n\n"
+        f"--- BEGIN CURRENT WORKING CODE ---\n{current_code}\n--- END CURRENT WORKING CODE ---"
+    )
+
+def _call_coding_mode_repair_model(user, model_key, repair_prompt):
+    resolved = _resolve_chat_model_auth(user, model_key)
+    if resolved.get("error_code"):
+        raise RuntimeError(resolved.get("error") or "修復用モデルの認証情報がありません")
+    provider = resolved.get("provider")
+    api_key = resolved.get("api_key")
+    if provider == "gemini":
+        runtime = resolved.get("gemini_runtime") or _resolve_gemini_runtime(user)
+        client = _get_gemini_client(
+            api_key=api_key,
+            backend=runtime.get("backend"),
+            vertex_project=runtime.get("vertex_project"),
+            vertex_location=runtime.get("vertex_location"),
+            vertex_credentials_json=runtime.get("vertex_credentials_json"),
+        )
+        response = client.models.generate_content(
+            model=model_key,
+            contents=repair_prompt,
+            config=types.GenerateContentConfig(system_instruction=CODING_MODE_SYSTEM_PROMPT),
+        )
+        return str(getattr(response, "text", None) or "")
+    if provider == "anthropic":
+        if not ANTHROPIC_AVAILABLE:
+            raise RuntimeError("Anthropic SDK is not installed")
+        client = Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model=model_key,
+            max_tokens=8192,
+            system=CODING_MODE_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": repair_prompt}],
+        )
+        return "".join(
+            str(getattr(block, "text", "") or "")
+            for block in (getattr(response, "content", None) or [])
+            if getattr(block, "type", None) == "text"
+        )
+    base_url = None
+    if provider == "deepseek":
+        base_url = "https://api.deepseek.com"
+    elif provider == "kimi":
+        base_url = "https://api.moonshot.ai/v1"
+    elif provider == "xai":
+        base_url = f"https://{_XAI_API_HOST}/v1"
+    client = _get_openai_client(api_key, base_url=base_url)
+    if provider in {"deepseek", "kimi", "xai"}:
+        response = client.chat.completions.create(
+            model=model_key,
+            messages=[
+                {"role": "system", "content": CODING_MODE_SYSTEM_PROMPT},
+                {"role": "user", "content": repair_prompt},
+            ],
+            max_tokens=8192,
+        )
+        return str(getattr(response.choices[0].message, "content", None) or "")
+    response = client.responses.create(
+        model=model_key,
+        instructions=CODING_MODE_SYSTEM_PROMPT,
+        input=repair_prompt,
+        max_output_tokens=8192,
+        store=False,
+    )
+    return _extract_openai_response_text(response)
 
 def background_chat_task(job_id, thread_id, model_key, message_id, options, user_id, user_config):
     with app.app_context():
@@ -6409,12 +6542,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 target_code = str(coding_target.get("code") or "")
                 target_language = str(coding_target.get("language") or "text")
                 explicitly_selected = (
-                    len(coding_candidates) == 1
-                    and str(coding_candidates[0].get("id") or "").startswith("selected-")
+                    coding_target.get("explicit") is True
+                    and len(coding_candidates) == 1
+                    and str(coding_candidates[0].get("id") or "") == str(coding_target.get("id") or "")
                 )
                 if explicitly_selected:
                     coding_context = (
-                        f"[Coding Mode Target]\nYou must edit candidate selected-1.\n"
+                        f"[Coding Mode Target]\nYou must edit candidate {coding_target.get('id')}.\n"
                         f"Language: {target_language}\nCharacter count: {len(target_code)}\n"
                         f"--- BEGIN TARGET CODE ---\n{target_code}\n--- END TARGET CODE ---"
                     )
@@ -9566,14 +9700,132 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             if is_grok and grok_reasoning_supported and not thought_accumulated:
                 thought_accumulated = " "
             final_content = full_res
+            coding_repair_outputs = ""
             if options.get("coding_mode"):
                 _consume_coding_stream_chunk("", flush=True)
                 coding_target = options.get("coding_target") or {}
                 try:
-                    final_content = apply_coding_mode_candidate_edits(
+                    selected_candidate, edit_payload = _resolve_coding_mode_candidate(
                         full_res,
                         options.get("coding_candidates") or [],
                         coding_target.get("default_target_id") or coding_target.get("id"),
+                    )
+                    locked_target_id = str(selected_candidate.get("id") or "")
+                    target_language = str(selected_candidate.get("language") or "text")
+                    original_target_code = str(selected_candidate.get("code") or "")
+                    current_working_code = original_target_code
+                    summary = edit_payload.get("summary") or "変更を適用しました"
+                    explicitly_selected = (
+                        coding_target.get("explicit") is True
+                        and locked_target_id == str(coding_target.get("id") or "")
+                    )
+                    repaired = False
+                    try:
+                        current_working_code, _ = _apply_coding_mode_payload(
+                            edit_payload,
+                            current_working_code,
+                        )
+                    except CodingModeEditApplicationError as initial_failure:
+                        failure = initial_failure
+                        current_working_code = failure.current_code
+                        last_repair_error = failure
+                        for repair_attempt in range(1, 3):
+                            if check_stop():
+                                raise ValueError("自動修復はユーザーにより停止されました")
+                            pub(
+                                "status",
+                                f"Coding Modeの差分を自動修復中です（{repair_attempt}/2）...",
+                            )
+                            remaining_edits = edit_payload["edits"][failure.edit_index - 1:]
+                            repair_prompt = build_coding_mode_repair_prompt(
+                                message_text,
+                                locked_target_id,
+                                target_language,
+                                current_working_code,
+                                failure,
+                                remaining_edits,
+                                explicitly_selected=explicitly_selected,
+                                attempt=repair_attempt,
+                            )
+                            try:
+                                repair_output = _call_coding_mode_repair_model(
+                                    user,
+                                    model_key,
+                                    repair_prompt,
+                                )
+                                coding_repair_outputs += f"\n{repair_output}"
+                                repair_payload = _parse_coding_mode_edit_payload(repair_output)
+                                repair_target_id = repair_payload.get("target_id")
+                                if repair_target_id and repair_target_id != locked_target_id:
+                                    raise ValueError(
+                                        "自動修復モデルが固定済みの編集対象を変更しようとしました"
+                                    )
+                                if not repair_payload["edits"]:
+                                    raise ValueError("自動修復モデルから修正差分が返されませんでした")
+                                current_working_code, repair_steps = _apply_coding_mode_payload(
+                                    repair_payload,
+                                    current_working_code,
+                                )
+                                for step in repair_steps:
+                                    coding_stream_edit_index += 1
+                                    _emit_coding_diff({
+                                        "target_id": locked_target_id,
+                                        "language": target_language,
+                                        "edit_index": coding_stream_edit_index,
+                                        "repair_attempt": repair_attempt,
+                                        "diff": build_coding_mode_unified_diff(
+                                            step["before_code"],
+                                            step["after_code"],
+                                            target_language,
+                                        ),
+                                    })
+                                if repair_payload.get("summary"):
+                                    summary = repair_payload["summary"]
+                                repaired = True
+                                break
+                            except CodingModeEditApplicationError as repair_failure:
+                                current_working_code = repair_failure.current_code
+                                for step in repair_failure.applied_steps:
+                                    coding_stream_edit_index += 1
+                                    _emit_coding_diff({
+                                        "target_id": locked_target_id,
+                                        "language": target_language,
+                                        "edit_index": coding_stream_edit_index,
+                                        "repair_attempt": repair_attempt,
+                                        "diff": build_coding_mode_unified_diff(
+                                            step["before_code"],
+                                            step["after_code"],
+                                            target_language,
+                                        ),
+                                    })
+                                failure = repair_failure
+                                edit_payload = repair_payload
+                                last_repair_error = repair_failure
+                                logger.warning(
+                                    "Coding Mode automatic repair attempt %s failed for job %s: %s",
+                                    repair_attempt,
+                                    job_id,
+                                    repair_failure,
+                                )
+                            except Exception as repair_exc:
+                                last_repair_error = repair_exc
+                                logger.warning(
+                                    "Coding Mode automatic repair attempt %s failed for job %s: %s",
+                                    repair_attempt,
+                                    job_id,
+                                    repair_exc,
+                                )
+                        if not repaired:
+                            raise ValueError(
+                                f"{initial_failure}。自動修復も完了できませんでした: {last_repair_error}"
+                            )
+                    if repaired:
+                        summary = f"{summary}（差分を自動修復しました）"
+                    final_content = build_coding_mode_final_markdown(
+                        summary,
+                        original_target_code,
+                        current_working_code,
+                        target_language,
                     )
                 except ValueError as exc:
                     logger.warning("Coding Mode edit application failed for job %s: %s", job_id, exc)
@@ -9629,7 +9881,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 final_content = encrypt_val(final_content)
                 if final_thought: final_thought = encrypt_val(final_thought)
             
-            assistant_tokens_out = count_tokens_for_display(full_res, model_key, thought_accumulated)
+            assistant_tokens_out = count_tokens_for_display(
+                full_res + coding_repair_outputs,
+                model_key,
+                thought_accumulated,
+            )
             tokens_thought_val = count_tokens(thought_accumulated, model_key) if thought_accumulated else 0
 
             # Gemini Thinking: Use official usage metadata if available
@@ -10586,12 +10842,21 @@ def chat_stream():
                 'code': code,
                 'language': re.sub(r'[^A-Za-z0-9_+.#-]', '', str(language))[:40] or 'text',
                 'source': source,
+                'explicit': raw_candidate.get('explicit') is True,
             })
         default_target_id = str(coding_target.get('id') or '')[:100]
         if default_target_id not in candidate_ids:
             default_target_id = coding_candidates[-1]['id']
         default_candidate = next(item for item in coding_candidates if item['id'] == default_target_id)
-        coding_target = {**default_candidate, 'default_target_id': default_target_id}
+        coding_target = {
+            **default_candidate,
+            'default_target_id': default_target_id,
+            'explicit': (
+                coding_target.get('explicit') is True
+                and len(coding_candidates) == 1
+                and default_target_id == coding_candidates[0]['id']
+            ),
+        }
     resolved_auth = _resolve_chat_model_auth(current_user, model_key)
     if resolved_auth.get("error_code"):
         return jsonify({

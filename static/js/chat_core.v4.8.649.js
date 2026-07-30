@@ -3228,7 +3228,10 @@
             const edit = document.createElement('div');
             edit.className = 'coding-live-diff-edit';
             if (editIndex) edit.setAttribute('data-coding-edit-index', String(editIndex));
-            edit.innerHTML = `<div class="coding-live-diff-meta">Edit ${editIndex} · ${escapeHtml(payload.language || 'text')}</div><pre>${renderCodingDiffLines(payload.diff)}</pre>`;
+            const repairLabel = Number(payload.repair_attempt || 0) > 0
+                ? ` · Auto repair ${Number(payload.repair_attempt)}`
+                : '';
+            edit.innerHTML = `<div class="coding-live-diff-meta">Edit ${editIndex} · ${escapeHtml(payload.language || 'text')}${repairLabel}</div><pre>${renderCodingDiffLines(payload.diff)}</pre>`;
             if (list) list.appendChild(edit);
             const count = panel.querySelector('.coding-live-diff-count');
             const editCount = panel.querySelectorAll('.coding-live-diff-edit').length;
@@ -13156,14 +13159,16 @@
                     language: codingTargetForSend.language || 'text',
                     key: codingTargetForSend.key || null,
                     message_id: codingTargetForSend.message_id || null,
-                    source: codingTargetForSend.prompt_source ? 'prompt' : 'history'
+                    source: codingTargetForSend.prompt_source ? 'prompt' : 'history',
+                    explicit: codingTargetForSend.explicit === true
                 } : null,
                 coding_candidates: codingCandidatesForSend.map((candidate) => ({
                     id: candidate.candidate_id,
                     source: candidate.prompt_source ? 'prompt' : 'history',
                     prompt_index: candidate.prompt_source ? candidate.prompt_index : null,
                     code: candidate.prompt_source ? null : candidate.code,
-                    language: candidate.language || 'text'
+                    language: candidate.language || 'text',
+                    explicit: candidate.explicit === true
                 }))
             };
             const threadCustomInstructionEl = get('thread-custom-instruction');

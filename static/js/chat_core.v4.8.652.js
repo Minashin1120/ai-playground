@@ -6170,11 +6170,6 @@
                         mapsChk.checked = false;
                         mapsCont.classList.add('opacity-50', 'pointer-events-none');
                     }
-                    if (pyCont) {
-                        pyChk.checked = false;
-                        pyCont.classList.add('hidden', 'opacity-50', 'pointer-events-none');
-                        pyChk.disabled = true;
-                    }
                 }
                 else {
                     if(searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none');
@@ -6196,7 +6191,7 @@
 
                 if(((isGeminiImage && !isNanoBanana2) || model.includes('gpt-image') || isGrokImageModel() || isGrokVideoModel())) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); }
                 if (pyCont) {
-                    if (isLlmModel() && !isDeepSeek) {
+                    if (isLlmModel()) {
                         pyCont.classList.remove('hidden');
                         pyChk.disabled = false;
                     } else {

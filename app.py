@@ -687,8 +687,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-31-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.651'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-31-003')
+app.config['SYSTEM_VERSION'] = 'V4.8.652'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -5319,6 +5319,41 @@ def safe_execute_python(code):
         except Exception as e:
             return f"Error: {str(e)}"
 
+
+def accumulate_deepseek_tool_call_deltas(tool_call_state, delta_tool_calls):
+    """Merge streamed OpenAI-compatible tool call fragments by their stable index."""
+    for position, tool_delta in enumerate(delta_tool_calls or []):
+        if isinstance(tool_delta, dict):
+            tool_index = tool_delta.get("index")
+            call_id = tool_delta.get("id")
+            call_type = tool_delta.get("type")
+            function_delta = tool_delta.get("function") or {}
+            function_name = function_delta.get("name") if isinstance(function_delta, dict) else None
+            function_args = function_delta.get("arguments") if isinstance(function_delta, dict) else None
+        else:
+            tool_index = getattr(tool_delta, "index", None)
+            call_id = getattr(tool_delta, "id", None)
+            call_type = getattr(tool_delta, "type", None)
+            function_delta = getattr(tool_delta, "function", None)
+            function_name = getattr(function_delta, "name", None) if function_delta else None
+            function_args = getattr(function_delta, "arguments", None) if function_delta else None
+        if tool_index is None:
+            tool_index = position
+        tool_state = tool_call_state.setdefault(
+            int(tool_index),
+            {"id": "", "type": "function", "name": "", "arguments": ""},
+        )
+        if call_id:
+            tool_state["id"] = call_id
+        if call_type:
+            tool_state["type"] = call_type
+        if function_name:
+            tool_state["name"] += function_name
+        if function_args:
+            tool_state["arguments"] += function_args
+    return tool_call_state
+
+
 CODING_MODE_SYSTEM_PROMPT = """[Coding Mode]
 You are editing the supplied existing code block. Minimize output tokens: never repeat the whole file.
 Choose the code block that best matches the user's request unless the candidate list contains only an explicitly selected block.
@@ -6062,11 +6097,27 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 
                 if (not MAX_CONTEXT_TOKENS) or (total_history_tokens + t_len <= MAX_CONTEXT_TOKENS):
                     cnt = decrypt_val(raw_cnt) if current_node.is_encrypted else raw_cnt
+                    deepseek_tool_context = None
+                    if current_node.role == "assistant" and current_node.thought_data:
+                        try:
+                            raw_thought = (
+                                decrypt_val(current_node.thought_data)
+                                if current_node.is_encrypted
+                                else current_node.thought_data
+                            )
+                            parsed_thought = json.loads(raw_thought)
+                            if isinstance(parsed_thought, dict):
+                                candidate_context = parsed_thought.get("deepseek_tool_context")
+                                if isinstance(candidate_context, list):
+                                    deepseek_tool_context = candidate_context
+                        except Exception:
+                            deepseek_tool_context = None
                     history_rev.append({
                         'role': current_node.role, 
                         'content': cnt, 
                         'image_url': current_node.image_url, 
-                        'signature': current_node.thought_signature
+                        'signature': current_node.thought_signature,
+                        'deepseek_tool_context': deepseek_tool_context,
                     })
                     total_history_tokens += t_len
                     history_count += 1
@@ -6652,6 +6703,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 return
 
             full_res, thought_accumulated, generated_images = "", "", []
+            deepseek_tool_context = []
             agentic_image_digests = set()
             signature_parts = []
 
@@ -8985,7 +9037,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         messages.append({"role": "system", "content": sys_prompt})
 
                     for m in history:
-                        messages.append({"role": m['role'], "content": m['content']})
+                        saved_tool_context = m.get("deepseek_tool_context")
+                        if m.get("role") == "assistant" and isinstance(saved_tool_context, list):
+                            for saved_message in saved_tool_context:
+                                if isinstance(saved_message, dict) and saved_message.get("role") in {"assistant", "tool"}:
+                                    messages.append(saved_message)
+                        else:
+                            messages.append({"role": m['role'], "content": m['content']})
 
                     user_text = ""
                     if quote_text:
@@ -9037,67 +9095,216 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         return
 
                     messages.append({"role": "user", "content": user_text})
-                    deepseek_kwargs = {
-                        "model": model_key,
-                        "messages": messages,
-                        "stream": True,
-                    }
                     enable_reasoning = bool(options.get('enable_thinking')) or (req_reasoning_effort and req_reasoning_effort != "none")
-                    if enable_reasoning:
-                        deepseek_kwargs["reasoning_effort"] = _deepseek_reasoning_effort()
-                        deepseek_kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
-                    else:
-                        deepseek_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
-                    if options.get('enable_prompt_caching') and options.get('prompt_cache_key'):
-                        # DeepSeek / OpenAI-compatible: stable prompt_cache_key improves hit rates
-                        deepseek_kwargs["extra_body"] = dict(deepseek_kwargs.get("extra_body") or {})
-                        deepseek_kwargs["extra_body"]["prompt_cache_key"] = options.get('prompt_cache_key')
-                        log_force(f"DeepSeek Prompt Caching key={options.get('prompt_cache_key')}")
+                    python_tools = []
+                    if options.get("enable_python"):
+                        python_tools.append({
+                            "type": "function",
+                            "function": {
+                                "name": "execute_python",
+                                "description": (
+                                    "Execute Python code for calculations, verification, or data analysis. "
+                                    "The isolated environment has no network access. "
+                                    "The code must print every result that should be returned to you."
+                                ),
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {
+                                        "code": {
+                                            "type": "string",
+                                            "description": (
+                                                "Python source code to execute. Use print(...) for every value "
+                                                "you need in the tool result."
+                                            ),
+                                        }
+                                    },
+                                    "required": ["code"],
+                                    "additionalProperties": False,
+                                },
+                            },
+                        })
 
-                    _mark_provider_request_started()
-                    final_openai_usage = None
-                    stream = client.chat.completions.create(**deepseek_kwargs)
-                    chunk_count = 0
-                    for chunk in stream:
-                        _latency_mark_once(job_id, "provider_first_chunk_ms")
-                        if check_stop():
-                            break
+                    deepseek_usage_totals = {
+                        "completion_tokens": 0,
+                        "prompt_tokens": 0,
+                        "total_tokens": 0,
+                        "completion_tokens_details": {"reasoning_tokens": 0},
+                    }
+                    saw_deepseek_usage = False
+                    max_tool_rounds = 8
+                    for tool_round in range(max_tool_rounds):
+                        deepseek_kwargs = {
+                            "model": model_key,
+                            "messages": messages,
+                            "stream": True,
+                        }
+                        if python_tools:
+                            deepseek_kwargs["tools"] = python_tools
+                            deepseek_kwargs["tool_choice"] = "auto"
+                        if enable_reasoning:
+                            deepseek_kwargs["reasoning_effort"] = _deepseek_reasoning_effort()
+                            deepseek_kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
+                        else:
+                            deepseek_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+                        if options.get('enable_prompt_caching') and options.get('prompt_cache_key'):
+                            # DeepSeek / OpenAI-compatible: stable prompt_cache_key improves hit rates
+                            deepseek_kwargs["extra_body"] = dict(deepseek_kwargs.get("extra_body") or {})
+                            deepseek_kwargs["extra_body"]["prompt_cache_key"] = options.get('prompt_cache_key')
+                            log_force(f"DeepSeek Prompt Caching key={options.get('prompt_cache_key')}")
 
-                        # Refresh pending_job TTL periodically to prevent expiry during long thinking
-                        chunk_count += 1
-                        if chunk_count % 20 == 0:
-                            _refresh_pending_job()
+                        _mark_provider_request_started()
+                        stream = client.chat.completions.create(**deepseek_kwargs)
+                        chunk_count = 0
+                        round_reasoning = ""
+                        round_content = ""
+                        streamed_tool_calls = {}
 
-                        usage = getattr(chunk, 'usage', None)
-                        if usage:
-                            final_openai_usage = usage
+                        for chunk in stream:
+                            _latency_mark_once(job_id, "provider_first_chunk_ms")
+                            if check_stop():
+                                return
 
-                        choices = getattr(chunk, 'choices', None)
-                        if not choices:
-                            continue
+                            # Refresh pending_job TTL periodically to prevent expiry during long thinking
+                            chunk_count += 1
+                            if chunk_count % 20 == 0:
+                                _refresh_pending_job()
 
-                        delta = choices[0].delta
+                            usage = getattr(chunk, 'usage', None)
+                            if usage:
+                                saw_deepseek_usage = True
+                                for usage_key in ("completion_tokens", "prompt_tokens", "total_tokens"):
+                                    usage_value = (
+                                        usage.get(usage_key)
+                                        if isinstance(usage, dict)
+                                        else getattr(usage, usage_key, None)
+                                    )
+                                    if usage_value is not None:
+                                        deepseek_usage_totals[usage_key] += int(usage_value or 0)
+                                usage_details = (
+                                    usage.get("completion_tokens_details")
+                                    if isinstance(usage, dict)
+                                    else getattr(usage, "completion_tokens_details", None)
+                                )
+                                reasoning_tokens = (
+                                    usage_details.get("reasoning_tokens")
+                                    if isinstance(usage_details, dict)
+                                    else getattr(usage_details, "reasoning_tokens", None)
+                                    if usage_details is not None
+                                    else None
+                                )
+                                if reasoning_tokens is not None:
+                                    deepseek_usage_totals["completion_tokens_details"]["reasoning_tokens"] += int(reasoning_tokens or 0)
 
-                        # Extract reasoning_content — Pydantic extra field
-                        r_content = None
-                        try:
-                            r_content = delta.reasoning_content
-                        except AttributeError:
-                            pass
-                        if not r_content:
-                            try:
+                            choices = getattr(chunk, 'choices', None)
+                            if not choices:
+                                continue
+
+                            delta = choices[0].delta
+
+                            # DeepSeek exposes reasoning_content as an OpenAI-compatible extension.
+                            r_content = getattr(delta, "reasoning_content", None)
+                            if not r_content:
                                 extra = getattr(delta, '__pydantic_extra__', None) or {}
                                 r_content = extra.get('reasoning_content')
-                            except Exception:
-                                pass
-                        if r_content:
-                            thought_accumulated += r_content
-                            pub("thought", r_content)
+                            if r_content:
+                                round_reasoning += r_content
+                                thought_accumulated += r_content
+                                pub("thought", r_content)
 
-                        c_content = getattr(delta, 'content', None)
-                        if c_content:
-                            full_res += c_content
-                            pub("content", c_content)
+                            c_content = getattr(delta, 'content', None)
+                            if c_content:
+                                round_content += c_content
+                                full_res += c_content
+                                pub("content", c_content)
+
+                            accumulate_deepseek_tool_call_deltas(
+                                streamed_tool_calls,
+                                getattr(delta, "tool_calls", None) or [],
+                            )
+
+                        if not streamed_tool_calls:
+                            if deepseek_tool_context:
+                                final_assistant_message = {
+                                    "role": "assistant",
+                                    "content": round_content,
+                                }
+                                if enable_reasoning:
+                                    final_assistant_message["reasoning_content"] = round_reasoning
+                                deepseek_tool_context.append(final_assistant_message)
+                            break
+
+                        assistant_tool_calls = []
+                        for tool_index in sorted(streamed_tool_calls):
+                            tool_state = streamed_tool_calls[tool_index]
+                            assistant_tool_calls.append({
+                                "id": tool_state["id"] or f"deepseek_tool_{tool_round}_{tool_index}",
+                                "type": "function",
+                                "function": {
+                                    "name": tool_state["name"],
+                                    "arguments": tool_state["arguments"],
+                                },
+                            })
+
+                        assistant_tool_message = {
+                            "role": "assistant",
+                            "content": round_content,
+                            "tool_calls": assistant_tool_calls,
+                        }
+                        if enable_reasoning:
+                            # Required by DeepSeek for every subsequent request after a thinking tool call.
+                            assistant_tool_message["reasoning_content"] = round_reasoning
+                        messages.append(assistant_tool_message)
+                        deepseek_tool_context.append(assistant_tool_message)
+
+                        for tool_call in assistant_tool_calls:
+                            call_id = tool_call["id"]
+                            function_data = tool_call["function"]
+                            call_name = function_data.get("name")
+                            call_arguments = function_data.get("arguments") or ""
+                            code = ""
+                            if call_name != "execute_python":
+                                result = f"Error: Unsupported tool: {call_name or '(missing name)'}"
+                            else:
+                                try:
+                                    parsed_arguments = json.loads(call_arguments)
+                                    if not isinstance(parsed_arguments, dict):
+                                        raise ValueError("arguments must be a JSON object")
+                                    code = parsed_arguments.get("code")
+                                    if not isinstance(code, str) or not code.strip():
+                                        raise ValueError("code must be a non-empty string")
+                                    result = safe_execute_python(code)
+                                except Exception as tool_exc:
+                                    result = f"Error: Invalid execute_python arguments: {tool_exc}"
+
+                            if code:
+                                code_fence = _markdown_fence_for_code(code)
+                                output_fence = _markdown_fence_for_code(result)
+                                visible_tool_output = (
+                                    f"\n{code_fence}python\n{code}\n{code_fence}\n"
+                                    f"\n**Output:**\n{output_fence}\n{result}\n{output_fence}\n"
+                                )
+                                full_res += visible_tool_output
+                                pub("content", visible_tool_output)
+                                full_res += (
+                                    f"\n```pyexec\n"
+                                    f"{json.dumps({'code': code, 'output': result}, ensure_ascii=False)}"
+                                    f"\n```\n"
+                                )
+                                pub("python", {"id": call_id, "code": code, "output": result})
+
+                            tool_message = {
+                                "role": "tool",
+                                "tool_call_id": call_id,
+                                "content": result,
+                            }
+                            messages.append(tool_message)
+                            deepseek_tool_context.append(tool_message)
+                        continue
+                    else:
+                        raise RuntimeError(f"DeepSeek Python tool exceeded {max_tool_rounds} rounds.")
+
+                    if saw_deepseek_usage:
+                        final_openai_usage = deepseek_usage_totals
                 except Exception as e:
                     pub("error", f"DeepSeek Error: {str(e)}")
 
@@ -9999,7 +10206,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 if sig_kept_count < sig_original_count:
                     log_force(f"Trimmed thought_signature for DB storage: kept {sig_kept_count}/{sig_original_count}")
 
-            final_thought = json.dumps({'text': thought_accumulated}) if thought_accumulated else None
+            thought_payload = {}
+            if thought_accumulated:
+                thought_payload["text"] = thought_accumulated
+            if deepseek_tool_context:
+                thought_payload["deepseek_tool_context"] = deepseek_tool_context
+            final_thought = json.dumps(thought_payload, ensure_ascii=False) if thought_payload else None
             is_enc = user_config.get('enable_e2ee', False)
             if is_enc:
                 final_content = encrypt_val(final_content)

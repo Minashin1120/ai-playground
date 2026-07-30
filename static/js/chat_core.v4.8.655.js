@@ -4824,6 +4824,7 @@
                 icon: "fas fa-brain text-green-400",
                 description: "OpenAI's flagship models",
                 items: [
+                    { id: "gpt-5.6-sol", name: "GPT-5.6 Sol", desc: "Frontier reasoning model for complex professional work with 1.05M context.", price: "In $5.00/1M, Cached $0.50/1M, Out $30.00/1M (over 272K: In $10.00, Out $45.00)" },
                     { id: "gpt-4o", name: "GPT-4o", desc: "Multimodal flagship model.", price: "In $2.50/1M, Out $10.00/1M" },
                     { id: "gpt-4o-mini", name: "GPT-4o mini", desc: "Fast, low-cost model.", price: "In $0.15/1M, Out $0.60/1M" },
                     { id: "gpt-5.5", name: "GPT-5.5", desc: "Experimental OpenAI model ID for accounts with access.", price: "In $5.00/1M, Out $30.00/1M" },
@@ -6047,14 +6048,21 @@
                     const effortSel = get('reasoning-effort');
                     if (effortSel) {
                         Array.from(effortSel.options).forEach(opt => {
-                            if (opt.value === 'xhigh') {
-                                opt.classList.toggle('hidden', !modelLower.includes('multi-agent'));
+                            const isGpt56Sol = modelLower === 'gpt-5.6-sol' || modelLower === 'gpt-5.6';
+                            if (opt.value === 'max') {
+                                opt.classList.toggle('hidden', !isGpt56Sol);
+                            } else if (opt.value === 'xhigh') {
+                                opt.classList.toggle('hidden', !modelLower.includes('multi-agent') && !isGpt56Sol);
                             } else if (opt.value === 'medium') {
                                 opt.classList.toggle('hidden', !(modelLower.includes('grok-4.3') || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3')));
                             } else if (opt.value === 'none') {
                                 opt.classList.toggle('hidden', !modelLower.includes('grok-4.3') && !modelLower.includes('grok-build') && !modelLower.includes('gpt-5'));
                             }
                         });
+                        const selectedEffort = effortSel.selectedOptions && effortSel.selectedOptions[0];
+                        if (selectedEffort && selectedEffort.classList.contains('hidden')) {
+                            effortSel.value = 'medium';
+                        }
                     }
                 }
                 if(urlCont) urlCont.classList.add('hidden');

@@ -10,7 +10,9 @@ class Gpt56FamilyRegressionTests(unittest.TestCase):
         app_source = (ROOT / "app.py").read_text(encoding="utf-8")
         chat_source = (ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
         setup_source = (ROOT / "templates" / "setup.html").read_text(encoding="utf-8")
-        js_source = (ROOT / "static" / "js" / "chat_core.v4.8.656.js").read_text(encoding="utf-8")
+        js_assets = list((ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(js_assets), 1)
+        js_source = js_assets[0].read_text(encoding="utf-8")
 
         for model_id, display_name in (
             ("gpt-5.6-sol", "GPT-5.6 Sol"),
@@ -25,7 +27,9 @@ class Gpt56FamilyRegressionTests(unittest.TestCase):
     def test_all_official_reasoning_efforts_are_available(self):
         app_source = (ROOT / "app.py").read_text(encoding="utf-8")
         chat_source = (ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
-        js_source = (ROOT / "static" / "js" / "chat_core.v4.8.656.js").read_text(encoding="utf-8")
+        js_assets = list((ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(js_assets), 1)
+        js_source = js_assets[0].read_text(encoding="utf-8")
 
         self.assertIn(
             'VALID_REASONING_EFFORTS = {"none", "low", "medium", "high", "xhigh", "max"}',
@@ -39,13 +43,13 @@ class Gpt56FamilyRegressionTests(unittest.TestCase):
     def test_versioned_assets_and_release_metadata_match(self):
         app_source = (ROOT / "app.py").read_text(encoding="utf-8")
 
-        self.assertIn("'2026-07-31-007'", app_source)
-        self.assertIn("'V4.8.656'", app_source)
+        self.assertIn("'2026-07-31-008'", app_source)
+        self.assertIn("'V4.8.657'", app_source)
         for relative_path in (
-            "static/js/chat_core.v4.8.656.js",
-            "static/css/chat.custom.v4.8.656.css",
-            "static/css/chat.tailwind.v4.8.656.css",
-            "static/changelogs/20260731_v4.8.656.md",
+            "static/js/chat_core.v4.8.657.js",
+            "static/css/chat.custom.v4.8.657.css",
+            "static/css/chat.tailwind.v4.8.657.css",
+            "static/changelogs/20260731_v4.8.657.md",
         ):
             self.assertTrue((ROOT / relative_path).is_file(), relative_path)
 

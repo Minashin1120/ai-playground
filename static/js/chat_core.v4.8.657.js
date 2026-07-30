@@ -2433,7 +2433,13 @@
             renderText: '',
             selectedIndex: -1,
             selectedKey: '',
+            selectionMode: 'auto',
             mobileView: 'preview',
+            sourceScrollTop: 0,
+            sourceScrollLeft: 0,
+            frameScrollX: 0,
+            frameScrollY: 0,
+            frameRenderToken: 0,
             panelAnimationToken: 0,
             panelHideTimer: null,
             lastCanvasData: null
@@ -6292,6 +6298,14 @@
                     if (!btn) return;
                     const index = Number(btn.getAttribute('data-canvas-block-index'));
                     applyCanvasSelection(index);
+                });
+            }
+            if (get('canvas-source-select')) {
+                get('canvas-source-select').addEventListener('change', (e) => {
+                    if (e.target.value === '') return;
+                    const index = Number(e.target.value);
+                    if (!Number.isInteger(index)) return;
+                    applyCanvasSelection(index, { view: 'source' });
                 });
             }
             if (get('canvas-panel-tabs')) {
@@ -11602,7 +11616,7 @@
                 blockList: get('canvas-block-list'),
                 panelTabs: get('canvas-panel-tabs'),
                 previewLang: get('canvas-preview-lang'),
-                sourceLang: get('canvas-source-lang'),
+                sourceSelect: get('canvas-source-select'),
                 frame: get('canvas-preview-frame'),
                 empty: get('canvas-preview-empty'),
                 sourceScroll: get('canvas-source-scroll'),
@@ -11637,7 +11651,7 @@
             const lines = rawText.split(/\r?\n/);
             const blocks = [];
             const output = [];
-            const fenceStartRe = /^(\s*)(```|~~~)(.*)$/;
+            const fenceStartRe = /^(\s*)(`{3,}|~{3,})(.*)$/;
             let activeFence = null;
             let activeLang = '';
             let activeBuffer = [];
@@ -11698,15 +11712,14 @@
                     previewType: isCanvasHtmlPreviewCandidate(preferred.lang, preferred.code) ? 'html' : 'code'
                 };
             }
-            for (let i = list.length - 1; i >= 0; i--) {
-                const block = list[i];
-                if (!block) continue;
-                if (isCanvasHtmlPreviewCandidate(block.lang, block.code)) {
-                    return { block, index: i, previewType: 'html' };
-                }
-            }
             if (list.length > 0) {
-                return { block: list[list.length - 1], index: list.length - 1, previewType: 'code' };
+                const index = list.length - 1;
+                const block = list[index];
+                return {
+                    block,
+                    index,
+                    previewType: isCanvasHtmlPreviewCandidate(block.lang, block.code) ? 'html' : 'code'
+                };
             }
             const raw = String(rawText || '');
             if (isCanvasHtmlPreviewCandidate('', raw)) {
@@ -11791,6 +11804,69 @@
                 return `<button type="button" class="canvas-block-chip${selected ? ' active' : ''}" data-canvas-block-index="${index}" title="${escapeHtml(title)}" aria-pressed="${selected ? 'true' : 'false'}"><span class="canvas-block-chip-index">#${index + 1}</span><span class="canvas-block-chip-lang">${escapeHtml(lang)}</span><span class="canvas-block-chip-state">${selected ? '表示中' : stateLabel}</span></button>`;
             }).join('');
         }
+        function renderCanvasSourceOptions() {
+            const els = getCanvasModeElements();
+            if (!els || !els.sourceSelect) return;
+            const blocks = Array.isArray(canvasPreviewState.blocks) ? canvasPreviewState.blocks : [];
+            if (!blocks.length) {
+                els.sourceSelect.innerHTML = '<option value="">-</option>';
+                els.sourceSelect.disabled = true;
+                els.sourceSelect.dataset.canvasOptionsSignature = '';
+                return;
+            }
+            const selectedIndex = Number.isInteger(canvasPreviewState.selectedIndex)
+                ? canvasPreviewState.selectedIndex
+                : blocks.length - 1;
+            els.sourceSelect.disabled = false;
+            const optionLabels = blocks.map((block, index) => {
+                const lang = String(block && block.lang ? block.lang : 'text').trim() || 'text';
+                return `#${index + 1} ${lang}`;
+            });
+            const signature = JSON.stringify(optionLabels);
+            if (els.sourceSelect.dataset.canvasOptionsSignature !== signature) {
+                els.sourceSelect.innerHTML = optionLabels.map((label, index) => (
+                    `<option value="${index}">${escapeHtml(label)}</option>`
+                )).join('');
+                els.sourceSelect.dataset.canvasOptionsSignature = signature;
+            }
+            els.sourceSelect.value = String(selectedIndex);
+        }
+        function resetCanvasScrollState() {
+            canvasPreviewState.sourceScrollTop = 0;
+            canvasPreviewState.sourceScrollLeft = 0;
+            canvasPreviewState.frameScrollX = 0;
+            canvasPreviewState.frameScrollY = 0;
+            const els = getCanvasModeElements();
+            if (els && els.sourceScroll) {
+                els.sourceScroll.scrollTop = 0;
+                els.sourceScroll.scrollLeft = 0;
+            }
+        }
+        function instrumentCanvasPreviewDocument(html, token) {
+            const initialX = Math.max(0, Number(canvasPreviewState.frameScrollX) || 0);
+            const initialY = Math.max(0, Number(canvasPreviewState.frameScrollY) || 0);
+            const source = String(html || '');
+            const bridgeCode = `(function(){const token=${JSON.stringify(token)};let timer=0;function report(){parent.postMessage({type:'canvas-preview-scroll',token:token,x:window.scrollX||0,y:window.scrollY||0},'*')}addEventListener('scroll',function(){clearTimeout(timer);timer=setTimeout(report,40)},{passive:true});addEventListener('message',function(event){const data=event.data||{};if(data.type==='canvas-preview-restore-scroll'&&data.token===token){requestAnimationFrame(function(){scrollTo(Number(data.x)||0,Number(data.y)||0);report()})}});requestAnimationFrame(function(){scrollTo(${initialX},${initialY});report()})})();`;
+            try {
+                const doc = new DOMParser().parseFromString(source, 'text/html');
+                const script = doc.createElement('script');
+                script.setAttribute('data-canvas-scroll-bridge', 'true');
+                script.textContent = bridgeCode;
+                (doc.body || doc.documentElement).appendChild(script);
+                return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+            } catch (e) {
+                return `${source}<script data-canvas-scroll-bridge>${bridgeCode}<\/script>`;
+            }
+        }
+        window.addEventListener('message', (event) => {
+            const data = event && event.data ? event.data : null;
+            if (!data || data.type !== 'canvas-preview-scroll') return;
+            const els = getCanvasModeElements();
+            if (!els || !els.frame || event.source !== els.frame.contentWindow) return;
+            if (data.token !== canvasPreviewState.frameRenderToken) return;
+            canvasPreviewState.frameScrollX = Math.max(0, Number(data.x) || 0);
+            canvasPreviewState.frameScrollY = Math.max(0, Number(data.y) || 0);
+        });
         function showCanvasPreviewPanel() {
             const els = getCanvasModeElements();
             if (!els) return;
@@ -11838,14 +11914,20 @@
             canvasPreviewState.renderText = '';
             canvasPreviewState.selectedIndex = -1;
             canvasPreviewState.selectedKey = '';
+            canvasPreviewState.selectionMode = 'auto';
             canvasPreviewState.mobileView = 'preview';
             canvasPreviewState.lastCanvasData = null;
+            resetCanvasScrollState();
             showCanvasPreviewPanel();
             syncCanvasPanelViewUi('preview', { focus: false });
             if (els.title) els.title.textContent = message;
             if (els.status) els.status.textContent = 'コードブロックを待機中';
             if (els.previewLang) els.previewLang.textContent = 'idle';
-            if (els.sourceLang) els.sourceLang.textContent = '-';
+            if (els.sourceSelect) {
+                els.sourceSelect.innerHTML = '<option value="">-</option>';
+                els.sourceSelect.disabled = true;
+                els.sourceSelect.dataset.canvasOptionsSignature = '';
+            }
             if (els.code) els.code.textContent = '';
             if (els.blockCount) els.blockCount.textContent = '0';
             if (els.blockList) els.blockList.innerHTML = '<div class="px-2 py-3 text-xs text-gray-500">コードブロックを待機中</div>';
@@ -11865,6 +11947,9 @@
             canvasPreviewState.rawText = String(data.rawText || '');
             canvasPreviewState.renderText = String(data.renderText || '');
             const blocks = canvasPreviewState.blocks;
+            const previousIndex = Number.isInteger(canvasPreviewState.selectedIndex)
+                ? canvasPreviewState.selectedIndex
+                : -1;
             if (!blocks.length) {
                 const fallbackSelection = selectCanvasPreviewBlock([], canvasPreviewState.rawText);
                 if (fallbackSelection && fallbackSelection.block) {
@@ -11874,16 +11959,20 @@
                 }
                 canvasPreviewState.selectedIndex = -1;
                 canvasPreviewState.selectedKey = '';
+                canvasPreviewState.selectionMode = 'auto';
+                if (previousIndex !== -1) resetCanvasScrollState();
                 return null;
             }
-            const currentIndex = Number.isInteger(canvasPreviewState.selectedIndex) ? canvasPreviewState.selectedIndex : -1;
-            let nextIndex = currentIndex;
-            if (nextIndex < 0 || nextIndex >= blocks.length) {
-                nextIndex = Number.isInteger(data.primaryIndex) && data.primaryIndex >= 0 && data.primaryIndex < blocks.length ? data.primaryIndex : blocks.length - 1;
+            let nextIndex = blocks.length - 1;
+            if (canvasPreviewState.selectionMode === 'manual' && previousIndex >= 0 && previousIndex < blocks.length) {
+                nextIndex = previousIndex;
+            } else {
+                canvasPreviewState.selectionMode = 'auto';
             }
             const nextBlock = blocks[nextIndex] || null;
             canvasPreviewState.selectedIndex = nextBlock ? nextIndex : -1;
             canvasPreviewState.selectedKey = nextBlock && nextBlock.key ? nextBlock.key : '';
+            if (previousIndex !== canvasPreviewState.selectedIndex) resetCanvasScrollState();
             return nextBlock;
         }
         function refreshCanvasPreviewPanel() {
@@ -11908,17 +11997,35 @@
             if (els.title) els.title.textContent = titleText;
             if (els.status) els.status.textContent = statusText;
             if (els.previewLang) els.previewLang.textContent = hasBlock ? (blockLang || 'text') : 'idle';
-            if (els.sourceLang) els.sourceLang.textContent = hasBlock ? (blockLang || 'text') : '-';
+            const sourceScrollTop = els.sourceScroll ? els.sourceScroll.scrollTop : canvasPreviewState.sourceScrollTop;
+            const sourceScrollLeft = els.sourceScroll ? els.sourceScroll.scrollLeft : canvasPreviewState.sourceScrollLeft;
             if (els.code) els.code.textContent = code;
-            if (els.sourceScroll) els.sourceScroll.scrollTop = 0;
+            if (els.sourceScroll) {
+                els.sourceScroll.scrollTop = sourceScrollTop;
+                els.sourceScroll.scrollLeft = sourceScrollLeft;
+                canvasPreviewState.sourceScrollTop = els.sourceScroll.scrollTop;
+                canvasPreviewState.sourceScrollLeft = els.sourceScroll.scrollLeft;
+            }
             if (els.blockCount) els.blockCount.textContent = String(blocks.length);
             renderCanvasBlockChips();
+            renderCanvasSourceOptions();
 
             if (hasBlock) {
-                const previewDoc = buildCanvasPreviewDocument(block);
+                canvasPreviewState.frameRenderToken += 1;
+                const frameRenderToken = canvasPreviewState.frameRenderToken;
+                const previewDoc = instrumentCanvasPreviewDocument(buildCanvasPreviewDocument(block), frameRenderToken);
                 if (els.frame) {
                     els.frame.srcdoc = previewDoc;
                     els.frame.classList.remove('hidden');
+                    els.frame.addEventListener('load', () => {
+                        if (frameRenderToken !== canvasPreviewState.frameRenderToken || !els.frame.contentWindow) return;
+                        els.frame.contentWindow.postMessage({
+                            type: 'canvas-preview-restore-scroll',
+                            token: frameRenderToken,
+                            x: canvasPreviewState.frameScrollX,
+                            y: canvasPreviewState.frameScrollY
+                        }, '*');
+                    }, { once: true });
                 }
                 if (els.empty) els.empty.classList.add('hidden');
             } else {
@@ -11930,14 +12037,17 @@
             }
             syncCanvasPreviewButtons();
         }
-        function applyCanvasSelection(index) {
+        function applyCanvasSelection(index, options = {}) {
             const blocks = Array.isArray(canvasPreviewState.blocks) ? canvasPreviewState.blocks : [];
             if (!blocks.length) return false;
             const nextIndex = Number(index);
             if (!Number.isInteger(nextIndex) || nextIndex < 0 || nextIndex >= blocks.length) return false;
+            const changed = canvasPreviewState.selectedIndex !== nextIndex;
             canvasPreviewState.selectedIndex = nextIndex;
             canvasPreviewState.selectedKey = blocks[nextIndex] && blocks[nextIndex].key ? blocks[nextIndex].key : '';
-            syncCanvasPanelViewUi('preview', { focus: false });
+            canvasPreviewState.selectionMode = 'manual';
+            if (changed) resetCanvasScrollState();
+            syncCanvasPanelViewUi(options.view || 'preview', { focus: false });
             renderCanvasBlockChips();
             syncCanvasPreviewButtons();
             refreshCanvasPreviewPanel();
@@ -12010,6 +12120,8 @@
             canvasPreviewState.renderText = canvasPreviewState.rawText;
             canvasPreviewState.selectedIndex = Number.isInteger(payload.selectedIndex) ? payload.selectedIndex : 0;
             canvasPreviewState.selectedKey = payload.selectedKey || (selectedBlock && selectedBlock.key) || '';
+            canvasPreviewState.selectionMode = 'manual';
+            resetCanvasScrollState();
             canvasPreviewState.lastCanvasData = {
                 renderText: canvasPreviewState.renderText,
                 blocks: payload.blocks,

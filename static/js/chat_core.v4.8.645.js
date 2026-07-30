@@ -2384,7 +2384,10 @@
         let useSwCache = CHAT_CONFIG.useSwCache;
         let compactPromptMode = CHAT_CONFIG.compactPromptMode;
         const CANVAS_MODE_STORAGE_KEY = 'canvas_mode_enabled_v1';
+        const CODING_MODE_STORAGE_KEY = 'coding_mode_enabled_v1';
         let canvasModeEnabled = false;
+        let codingModeEnabled = false;
+        let codingTargetSelection = null;
         const canvasPreviewState = {
             blocks: [],
             rawText: '',
@@ -2400,6 +2403,11 @@
             canvasModeEnabled = localStorage.getItem(CANVAS_MODE_STORAGE_KEY) === 'true';
         } catch (e) {
             canvasModeEnabled = false;
+        }
+        try {
+            codingModeEnabled = localStorage.getItem(CODING_MODE_STORAGE_KEY) === 'true';
+        } catch (e) {
+            codingModeEnabled = false;
         }
         let enableLatencyMetrics = CHAT_CONFIG.enableLatencyMetrics;
         let promptControlsExpanded = false;
@@ -2966,6 +2974,101 @@
                 h |= 0;
             }
             return Math.abs(h).toString(36);
+        }
+        function decodeCodeButtonValue(value) {
+            if (!value) return '';
+            try {
+                return decodeURIComponent(value);
+            } catch (e) {
+                return '';
+            }
+        }
+        function getCodingTargetFromButton(btn) {
+            if (!btn) return null;
+            const code = decodeCodeButtonValue(btn.getAttribute('data-code') || '');
+            if (!code) return null;
+            const wrapper = btn.closest('.code-wrapper');
+            const group = btn.closest('.message-group');
+            return {
+                code,
+                language: String(btn.getAttribute('data-coding-lang') || 'text').trim().slice(0, 40) || 'text',
+                key: String(btn.getAttribute('data-code-key') || wrapper?.getAttribute('data-code-key') || hashString(code)),
+                message_id: group?.id ? group.id.replace(/^msg-/, '') : null,
+                thread_id: currentThreadId ? String(currentThreadId) : null
+            };
+        }
+        function findLatestCodingTarget() {
+            const root = get('chat-container');
+            if (!root) return null;
+            const buttons = Array.from(root.querySelectorAll('.message-group .coding-target-btn'));
+            for (let i = buttons.length - 1; i >= 0; i--) {
+                const target = getCodingTargetFromButton(buttons[i]);
+                if (target) return target;
+            }
+            return null;
+        }
+        function resolveCodingTarget() {
+            if (codingTargetSelection) {
+                const selectedThread = codingTargetSelection.thread_id;
+                if (!selectedThread || !currentThreadId || String(selectedThread) === String(currentThreadId)) {
+                    return { ...codingTargetSelection, explicit: true };
+                }
+                codingTargetSelection = null;
+            }
+            const latest = findLatestCodingTarget();
+            return latest ? { ...latest, explicit: false } : null;
+        }
+        function syncCodingTargetButtons(root = document) {
+            if (!root || typeof root.querySelectorAll !== 'function') return;
+            const selectedKey = codingTargetSelection ? String(codingTargetSelection.key || '') : '';
+            root.querySelectorAll('.coding-target-btn').forEach((btn) => {
+                const active = !!selectedKey && String(btn.getAttribute('data-code-key') || '') === selectedKey;
+                btn.classList.toggle('coding-target-active', active);
+                btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+                btn.innerHTML = active
+                    ? '<i class="fas fa-thumbtack"></i> 編集対象'
+                    : '<i class="fas fa-quote-right"></i> 編集対象';
+            });
+        }
+        function syncCodingModeUi(enabled = codingModeEnabled, options = {}) {
+            codingModeEnabled = !!enabled;
+            if (options.persist !== false) {
+                try {
+                    localStorage.setItem(CODING_MODE_STORAGE_KEY, codingModeEnabled ? 'true' : 'false');
+                } catch (e) {}
+            }
+            const checkbox = get('enable-coding-mode');
+            if (checkbox && checkbox.checked !== codingModeEnabled) checkbox.checked = codingModeEnabled;
+            const bar = get('coding-target-bar');
+            const textEl = get('coding-target-text');
+            const clearBtn = get('clear-coding-target-btn');
+            if (bar) bar.classList.toggle('visible', codingModeEnabled);
+            const target = resolveCodingTarget();
+            if (textEl) {
+                if (codingTargetSelection && target) {
+                    textEl.textContent = `編集対象: ${target.language || 'text'} コードブロック`;
+                } else if (target) {
+                    textEl.textContent = `自動選択: 最新の ${target.language || 'text'} コードブロック`;
+                } else {
+                    textEl.textContent = '最新のコードブロックを自動選択';
+                }
+            }
+            if (clearBtn) clearBtn.classList.toggle('hidden', !codingTargetSelection);
+            syncCodingTargetButtons();
+        }
+        function selectCodingTargetFromButton(btn) {
+            const target = getCodingTargetFromButton(btn);
+            if (!target) {
+                showToast('このコードブロックを編集対象にできません', 'error', true);
+                return;
+            }
+            codingTargetSelection = target;
+            syncCodingModeUi(codingModeEnabled, { persist: false });
+            if (codingModeEnabled) {
+                showToast('Coding Modeの編集対象に設定しました', 'success');
+            } else {
+                showToast('編集対象を選択しました。プロンプトバーのCodingをオンにすると使用します', 'info');
+            }
         }
         function isHtmlPreviewCandidate(lang, codeRaw) {
             const token = String(lang || '').trim().toLowerCase();
@@ -5969,6 +6072,19 @@
                 canvasModeCheckbox.addEventListener('change', () => syncCanvasModeUi(canvasModeCheckbox.checked));
             }
             syncCanvasModeUi(canvasModeEnabled, { persist: false, skipReset: false });
+            const codingModeCheckbox = get('enable-coding-mode');
+            if (codingModeCheckbox) {
+                codingModeCheckbox.checked = codingModeEnabled;
+                codingModeCheckbox.addEventListener('change', () => syncCodingModeUi(codingModeCheckbox.checked));
+            }
+            if (get('clear-coding-target-btn')) {
+                get('clear-coding-target-btn').addEventListener('click', () => {
+                    codingTargetSelection = null;
+                    syncCodingModeUi(codingModeEnabled, { persist: false });
+                    showToast('最新のコードブロックを自動選択します', 'info', false);
+                });
+            }
+            syncCodingModeUi(codingModeEnabled, { persist: false });
             if (get('canvas-panel-close-btn')) {
                 get('canvas-panel-close-btn').addEventListener('click', () => syncCanvasModeUi(false));
             }
@@ -6043,7 +6159,8 @@
                                 const encOut = encodeURIComponent(outputRaw).replace(/'/g, "%27");
                                 const codeKey = hashString(`pyexec\n${codeRaw}\n${outputRaw}`);
                                 const downloadBtn = `<button class="download-btn" data-code="${encCode}" data-lang="python"><i class="fas fa-download"></i> DL Code</button>`;
-                                return `<div class="code-wrapper python-box collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button>${downloadBtn}<button class="copy-btn" data-copy="code" data-code="${encCode}"><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code="${encOut}"><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code">${codeHtml}</code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output">${outputHtml}</code></pre></div></div></div>`;
+                                const codingBtn = `<button class="coding-target-btn" data-code="${encCode}" data-code-key="${codeKey}" data-coding-lang="python" aria-pressed="false" title="Coding Modeの編集対象に指定"><i class="fas fa-quote-right"></i> 編集対象</button>`;
+                                return `<div class="code-wrapper python-box collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button>${codingBtn}${downloadBtn}<button class="copy-btn" data-copy="code" data-code="${encCode}"><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code="${encOut}"><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code">${codeHtml}</code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output">${outputHtml}</code></pre></div></div></div>`;
                             } catch (e2) {}
                         }
                         const raw = c || '';
@@ -6073,8 +6190,9 @@
                             previewBtn = `<button class="html-preview-btn" data-code="${enc}" ${isSuspicious ? 'data-suspicious="1"' : ''}><i class="fas ${icon}"></i> ${label}</button>`;
                         }
                         const downloadBtn = `<button class="download-btn" data-code="${enc}" data-lang="${l || 'txt'}"><i class="fas fa-download"></i> Download</button>`;
+                        const codingBtn = `<button class="coding-target-btn" data-code="${enc}" data-code-key="${codeKey}" data-coding-lang="${escapeHtml(l || 'text')}" aria-pressed="false" title="Coding Modeの編集対象に指定"><i class="fas fa-quote-right"></i> 編集対象</button>`;
                         const langLabel = (l || 'TEXT') + (isSuspicious ? ' <span class="suspicious-badge" title="polyfill.io などの危険スクリプトURLを検出しました">⚠</span>' : '');
-                        return `<div class="code-wrapper collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${langLabel}</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button>${previewBtn}${downloadBtn}<button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`;
+                        return `<div class="code-wrapper collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${langLabel}</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button>${codingBtn}${previewBtn}${downloadBtn}<button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`;
                     },
                     link(h, t, x) { return `<a href="${h}" title="${t || ''}" target="_blank">${x}</a>`; },
                     image(h, t, x) { const alt = escapeHtml(x || ''); const title = t ? ` title="${escapeHtml(t)}"` : ''; const viewerSrc = escapeHtml(h || ''); return `<img src="${h}" data-viewer-src="${viewerSrc}" alt="${alt}"${title} class="chat-image" loading="lazy" width="320" height="320">`; }
@@ -8865,6 +8983,9 @@
                             console.error('Download failed', err);
                         }
                     }
+                }
+                if (e.target.closest('.coding-target-btn')) {
+                    selectCodingTargetFromButton(e.target.closest('.coding-target-btn'));
                 }
                 if (e.target.closest('.copy-btn')) {
                     const btn = e.target.closest('.copy-btn');
@@ -11971,6 +12092,8 @@
                 if (doScroll) scrollToBottom();
                 if (!isUser) {
                     queueMessageDecorations(msgEl, text);
+                    syncCodingTargetButtons(msgEl);
+                    syncCodingModeUi(codingModeEnabled, { persist: false });
                 }
             }
             return msgEl;
@@ -12677,6 +12800,23 @@
                 const proceed = await confirmGeminiLocalPythonSwitch();
                 if (!proceed) return;
             }
+            let codingTargetForSend = null;
+            if (codingModeEnabled) {
+                const codingModel = String(get('model-select')?.value || '').toLowerCase();
+                if (/(image|video|tts|audio|native-audio)/.test(codingModel)) {
+                    showToast('Coding Modeではテキスト生成モデルを選択してください', 'error', true);
+                    return;
+                }
+                codingTargetForSend = resolveCodingTarget();
+                if (!codingTargetForSend || !String(codingTargetForSend.code || '').trim()) {
+                    showToast('編集対象のコードブロックがありません。先にコードを生成するか、編集対象ボタンで指定してください', 'warning', true);
+                    return;
+                }
+                if (codingTargetForSend.code.length > 300000) {
+                    showToast('編集対象コードが大きすぎます（上限300,000文字）', 'error', true);
+                    return;
+                }
+            }
             sendClientDebugLog(
                 'info',
                 `Prompt send start: model=${get('model-select').value} thread=${currentThreadId || '-'} text_len=${rawText.length} attachments=${imageUrlsToSend.length} search=${get('enable-search').checked}`
@@ -12815,7 +12955,14 @@
                 parent_id: capturedParentId,
                 parent_id_explicit: parentIdExplicit,
                 disable_auto_search: disableAutoSearch,
-                image_vision_model: currentVisionModel || null
+                image_vision_model: currentVisionModel || null,
+                coding_mode: codingModeEnabled,
+                coding_target: codingTargetForSend ? {
+                    code: codingTargetForSend.code,
+                    language: codingTargetForSend.language || 'text',
+                    key: codingTargetForSend.key || null,
+                    message_id: codingTargetForSend.message_id || null
+                } : null
             };
             const threadCustomInstructionEl = get('thread-custom-instruction');
             if (threadCustomInstructionEl) {
@@ -13180,6 +13327,10 @@
                 // Full reload to establish new tree structure (skip on error to keep the error visible)
                 if (!hadError) {
                     await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
+                    if (codingModeEnabled) {
+                        codingTargetSelection = null;
+                        syncCodingModeUi(true, { persist: false });
+                    }
                 }
 
                 // Only auto-scroll if user was already at bottom or auto-scroll is active

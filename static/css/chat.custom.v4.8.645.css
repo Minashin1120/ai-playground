@@ -130,9 +130,10 @@
         .code-wrapper { margin: 1em 0; border-radius: 0.85rem; border: 1px solid rgba(148,163,184,0.16); background: rgba(10, 16, 40, 0.7); box-shadow: var(--shadow); position: relative; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
         .code-header { display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); padding: 0.4rem 0.9rem; font-size: 0.75rem; color: #9aa3b2; border-bottom: 1px solid rgba(148,163,184,0.12); position: sticky; top: 6px; z-index: 2; }
         .code-actions { display: flex; align-items: center; gap: 0.6rem; }
-        .copy-btn, .code-toggle, .html-preview-btn, .canvas-preview-btn, .download-btn { background: transparent; border: none; color: #9aa3b2; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s; }
-        .copy-btn:hover, .code-toggle:hover, .html-preview-btn:hover, .canvas-preview-btn:hover, .download-btn:hover { color: #e2e8f0; }
+        .copy-btn, .code-toggle, .html-preview-btn, .canvas-preview-btn, .coding-target-btn, .download-btn { background: transparent; border: none; color: #9aa3b2; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s, background 0.2s; }
+        .copy-btn:hover, .code-toggle:hover, .html-preview-btn:hover, .canvas-preview-btn:hover, .coding-target-btn:hover, .download-btn:hover { color: #e2e8f0; }
         .canvas-preview-btn.canvas-active { color: #ccfbf1; }
+        .coding-target-btn.coding-target-active { color: #a7f3d0; background: rgba(16,185,129,0.14); border-radius: 6px; padding: 2px 5px; }
         .code-body { border-bottom-left-radius: 0.85rem; border-bottom-right-radius: 0.85rem; overflow: hidden; transition: max-height 0.34s var(--ease-out), opacity 0.26s var(--ease-standard), padding 0.26s var(--ease-standard); }
         .code-body pre { margin: 0; }
         .code-wrapper.collapsed .code-body { max-height: 0; opacity: 0; padding: 0; overflow: hidden; }
@@ -341,11 +342,13 @@
         .python-box .code-actions .copy-btn,
         .python-box .code-actions .code-toggle,
         .python-box .code-actions .html-preview-btn,
-        .python-box .code-actions .canvas-preview-btn { color: #cbd5f5; }
+        .python-box .code-actions .canvas-preview-btn,
+        .python-box .code-actions .coding-target-btn { color: #cbd5f5; }
         .python-box .code-actions .copy-btn:hover,
         .python-box .code-actions .code-toggle:hover,
         .python-box .code-actions .html-preview-btn:hover,
-        .python-box .code-actions .canvas-preview-btn:hover { color: #fff7ed; }
+        .python-box .code-actions .canvas-preview-btn:hover,
+        .python-box .code-actions .coding-target-btn:hover { color: #fff7ed; }
         .python-box .code-body { padding: 0.7rem 0.85rem; display: grid; gap: 0.6rem; }
         .python-box .python-section { display: grid; gap: 0.35rem; }
         .python-box .python-label { font-size: 0.7rem; color: #a3b3c5; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -382,6 +385,21 @@
         #quote-bar.visible {
             display: flex; align-items: center; justify-content: space-between;
             animation: barSlideIn 0.28s var(--ease-out) both;
+        }
+        #coding-target-bar {
+            display: none; background: rgba(2, 44, 34, 0.88); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(52, 211, 153, 0.28); padding: 8px 12px; border-radius: 12px;
+            font-size: 12px; color: #d1fae5; position: relative;
+        }
+        #coding-target-bar.visible {
+            display: flex; align-items: center; justify-content: space-between;
+            animation: barSlideIn 0.28s var(--ease-out) both;
+        }
+        .coding-target-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 92%; }
+        #coding-mode-container:has(input:checked) {
+            border-color: rgba(52, 211, 153, 0.68);
+            background: rgba(6, 95, 70, 0.36);
+            box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.12), 0 0 18px rgba(16, 185, 129, 0.12);
         }
         @keyframes barSlideIn {
             from { opacity: 0; transform: translateY(8px); }
@@ -2296,6 +2314,7 @@ input[type="checkbox"]::after {
     #image-viewer.visible .viewer-nav,
     #file-viewer.visible .panel,
     #quote-bar.visible,
+    #coding-target-bar.visible,
     #quote-popover.show,
     #slash-command-suggestions:not(.hidden),
     #gem-suggestions:not(.hidden),
@@ -2422,6 +2441,7 @@ body.liquid-glass-mode .welcome-btn,
 body.liquid-glass-mode #file-preview,
 body.liquid-glass-mode #edit-bar,
 body.liquid-glass-mode #quote-bar,
+body.liquid-glass-mode #coding-target-bar,
 body.liquid-glass-mode #slash-command-list,
 body.liquid-glass-mode .thought-container,
 body.liquid-glass-mode .code-wrapper {

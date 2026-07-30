@@ -685,8 +685,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-011')
-app.config['SYSTEM_VERSION'] = 'V4.8.644'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-012')
+app.config['SYSTEM_VERSION'] = 'V4.8.645'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -5199,6 +5199,69 @@ def safe_execute_python(code):
         except Exception as e:
             return f"Error: {str(e)}"
 
+CODING_MODE_SYSTEM_PROMPT = """[Coding Mode]
+You are editing the supplied existing code block. Minimize output tokens: never repeat the whole file.
+Return exactly one JSON object and no Markdown fences or commentary:
+{"summary":"short description","edits":[{"search":"exact existing text","replace":"replacement text"}]}
+Each search value must be non-empty and occur exactly once in the current code at the time that edit is applied. Include only the smallest exact span needed to make it unique. Use replace="" to delete. For insertion, replace a short unique anchor with the anchor plus the insertion. Apply multiple edits in array order. Preserve indentation and line endings. If no code change is needed, return {"summary":"reason","edits":[]}. You may use an available Python tool to inspect or validate the change, but your final answer must still be only the JSON object."""
+
+def _parse_coding_mode_edit_payload(model_output):
+    raw = str(model_output or "").strip()
+    if not raw:
+        raise ValueError("モデルから編集内容が返されませんでした")
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\s*", "", raw, count=1, flags=re.IGNORECASE)
+        raw = re.sub(r"\s*```\s*$", "", raw, count=1)
+    payload = None
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r"\{", raw):
+        try:
+            candidate, _ = decoder.raw_decode(raw[match.start():])
+        except Exception:
+            continue
+        if isinstance(candidate, dict) and isinstance(candidate.get("edits"), list):
+            payload = candidate
+            break
+    if payload is None:
+        raise ValueError("editsを含む編集JSONを解析できません")
+    edits = payload.get("edits")
+    if not isinstance(edits, list) or len(edits) > 50:
+        raise ValueError("editsは50件以下の配列である必要があります")
+    summary = str(payload.get("summary") or "").strip()[:2000]
+    normalized = []
+    for item in edits:
+        if not isinstance(item, dict):
+            raise ValueError("各編集はJSONオブジェクトである必要があります")
+        search = item.get("search")
+        replace = item.get("replace")
+        if not isinstance(search, str) or not search:
+            raise ValueError("searchは空にできません")
+        if not isinstance(replace, str):
+            raise ValueError("replaceは文字列である必要があります")
+        if len(search) > 100_000 or len(replace) > 100_000:
+            raise ValueError("1件の編集が大きすぎます")
+        normalized.append({"search": search, "replace": replace})
+    return {"summary": summary, "edits": normalized}
+
+def _markdown_fence_for_code(code):
+    longest = max((len(run) for run in re.findall(r"`+", str(code or ""))), default=0)
+    return "`" * max(3, longest + 1)
+
+def apply_coding_mode_edits(model_output, target_code, language="text"):
+    code = str(target_code or "")
+    payload = _parse_coding_mode_edit_payload(model_output)
+    for index, edit in enumerate(payload["edits"], start=1):
+        occurrences = code.count(edit["search"])
+        if occurrences != 1:
+            raise ValueError(f"編集{index}のsearch一致数が{occurrences}件です（1件必要）")
+        code = code.replace(edit["search"], edit["replace"], 1)
+        if len(code) > 500_000:
+            raise ValueError("適用後のコードが大きすぎます")
+    safe_language = re.sub(r"[^A-Za-z0-9_+.#-]", "", str(language or "text"))[:40] or "text"
+    fence = _markdown_fence_for_code(code)
+    summary = payload["summary"] or ("変更を適用しました" if payload["edits"] else "変更はありません")
+    return f"**Coding Mode:** {summary}\n\n{fence}{safe_language}\n{code}\n{fence}"
+
 def background_chat_task(job_id, thread_id, model_key, message_id, options, user_id, user_config):
     with app.app_context():
         channel = f"ai_chat:channel:{job_id}"
@@ -5220,6 +5283,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             except Exception:
                 pass
         def pub(dt, d, **metadata):
+            if options.get("coding_mode") and dt == "content" and not metadata.get("coding_final"):
+                return
             if dt == "status":
                 _latency_mark_once(job_id, "provider_first_status_ms")
             elif dt == "thought":
@@ -5379,6 +5444,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     combined_prompt = f"{combined_prompt}\n\n[Chat Specific Instructions]:\n{local_sys_prompt}"
                 else:
                     combined_prompt = local_sys_prompt
+            if options.get("coding_mode"):
+                if combined_prompt:
+                    combined_prompt = f"{combined_prompt}\n\n{CODING_MODE_SYSTEM_PROMPT}"
+                else:
+                    combined_prompt = CODING_MODE_SYSTEM_PROMPT
             
             options['system_prompt'] = combined_prompt
 
@@ -6077,6 +6147,17 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             full_res, thought_accumulated, generated_images = "", "", []
             signature_parts = []
 
+            original_quote_text = quote_text
+            if options.get("coding_mode"):
+                coding_target = options.get("coding_target") or {}
+                target_code = str(coding_target.get("code") or "")
+                target_language = str(coding_target.get("language") or "text")
+                coding_context = (
+                    f"[Coding Mode Target]\nLanguage: {target_language}\n"
+                    f"Character count: {len(target_code)}\n"
+                    f"--- BEGIN TARGET CODE ---\n{target_code}\n--- END TARGET CODE ---"
+                )
+                quote_text = f"{quote_text}\n\n{coding_context}" if quote_text else coding_context
             final_message_text = message_text
             if quote_text:
                 final_message_text = f"Context (User Quote):\n\"\"\"\n{quote_text}\n\"\"\"\n\nUser Message:\n{message_text}"
@@ -6095,7 +6176,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             if is_grok and not grok_enable_search and user_auto_search and not disable_auto:
                 try:
                     import re
-                    check_text = f"{message_text} {quote_text or ''}"
+                    check_text = f"{message_text} {original_quote_text or ''}"
                     if re.search(r'https?://', check_text) or "x.com/" in check_text or "twitter.com/" in check_text:
                         grok_enable_search = True
                         auto_enable_search = True
@@ -6105,7 +6186,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             if not is_grok and not auto_enable_search and user_auto_search and not disable_auto:
                 try:
                     import re
-                    check_text = f"{message_text} {quote_text or ''}"
+                    check_text = f"{message_text} {original_quote_text or ''}"
                     if re.search(r'https?://', check_text) or "x.com/" in check_text or "twitter.com/" in check_text:
                         auto_enable_search = True
                         log_force("Auto-enabled Web search for URL/X post access")
@@ -6114,7 +6195,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             if is_gem and not auto_enable_url_context and user_auto_search and not disable_auto:
                 try:
                     import re
-                    check_text = f"{message_text} {quote_text or ''}"
+                    check_text = f"{message_text} {original_quote_text or ''}"
                     if re.search(r'https?://', check_text):
                         auto_enable_url_context = True
                         log_force("Auto-enabled URL context for Gemini URL access")
@@ -9204,6 +9285,21 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             if is_grok and grok_reasoning_supported and not thought_accumulated:
                 thought_accumulated = " "
             final_content = full_res
+            if options.get("coding_mode"):
+                coding_target = options.get("coding_target") or {}
+                try:
+                    final_content = apply_coding_mode_edits(
+                        full_res,
+                        coding_target.get("code"),
+                        coding_target.get("language"),
+                    )
+                except ValueError as exc:
+                    logger.warning("Coding Mode edit application failed for job %s: %s", job_id, exc)
+                    final_content = (
+                        f"**Coding Modeの差分適用に失敗しました:** {exc}\n\n"
+                        "安全のため元コードは変更していません。指示を具体化して再送してください。"
+                    )
+                pub("content", final_content, coding_final=True)
 
             def _compact_thought_signature(parts):
                 if not parts:
@@ -10156,6 +10252,23 @@ def chat_stream():
     model_key = str(data.get('model') or '').strip()
     if model_key not in ALL_VALID_MODEL_IDS:
         return jsonify({'error': 'Invalid model'}), 400
+    coding_mode = data.get('coding_mode') is True
+    coding_target = data.get('coding_target')
+    if coding_mode:
+        if any(marker in model_key.lower() for marker in ("image", "video", "tts", "audio", "native-audio")):
+            return jsonify({'error': 'Coding Mode requires a text generation model'}), 400
+        if not isinstance(coding_target, dict):
+            return jsonify({'error': 'Coding Mode target is required'}), 400
+        target_code = coding_target.get('code')
+        if not isinstance(target_code, str) or not target_code.strip() or len(target_code) > 300_000:
+            return jsonify({'error': 'Invalid or oversized Coding Mode target'}), 400
+        target_language = str(coding_target.get('language') or 'text')
+        coding_target = {
+            'code': target_code,
+            'language': re.sub(r'[^A-Za-z0-9_+.#-]', '', target_language)[:40] or 'text',
+            'key': str(coding_target.get('key') or '')[:100] or None,
+            'message_id': str(coding_target.get('message_id') or '')[:100] or None,
+        }
     resolved_auth = _resolve_chat_model_auth(current_user, model_key)
     if resolved_auth.get("error_code"):
         return jsonify({
@@ -10375,6 +10488,8 @@ def chat_stream():
             'gem_uuid': data.get('gem_uuid'),
             'enable_prompt_caching': enable_pc_request,
             'prompt_cache_key': None,
+            'coding_mode': coding_mode,
+            'coding_target': coding_target if coding_mode else None,
         }
     # Persist prompt-cache flags on the thread (provider locked while enabled)
     try:

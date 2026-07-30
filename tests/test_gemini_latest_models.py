@@ -4,7 +4,7 @@ import unittest
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 APP_SOURCE = (APP_ROOT / "app.py").read_text(encoding="utf-8")
-CHAT_JS = (APP_ROOT / "static/js/chat_core.v4.8.644.js").read_text(encoding="utf-8")
+CHAT_JS = (APP_ROOT / "static/js/chat_core.v4.8.645.js").read_text(encoding="utf-8")
 CHAT_HTML = (APP_ROOT / "templates/chat.html").read_text(encoding="utf-8")
 SETUP_HTML = (APP_ROOT / "templates/setup.html").read_text(encoding="utf-8")
 

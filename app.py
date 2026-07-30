@@ -25,6 +25,7 @@ import asyncio
 import tempfile
 import zipfile
 import warnings
+import cairosvg
 from defusedxml import ElementTree as ET
 from urllib.parse import urlparse, unquote
 import threading
@@ -686,8 +687,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-30-016')
-app.config['SYSTEM_VERSION'] = 'V4.8.649'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-31-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.650'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1928,6 +1929,124 @@ def _save_user_generated_bytes(user_id, data, filename, encrypt):
         with open(fpath, 'xb') as f:
             f.write(data)
     return fpath
+
+_AGENTIC_IMAGE_MAX_BYTES = 50 * 1024 * 1024
+_AGENTIC_SVG_MAX_BYTES = 10 * 1024 * 1024
+_AGENTIC_SVG_MAX_DIMENSION = 4096
+_AGENTIC_SVG_MAX_PIXELS = 16_000_000
+_SVG_FORBIDDEN_ELEMENTS = {"script", "foreignobject", "iframe", "object", "embed"}
+
+
+def _xml_local_name(value):
+    return str(value or "").rsplit("}", 1)[-1].lower()
+
+
+def _svg_dimension(value):
+    match = re.match(r"^\s*(\d+(?:\.\d+)?)\s*(?:px)?\s*$", str(value or ""), re.I)
+    if not match:
+        return None
+    dimension = float(match.group(1))
+    return dimension if dimension > 0 else None
+
+
+def _sanitize_and_rasterize_agentic_svg(data):
+    if not isinstance(data, (bytes, bytearray)) or not data:
+        raise ValueError("Generated SVG is empty")
+    if len(data) > _AGENTIC_SVG_MAX_BYTES:
+        raise ValueError("Generated SVG is too large")
+
+    root = ET.fromstring(bytes(data))
+    if _xml_local_name(root.tag) != "svg":
+        raise ValueError("Generated SVG has an invalid root element")
+
+    for element in root.iter():
+        if _xml_local_name(element.tag) in _SVG_FORBIDDEN_ELEMENTS:
+            raise ValueError("Generated SVG contains an unsafe element")
+        if element.text and (
+            re.search(r"url\s*\(\s*(?![\"']?#)", element.text, re.I)
+            or re.search(r"@import\b", element.text, re.I)
+        ):
+            raise ValueError("Generated SVG contains an external resource")
+        for raw_name, raw_value in element.attrib.items():
+            name = _xml_local_name(raw_name)
+            value = str(raw_value or "").strip()
+            if name.startswith("on"):
+                raise ValueError("Generated SVG contains an event handler")
+            if name == "base":
+                raise ValueError("Generated SVG contains an external base URL")
+            if name in {"href", "src"} and value and not value.startswith("#"):
+                raise ValueError("Generated SVG contains an external resource")
+            if (
+                re.search(r"url\s*\(\s*(?![\"']?#)", value, re.I)
+                or re.search(r"@import\b", value, re.I)
+            ):
+                raise ValueError("Generated SVG contains an external resource")
+
+    width = _svg_dimension(root.attrib.get("width"))
+    height = _svg_dimension(root.attrib.get("height"))
+    view_box = str(root.attrib.get("viewBox") or root.attrib.get("viewbox") or "").split()
+    if len(view_box) == 4:
+        try:
+            view_width = float(view_box[2])
+            view_height = float(view_box[3])
+            width = width or (view_width if view_width > 0 else None)
+            height = height or (view_height if view_height > 0 else None)
+        except (TypeError, ValueError):
+            pass
+    width = width or 300.0
+    height = height or 150.0
+    scale = min(
+        1.0,
+        _AGENTIC_SVG_MAX_DIMENSION / max(width, height),
+        math.sqrt(_AGENTIC_SVG_MAX_PIXELS / (width * height)),
+    )
+    output_width = max(1, int(round(width * scale)))
+    output_height = max(1, int(round(height * scale)))
+    sanitized_svg = ET.tostring(root, encoding="utf-8")
+    png_data = cairosvg.svg2png(
+        bytestring=sanitized_svg,
+        output_width=output_width,
+        output_height=output_height,
+        unsafe=False,
+    )
+    if not png_data or len(png_data) > _AGENTIC_IMAGE_MAX_BYTES:
+        raise ValueError("Rasterized generated image is invalid")
+    return png_data
+
+
+def _prepare_agentic_image_bytes(data, declared_mime=None):
+    if isinstance(data, str):
+        data = _decode_base64_limited(data, _AGENTIC_IMAGE_MAX_BYTES)
+    if not isinstance(data, (bytes, bytearray)) or not data:
+        raise ValueError("Generated image is empty")
+    data = bytes(data)
+    if len(data) > _AGENTIC_IMAGE_MAX_BYTES:
+        raise ValueError("Generated image is too large")
+
+    mime = str(declared_mime or "").split(";", 1)[0].strip().lower()
+    is_svg = mime == "image/svg+xml" or bool(
+        re.match(br"\s*(?:<\?xml[^>]*>\s*)?<svg(?:\s|>)", data, re.I)
+    )
+    if is_svg:
+        return _sanitize_and_rasterize_agentic_svg(data), "png"
+
+    try:
+        with Image.open(BytesIO(data)) as image:
+            image.verify()
+            image_format = str(image.format or "").upper()
+    except Exception as exc:
+        raise ValueError("Gemini inline data is not a supported image") from exc
+
+    extension_by_format = {
+        "PNG": "png",
+        "JPEG": "jpg",
+        "WEBP": "webp",
+        "GIF": "gif",
+    }
+    extension = extension_by_format.get(image_format)
+    if not extension:
+        raise ValueError(f"Unsupported generated image format: {image_format or 'unknown'}")
+    return data, extension
 
 def _save_user_audio(user_id, data, suffix, encrypt):
     fname = f"audio_{int(time.time())}_{os.urandom(4).hex()}{suffix}"
@@ -6533,6 +6652,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 return
 
             full_res, thought_accumulated, generated_images = "", "", []
+            agentic_image_digests = set()
             signature_parts = []
 
             original_quote_text = quote_text
@@ -7717,12 +7837,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     if hasattr(part, 'inline_data') and part.inline_data:
                                         try:
                                             mime = getattr(part.inline_data, "mime_type", None) or "image/png"
-                                            ext_map = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
-                                            ext = ext_map.get(mime, "png")
-                                            fn2 = f"agentic_{int(time.time())}_{len(generated_images)}.{ext}"
                                             img_data = part.inline_data.data
-                                            if isinstance(img_data, str):
-                                                img_data = _decode_base64_limited(img_data, 50 * 1024 * 1024)
+                                            img_data, ext = _prepare_agentic_image_bytes(img_data, mime)
+                                            image_digest = hashlib.sha256(img_data).hexdigest()
+                                            if image_digest in agentic_image_digests:
+                                                continue
+                                            agentic_image_digests.add(image_digest)
+                                            fn2 = (
+                                                f"agentic_{int(time.time() * 1000)}_"
+                                                f"{os.urandom(4).hex()}.{ext}"
+                                            )
                                             _save_user_generated_bytes(
                                                 user_id, img_data, fn2, user_config.get('enable_e2ee')
                                             )

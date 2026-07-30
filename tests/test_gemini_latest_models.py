@@ -4,7 +4,9 @@ import unittest
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 APP_SOURCE = (APP_ROOT / "app.py").read_text(encoding="utf-8")
-CHAT_JS = (APP_ROOT / "static/js/chat_core.v4.8.649.js").read_text(encoding="utf-8")
+CHAT_JS_ASSETS = list((APP_ROOT / "static/js").glob("chat_core.v4.8.*.js"))
+assert len(CHAT_JS_ASSETS) == 1, "Only the latest versioned chat core asset should remain"
+CHAT_JS = CHAT_JS_ASSETS[0].read_text(encoding="utf-8")
 CHAT_HTML = (APP_ROOT / "templates/chat.html").read_text(encoding="utf-8")
 SETUP_HTML = (APP_ROOT / "templates/setup.html").read_text(encoding="utf-8")
 

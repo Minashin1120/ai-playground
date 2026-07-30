@@ -8,6 +8,8 @@ attrs==25.4.0
 blinker==1.9.0
 cachetools==6.2.2
 certifi==2025.11.12
+CairoSVG==2.9.0
+cairocffi==1.7.1
 cffi==2.0.0
 charset-normalizer==3.4.4
 click==8.3.3

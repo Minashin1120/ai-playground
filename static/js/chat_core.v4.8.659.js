@@ -11800,8 +11800,12 @@
                 const lang = String(block && block.lang ? block.lang : 'text').trim() || 'text';
                 const selected = index === selectedIndex;
                 const stateLabel = block && block.open ? '生成中' : '表示';
+                const codeLines = String(block && block.code ? block.code : '').split(/\r?\n/);
+                const firstCodeLine = codeLines.find((line) => line.trim()) || '空のコードブロック';
+                const preview = firstCodeLine.trim().replace(/\s+/g, ' ').slice(0, 120);
                 const title = `${selected ? '現在表示中' : '切り替え'}: ${lang}`;
-                return `<button type="button" class="canvas-block-chip${selected ? ' active' : ''}" data-canvas-block-index="${index}" title="${escapeHtml(title)}" aria-pressed="${selected ? 'true' : 'false'}"><span class="canvas-block-chip-index">#${index + 1}</span><span class="canvas-block-chip-lang">${escapeHtml(lang)}</span><span class="canvas-block-chip-state">${selected ? '表示中' : stateLabel}</span></button>`;
+                const ariaLabel = `${title}、${preview}`;
+                return `<button type="button" class="canvas-block-chip${selected ? ' active' : ''}" data-canvas-block-index="${index}" title="${escapeHtml(title)}" aria-label="${escapeHtml(ariaLabel)}" aria-pressed="${selected ? 'true' : 'false'}"><span class="canvas-block-chip-index">#${index + 1}</span><span class="canvas-block-chip-main"><span class="canvas-block-chip-lang">${escapeHtml(lang)}</span><span class="canvas-block-chip-preview">${escapeHtml(preview)}</span></span><span class="canvas-block-chip-state">${selected ? '表示中' : stateLabel}</span></button>`;
             }).join('');
         }
         function renderCanvasSourceOptions() {

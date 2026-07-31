@@ -37,6 +37,19 @@ class CanvasModeRegressionTests(unittest.TestCase):
         refresh_source = self.source[refresh_start:refresh_end]
         self.assertNotIn("els.sourceScroll.scrollTop = 0", refresh_source)
 
+    def test_block_tab_uses_full_width_rows_with_code_previews(self):
+        css_assets = list((APP_ROOT / "static/css").glob("chat.custom.v4.8.*.css"))
+        self.assertEqual(len(css_assets), 1)
+        css_source = css_assets[0].read_text(encoding="utf-8")
+
+        self.assertIn("flex-direction: column;", css_source)
+        self.assertIn(".canvas-block-chip-main", css_source)
+        self.assertIn(".canvas-block-chip-preview", css_source)
+        self.assertIn("width: 100%;", css_source)
+        self.assertIn("const firstCodeLine =", self.source)
+        self.assertIn('class="canvas-block-chip-main"', self.source)
+        self.assertIn('class="canvas-block-chip-preview"', self.source)
+
 
 if __name__ == "__main__":
     unittest.main()

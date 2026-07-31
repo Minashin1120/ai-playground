@@ -7857,6 +7857,20 @@
                     }
                 });
 
+                // Restore a chat thread when back/forward lands on /c/<id>
+                const threadMatch = location.pathname.match(/^\/c\/(.+)$/);
+                if (threadMatch) {
+                    const tid = decodeURIComponent(threadMatch[1]);
+                    if (String(currentThreadId) !== String(tid)) {
+                        loadMessages(tid, { skipHistory: true });
+                    }
+                } else if (location.pathname === '/') {
+                    // Returned to the home/new-chat view
+                    if (currentThreadId) {
+                        startNewChat({ skipHistory: true });
+                    }
+                }
+
                 // If we navigated TO a modal path, open it
                 const config = MODAL_CONFIG[location.pathname];
                 if (config) {
@@ -14131,7 +14145,7 @@
                 cancelEdit();
             }
             currentThreadId = tid !== null && tid !== undefined ? String(tid) : tid;
-            history.pushState({}, '', '/c/' + tid);
+            if (!opts.skipHistory) history.pushState({}, '', '/c/' + tid);
             updateThreadHighlighting();
             syncActiveGemForThread(currentThreadId);
             get('welcome-screen').classList.add('hidden');
@@ -14767,7 +14781,7 @@
             currentParentId = null;
             currentThreadPending = null;
             updateTotalTokenBar(0);
-            history.pushState({}, '', '/');
+            if (!opts.skipHistory) history.pushState({}, '', '/');
             get('chat-container').innerHTML = '';
             get('welcome-screen').classList.remove('hidden');
             updateCurrentChatHeaderUi();

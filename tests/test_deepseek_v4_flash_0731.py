@@ -10,7 +10,7 @@ class DeepSeekV4Flash0731Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app_source = (ROOT / "app.py").read_text(encoding="utf-8")
-        cls.js_source = (ROOT / "static/js/chat_core.v4.8.662.js").read_text(encoding="utf-8")
+        cls.js_source = (ROOT / "static/js/chat_core.v4.8.663.js").read_text(encoding="utf-8")
         cls.setup_source = (ROOT / "templates/setup.html").read_text(encoding="utf-8")
 
     def test_new_release_is_visible_and_preview_is_deprecated(self):
@@ -50,12 +50,12 @@ class DeepSeekV4Flash0731Tests(unittest.TestCase):
         self.assertIn("isLlmModel() && !isDeepSeek", self.js_source)
 
     def test_release_assets_and_versions_are_complete(self):
-        self.assertIn("'2026-08-01-001'", self.app_source)
-        self.assertIn("'V4.8.662'", self.app_source)
+        self.assertIn("'2026-08-01-002'", self.app_source)
+        self.assertIn("'V4.8.663'", self.app_source)
         for relative in (
-            "static/js/chat_core.v4.8.662.js",
-            "static/css/chat.custom.v4.8.662.css",
-            "static/css/chat.tailwind.v4.8.662.css",
+            "static/js/chat_core.v4.8.663.js",
+            "static/css/chat.custom.v4.8.663.css",
+            "static/css/chat.tailwind.v4.8.663.css",
         ):
             self.assertTrue((ROOT / relative).is_file(), relative)
 

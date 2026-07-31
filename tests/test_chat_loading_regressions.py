@@ -41,6 +41,25 @@ class ChatLoadingRegressionTests(unittest.TestCase):
         self.assertIn("data-chat-load-retry", source)
         self.assertIn("loadSequence !== threadLoadSequence", loader)
 
+    def test_back_forward_navigation_restores_thread_from_url(self):
+        source = _current_chat_core_source()
+        popstate = source[source.index("window.addEventListener('popstate'"):]
+        popstate = popstate[: popstate.index("const initialPath = location.pathname")]
+
+        self.assertIn("location.pathname.match(/^\\/c\\/(.+)$/)", popstate)
+        self.assertIn("loadMessages(tid, { skipHistory: true })", popstate)
+        self.assertIn("startNewChat({ skipHistory: true })", popstate)
+
+    def test_url_push_is_skipped_when_restoring_from_history(self):
+        source = _current_chat_core_source()
+        loader = source[source.index("async function loadMessages(tid, opts = {})"):]
+        loader = loader[:loader.index("async function loadOlderMessages()")]
+        self.assertIn("if (!opts.skipHistory) history.pushState({}, '', '/c/' + tid);", loader)
+
+        new_chat = source[source.index("function startNewChat(opts = {})"):]
+        new_chat = new_chat[:new_chat.index("let threadModalLoadSeq = 0;")]
+        self.assertIn("if (!opts.skipHistory) history.pushState({}, '', '/');", new_chat)
+
 
 if __name__ == "__main__":
     unittest.main()

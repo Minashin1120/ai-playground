@@ -215,6 +215,34 @@
             color: #ecfeff;
             box-shadow: inset 0 0 0 1px rgba(var(--theme-rgb), 0.16);
         }
+        @keyframes canvasViewEnterFromLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-1.25rem) scale(0.992);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0) scale(1);
+            }
+        }
+        @keyframes canvasViewEnterFromRight {
+            from {
+                opacity: 0;
+                transform: translateX(1.25rem) scale(0.992);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0) scale(1);
+            }
+        }
+        .canvas-view-enter-from-left {
+            animation: canvasViewEnterFromLeft 0.3s var(--ease-out) both;
+            will-change: opacity, transform;
+        }
+        .canvas-view-enter-from-right {
+            animation: canvasViewEnterFromRight 0.3s var(--ease-out) both;
+            will-change: opacity, transform;
+        }
         #canvas-preview-shell {
             flex: 1.45 1 0;
             min-height: 340px;

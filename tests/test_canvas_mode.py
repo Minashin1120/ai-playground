@@ -50,6 +50,18 @@ class CanvasModeRegressionTests(unittest.TestCase):
         self.assertIn('class="canvas-block-chip-main"', self.source)
         self.assertIn('class="canvas-block-chip-preview"', self.source)
 
+    def test_block_selection_animates_into_the_preview_tab(self):
+        css_assets = list((APP_ROOT / "static/css").glob("chat.custom.v4.8.*.css"))
+        self.assertEqual(len(css_assets), 1)
+        css_source = css_assets[0].read_text(encoding="utf-8")
+
+        self.assertIn("animateCanvasMobileViewEntry", self.source)
+        self.assertIn("animateView: true", self.source)
+        self.assertIn("transitionFrom: 'blocks'", self.source)
+        self.assertIn("canvas-view-enter-from-left", self.source)
+        self.assertIn("@keyframes canvasViewEnterFromLeft", css_source)
+        self.assertIn(".canvas-view-enter-from-left", css_source)
+
 
 if __name__ == "__main__":
     unittest.main()

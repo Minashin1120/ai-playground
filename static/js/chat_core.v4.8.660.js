@@ -2442,6 +2442,8 @@
             frameRenderToken: 0,
             panelAnimationToken: 0,
             panelHideTimer: null,
+            viewAnimationToken: 0,
+            viewAnimationTimer: null,
             lastCanvasData: null
         };
         try {
@@ -6297,7 +6299,11 @@
                     const btn = e.target.closest('[data-canvas-block-index]');
                     if (!btn) return;
                     const index = Number(btn.getAttribute('data-canvas-block-index'));
-                    applyCanvasSelection(index);
+                    applyCanvasSelection(index, {
+                        view: 'preview',
+                        animateView: true,
+                        transitionFrom: 'blocks'
+                    });
                 });
             }
             if (get('canvas-source-select')) {
@@ -11764,10 +11770,44 @@
                 return false;
             }
         }
+        function animateCanvasMobileViewEntry(els, previousView, nextView) {
+            if (!els || !isCanvasMobileLayout() || previousView === nextView) return;
+            const sectionByView = {
+                preview: get('canvas-preview-shell'),
+                blocks: get('canvas-block-shell'),
+                source: get('canvas-source-shell')
+            };
+            const viewOrder = { preview: 0, blocks: 1, source: 2 };
+            const section = sectionByView[nextView];
+            if (!section || !(previousView in viewOrder) || !(nextView in viewOrder)) return;
+            canvasPreviewState.viewAnimationToken += 1;
+            const animationToken = canvasPreviewState.viewAnimationToken;
+            if (canvasPreviewState.viewAnimationTimer) {
+                clearTimeout(canvasPreviewState.viewAnimationTimer);
+                canvasPreviewState.viewAnimationTimer = null;
+            }
+            Object.values(sectionByView).forEach((item) => {
+                if (!item) return;
+                item.classList.remove('canvas-view-enter-from-left', 'canvas-view-enter-from-right');
+            });
+            void section.offsetWidth;
+            const directionClass = viewOrder[nextView] < viewOrder[previousView]
+                ? 'canvas-view-enter-from-left'
+                : 'canvas-view-enter-from-right';
+            section.classList.add(directionClass);
+            canvasPreviewState.viewAnimationTimer = setTimeout(() => {
+                if (animationToken !== canvasPreviewState.viewAnimationToken) return;
+                section.classList.remove(directionClass);
+                canvasPreviewState.viewAnimationTimer = null;
+            }, 340);
+        }
         function syncCanvasPanelViewUi(view = canvasPreviewState.mobileView, options = {}) {
             const els = getCanvasModeElements();
             if (!els || !els.panel) return;
             const nextView = ['preview', 'blocks', 'source'].includes(view) ? view : 'preview';
+            const previousView = ['preview', 'blocks', 'source'].includes(options.fromView)
+                ? options.fromView
+                : canvasPreviewState.mobileView;
             canvasPreviewState.mobileView = nextView;
             els.panel.dataset.canvasMobileView = nextView;
             const tabs = els.panelTabs ? Array.from(els.panelTabs.querySelectorAll('[data-canvas-panel-view]')) : [];
@@ -11776,6 +11816,9 @@
                 btn.classList.toggle('active', active);
                 btn.setAttribute('aria-pressed', active ? 'true' : 'false');
             });
+            if (options.animate === true) {
+                animateCanvasMobileViewEntry(els, previousView, nextView);
+            }
             if (options.focus !== false && isCanvasMobileLayout()) {
                 if (nextView === 'preview' && els.frame && !els.frame.classList.contains('hidden')) {
                     els.frame.focus({ preventScroll: true });
@@ -12051,7 +12094,11 @@
             canvasPreviewState.selectedKey = blocks[nextIndex] && blocks[nextIndex].key ? blocks[nextIndex].key : '';
             canvasPreviewState.selectionMode = 'manual';
             if (changed) resetCanvasScrollState();
-            syncCanvasPanelViewUi(options.view || 'preview', { focus: false });
+            syncCanvasPanelViewUi(options.view || 'preview', {
+                focus: false,
+                animate: options.animateView === true,
+                fromView: options.transitionFrom
+            });
             renderCanvasBlockChips();
             syncCanvasPreviewButtons();
             refreshCanvasPreviewPanel();

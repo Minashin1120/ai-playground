@@ -203,6 +203,13 @@ def _is_deepseek_model_key(model_key):
     mk = str(model_key or "").lower()
     return "deepseek" in mk
 
+def _deepseek_api_model_id(model_key):
+    """Map app-facing DeepSeek release IDs to the stable official API alias."""
+    mk = str(model_key or "").strip()
+    if mk.lower() == "deepseek-v4-flash-0731":
+        return "deepseek-v4-flash"
+    return mk
+
 def _normalize_admin_api_key_mode(value):
     raw = str(value or "").strip().lower().replace("-", "_")
     if raw in ("user_only", "user", "settings", "user_settings"):
@@ -401,6 +408,12 @@ def _get_model_specific_api_key(user, model_key):
         if str(k or "").strip().lower() == mk_l:
             val = str(v or "").strip()
             return val or None
+    # Carry an existing per-model key forward when the stable Flash alias is
+    # represented by the dated app-facing release ID.
+    if mk_l == "deepseek-v4-flash-0731":
+        legacy_value = key_map.get("deepseek-v4-flash")
+        if legacy_value and str(legacy_value).strip():
+            return str(legacy_value).strip()
     return None
 
 def _resolve_chat_model_auth(user, model_key):
@@ -687,8 +700,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-31-011')
-app.config['SYSTEM_VERSION'] = 'V4.8.660'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-07-31-012')
+app.config['SYSTEM_VERSION'] = 'V4.8.661'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1766,7 +1779,7 @@ ALL_VALID_MODEL_IDS = {
     "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4-pro",
     "gpt-5.2", "gpt-5-search-api", "gpt-5.1", "gpt-5-mini",
     # DeepSeek V4
-    "deepseek-v4-flash", "deepseek-v4-pro",
+    "deepseek-v4-flash-0731", "deepseek-v4-flash", "deepseek-v4-pro",
     # Anthropic Claude
     "claude-opus-4-6", "claude-sonnet-4-6",
     # Audio (TTS)
@@ -5695,7 +5708,7 @@ def _call_coding_mode_repair_model(user, model_key, repair_prompt):
     client = _get_openai_client(api_key, base_url=base_url)
     if provider in {"deepseek", "kimi", "xai"}:
         response = client.chat.completions.create(
-            model=model_key,
+            model=_deepseek_api_model_id(model_key) if provider == "deepseek" else model_key,
             messages=[
                 {"role": "system", "content": CODING_MODE_SYSTEM_PROMPT},
                 {"role": "user", "content": repair_prompt},
@@ -6407,12 +6420,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
             def _deepseek_reasoning_effort():
                 raw = (options.get('reasoning_effort') or "").lower().strip()
-                if raw in ("high", "max"):
-                    return raw
-                if raw == "xhigh":
-                    return "max"
-                if raw in ("low", "medium"):
+                if model_key_l in {"deepseek-v4-flash-0731", "deepseek-v4-flash"}:
+                    if raw in ("low", "high", "max"):
+                        return raw
+                    # DeepSeek maps compatibility values medium/xhigh to high.
                     return "high"
+                if raw in ("max", "xhigh"):
+                    return "max"
                 return "high"
 
             def _kimi_reasoning_effort():
@@ -9150,9 +9164,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     max_tool_rounds = 8
                     for tool_round in range(max_tool_rounds):
                         deepseek_kwargs = {
-                            "model": model_key,
+                            "model": _deepseek_api_model_id(model_key),
                             "messages": messages,
                             "stream": True,
+                            "stream_options": {"include_usage": True},
                         }
                         if python_tools:
                             deepseek_kwargs["tools"] = python_tools
@@ -9162,11 +9177,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             deepseek_kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
                         else:
                             deepseek_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
-                        if options.get('enable_prompt_caching') and options.get('prompt_cache_key'):
-                            # DeepSeek / OpenAI-compatible: stable prompt_cache_key improves hit rates
-                            deepseek_kwargs["extra_body"] = dict(deepseek_kwargs.get("extra_body") or {})
-                            deepseek_kwargs["extra_body"]["prompt_cache_key"] = options.get('prompt_cache_key')
-                            log_force(f"DeepSeek Prompt Caching key={options.get('prompt_cache_key')}")
+                        # Official per-user isolation for safety, scheduling, and KV cache.
+                        deepseek_kwargs["extra_body"]["user_id"] = f"app_user_{user_id}"
 
                         _mark_provider_request_started()
                         stream = client.chat.completions.create(**deepseek_kwargs)
@@ -11904,7 +11916,8 @@ def generate_title_api():
             or (os.getenv('XAI_API_KEY') if _admin_env_fallback_enabled(current_user) else None)
         )
         d_key = (
-            _get_model_specific_api_key(current_user, "deepseek-v4-flash")
+            _get_model_specific_api_key(current_user, requested_model or "deepseek-v4-flash-0731")
+            or _get_model_specific_api_key(current_user, "deepseek-v4-flash-0731")
             or decrypt_val(current_user.deepseek_api_key)
             or (os.getenv('DEEPSEEK_API_KEY') if _admin_env_fallback_enabled(current_user) else None)
         )
@@ -11951,7 +11964,7 @@ def generate_title_api():
             try:
                 client = _get_openai_client(d_key, base_url="https://api.deepseek.com")
                 resp = client.chat.completions.create(
-                    model=requested_model,
+                    model=_deepseek_api_model_id(requested_model),
                     messages=[
                         {"role": "system", "content": "Generate a short title (max 6 words) for this chat. Output only the title text."},
                         {"role": "user", "content": content[:500]}
@@ -15373,7 +15386,7 @@ def _call_llm_for_settings_ai(model_id, instruction, current_settings_snapshot, 
                 {"role": "user", "content": user_content},
             ]
             resp = oai_client.chat.completions.create(
-                model=model_id,
+                model=_deepseek_api_model_id(model_id) if is_deepseek else model_id,
                 messages=messages,
                 tools=openai_tools,
                 tool_choice="auto",

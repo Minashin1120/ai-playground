@@ -4856,8 +4856,9 @@
                 icon: "fas fa-bolt text-cyan-400",
                 description: "DeepSeek's OpenAI-compatible text models",
                 items: [
-                    { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash", desc: "Fast DeepSeek V4 model with thinking / non-thinking modes.", price: "In $0.14/1M (miss), Out $0.28/1M" },
-                    { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro", desc: "Higher-capacity DeepSeek V4 model with thinking / non-thinking modes.", price: "In $0.435/1M (miss), Out $0.87/1M" }
+                    { id: "deepseek-v4-flash-0731", name: "DeepSeek V4 Flash 0731", desc: "Official V4 Flash release with 1M context, up to 384K output, thinking, tools, and JSON output.", price: "In CN¥0.02/1M (hit), CN¥1/1M (miss), Out CN¥2/1M" },
+                    { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash Preview", desc: "Retired preview key retained for chat history compatibility.", price: "Legacy preview", deprecated: true },
+                    { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro", desc: "Higher-capacity DeepSeek V4 model with 1M context and up to 384K output.", price: "In CN¥0.025/1M (hit), CN¥3/1M (miss), Out CN¥6/1M" }
                 ]
             },
             {
@@ -6038,7 +6039,8 @@
                 const isNanoBanana2Lite = modelLower.includes('gemini-3.1-flash-lite-image');
                 const isNanoBanana2 = modelLower.includes('gemini-3.1-flash-image') && !isNanoBanana2Lite;
                 const isClaude = isClaudeModelKey(model);
-                const promptCacheSupported = isLlmModel() && !isTts && !modelLower.includes('realtime') && !modelLower.includes('native-audio') && !modelLower.includes('live');
+                // DeepSeek KV cache is automatic; it does not use an app-supplied prompt_cache_key.
+                const promptCacheSupported = isLlmModel() && !isDeepSeek && !isTts && !modelLower.includes('realtime') && !modelLower.includes('native-audio') && !modelLower.includes('live');
                 if (cacheCont) {
                     if (promptCacheSupported) {
                         cacheCont.classList.remove('hidden', 'opacity-50', 'pointer-events-none');
@@ -6059,19 +6061,23 @@
                     if (effortSel) {
                         Array.from(effortSel.options).forEach(opt => {
                             const isGpt56Model = modelLower === 'gpt-5.6' || modelLower.startsWith('gpt-5.6-');
+                            const isDeepSeekFlash0731 = modelLower === 'deepseek-v4-flash-0731' || modelLower === 'deepseek-v4-flash';
+                            const isDeepSeekPro = modelLower === 'deepseek-v4-pro';
                             if (opt.value === 'max') {
-                                opt.classList.toggle('hidden', !isGpt56Model);
+                                opt.classList.toggle('hidden', !isGpt56Model && !isDeepSeekFlash0731 && !isDeepSeekPro);
                             } else if (opt.value === 'xhigh') {
                                 opt.classList.toggle('hidden', !modelLower.includes('multi-agent') && !isGpt56Model);
                             } else if (opt.value === 'medium') {
                                 opt.classList.toggle('hidden', !(modelLower.includes('grok-4.3') || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3')));
                             } else if (opt.value === 'none') {
-                                opt.classList.toggle('hidden', !modelLower.includes('grok-4.3') && !modelLower.includes('grok-build') && !modelLower.includes('gpt-5'));
+                                opt.classList.toggle('hidden', !modelLower.includes('grok-4.3') && !modelLower.includes('grok-build') && !modelLower.includes('gpt-5') && !isDeepSeekFlash0731 && !isDeepSeekPro);
+                            } else if (opt.value === 'low') {
+                                opt.classList.toggle('hidden', isDeepSeekPro);
                             }
                         });
                         const selectedEffort = effortSel.selectedOptions && effortSel.selectedOptions[0];
                         if (selectedEffort && selectedEffort.classList.contains('hidden')) {
-                            effortSel.value = 'medium';
+                            effortSel.value = isDeepSeek ? 'high' : 'medium';
                         }
                     }
                 }

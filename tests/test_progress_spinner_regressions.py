@@ -38,7 +38,7 @@ class ProgressSpinnerRegressionTests(unittest.TestCase):
 
     def test_spinner_cache_version_matches_system_version(self):
         app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
-        self.assertIn("SYSTEM_VERSION'] = 'V4.8.660'", app_source)
+        self.assertIn("SYSTEM_VERSION'] = 'V4.8.661'", app_source)
         for name in ("chat", "login", "signup", "verify_2fa", "setup", "landing", "banned"):
             template = (APP_ROOT / "templates" / f"{name}.html").read_text(encoding="utf-8")
             self.assertIn("filename='js/progress_spinner.js', v='4.8.640'", template)

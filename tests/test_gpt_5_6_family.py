@@ -43,13 +43,13 @@ class Gpt56FamilyRegressionTests(unittest.TestCase):
     def test_versioned_assets_and_release_metadata_match(self):
         app_source = (ROOT / "app.py").read_text(encoding="utf-8")
 
-        self.assertIn("'2026-07-31-009'", app_source)
-        self.assertIn("'V4.8.658'", app_source)
+        self.assertIn("'2026-07-31-008'", app_source)
+        self.assertIn("'V4.8.657'", app_source)
         for relative_path in (
-            "static/js/chat_core.v4.8.658.js",
-            "static/css/chat.custom.v4.8.658.css",
-            "static/css/chat.tailwind.v4.8.658.css",
-            "static/changelogs/20260731_v4.8.658.md",
+            "static/js/chat_core.v4.8.657.js",
+            "static/css/chat.custom.v4.8.657.css",
+            "static/css/chat.tailwind.v4.8.657.css",
+            "static/changelogs/20260731_v4.8.657.md",
         ):
             self.assertTrue((ROOT / relative_path).is_file(), relative_path)
 

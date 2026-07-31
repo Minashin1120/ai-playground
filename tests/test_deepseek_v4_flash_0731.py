@@ -10,12 +10,12 @@ class DeepSeekV4Flash0731Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app_source = (ROOT / "app.py").read_text(encoding="utf-8")
-        cls.js_source = (ROOT / "static/js/chat_core.v4.8.661.js").read_text(encoding="utf-8")
+        cls.js_source = (ROOT / "static/js/chat_core.v4.8.662.js").read_text(encoding="utf-8")
         cls.setup_source = (ROOT / "templates/setup.html").read_text(encoding="utf-8")
 
     def test_new_release_is_visible_and_preview_is_deprecated(self):
         self.assertIn(
-            'id: "deepseek-v4-flash-0731", name: "DeepSeek V4 Flash 0731"',
+            'id: "deepseek-v4-flash-0731", apiId: "deepseek-v4-flash", name: "DeepSeek V4 Flash"',
             self.js_source,
         )
         self.assertRegex(
@@ -25,7 +25,7 @@ class DeepSeekV4Flash0731Tests(unittest.TestCase):
             ),
         )
         self.assertIn(
-            '<option value="deepseek-v4-flash-0731">DeepSeek V4 Flash 0731</option>',
+            '<option value="deepseek-v4-flash-0731">DeepSeek V4 Flash</option>',
             self.setup_source,
         )
         self.assertNotIn(
@@ -50,12 +50,12 @@ class DeepSeekV4Flash0731Tests(unittest.TestCase):
         self.assertIn("isLlmModel() && !isDeepSeek", self.js_source)
 
     def test_release_assets_and_versions_are_complete(self):
-        self.assertIn("'2026-07-31-012'", self.app_source)
-        self.assertIn("'V4.8.661'", self.app_source)
+        self.assertIn("'2026-08-01-001'", self.app_source)
+        self.assertIn("'V4.8.662'", self.app_source)
         for relative in (
-            "static/js/chat_core.v4.8.661.js",
-            "static/css/chat.custom.v4.8.661.css",
-            "static/css/chat.tailwind.v4.8.661.css",
+            "static/js/chat_core.v4.8.662.js",
+            "static/css/chat.custom.v4.8.662.css",
+            "static/css/chat.tailwind.v4.8.662.css",
         ):
             self.assertTrue((ROOT / relative).is_file(), relative)
 

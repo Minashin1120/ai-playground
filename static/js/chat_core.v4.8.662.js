@@ -4856,7 +4856,7 @@
                 icon: "fas fa-bolt text-cyan-400",
                 description: "DeepSeek's OpenAI-compatible text models",
                 items: [
-                    { id: "deepseek-v4-flash-0731", name: "DeepSeek V4 Flash 0731", desc: "Official V4 Flash release with 1M context, up to 384K output, thinking, tools, and JSON output.", price: "In CN¥0.02/1M (hit), CN¥1/1M (miss), Out CN¥2/1M" },
+                    { id: "deepseek-v4-flash-0731", apiId: "deepseek-v4-flash", name: "DeepSeek V4 Flash", desc: "Official V4 Flash release with 1M context, up to 384K output, thinking, tools, and JSON output.", price: "In CN¥0.02/1M (hit), CN¥1/1M (miss), Out CN¥2/1M" },
                     { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash Preview", desc: "Retired preview key retained for chat history compatibility.", price: "Legacy preview", deprecated: true },
                     { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro", desc: "Higher-capacity DeepSeek V4 model with 1M context and up to 384K output.", price: "In CN¥0.025/1M (hit), CN¥3/1M (miss), Out CN¥6/1M" }
                 ]
@@ -5640,6 +5640,8 @@
                 const grid = groupEl.querySelector('.grid');
                 const entries = availableItems.map(m => {
                     const item = document.createElement('button');
+                    const apiModelName = String(m.apiId || m.id || '').trim();
+                    const apiModelHtml = apiModelName ? `<div class="text-[10px] text-cyan-300/90 mt-1.5 font-mono break-all"><span class="font-sans text-gray-500 mr-1">API model:</span>${escapeHtml(apiModelName)}</div>` : '';
                     const priceHtml = m.price ? `<div class="text-[10px] text-amber-400/90 mt-1.5 font-mono flex items-start gap-1"><i class="fas fa-tag text-[9px] mt-0.5 opacity-70 shrink-0"></i><span>${m.price}</span></div>` : '';
                     item.type = 'button';
                     item.className = 'flex flex-col text-left p-3 rounded-lg border transition bg-gray-800 border-gray-700 hover:border-gray-500 hover:bg-gray-750';
@@ -5651,13 +5653,14 @@
                             <i class="model-selected-icon fas fa-check-circle text-blue-400 hidden"></i>
                         </div>
                         <span class="text-[10px] text-gray-400">${m.desc}</span>
+                        ${apiModelHtml}
                         ${priceHtml}
                     `;
                     grid.appendChild(item);
                     return {
                         model: m,
                         button: item,
-                        searchText: `${m.name} ${m.id}`.toLowerCase(),
+                        searchText: `${m.name} ${m.id} ${apiModelName}`.toLowerCase(),
                         provider: getModelApiProvider(m.id),
                         tags: new Set(getModelTags(m, group)),
                     };

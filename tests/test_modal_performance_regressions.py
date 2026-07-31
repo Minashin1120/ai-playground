@@ -19,6 +19,9 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("if (!container || modelListBuilt) return", source)
         self.assertIn("entry.button.classList.toggle('hidden', !visible)", source)
         self.assertIn("scheduleModelListRender(e.target.value)", source)
+        self.assertIn("const apiModelName = String(m.apiId || m.id || '').trim()", source)
+        self.assertIn("API model:</span>${escapeHtml(apiModelName)}", source)
+        self.assertIn("`${m.name} ${m.id} ${apiModelName}`.toLowerCase()", source)
 
         renderer = source[source.index('function renderModelList(filter = "", options = {})') :]
         renderer = renderer[: renderer.index("function scheduleModelListRender")]

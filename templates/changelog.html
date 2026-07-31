@@ -92,6 +92,57 @@
             animation: spin 1s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* ── Changelog skeleton loading ── */
+        @keyframes changelog-skeleton-shimmer {
+            0% { background-position: 100% 0; }
+            100% { background-position: -100% 0; }
+        }
+        .changelog-skeleton {
+            pointer-events: none;
+            user-select: none;
+        }
+        .changelog-skeleton-title {
+            width: 42%;
+            max-width: 220px;
+            height: 0.85rem;
+            border-radius: 999px;
+            margin-bottom: 1.1rem;
+        }
+        .changelog-skeleton-line {
+            height: 0.72rem;
+            border-radius: 999px;
+            margin-bottom: 0.65rem;
+        }
+        .changelog-skeleton-line:last-child { margin-bottom: 0; }
+        .changelog-skeleton-title,
+        .changelog-skeleton-line {
+            background: linear-gradient(
+                90deg,
+                rgba(148, 163, 184, 0.10) 0%,
+                rgba(148, 163, 184, 0.18) 35%,
+                rgba(var(--theme-rgb), 0.28) 50%,
+                rgba(148, 163, 184, 0.18) 65%,
+                rgba(148, 163, 184, 0.10) 100%
+            );
+            background-size: 220% 100%;
+            animation: changelog-skeleton-shimmer 1.55s ease-in-out infinite;
+        }
+        .changelog-skeleton-line:nth-child(2) { animation-delay: 0.07s; }
+        .changelog-skeleton-line:nth-child(3) { animation-delay: 0.14s; }
+        .changelog-skeleton-line:nth-child(4) { animation-delay: 0.21s; }
+        .changelog-skeleton-line:nth-child(5) { animation-delay: 0.28s; }
+        .changelog-skeleton-line:nth-child(6) { animation-delay: 0.35s; }
+        .changelog-skeleton-line:nth-child(7) { animation-delay: 0.42s; }
+        .changelog-skeleton-line:nth-child(8) { animation-delay: 0.49s; }
+        @media (prefers-reduced-motion: reduce) {
+            .changelog-skeleton-title,
+            .changelog-skeleton-line,
+            .log-card-enter,
+            .log-card-leave {
+                animation: none !important;
+            }
+        }
     </style>
 </head>
 <body class="min-h-screen p-6 md:p-12">
@@ -109,13 +160,21 @@
             <div id="search-status" class="text-gray-500 text-xs mt-2 hidden"></div>
         </div>
 
-        <div id="changelog-container" class="space-y-8">
-            {% for log in logs %}
-            <div class="log-card p-6 rounded-xl log-card-enter" style="animation-delay: {{ loop.index0 * 0.05 }}s">
-                {% if log.title %}
-                <div class="text-teal-300 font-semibold text-sm mb-2">{{ log.title }}</div>
+        {# 初期表示はスケルトン。生Markdownは出さず、JSで整形後に差し替える #}
+        <div id="changelog-container" class="space-y-8" role="status" aria-live="polite" aria-busy="true" aria-label="更新履歴を読み込み中">
+            {% set skeleton_count = logs|length if logs and logs|length > 0 else 4 %}
+            {% for i in range(skeleton_count if skeleton_count <= 6 else 6) %}
+            <div class="log-card p-6 rounded-xl changelog-skeleton" aria-hidden="true" style="animation-delay: {{ i * 0.05 }}s">
+                <div class="changelog-skeleton-title" style="width: {{ 36 + (i % 3) * 8 }}%"></div>
+                <div class="changelog-skeleton-line" style="width: 94%"></div>
+                <div class="changelog-skeleton-line" style="width: {{ 78 + (i % 4) * 4 }}%"></div>
+                <div class="changelog-skeleton-line" style="width: {{ 86 - (i % 3) * 6 }}%"></div>
+                <div class="changelog-skeleton-line" style="width: {{ 62 + (i % 5) * 5 }}%"></div>
+                <div class="changelog-skeleton-line" style="width: {{ 48 + (i % 4) * 7 }}%"></div>
+                {% if i % 2 == 0 %}
+                <div class="changelog-skeleton-line" style="width: 72%"></div>
+                <div class="changelog-skeleton-line" style="width: 40%"></div>
                 {% endif %}
-                <div class="markdown-body">{{ log.content }}</div>
             </div>
             {% endfor %}
         </div>
@@ -126,6 +185,7 @@
         </div>
     </div>
 
+    <script id="initial-logs-data" type="application/json">{{ logs | tojson }}</script>
     <script>
         let currentPage = 1;
         const limit = {{ limit }};
@@ -143,10 +203,47 @@
         const searchClear = document.getElementById('search-clear');
         const searchStatus = document.getElementById('search-status');
 
-        function renderMarkdown(el) {
-            if (el.dataset.rendered !== 'true') {
-                el.innerHTML = DOMPurify.sanitize(marked.parse(el.textContent));
-                el.dataset.rendered = 'true';
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function createSkeletonCard(index = 0) {
+            const widths = [
+                [94, 82, 88, 64, 48],
+                [90, 76, 84, 58, 42],
+                [96, 80, 70, 66, 50],
+                [88, 92, 78, 54, 36],
+            ];
+            const lineWidths = widths[index % widths.length];
+            const titleW = 36 + (index % 3) * 8;
+            const extra = index % 2 === 0
+                ? '<div class="changelog-skeleton-line" style="width:72%"></div><div class="changelog-skeleton-line" style="width:40%"></div>'
+                : '';
+            const lines = lineWidths.map(w =>
+                `<div class="changelog-skeleton-line" style="width:${w}%"></div>`
+            ).join('');
+            const card = document.createElement('div');
+            card.className = 'log-card p-6 rounded-xl changelog-skeleton';
+            card.setAttribute('aria-hidden', 'true');
+            card.style.animationDelay = (index * 0.05) + 's';
+            card.innerHTML =
+                `<div class="changelog-skeleton-title" style="width:${titleW}%"></div>${lines}${extra}`;
+            return card;
+        }
+
+        function showSkeleton(count = 4) {
+            const n = Math.max(1, Math.min(count, 8));
+            container.setAttribute('aria-busy', 'true');
+            container.setAttribute('aria-label', '更新履歴を読み込み中');
+            container.innerHTML = '';
+            for (let i = 0; i < n; i++) {
+                container.appendChild(createSkeletonCard(i));
             }
         }
 
@@ -156,48 +253,38 @@
             if (delay) card.style.animationDelay = delay + 's';
             let html = '';
             if (log.title) {
-                html += `<div class="text-teal-300 font-semibold text-sm mb-2">${log.title}</div>`;
+                html += `<div class="text-teal-300 font-semibold text-sm mb-2">${escapeHtml(log.title)}</div>`;
             }
-            const markdownHtml = DOMPurify.sanitize(marked.parse(log.content));
+            const markdownHtml = DOMPurify.sanitize(marked.parse(log.content || ''));
             html += `<div class="markdown-body">${markdownHtml}</div>`;
             card.innerHTML = html;
             return card;
         }
 
-        function animateReplaceCards(newLogs) {
-            const existing = container.querySelectorAll('.log-card');
+        function renderLogs(logs, { animate = true } = {}) {
+            container.setAttribute('aria-busy', 'false');
+            container.removeAttribute('aria-label');
+            container.innerHTML = '';
 
-            if (existing.length === 0) {
-                newLogs.forEach((log, i) => {
-                    const card = createCard(log, i * 0.05);
-                    container.appendChild(card);
-                });
+            if (!logs || logs.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'text-gray-500 text-sm text-center py-8';
+                empty.textContent = '表示できる更新履歴がありません';
+                container.appendChild(empty);
                 return;
             }
 
-            existing.forEach((el, i) => {
-                el.style.animationDelay = (i * 0.03) + 's';
-                el.classList.remove('log-card-enter');
-                el.classList.add('log-card-leave');
+            logs.forEach((log, i) => {
+                const card = createCard(log, animate ? i * 0.05 : 0);
+                if (!animate) {
+                    card.classList.remove('log-card-enter');
+                }
+                container.appendChild(card);
             });
-
-            const lastLeave = existing[existing.length - 1];
-            const animDuration = 250 + (existing.length - 1) * 30;
-
-            setTimeout(() => {
-                container.innerHTML = '';
-                newLogs.forEach((log, i) => {
-                    const card = createCard(log, i * 0.05);
-                    container.appendChild(card);
-                });
-            }, animDuration);
         }
 
-        // Initial markdown rendering
-        document.querySelectorAll('.markdown-body').forEach(renderMarkdown);
-
         async function loadMore() {
-            if (isLoading || !hasMore) return;
+            if (isLoading || !hasMore || searchMode) return;
             isLoading = true;
             spinner.classList.remove('hidden');
             currentPage++;
@@ -205,7 +292,7 @@
             try {
                 const response = await fetch(`/api/changelogs?page=${currentPage}&limit=${limit}`);
                 const data = await response.json();
-                
+
                 if (data.logs.length === 0) {
                     hasMore = false;
                     noMore.classList.remove('hidden');
@@ -222,6 +309,7 @@
                 }
             } catch (error) {
                 console.error('Error loading changelogs:', error);
+                currentPage = Math.max(1, currentPage - 1);
             } finally {
                 isLoading = false;
                 spinner.classList.add('hidden');
@@ -233,11 +321,12 @@
             spinner.classList.remove('hidden');
             trigger.classList.remove('hidden');
             noMore.classList.add('hidden');
+            showSkeleton(4);
 
             try {
                 const response = await fetch(`/api/changelogs/search?q=${encodeURIComponent(query)}`);
                 const data = await response.json();
-                animateReplaceCards(data.logs);
+                renderLogs(data.logs, { animate: true });
 
                 if (data.total > 0) {
                     searchStatus.textContent = `${data.total} 件の更新履歴が見つかりました`;
@@ -247,13 +336,12 @@
                     searchStatus.classList.remove('hidden');
                 }
 
-                if (data.total <= limit) {
-                    hasMore = false;
-                }
-
+                hasMore = false;
                 trigger.classList.add('hidden');
             } catch (error) {
                 console.error('Search error:', error);
+                container.innerHTML = '<div class="text-red-400 text-sm text-center py-8">検索中にエラーが発生しました</div>';
+                container.setAttribute('aria-busy', 'false');
             } finally {
                 isLoading = false;
                 spinner.classList.add('hidden');
@@ -265,20 +353,30 @@
             searchStatus.classList.add('hidden');
             hasMore = totalItems > limit;
             currentPage = 1;
-            isLoading = false;
-
-            // Fetch first page fresh
+            isLoading = true;
+            noMore.classList.add('hidden');
             trigger.classList.remove('hidden');
-            fetch(`/api/changelogs?page=1&limit=${limit}`).then(r => r.json()).then(data => {
-                animateReplaceCards(data.logs);
-                if (data.total > limit) {
-                    hasMore = true;
-                    if (!observerInited) initObserver();
-                } else {
-                    hasMore = false;
-                    noMore.classList.remove('hidden');
-                }
-            }).catch(() => {});
+            showSkeleton(Math.min(limit, 6));
+
+            fetch(`/api/changelogs?page=1&limit=${limit}`)
+                .then(r => r.json())
+                .then(data => {
+                    renderLogs(data.logs, { animate: true });
+                    if (data.total > limit) {
+                        hasMore = true;
+                        if (!observerInited) initObserver();
+                    } else {
+                        hasMore = false;
+                        if (data.total > 0) noMore.classList.remove('hidden');
+                    }
+                })
+                .catch(() => {
+                    container.innerHTML = '<div class="text-red-400 text-sm text-center py-8">読み込みに失敗しました</div>';
+                    container.setAttribute('aria-busy', 'false');
+                })
+                .finally(() => {
+                    isLoading = false;
+                });
         }
 
         searchInput.addEventListener('input', () => {
@@ -326,11 +424,32 @@
             observer.observe(trigger);
         }
 
-        if (hasMore) {
-            initObserver();
-        } else if (totalItems > 0) {
-            noMore.classList.remove('hidden');
-        }
+        // Initial render: skeleton is already in HTML; replace with parsed markdown ASAP
+        (function bootstrapInitialLogs() {
+            let initialLogs = [];
+            try {
+                const raw = document.getElementById('initial-logs-data');
+                if (raw && raw.textContent) {
+                    initialLogs = JSON.parse(raw.textContent);
+                }
+            } catch (e) {
+                console.error('Failed to parse initial changelogs:', e);
+            }
+
+            if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined') {
+                // Wait a tick if scripts are still resolving (should be sync in head)
+                setTimeout(bootstrapInitialLogs, 30);
+                return;
+            }
+
+            renderLogs(initialLogs, { animate: true });
+
+            if (hasMore) {
+                initObserver();
+            } else if (totalItems > 0) {
+                noMore.classList.remove('hidden');
+            }
+        })();
     </script>
 </body>
 </html>

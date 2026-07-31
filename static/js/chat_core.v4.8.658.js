@@ -6319,7 +6319,7 @@
             if (get('canvas-panel-copy-btn')) {
                 get('canvas-panel-copy-btn').addEventListener('click', () => {
                     const els = getCanvasModeElements();
-                    const text = els && els.code ? (els.code.textContent || '') : '';
+                    const text = els && els.code ? (els.code.dataset.rawCode || '') : '';
                     if (!text.trim()) {
                         showToast('コピーするコードがありません', 'info', false);
                         return;
@@ -11617,6 +11617,7 @@
                 panelTabs: get('canvas-panel-tabs'),
                 previewLang: get('canvas-preview-lang'),
                 sourceSelect: get('canvas-source-select'),
+                sourceMeta: get('canvas-source-meta'),
                 frame: get('canvas-preview-frame'),
                 empty: get('canvas-preview-empty'),
                 sourceScroll: get('canvas-source-scroll'),
@@ -11831,6 +11832,40 @@
             }
             els.sourceSelect.value = String(selectedIndex);
         }
+        function renderCanvasSourceCode(code) {
+            const els = getCanvasModeElements();
+            if (!els || !els.code) return;
+            const normalized = String(code || '').replace(/\r\n?/g, '\n');
+            const lines = normalized ? normalized.split('\n') : [];
+            const previous = els.code.dataset.rawCode || '';
+            const createRow = (line) => {
+                const row = document.createElement('span');
+                row.className = 'canvas-source-line';
+                row.textContent = line || '\u00a0';
+                return row;
+            };
+            if (previous && normalized.startsWith(previous) && els.code.lastElementChild) {
+                const appended = normalized.slice(previous.length);
+                if (appended) {
+                    const appendedLines = appended.split('\n');
+                    const previousLastLine = previous.slice(previous.lastIndexOf('\n') + 1);
+                    const completedLastLine = previousLastLine + appendedLines.shift();
+                    els.code.lastElementChild.textContent = completedLastLine || '\u00a0';
+                    const fragment = document.createDocumentFragment();
+                    appendedLines.forEach((line) => fragment.appendChild(createRow(line)));
+                    els.code.appendChild(fragment);
+                }
+            } else {
+                const fragment = document.createDocumentFragment();
+                lines.forEach((line) => fragment.appendChild(createRow(line)));
+                els.code.replaceChildren(fragment);
+            }
+            els.code.dataset.rawCode = normalized;
+            if (els.sourceMeta) {
+                const lineCount = lines.length;
+                els.sourceMeta.textContent = `${lineCount} ${lineCount === 1 ? 'line' : 'lines'}`;
+            }
+        }
         function resetCanvasScrollState() {
             canvasPreviewState.sourceScrollTop = 0;
             canvasPreviewState.sourceScrollLeft = 0;
@@ -11928,7 +11963,7 @@
                 els.sourceSelect.disabled = true;
                 els.sourceSelect.dataset.canvasOptionsSignature = '';
             }
-            if (els.code) els.code.textContent = '';
+            renderCanvasSourceCode('');
             if (els.blockCount) els.blockCount.textContent = '0';
             if (els.blockList) els.blockList.innerHTML = '<div class="px-2 py-3 text-xs text-gray-500">コードブロックを待機中</div>';
             if (els.sourceScroll) els.sourceScroll.scrollTop = 0;
@@ -11999,7 +12034,7 @@
             if (els.previewLang) els.previewLang.textContent = hasBlock ? (blockLang || 'text') : 'idle';
             const sourceScrollTop = els.sourceScroll ? els.sourceScroll.scrollTop : canvasPreviewState.sourceScrollTop;
             const sourceScrollLeft = els.sourceScroll ? els.sourceScroll.scrollLeft : canvasPreviewState.sourceScrollLeft;
-            if (els.code) els.code.textContent = code;
+            renderCanvasSourceCode(code);
             if (els.sourceScroll) {
                 els.sourceScroll.scrollTop = sourceScrollTop;
                 els.sourceScroll.scrollLeft = sourceScrollLeft;

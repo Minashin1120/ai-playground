@@ -289,17 +289,52 @@
         }
         #canvas-code-text {
             display: block;
+            min-width: max-content;
+            padding: 0.75rem 0 1rem;
+            counter-reset: canvas-source-line;
             font-family: "JetBrains Mono", "Noto Sans Mono CJK JP", "Noto Sans Mono", "Noto Sans JP",
                          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
             font-size: 0.74rem;
-            line-height: 1.55;
-            white-space: pre-wrap;
-            word-break: break-word;
-            overflow-wrap: anywhere;
+            line-height: 1.65;
+            white-space: pre;
+            word-break: normal;
+            overflow-wrap: normal;
+            tab-size: 4;
+        }
+        .canvas-source-line {
+            display: block;
+            min-width: 100%;
+            padding-right: 1rem;
+            counter-increment: canvas-source-line;
+        }
+        .canvas-source-line::before {
+            content: counter(canvas-source-line);
+            position: sticky;
+            left: 0;
+            display: inline-block;
+            width: 3.25rem;
+            margin-right: 0.85rem;
+            padding: 0 0.75rem 0 0.5rem;
+            border-right: 1px solid rgba(148, 163, 184, 0.14);
+            background: rgba(4, 8, 24, 0.96);
+            color: #64748b;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            user-select: none;
+        }
+        .canvas-source-line:hover {
+            background: rgba(var(--theme-rgb), 0.07);
+        }
+        .canvas-source-line:hover::before {
+            color: #a5f3fc;
         }
         #canvas-source-scroll {
             min-height: 0;
             overflow: auto;
+            scrollbar-gutter: stable;
+            background:
+                linear-gradient(90deg, rgba(var(--theme-rgb), 0.025), transparent 5rem),
+                rgba(2, 6, 23, 0.48);
         }
         .canvas-code-placeholder {
             margin: 0.9rem 0;

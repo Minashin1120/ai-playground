@@ -27,6 +27,14 @@ class CanvasModeRegressionTests(unittest.TestCase):
         self.assertIn("applyCanvasSelection(index, { view: 'source' })", self.source)
         self.assertIn("canvasPreviewState.selectionMode = 'manual';", self.source)
 
+    def test_source_tab_uses_horizontal_numbered_rows(self):
+        self.assertIn('id="canvas-source-meta"', self.template)
+        self.assertIn("function renderCanvasSourceCode(code)", self.source)
+        self.assertIn("row.className = 'canvas-source-line';", self.source)
+        self.assertIn("els.code.dataset.rawCode = normalized;", self.source)
+        self.assertIn("normalized.startsWith(previous)", self.source)
+        self.assertNotIn('whitespace-pre-wrap break-words', self.template)
+
     def test_stream_updates_preserve_canvas_scroll(self):
         self.assertIn("instrumentCanvasPreviewDocument", self.source)
         self.assertIn("canvas-preview-scroll", self.source)

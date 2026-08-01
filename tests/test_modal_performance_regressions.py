@@ -101,6 +101,24 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("opacity: 0", source)
         self.assertIn("pointer-events: none", source)
 
+    def test_standard_touch_home_avoids_backdrop_raster_during_controls(self):
+        source = _current_asset("css", "chat.custom.v4.8.*.css")
+        touch_css = source[source.index("V4.8.678 — standard-mode touch interaction paint budget") :]
+
+        self.assertIn("@media (max-width: 768px) and (hover: none) and (pointer: coarse)", touch_css)
+        self.assertIn("body:not(.liquid-glass-mode) #sidebar", touch_css)
+        self.assertIn("body:not(.liquid-glass-mode) .composer-dock", touch_css)
+        self.assertIn("body:not(.liquid-glass-mode) .overlay", touch_css)
+        self.assertGreaterEqual(touch_css.count("backdrop-filter: none !important"), 6)
+
+        collapsed = touch_css[touch_css.index("#prompt-details-controls.collapsed") :]
+        collapsed = collapsed[: collapsed.index("}")]
+        expanded = touch_css[touch_css.index("#prompt-details-controls.expanded") :]
+        expanded = expanded[: expanded.index("}")]
+        self.assertIn("display: none !important", collapsed)
+        self.assertIn("display: flex !important", expanded)
+        self.assertIn("promptDetailsTouchEnter 140ms", expanded)
+
 
 if __name__ == "__main__":
     unittest.main()

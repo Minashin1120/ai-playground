@@ -3105,3 +3105,72 @@ body.liquid-glass-mode .modal-overlay.modal-close .modal-panel {
         box-shadow: inset 0 1px 1px rgba(255,255,255,0.48), 0 4px 30px rgba(0,0,0,0.17) !important;
     }
 }
+
+/*
+ * V4.8.678 — standard-mode touch interaction paint budget.
+ *
+ * The compact prompt expander previously animated max-height on a 22px
+ * backdrop-filter surface. The mobile drawer moved another viewport-sized
+ * backdrop surface while a blurred overlay faded in. On mobile Chromium that
+ * combination requires full-surface layout, backdrop sampling and raster work
+ * on every animation frame, even on an empty home screen.
+ *
+ * Keep the same controls and visual hierarchy, but use opaque standard-mode
+ * materials on touch screens. Liquid Glass remains an explicit separate mode.
+ */
+@keyframes promptDetailsTouchEnter {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 768px) and (hover: none) and (pointer: coarse) {
+    body:not(.liquid-glass-mode) #sidebar {
+        background: #0a1226 !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        box-shadow: 8px 0 24px rgba(0, 0, 0, 0.28);
+    }
+    body:not(.liquid-glass-mode) .main-chrome-header,
+    body:not(.liquid-glass-mode) header.bg-gray-800,
+    body:not(.liquid-glass-mode) .composer-dock,
+    body:not(.liquid-glass-mode) .bg-gray-800.border-t.border-gray-700 {
+        background: #0a1226 !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+    body:not(.liquid-glass-mode) #prompt-input,
+    body:not(.liquid-glass-mode) #model-selector-btn,
+    body:not(.liquid-glass-mode) #mobile-new-chat-btn,
+    body:not(.liquid-glass-mode) #sidebar .bg-gray-700,
+    body:not(.liquid-glass-mode) #total-token-bar,
+    body:not(.liquid-glass-mode) #welcome-screen .welcome-btn {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+    body:not(.liquid-glass-mode) #prompt-input {
+        background: #080f20;
+    }
+    body:not(.liquid-glass-mode) #model-selector-btn,
+    body:not(.liquid-glass-mode) #sidebar .bg-gray-700 {
+        background: #101a31 !important;
+    }
+    body:not(.liquid-glass-mode) #welcome-screen .welcome-btn {
+        background: #0d1730 !important;
+    }
+    body:not(.liquid-glass-mode) .overlay {
+        background: rgba(0, 0, 0, 0.62);
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+
+    #prompt-details-controls {
+        transition: none !important;
+    }
+    #prompt-details-controls.collapsed {
+        display: none !important;
+    }
+    #prompt-details-controls.expanded {
+        display: flex !important;
+        animation: promptDetailsTouchEnter 140ms var(--ease-out) both;
+    }
+}

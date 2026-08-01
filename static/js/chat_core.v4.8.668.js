@@ -3932,14 +3932,22 @@
                 await Promise.all(regs.map(r => r.unregister()));
             }
         }
-        async function applyCacheMode(enable) {
+        const SW_CACHE_MODE_STORAGE_KEY = 'ai_sw_cache_mode_v2';
+        async function applyCacheMode(enable, options = {}) {
             if (!('serviceWorker' in navigator)) return;
             if (enable) {
                 try {
                     await navigator.serviceWorker.register(`/sw.js?v=${encodeURIComponent(appVersion)}`);
+                    localStorage.setItem(SW_CACHE_MODE_STORAGE_KEY, 'enabled');
                 } catch (e) {}
             } else {
-                await purgeCaches();
+                // Do not scan Cache Storage and unregister workers on every page load.
+                // Purge once when migrating from the old behaviour or when the user
+                // explicitly changes the setting from enabled to disabled.
+                const previousMode = localStorage.getItem(SW_CACHE_MODE_STORAGE_KEY);
+                const needsCleanup = !!options.forceCleanup || previousMode !== 'disabled';
+                if (needsCleanup) await purgeCaches();
+                localStorage.setItem(SW_CACHE_MODE_STORAGE_KEY, 'disabled');
             }
         }
         function checkAndNotifyVersion(latest) {
@@ -7433,6 +7441,7 @@
                     // Update client-side variables
                     enterToSend = b.enter_to_send;
                     autoSearchOnLinks = b.auto_search_on_links;
+                    const previousUseSwCache = useSwCache;
                     useSwCache = b.use_sw_cache;
                     if (window.CHAT_CONFIG) {
                         window.CHAT_CONFIG.clearCacheOnVersionUpdate = !!b.clear_cache_on_version_update;
@@ -7447,6 +7456,9 @@
 
                     // Update UI components
                     setCompactPromptMode(compactPromptMode);
+                    if (previousUseSwCache !== useSwCache) {
+                        applyCacheMode(useSwCache, { forceCleanup: !useSwCache });
+                    }
 
                     showToast("設定を保存しました", "success");
                     syncClientDebugLogToggle(b.enable_client_debug_log, 'settings saved');

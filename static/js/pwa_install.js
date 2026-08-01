@@ -30,6 +30,9 @@
 
   const registerServiceWorker = async () => {
     if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
+    // The chat screen owns its optional runtime-cache setting. Registering here
+    // while that setting is off caused a register/unregister race on every reload.
+    if (window.CHAT_CONFIG && window.CHAT_CONFIG.useSwCache !== true) return;
     const appVersion = window.APP_VERSION || '';
     const swUrl = appVersion ? `/sw.js?v=${encodeURIComponent(appVersion)}` : '/sw.js';
     try {

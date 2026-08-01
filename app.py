@@ -700,8 +700,8 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-01-006')
-app.config['SYSTEM_VERSION'] = 'V4.8.667'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-01-007')
+app.config['SYSTEM_VERSION'] = 'V4.8.668'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -809,6 +809,9 @@ def _apply_per_user_upload_limits():
                     hard_cap = app.config.get('MAX_CONTENT_LENGTH') or limit
                     request.max_content_length = min(hard_cap, limit, 12 * 1024 * 1024)
                 else:
+                    # Stale partial uploads must not reduce the body limit to one
+                    # byte before the upload route gets a chance to reclaim them.
+                    _cleanup_stale_chunk_uploads(current_user.id)
                     used = _get_user_storage_usage_bytes(current_user.id)
                     remaining = max(0, limit - used)
                     hard_cap = app.config.get('MAX_CONTENT_LENGTH') or remaining
@@ -861,6 +864,17 @@ def _get_user_storage_limit_bytes(user):
         return None
 
 def _get_user_storage_usage_bytes(user_id):
+    # Upload validation can ask for the same value in both before_request and the
+    # route handler. Keep one authoritative filesystem scan per request; the
+    # cache is request-local, so it cannot leak between users or become stale
+    # across separate upload requests.
+    cache_key = str(user_id)
+    try:
+        request_cache = getattr(g, '_storage_usage_bytes', None)
+        if isinstance(request_cache, dict) and cache_key in request_cache:
+            return request_cache[cache_key]
+    except RuntimeError:
+        request_cache = None
     total = 0
     try:
         user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
@@ -886,6 +900,13 @@ def _get_user_storage_usage_bytes(user_id):
                     except Exception:
                         pass
     except Exception:
+        pass
+    try:
+        if not isinstance(request_cache, dict):
+            request_cache = {}
+            g._storage_usage_bytes = request_cache
+        request_cache[cache_key] = total
+    except RuntimeError:
         pass
     return total
 
@@ -1574,7 +1595,14 @@ def _cleanup_stale_chunk_uploads(user_id, now=None):
         meta = _load_chunk_meta(os.path.join(entry.path, 'meta.json')) or {}
         created = int(meta.get('created') or 0)
         if created <= 0 or now - created > _CHUNK_UPLOAD_MAX_AGE_SECONDS:
-            _secure_delete_tree(entry.path)
+            # Chunk completion already removes data.part with unlink. Use the
+            # same lightweight deletion for abandoned transient data instead of
+            # overwriting potentially multi-GB files with random bytes on the
+            # request thread.
+            try:
+                shutil.rmtree(entry.path)
+            except Exception:
+                pass
             continue
         active += 1
     return active
@@ -16318,6 +16346,9 @@ def upload():
     if len(files) > int(app.config.get('ATTACHMENT_MAX_FILES') or 30):
         return jsonify({'error': 'Too many files'}), 400
     try:
+        # Reclaim abandoned chunk sessions before they are included in the
+        # storage-capacity check for a new upload.
+        _cleanup_stale_chunk_uploads(current_user.id)
         if not _is_primary_admin_user(current_user):
             hard_limit = _get_user_storage_limit_bytes(current_user)
             if hard_limit:
@@ -16364,7 +16395,7 @@ def upload():
                 if is_image and not orig_name.endswith('.webp'):
                     try:
                         buf = BytesIO()
-                        Image.open(f).convert('RGB').save(buf, 'WEBP', quality=80)
+                        Image.open(f).convert('RGB').save(buf, 'WEBP', quality=80, method=2)
                         enc_data = encrypt_bytes(buf.getvalue())
                         fname = f"{fname_base}.webp"
                         with open(os.path.join(ud, fname + '.enc'), 'wb') as ef: ef.write(enc_data)
@@ -16377,7 +16408,12 @@ def upload():
                 is_image = ext in ['.jpg', '.jpeg', '.png']
                 if is_image and not orig_name.endswith('.webp'):
                     try:
-                        Image.open(f).convert('RGB').save(os.path.join(ud, f"{fname_base}.webp"), 'WEBP', quality=80)
+                        Image.open(f).convert('RGB').save(
+                            os.path.join(ud, f"{fname_base}.webp"),
+                            'WEBP',
+                            quality=80,
+                            method=2
+                        )
                         fname = f"{fname_base}.webp"
                     except:
                         f.seek(0)
@@ -16438,6 +16474,10 @@ def upload_init():
     if ext not in allowed:
         return jsonify({'error': f'File type {ext} not allowed'}), 400
 
+    # This must run before the quota scan. Otherwise an abandoned partial upload
+    # can keep a user over quota and prevent the very request that would clean it.
+    active_uploads = _cleanup_stale_chunk_uploads(current_user.id)
+
     if not _is_primary_admin_user(current_user):
         hard_limit = _get_user_storage_limit_bytes(current_user)
         if hard_limit and total_size > hard_limit:
@@ -16449,7 +16489,7 @@ def upload_init():
             limit_mb = _bytes_to_mb_str(limit)
             return jsonify({'error': f'Storage limit exceeded ({used_mb} / {limit_mb})'}), 413
 
-    if _cleanup_stale_chunk_uploads(current_user.id) >= _CHUNK_UPLOAD_MAX_ACTIVE:
+    if active_uploads >= _CHUNK_UPLOAD_MAX_ACTIVE:
         return jsonify({'error': 'Too many active uploads'}), 429
 
     upload_id = f"up_{int(time.time())}_{os.urandom(4).hex()}"
@@ -16585,7 +16625,7 @@ def upload_complete():
             if is_image and not orig_name.endswith('.webp'):
                 try:
                     buf = BytesIO()
-                    Image.open(part_path).convert('RGB').save(buf, 'WEBP', quality=80)
+                    Image.open(part_path).convert('RGB').save(buf, 'WEBP', quality=80, method=2)
                     enc_data = encrypt_bytes(buf.getvalue())
                     fname = f"{fname_base}.webp"
                     with open(os.path.join(ud, fname + '.enc'), 'wb') as ef: ef.write(enc_data)
@@ -16601,7 +16641,12 @@ def upload_complete():
             is_image = ext in ['.jpg', '.jpeg', '.png']
             if is_image and not orig_name.endswith('.webp'):
                 try:
-                    Image.open(part_path).convert('RGB').save(os.path.join(ud, f"{fname_base}.webp"), 'WEBP', quality=80)
+                    Image.open(part_path).convert('RGB').save(
+                        os.path.join(ud, f"{fname_base}.webp"),
+                        'WEBP',
+                        quality=80,
+                        method=2
+                    )
                     fname = f"{fname_base}.webp"
                 except Exception:
                     os.replace(part_path, save_path)

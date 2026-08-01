@@ -1,4 +1,55 @@
         const get = (id) => document.getElementById(id);
+        const ADAPTIVE_BLUR_COOKIE = 'adaptive_blur_disabled';
+        const ADAPTIVE_BLUR_TRIGGER_IDS = new Set([
+            'menu-btn',
+            'sidebar-toggle-btn',
+            'prompt-controls-toggle-btn'
+        ]);
+        let adaptiveBlurMeasurementActive = false;
+        let adaptiveBlurFallbackEnabled = document.documentElement.classList.contains('performance-blur-disabled');
+        const enableAdaptiveBlurFallback = () => {
+            if (adaptiveBlurFallbackEnabled) return;
+            adaptiveBlurFallbackEnabled = true;
+            document.documentElement.classList.add('performance-blur-disabled');
+            const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+            document.cookie = `${ADAPTIVE_BLUR_COOKIE}=1; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
+        };
+        const measureInteractionFrames = () => {
+            if (adaptiveBlurFallbackEnabled || adaptiveBlurMeasurementActive || document.visibilityState !== 'visible') return;
+            adaptiveBlurMeasurementActive = true;
+            const frameIntervals = [];
+            let previousTimestamp = 0;
+            const sampleFrame = (timestamp) => {
+                if (document.visibilityState !== 'visible') {
+                    adaptiveBlurMeasurementActive = false;
+                    return;
+                }
+                if (previousTimestamp) {
+                    const interval = timestamp - previousTimestamp;
+                    // Ignore long pauses caused by debugging, app switching, or OS suspension.
+                    if (interval <= 200) frameIntervals.push(interval);
+                }
+                previousTimestamp = timestamp;
+                if (frameIntervals.length < 30) {
+                    requestAnimationFrame(sampleFrame);
+                    return;
+                }
+                adaptiveBlurMeasurementActive = false;
+                const sorted = [...frameIntervals].sort((a, b) => a - b);
+                const baseline = Math.min(17.5, Math.max(7, sorted[Math.floor(sorted.length * 0.2)]));
+                const droppedFrameLimit = Math.max(28, baseline * 1.75);
+                const severeFrameLimit = Math.max(44, baseline * 2.7);
+                const droppedFrames = frameIntervals.filter((interval) => interval >= droppedFrameLimit).length;
+                const severeFrames = frameIntervals.filter((interval) => interval >= severeFrameLimit).length;
+                if (droppedFrames >= 5 || (droppedFrames >= 4 && severeFrames >= 2)) enableAdaptiveBlurFallback();
+            };
+            requestAnimationFrame(sampleFrame);
+        };
+        document.addEventListener('click', (event) => {
+            if (document.readyState !== 'complete' || adaptiveBlurFallbackEnabled) return;
+            const trigger = event.target instanceof Element ? event.target.closest('button') : null;
+            if (trigger && ADAPTIVE_BLUR_TRIGGER_IDS.has(trigger.id)) measureInteractionFrames();
+        }, true);
         const externalScriptLoads = new Map();
         const loadExternalScript = (src, globalReady) => {
             if (typeof globalReady === 'function' && globalReady()) return Promise.resolve();

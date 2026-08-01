@@ -101,16 +101,38 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("opacity: 0", source)
         self.assertIn("pointer-events: none", source)
 
-    def test_standard_home_avoids_backdrop_raster_on_every_device(self):
+    def test_standard_blur_is_restored_until_performance_cookie_disables_it(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")
-        standard_css = source[source.index("V4.8.680 — standard-mode interaction paint budget") :]
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        standard_css = source[source.index("V4.8.681 — adaptive standard-mode blur fallback") :]
 
         self.assertNotIn("pointer: coarse", standard_css)
         self.assertNotIn("hover: none", standard_css)
-        self.assertIn("body:not(.liquid-glass-mode) #sidebar", standard_css)
-        self.assertIn("body:not(.liquid-glass-mode) .composer-dock", standard_css)
-        self.assertIn("body:not(.liquid-glass-mode) .overlay", standard_css)
+        self.assertIn("html.performance-blur-disabled body:not(.liquid-glass-mode) #sidebar", standard_css)
+        self.assertIn("html.performance-blur-disabled body:not(.liquid-glass-mode) .composer-dock", standard_css)
+        self.assertIn("html.performance-blur-disabled body:not(.liquid-glass-mode) .overlay", standard_css)
         self.assertGreaterEqual(standard_css.count("backdrop-filter: none !important"), 6)
+
+        original_sidebar = source[source.index("#sidebar {") : source.index("#chat-container {")]
+        self.assertIn("backdrop-filter: blur(var(--blur-panel)) saturate(170%)", original_sidebar)
+        original_composer = source[source.index(".composer-dock,") : source.index("/* Sidebar hierarchy */")]
+        self.assertIn("backdrop-filter: blur(var(--blur-panel)) saturate(170%)", original_composer)
+        self.assertIn("#prompt-input { background: rgba(8, 14, 28, 0.65); backdrop-filter: blur(12px)", source)
+
+        cookie_bootstrap = template[template.index("const cookieName = 'adaptive_blur_disabled'") :]
+        cookie_bootstrap = cookie_bootstrap[: cookie_bootstrap.index("</script>")]
+        self.assertIn("document.documentElement.classList.add('performance-blur-disabled')", cookie_bootstrap)
+        self.assertLess(template.index("const cookieName = 'adaptive_blur_disabled'"), template.index("chat.tailwind."))
+
+        self.assertIn("const ADAPTIVE_BLUR_COOKIE = 'adaptive_blur_disabled'", script)
+        self.assertIn("'menu-btn'", script)
+        self.assertIn("'sidebar-toggle-btn'", script)
+        self.assertIn("'prompt-controls-toggle-btn'", script)
+        self.assertIn("document.visibilityState !== 'visible'", script)
+        self.assertIn("requestAnimationFrame(sampleFrame)", script)
+        self.assertIn("droppedFrames >= 5", script)
+        self.assertIn("Max-Age=31536000; SameSite=Lax", script)
 
         self.assertNotIn("promptDetailsTouchEnter", standard_css)
         self.assertNotIn("#prompt-details-controls.collapsed", standard_css)

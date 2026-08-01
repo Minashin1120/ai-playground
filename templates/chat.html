@@ -5,6 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
+    <script>
+        // Apply the saved performance fallback before styles load to avoid a blurred first paint.
+        (() => {
+            const cookieName = 'adaptive_blur_disabled';
+            try {
+                const blurDisabled = document.cookie.split(';').some((part) => {
+                    const [name, value] = part.trim().split('=', 2);
+                    return name === cookieName && value === '1';
+                });
+                if (blurDisabled) document.documentElement.classList.add('performance-blur-disabled');
+            } catch (error) {
+                // Cookie access can be blocked by browser policy; retain the normal visual treatment.
+            }
+        })();
+    </script>
     {% include 'pwa_meta.html' %}
     {% if initial_theme_css %}
     <style id="initial-theme-vars">{{ initial_theme_css|safe }}</style>

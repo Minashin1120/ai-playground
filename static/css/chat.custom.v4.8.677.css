@@ -3105,3 +3105,59 @@ body.liquid-glass-mode .modal-overlay.modal-close .modal-panel {
         box-shadow: inset 0 1px 1px rgba(255,255,255,0.48), 0 4px 30px rgba(0,0,0,0.17) !important;
     }
 }
+
+/*
+ * Touch-device paint budget (V4.8.677)
+ *
+ * Mobile Chromium must otherwise re-sample several viewport-sized 20–22px
+ * backdrop blurs while the chat scrolls. The glass material, tint, rim and
+ * depth remain intact; only the costly live refraction radius and idle shadow
+ * animation are reduced where hover lighting cannot be used in the first place.
+ */
+@media (hover: none) and (pointer: coarse) {
+    #prompt-input:focus,
+    #send-btn.pulse-ready {
+        animation: none !important;
+    }
+
+    body.liquid-glass-mode::before {
+        background:
+            radial-gradient(72% 62% at 4% 12%, rgba(var(--theme-rgb), 0.2), transparent 72%),
+            linear-gradient(145deg, #07101d 0%, #0c1830 52%, #080f1c 100%);
+    }
+    body.liquid-glass-mode::after {
+        display: none;
+    }
+    body.liquid-glass-mode .liquid-glass-surface {
+        background:
+            linear-gradient(112deg, rgba(255,255,255,0.16), transparent 42%, rgba(140,202,255,0.055)),
+            linear-gradient(158deg, rgba(50,67,91,0.84), rgba(20,34,54,0.88) 48%, rgba(7,15,29,0.92)) !important;
+        box-shadow:
+            inset 0 1px 1px rgba(255,255,255,0.42),
+            inset 0 -1px 0 rgba(139,183,224,0.12),
+            0 3px 18px rgba(0,0,0,0.18) !important;
+        backdrop-filter: blur(8px) saturate(145%) !important;
+        -webkit-backdrop-filter: blur(8px) saturate(145%) !important;
+        transition: border-color 180ms var(--ease-standard), transform 180ms var(--ease-out) !important;
+    }
+    body.liquid-glass-mode .modal-overlay {
+        background-color: rgba(3, 8, 18, 0.74) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+    body.liquid-glass-mode .modal-panel,
+    body.liquid-glass-mode .modal-glass-panel,
+    body.liquid-glass-mode #settings-modal > div,
+    body.liquid-glass-mode #model-modal > div,
+    body.liquid-glass-mode #gem-modal > div {
+        backdrop-filter: blur(10px) saturate(145%) !important;
+        -webkit-backdrop-filter: blur(10px) saturate(145%) !important;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.38), 0 16px 42px rgba(0,0,0,0.34) !important;
+    }
+    body.liquid-glass-mode.liquid-glass-scrolling .liquid-glass-surface {
+        background: linear-gradient(158deg, rgba(45,61,82,0.96), rgba(18,31,49,0.97) 48%, rgba(7,15,29,0.98)) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.32), 0 2px 10px rgba(0,0,0,0.13) !important;
+    }
+}

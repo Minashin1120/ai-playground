@@ -356,6 +356,8 @@
         let liquidGlassPointerPaintAt = 0;
         let liquidGlassPointerSurface = null;
         let liquidGlassPointerRect = null;
+        const liquidGlassFinePointer = !window.matchMedia
+            || window.matchMedia('(hover: hover) and (pointer: fine)').matches;
         const paintLiquidGlassPointer = (timestamp) => {
             if (!pendingLiquidGlassPointer || !document.body || !document.body.classList.contains('liquid-glass-mode')) {
                 liquidGlassPointerFrame = 0;
@@ -392,6 +394,9 @@
                 : 0;
         };
         document.addEventListener('pointermove', (event) => {
+            // Touch dragging already has native press feedback. Repainting a large
+            // translucent surface for every touch move only competes with scroll.
+            if (!liquidGlassFinePointer) return;
             if (!document.body || !document.body.classList.contains('liquid-glass-mode')) return;
             pendingLiquidGlassPointer = {
                 target: event.target,
@@ -4719,7 +4724,26 @@
             filterSettings();
         }
         get('chat-container').addEventListener('scroll', function() { userAutoScroll = (this.scrollHeight - this.scrollTop - this.clientHeight) < 50; }, { passive: true });
-        function scrollToBottom() { if(userAutoScroll) { const c = get('chat-container'); c.scrollTop = c.scrollHeight; } }
+        let scrollToBottomFrame = 0;
+        const getStreamingRenderInterval = (textLength = 0) => {
+            // Re-parsing the complete accumulated Markdown is O(n) per paint.
+            // Longer answers therefore need a wider cadence to avoid O(n²)-like
+            // main-thread pressure while still appearing continuously streamed.
+            if (textLength >= 24000) return 280;
+            if (textLength >= 8000) return 200;
+            return 120;
+        };
+        function scrollToBottom() {
+            if (!userAutoScroll || scrollToBottomFrame) return;
+            // Coalesce the many requests produced by one stream chunk. Reading
+            // scrollHeight after every token forces synchronous layout on mobile.
+            scrollToBottomFrame = requestAnimationFrame(() => {
+                scrollToBottomFrame = 0;
+                if (!userAutoScroll) return;
+                const c = get('chat-container');
+                if (c) c.scrollTop = c.scrollHeight;
+            });
+        }
 
         // Image Viewer Logic
         let viewerImages = [];
@@ -13590,6 +13614,7 @@
             let contentEl = null;
             let thoughtEl = null;
             let started = false;
+            let lastBrowserFastRenderAt = 0;
             const finishProgress = window.ProgressSpinner ? window.ProgressSpinner.start('高速モードで生成中...') : null;
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
@@ -13631,14 +13656,16 @@
                         if (pending) pending.remove();
                         started = true;
                     }
-                    if (thought) {
+                    const renderNow = performance.now();
+                    const shouldPaint = renderNow - lastBrowserFastRenderAt >= getStreamingRenderInterval(content.length + thought.length);
+                    if (thought && shouldPaint) {
                         if (!thoughtEl) {
                             adiv.insertAdjacentHTML('afterbegin', '<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>');
                             thoughtEl = adiv.querySelector('.thought-content');
                         }
                         thoughtEl.textContent = thought;
                     }
-                    if (content) {
+                    if (content && shouldPaint) {
                         if (!contentEl) {
                             contentEl = document.createElement('div');
                             contentEl.className = 'content-area prose prose-invert text-sm break-words';
@@ -13646,7 +13673,10 @@
                         }
                         renderAiMarkdownInto(contentEl, content, { incrementalMath: true });
                     }
-                    scrollToBottom();
+                    if (shouldPaint) {
+                        lastBrowserFastRenderAt = renderNow;
+                        scrollToBottom();
+                    }
                 };
                 while (true) {
                     const { done, value } = await reader.read();
@@ -13660,6 +13690,7 @@
                 if (buffer.trim()) consumeEvent(buffer);
                 if (!content.trim()) throw new Error('Geminiから回答本文が返されませんでした');
                 if (contentEl) renderAiMarkdownInto(contentEl, content, { incrementalMath: true });
+                if (thoughtEl) thoughtEl.textContent = thought;
                 if (thoughtEl) thoughtEl.classList.add('collapsed');
 
                 if (localEntries.length) {
@@ -14219,6 +14250,7 @@
                 let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null, hadError=false;
                 const pyBoxes = {};
                 let lastRenderTime = 0;
+                let lastThoughtRenderTime = 0;
 
                 while(true) {
                     const {done, value} = await reader.read();
@@ -14372,20 +14404,27 @@
                             }
                         } catch(e){}
                     }
+                    let paintedStreamUpdate = false;
                     if (thoughtChanged && thEl) {
-                        thEl.textContent = tht;
-                        if (userAutoScroll) thEl.scrollTop = thEl.scrollHeight;
+                        const thoughtNow = performance.now();
+                        if (thoughtNow - lastThoughtRenderTime >= getStreamingRenderInterval(tht.length)) {
+                            thEl.textContent = tht;
+                            if (userAutoScroll) thEl.scrollTop = thEl.scrollHeight;
+                            lastThoughtRenderTime = thoughtNow;
+                            paintedStreamUpdate = true;
+                        }
                     }
                     if (contentChanged && cEl) {
-                        const now = Date.now();
-                        if (now - lastRenderTime > 100) {
+                        const now = performance.now();
+                        if (now - lastRenderTime >= getStreamingRenderInterval(acc.length + tht.length)) {
                             const collapseState = snapshotCodeCollapse(cEl);
                             renderAiMarkdownInto(cEl, acc, { incrementalMath: true });
                             applyCodeCollapse(cEl, collapseState, true);
                             lastRenderTime = now;
+                            paintedStreamUpdate = true;
                         }
                     }
-                    scrollToBottom();
+                    if (paintedStreamUpdate) scrollToBottom();
                 }
                 // Final render to catch any remaining content
                 if (cEl) {
@@ -14393,6 +14432,7 @@
                     renderAiMarkdownInto(cEl, acc, { incrementalMath: true });
                     applyCodeCollapse(cEl, collapseState, true);
                 }
+                if (thEl) thEl.textContent = tht;
                 scrollToBottom();
 
                 vibrateHelper([100, 50, 100]);
@@ -14564,6 +14604,7 @@
             let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null, hadError=false;
             const pyBoxes = {};
             let lastRenderTime = 0;
+            let lastThoughtRenderTime = 0;
             const finishResumeProgress = window.ProgressSpinner
                 ? window.ProgressSpinner.start('生成中...')
                 : null;
@@ -14709,20 +14750,27 @@
                             }
                         } catch (e) {}
                     }
+                    let paintedStreamUpdate = false;
                     if (thoughtChanged && thEl) {
-                        thEl.textContent = tht;
-                        if (userAutoScroll) thEl.scrollTop = thEl.scrollHeight;
+                        const thoughtNow = performance.now();
+                        if (thoughtNow - lastThoughtRenderTime >= getStreamingRenderInterval(tht.length)) {
+                            thEl.textContent = tht;
+                            if (userAutoScroll) thEl.scrollTop = thEl.scrollHeight;
+                            lastThoughtRenderTime = thoughtNow;
+                            paintedStreamUpdate = true;
+                        }
                     }
                     if (contentChanged && cEl) {
-                        const now = Date.now();
-                        if (now - lastRenderTime > 100) {
+                        const now = performance.now();
+                        if (now - lastRenderTime >= getStreamingRenderInterval(acc.length + tht.length)) {
                             const collapseState = snapshotCodeCollapse(cEl);
                             renderAiMarkdownInto(cEl, acc, { incrementalMath: true });
                             applyCodeCollapse(cEl, collapseState, true);
                             lastRenderTime = now;
+                            paintedStreamUpdate = true;
                         }
                     }
-                    scrollToBottom();
+                    if (paintedStreamUpdate) scrollToBottom();
                 }
                 // Final render to catch any remaining content
                 if (cEl) {
@@ -14730,6 +14778,7 @@
                     renderAiMarkdownInto(cEl, acc, { incrementalMath: true });
                     applyCodeCollapse(cEl, collapseState, true);
                 }
+                if (thEl) thEl.textContent = tht;
 
                 vibrateHelper([100, 50, 100]);
 

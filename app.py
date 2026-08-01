@@ -52,6 +52,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from PIL import Image
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, make_response, flash, send_file, send_from_directory, abort, session, g
+from flask.sessions import SecureCookieSessionInterface
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -700,8 +701,20 @@ def _get_xai_client(api_key):
     return client
 
 app = Flask(__name__)
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-01-007')
-app.config['SYSTEM_VERSION'] = 'V4.8.668'
+
+class _StaticAssetSessionInterface(SecureCookieSessionInterface):
+    def save_session(self, flask_app, session_obj, response):
+        # Flask-Login checks the remember-cookie flag during every response,
+        # which marks the session as accessed and makes Flask add Vary: Cookie
+        # even for public static files. Static handlers never mutate session
+        # state, so suppressing the no-op save keeps CDN responses shareable.
+        if request.endpoint == 'static':
+            return
+        return super().save_session(flask_app, session_obj, response)
+
+app.session_interface = _StaticAssetSessionInterface()
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-01-008')
+app.config['SYSTEM_VERSION'] = 'V4.8.669'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -4767,6 +4780,8 @@ def build_global_system_prompt(now=None):
 
 @app.before_request
 def ensure_client_token():
+    if request.endpoint == 'static':
+        return
     try:
         get_client_token()
     except Exception:
@@ -4774,6 +4789,8 @@ def ensure_client_token():
 
 @app.before_request
 def ensure_temp_chat_monitor():
+    if request.endpoint == 'static':
+        return
     try:
         _ensure_temp_chat_monitor_running()
     except Exception:
@@ -4911,6 +4928,11 @@ def check_maintenance():
 
 @app.before_request
 def check_bot_ban():
+    # Versioned static assets are public and immutable. Avoid loading the user
+    # session here; touching it adds Set-Cookie/Vary headers and prevents CDN
+    # caching of the largest JS/CSS files.
+    if request.endpoint == 'static':
+        return
     if not current_user.is_authenticated:
         return
     if getattr(current_user, "is_admin", False):
@@ -4930,9 +4952,9 @@ def check_bot_ban():
 
 @app.before_request
 def ensure_active_session():
-    if not current_user.is_authenticated:
-        return
     if request.endpoint == 'static':
+        return
+    if not current_user.is_authenticated:
         return
     sid = session.get('session_id')
     if not sid:

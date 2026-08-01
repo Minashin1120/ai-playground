@@ -17,6 +17,11 @@ APP_ROOT = Path(__file__).resolve().parents[1]
 
 
 class PerformanceRegressionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        target.app.config.update(TESTING=True, TRUSTED_HOSTS=["localhost"])
+        target._ensure_temp_chat_monitor_running = lambda: None
+
     def test_storage_usage_scan_is_reused_within_one_request(self):
         with tempfile.TemporaryDirectory() as upload_root:
             user_dir = Path(upload_root) / "7"
@@ -51,6 +56,19 @@ class PerformanceRegressionTests(unittest.TestCase):
         self.assertIn("window.CHAT_CONFIG.useSwCache !== true", pwa_source)
         self.assertIn("SW_CACHE_MODE_STORAGE_KEY", chat_source)
         self.assertIn("previousMode !== 'disabled'", chat_source)
+
+    def test_versioned_static_assets_do_not_touch_session_or_client_cookie(self):
+        client = target.app.test_client()
+        response = client.get(
+            "/static/js/pwa_install.js?v=performance-test",
+            base_url="https://localhost",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("Cache-Control"), "public, max-age=31536000, immutable")
+        self.assertNotIn("Set-Cookie", response.headers)
+        self.assertNotIn("Cookie", response.headers.get("Vary", ""))
+        response.close()
 
     def test_upload_webp_encoding_uses_fast_method(self):
         source = (APP_ROOT / "app.py").read_text(encoding="utf-8")

@@ -713,8 +713,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-01-008')
-app.config['SYSTEM_VERSION'] = 'V4.8.669'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-01-009')
+app.config['SYSTEM_VERSION'] = 'V4.8.670'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1558,7 +1558,9 @@ def _chunk_user_dir(user_id):
 _CHUNK_UPLOAD_ID_RE = re.compile(r"^up_[0-9]{10}_[0-9a-f]{8}$")
 _CHUNK_SIZE_BYTES = 10 * 1024 * 1024
 _CHUNK_UPLOAD_MAX_ACTIVE = 10
-_CHUNK_UPLOAD_MAX_AGE_SECONDS = 24 * 60 * 60
+_CHUNK_UPLOAD_MAX_AGE_SECONDS = max(60 * 60, _env_int("CHUNK_UPLOAD_MAX_AGE_SECONDS", 6 * 60 * 60))
+_CHUNK_SWEEP_INTERVAL_SECONDS = max(5 * 60, _env_int("CHUNK_SWEEP_INTERVAL_SECONDS", 15 * 60))
+_CHUNK_SWEEP_REDIS_KEY = "chunk_upload:stale_sweep"
 
 def _is_valid_chunk_upload_id(upload_id):
     return bool(_CHUNK_UPLOAD_ID_RE.fullmatch(str(upload_id or "")))
@@ -1605,9 +1607,16 @@ def _cleanup_stale_chunk_uploads(user_id, now=None):
     for entry in os.scandir(user_dir):
         if not entry.is_dir(follow_symlinks=False) or not _is_valid_chunk_upload_id(entry.name):
             continue
-        meta = _load_chunk_meta(os.path.join(entry.path, 'meta.json')) or {}
+        meta_path = os.path.join(entry.path, 'meta.json')
+        meta = _load_chunk_meta(meta_path) or {}
         created = int(meta.get('created') or 0)
-        if created <= 0 or now - created > _CHUNK_UPLOAD_MAX_AGE_SECONDS:
+        updated = int(meta.get('updated') or 0)
+        try:
+            meta_mtime = int(os.path.getmtime(meta_path))
+        except Exception:
+            meta_mtime = 0
+        last_activity = max(created, updated, meta_mtime)
+        if last_activity <= 0 or now - last_activity > _CHUNK_UPLOAD_MAX_AGE_SECONDS:
             # Chunk completion already removes data.part with unlink. Use the
             # same lightweight deletion for abandoned transient data instead of
             # overwriting potentially multi-GB files with random bytes on the
@@ -1619,6 +1628,36 @@ def _cleanup_stale_chunk_uploads(user_id, now=None):
             continue
         active += 1
     return active
+
+def _cleanup_all_stale_chunk_uploads():
+    root = _chunk_root_dir()
+    if not os.path.isdir(root):
+        return
+    try:
+        entries = list(os.scandir(root))
+    except Exception:
+        return
+    for entry in entries:
+        if not entry.is_dir(follow_symlinks=False):
+            continue
+        try:
+            int(entry.name)
+        except (TypeError, ValueError):
+            continue
+        _cleanup_stale_chunk_uploads(entry.name)
+
+def _maybe_sweep_stale_chunk_uploads():
+    try:
+        acquired = redis_conn.set(
+            _CHUNK_SWEEP_REDIS_KEY,
+            str(int(time.time())),
+            nx=True,
+            ex=_CHUNK_SWEEP_INTERVAL_SECONDS,
+        )
+    except Exception:
+        return
+    if acquired:
+        _cleanup_all_stale_chunk_uploads()
 
 def _load_chunk_meta(path):
     try:
@@ -4480,6 +4519,7 @@ def _temp_chat_monitor_loop():
             if _temp_chat_monitor_has_lead():
                 with app.app_context():
                     _cleanup_stale_temp_chats()
+                    _maybe_sweep_stale_chunk_uploads()
         except Exception as e:
             logger.error(f"Temporary chat monitor error: {e}")
         time.sleep(_TEMP_CHAT_MONITOR_INTERVAL)
@@ -16413,34 +16453,10 @@ def upload():
             fname = f"{fname_base}{ext}"
             save_path = os.path.join(ud, fname)
             if current_user.enable_e2ee:
-                is_image = ext in ['.jpg', '.jpeg', '.png']
-                if is_image and not orig_name.endswith('.webp'):
-                    try:
-                        buf = BytesIO()
-                        Image.open(f).convert('RGB').save(buf, 'WEBP', quality=80, method=2)
-                        enc_data = encrypt_bytes(buf.getvalue())
-                        fname = f"{fname_base}.webp"
-                        with open(os.path.join(ud, fname + '.enc'), 'wb') as ef: ef.write(enc_data)
-                    except:
-                        f.seek(0)
-                        with open(os.path.join(ud, fname + '.enc'), 'wb') as ef: ef.write(encrypt_bytes(f.read()))
-                else:
-                    with open(os.path.join(ud, fname + '.enc'), 'wb') as ef: ef.write(encrypt_bytes(f.read()))
+                with open(os.path.join(ud, fname + '.enc'), 'wb') as ef:
+                    ef.write(encrypt_bytes(f.read()))
             else:
-                is_image = ext in ['.jpg', '.jpeg', '.png']
-                if is_image and not orig_name.endswith('.webp'):
-                    try:
-                        Image.open(f).convert('RGB').save(
-                            os.path.join(ud, f"{fname_base}.webp"),
-                            'WEBP',
-                            quality=80,
-                            method=2
-                        )
-                        fname = f"{fname_base}.webp"
-                    except:
-                        f.seek(0)
-                        f.save(save_path)
-                else: f.save(save_path)
+                f.save(save_path)
             rel_path = f"{current_user.id}/{fname}"
             res.append(rel_path)
             try:
@@ -16525,6 +16541,7 @@ def upload_init():
         "size": total_size,
         "received": 0,
         "created": int(time.time()),
+        "updated": int(time.time()),
         "ext": ext,
         "chunk_size": _CHUNK_SIZE_BYTES,
         "total_chunks": (total_size + _CHUNK_SIZE_BYTES - 1) // _CHUNK_SIZE_BYTES,
@@ -16590,6 +16607,7 @@ def upload_chunk():
                 out.write(chunk_data)
                 out.flush()
             meta['received'] = received + len(chunk_data)
+            meta['updated'] = int(time.time())
             if not _save_chunk_meta(meta_path, meta):
                 with open(part_path, 'r+b') as out:
                     out.truncate(received)
@@ -16643,37 +16661,11 @@ def upload_complete():
     cache_updated = False
     try:
         if current_user.enable_e2ee:
-            is_image = ext in ['.jpg', '.jpeg', '.png']
-            if is_image and not orig_name.endswith('.webp'):
-                try:
-                    buf = BytesIO()
-                    Image.open(part_path).convert('RGB').save(buf, 'WEBP', quality=80, method=2)
-                    enc_data = encrypt_bytes(buf.getvalue())
-                    fname = f"{fname_base}.webp"
-                    with open(os.path.join(ud, fname + '.enc'), 'wb') as ef: ef.write(enc_data)
-                except Exception:
-                    with open(part_path, 'rb') as rf:
-                        with open(os.path.join(ud, fname + '.enc'), 'wb') as ef:
-                            ef.write(encrypt_bytes(rf.read()))
-            else:
-                with open(part_path, 'rb') as rf:
-                    with open(os.path.join(ud, fname + '.enc'), 'wb') as ef:
-                        ef.write(encrypt_bytes(rf.read()))
+            with open(part_path, 'rb') as rf:
+                with open(os.path.join(ud, fname + '.enc'), 'wb') as ef:
+                    ef.write(encrypt_bytes(rf.read()))
         else:
-            is_image = ext in ['.jpg', '.jpeg', '.png']
-            if is_image and not orig_name.endswith('.webp'):
-                try:
-                    Image.open(part_path).convert('RGB').save(
-                        os.path.join(ud, f"{fname_base}.webp"),
-                        'WEBP',
-                        quality=80,
-                        method=2
-                    )
-                    fname = f"{fname_base}.webp"
-                except Exception:
-                    os.replace(part_path, save_path)
-            else:
-                os.replace(part_path, save_path)
+            os.replace(part_path, save_path)
         res.append(f"{current_user.id}/{fname}")
         rel_path = f"{current_user.id}/{fname}"
         try:

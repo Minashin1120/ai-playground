@@ -63,6 +63,44 @@
         const getCompressionMaxDim = () => parseInt(localStorage.getItem(COMPRESSION_DIM_KEY) || '1920');
         const getCompressionOutputType = () => localStorage.getItem(COMPRESSION_TYPE_KEY) || 'original';
         const getCompressionFormatOnly = () => localStorage.getItem(COMPRESSION_FORMAT_ONLY_KEY) === 'true';
+        const IMAGE_EXTENSION_BY_MIME = {
+            'image/jpeg': '.jpg',
+            'image/png': '.png',
+            'image/webp': '.webp'
+        };
+        const imageFilenameForMime = (filename, mimeType) => {
+            const ext = IMAGE_EXTENSION_BY_MIME[String(mimeType || '').toLowerCase()];
+            if (!ext) return filename || 'image';
+            const raw = String(filename || 'image');
+            const stem = raw.replace(/\.[^./\\]+$/, '') || 'image';
+            return `${stem}${ext}`;
+        };
+        const convertImageFormatOnly = async (file, outputType) => {
+            if (!file || !outputType || outputType === 'original' || outputType === file.type) return file;
+            await ensureImageCompression();
+            const drawn = await window.imageCompression.drawFileInCanvas(file, { fileType: outputType });
+            const source = drawn && drawn[0];
+            const canvas = drawn && drawn[1];
+            if (!canvas) throw new Error('Image conversion canvas is unavailable');
+            let blob;
+            try {
+                if (typeof canvas.convertToBlob === 'function') {
+                    blob = await canvas.convertToBlob({ type: outputType, quality: 1 });
+                } else {
+                    blob = await new Promise((resolve, reject) => {
+                        canvas.toBlob((value) => value ? resolve(value) : reject(new Error('Image conversion failed')), outputType, 1);
+                    });
+                }
+            } finally {
+                try { window.imageCompression.cleanupCanvasMemory(canvas); } catch (e) {}
+                try { if (source && typeof source.close === 'function') source.close(); } catch (e) {}
+            }
+            return new File(
+                [blob],
+                imageFilenameForMime(file.name, outputType),
+                { type: outputType, lastModified: file.lastModified || Date.now() }
+            );
+        };
         const setCompressionSettings = (size, dim, type, formatOnly) => {
             localStorage.setItem(COMPRESSION_SIZE_KEY, size);
             localStorage.setItem(COMPRESSION_DIM_KEY, dim);
@@ -11634,26 +11672,30 @@
                         try {
                             const outputType = getCompressionOutputType();
                             const formatOnly = getCompressionFormatOnly();
-                            const o = {
-                                maxSizeMB: formatOnly ? 50 : getCompressionMaxSizeMB(),
-                                maxWidthOrHeight: formatOnly ? 16384 : getCompressionMaxDim(),
-                                useWebWorker: true
-                            };
-                            if (outputType && outputType !== 'original') {
-                                o.fileType = outputType;
-                            } else if (formatOnly) {
-                                // If formatOnly is true but outputType is original, do nothing.
-                                throw new Error('formatOnly with original type');
-                            }
-                            await ensureImageCompression();
-                            const c = await window.imageCompression(f, o);
-                            const compressedFile = new File([c], f.name, { type: c.type });
-                            if (compressedFile.size > f.size) {
-                                showToast(`圧縮後にサイズが増加しました: ${formatBytes(f.size)} -> ${formatBytes(compressedFile.size)}（元ファイルを使用）`, "warning", true);
-                                t = f;
+                            if (formatOnly) {
+                                t = await convertImageFormatOnly(f, outputType);
                             } else {
-                                t = compressedFile;
+                                const o = {
+                                    maxSizeMB: getCompressionMaxSizeMB(),
+                                    maxWidthOrHeight: getCompressionMaxDim(),
+                                    useWebWorker: true
+                                };
+                                if (outputType && outputType !== 'original') o.fileType = outputType;
+                                await ensureImageCompression();
+                                const c = await window.imageCompression(f, o);
+                                const compressedFile = new File(
+                                    [c],
+                                    imageFilenameForMime(f.name, c.type || (outputType !== 'original' ? outputType : f.type)),
+                                    { type: c.type || f.type, lastModified: f.lastModified || Date.now() }
+                                );
+                                if (compressedFile.size > f.size) {
+                                    showToast(`圧縮後にサイズが増加しました: ${formatBytes(f.size)} -> ${formatBytes(compressedFile.size)}（元ファイルを使用）`, "warning", true);
+                                    t = f;
+                                } else {
+                                    t = compressedFile;
+                                }
                             }
+                            if (t !== f) updateUploadRowFile(rowObj, t);
                         } catch(e){}
                     }
                     return await uploadFileWithProgress(t, rowObj);

@@ -123,6 +123,45 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIsNone(target._chunk_session_dir(self.user_id, "../../app"))
         self.assertIsNone(target._chunk_session_dir(self.user_id, "up_1_deadbeef/../../app"))
 
+    def test_image_upload_is_saved_byte_for_byte_without_server_reencoding(self):
+        client = self.authenticated_client()
+        original = b"not-decoded-by-server\x00\xffPNG-payload"
+        response = client.post(
+            "/upload",
+            data={"file": (io.BytesIO(original), "browser-output.png")},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        rel_path = response.get_json()["filename"]
+        saved = Path(target.app.config["UPLOAD_FOLDER"]) / rel_path
+        self.assertEqual(saved.suffix, ".png")
+        self.assertEqual(saved.read_bytes(), original)
+
+    def test_encrypted_image_upload_encrypts_original_browser_bytes(self):
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.enable_e2ee = True
+            target.db.session.commit()
+
+        client = self.authenticated_client()
+        original = b"browser-webp-output\x00\x01\x02"
+        response = client.post(
+            "/upload",
+            data={"file": (io.BytesIO(original), "browser-output.webp")},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        rel_path = response.get_json()["filename"]
+        encrypted = Path(target.app.config["UPLOAD_FOLDER"]) / f"{rel_path}.enc"
+        self.assertTrue(encrypted.exists())
+        self.assertEqual(target.decrypt_bytes(encrypted.read_bytes()), original)
+
     def test_chunk_upload_rejects_oversized_and_replayed_chunks(self):
         client = self.authenticated_client()
         headers = {"X-CSRF-Token": "csrf-test-token"}

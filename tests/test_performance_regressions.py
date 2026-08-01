@@ -4,6 +4,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 os.environ.setdefault("FLASK_SECRET_KEY", "performance-test-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/ai-chat-performance-tests.db")
@@ -70,11 +71,24 @@ class PerformanceRegressionTests(unittest.TestCase):
         self.assertNotIn("Cookie", response.headers.get("Vary", ""))
         response.close()
 
-    def test_upload_webp_encoding_uses_fast_method(self):
+    def test_server_upload_paths_do_not_reencode_images(self):
         source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
-        self.assertEqual(source.count("quality=80, method=2"), 2)
-        self.assertEqual(source.count("quality=80,\n                            method=2"), 1)
-        self.assertEqual(source.count("quality=80,\n                        method=2"), 1)
+        upload_source = source[source.index("def upload():"):source.index("def upload_init():")]
+        complete_source = source[source.index("def upload_complete():"):source.index("def get_storage_usage():")]
+        self.assertNotIn("Image.open", upload_source)
+        self.assertNotIn("Image.open", complete_source)
+        self.assertNotIn("WEBP", upload_source)
+        self.assertNotIn("WEBP", complete_source)
+
+    def test_browser_owns_format_conversion_and_quality_100_mode(self):
+        chat_files = list((APP_ROOT / "static/js").glob("chat_core.v*.js"))
+        self.assertEqual(len(chat_files), 1)
+        source = chat_files[0].read_text(encoding="utf-8")
+        template = (APP_ROOT / "templates/chat.html").read_text(encoding="utf-8")
+        self.assertIn("convertImageFormatOnly", source)
+        self.assertIn("quality: 1", source)
+        self.assertIn("imageFilenameForMime", source)
+        self.assertIn("品質100・リサイズ無効", template)
 
     def test_stale_chunk_cleanup_removes_transient_data_without_rewriting(self):
         with tempfile.TemporaryDirectory() as upload_root:
@@ -85,6 +99,8 @@ class PerformanceRegressionTests(unittest.TestCase):
                 json.dumps({"created": int(time.time()) - target._CHUNK_UPLOAD_MAX_AGE_SECONDS - 1}),
                 encoding="utf-8",
             )
+            old_time = int(time.time()) - target._CHUNK_UPLOAD_MAX_AGE_SECONDS - 1
+            os.utime(stale_dir / "meta.json", (old_time, old_time))
 
             old_root = target.app.config["UPLOAD_FOLDER"]
             target.app.config["UPLOAD_FOLDER"] = upload_root
@@ -96,6 +112,43 @@ class PerformanceRegressionTests(unittest.TestCase):
 
         self.assertEqual(active, 0)
         self.assertFalse(stale_exists)
+
+    def test_recent_chunk_activity_prevents_automatic_cleanup(self):
+        with tempfile.TemporaryDirectory() as upload_root:
+            chunk_dir = Path(upload_root) / ".chunks" / "7" / "up_1752156000_deadbeef"
+            chunk_dir.mkdir(parents=True)
+            (chunk_dir / "data.part").write_bytes(b"x")
+            (chunk_dir / "meta.json").write_text(
+                json.dumps({
+                    "created": int(time.time()) - target._CHUNK_UPLOAD_MAX_AGE_SECONDS - 100,
+                    "updated": int(time.time()),
+                }),
+                encoding="utf-8",
+            )
+
+            old_root = target.app.config["UPLOAD_FOLDER"]
+            target.app.config["UPLOAD_FOLDER"] = upload_root
+            try:
+                active = target._cleanup_stale_chunk_uploads(7)
+                still_exists = chunk_dir.exists()
+            finally:
+                target.app.config["UPLOAD_FOLDER"] = old_root
+
+        self.assertEqual(active, 1)
+        self.assertTrue(still_exists)
+
+    def test_chunk_sweep_is_rate_limited_and_runs_for_the_leader(self):
+        with mock.patch.object(target.redis_conn, "set", return_value=True) as acquire:
+            with mock.patch.object(target, "_cleanup_all_stale_chunk_uploads") as cleanup:
+                target._maybe_sweep_stale_chunk_uploads()
+
+        acquire.assert_called_once_with(
+            target._CHUNK_SWEEP_REDIS_KEY,
+            mock.ANY,
+            nx=True,
+            ex=target._CHUNK_SWEEP_INTERVAL_SECONDS,
+        )
+        cleanup.assert_called_once_with()
 
 
 if __name__ == "__main__":

@@ -4779,9 +4779,9 @@
                 icon: "fas fa-star text-yellow-400",
                 description: "Google's latest multimodal models",
                 items: [
-                    { id: "gemini-3.6-flash", name: "Gemini 3.6 Flash", desc: "Latest Flash model for agentic, coding, and multimodal tasks.", price: "In $1.50/1M, Out $7.50/1M" },
-                    { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash", desc: "Most intelligent Gemini 3.5 model built for speed.", price: "In $1.50/1M, Out $9.00/1M" },
-                    { id: "gemini-3.5-flash-lite", name: "Gemini 3.5 Flash-Lite", desc: "Fastest, lowest-cost Gemini 3.5 model for high-throughput execution.", price: "In $0.30/1M, Out $2.50/1M" },
+                    { id: "gemini-3.6-flash", name: "Gemini 3.6 Flash", desc: "Latest Flash model for agentic, coding, and multimodal tasks.", price: "In $1.50/1M, Out $7.50/1M", agenticView: true },
+                    { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash", desc: "Most intelligent Gemini 3.5 model built for speed.", price: "In $1.50/1M, Out $9.00/1M", agenticView: true },
+                    { id: "gemini-3.5-flash-lite", name: "Gemini 3.5 Flash-Lite", desc: "Fastest, lowest-cost Gemini 3.5 model for high-throughput execution.", price: "In $0.30/1M, Out $2.50/1M", agenticView: true },
                 ]
             },
             {
@@ -4789,7 +4789,7 @@
                 icon: "fas fa-star text-yellow-400",
                 description: "Previous Gemini 3.x generation models",
                 items: [
-                    { id: "gemini-3.1-flash-lite", name: "Gemini 3.1 Flash-Lite", desc: "Stable, cost-efficient model for high-volume lightweight tasks.", price: "In $0.25/1M, Out $1.50/1M" },
+                    { id: "gemini-3.1-flash-lite", name: "Gemini 3.1 Flash-Lite", desc: "Stable, cost-efficient model for high-volume lightweight tasks.", price: "In $0.25/1M, Out $1.50/1M", agenticView: true },
                     { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro", desc: "Next-gen native multimodal model.", price: "In $2.00/1M, Out $12.00/1M (≤200k)" },
                     { id: "gemini-3.1-flash-lite-preview", name: "Gemini 3.1 Flash-Lite Preview", desc: "Retired preview model retained for chat history compatibility.", price: "In $0.25/1M, Out $1.50/1M", deprecated: true },
                     { id: "gemini-3-flash-preview", name: "Gemini 3.0 Flash", desc: "Fastest and most cost-efficient.", price: "In $0.50/1M, Out $3.00/1M" },
@@ -5641,6 +5641,7 @@
                 const entries = availableItems.map(m => {
                     const item = document.createElement('button');
                     const apiModelName = String(m.apiId || m.id || '').trim();
+                    const agenticViewHtml = m.agenticView ? `<span class="inline-flex items-center gap-1 rounded-full border border-teal-500/40 bg-teal-900/20 px-2 py-0.5 text-[9px] font-semibold text-teal-200 whitespace-nowrap" title="Agentic View対応：画像をクロップして再観察しながら推論を継続できます"><i class="fas fa-eye" aria-hidden="true"></i>Agentic View</span>` : '';
                     const apiModelHtml = apiModelName ? `<div class="text-[10px] text-cyan-300/90 mt-1.5 font-mono break-all"><span class="font-sans text-gray-500 mr-1">API model:</span>${escapeHtml(apiModelName)}</div>` : '';
                     const priceHtml = m.price ? `<div class="text-[10px] text-amber-400/90 mt-1.5 font-mono flex items-start gap-1"><i class="fas fa-tag text-[9px] mt-0.5 opacity-70 shrink-0"></i><span>${m.price}</span></div>` : '';
                     item.type = 'button';
@@ -5648,9 +5649,12 @@
                     item.dataset.selected = '0';
                     item.onclick = () => selectModel(m.id, m.name);
                     item.innerHTML = `
-                        <div class="flex justify-between items-center w-full mb-1">
-                            <span class="font-bold text-sm text-gray-200">${m.name}</span>
-                            <i class="model-selected-icon fas fa-check-circle text-blue-400 hidden"></i>
+                        <div class="flex justify-between items-start gap-2 w-full mb-1">
+                            <div class="flex flex-wrap items-center gap-2 min-w-0">
+                                <span class="font-bold text-sm text-gray-200">${m.name}</span>
+                                ${agenticViewHtml}
+                            </div>
+                            <i class="model-selected-icon fas fa-check-circle text-blue-400 hidden shrink-0 mt-0.5"></i>
                         </div>
                         <span class="text-[10px] text-gray-400">${m.desc}</span>
                         ${apiModelHtml}
@@ -5660,7 +5664,7 @@
                     return {
                         model: m,
                         button: item,
-                        searchText: `${m.name} ${m.id} ${apiModelName}`.toLowerCase(),
+                        searchText: `${m.name} ${m.id} ${apiModelName} ${m.agenticView ? 'agentic view' : ''}`.toLowerCase(),
                         provider: getModelApiProvider(m.id),
                         tags: new Set(getModelTags(m, group)),
                     };

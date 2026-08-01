@@ -95,3 +95,26 @@ class GeminiLatestModelsRegressionTests(unittest.TestCase):
             route.index('elif model_key == "gemini-3.1-flash-lite"'),
             route.index('elif "gemini-3.1-flash-lite-preview" in model_key'),
         )
+
+    def test_verified_models_show_agentic_view_badge(self):
+        for model_id in (
+            "gemini-3.6-flash",
+            "gemini-3.5-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.1-flash-lite",
+        ):
+            definition_at = CHAT_JS.index(f'{{ id: "{model_id}"')
+            self.assertIn(
+                "agenticView: true",
+                CHAT_JS[definition_at:definition_at + 500],
+                model_id,
+            )
+
+        unsupported_at = CHAT_JS.index('{ id: "gemini-2.5-flash-lite"')
+        self.assertNotIn(
+            "agenticView: true",
+            CHAT_JS[unsupported_at:unsupported_at + 500],
+        )
+        self.assertIn("const agenticViewHtml = m.agenticView", CHAT_JS)
+        self.assertIn(">Agentic View</span>", CHAT_JS)
+        self.assertIn("m.agenticView ? 'agentic view' : ''", CHAT_JS)

@@ -1,6 +1,6 @@
-# Supported Models (V4.8.656)
+# Supported Models (V4.8.665)
 
-全対応モデルの一覧です。モデル定義の一次ソースは `static/js/chat_core.v4.8.656.js` の `MODELS` 配列です。
+全対応モデルの一覧です。モデル定義の一次ソースは `static/js/chat_core.v4.8.665.js` の `MODELS` 配列です。
 モデル選択モーダルには各モデルの公式 API 価格（`price` フィールド）が表示されます。
 
 **価格最終確認:** 2026-07-31
@@ -14,6 +14,7 @@
 - **Provider**: OpenAI / Google Gemini / xAI Grok / Anthropic / DeepSeek
 - **Status**: Active（現行） / Deprecated（非推奨・UI非表示だが過去スレッド互換性維持）
 - **料金**: モーダル表示用の要約（1M = 100万トークン）。キャッシュ価格は省略する場合あり
+- **Agentic View**: 対応バッジがあるモデルは、コード実行による画像クロップを再観察しながら推論を継続可能
 
 ---
 
@@ -60,5 +61,5 @@
 
 ---
 
-*最終更新: 2026-07-31 (V4.8.656)*
-*ソース: `static/js/chat_core.v4.8.656.js` MODELS配列*
+*最終更新: 2026-08-01 (V4.8.665)*
+*ソース: `static/js/chat_core.v4.8.665.js` MODELS配列*

@@ -90,6 +90,40 @@ class PerformanceRegressionTests(unittest.TestCase):
         self.assertIn("imageFilenameForMime", source)
         self.assertIn("品質100・リサイズ無効", template)
 
+    def test_small_image_attachments_are_eligible_for_low_latency_execution(self):
+        with tempfile.TemporaryDirectory() as upload_root:
+            user_dir = Path(upload_root) / "7"
+            user_dir.mkdir(parents=True)
+            (user_dir / "one.png").write_bytes(b"png-image")
+            (user_dir / "two.webp").write_bytes(b"webp-image")
+            (user_dir / "notes.txt").write_text("not an image", encoding="utf-8")
+
+            old_root = target.app.config["UPLOAD_FOLDER"]
+            target.app.config["UPLOAD_FOLDER"] = upload_root
+            try:
+                self.assertTrue(target._is_low_latency_image_attachment_set(["7/one.png", "7/two.webp"]))
+                self.assertFalse(target._is_low_latency_image_attachment_set(["7/notes.txt"]))
+                self.assertFalse(target._is_low_latency_image_attachment_set(["7/missing.png"]))
+            finally:
+                target.app.config["UPLOAD_FOLDER"] = old_root
+
+    def test_gemini_small_images_are_inlined_before_files_api_fallback(self):
+        source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        image_branch = source[
+            source.index("if mime.startswith('image/'):"):
+            source.index("if mime.startswith('audio/'):", source.index("if mime.startswith('image/'):"))
+        ]
+        inline_pos = image_branch.index("inline_image_bytes + img_size <= _GEMINI_INLINE_IMAGE_MAX_BYTES")
+        files_api_pos = image_branch.index("elif gemini_files_api_enabled")
+        self.assertLess(inline_pos, files_api_pos)
+        self.assertIn("types.Part.from_bytes", image_branch)
+
+    def test_small_images_can_use_direct_and_fast_chat_paths(self):
+        source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        route = source[source.index("def chat_stream():"):source.index("def estimate_prompt_tokens_api():")]
+        self.assertIn("low_latency_image_attachments = _is_low_latency_image_attachment_set", route)
+        self.assertGreaterEqual(route.count("(no_attachments or low_latency_image_attachments)"), 2)
+
     def test_stale_chunk_cleanup_removes_transient_data_without_rewriting(self):
         with tempfile.TemporaryDirectory() as upload_root:
             stale_dir = Path(upload_root) / ".chunks" / "7" / "up_1752156000_deadbeef"

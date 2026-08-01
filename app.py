@@ -184,6 +184,9 @@ _MEDIA_BYTES_CACHE_MAX = max(0, _env_int("MEDIA_BYTES_CACHE_MAX_MB", 128)) * 102
 _MEDIA_BYTES_CACHE_ITEM_MAX = max(0, _env_int("MEDIA_BYTES_CACHE_ITEM_MAX_MB", 12)) * 1024 * 1024
 _HISTORY_IMAGE_MAX_ITEMS = max(0, _env_int("HISTORY_IMAGE_MAX_ITEMS", 0))
 _HISTORY_IMAGE_MAX_BYTES = max(0, _env_int("HISTORY_IMAGE_MAX_MB", 0)) * 1024 * 1024
+_LOW_LATENCY_IMAGE_MAX_ITEMS = max(1, _env_int("LOW_LATENCY_IMAGE_MAX_ITEMS", 4))
+_LOW_LATENCY_IMAGE_MAX_BYTES = max(1, _env_int("LOW_LATENCY_IMAGE_MAX_MB", 12)) * 1024 * 1024
+_GEMINI_INLINE_IMAGE_MAX_BYTES = max(1, _env_int("GEMINI_INLINE_IMAGE_MAX_MB", 12)) * 1024 * 1024
 _THUMBNAIL_CACHE_MAX = max(0, _env_int("THUMBNAIL_CACHE_MAX_MB", 48)) * 1024 * 1024
 _THUMBNAIL_CACHE_ITEM_MAX = max(0, _env_int("THUMBNAIL_CACHE_ITEM_MAX_MB", 2)) * 1024 * 1024
 _THUMBNAIL_SIZE = max(64, _env_int("THUMBNAIL_SIZE", 320))
@@ -714,8 +717,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-01-010')
-app.config['SYSTEM_VERSION'] = 'V4.8.671'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-01-011')
+app.config['SYSTEM_VERSION'] = 'V4.8.672'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1145,6 +1148,24 @@ def _get_file_disk_info(rel_path):
         "size": size,
         "mtime": mtime
     }
+
+def _is_low_latency_image_attachment_set(rel_paths):
+    """Identify small local image sets that do not need the heavy chat queue."""
+    refs = list(rel_paths or [])
+    if not refs or len(refs) > _LOW_LATENCY_IMAGE_MAX_ITEMS:
+        return False
+    total_bytes = 0
+    for rel_path in refs:
+        if os.path.splitext(str(rel_path or ""))[1].lower() not in _IMAGE_THUMB_EXTS:
+            return False
+        info = _get_file_disk_info(rel_path)
+        size = info.get("size") if info.get("exists") else None
+        if size is None or size <= 0:
+            return False
+        total_bytes += int(size)
+        if total_bytes > _LOW_LATENCY_IMAGE_MAX_BYTES:
+            return False
+    return True
 
 _MEDIA_BYTES_CACHE_LOCK = threading.Lock()
 _MEDIA_BYTES_CACHE = OrderedDict()
@@ -7532,6 +7553,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         return None, None, last_err
 
                     current_image_names = []
+                    inline_image_bytes = 0
                     for fi in loaded_files:
                         if fi.get('is_pdf') and supports_pdf_inputs and fi.get('bytes'):
                             try:
@@ -7715,7 +7737,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             img_size = len(fi['bytes'])
 
                             attached = False
-                            if gemini_files_api_enabled:
+                            # Small images are latency-sensitive and fit safely in the
+                            # GenerateContent payload. Avoid a separate Files API round trip.
+                            if inline_image_bytes + img_size <= _GEMINI_INLINE_IMAGE_MAX_BYTES:
+                                curr_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime']))
+                                inline_image_bytes += img_size
+                                attached = True
+                            elif gemini_files_api_enabled:
                                 try:
                                     cached_part = _gemini_get_cached_part(
                                         rel_path,
@@ -7762,8 +7790,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                             if not attached:
                                 curr_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime']))
-                                img_label = fi.get('send_name') or fi.get('name') or f"画像{len(current_image_names) + 1}"
-                                current_image_names.append(os.path.basename(str(img_label)))
+                                inline_image_bytes += img_size
+                            img_label = fi.get('send_name') or fi.get('name') or f"画像{len(current_image_names) + 1}"
+                            current_image_names.append(os.path.basename(str(img_label)))
                             continue
                         if mime.startswith('audio/'):
                             try:
@@ -11611,6 +11640,7 @@ def chat_stream():
     model_key_l = model_key.lower()
     is_gemini_3 = "gemini-3" in model_key_l or "gemini-3.1" in model_key_l
     no_attachments = not bool(norm_image_urls)
+    low_latency_image_attachments = _is_low_latency_image_attachment_set(norm_image_urls)
     no_special_tools = not bool(data.get('enable_search')) and not bool(data.get('enable_python')) and not (bool(data.get('enable_maps')) and is_gemini_3)
     no_quote = not bool(data.get('quote_text'))
     no_thread_custom_instruction = not bool((data.get('thread_custom_instruction') or '').strip())
@@ -11632,7 +11662,7 @@ def chat_stream():
     
     fast_queue_eligible = bool(
         not model_looks_heavy
-        and no_attachments
+        and (no_attachments or low_latency_image_attachments)
         # Now allows tools in the fast queue to reduce Dispatch delay
     )
     queue_name = _CHAT_FAST_QUEUE_NAME if fast_queue_eligible else _CHAT_HEAVY_QUEUE_NAME
@@ -11641,7 +11671,7 @@ def chat_stream():
         _DIRECT_FIRST_TURN_ENABLED
         and history_is_short
         and supports_direct_first_turn
-        and no_attachments
+        and (no_attachments or low_latency_image_attachments)
         # Removed no_special_tools constraint: 
         # Allow tools in direct path for fast TTFB when history is short
         and no_thread_custom_instruction

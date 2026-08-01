@@ -9,6 +9,9 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
+from sqlalchemy.dialects import mysql
+from sqlalchemy.schema import CreateTable
+
 
 os.environ.setdefault("FLASK_SECRET_KEY", "security-test-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/ai-chat-security-tests.db")
@@ -429,6 +432,37 @@ class SecurityRegressionTests(unittest.TestCase):
 
             after = {column["name"] for column in target.inspect(target.db.engine).get_columns("user")}
             self.assertIn("liquid_glass_enabled", after)
+
+    def test_message_payload_columns_compile_as_mysql_longtext(self):
+        ddl = str(CreateTable(target.Message.__table__).compile(dialect=mysql.dialect()))
+
+        for column_name in ("content", "thought_data", "quote_text", "thought_signature"):
+            with self.subTest(column_name=column_name):
+                self.assertRegex(ddl, rf"\b{column_name} LONGTEXT\b")
+
+    def test_large_encrypted_message_round_trip_exceeds_legacy_text_limit(self):
+        plaintext = "長文回答" * 25_000
+        encrypted = target.encrypt_val(plaintext)
+        self.assertGreater(len(encrypted.encode("utf-8")), 65_535)
+
+        with target.app.app_context():
+            thread = target.Thread(
+                user_id=self.user_id,
+                public_id=target.generate_thread_public_id(),
+            )
+            target.db.session.add(thread)
+            target.db.session.flush()
+            message = target.Message(
+                thread_id=thread.id,
+                role="assistant",
+                content=encrypted,
+                is_encrypted=True,
+            )
+            target.db.session.add(message)
+            target.db.session.commit()
+
+            saved = target.db.session.get(target.Message, message.id)
+            self.assertEqual(target.decrypt_val(saved.content), plaintext)
 
     def test_liquid_glass_uses_functional_layer_and_dynamic_highlights(self):
         root = os.path.dirname(os.path.dirname(__file__))

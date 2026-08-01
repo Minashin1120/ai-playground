@@ -59,6 +59,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import or_, exc, text, func, inspect
+from sqlalchemy.dialects.mysql import LONGTEXT
 from dotenv import load_dotenv
 from openai import OpenAI, APITimeoutError, APIError, APIConnectionError, RateLimitError
 from google.oauth2 import id_token
@@ -713,8 +714,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-01-009')
-app.config['SYSTEM_VERSION'] = 'V4.8.670'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-01-010')
+app.config['SYSTEM_VERSION'] = 'V4.8.671'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -793,6 +794,7 @@ _TEMP_CHAT_MONITOR_PID = None
 _TEMP_CHAT_MONITOR_TOKEN = None
 
 db = SQLAlchemy(app)
+MESSAGE_PAYLOAD_TEXT = db.Text().with_variant(LONGTEXT(), "mysql", "mariadb")
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -3002,7 +3004,7 @@ class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     thread_id = db.Column(db.Integer, db.ForeignKey('thread.id'), nullable=False, index=True)
     role = db.Column(db.String(20))
-    content = db.Column(db.Text)
+    content = db.Column(MESSAGE_PAYLOAD_TEXT)
     model = db.Column(db.String(50))
     image_url = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
@@ -3010,10 +3012,10 @@ class Message(db.Model):
     tokens_in = db.Column(db.Integer, default=0)
     tokens_out = db.Column(db.Integer, default=0)
     tokens_thought = db.Column(db.Integer, default=0)
-    thought_data = db.Column(db.Text)
-    quote_text = db.Column(db.Text)
+    thought_data = db.Column(MESSAGE_PAYLOAD_TEXT)
+    quote_text = db.Column(MESSAGE_PAYLOAD_TEXT)
     is_encrypted = db.Column(db.Boolean, default=False)
-    thought_signature = db.Column(db.Text, nullable=True)
+    thought_signature = db.Column(MESSAGE_PAYLOAD_TEXT, nullable=True)
     gem_uuid = db.Column(db.String(36), nullable=True)
     gem_name = db.Column(db.String(100), nullable=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('message.id'), nullable=True)
@@ -3809,6 +3811,59 @@ def ensure_message_token_io_columns():
                 conn.execute(text("ALTER TABLE message ADD COLUMN tokens_thought INTEGER DEFAULT 0"))
     except Exception:
         pass
+
+def ensure_message_payload_longtext_columns():
+    """Keep large encrypted messages and reasoning payloads above MySQL TEXT's 64 KiB limit."""
+    if db.engine.dialect.name not in ('mysql', 'mariadb'):
+        return
+
+    required_columns = ('content', 'thought_data', 'quote_text', 'thought_signature')
+    lock_name = 'ai_chat_message_payload_longtext_v1'
+    with db.engine.connect() as conn:
+        acquired = conn.execute(
+            text("SELECT GET_LOCK(:lock_name, 30)"),
+            {'lock_name': lock_name},
+        ).scalar()
+        if acquired != 1:
+            raise RuntimeError("Could not acquire the message payload schema migration lock")
+        try:
+            rows = conn.execute(text(
+                "SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='message' "
+                "AND COLUMN_NAME IN ('content', 'thought_data', 'quote_text', 'thought_signature')"
+            )).mappings().all()
+            types_by_name = {row['COLUMN_NAME']: str(row['DATA_TYPE']).lower() for row in rows}
+            missing = [name for name in required_columns if name not in types_by_name]
+            if missing:
+                raise RuntimeError(
+                    "Required message payload columns are missing: " + ", ".join(missing)
+                )
+            for column_name in required_columns:
+                if types_by_name[column_name] != 'longtext':
+                    conn.execute(text(
+                        f"ALTER TABLE message MODIFY COLUMN `{column_name}` LONGTEXT NULL"
+                    ))
+
+            verified = conn.execute(text(
+                "SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='message' "
+                "AND COLUMN_NAME IN ('content', 'thought_data', 'quote_text', 'thought_signature')"
+            )).mappings().all()
+            verified_types = {
+                row['COLUMN_NAME']: str(row['DATA_TYPE']).lower() for row in verified
+            }
+            invalid = [
+                name for name in required_columns if verified_types.get(name) != 'longtext'
+            ]
+            if invalid:
+                raise RuntimeError(
+                    "Required message payload columns are not LONGTEXT: " + ", ".join(invalid)
+                )
+        finally:
+            conn.execute(
+                text("SELECT RELEASE_LOCK(:lock_name)"),
+                {'lock_name': lock_name},
+            )
 
 def ensure_user_system_prompt_columns():
     try:
@@ -16755,6 +16810,10 @@ with app.app_context():
     # This column is required by every authenticated User SELECT, so it must not depend on
     # RUN_SCHEMA_MIGRATIONS. Fail startup clearly instead of serving HTTP 500 to all sessions.
     ensure_user_liquid_glass_column()
+    # Model output, reasoning, and Fernet ciphertext can exceed MySQL TEXT's 64 KiB
+    # limit. This is correctness-critical and must run even when optional migrations
+    # are disabled.
+    ensure_message_payload_longtext_columns()
     try:
         try_alter("ALTER TABLE user ADD COLUMN last_gem_uuid VARCHAR(36)")
     except: pass

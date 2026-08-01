@@ -111,13 +111,14 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("body:not(.liquid-glass-mode) .overlay", touch_css)
         self.assertGreaterEqual(touch_css.count("backdrop-filter: none !important"), 6)
 
-        collapsed = touch_css[touch_css.index("#prompt-details-controls.collapsed") :]
-        collapsed = collapsed[: collapsed.index("}")]
-        expanded = touch_css[touch_css.index("#prompt-details-controls.expanded") :]
-        expanded = expanded[: expanded.index("}")]
-        self.assertIn("display: none !important", collapsed)
-        self.assertIn("display: flex !important", expanded)
-        self.assertIn("promptDetailsTouchEnter 140ms", expanded)
+        self.assertNotIn("promptDetailsTouchEnter", touch_css)
+        self.assertNotIn("#prompt-details-controls.collapsed", touch_css)
+
+        original_details = source[source.index("#prompt-details-controls {") :]
+        original_details = original_details[: original_details.index("/* Shimmer sweep animation")]
+        self.assertIn("transition: max-height 0.34s", original_details)
+        self.assertIn("#prompt-details-controls.collapsed", original_details)
+        self.assertIn("#prompt-details-controls.expanded", original_details)
 
 
 if __name__ == "__main__":

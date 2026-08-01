@@ -12,6 +12,18 @@ def _current_asset(folder, pattern):
 
 
 class ModalPerformanceRegressionTests(unittest.TestCase):
+    def test_browser_fast_mode_modal_is_fixed_above_home_content(self):
+        source = _current_asset("css", "chat.custom.v4.8.*.css")
+        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        modal_css = source[source.index("#browser-fast-mode-modal {") :]
+        modal_css = modal_css[: modal_css.index("}")]
+
+        self.assertIn("position: fixed", modal_css)
+        self.assertIn("inset: 0", modal_css)
+        self.assertIn("z-index: 110", modal_css)
+        modal_open = template[template.index('<div id="browser-fast-mode-modal"') :]
+        self.assertIn("z-[100]", modal_open.split(">", 1)[0])
+
     def test_model_list_is_built_once_and_filtered_in_place(self):
         source = _current_asset("js", "chat_core.v4.8.*.js")
 

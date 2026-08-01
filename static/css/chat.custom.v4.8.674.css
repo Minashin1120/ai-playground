@@ -1353,6 +1353,14 @@ body.liquid-glass-mode .liquid-glass-surface.liquid-glass-pressed {
     }
 }
 
+/* Keep the browser-direct warning above the home quick-access layer even when
+   a copied Tailwind bundle does not contain its newly introduced z-index class. */
+#browser-fast-mode-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+}
+
 /* Prompt Details Animation (Compact Mode) */
 #prompt-details-controls {
     transition: max-height 0.34s var(--ease-out), opacity 0.26s var(--ease-standard), margin-top 0.26s var(--ease-standard), margin-bottom 0.26s var(--ease-standard);

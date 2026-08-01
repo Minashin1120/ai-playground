@@ -1,4 +1,5 @@
 import pathlib
+import re
 import unittest
 
 
@@ -42,16 +43,24 @@ class Gpt56FamilyRegressionTests(unittest.TestCase):
 
     def test_versioned_assets_and_release_metadata_match(self):
         app_source = (ROOT / "app.py").read_text(encoding="utf-8")
+        m = re.search(r"SYSTEM_VERSION'\]\s*=\s*'(V4\.8\.\d+)'", app_source)
+        self.assertIsNotNone(m)
+        system_version = m.group(1)
+        version_slug = system_version.lower()
+        m2 = re.search(r"APP_VERSION',\s*'([^']+)'", app_source)
+        self.assertIsNotNone(m2)
+        app_version = m2.group(1)
 
-        self.assertIn("'2026-08-01-004'", app_source)
-        self.assertIn("'V4.8.665'", app_source)
+        self.assertIn(f"'{app_version}'", app_source)
+        self.assertIn(f"'{system_version}'", app_source)
         for relative_path in (
-            "static/js/chat_core.v4.8.665.js",
-            "static/css/chat.custom.v4.8.665.css",
-            "static/css/chat.tailwind.v4.8.665.css",
-            "static/changelogs/20260801_v4.8.665.md",
+            f"static/js/chat_core.{version_slug}.js",
+            f"static/css/chat.custom.{version_slug}.css",
+            f"static/css/chat.tailwind.{version_slug}.css",
         ):
             self.assertTrue((ROOT / relative_path).is_file(), relative_path)
+        changelog_matches = list((ROOT / "static" / "changelogs").glob(f"*_{version_slug}.md"))
+        self.assertTrue(changelog_matches, f"changelog for {version_slug}")
 
 
 if __name__ == "__main__":

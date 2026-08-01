@@ -10,8 +10,15 @@ class DeepSeekV4Flash0731Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app_source = (ROOT / "app.py").read_text(encoding="utf-8")
-        cls.js_source = (ROOT / "static/js/chat_core.v4.8.665.js").read_text(encoding="utf-8")
+        js_assets = list((ROOT / "static/js").glob("chat_core.v4.8.*.js"))
+        assert len(js_assets) == 1, "Only the latest versioned chat core asset should remain"
+        cls.js_source = js_assets[0].read_text(encoding="utf-8")
         cls.setup_source = (ROOT / "templates/setup.html").read_text(encoding="utf-8")
+        m = re.search(r"SYSTEM_VERSION'\]\s*=\s*'(V4\.8\.\d+)'", cls.app_source)
+        cls.system_version = m.group(1) if m else ""
+        cls.version_slug = cls.system_version.lower() if cls.system_version else ""
+        m2 = re.search(r"APP_VERSION',\s*'([^']+)'", cls.app_source)
+        cls.app_version = m2.group(1) if m2 else ""
 
     def test_new_release_is_visible_and_preview_is_deprecated(self):
         self.assertIn(
@@ -50,12 +57,14 @@ class DeepSeekV4Flash0731Tests(unittest.TestCase):
         self.assertIn("isLlmModel() && !isDeepSeek", self.js_source)
 
     def test_release_assets_and_versions_are_complete(self):
-        self.assertIn("'2026-08-01-004'", self.app_source)
-        self.assertIn("'V4.8.665'", self.app_source)
+        self.assertTrue(self.app_version)
+        self.assertTrue(self.system_version)
+        self.assertIn(f"'{self.app_version}'", self.app_source)
+        self.assertIn(f"'{self.system_version}'", self.app_source)
         for relative in (
-            "static/js/chat_core.v4.8.665.js",
-            "static/css/chat.custom.v4.8.665.css",
-            "static/css/chat.tailwind.v4.8.665.css",
+            f"static/js/chat_core.{self.version_slug}.js",
+            f"static/css/chat.custom.{self.version_slug}.css",
+            f"static/css/chat.tailwind.{self.version_slug}.css",
         ):
             self.assertTrue((ROOT / relative).is_file(), relative)
 

@@ -2537,13 +2537,17 @@
             if (!mathJaxLoadPromise) {
                 window.MathJax = window.MathJax || {
                     tex: {
-                        inlineMath: [['\\(', '\\)']],
-                        displayMath: [['$$', '$$']],
+                        inlineMath: [['\\(', '\\)'], ['$', '$']],
+                        displayMath: [['$$', '$$'], ['\\[', '\\]']],
                         processEscapes: true
                     },
                     options: {
-                        ignoreHtmlClass: 'tex2jax_ignore',
-                        processHtmlClass: 'tex2jax_process'
+                        // skipHtmlTags の pre/code を再処理する用途のみ。全要素は通常どおり走査する
+                        ignoreHtmlClass: 'tex2jax_ignore|mathjax_ignore',
+                        processHtmlClass: 'tex2jax_process|mathjax_process'
+                    },
+                    startup: {
+                        typeset: false
                     }
                 };
                 mathJaxLoadPromise = loadScriptOnce(MATHJAX_SRC, 'MathJax-script').catch((err) => {
@@ -2569,7 +2573,66 @@
         }
         function maybeNeedsMathJax(text) {
             const t = String(text || '');
-            return t.includes('$$') || t.includes('\\(') || t.includes('\\[');
+            if (t.includes('$$') || t.includes('\\(') || t.includes('\\[') || t.includes('\\begin{')) return true;
+            // 単独 $...$ （通貨 $12 は除外し、数式らしい中身のみ）
+            return /(?<!\$)\$(?!\$)(?=[\s\S]*?[A-Za-z\\^_{}])(?:[^$\n\\]|\\.)+?\$(?!\$)/.test(t);
+        }
+        /**
+         * marked は \( \[ などのバックスラッシュを Markdown エスケープとして除去するため、
+         * 数式セグメントをプレースホルダへ退避してから parse する。
+         */
+        function protectMathSegments(src) {
+            const source = String(src || '');
+            const blocks = [];
+            const stash = (match) => {
+                const key = `@@MATHJAX_BLOCK_${blocks.length}@@`;
+                blocks.push(match);
+                return key;
+            };
+            // コードフェンス内は触らない（表示用の LaTeX ソースを壊さない）
+            const parts = [];
+            const fenceRe = /(^|\n)([ \t]*)(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:\n\2\3[ \t]*(?:\n|$)|$)/g;
+            let last = 0;
+            let m;
+            while ((m = fenceRe.exec(source)) !== null) {
+                const start = m.index;
+                if (start > last) {
+                    parts.push({ type: 'text', value: source.slice(last, start) });
+                }
+                parts.push({ type: 'code', value: m[0] });
+                last = start + m[0].length;
+            }
+            if (last < source.length) {
+                parts.push({ type: 'text', value: source.slice(last) });
+            }
+            if (!parts.length) {
+                parts.push({ type: 'text', value: source });
+            }
+            const protectedText = parts.map((part) => {
+                if (part.type === 'code') return part.value;
+                let t = part.value;
+                // 長い／優先度の高いデリミタから順に退避
+                t = t.replace(/\$\$([\s\S]+?)\$\$/g, stash);
+                t = t.replace(/\\\(([\s\S]+?)\\\)/g, stash);
+                t = t.replace(/\\\[([\s\S]+?)\\\]/g, stash);
+                t = t.replace(/\\begin\{([a-zA-Z*]+)\}([\s\S]+?)\\end\{\1\}/g, stash);
+                // 単独 $...$ （空や空白のみ、および $$ は除外）
+                t = t.replace(/(?<!\$)\$(?!\$)([^\s$](?:[^$\n\\]|\\.)*?[^\s$])\$(?!\$)/g, stash);
+                return t;
+            }).join('');
+            return { text: protectedText, blocks };
+        }
+        function restoreMathSegments(html, blocks) {
+            if (!blocks || !blocks.length) return String(html || '');
+            return String(html || '').replace(/@@MATHJAX_BLOCK_(\d+)@@/g, (_, idx) => {
+                const raw = blocks[Number(idx)];
+                if (raw === undefined || raw === null) return '';
+                // HTML へ埋め込むため特殊文字のみエスケープ（textContent 上は元の TeX に戻る）
+                return String(raw)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+            });
         }
         function maybeNeedsHighlight(text, container = null) {
             const t = String(text || '');
@@ -2582,9 +2645,14 @@
             if (!container || !maybeNeedsMathJax(text)) return;
             ensureMathJaxLoaded()
                 .then(() => {
-                    if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
-                        return window.MathJax.typesetPromise([container]).catch(() => {});
-                    }
+                    if (!window.MathJax || typeof window.MathJax.typesetPromise !== 'function') return;
+                    // ストリーム再描画で DOM が差し替わったあとに古い math リストが残ると typeset が失敗するためクリア
+                    try {
+                        if (typeof window.MathJax.typesetClear === 'function') {
+                            window.MathJax.typesetClear([container]);
+                        }
+                    } catch (e) {}
+                    return window.MathJax.typesetPromise([container]).catch(() => {});
                 })
                 .catch(() => {});
         }
@@ -11636,7 +11704,11 @@
                 }
                 return escapeHtml(source).replace(/\n/g, '<br>');
             }
-            return window.DOMPurify.sanitize(window.marked.parse(source));
+            // marked が \( \[ のバックスラッシュを落とすため、数式を退避してから parse する
+            const protectedMath = protectMathSegments(source);
+            const parsed = window.marked.parse(protectedMath.text);
+            const restored = restoreMathSegments(parsed, protectedMath.blocks);
+            return window.DOMPurify.sanitize(restored);
         }
         function getCanvasModeElements() {
             const panel = get('canvas-panel');
@@ -15259,13 +15331,16 @@
                         if (needsMathJax) {
                             win.MathJax = {
                                 tex: {
-                                    inlineMath: [['\\(', '\\)']],
-                                    displayMath: [['$$', '$$']],
+                                    inlineMath: [['\\(', '\\)'], ['$', '$']],
+                                    displayMath: [['$$', '$$'], ['\\[', '\\]']],
                                     processEscapes: true
                                 },
                                 options: {
-                                    ignoreHtmlClass: 'tex2jax_ignore',
-                                    processHtmlClass: 'tex2jax_process'
+                                    ignoreHtmlClass: 'tex2jax_ignore|mathjax_ignore',
+                                    processHtmlClass: 'tex2jax_process|mathjax_process'
+                                },
+                                startup: {
+                                    typeset: false
                                 }
                             };
                         }

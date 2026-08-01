@@ -20,7 +20,26 @@ class ChatLoadingRegressionTests(unittest.TestCase):
         self.assertIn("!window.marked", sanitizer)
         self.assertIn("!window.DOMPurify", sanitizer)
         self.assertIn("return escapeHtml(source).replace(/\\n/g, '<br>')", sanitizer)
-        self.assertIn("window.DOMPurify.sanitize(window.marked.parse(source))", sanitizer)
+        # Math is protected before marked.parse so \( / \[ backslashes are not stripped
+        self.assertIn("protectMathSegments(source)", sanitizer)
+        self.assertIn("restoreMathSegments(parsed, protectedMath.blocks)", sanitizer)
+        self.assertIn("window.DOMPurify.sanitize(restored)", sanitizer)
+
+    def test_mathjax_pipeline_protects_delimiters_and_typesets_safely(self):
+        source = _current_chat_core_source()
+        self.assertIn("function protectMathSegments(src)", source)
+        self.assertIn("function restoreMathSegments(html, blocks)", source)
+        self.assertIn("@@MATHJAX_BLOCK_", source)
+        # marked が落とす \( / \[ と $$ / $ を退避対象に含む
+        self.assertIn(r"/\\\(([\s\S]+?)\\\)/g", source)
+        self.assertIn(r"/\\\[([\s\S]+?)\\\]/g", source)
+        self.assertIn(r"/\$\$([\s\S]+?)\$\$/g", source)
+        # 再描画後の typeset 失敗を防ぐ
+        self.assertIn("MathJax.typesetClear", source)
+        self.assertIn("typesetPromise([container])", source)
+        # 一般的な LaTeX デリミタを MathJax 設定へ
+        self.assertIn("['\\\\[', '\\\\]']", source)
+        self.assertIn("['$', '$']", source)
 
     def test_prompt_cache_ui_helper_is_available_to_thread_loader(self):
         source = _current_chat_core_source()

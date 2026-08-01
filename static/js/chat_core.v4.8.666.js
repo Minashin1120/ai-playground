@@ -5120,7 +5120,7 @@
         };
 
         let activeModelTag = 'all';
-        const MODEL_TAGS = ['all','openai','gemini','deepseek','xai','image','audio','reasoning','fast'];
+        const MODEL_TAGS = ['all','openai','gemini','deepseek','xai','image','audio','reasoning','fast','agentic view'];
 
         // Slash command system (extensible command palette triggered by / in prompt bar)
         const SLASH_COMMANDS = [
@@ -5594,6 +5594,7 @@
             if ((cat.includes('deepseek') || id.includes('deepseek') || name.includes('deepseek')) && !tags.includes('reasoning')) tags.push('reasoning');
             if (id.includes('fast') || name.includes('fast') || desc.includes('fast') || cat.includes('fast')) tags.push('fast');
             if ((id.includes('deepseek-v4-flash') || (cat.includes('deepseek') && name.includes('flash'))) && !tags.includes('fast')) tags.push('fast');
+            if (m.agenticView) tags.push('agentic view');
             return tags;
         }
 

@@ -2393,6 +2393,14 @@
         const markerAppliedUploads = new Set();
         const attachmentSourceByPath = new Map();
         const attachmentNameByPath = new Map();
+        const BROWSER_FAST_KEY_STORAGE = 'browser_fast_mode_gemini_key';
+        const BROWSER_FAST_IGNORE_WARNING_STORAGE = 'browser_fast_mode_ignore_warning';
+        const BROWSER_FAST_MAX_IMAGES = 4;
+        const BROWSER_FAST_MAX_BYTES = 12 * 1024 * 1024;
+        const browserFastLocalFiles = new Map();
+        let browserFastModeEnabled = false;
+        let browserFastApiKey = '';
+        let browserFastPreviousOptions = null;
         let cameraCaptureStream = null;
         let cameraCaptureFacingMode = 'environment';
         let cameraCaptureBusy = false;
@@ -5985,6 +5993,119 @@
             get('welcome-screen').classList.add('hidden');
         };
 
+        const BROWSER_FAST_DISABLED_OPTIONS = [
+            ['enable-search', 'search-container'],
+            ['enable-url-context', 'url-context-container'],
+            ['enable-maps', 'maps-grounding-container'],
+            ['enable-python', 'python-container'],
+            ['enable-sys-prompt', 'sys-prompt-option'],
+            ['enable-prompt-cache', 'prompt-cache-container'],
+        ];
+
+        function applyBrowserFastModeRestrictions() {
+            if (!browserFastModeEnabled) return;
+            if (!browserFastPreviousOptions) {
+                browserFastPreviousOptions = {
+                    checks: Object.fromEntries(BROWSER_FAST_DISABLED_OPTIONS.map(([id]) => [id, !!(get(id) && get(id).checked)])),
+                    coding: !!codingModeEnabled,
+                };
+            }
+            BROWSER_FAST_DISABLED_OPTIONS.forEach(([id, containerId]) => {
+                const checkbox = get(id);
+                const container = get(containerId);
+                if (checkbox) {
+                    checkbox.checked = false;
+                    checkbox.disabled = true;
+                }
+                if (container) container.classList.add('opacity-50', 'pointer-events-none');
+            });
+            if (codingModeEnabled) syncCodingModeUi(false, { persist: false });
+            const codingCheckbox = get('enable-coding-mode');
+            const codingContainer = get('coding-mode-container');
+            if (codingCheckbox) codingCheckbox.disabled = true;
+            if (codingContainer) codingContainer.classList.add('opacity-50', 'pointer-events-none');
+        }
+
+        function restoreBrowserFastModeOptions() {
+            const previous = browserFastPreviousOptions;
+            if (!previous) return;
+            BROWSER_FAST_DISABLED_OPTIONS.forEach(([id, containerId]) => {
+                const checkbox = get(id);
+                const container = get(containerId);
+                if (checkbox) {
+                    checkbox.disabled = false;
+                    if (previous && previous.checks && Object.prototype.hasOwnProperty.call(previous.checks, id)) {
+                        checkbox.checked = !!previous.checks[id];
+                    }
+                }
+                if (container) container.classList.remove('opacity-50', 'pointer-events-none');
+            });
+            const codingCheckbox = get('enable-coding-mode');
+            const codingContainer = get('coding-mode-container');
+            if (codingCheckbox) codingCheckbox.disabled = false;
+            if (codingContainer) codingContainer.classList.remove('opacity-50', 'pointer-events-none');
+            if (previous && previous.coding) syncCodingModeUi(true, { persist: false });
+            browserFastPreviousOptions = null;
+            if (typeof updatePromptCacheUi === 'function') updatePromptCacheUi();
+        }
+
+        function setBrowserFastModeEnabled(enabled, opts = {}) {
+            browserFastModeEnabled = !!enabled;
+            const toggle = get('enable-browser-fast-mode');
+            if (toggle) toggle.checked = browserFastModeEnabled;
+            const container = get('browser-fast-mode-container');
+            if (container) {
+                container.classList.toggle('ring-1', browserFastModeEnabled);
+                container.classList.toggle('ring-amber-300', browserFastModeEnabled);
+            }
+            if (!browserFastModeEnabled && opts.clearKey !== false) {
+                browserFastApiKey = '';
+                try { sessionStorage.removeItem(BROWSER_FAST_KEY_STORAGE); } catch (e) {}
+            }
+            if (browserFastModeEnabled) applyBrowserFastModeRestrictions();
+            else if (opts.restoreOptions !== false) restoreBrowserFastModeOptions();
+        }
+
+        function openBrowserFastModeModal(showWarning = true) {
+            const warning = get('browser-fast-mode-warning');
+            const ignoreRow = get('browser-fast-mode-ignore-row');
+            if (warning) warning.classList.toggle('hidden', !showWarning);
+            if (ignoreRow) ignoreRow.classList.toggle('hidden', !showWarning);
+            const keyInput = get('browser-fast-mode-api-key');
+            if (keyInput) keyInput.value = browserFastApiKey || '';
+            showModal('browser-fast-mode-modal');
+            setTimeout(() => { if (keyInput) keyInput.focus(); }, 50);
+        }
+
+        function requestBrowserFastModeEnable() {
+            const model = String(get('model-select') ? get('model-select').value : '').toLowerCase();
+            if (currentThreadId) {
+                showToast('高速モードは新規チャットでのみ有効化できます', 'warning', true);
+                setBrowserFastModeEnabled(false, { clearKey: false });
+                return;
+            }
+            if (!model.startsWith('gemini-') || /(image|native-audio|tts|live)/.test(model)) {
+                showToast('高速モードはGeminiテキストモデル専用です', 'warning', true);
+                setBrowserFastModeEnabled(false, { clearKey: false });
+                return;
+            }
+            if (currentImageUrls.length || uploadProgressState.active > 0 || browserFastLocalFiles.size) {
+                showToast('高速モードへ切り替える前に添付ファイルをクリアしてください', 'warning', true);
+                setBrowserFastModeEnabled(false);
+                return;
+            }
+            try { browserFastApiKey = sessionStorage.getItem(BROWSER_FAST_KEY_STORAGE) || ''; } catch (e) {}
+            const warningIgnored = (() => {
+                try { return localStorage.getItem(BROWSER_FAST_IGNORE_WARNING_STORAGE) === '1'; } catch (e) { return false; }
+            })();
+            if (warningIgnored && browserFastApiKey) {
+                setBrowserFastModeEnabled(true, { clearKey: false });
+                showToast('高速モードを有効にしました', 'warning', false);
+                return;
+            }
+            openBrowserFastModeModal(!warningIgnored);
+        }
+
         // Critical UI initializations - independent listener to survive errors in main init
         document.addEventListener('DOMContentLoaded', () => {
             if (get('menu-btn')) {
@@ -6000,6 +6121,51 @@
             applyLiquidGlassMode(INITIAL_LIQUID_GLASS_ENABLED);
             updateCurrentChatHeaderUi();
             ensureCurrentChatHeaderTicker();
+            const fastToggle = get('enable-browser-fast-mode');
+            if (fastToggle) {
+                fastToggle.checked = false;
+                fastToggle.onchange = () => {
+                    if (fastToggle.checked) requestBrowserFastModeEnable();
+                    else setBrowserFastModeEnabled(false);
+                };
+            }
+            const fastModelSelect = get('model-select');
+            if (fastModelSelect) fastModelSelect.addEventListener('change', () => {
+                setTimeout(() => {
+                    if (!browserFastModeEnabled) return;
+                    const model = String(fastModelSelect.value || '').toLowerCase();
+                    if (!model.startsWith('gemini-') || /(image|native-audio|tts|live)/.test(model)) {
+                        setBrowserFastModeEnabled(false, { clearKey: false });
+                        fastModelSelect.dispatchEvent(new Event('change'));
+                        showToast('対象外モデルを選択したため高速モードを解除しました', 'warning', true);
+                    } else {
+                        applyBrowserFastModeRestrictions();
+                    }
+                }, 0);
+            });
+            const fastEnableBtn = get('browser-fast-mode-enable-btn');
+            if (fastEnableBtn) fastEnableBtn.onclick = () => {
+                const input = get('browser-fast-mode-api-key');
+                const key = String(input ? input.value : '').trim();
+                if (key.length < 20 || key.length > 512) {
+                    showToast('有効なGemini APIキーを入力してください', 'error', true);
+                    return;
+                }
+                browserFastApiKey = key;
+                try { sessionStorage.setItem(BROWSER_FAST_KEY_STORAGE, key); } catch (e) {}
+                const ignore = get('browser-fast-mode-ignore-warning');
+                if (ignore && ignore.checked) {
+                    try { localStorage.setItem(BROWSER_FAST_IGNORE_WARNING_STORAGE, '1'); } catch (e) {}
+                }
+                hideModal('browser-fast-mode-modal');
+                setBrowserFastModeEnabled(true, { clearKey: false });
+                showToast('高速モードを有効にしました。生成中は再読み込みしないでください。', 'warning', true);
+            };
+            const fastCancelBtn = get('browser-fast-mode-cancel-btn');
+            if (fastCancelBtn) fastCancelBtn.onclick = () => {
+                hideModal('browser-fast-mode-modal');
+                setBrowserFastModeEnabled(false, { clearKey: false });
+            };
             const bar = document.getElementById('alpha-bar'); setTimeout(() => { if(bar) { const target = document.getElementById('version-display'); if(target) { const barRect = bar.getBoundingClientRect(); const targetRect = target.getBoundingClientRect(); const tx = targetRect.left + (targetRect.width/2) - (barRect.left + barRect.width/2); const ty = targetRect.top + (targetRect.height/2) - (barRect.top + barRect.height/2); bar.style.transform = `translate(${tx}px, ${ty}px) scale(0.1)`; bar.style.opacity = '0'; setTimeout(() => { target.classList.add('pulse-target'); setTimeout(() => target.classList.remove('pulse-target'), 2000); bar.remove(); }, 800); } else { bar.style.opacity = '0'; setTimeout(() => bar.remove(), 1000); } } }, 3000);
             function updateGptImageUi() {
                 const wrap = get('gpt-image-options');
@@ -10080,6 +10246,12 @@
             }
         }
         function resetUploadState() {
+            browserFastLocalFiles.forEach((entry) => {
+                const row = entry && entry.rowObj ? entry.rowObj.row : null;
+                const localUrl = row ? row.getAttribute('data-local-url') : null;
+                if (localUrl) URL.revokeObjectURL(localUrl);
+            });
+            browserFastLocalFiles.clear();
             currentImageUrls = [];
             currentMaskImage = null;
             uploadProgressState = { total: 0, completed: 0, active: 0, perFilePct: {} };
@@ -10476,7 +10648,7 @@
             row.dataset.defaultDisplayName = displayName;
             row.dataset.sendNameCustomized = '';
             const safeName = escapeHtml(displayName);
-            const markerBtnHtml = isImage
+            const markerBtnHtml = isImage && !browserFastModeEnabled
                 ? `<button class="upload-marker text-[10px] border rounded px-2 py-1">画像編集</button>`
                 : '';
             const previewHtml = isImage
@@ -10514,6 +10686,7 @@
             if (removeBtn) {
                 removeBtn.onclick = () => {
                     uploadCancelTokens.add(uploadId);
+                    browserFastLocalFiles.delete(uploadId);
                     decrementUploadTotal(uploadId);
                     const stored = row.getAttribute('data-filename');
                     if (stored) currentImageUrls = currentImageUrls.filter(x => x !== stored);
@@ -10557,7 +10730,7 @@
             const safeName = escapeHtml(displayName);
             const isImage = file && file.type && file.type.startsWith('image/');
             let previewHtml = '<div class="upload-preview w-12 h-12 bg-gray-800 rounded border border-gray-700 flex items-center justify-center text-gray-400 text-sm">FILE</div>';
-            const markerBtnHtml = isImage
+            const markerBtnHtml = isImage && !browserFastModeEnabled
                 ? `<button class="upload-marker text-[10px] border rounded px-2 py-1">画像編集</button>`
                 : '';
             let previewUrl = '';
@@ -10602,6 +10775,7 @@
             if (removeBtn) {
                 removeBtn.onclick = () => {
                     uploadCancelTokens.add(uploadId);
+                    browserFastLocalFiles.delete(uploadId);
                     decrementUploadTotal(uploadId);
                     const localUrl = row.getAttribute('data-local-url');
                     if (localUrl) URL.revokeObjectURL(localUrl);
@@ -11613,7 +11787,7 @@
             if(!fs || !fs.length) return;
             const incoming = Array.from(fs).filter(Boolean);
             if (!incoming.length) return;
-            const existingAttachments = collectImageUrlsForSend().length + Math.max(0, Number(uploadProgressState.active) || 0);
+            const existingAttachments = collectImageUrlsForSend().length + browserFastLocalFiles.size + Math.max(0, Number(uploadProgressState.active) || 0);
             let allowedIncoming = incoming;
             if (existingAttachments + incoming.length > ATTACHMENT_MAX_FILES) {
                 const remain = Math.max(0, ATTACHMENT_MAX_FILES - existingAttachments);
@@ -11647,6 +11821,12 @@
                     }
                     if (isVideoFile(f) && !support.video) {
                         showToast("このモデルは動画入力に対応していません", "error", true);
+                        if (uploadProgressState.total > 0) uploadProgressState.total--;
+                        if (uploadProgressState.active > 0) uploadProgressState.active--;
+                        return false;
+                    }
+                    if (browserFastModeEnabled && (!f.type || !f.type.startsWith('image/'))) {
+                        showToast('高速モードでは画像ファイルだけを添付できます', 'error', true);
                         if (uploadProgressState.total > 0) uploadProgressState.total--;
                         if (uploadProgressState.active > 0) uploadProgressState.active--;
                         return false;
@@ -11697,6 +11877,21 @@
                             }
                             if (t !== f) updateUploadRowFile(rowObj, t);
                         } catch(e){}
+                    }
+                    if (browserFastModeEnabled) {
+                        const existingBytes = Array.from(browserFastLocalFiles.values())
+                            .reduce((sum, entry) => sum + Number(entry.file && entry.file.size || 0), 0);
+                        if (browserFastLocalFiles.size >= BROWSER_FAST_MAX_IMAGES || existingBytes + t.size > BROWSER_FAST_MAX_BYTES) {
+                            if (rowObj && rowObj.status) rowObj.status.textContent = '上限超過';
+                            if (rowObj && rowObj.row) rowObj.row.remove();
+                            showToast('高速モードの画像は4枚・合計12MBまでです', 'error', true);
+                            return false;
+                        }
+                        browserFastLocalFiles.set(rowObj.uploadId, { file: t, rowObj });
+                        if (rowObj.status) rowObj.status.textContent = 'ローカル保持（未保存）';
+                        if (rowObj.bar) rowObj.bar.style.width = '100%';
+                        if (rowObj.row) rowObj.row.dataset.browserFastLocal = '1';
+                        return true;
                     }
                     return await uploadFileWithProgress(t, rowObj);
                 } finally {
@@ -13155,6 +13350,216 @@
             input.dispatchEvent(new Event('input', { bubbles: true }));
         }
 
+        function browserFastModeIneligibility(rawText) {
+            const model = String(get('model-select') ? get('model-select').value : '').toLowerCase();
+            if (!rawText || !rawText.trim()) return 'プロンプトを入力してください';
+            if (currentThreadId) return '既存チャットでは利用できません';
+            if (!model.startsWith('gemini-') || /(image|native-audio|tts|live)/.test(model)) return 'Geminiテキストモデル専用です';
+            if (currentImageUrls.length) return 'サーバー保存済み添付があるため通常モードが必要です';
+            if (activeGem) return 'Gems利用時は通常モードが必要です';
+            if (currentQuote || editingMessageId) return '引用・編集時は通常モードが必要です';
+            if (codingModeEnabled) return 'Coding Mode利用時は通常モードが必要です';
+            const enabledIds = ['enable-search', 'enable-url-context', 'enable-maps', 'enable-python', 'enable-sys-prompt', 'enable-prompt-cache'];
+            if (enabledIds.some((id) => { const el = get(id); return !!(el && el.checked); })) return '検索・Python・システム機能利用時は通常モードが必要です';
+            const custom = get('thread-custom-instruction');
+            if (custom && String(custom.value || '').trim()) return 'チャット固有指示利用時は通常モードが必要です';
+            const entries = Array.from(browserFastLocalFiles.values());
+            if (entries.length > BROWSER_FAST_MAX_IMAGES) return '画像は4枚までです';
+            const total = entries.reduce((sum, entry) => sum + Number(entry.file && entry.file.size || 0), 0);
+            if (total > BROWSER_FAST_MAX_BYTES) return '画像合計は12MBまでです';
+            if (entries.some((entry) => !entry.file || !String(entry.file.type || '').startsWith('image/'))) return '画像以外は利用できません';
+            if (!browserFastApiKey) return '高速モード用Gemini APIキーがありません';
+            return '';
+        }
+
+        function fileToBase64Payload(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const raw = String(reader.result || '');
+                    const comma = raw.indexOf(',');
+                    if (comma < 0) return reject(new Error('画像の読み込みに失敗しました'));
+                    resolve(raw.slice(comma + 1));
+                };
+                reader.onerror = () => reject(reader.error || new Error('画像の読み込みに失敗しました'));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function uploadBrowserFastLocalFiles() {
+            const entries = Array.from(browserFastLocalFiles.entries());
+            for (const [uploadId, entry] of entries) {
+                if (!entry || !entry.file || !entry.rowObj) throw new Error('ローカル画像の状態が失われました');
+                if (entry.rowObj.status) entry.rowObj.status.textContent = '回答完了・サーバー保存中...';
+                const ok = await uploadFileWithProgress(entry.file, entry.rowObj);
+                if (!ok) throw new Error(`${entry.file.name || '画像'}をサーバーへ保存できませんでした`);
+                browserFastLocalFiles.delete(uploadId);
+            }
+        }
+
+        function browserFastThinkingConfig(model) {
+            const thinking = get('enable-thinking');
+            if (!thinking || !thinking.checked) return null;
+            const rawLevel = String(get('thinking-level') ? get('thinking-level').value : 'high').toLowerCase();
+            if (model.includes('2.5')) {
+                const manual = Number(get('thinking-budget') ? get('thinking-budget').value : 4096);
+                const budget = Number.isFinite(manual) ? Math.max(0, Math.min(32768, Math.trunc(manual))) : 4096;
+                return { includeThoughts: true, thinkingBudget: budget };
+            }
+            let level = rawLevel.toUpperCase();
+            if (model.includes('3.6') && !['MEDIUM', 'HIGH'].includes(level)) level = 'MEDIUM';
+            if (model.includes('3.5') && !['MINIMAL', 'MEDIUM', 'HIGH'].includes(level)) level = 'MINIMAL';
+            return { includeThoughts: true, thinkingLevel: level };
+        }
+
+        async function sendBrowserFastMessage(rawText) {
+            const model = String(get('model-select').value || '').trim();
+            const localEntries = Array.from(browserFastLocalFiles.values());
+            const userParts = [];
+            for (const entry of localEntries) {
+                userParts.push({ inlineData: { mimeType: entry.file.type, data: await fileToBase64Payload(entry.file) } });
+            }
+            userParts.push({ text: rawText });
+            const generationConfig = {};
+            const thinkingConfig = browserFastThinkingConfig(model.toLowerCase());
+            if (thinkingConfig) generationConfig.thinkingConfig = thinkingConfig;
+            const payload = {
+                contents: [{ role: 'user', parts: userParts }],
+                generationConfig,
+            };
+
+            if (rawText.trim() && (promptHistory.length === 0 || promptHistory[0] !== rawText)) {
+                promptHistory.unshift(rawText);
+                if (promptHistory.length > 100) promptHistory.pop();
+            }
+            historyIndex = -1;
+            tempPrompt = '';
+
+            playSendAnimation();
+            get('welcome-screen').classList.add('hidden');
+            renderMessage(Date.now(), 'user', rawText, null, null, null, null, true, null, null, null, null, null, null, null, null, true);
+            const aid = `browser-fast-${Date.now()}`;
+            get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aid}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${buildPendingSkeletonHtml(model, 'Geminiへ直接送信中...')}</div></div>`);
+            const adiv = get(aid);
+            activeStreamingBubbleId = aid;
+            setSendBtnToStopMode();
+            userAutoScroll = true;
+            abortController = new AbortController();
+            let content = '';
+            let thought = '';
+            let contentEl = null;
+            let thoughtEl = null;
+            let started = false;
+            const finishProgress = window.ProgressSpinner ? window.ProgressSpinner.start('高速モードで生成中...') : null;
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': browserFastApiKey },
+                    body: JSON.stringify(payload),
+                    signal: abortController.signal,
+                });
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData && errorData.error && errorData.error.message ? errorData.error.message : `Gemini API HTTP ${response.status}`);
+                }
+                get('prompt-input').value = '';
+                get('prompt-input').style.height = 'auto';
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                const consumeEvent = (block) => {
+                    const dataText = block.split(/\r?\n/).filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trim()).join('');
+                    if (!dataText || dataText === '[DONE]') return;
+                    const evt = JSON.parse(dataText);
+                    if (evt.error) throw new Error(evt.error.message || 'Gemini API error');
+                    const candidates = Array.isArray(evt.candidates) ? evt.candidates : [];
+                    candidates.forEach((candidate) => {
+                        const parts = candidate && candidate.content && Array.isArray(candidate.content.parts) ? candidate.content.parts : [];
+                        parts.forEach((part) => {
+                            const text = typeof part.text === 'string' ? part.text : '';
+                            if (!text) return;
+                            if (part.thought === true) thought += text;
+                            else content += text;
+                        });
+                    });
+                    if (!started && (content || thought)) {
+                        beginPendingToStreamTransition(adiv);
+                        const pending = adiv.querySelector('.content-area');
+                        if (pending) pending.remove();
+                        started = true;
+                    }
+                    if (thought) {
+                        if (!thoughtEl) {
+                            adiv.insertAdjacentHTML('afterbegin', '<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>');
+                            thoughtEl = adiv.querySelector('.thought-content');
+                        }
+                        thoughtEl.textContent = thought;
+                    }
+                    if (content) {
+                        if (!contentEl) {
+                            contentEl = document.createElement('div');
+                            contentEl.className = 'content-area prose prose-invert text-sm break-words';
+                            adiv.appendChild(contentEl);
+                        }
+                        renderAiMarkdownInto(contentEl, content);
+                    }
+                    scrollToBottom();
+                };
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const blocks = buffer.split(/\r?\n\r?\n/);
+                    buffer = blocks.pop() || '';
+                    blocks.forEach(consumeEvent);
+                }
+                buffer += decoder.decode();
+                if (buffer.trim()) consumeEvent(buffer);
+                if (!content.trim()) throw new Error('Geminiから回答本文が返されませんでした');
+                if (contentEl) renderAiMarkdownInto(contentEl, content);
+                if (thoughtEl) thoughtEl.classList.add('collapsed');
+
+                if (localEntries.length) {
+                    showToast('回答が完了しました。画像と履歴をサーバーへ保存しています。', 'info', false);
+                    await uploadBrowserFastLocalFiles();
+                }
+                const refs = collectImageUrlsForSend();
+                const saveResponse = await apiFetch('/api/browser_fast_mode/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: rawText,
+                        assistant_content: content,
+                        thought_content: thought,
+                        model,
+                        image_urls: refs,
+                        temporary_chat: temporaryChatEnabled,
+                    }),
+                });
+                const saved = await saveResponse.json().catch(() => ({}));
+                if (!saveResponse.ok || !saved.thread_id) throw new Error(saved.error || 'DB保存に失敗しました');
+                currentThreadId = String(saved.thread_id);
+                history.pushState({}, '', `/c/${currentThreadId}`);
+                resetUploadState();
+                setBrowserFastModeEnabled(false, { clearKey: false });
+                await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
+                loadThreads(false);
+                showToast('高速モードの回答を履歴へ保存しました', 'success', false);
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    showToast(`高速モード: ${error.message}`, 'error', true);
+                    if (!get('prompt-input').value) get('prompt-input').value = rawText;
+                    if (adiv) adiv.insertAdjacentHTML('beforeend', `<div class="text-red-300 text-xs mt-2 border border-red-500/50 rounded p-2">未保存: ${escapeHtml(error.message || 'エラー')}</div>`);
+                }
+            } finally {
+                if (finishProgress) finishProgress();
+                setSendBtnToSendMode();
+                if (activeStreamingBubbleId === aid) activeStreamingBubbleId = null;
+                abortController = null;
+                updateFilePreview();
+            }
+        }
+
         async function sendMessage() {
             vibrateHelper(50);
             if (abortController) {
@@ -13218,6 +13623,21 @@
                     })();
                 }
                 return; // Do not treat as normal message
+            }
+
+            if (browserFastModeEnabled) {
+                const reason = browserFastModeIneligibility(rawText);
+                if (!reason) {
+                    await sendBrowserFastMessage(rawText);
+                    return;
+                }
+                showToast(`高速モード条件外: ${reason}。通常モードへ切り替えます。`, 'warning', true);
+                if (browserFastLocalFiles.size) {
+                    try { await uploadBrowserFastLocalFiles(); }
+                    catch (error) { showToast(error.message || '通常モード用アップロードに失敗しました', 'error', true); return; }
+                }
+                setBrowserFastModeEnabled(false, { clearKey: false });
+                return sendMessage();
             }
 
             // Save to prompt history

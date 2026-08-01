@@ -326,6 +326,10 @@
                             <input type="checkbox" id="enable-coding-mode" class="accent-emerald-400 w-3 h-3">
                             <span>Coding</span>
                         </label>
+                        <label id="browser-fast-mode-container" class="flex items-center gap-1 cursor-pointer select-none px-2 py-1 rounded border border-amber-500/40 bg-amber-900/20 text-amber-200" title="新規Geminiチャットをブラウザから直接送信します">
+                            <input type="checkbox" id="enable-browser-fast-mode" class="accent-amber-400 w-3 h-3">
+                            <span>高速</span>
+                        </label>
                         <button id="prompt-controls-toggle-btn" type="button" aria-expanded="false" class="hidden bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-gray-200 hover:bg-gray-600 transition items-center gap-1 btn-hover" title="詳細設定を表示/非表示">
                             <span id="prompt-controls-toggle-text">詳細</span>
                             <i id="prompt-controls-toggle-icon" class="fas fa-chevron-down text-[10px]"></i>
@@ -1687,6 +1691,33 @@
             });
         })();
     </script>
+
+    <!-- Browser-direct fast mode warning / key modal -->
+    <div id="browser-fast-mode-modal" class="fixed inset-0 bg-gray-900/95 z-[110] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-xl p-6 shadow-2xl border border-amber-500/50 m-4 modal-panel">
+            <div class="flex items-start gap-3 mb-4">
+                <div class="w-10 h-10 rounded-full bg-amber-900/50 flex items-center justify-center text-amber-300 text-lg shrink-0"><i class="fas fa-bolt"></i></div>
+                <div><h2 class="text-lg font-bold text-white">ブラウザ直接送信・高速モード</h2><p class="text-xs text-amber-200 mt-1">速度を優先する代わりに、通常モードの安全性と継続性が一部失われます。</p></div>
+            </div>
+            <div id="browser-fast-mode-warning" class="text-xs text-gray-300 space-y-2 rounded border border-amber-500/30 bg-amber-950/20 p-4 mb-4">
+                <p class="font-bold text-amber-200">有効化前に必ず確認してください</p>
+                <ul class="list-disc pl-5 space-y-1.5 text-gray-300">
+                    <li>Gemini APIキーはこのタブのsessionStorageに保持され、ブラウザ拡張・XSS・開発者ツールから取得される危険があります。</li>
+                    <li>生成中に再読み込み・タブ終了・通信切断すると、生成と未保存内容は失われ、再接続できません。</li>
+                    <li>回答完了後に画像をサーバーへアップロードしてDB保存するため、後処理に失敗すると回答が履歴へ残りません。</li>
+                    <li>新規チャットのGeminiテキストモデル専用です。履歴、検索、URLs、Maps、Python、Gems、SysPrompt、PromptCache、Coding Mode、引用・編集は利用できません。</li>
+                    <li>画像はローカルに一時保持され、Geminiへ直接送信されます。完了まではサイトのサーバーに保存されません。</li>
+                </ul>
+            </div>
+            <label class="block text-xs text-gray-300 mb-1" for="browser-fast-mode-api-key">高速モード用 Gemini APIキー</label>
+            <input type="password" id="browser-fast-mode-api-key" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-white" placeholder="このタブ内だけに保持" autocomplete="off" spellcheck="false">
+            <label id="browser-fast-mode-ignore-row" class="flex items-center gap-2 mt-4 text-xs text-gray-300 cursor-pointer"><input type="checkbox" id="browser-fast-mode-ignore-warning" class="accent-amber-400"><span>今後この警告を表示しない（このブラウザ）</span></label>
+            <div class="flex gap-2 mt-5">
+                <button id="browser-fast-mode-enable-btn" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded font-bold btn-hover"><i class="fas fa-bolt mr-1"></i>理解して有効化</button>
+                <button id="browser-fast-mode-cancel-btn" class="px-4 bg-gray-700 hover:bg-gray-600 text-white rounded btn-hover">キャンセル</button>
+            </div>
+        </div>
+    </div>
 
     <!-- API Key Required Modal -->
     <div id="api-key-required-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">

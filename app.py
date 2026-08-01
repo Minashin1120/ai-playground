@@ -717,8 +717,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-01-011')
-app.config['SYSTEM_VERSION'] = 'V4.8.672'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-02-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.673'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -11323,6 +11323,127 @@ def logout():
 # -----------------------------------------------------------
 # API Routes
 # -----------------------------------------------------------
+
+@app.route('/api/browser_fast_mode/save', methods=['POST'])
+@login_required
+def save_browser_fast_mode_chat():
+    """Persist a completed browser-direct Gemini turn as one atomic DB transaction."""
+    if not rate_limit(f"rl:browser_fast_save:user:{current_user.id}", 30, 60):
+        return jsonify({'error': 'rate_limit'}), 429
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Invalid request'}), 400
+
+    user_text = data.get('message')
+    assistant_text = data.get('assistant_content')
+    thought_text = data.get('thought_content') or ''
+    model_key = str(data.get('model') or '').strip()
+    model_l = model_key.lower()
+    if not isinstance(user_text, str) or not user_text.strip() or len(user_text) > 500_000:
+        return jsonify({'error': 'Invalid or oversized message'}), 400
+    if not isinstance(assistant_text, str) or not assistant_text.strip() or len(assistant_text) > 2_000_000:
+        return jsonify({'error': 'Invalid or oversized assistant content'}), 400
+    if not isinstance(thought_text, str) or len(thought_text) > 2_000_000:
+        return jsonify({'error': 'Invalid or oversized thought content'}), 400
+    if (
+        model_key not in ALL_VALID_MODEL_IDS
+        or not model_l.startswith('gemini-')
+        or any(marker in model_l for marker in ('image', 'native-audio', 'tts', 'live'))
+    ):
+        return jsonify({'error': 'Browser fast mode supports Gemini text models only'}), 400
+    if data.get('thread_id'):
+        return jsonify({'error': 'Browser fast mode supports new chats only'}), 400
+
+    raw_refs = data.get('image_urls') or []
+    if not isinstance(raw_refs, list):
+        raw_refs = [raw_refs]
+    refs = _normalize_attachment_list(raw_refs, current_user.id)
+    if len(refs) != len(raw_refs):
+        return jsonify({'error': 'One or more browser fast mode image references are invalid'}), 400
+    if len(refs) > min(4, int(app.config.get('ATTACHMENT_MAX_FILES') or 30)):
+        return jsonify({'error': 'Browser fast mode accepts at most 4 images'}), 400
+    total_image_bytes = 0
+    for ref in refs:
+        ext = os.path.splitext(ref)[1].lower()
+        info = _get_file_disk_info(ref)
+        if ext not in _IMAGE_THUMB_EXTS or not info.get('exists'):
+            return jsonify({'error': 'A saved browser fast mode image is missing or invalid'}), 400
+        total_image_bytes += int(info.get('size') or 0)
+        if total_image_bytes > _LOW_LATENCY_IMAGE_MAX_BYTES:
+            return jsonify({'error': 'Browser fast mode images exceed the save limit'}), 400
+
+    is_enc = bool(getattr(current_user, 'enable_e2ee', False))
+    user_content = encrypt_val(user_text) if is_enc else user_text
+    thought_payload = json.dumps({'text': thought_text}, ensure_ascii=False) if thought_text else None
+    assistant_content = assistant_text
+    if is_enc:
+        assistant_content = encrypt_val(assistant_content)
+        if thought_payload:
+            thought_payload = encrypt_val(thought_payload)
+
+    user_tokens = count_tokens(user_text, model_key)
+    thought_tokens = count_tokens(thought_text, model_key) if thought_text else 0
+    assistant_tokens = count_tokens_for_display(assistant_text, model_key, thought_text)
+    try:
+        thread = Thread(
+            user_id=current_user.id,
+            public_id=generate_thread_public_id(),
+            title=_normalize_thread_title(user_text.strip()[:160] or 'New Chat'),
+            is_temporary=bool(data.get('temporary_chat')),
+            include_global_instruction=False,
+            last_model=model_key,
+            updated_at=datetime.utcnow(),
+        )
+        db.session.add(thread)
+        db.session.flush()
+        user_msg = Message(
+            thread_id=thread.id,
+            role='user',
+            content=user_content,
+            model=model_key,
+            image_url=json.dumps(refs) if refs else None,
+            is_encrypted=is_enc,
+            tokens_in=user_tokens,
+            tokens=sum_token_counts(user_tokens, None),
+        )
+        db.session.add(user_msg)
+        db.session.flush()
+        assistant_msg = Message(
+            thread_id=thread.id,
+            role='assistant',
+            content=assistant_content,
+            model=model_key,
+            thought_data=thought_payload,
+            is_encrypted=is_enc,
+            parent_id=user_msg.id,
+            tokens_out=assistant_tokens,
+            tokens=sum_token_counts(None, assistant_tokens),
+            tokens_thought=thought_tokens,
+        )
+        db.session.add(assistant_msg)
+        current_user.last_model = model_key
+        safe_db_commit()
+        if thread.is_temporary:
+            try:
+                _mark_temp_chat_presence(
+                    thread,
+                    current_user.id,
+                    timeout_seconds=_get_user_temp_chat_timeout_seconds(current_user),
+                )
+                _track_temp_chat_uploaded_refs(thread, current_user.id, refs)
+            except Exception as exc:
+                logger.warning("Browser fast mode temporary tracking failed for thread %s: %s", thread.id, exc)
+        return jsonify({
+            'status': 'ok',
+            'thread_id': thread.public_id,
+            'user_message_id': user_msg.id,
+            'assistant_message_id': assistant_msg.id,
+        })
+    except Exception as exc:
+        db.session.rollback()
+        logger.error("Browser fast mode save failed for user %s: %s", current_user.id, exc)
+        return jsonify({'error': 'Failed to save browser fast mode chat'}), 500
+
 
 @app.route('/chat_stream', methods=['POST'])
 @login_required

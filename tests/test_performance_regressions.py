@@ -124,6 +124,39 @@ class PerformanceRegressionTests(unittest.TestCase):
         self.assertIn("low_latency_image_attachments = _is_low_latency_image_attachment_set", route)
         self.assertGreaterEqual(route.count("(no_attachments or low_latency_image_attachments)"), 2)
 
+    def test_browser_fast_mode_streams_directly_then_persists(self):
+        chat_files = list((APP_ROOT / "static/js").glob("chat_core.v*.js"))
+        self.assertEqual(len(chat_files), 1)
+        source = chat_files[0].read_text(encoding="utf-8")
+        template = (APP_ROOT / "templates/chat.html").read_text(encoding="utf-8")
+        fast_source = source[
+            source.index("async function sendBrowserFastMessage"):
+            source.index("async function sendMessage()")
+        ]
+
+        direct_pos = fast_source.index("generativelanguage.googleapis.com")
+        upload_pos = fast_source.index("await uploadBrowserFastLocalFiles()")
+        save_pos = fast_source.index("/api/browser_fast_mode/save")
+        self.assertLess(direct_pos, upload_pos)
+        self.assertLess(upload_pos, save_pos)
+        self.assertIn("sessionStorage.setItem(BROWSER_FAST_KEY_STORAGE", source)
+        self.assertNotIn("browserFastApiKey,", fast_source[save_pos:])
+        self.assertIn('id="browser-fast-mode-ignore-warning"', template)
+        self.assertIn("生成中に再読み込み・タブ終了・通信切断", template)
+        self.assertIn("回答完了後に画像をサーバーへアップロードしてDB保存", template)
+
+    def test_browser_fast_mode_keeps_local_images_out_of_upload_until_completion(self):
+        chat_files = list((APP_ROOT / "static/js").glob("chat_core.v*.js"))
+        source = chat_files[0].read_text(encoding="utf-8")
+        upload_branch = source[
+            source.index("if (browserFastModeEnabled) {", source.index("async function handleFiles")):
+            source.index("return await uploadFileWithProgress(t, rowObj);")
+        ]
+
+        self.assertIn("browserFastLocalFiles.set", upload_branch)
+        self.assertIn("ローカル保持（未保存）", upload_branch)
+        self.assertIn("return true", upload_branch)
+
     def test_stale_chunk_cleanup_removes_transient_data_without_rewriting(self):
         with tempfile.TemporaryDirectory() as upload_root:
             stale_dir = Path(upload_root) / ".chunks" / "7" / "up_1752156000_deadbeef"

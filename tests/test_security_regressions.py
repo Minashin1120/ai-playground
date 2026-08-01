@@ -109,6 +109,81 @@ class SecurityRegressionTests(unittest.TestCase):
             self.assertEqual(target.Thread.query.count(), 0)
             self.assertEqual(target.Message.query.count(), 0)
 
+    def test_browser_fast_mode_saves_completed_turn_atomically(self):
+        client = self.authenticated_client()
+        response = client.post(
+            "/api/browser_fast_mode/save",
+            json={
+                "message": "fast prompt",
+                "assistant_content": "fast answer",
+                "thought_content": "private reasoning",
+                "model": "gemini-2.5-flash",
+                "image_urls": [],
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        payload = response.get_json()
+        self.assertTrue(payload["thread_id"])
+        with target.app.app_context():
+            thread = target.Thread.query.one()
+            messages = target.Message.query.order_by(target.Message.id.asc()).all()
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertEqual(thread.public_id, payload["thread_id"])
+            self.assertFalse(thread.include_global_instruction)
+            self.assertEqual(thread.last_model, "gemini-2.5-flash")
+            self.assertEqual(user.last_model, "gemini-2.5-flash")
+            self.assertEqual([message.role for message in messages], ["user", "assistant"])
+            self.assertEqual(messages[0].content, "fast prompt")
+            self.assertEqual(messages[1].content, "fast answer")
+            self.assertEqual(target.extract_reasoning_text(messages[1].thought_data), "private reasoning")
+            self.assertEqual(messages[1].parent_id, messages[0].id)
+
+    def test_browser_fast_mode_rejects_unsupported_or_existing_chat_requests(self):
+        client = self.authenticated_client()
+        headers = {"X-CSRF-Token": "csrf-test-token"}
+        base = {
+            "message": "prompt",
+            "assistant_content": "answer",
+            "model": "gpt-5.6",
+        }
+        unsupported = client.post(
+            "/api/browser_fast_mode/save", json=base, headers=headers, base_url="https://localhost"
+        )
+        existing = client.post(
+            "/api/browser_fast_mode/save",
+            json={**base, "model": "gemini-2.5-flash", "thread_id": "existing"},
+            headers=headers,
+            base_url="https://localhost",
+        )
+
+        self.assertEqual(unsupported.status_code, 400)
+        self.assertEqual(existing.status_code, 400)
+        with target.app.app_context():
+            self.assertEqual(target.Thread.query.count(), 0)
+            self.assertEqual(target.Message.query.count(), 0)
+
+    def test_browser_fast_mode_rolls_back_if_atomic_save_fails(self):
+        client = self.authenticated_client()
+        with mock.patch.object(target, "safe_db_commit", side_effect=RuntimeError("forced failure")):
+            response = client.post(
+                "/api/browser_fast_mode/save",
+                json={
+                    "message": "prompt",
+                    "assistant_content": "answer",
+                    "model": "gemini-2.5-flash",
+                },
+                headers={"X-CSRF-Token": "csrf-test-token"},
+                base_url="https://localhost",
+            )
+
+        self.assertEqual(response.status_code, 500)
+        with target.app.app_context():
+            self.assertEqual(target.Thread.query.count(), 0)
+            self.assertEqual(target.Message.query.count(), 0)
+
     def test_google_tts_auth_does_not_depend_on_openai_key(self):
         with target.app.app_context():
             user = target.db.session.get(target.User, self.user_id)

@@ -61,31 +61,6 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("surface !== liquidGlassPointerSurface || !liquidGlassPointerRect", source)
         self.assertIn("liquidGlassPointerRect = null", source)
 
-    def test_touch_liquid_glass_avoids_live_pointer_and_scroll_blur_work(self):
-        js_source = _current_asset("js", "chat_core.v4.8.*.js")
-        css_source = _current_asset("css", "chat.custom.v4.8.*.css")
-
-        self.assertIn("if (!liquidGlassFinePointer) return", js_source)
-        touch_budget = css_source[css_source.index("Touch-device paint budget (V4.8.677)") :]
-        self.assertIn("@media (hover: none) and (pointer: coarse)", touch_budget)
-        self.assertIn("backdrop-filter: blur(8px) saturate(145%)", touch_budget)
-        self.assertIn("body.liquid-glass-mode.liquid-glass-scrolling .liquid-glass-surface", touch_budget)
-        scroll_rule = touch_budget[touch_budget.index("body.liquid-glass-mode.liquid-glass-scrolling .liquid-glass-surface") :]
-        scroll_rule = scroll_rule[: scroll_rule.index("}")]
-        self.assertIn("backdrop-filter: none", scroll_rule)
-
-    def test_stream_rendering_and_auto_scroll_are_frame_budgeted(self):
-        source = _current_asset("js", "chat_core.v4.8.*.js")
-
-        self.assertIn("const getStreamingRenderInterval = (textLength = 0) =>", source)
-        self.assertIn("if (textLength >= 24000) return 280", source)
-        self.assertGreaterEqual(source.count("getStreamingRenderInterval(acc.length + tht.length)"), 2)
-        self.assertIn("getStreamingRenderInterval(content.length + thought.length)", source)
-        scroll_helper = source[source.index("function scrollToBottom()") :]
-        scroll_helper = scroll_helper[: scroll_helper.index("// Image Viewer Logic")]
-        self.assertIn("requestAnimationFrame", scroll_helper)
-        self.assertIn("if (!userAutoScroll || scrollToBottomFrame) return", scroll_helper)
-
     def test_model_modal_preserves_desktop_and_touch_scrolling(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")
 

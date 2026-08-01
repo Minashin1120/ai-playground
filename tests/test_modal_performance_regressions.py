@@ -120,19 +120,30 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("backdrop-filter: blur(var(--blur-panel)) saturate(170%)", original_composer)
         self.assertIn("#prompt-input { background: rgba(8, 14, 28, 0.65); backdrop-filter: blur(12px)", source)
 
-        cookie_bootstrap = template[template.index("const cookieName = 'adaptive_blur_disabled'") :]
+        cookie_bootstrap = template[template.index("const detectedCookieName = 'adaptive_blur_disabled'") :]
         cookie_bootstrap = cookie_bootstrap[: cookie_bootstrap.index("</script>")]
         self.assertIn("document.documentElement.classList.add('performance-blur-disabled')", cookie_bootstrap)
-        self.assertLess(template.index("const cookieName = 'adaptive_blur_disabled'"), template.index("chat.tailwind."))
+        self.assertIn("mode === 'disabled' || (mode === 'auto'", cookie_bootstrap)
+        self.assertLess(template.index("const detectedCookieName = 'adaptive_blur_disabled'"), template.index("chat.tailwind."))
 
         self.assertIn("const ADAPTIVE_BLUR_COOKIE = 'adaptive_blur_disabled'", script)
+        self.assertIn("const ADAPTIVE_BLUR_MODE_COOKIE = 'adaptive_blur_mode'", script)
         self.assertIn("'menu-btn'", script)
         self.assertIn("'sidebar-toggle-btn'", script)
         self.assertIn("'prompt-controls-toggle-btn'", script)
         self.assertIn("document.visibilityState !== 'visible'", script)
         self.assertIn("requestAnimationFrame(sampleFrame)", script)
         self.assertIn("droppedFrames >= 5", script)
-        self.assertIn("Max-Age=31536000; SameSite=Lax", script)
+        self.assertIn("maxAge = 31536000", script)
+        self.assertIn("Max-Age=${maxAge}; SameSite=Lax", script)
+        self.assertIn('id="set-background-blur-mode"', template)
+        self.assertIn('<option value="auto">自動（重い場合のみ無効化）</option>', template)
+        self.assertIn('<option value="enabled">常に有効</option>', template)
+        self.assertIn('<option value="disabled">常に無効（軽量）</option>', template)
+        self.assertIn("applyAdaptiveBlurPreference(get('set-background-blur-mode')", script)
+        self.assertIn("adaptiveBlurPreferenceMode !== 'auto'", script)
+        self.assertIn("writeAdaptiveBlurCookie(ADAPTIVE_BLUR_COOKIE, '', 0)", script)
+        self.assertIn("classList.toggle('performance-blur-disabled', adaptiveBlurFallbackEnabled)", script)
 
         self.assertNotIn("promptDetailsTouchEnter", standard_css)
         self.assertNotIn("#prompt-details-controls.collapsed", standard_css)

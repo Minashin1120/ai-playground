@@ -1,21 +1,66 @@
         const get = (id) => document.getElementById(id);
         const ADAPTIVE_BLUR_COOKIE = 'adaptive_blur_disabled';
+        const ADAPTIVE_BLUR_MODE_COOKIE = 'adaptive_blur_mode';
+        const readCookieValue = (cookieName) => {
+            try {
+                const match = document.cookie.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${cookieName}=`));
+                return match ? decodeURIComponent(match.slice(cookieName.length + 1)) : '';
+            } catch (error) {
+                return '';
+            }
+        };
+        const normalizeAdaptiveBlurMode = (mode) => ['enabled', 'disabled'].includes(mode) ? mode : 'auto';
+        const writeAdaptiveBlurCookie = (cookieName, value, maxAge = 31536000) => {
+            const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+            document.cookie = `${cookieName}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
+        };
         const ADAPTIVE_BLUR_TRIGGER_IDS = new Set([
             'menu-btn',
             'sidebar-toggle-btn',
             'prompt-controls-toggle-btn'
         ]);
+        let adaptiveBlurPreferenceMode = normalizeAdaptiveBlurMode(readCookieValue(ADAPTIVE_BLUR_MODE_COOKIE));
         let adaptiveBlurMeasurementActive = false;
         let adaptiveBlurFallbackEnabled = document.documentElement.classList.contains('performance-blur-disabled');
+        const syncAdaptiveBlurSettingsUi = () => {
+            const select = get('set-background-blur-mode');
+            const status = get('background-blur-mode-status');
+            if (select) select.value = adaptiveBlurPreferenceMode;
+            if (!status) return;
+            if (adaptiveBlurPreferenceMode === 'enabled') {
+                status.textContent = '手動設定により、背景ぼかしを常に有効にしています。';
+            } else if (adaptiveBlurPreferenceMode === 'disabled') {
+                status.textContent = '手動設定により、背景ぼかしを無効にしています。';
+            } else if (adaptiveBlurFallbackEnabled) {
+                status.textContent = '自動判定で描画負荷を検出したため、現在は背景ぼかしを無効にしています。';
+            } else {
+                status.textContent = '現在は背景ぼかしが有効です。操作時の描画が重い場合は自動で無効化します。';
+            }
+        };
         const enableAdaptiveBlurFallback = () => {
-            if (adaptiveBlurFallbackEnabled) return;
+            if (adaptiveBlurPreferenceMode !== 'auto' || adaptiveBlurFallbackEnabled) return;
             adaptiveBlurFallbackEnabled = true;
             document.documentElement.classList.add('performance-blur-disabled');
-            const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-            document.cookie = `${ADAPTIVE_BLUR_COOKIE}=1; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
+            writeAdaptiveBlurCookie(ADAPTIVE_BLUR_COOKIE, '1');
+            syncAdaptiveBlurSettingsUi();
+        };
+        const applyAdaptiveBlurPreference = (mode) => {
+            const normalizedMode = normalizeAdaptiveBlurMode(mode);
+            if (normalizedMode === adaptiveBlurPreferenceMode) return;
+            adaptiveBlurPreferenceMode = normalizedMode;
+            adaptiveBlurMeasurementActive = false;
+            writeAdaptiveBlurCookie(ADAPTIVE_BLUR_COOKIE, '', 0);
+            if (normalizedMode === 'auto') {
+                writeAdaptiveBlurCookie(ADAPTIVE_BLUR_MODE_COOKIE, '', 0);
+            } else {
+                writeAdaptiveBlurCookie(ADAPTIVE_BLUR_MODE_COOKIE, normalizedMode);
+            }
+            adaptiveBlurFallbackEnabled = normalizedMode === 'disabled';
+            document.documentElement.classList.toggle('performance-blur-disabled', adaptiveBlurFallbackEnabled);
+            syncAdaptiveBlurSettingsUi();
         };
         const measureInteractionFrames = () => {
-            if (adaptiveBlurFallbackEnabled || adaptiveBlurMeasurementActive || document.visibilityState !== 'visible') return;
+            if (adaptiveBlurPreferenceMode !== 'auto' || adaptiveBlurFallbackEnabled || adaptiveBlurMeasurementActive || document.visibilityState !== 'visible') return;
             adaptiveBlurMeasurementActive = true;
             const frameIntervals = [];
             let previousTimestamp = 0;
@@ -46,7 +91,7 @@
             requestAnimationFrame(sampleFrame);
         };
         document.addEventListener('click', (event) => {
-            if (document.readyState !== 'complete' || adaptiveBlurFallbackEnabled) return;
+            if (document.readyState !== 'complete' || adaptiveBlurPreferenceMode !== 'auto' || adaptiveBlurFallbackEnabled) return;
             const trigger = event.target instanceof Element ? event.target.closest('button') : null;
             if (trigger && ADAPTIVE_BLUR_TRIGGER_IDS.has(trigger.id)) measureInteractionFrames();
         }, true);
@@ -7416,6 +7461,7 @@
                 populateDefaultModelOptions();
                 populateDefaultVisionModelOptions();
                 showModal('settings-modal');
+                syncAdaptiveBlurSettingsUi();
                 loadStorageUsage();
                 loadSiteCacheUsage();
                 ensureLlmTranscribePromptSettingsUi();
@@ -7784,6 +7830,7 @@
                     applyThemeColor(b.theme_color, true);
                     syncThemeInputs(b.theme_color);
                     applyLiquidGlassMode(b.liquid_glass_enabled);
+                    applyAdaptiveBlurPreference(get('set-background-blur-mode') ? get('set-background-blur-mode').value : adaptiveBlurPreferenceMode);
 
                     // Update UI components
                     setCompactPromptMode(compactPromptMode);

@@ -8,12 +8,15 @@
     <script>
         // Apply the saved performance fallback before styles load to avoid a blurred first paint.
         (() => {
-            const cookieName = 'adaptive_blur_disabled';
+            const detectedCookieName = 'adaptive_blur_disabled';
+            const modeCookieName = 'adaptive_blur_mode';
             try {
-                const blurDisabled = document.cookie.split(';').some((part) => {
-                    const [name, value] = part.trim().split('=', 2);
-                    return name === cookieName && value === '1';
-                });
+                const cookies = Object.fromEntries(document.cookie.split(';').map((part) => {
+                    const [name, value = ''] = part.trim().split('=', 2);
+                    return [name, value];
+                }));
+                const mode = ['enabled', 'disabled'].includes(cookies[modeCookieName]) ? cookies[modeCookieName] : 'auto';
+                const blurDisabled = mode === 'disabled' || (mode === 'auto' && cookies[detectedCookieName] === '1');
                 if (blurDisabled) document.documentElement.classList.add('performance-blur-disabled');
             } catch (error) {
                 // Cookie access can be blocked by browser policy; retain the normal visual treatment.
@@ -1217,6 +1220,15 @@
                     <input type="checkbox" id="set-liquid-glass" class="sr-only peer">
                     <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--theme-600)]"></div>
                 </label>
+            </div>
+            <div class="border-t border-gray-700 mt-4 pt-4">
+                <label for="set-background-blur-mode" class="text-xs font-bold text-white block mb-2">通常表示の背景ぼかし</label>
+                <select id="set-background-blur-mode" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white">
+                    <option value="auto">自動（重い場合のみ無効化）</option>
+                    <option value="enabled">常に有効</option>
+                    <option value="disabled">常に無効（軽量）</option>
+                </select>
+                <div id="background-blur-mode-status" class="text-[10px] text-gray-500 mt-2">現在の状態を確認しています。</div>
             </div>
         </div>
         <div class="bg-gray-900 p-4 rounded border border-gray-700">

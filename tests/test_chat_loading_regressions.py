@@ -14,7 +14,7 @@ def _current_chat_core_source():
 class ChatLoadingRegressionTests(unittest.TestCase):
     def test_markdown_rendering_survives_a_missing_library_without_unsafe_html(self):
         source = _current_chat_core_source()
-        sanitizer = source[source.index("function sanitizeMarkdownHtml(text)") :]
+        sanitizer = source[source.index("function sanitizeMarkdownHtml(text, opts = {})") :]
         sanitizer = sanitizer[: sanitizer.index("function getCanvasModeElements()")]
 
         self.assertIn("!window.marked", sanitizer)
@@ -22,24 +22,48 @@ class ChatLoadingRegressionTests(unittest.TestCase):
         self.assertIn("return escapeHtml(source).replace(/\\n/g, '<br>')", sanitizer)
         # Math is protected before marked.parse so \( / \[ backslashes are not stripped
         self.assertIn("protectMathSegments(source)", sanitizer)
-        self.assertIn("restoreMathSegments(parsed, protectedMath.blocks)", sanitizer)
+        self.assertIn("restoreMathSegments(parsed, protectedMath.blocks, opts)", sanitizer)
         self.assertIn("window.DOMPurify.sanitize(restored)", sanitizer)
 
     def test_mathjax_pipeline_protects_delimiters_and_typesets_safely(self):
         source = _current_chat_core_source()
         self.assertIn("function protectMathSegments(src)", source)
-        self.assertIn("function restoreMathSegments(html, blocks)", source)
+        self.assertIn("function restoreMathSegments(html, blocks, opts = {})", source)
         self.assertIn("@@MATHJAX_BLOCK_", source)
         # marked が落とす \( / \[ と $$ / $ を退避対象に含む
         self.assertIn(r"/\\\(([\s\S]+?)\\\)/g", source)
         self.assertIn(r"/\\\[([\s\S]+?)\\\]/g", source)
         self.assertIn(r"/\$\$([\s\S]+?)\$\$/g", source)
+        # 一文字だけのインライン数式（$x$）も増分描画対象として退避する
+        self.assertIn(r"([^\s$](?:(?:[^$\n\\]|\\.)*?[^\s$])?)", source)
         # 再描画後の typeset 失敗を防ぐ
         self.assertIn("MathJax.typesetClear", source)
         self.assertIn("typesetPromise([container])", source)
         # 一般的な LaTeX デリミタを MathJax 設定へ
         self.assertIn("['\\\\[', '\\\\]']", source)
         self.assertIn("['$', '$']", source)
+
+    def test_streaming_math_preserves_rendered_nodes_and_typesets_only_new_segments(self):
+        source = _current_chat_core_source()
+        renderer = source[source.index("function renderAiMarkdownInto(container, text, opts = {})") :]
+        renderer = renderer[: renderer.index("function wrapRenderedSvgBoxes(root)")]
+
+        self.assertIn("streamMathSegments: true", renderer)
+        self.assertIn("data-stream-math-key", renderer)
+        self.assertIn("fresh.replaceWith(old)", renderer)
+        self.assertIn("container.replaceChildren(template.content)", renderer)
+        self.assertIn("queueIncrementalMathTypeset(newMathSegments)", renderer)
+
+        incremental = source[source.index("function queueIncrementalMathTypeset(elements)") :]
+        incremental = incremental[: incremental.index("function queueHighlight(container")]
+        self.assertIn("data-stream-math-state", incremental)
+        self.assertIn("window.MathJax.typesetPromise(connected)", incremental)
+        self.assertNotIn("typesetClear", incremental)
+
+        # All three generation paths (browser-fast, normal, resume) and their final
+        # renders must opt into the DOM-preserving renderer.
+        self.assertEqual(source.count("renderAiMarkdownInto(contentEl, content, { incrementalMath: true })"), 2)
+        self.assertEqual(source.count("renderAiMarkdownInto(cEl, acc, { incrementalMath: true })"), 4)
 
     def test_prompt_cache_ui_helper_is_available_to_thread_loader(self):
         source = _current_chat_core_source()

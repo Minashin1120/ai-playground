@@ -2524,6 +2524,7 @@
         const HLJS_JS_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js';
         const HLJS_CSS_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css';
         let mathJaxLoadPromise = null;
+        let incrementalMathTypesetChain = Promise.resolve();
         let highlightLoadPromise = null;
         let lowBandwidthModePreference = 'auto';
         let lowBandwidthModeAuto = false;
@@ -2664,21 +2665,33 @@
                 t = t.replace(/\\\[([\s\S]+?)\\\]/g, stash);
                 t = t.replace(/\\begin\{([a-zA-Z*]+)\}([\s\S]+?)\\end\{\1\}/g, stash);
                 // 単独 $...$ （空や空白のみ、および $$ は除外）
-                t = t.replace(/(?<!\$)\$(?!\$)([^\s$](?:[^$\n\\]|\\.)*?[^\s$])\$(?!\$)/g, stash);
+                t = t.replace(/(?<!\$)\$(?!\$)([^\s$](?:(?:[^$\n\\]|\\.)*?[^\s$])?)\$(?!\$)/g, stash);
                 return t;
             }).join('');
             return { text: protectedText, blocks };
         }
-        function restoreMathSegments(html, blocks) {
+        function getStreamMathSegmentKey(index, raw) {
+            const source = String(raw || '');
+            let hash = 2166136261;
+            for (let i = 0; i < source.length; i++) {
+                hash ^= source.charCodeAt(i);
+                hash = Math.imul(hash, 16777619);
+            }
+            return `${index}-${source.length}-${(hash >>> 0).toString(16)}`;
+        }
+        function restoreMathSegments(html, blocks, opts = {}) {
             if (!blocks || !blocks.length) return String(html || '');
             return String(html || '').replace(/@@MATHJAX_BLOCK_(\d+)@@/g, (_, idx) => {
                 const raw = blocks[Number(idx)];
                 if (raw === undefined || raw === null) return '';
                 // HTML へ埋め込むため特殊文字のみエスケープ（textContent 上は元の TeX に戻る）
-                return String(raw)
+                const escaped = String(raw)
                     .replace(/&/g, '&amp;')
                     .replace(/</g, '&lt;')
                     .replace(/>/g, '&gt;');
+                if (!opts.streamMathSegments) return escaped;
+                const key = getStreamMathSegmentKey(Number(idx), raw);
+                return `<span class="stream-math-segment mathjax_process" data-stream-math-key="${key}">${escaped}</span>`;
             });
         }
         function maybeNeedsHighlight(text, container = null) {
@@ -2702,6 +2715,32 @@
                     return window.MathJax.typesetPromise([container]).catch(() => {});
                 })
                 .catch(() => {});
+        }
+        function queueIncrementalMathTypeset(elements) {
+            const candidates = Array.from(elements || []).filter((el) => (
+                el && el.isConnected && !el.getAttribute('data-stream-math-state')
+            ));
+            if (!candidates.length || lowBandwidthMode) return;
+            candidates.forEach((el) => el.setAttribute('data-stream-math-state', 'queued'));
+            incrementalMathTypesetChain = incrementalMathTypesetChain
+                .catch(() => {})
+                .then(async () => {
+                    await ensureMathJaxLoaded();
+                    const connected = candidates.filter((el) => el.isConnected && el.getAttribute('data-stream-math-state') === 'queued');
+                    if (!connected.length || !window.MathJax || typeof window.MathJax.typesetPromise !== 'function') return;
+                    connected.forEach((el) => el.setAttribute('data-stream-math-state', 'rendering'));
+                    try {
+                        await window.MathJax.typesetPromise(connected);
+                        connected.forEach((el) => {
+                            if (el.isConnected) el.setAttribute('data-stream-math-state', 'rendered');
+                        });
+                    } catch (e) {
+                        connected.forEach((el) => el.removeAttribute('data-stream-math-state'));
+                    }
+                })
+                .catch(() => {
+                    candidates.forEach((el) => el.removeAttribute('data-stream-math-state'));
+                });
         }
         function queueHighlight(container, text = '', opts = {}) {
             if (lowBandwidthMode && !opts.force) return;
@@ -11980,7 +12019,7 @@
 
         const messageMeta = {};
         let markdownLibraryFallbackReported = false;
-        function sanitizeMarkdownHtml(text) {
+        function sanitizeMarkdownHtml(text, opts = {}) {
             const source = String(text || '');
             if (!window.marked || typeof window.marked.parse !== 'function'
                 || !window.DOMPurify || typeof window.DOMPurify.sanitize !== 'function') {
@@ -11993,7 +12032,7 @@
             // marked が \( \[ のバックスラッシュを落とすため、数式を退避してから parse する
             const protectedMath = protectMathSegments(source);
             const parsed = window.marked.parse(protectedMath.text);
-            const restored = restoreMathSegments(parsed, protectedMath.blocks);
+            const restored = restoreMathSegments(parsed, protectedMath.blocks, opts);
             return window.DOMPurify.sanitize(restored);
         }
         function getCanvasModeElements() {
@@ -12663,12 +12702,32 @@
             }
             return wrap.outerHTML;
         }
-        function renderAiMarkdownInto(container, text) {
+        function renderAiMarkdownInto(container, text, opts = {}) {
             if (!container) return;
             const canvasData = canvasModeEnabled ? parseCanvasMarkdown(text) : { renderText: text || '', blocks: [], primaryBlock: null, rawText: String(text || '') };
             if (canvasModeEnabled) {
                 updateCanvasPreviewState(canvasData);
                 refreshCanvasPreviewPanel();
+            }
+            if (opts.incrementalMath) {
+                const template = document.createElement('template');
+                template.innerHTML = sanitizeMarkdownHtml(canvasData.renderText, { streamMathSegments: true });
+                const preserved = new Map();
+                container.querySelectorAll('.stream-math-segment[data-stream-math-key]').forEach((el) => {
+                    const key = el.getAttribute('data-stream-math-key');
+                    if (key) preserved.set(key, el);
+                });
+                const newMathSegments = [];
+                template.content.querySelectorAll('.stream-math-segment[data-stream-math-key]').forEach((fresh) => {
+                    const old = preserved.get(fresh.getAttribute('data-stream-math-key'));
+                    if (old) fresh.replaceWith(old);
+                    else newMathSegments.push(fresh);
+                });
+                container.replaceChildren(template.content);
+                wrapRenderedSvgBoxes(container);
+                queueHighlight(container, canvasData.renderText);
+                queueIncrementalMathTypeset(newMathSegments);
+                return;
             }
             container.innerHTML = sanitizeMarkdownHtml(canvasData.renderText);
             wrapRenderedSvgBoxes(container);
@@ -13585,7 +13644,7 @@
                             contentEl.className = 'content-area prose prose-invert text-sm break-words';
                             adiv.appendChild(contentEl);
                         }
-                        renderAiMarkdownInto(contentEl, content);
+                        renderAiMarkdownInto(contentEl, content, { incrementalMath: true });
                     }
                     scrollToBottom();
                 };
@@ -13600,7 +13659,7 @@
                 buffer += decoder.decode();
                 if (buffer.trim()) consumeEvent(buffer);
                 if (!content.trim()) throw new Error('Geminiから回答本文が返されませんでした');
-                if (contentEl) renderAiMarkdownInto(contentEl, content);
+                if (contentEl) renderAiMarkdownInto(contentEl, content, { incrementalMath: true });
                 if (thoughtEl) thoughtEl.classList.add('collapsed');
 
                 if (localEntries.length) {
@@ -14321,7 +14380,7 @@
                         const now = Date.now();
                         if (now - lastRenderTime > 100) {
                             const collapseState = snapshotCodeCollapse(cEl);
-                            renderAiMarkdownInto(cEl, acc);
+                            renderAiMarkdownInto(cEl, acc, { incrementalMath: true });
                             applyCodeCollapse(cEl, collapseState, true);
                             lastRenderTime = now;
                         }
@@ -14331,7 +14390,7 @@
                 // Final render to catch any remaining content
                 if (cEl) {
                     const collapseState = snapshotCodeCollapse(cEl);
-                    renderAiMarkdownInto(cEl, acc);
+                    renderAiMarkdownInto(cEl, acc, { incrementalMath: true });
                     applyCodeCollapse(cEl, collapseState, true);
                 }
                 scrollToBottom();
@@ -14340,7 +14399,6 @@
 
                 if (adiv) {
                     queueHighlight(adiv, acc);
-                    queueMathTypeset(adiv, acc);
 
                     if (enableLatencyMetrics) {
                         const totalLatencyMs = nowPerfMs() - sendStartPerfMs;
@@ -14659,7 +14717,7 @@
                         const now = Date.now();
                         if (now - lastRenderTime > 100) {
                             const collapseState = snapshotCodeCollapse(cEl);
-                            renderAiMarkdownInto(cEl, acc);
+                            renderAiMarkdownInto(cEl, acc, { incrementalMath: true });
                             applyCodeCollapse(cEl, collapseState, true);
                             lastRenderTime = now;
                         }
@@ -14669,7 +14727,7 @@
                 // Final render to catch any remaining content
                 if (cEl) {
                     const collapseState = snapshotCodeCollapse(cEl);
-                    renderAiMarkdownInto(cEl, acc);
+                    renderAiMarkdownInto(cEl, acc, { incrementalMath: true });
                     applyCodeCollapse(cEl, collapseState, true);
                 }
 
@@ -14677,7 +14735,6 @@
 
                 if (adiv) {
                     queueHighlight(adiv, acc);
-                    queueMathTypeset(adiv, acc);
                 }
 
                 if (!hadError) {

@@ -139,11 +139,14 @@ class PerformanceRegressionTests(unittest.TestCase):
         save_pos = fast_source.index("/api/browser_fast_mode/save")
         self.assertLess(direct_pos, upload_pos)
         self.assertLess(upload_pos, save_pos)
-        self.assertIn("sessionStorage.setItem(BROWSER_FAST_KEY_STORAGE", source)
+        self.assertIn("/api/browser_fast_mode/bootstrap", source)
+        self.assertIn("fetchBrowserFastBootstrap", source)
         self.assertNotIn("browserFastApiKey,", fast_source[save_pos:])
+        self.assertNotIn('id="browser-fast-mode-api-key"', template)
+        self.assertIn("モデル別キー → 共通Geminiキー", template)
         self.assertIn('id="browser-fast-mode-ignore-warning"', template)
         self.assertIn("生成中に再読み込み・タブ終了・通信切断", template)
-        self.assertIn("回答完了後に画像をサーバーへアップロードしてDB保存", template)
+        self.assertIn("回答完了後に画像をサーバーへアップロードして同じ履歴へDB保存", template)
 
     def test_browser_fast_mode_keeps_local_images_out_of_upload_until_completion(self):
         chat_files = list((APP_ROOT / "static/js").glob("chat_core.v*.js"))

@@ -1702,15 +1702,19 @@
             <div id="browser-fast-mode-warning" class="text-xs text-gray-300 space-y-2 rounded border border-amber-500/30 bg-amber-950/20 p-4 mb-4">
                 <p class="font-bold text-amber-200">有効化前に必ず確認してください</p>
                 <ul class="list-disc pl-5 space-y-1.5 text-gray-300">
-                    <li>Gemini APIキーはこのタブのsessionStorageに保持され、ブラウザ拡張・XSS・開発者ツールから取得される危険があります。</li>
+                    <li>選択中モデルに保存されたAPIキー（なければ共通Geminiキー）をサーバーで復号してブラウザへ返します。ブラウザ拡張・XSS・開発者ツールから取得される危険があります。</li>
                     <li>生成中に再読み込み・タブ終了・通信切断すると、生成と未保存内容は失われ、再接続できません。</li>
-                    <li>回答完了後に画像をサーバーへアップロードしてDB保存するため、後処理に失敗すると回答が履歴へ残りません。</li>
-                    <li>新規チャットのGeminiテキストモデル専用です。履歴、検索、URLs、Maps、Python、Gems、SysPrompt、PromptCache、Coding Mode、引用・編集は利用できません。</li>
+                    <li>回答完了後に画像をサーバーへアップロードして同じ履歴へDB保存するため、後処理に失敗すると回答が履歴へ残りません。</li>
+                    <li>新規・既存チャットのGeminiテキストモデル専用です。選択した会話分岐の履歴を送り、過去画像は新しいものから最大4枚・合計12MBまで再送します。</li>
+                    <li>検索、URLs、Maps、Python、Gems、SysPrompt、PromptCache、Coding Mode、引用・編集は利用できません。</li>
                     <li>画像はローカルに一時保持され、Geminiへ直接送信されます。完了まではサイトのサーバーに保存されません。</li>
                 </ul>
             </div>
-            <label class="block text-xs text-gray-300 mb-1" for="browser-fast-mode-api-key">高速モード用 Gemini APIキー</label>
-            <input type="password" id="browser-fast-mode-api-key" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-white" placeholder="このタブ内だけに保持" autocomplete="off" spellcheck="false">
+            <div class="rounded border border-gray-600 bg-gray-900/70 px-3 py-2 text-xs text-gray-300">
+                <div class="font-bold text-gray-200">使用するキー</div>
+                <div id="browser-fast-mode-key-description" class="mt-1">選択中モデルのモデル別キー → 共通Geminiキーの順に、サーバーから自動取得します。</div>
+                <div class="mt-1 text-amber-300">共有管理者キー・環境変数キー・Vertex AI認証情報はブラウザへ渡しません。</div>
+            </div>
             <label id="browser-fast-mode-ignore-row" class="flex items-center gap-2 mt-4 text-xs text-gray-300 cursor-pointer"><input type="checkbox" id="browser-fast-mode-ignore-warning" class="accent-amber-400"><span>今後この警告を表示しない（このブラウザ）</span></label>
             <div class="flex gap-2 mt-5">
                 <button id="browser-fast-mode-enable-btn" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded font-bold btn-hover"><i class="fas fa-bolt mr-1"></i>理解して有効化</button>

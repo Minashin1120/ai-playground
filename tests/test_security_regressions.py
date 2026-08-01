@@ -2,6 +2,7 @@ import base64
 import glob
 import hashlib
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -141,7 +142,7 @@ class SecurityRegressionTests(unittest.TestCase):
             self.assertEqual(target.extract_reasoning_text(messages[1].thought_data), "private reasoning")
             self.assertEqual(messages[1].parent_id, messages[0].id)
 
-    def test_browser_fast_mode_rejects_unsupported_or_existing_chat_requests(self):
+    def test_browser_fast_mode_rejects_unsupported_or_unknown_chat_requests(self):
         client = self.authenticated_client()
         headers = {"X-CSRF-Token": "csrf-test-token"}
         base = {
@@ -152,7 +153,7 @@ class SecurityRegressionTests(unittest.TestCase):
         unsupported = client.post(
             "/api/browser_fast_mode/save", json=base, headers=headers, base_url="https://localhost"
         )
-        existing = client.post(
+        unknown = client.post(
             "/api/browser_fast_mode/save",
             json={**base, "model": "gemini-2.5-flash", "thread_id": "existing"},
             headers=headers,
@@ -160,10 +161,133 @@ class SecurityRegressionTests(unittest.TestCase):
         )
 
         self.assertEqual(unsupported.status_code, 400)
-        self.assertEqual(existing.status_code, 400)
+        self.assertEqual(unknown.status_code, 403)
         with target.app.app_context():
             self.assertEqual(target.Thread.query.count(), 0)
             self.assertEqual(target.Message.query.count(), 0)
+
+    def test_browser_fast_mode_uses_selected_branch_and_appends_to_existing_chat(self):
+        with target.app.app_context():
+            thread = target.Thread(user_id=self.user_id, public_id="fast-existing-thread", title="Existing")
+            target.db.session.add(thread)
+            target.db.session.flush()
+            first_user = target.Message(thread_id=thread.id, role="user", content="first prompt", model="gemini-2.5-flash")
+            target.db.session.add(first_user)
+            target.db.session.flush()
+            first_assistant = target.Message(
+                thread_id=thread.id,
+                role="assistant",
+                content="first answer",
+                model="gemini-2.5-flash",
+                parent_id=first_user.id,
+            )
+            target.db.session.add(first_assistant)
+            target.db.session.commit()
+            parent_id = first_assistant.id
+
+        client = self.authenticated_client()
+        headers = {"X-CSRF-Token": "csrf-test-token"}
+        signature = base64.b64encode(b"gemini-thought-signature").decode("ascii")
+        response = client.post(
+            "/api/browser_fast_mode/save",
+            json={
+                "message": "follow-up prompt",
+                "assistant_content": "follow-up answer",
+                "model": "gemini-2.5-flash",
+                "thread_id": "fast-existing-thread",
+                "parent_id": parent_id,
+                "thought_signatures": [signature],
+            },
+            headers=headers,
+            base_url="https://localhost",
+        )
+
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertFalse(response.get_json()["created_thread"])
+        with target.app.app_context():
+            self.assertEqual(target.Thread.query.count(), 1)
+            messages = target.Message.query.order_by(target.Message.id.asc()).all()
+            self.assertEqual(len(messages), 4)
+            self.assertEqual(messages[2].parent_id, parent_id)
+            self.assertEqual(messages[3].parent_id, messages[2].id)
+            self.assertEqual(json.loads(messages[3].thought_signature), [signature])
+
+    def test_browser_fast_mode_bootstrap_returns_user_model_key_and_branch_history(self):
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.gemini_api_key = target.encrypt_val("common-user-gemini-key")
+            target._save_user_model_api_key_map(user, {"gemini-2.5-flash": "model-specific-gemini-key"})
+            thread = target.Thread(user_id=self.user_id, public_id="fast-bootstrap-thread")
+            target.db.session.add(thread)
+            target.db.session.flush()
+            first_user = target.Message(thread_id=thread.id, role="user", content="history prompt", model="gemini-2.5-flash")
+            target.db.session.add(first_user)
+            target.db.session.flush()
+            first_assistant = target.Message(
+                thread_id=thread.id,
+                role="assistant",
+                content="history answer",
+                model="gemini-2.5-flash",
+                parent_id=first_user.id,
+            )
+            target.db.session.add(first_assistant)
+            target.db.session.commit()
+            parent_id = first_assistant.id
+
+        client = self.authenticated_client()
+        response = client.post(
+            "/api/browser_fast_mode/bootstrap",
+            json={
+                "model": "gemini-2.5-flash",
+                "thread_id": "fast-bootstrap-thread",
+                "parent_id": parent_id,
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        payload = response.get_json()
+        self.assertEqual(payload["api_key"], "model-specific-gemini-key")
+        self.assertEqual(payload["key_source"], "model_specific")
+        self.assertEqual([item["role"] for item in payload["history"]], ["user", "model"])
+        self.assertEqual([item["text"] for item in payload["history"]], ["history prompt", "history answer"])
+        self.assertIn("no-store", response.headers.get("Cache-Control", ""))
+
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            target._save_user_model_api_key_map(user, {})
+            target.db.session.commit()
+        common_response = client.post(
+            "/api/browser_fast_mode/bootstrap",
+            json={"model": "gemini-2.5-flash"},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(common_response.status_code, 200)
+        self.assertEqual(common_response.get_json()["api_key"], "common-user-gemini-key")
+        self.assertEqual(common_response.get_json()["key_source"], "gemini_common")
+
+    def test_browser_fast_mode_never_exposes_admin_environment_key(self):
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.is_admin = True
+            user.admin_api_key_mode = "env_fallback"
+            user.gemini_api_key = None
+            target.db.session.commit()
+
+        client = self.authenticated_client()
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "shared-admin-secret"}):
+            response = client.post(
+                "/api/browser_fast_mode/bootstrap",
+                json={"model": "gemini-2.5-flash"},
+                headers={"X-CSRF-Token": "csrf-test-token"},
+                base_url="https://localhost",
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["code"], "user_api_key_missing")
+        self.assertNotIn("api_key", response.get_json())
 
     def test_browser_fast_mode_rolls_back_if_atomic_save_fails(self):
         client = self.authenticated_client()

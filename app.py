@@ -186,6 +186,8 @@ _HISTORY_IMAGE_MAX_ITEMS = max(0, _env_int("HISTORY_IMAGE_MAX_ITEMS", 0))
 _HISTORY_IMAGE_MAX_BYTES = max(0, _env_int("HISTORY_IMAGE_MAX_MB", 0)) * 1024 * 1024
 _LOW_LATENCY_IMAGE_MAX_ITEMS = max(1, _env_int("LOW_LATENCY_IMAGE_MAX_ITEMS", 4))
 _LOW_LATENCY_IMAGE_MAX_BYTES = max(1, _env_int("LOW_LATENCY_IMAGE_MAX_MB", 12)) * 1024 * 1024
+BROWSER_FAST_HISTORY_IMAGE_MAX_ITEMS = 4
+BROWSER_FAST_HISTORY_IMAGE_MAX_BYTES = 12 * 1024 * 1024
 _GEMINI_INLINE_IMAGE_MAX_BYTES = max(1, _env_int("GEMINI_INLINE_IMAGE_MAX_MB", 12)) * 1024 * 1024
 _THUMBNAIL_CACHE_MAX = max(0, _env_int("THUMBNAIL_CACHE_MAX_MB", 48)) * 1024 * 1024
 _THUMBNAIL_CACHE_ITEM_MAX = max(0, _env_int("THUMBNAIL_CACHE_ITEM_MAX_MB", 2)) * 1024 * 1024
@@ -717,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-02-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.674'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-02-003')
+app.config['SYSTEM_VERSION'] = 'V4.8.675'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -11324,6 +11326,133 @@ def logout():
 # API Routes
 # -----------------------------------------------------------
 
+def _is_browser_fast_mode_model(model_key):
+    model_l = str(model_key or '').strip().lower()
+    return (
+        model_key in ALL_VALID_MODEL_IDS
+        and model_l.startswith('gemini-')
+        and not any(marker in model_l for marker in ('image', 'native-audio', 'tts', 'live'))
+    )
+
+def _get_browser_fast_mode_user_key(user, model_key):
+    """Return only a key owned by this user; never disclose admin/env fallback keys."""
+    model_key_value = _get_model_specific_api_key(user, model_key)
+    if model_key_value:
+        return model_key_value, 'model_specific'
+    common_value = decrypt_val(getattr(user, 'gemini_api_key', None)) if user else None
+    if common_value and str(common_value).strip():
+        return str(common_value).strip(), 'gemini_common'
+    return None, None
+
+def _browser_fast_mode_history(thread, parent_message):
+    if not thread or not parent_message:
+        return []
+    all_messages = Message.query.filter_by(thread_id=thread.id).all()
+    message_map = {message.id: message for message in all_messages}
+    current = message_map.get(parent_message.id)
+    history_rev = []
+    total_chars = 0
+    selected_image_count = 0
+    selected_image_bytes = 0
+    while current and len(history_rev) < 200:
+        raw_content = current.content or ''
+        content = decrypt_val(raw_content) if current.is_encrypted else raw_content
+        content = str(content or '')
+        if total_chars + len(content) > 1_000_000:
+            break
+        images = []
+        if current.image_url:
+            for raw_ref in _iter_message_attachment_refs(current.image_url):
+                if selected_image_count >= BROWSER_FAST_HISTORY_IMAGE_MAX_ITEMS:
+                    break
+                normalized = _normalize_attachment_list([raw_ref], thread.user_id)
+                if len(normalized) != 1:
+                    continue
+                ref = normalized[0]
+                if os.path.splitext(ref)[1].lower() not in _IMAGE_THUMB_EXTS:
+                    continue
+                info = _get_file_disk_info(ref)
+                size = int(info.get('size') or 0) if info.get('exists') else 0
+                if size <= 0 or selected_image_bytes + size > BROWSER_FAST_HISTORY_IMAGE_MAX_BYTES:
+                    continue
+                images.append({
+                    'path': ref,
+                    'mime_type': _normalize_media_mime(ref, mimetypes.guess_type(ref)[0] or 'application/octet-stream'),
+                })
+                selected_image_count += 1
+                selected_image_bytes += size
+        signatures = []
+        if current.role == 'assistant' and current.thought_signature:
+            try:
+                parsed_signatures = json.loads(current.thought_signature)
+                if isinstance(parsed_signatures, list):
+                    signatures = [str(value) for value in parsed_signatures if value][:16]
+                elif isinstance(parsed_signatures, str) and parsed_signatures:
+                    signatures = [parsed_signatures]
+            except Exception:
+                signatures = [str(current.thought_signature)]
+        if current.role in ('user', 'assistant') and (content or images or signatures):
+            history_rev.append({
+                'role': 'model' if current.role == 'assistant' else 'user',
+                'text': content,
+                'images': images,
+                'thought_signatures': signatures,
+            })
+            total_chars += len(content)
+        current = message_map.get(current.parent_id) if current.parent_id else None
+    return list(reversed(history_rev))
+
+@app.route('/api/browser_fast_mode/bootstrap', methods=['POST'])
+@login_required
+def bootstrap_browser_fast_mode():
+    """Return the selected user's own Gemini key and the selected branch context."""
+    if not rate_limit(f"rl:browser_fast_bootstrap:user:{current_user.id}", 60, 60):
+        return jsonify({'error': 'rate_limit'}), 429
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Invalid request'}), 400
+    model_key = str(data.get('model') or '').strip()
+    if not _is_browser_fast_mode_model(model_key):
+        return jsonify({'error': 'Browser fast mode supports Gemini text models only'}), 400
+    api_key, key_source = _get_browser_fast_mode_user_key(current_user, model_key)
+    if not api_key:
+        return jsonify({
+            'error': '選択中モデルのモデル別APIキーまたは共通Gemini APIキーを設定してください',
+            'code': 'user_api_key_missing',
+        }), 400
+
+    thread = None
+    parent_message = None
+    thread_ref = data.get('thread_id')
+    if thread_ref:
+        thread = resolve_thread_for_user(thread_ref, current_user.id)
+        if not thread:
+            return jsonify({'error': 'Invalid thread'}), 403
+        parent_raw = data.get('parent_id')
+        if parent_raw is not None and str(parent_raw).strip():
+            try:
+                parent_id = int(parent_raw)
+            except (TypeError, ValueError):
+                return jsonify({'error': 'Invalid parent message'}), 400
+            parent_message = Message.query.filter_by(id=parent_id, thread_id=thread.id).first()
+            if not parent_message:
+                return jsonify({'error': 'Invalid parent message'}), 400
+        else:
+            parent_message = Message.query.filter_by(thread_id=thread.id).order_by(Message.id.desc()).first()
+
+    response = jsonify({
+        'status': 'ok',
+        'api_key': api_key,
+        'key_source': key_source,
+        'model': model_key,
+        'thread_id': thread.public_id if thread else None,
+        'parent_id': parent_message.id if parent_message else None,
+        'history': _browser_fast_mode_history(thread, parent_message),
+    })
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+    response.headers['Pragma'] = 'no-cache'
+    return response
+
 @app.route('/api/browser_fast_mode/save', methods=['POST'])
 @login_required
 def save_browser_fast_mode_chat():
@@ -11338,21 +11467,32 @@ def save_browser_fast_mode_chat():
     assistant_text = data.get('assistant_content')
     thought_text = data.get('thought_content') or ''
     model_key = str(data.get('model') or '').strip()
-    model_l = model_key.lower()
     if not isinstance(user_text, str) or not user_text.strip() or len(user_text) > 500_000:
         return jsonify({'error': 'Invalid or oversized message'}), 400
     if not isinstance(assistant_text, str) or not assistant_text.strip() or len(assistant_text) > 2_000_000:
         return jsonify({'error': 'Invalid or oversized assistant content'}), 400
     if not isinstance(thought_text, str) or len(thought_text) > 2_000_000:
         return jsonify({'error': 'Invalid or oversized thought content'}), 400
-    if (
-        model_key not in ALL_VALID_MODEL_IDS
-        or not model_l.startswith('gemini-')
-        or any(marker in model_l for marker in ('image', 'native-audio', 'tts', 'live'))
-    ):
+    if not _is_browser_fast_mode_model(model_key):
         return jsonify({'error': 'Browser fast mode supports Gemini text models only'}), 400
-    if data.get('thread_id'):
-        return jsonify({'error': 'Browser fast mode supports new chats only'}), 400
+
+    raw_signatures = data.get('thought_signatures') or []
+    if not isinstance(raw_signatures, list) or len(raw_signatures) > 16:
+        return jsonify({'error': 'Invalid thought signatures'}), 400
+    thought_signatures = []
+    signature_bytes = 0
+    for raw_signature in raw_signatures:
+        signature = str(raw_signature or '').strip()
+        if not signature or len(signature) > 100_000:
+            return jsonify({'error': 'Invalid thought signature'}), 400
+        try:
+            decoded_signature = base64.b64decode(signature, validate=True)
+        except Exception:
+            return jsonify({'error': 'Invalid thought signature'}), 400
+        signature_bytes += len(decoded_signature)
+        if signature_bytes > 256_000:
+            return jsonify({'error': 'Thought signatures are too large'}), 400
+        thought_signatures.append(signature)
 
     raw_refs = data.get('image_urls') or []
     if not isinstance(raw_refs, list):
@@ -11384,18 +11524,39 @@ def save_browser_fast_mode_chat():
     user_tokens = count_tokens(user_text, model_key)
     thought_tokens = count_tokens(thought_text, model_key) if thought_text else 0
     assistant_tokens = count_tokens_for_display(assistant_text, model_key, thought_text)
+    thread_ref = data.get('thread_id')
+    parent_raw = data.get('parent_id')
+    if not thread_ref and parent_raw is not None and str(parent_raw).strip():
+        return jsonify({'error': 'A parent message requires an existing thread'}), 400
     try:
-        thread = Thread(
-            user_id=current_user.id,
-            public_id=generate_thread_public_id(),
-            title=_normalize_thread_title(user_text.strip()[:160] or 'New Chat'),
-            is_temporary=bool(data.get('temporary_chat')),
-            include_global_instruction=False,
-            last_model=model_key,
-            updated_at=datetime.utcnow(),
-        )
-        db.session.add(thread)
-        db.session.flush()
+        created_thread = not bool(thread_ref)
+        if thread_ref:
+            thread = resolve_thread_for_user(thread_ref, current_user.id)
+            if not thread:
+                return jsonify({'error': 'Invalid thread'}), 403
+        else:
+            thread = Thread(
+                user_id=current_user.id,
+                public_id=generate_thread_public_id(),
+                title=_normalize_thread_title(user_text.strip()[:160] or 'New Chat'),
+                is_temporary=bool(data.get('temporary_chat')),
+                include_global_instruction=False,
+                last_model=model_key,
+                updated_at=datetime.utcnow(),
+            )
+            db.session.add(thread)
+            db.session.flush()
+        parent_message = None
+        if parent_raw is not None and str(parent_raw).strip():
+            try:
+                parent_id = int(parent_raw)
+            except (TypeError, ValueError):
+                return jsonify({'error': 'Invalid parent message'}), 400
+            parent_message = Message.query.filter_by(id=parent_id, thread_id=thread.id).first()
+            if not parent_message:
+                return jsonify({'error': 'Invalid parent message'}), 400
+        elif not created_thread:
+            parent_message = Message.query.filter_by(thread_id=thread.id).order_by(Message.id.desc()).first()
         user_msg = Message(
             thread_id=thread.id,
             role='user',
@@ -11403,6 +11564,7 @@ def save_browser_fast_mode_chat():
             model=model_key,
             image_url=json.dumps(refs) if refs else None,
             is_encrypted=is_enc,
+            parent_id=parent_message.id if parent_message else None,
             tokens_in=user_tokens,
             tokens=sum_token_counts(user_tokens, None),
         )
@@ -11414,6 +11576,7 @@ def save_browser_fast_mode_chat():
             content=assistant_content,
             model=model_key,
             thought_data=thought_payload,
+            thought_signature=json.dumps(thought_signatures) if thought_signatures else None,
             is_encrypted=is_enc,
             parent_id=user_msg.id,
             tokens_out=assistant_tokens,
@@ -11421,6 +11584,8 @@ def save_browser_fast_mode_chat():
             tokens_thought=thought_tokens,
         )
         db.session.add(assistant_msg)
+        thread.updated_at = datetime.utcnow()
+        thread.last_model = model_key
         current_user.last_model = model_key
         safe_db_commit()
         if thread.is_temporary:
@@ -11438,6 +11603,7 @@ def save_browser_fast_mode_chat():
             'thread_id': thread.public_id,
             'user_message_id': user_msg.id,
             'assistant_message_id': assistant_msg.id,
+            'created_thread': created_thread,
         })
     except Exception as exc:
         db.session.rollback()

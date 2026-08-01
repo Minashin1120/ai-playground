@@ -2393,13 +2393,14 @@
         const markerAppliedUploads = new Set();
         const attachmentSourceByPath = new Map();
         const attachmentNameByPath = new Map();
-        const BROWSER_FAST_KEY_STORAGE = 'browser_fast_mode_gemini_key';
         const BROWSER_FAST_IGNORE_WARNING_STORAGE = 'browser_fast_mode_ignore_warning';
         const BROWSER_FAST_MAX_IMAGES = 4;
         const BROWSER_FAST_MAX_BYTES = 12 * 1024 * 1024;
         const browserFastLocalFiles = new Map();
         let browserFastModeEnabled = false;
         let browserFastApiKey = '';
+        let browserFastApiKeyModel = '';
+        let browserFastBootstrap = null;
         let browserFastPreviousOptions = null;
         let cameraCaptureStream = null;
         let cameraCaptureFacingMode = 'environment';
@@ -6060,7 +6061,8 @@
             }
             if (!browserFastModeEnabled && opts.clearKey !== false) {
                 browserFastApiKey = '';
-                try { sessionStorage.removeItem(BROWSER_FAST_KEY_STORAGE); } catch (e) {}
+                browserFastApiKeyModel = '';
+                browserFastBootstrap = null;
             }
             if (browserFastModeEnabled) applyBrowserFastModeRestrictions();
             else if (opts.restoreOptions !== false) restoreBrowserFastModeOptions();
@@ -6071,22 +6073,45 @@
             const ignoreRow = get('browser-fast-mode-ignore-row');
             if (warning) warning.classList.toggle('hidden', !showWarning);
             if (ignoreRow) ignoreRow.classList.toggle('hidden', !showWarning);
-            const keyInput = get('browser-fast-mode-api-key');
-            if (keyInput) keyInput.value = browserFastApiKey || '';
+            const description = get('browser-fast-mode-key-description');
+            const model = String(get('model-select') ? get('model-select').value : 'Gemini');
+            if (description) description.textContent = `${model} のモデル別キー → 共通Geminiキーの順に、サーバーから自動取得します。`;
             showModal('browser-fast-mode-modal');
-            setTimeout(() => { if (keyInput) keyInput.focus(); }, 50);
         }
 
-        function requestBrowserFastModeEnable() {
-            const model = String(get('model-select') ? get('model-select').value : '').toLowerCase();
-            if (currentThreadId) {
-                showToast('高速モードは新規チャットでのみ有効化できます', 'warning', true);
-                setBrowserFastModeEnabled(false, { clearKey: false });
-                return;
+        function browserFastBootstrapMatches(data, model, threadId, parentId) {
+            if (!data || data.model !== model) return false;
+            if (String(data.thread_id || '') !== String(threadId || '')) return false;
+            return String(data.parent_id || '') === String(parentId || '');
+        }
+
+        async function fetchBrowserFastBootstrap(force = false) {
+            const model = String(get('model-select') ? get('model-select').value : '').trim();
+            const threadId = currentThreadId || null;
+            const parentId = threadId ? (currentParentId || null) : null;
+            if (!force && browserFastBootstrapMatches(browserFastBootstrap, model, threadId, parentId) && browserFastApiKey) {
+                return browserFastBootstrap;
             }
+            const response = await apiFetch('/api/browser_fast_mode/bootstrap', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model, thread_id: threadId, parent_id: parentId }),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.api_key) {
+                throw new Error(data.error || 'サーバー保存済みのGemini APIキーを取得できませんでした');
+            }
+            browserFastApiKey = String(data.api_key);
+            browserFastApiKeyModel = model;
+            browserFastBootstrap = data;
+            return data;
+        }
+
+        async function requestBrowserFastModeEnable() {
+            const model = String(get('model-select') ? get('model-select').value : '').toLowerCase();
             if (!model.startsWith('gemini-') || /(image|native-audio|tts|live)/.test(model)) {
                 showToast('高速モードはGeminiテキストモデル専用です', 'warning', true);
-                setBrowserFastModeEnabled(false, { clearKey: false });
+                setBrowserFastModeEnabled(false);
                 return;
             }
             if (currentImageUrls.length || uploadProgressState.active > 0 || browserFastLocalFiles.size) {
@@ -6094,13 +6119,18 @@
                 setBrowserFastModeEnabled(false);
                 return;
             }
-            try { browserFastApiKey = sessionStorage.getItem(BROWSER_FAST_KEY_STORAGE) || ''; } catch (e) {}
             const warningIgnored = (() => {
                 try { return localStorage.getItem(BROWSER_FAST_IGNORE_WARNING_STORAGE) === '1'; } catch (e) { return false; }
             })();
-            if (warningIgnored && browserFastApiKey) {
-                setBrowserFastModeEnabled(true, { clearKey: false });
-                showToast('高速モードを有効にしました', 'warning', false);
+            if (warningIgnored) {
+                try {
+                    await fetchBrowserFastBootstrap(true);
+                    setBrowserFastModeEnabled(true, { clearKey: false });
+                    showToast('高速モードを有効にしました', 'warning', false);
+                } catch (error) {
+                    setBrowserFastModeEnabled(false);
+                    showToast(error.message || '高速モードを有効化できませんでした', 'error', true);
+                }
                 return;
             }
             openBrowserFastModeModal(!warningIgnored);
@@ -6121,6 +6151,7 @@
             applyLiquidGlassMode(INITIAL_LIQUID_GLASS_ENABLED);
             updateCurrentChatHeaderUi();
             ensureCurrentChatHeaderTicker();
+            try { sessionStorage.removeItem('browser_fast_mode_gemini_key'); } catch (e) {}
             const fastToggle = get('enable-browser-fast-mode');
             if (fastToggle) {
                 fastToggle.checked = false;
@@ -6134,8 +6165,11 @@
                 setTimeout(() => {
                     if (!browserFastModeEnabled) return;
                     const model = String(fastModelSelect.value || '').toLowerCase();
+                    browserFastApiKey = '';
+                    browserFastApiKeyModel = '';
+                    browserFastBootstrap = null;
                     if (!model.startsWith('gemini-') || /(image|native-audio|tts|live)/.test(model)) {
-                        setBrowserFastModeEnabled(false, { clearKey: false });
+                        setBrowserFastModeEnabled(false);
                         fastModelSelect.dispatchEvent(new Event('change'));
                         showToast('対象外モデルを選択したため高速モードを解除しました', 'warning', true);
                     } else {
@@ -6144,27 +6178,30 @@
                 }, 0);
             });
             const fastEnableBtn = get('browser-fast-mode-enable-btn');
-            if (fastEnableBtn) fastEnableBtn.onclick = () => {
-                const input = get('browser-fast-mode-api-key');
-                const key = String(input ? input.value : '').trim();
-                if (key.length < 20 || key.length > 512) {
-                    showToast('有効なGemini APIキーを入力してください', 'error', true);
-                    return;
+            if (fastEnableBtn) fastEnableBtn.onclick = async () => {
+                const originalHtml = fastEnableBtn.innerHTML;
+                fastEnableBtn.disabled = true;
+                fastEnableBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>保存済みキーを取得中...';
+                try {
+                    await fetchBrowserFastBootstrap(true);
+                    const ignore = get('browser-fast-mode-ignore-warning');
+                    if (ignore && ignore.checked) {
+                        try { localStorage.setItem(BROWSER_FAST_IGNORE_WARNING_STORAGE, '1'); } catch (e) {}
+                    }
+                    hideModal('browser-fast-mode-modal');
+                    setBrowserFastModeEnabled(true, { clearKey: false });
+                    showToast('高速モードを有効にしました。生成中は再読み込みしないでください。', 'warning', true);
+                } catch (error) {
+                    showToast(error.message || '保存済みGemini APIキーを取得できませんでした', 'error', true);
+                } finally {
+                    fastEnableBtn.disabled = false;
+                    fastEnableBtn.innerHTML = originalHtml;
                 }
-                browserFastApiKey = key;
-                try { sessionStorage.setItem(BROWSER_FAST_KEY_STORAGE, key); } catch (e) {}
-                const ignore = get('browser-fast-mode-ignore-warning');
-                if (ignore && ignore.checked) {
-                    try { localStorage.setItem(BROWSER_FAST_IGNORE_WARNING_STORAGE, '1'); } catch (e) {}
-                }
-                hideModal('browser-fast-mode-modal');
-                setBrowserFastModeEnabled(true, { clearKey: false });
-                showToast('高速モードを有効にしました。生成中は再読み込みしないでください。', 'warning', true);
             };
             const fastCancelBtn = get('browser-fast-mode-cancel-btn');
             if (fastCancelBtn) fastCancelBtn.onclick = () => {
                 hideModal('browser-fast-mode-modal');
-                setBrowserFastModeEnabled(false, { clearKey: false });
+                setBrowserFastModeEnabled(false);
             };
             const bar = document.getElementById('alpha-bar'); setTimeout(() => { if(bar) { const target = document.getElementById('version-display'); if(target) { const barRect = bar.getBoundingClientRect(); const targetRect = target.getBoundingClientRect(); const tx = targetRect.left + (targetRect.width/2) - (barRect.left + barRect.width/2); const ty = targetRect.top + (targetRect.height/2) - (barRect.top + barRect.height/2); bar.style.transform = `translate(${tx}px, ${ty}px) scale(0.1)`; bar.style.opacity = '0'; setTimeout(() => { target.classList.add('pulse-target'); setTimeout(() => target.classList.remove('pulse-target'), 2000); bar.remove(); }, 800); } else { bar.style.opacity = '0'; setTimeout(() => bar.remove(), 1000); } } }, 3000);
             function updateGptImageUi() {
@@ -13353,7 +13390,6 @@
         function browserFastModeIneligibility(rawText) {
             const model = String(get('model-select') ? get('model-select').value : '').toLowerCase();
             if (!rawText || !rawText.trim()) return 'プロンプトを入力してください';
-            if (currentThreadId) return '既存チャットでは利用できません';
             if (!model.startsWith('gemini-') || /(image|native-audio|tts|live)/.test(model)) return 'Geminiテキストモデル専用です';
             if (currentImageUrls.length) return 'サーバー保存済み添付があるため通常モードが必要です';
             if (activeGem) return 'Gems利用時は通常モードが必要です';
@@ -13368,7 +13404,6 @@
             const total = entries.reduce((sum, entry) => sum + Number(entry.file && entry.file.size || 0), 0);
             if (total > BROWSER_FAST_MAX_BYTES) return '画像合計は12MBまでです';
             if (entries.some((entry) => !entry.file || !String(entry.file.type || '').startsWith('image/'))) return '画像以外は利用できません';
-            if (!browserFastApiKey) return '高速モード用Gemini APIキーがありません';
             return '';
         }
 
@@ -13384,6 +13419,44 @@
                 reader.onerror = () => reject(reader.error || new Error('画像の読み込みに失敗しました'));
                 reader.readAsDataURL(file);
             });
+        }
+
+        async function buildBrowserFastHistoryContents(history) {
+            const contents = [];
+            let omittedImages = 0;
+            for (const item of (Array.isArray(history) ? history : [])) {
+                if (!item || !['user', 'model'].includes(item.role)) continue;
+                const parts = [];
+                if (item.role === 'model' && Array.isArray(item.thought_signatures)) {
+                    item.thought_signatures.forEach((signature) => {
+                        if (signature) parts.push({ thoughtSignature: String(signature) });
+                    });
+                }
+                if (item.text) parts.push({ text: String(item.text) });
+                for (const image of (Array.isArray(item.images) ? item.images : [])) {
+                    try {
+                        const imageResponse = await fetch(buildFileUrl(image.path), {
+                            credentials: 'same-origin',
+                            cache: 'no-store',
+                        });
+                        if (!imageResponse.ok) throw new Error(`HTTP ${imageResponse.status}`);
+                        const blob = await imageResponse.blob();
+                        parts.push({
+                            inlineData: {
+                                mimeType: image.mime_type || blob.type || 'application/octet-stream',
+                                data: await fileToBase64Payload(blob),
+                            },
+                        });
+                    } catch (error) {
+                        omittedImages++;
+                    }
+                }
+                if (parts.length) contents.push({ role: item.role, parts });
+            }
+            if (omittedImages) {
+                showToast(`履歴画像${omittedImages}件を再取得できなかったため、テキスト履歴だけで続行します`, 'warning', true);
+            }
+            return contents;
         }
 
         async function uploadBrowserFastLocalFiles() {
@@ -13414,6 +13487,10 @@
 
         async function sendBrowserFastMessage(rawText) {
             const model = String(get('model-select').value || '').trim();
+            const bootstrap = await fetchBrowserFastBootstrap(false);
+            if (!browserFastApiKey || browserFastApiKeyModel !== model) {
+                throw new Error('選択中モデルの保存済みGemini APIキーを取得できませんでした');
+            }
             const localEntries = Array.from(browserFastLocalFiles.values());
             const userParts = [];
             for (const entry of localEntries) {
@@ -13424,7 +13501,10 @@
             const thinkingConfig = browserFastThinkingConfig(model.toLowerCase());
             if (thinkingConfig) generationConfig.thinkingConfig = thinkingConfig;
             const payload = {
-                contents: [{ role: 'user', parts: userParts }],
+                contents: [
+                    ...(await buildBrowserFastHistoryContents(bootstrap.history)),
+                    { role: 'user', parts: userParts },
+                ],
                 generationConfig,
             };
 
@@ -13447,6 +13527,7 @@
             abortController = new AbortController();
             let content = '';
             let thought = '';
+            const thoughtSignatures = [];
             let contentEl = null;
             let thoughtEl = null;
             let started = false;
@@ -13476,6 +13557,9 @@
                     candidates.forEach((candidate) => {
                         const parts = candidate && candidate.content && Array.isArray(candidate.content.parts) ? candidate.content.parts : [];
                         parts.forEach((part) => {
+                            if (part && typeof part.thoughtSignature === 'string' && !thoughtSignatures.includes(part.thoughtSignature)) {
+                                thoughtSignatures.push(part.thoughtSignature);
+                            }
                             const text = typeof part.text === 'string' ? part.text : '';
                             if (!text) return;
                             if (part.thought === true) thought += text;
@@ -13534,15 +13618,21 @@
                         model,
                         image_urls: refs,
                         temporary_chat: temporaryChatEnabled,
+                        thread_id: currentThreadId || null,
+                        parent_id: bootstrap.parent_id || null,
+                        thought_signatures: thoughtSignatures,
                     }),
                 });
                 const saved = await saveResponse.json().catch(() => ({}));
                 if (!saveResponse.ok || !saved.thread_id) throw new Error(saved.error || 'DB保存に失敗しました');
+                const createdThread = !currentThreadId;
                 currentThreadId = String(saved.thread_id);
-                history.pushState({}, '', `/c/${currentThreadId}`);
+                currentParentId = saved.assistant_message_id || null;
+                currentLeafId = saved.assistant_message_id || null;
                 resetUploadState();
-                setBrowserFastModeEnabled(false, { clearKey: false });
-                await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
+                browserFastBootstrap = null;
+                await loadMessages(currentThreadId, { preserveDraft: true, silent: true, skipHistory: !createdThread });
+                applyBrowserFastModeRestrictions();
                 loadThreads(false);
                 showToast('高速モードの回答を履歴へ保存しました', 'success', false);
             } catch (error) {
@@ -13628,7 +13718,11 @@
             if (browserFastModeEnabled) {
                 const reason = browserFastModeIneligibility(rawText);
                 if (!reason) {
-                    await sendBrowserFastMessage(rawText);
+                    try {
+                        await sendBrowserFastMessage(rawText);
+                    } catch (error) {
+                        showToast(`高速モード: ${error.message || '開始準備に失敗しました'}`, 'error', true);
+                    }
                     return;
                 }
                 showToast(`高速モード条件外: ${reason}。通常モードへ切り替えます。`, 'warning', true);
@@ -13636,7 +13730,7 @@
                     try { await uploadBrowserFastLocalFiles(); }
                     catch (error) { showToast(error.message || '通常モード用アップロードに失敗しました', 'error', true); return; }
                 }
-                setBrowserFastModeEnabled(false, { clearKey: false });
+                setBrowserFastModeEnabled(false);
                 return sendMessage();
             }
 

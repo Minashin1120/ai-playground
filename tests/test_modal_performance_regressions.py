@@ -101,18 +101,19 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("opacity: 0", source)
         self.assertIn("pointer-events: none", source)
 
-    def test_standard_touch_home_avoids_backdrop_raster_during_controls(self):
+    def test_standard_home_avoids_backdrop_raster_on_every_device(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")
-        touch_css = source[source.index("V4.8.678 — standard-mode touch interaction paint budget") :]
+        standard_css = source[source.index("V4.8.680 — standard-mode interaction paint budget") :]
 
-        self.assertIn("@media (max-width: 768px) and (hover: none) and (pointer: coarse)", touch_css)
-        self.assertIn("body:not(.liquid-glass-mode) #sidebar", touch_css)
-        self.assertIn("body:not(.liquid-glass-mode) .composer-dock", touch_css)
-        self.assertIn("body:not(.liquid-glass-mode) .overlay", touch_css)
-        self.assertGreaterEqual(touch_css.count("backdrop-filter: none !important"), 6)
+        self.assertNotIn("pointer: coarse", standard_css)
+        self.assertNotIn("hover: none", standard_css)
+        self.assertIn("body:not(.liquid-glass-mode) #sidebar", standard_css)
+        self.assertIn("body:not(.liquid-glass-mode) .composer-dock", standard_css)
+        self.assertIn("body:not(.liquid-glass-mode) .overlay", standard_css)
+        self.assertGreaterEqual(standard_css.count("backdrop-filter: none !important"), 6)
 
-        self.assertNotIn("promptDetailsTouchEnter", touch_css)
-        self.assertNotIn("#prompt-details-controls.collapsed", touch_css)
+        self.assertNotIn("promptDetailsTouchEnter", standard_css)
+        self.assertNotIn("#prompt-details-controls.collapsed", standard_css)
 
         original_details = source[source.index("#prompt-details-controls {") :]
         original_details = original_details[: original_details.index("/* Shimmer sweep animation")]

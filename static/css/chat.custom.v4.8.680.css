@@ -3107,53 +3107,51 @@ body.liquid-glass-mode .modal-overlay.modal-close .modal-panel {
 }
 
 /*
- * V4.8.678 — standard-mode touch interaction paint budget.
+ * V4.8.680 — standard-mode interaction paint budget.
  *
- * The mobile drawer moved a viewport-sized backdrop surface while a blurred
- * overlay faded in, and the prompt dock/header continuously sampled another
- * large backdrop. Mobile Chromium had to repaint those layers during common
- * interactions even on an empty home screen.
+ * The sidebar can move a viewport-sized backdrop surface while a blurred
+ * overlay fades in, and the prompt dock/header continuously sample another
+ * large backdrop. Browsers must repaint those layers during common interactions
+ * even on an empty home screen.
  *
  * Keep the same controls and visual hierarchy, but use opaque standard-mode
- * materials on touch screens. Liquid Glass remains an explicit separate mode.
+ * materials on every device. Liquid Glass remains an explicit separate mode.
  */
-@media (max-width: 768px) and (hover: none) and (pointer: coarse) {
-    body:not(.liquid-glass-mode) #sidebar {
+body:not(.liquid-glass-mode) #sidebar {
         background: #0a1226 !important;
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
         box-shadow: 8px 0 24px rgba(0, 0, 0, 0.28);
-    }
-    body:not(.liquid-glass-mode) .main-chrome-header,
-    body:not(.liquid-glass-mode) header.bg-gray-800,
-    body:not(.liquid-glass-mode) .composer-dock,
-    body:not(.liquid-glass-mode) .bg-gray-800.border-t.border-gray-700 {
+}
+body:not(.liquid-glass-mode) .main-chrome-header,
+body:not(.liquid-glass-mode) header.bg-gray-800,
+body:not(.liquid-glass-mode) .composer-dock,
+body:not(.liquid-glass-mode) .bg-gray-800.border-t.border-gray-700 {
         background: #0a1226 !important;
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
-    }
-    body:not(.liquid-glass-mode) #prompt-input,
-    body:not(.liquid-glass-mode) #model-selector-btn,
-    body:not(.liquid-glass-mode) #mobile-new-chat-btn,
-    body:not(.liquid-glass-mode) #sidebar .bg-gray-700,
-    body:not(.liquid-glass-mode) #total-token-bar,
-    body:not(.liquid-glass-mode) #welcome-screen .welcome-btn {
+}
+body:not(.liquid-glass-mode) #prompt-input,
+body:not(.liquid-glass-mode) #model-selector-btn,
+body:not(.liquid-glass-mode) #mobile-new-chat-btn,
+body:not(.liquid-glass-mode) #sidebar .bg-gray-700,
+body:not(.liquid-glass-mode) #total-token-bar,
+body:not(.liquid-glass-mode) #welcome-screen .welcome-btn {
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
-    }
-    body:not(.liquid-glass-mode) #prompt-input {
+}
+body:not(.liquid-glass-mode) #prompt-input {
         background: #080f20;
-    }
-    body:not(.liquid-glass-mode) #model-selector-btn,
-    body:not(.liquid-glass-mode) #sidebar .bg-gray-700 {
+}
+body:not(.liquid-glass-mode) #model-selector-btn,
+body:not(.liquid-glass-mode) #sidebar .bg-gray-700 {
         background: #101a31 !important;
-    }
-    body:not(.liquid-glass-mode) #welcome-screen .welcome-btn {
+}
+body:not(.liquid-glass-mode) #welcome-screen .welcome-btn {
         background: #0d1730 !important;
-    }
-    body:not(.liquid-glass-mode) .overlay {
+}
+body:not(.liquid-glass-mode) .overlay {
         background: rgba(0, 0, 0, 0.62);
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
-    }
 }

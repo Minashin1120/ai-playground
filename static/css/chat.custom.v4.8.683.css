@@ -3156,3 +3156,52 @@ html.performance-blur-disabled body:not(.liquid-glass-mode) .overlay {
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
 }
+
+/*
+ * V4.8.683 — adaptive lite mode (second performance tier).
+ *
+ * Some devices (e.g. ~10+ year old machines) are still slow after the standard
+ * blur fallback above is applied. The interaction frame measurement therefore
+ * keeps running while the blur is disabled and, if frames are still dropped,
+ * adds this class. It strips every remaining compositor-heavy effect on the
+ * normal (non-Liquid-Glass) display: all backdrop filters, box/text shadows,
+ * transitions, animations and will-change layer promotions. Liquid Glass stays
+ * an explicit separate mode and is intentionally not touched.
+ */
+html.performance-lite-mode body:not(.liquid-glass-mode) *,
+html.performance-lite-mode body:not(.liquid-glass-mode) *::before,
+html.performance-lite-mode body:not(.liquid-glass-mode) *::after {
+        animation: none !important;
+        transition: none !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        filter: none !important;
+        will-change: auto !important;
+}
+html.performance-lite-mode body:not(.liquid-glass-mode) {
+        background-attachment: scroll !important;
+}
+html.performance-lite-mode body:not(.liquid-glass-mode) #sidebar {
+        background: #0a1226 !important;
+}
+html.performance-lite-mode body:not(.liquid-glass-mode) .main-chrome-header,
+html.performance-lite-mode body:not(.liquid-glass-mode) header.bg-gray-800,
+html.performance-lite-mode body:not(.liquid-glass-mode) .composer-dock,
+html.performance-lite-mode body:not(.liquid-glass-mode) .bg-gray-800.border-t.border-gray-700 {
+        background: #0a1226 !important;
+}
+html.performance-lite-mode body:not(.liquid-glass-mode) #prompt-input {
+        background: #080f20 !important;
+}
+html.performance-lite-mode body:not(.liquid-glass-mode) #model-selector-btn,
+html.performance-lite-mode body:not(.liquid-glass-mode) #sidebar .bg-gray-700 {
+        background: #101a31 !important;
+}
+html.performance-lite-mode body:not(.liquid-glass-mode) #welcome-screen .welcome-btn {
+        background: #0d1730 !important;
+}
+html.performance-lite-mode body:not(.liquid-glass-mode) .overlay {
+        background: rgba(0, 0, 0, 0.62);
+}

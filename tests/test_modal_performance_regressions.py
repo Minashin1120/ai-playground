@@ -123,7 +123,7 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         cookie_bootstrap = template[template.index("const detectedCookieName = 'adaptive_blur_disabled'") :]
         cookie_bootstrap = cookie_bootstrap[: cookie_bootstrap.index("</script>")]
         self.assertIn("document.documentElement.classList.add('performance-blur-disabled')", cookie_bootstrap)
-        self.assertIn("mode === 'disabled' || (mode === 'auto'", cookie_bootstrap)
+        self.assertIn("mode === 'disabled' || mode === 'lite' || (mode === 'auto'", cookie_bootstrap)
         self.assertLess(template.index("const detectedCookieName = 'adaptive_blur_disabled'"), template.index("chat.tailwind."))
 
         self.assertIn("const ADAPTIVE_BLUR_COOKIE = 'adaptive_blur_disabled'", script)
@@ -153,6 +153,44 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("transition: max-height 0.34s", original_details)
         self.assertIn("#prompt-details-controls.collapsed", original_details)
         self.assertIn("#prompt-details-controls.expanded", original_details)
+
+    def test_lite_mode_is_a_second_tier_after_the_blur_fallback(self):
+        source = _current_asset("css", "chat.custom.v4.8.*.css")
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        lite_css = source[source.index("V4.8.683 — adaptive lite mode") :]
+
+        self.assertIn("html.performance-lite-mode body:not(.liquid-glass-mode) *", lite_css)
+        self.assertIn("animation: none !important", lite_css)
+        self.assertIn("transition: none !important", lite_css)
+        self.assertIn("box-shadow: none !important", lite_css)
+        self.assertIn("text-shadow: none !important", lite_css)
+        self.assertIn("backdrop-filter: none !important", lite_css)
+        self.assertIn("will-change: auto !important", lite_css)
+        self.assertNotIn("pointer: coarse", lite_css)
+        self.assertNotIn("hover: none", lite_css)
+
+        self.assertIn("const ADAPTIVE_LITE_COOKIE = 'adaptive_lite_mode'", script)
+        self.assertIn("let adaptiveBlurLiteEnabled", script)
+        self.assertIn("const enableAdaptiveBlurLite = () => {", script)
+        adaptive_block = script[script.index("const ADAPTIVE_BLUR_COOKIE") : script.index("const externalScriptLoads")]
+        measure_block = adaptive_block[adaptive_block.index("const measureInteractionFrames") : adaptive_block.index("document.addEventListener('click'")]
+        # The blur fallback no longer stops the measurement: the second tier is reached.
+        self.assertNotIn("adaptiveBlurPreferenceMode !== 'auto' || adaptiveBlurFallbackEnabled", measure_block)
+        self.assertIn("adaptiveBlurPreferenceMode !== 'auto' || adaptiveBlurLiteEnabled", measure_block)
+        self.assertIn("if (adaptiveBlurFallbackEnabled) {", measure_block)
+        self.assertIn("enableAdaptiveBlurLite();", measure_block)
+        self.assertIn("enableAdaptiveBlurFallback();", measure_block)
+        self.assertIn("writeAdaptiveBlurCookie(ADAPTIVE_LITE_COOKIE, '1')", adaptive_block)
+        self.assertIn("writeAdaptiveBlurCookie(ADAPTIVE_LITE_COOKIE, '', 0)", adaptive_block)
+        self.assertIn("normalizedMode === 'disabled' || normalizedMode === 'lite'", adaptive_block)
+
+        cookie_bootstrap = template[template.index("const detectedCookieName = 'adaptive_blur_disabled'") :]
+        cookie_bootstrap = cookie_bootstrap[: cookie_bootstrap.index("</script>")]
+        self.assertIn("const liteCookieName = 'adaptive_lite_mode'", cookie_bootstrap)
+        self.assertIn("document.documentElement.classList.add('performance-lite-mode')", cookie_bootstrap)
+        self.assertIn("const liteEnabled = mode === 'lite' || (mode === 'auto'", cookie_bootstrap)
+        self.assertIn('<option value="lite">常に軽量（最小負荷）</option>', template)
 
 
 if __name__ == "__main__":

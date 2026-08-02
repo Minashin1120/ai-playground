@@ -1,5 +1,6 @@
         const get = (id) => document.getElementById(id);
         const ADAPTIVE_BLUR_COOKIE = 'adaptive_blur_disabled';
+        const ADAPTIVE_LITE_COOKIE = 'adaptive_lite_mode';
         const ADAPTIVE_BLUR_MODE_COOKIE = 'adaptive_blur_mode';
         const readCookieValue = (cookieName) => {
             try {
@@ -9,7 +10,7 @@
                 return '';
             }
         };
-        const normalizeAdaptiveBlurMode = (mode) => ['enabled', 'disabled'].includes(mode) ? mode : 'auto';
+        const normalizeAdaptiveBlurMode = (mode) => ['enabled', 'disabled', 'lite'].includes(mode) ? mode : 'auto';
         const writeAdaptiveBlurCookie = (cookieName, value, maxAge = 31536000) => {
             const secure = window.location.protocol === 'https:' ? '; Secure' : '';
             document.cookie = `${cookieName}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
@@ -22,15 +23,20 @@
         let adaptiveBlurPreferenceMode = normalizeAdaptiveBlurMode(readCookieValue(ADAPTIVE_BLUR_MODE_COOKIE));
         let adaptiveBlurMeasurementActive = false;
         let adaptiveBlurFallbackEnabled = document.documentElement.classList.contains('performance-blur-disabled');
+        let adaptiveBlurLiteEnabled = document.documentElement.classList.contains('performance-lite-mode');
         const syncAdaptiveBlurSettingsUi = () => {
             const select = get('set-background-blur-mode');
             const status = get('background-blur-mode-status');
             if (select) select.value = adaptiveBlurPreferenceMode;
             if (!status) return;
-            if (adaptiveBlurPreferenceMode === 'enabled') {
+            if (adaptiveBlurPreferenceMode === 'lite') {
+                status.textContent = '手動設定により、現在は最小負荷の軽量表示を適用しています。';
+            } else if (adaptiveBlurPreferenceMode === 'enabled') {
                 status.textContent = '手動設定により、背景ぼかしを常に有効にしています。';
             } else if (adaptiveBlurPreferenceMode === 'disabled') {
                 status.textContent = '手動設定により、背景ぼかしを無効にしています。';
+            } else if (adaptiveBlurLiteEnabled) {
+                status.textContent = '自動判定で負荷が非常に高いため、現在は最小負荷の軽量表示を適用しています。';
             } else if (adaptiveBlurFallbackEnabled) {
                 status.textContent = '自動判定で描画負荷を検出したため、現在は背景ぼかしを無効にしています。';
             } else {
@@ -44,23 +50,39 @@
             writeAdaptiveBlurCookie(ADAPTIVE_BLUR_COOKIE, '1');
             syncAdaptiveBlurSettingsUi();
         };
+        const enableAdaptiveBlurLite = () => {
+            if (adaptiveBlurPreferenceMode !== 'auto' || adaptiveBlurLiteEnabled) return;
+            adaptiveBlurLiteEnabled = true;
+            if (!adaptiveBlurFallbackEnabled) {
+                adaptiveBlurFallbackEnabled = true;
+                document.documentElement.classList.add('performance-blur-disabled');
+                writeAdaptiveBlurCookie(ADAPTIVE_BLUR_COOKIE, '1');
+            }
+            document.documentElement.classList.add('performance-lite-mode');
+            writeAdaptiveBlurCookie(ADAPTIVE_LITE_COOKIE, '1');
+            syncAdaptiveBlurSettingsUi();
+        };
         const applyAdaptiveBlurPreference = (mode) => {
             const normalizedMode = normalizeAdaptiveBlurMode(mode);
             if (normalizedMode === adaptiveBlurPreferenceMode) return;
             adaptiveBlurPreferenceMode = normalizedMode;
             adaptiveBlurMeasurementActive = false;
+            adaptiveBlurLiteEnabled = false;
             writeAdaptiveBlurCookie(ADAPTIVE_BLUR_COOKIE, '', 0);
+            writeAdaptiveBlurCookie(ADAPTIVE_LITE_COOKIE, '', 0);
             if (normalizedMode === 'auto') {
                 writeAdaptiveBlurCookie(ADAPTIVE_BLUR_MODE_COOKIE, '', 0);
             } else {
                 writeAdaptiveBlurCookie(ADAPTIVE_BLUR_MODE_COOKIE, normalizedMode);
             }
-            adaptiveBlurFallbackEnabled = normalizedMode === 'disabled';
+            adaptiveBlurFallbackEnabled = normalizedMode === 'disabled' || normalizedMode === 'lite';
+            adaptiveBlurLiteEnabled = normalizedMode === 'lite';
             document.documentElement.classList.toggle('performance-blur-disabled', adaptiveBlurFallbackEnabled);
+            document.documentElement.classList.toggle('performance-lite-mode', adaptiveBlurLiteEnabled);
             syncAdaptiveBlurSettingsUi();
         };
         const measureInteractionFrames = () => {
-            if (adaptiveBlurPreferenceMode !== 'auto' || adaptiveBlurFallbackEnabled || adaptiveBlurMeasurementActive || document.visibilityState !== 'visible') return;
+            if (adaptiveBlurPreferenceMode !== 'auto' || adaptiveBlurLiteEnabled || adaptiveBlurMeasurementActive || document.visibilityState !== 'visible') return;
             adaptiveBlurMeasurementActive = true;
             const frameIntervals = [];
             let previousTimestamp = 0;
@@ -86,12 +108,22 @@
                 const severeFrameLimit = Math.max(44, baseline * 2.7);
                 const droppedFrames = frameIntervals.filter((interval) => interval >= droppedFrameLimit).length;
                 const severeFrames = frameIntervals.filter((interval) => interval >= severeFrameLimit).length;
-                if (droppedFrames >= 5 || (droppedFrames >= 4 && severeFrames >= 2)) enableAdaptiveBlurFallback();
+                if (droppedFrames >= 5 || (droppedFrames >= 4 && severeFrames >= 2)) {
+                    // Tier 1: disable the standard backdrop blur. Once that
+                    // fallback is already active and frames are still dropped,
+                    // the device is severely underpowered, so apply lite mode
+                    // and strip every remaining compositor-heavy effect.
+                    if (adaptiveBlurFallbackEnabled) {
+                        enableAdaptiveBlurLite();
+                    } else {
+                        enableAdaptiveBlurFallback();
+                    }
+                }
             };
             requestAnimationFrame(sampleFrame);
         };
         document.addEventListener('click', (event) => {
-            if (document.readyState !== 'complete' || adaptiveBlurPreferenceMode !== 'auto' || adaptiveBlurFallbackEnabled) return;
+            if (document.readyState !== 'complete' || adaptiveBlurLiteEnabled) return;
             const trigger = event.target instanceof Element ? event.target.closest('button') : null;
             if (trigger && ADAPTIVE_BLUR_TRIGGER_IDS.has(trigger.id)) measureInteractionFrames();
         }, true);

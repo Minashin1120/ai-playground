@@ -6,18 +6,21 @@
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="{{ csrf_token }}">
     <script>
-        // Apply the saved performance fallback before styles load to avoid a blurred first paint.
+        // Apply the saved performance fallback before styles load to avoid a blurred or heavy first paint.
         (() => {
             const detectedCookieName = 'adaptive_blur_disabled';
+            const liteCookieName = 'adaptive_lite_mode';
             const modeCookieName = 'adaptive_blur_mode';
             try {
                 const cookies = Object.fromEntries(document.cookie.split(';').map((part) => {
                     const [name, value = ''] = part.trim().split('=', 2);
                     return [name, value];
                 }));
-                const mode = ['enabled', 'disabled'].includes(cookies[modeCookieName]) ? cookies[modeCookieName] : 'auto';
-                const blurDisabled = mode === 'disabled' || (mode === 'auto' && cookies[detectedCookieName] === '1');
+                const mode = ['enabled', 'disabled', 'lite'].includes(cookies[modeCookieName]) ? cookies[modeCookieName] : 'auto';
+                const blurDisabled = mode === 'disabled' || mode === 'lite' || (mode === 'auto' && cookies[detectedCookieName] === '1');
+                const liteEnabled = mode === 'lite' || (mode === 'auto' && cookies[liteCookieName] === '1');
                 if (blurDisabled) document.documentElement.classList.add('performance-blur-disabled');
+                if (liteEnabled) document.documentElement.classList.add('performance-lite-mode');
             } catch (error) {
                 // Cookie access can be blocked by browser policy; retain the normal visual treatment.
             }
@@ -1227,6 +1230,7 @@
                     <option value="auto">自動（重い場合のみ無効化）</option>
                     <option value="enabled">常に有効</option>
                     <option value="disabled">常に無効（軽量）</option>
+                    <option value="lite">常に軽量（最小負荷）</option>
                 </select>
                 <div id="background-blur-mode-status" class="text-[10px] text-gray-500 mt-2">現在の状態を確認しています。</div>
             </div>

@@ -8727,7 +8727,7 @@
             if (get('search-box')) {
                 get('search-box').addEventListener('input', () => {
                     clearTimeout(searchTimeout);
-                    searchTimeout = setTimeout(() => { threadPage=1; get('thread-list').innerHTML='<div id="scroll-sentinel"></div>'; loadThreads(); }, 300);
+                    searchTimeout = setTimeout(() => { threadPage=1; get('thread-list').innerHTML='<div id="thread-pull-indicator" class="thread-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down thread-pull-icon"></i><i class="fas fa-spinner fa-spin thread-pull-spinner"></i><span class="thread-pull-label"></span></div><div id="scroll-sentinel"></div>'; loadThreads(); }, 300);
                 });
             }
             if (get('mobile-new-chat-btn')) get('mobile-new-chat-btn').onclick = () => startNewChat();
@@ -14931,7 +14931,7 @@
             if(!append) {
                 threadPage = 1;
                 hasMoreThreads = true;
-                get('thread-list').innerHTML = '<div id="scroll-sentinel"></div>';
+                get('thread-list').innerHTML = '<div id="thread-pull-indicator" class="thread-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down thread-pull-icon"></i><i class="fas fa-spinner fa-spin thread-pull-spinner"></i><span class="thread-pull-label"></span></div><div id="scroll-sentinel"></div>';
                 if (threadObserver) {
                     threadObserver.disconnect();
                     threadObserver.observe(get('scroll-sentinel'));
@@ -14968,6 +14968,136 @@
             if(hasMoreThreads) threadPage++;
             threadLoading = false;
             updateThreadHighlighting();
+        }
+
+        // Pull-to-refresh for the chat history list (#thread-list).
+        // Works both in the sidebar and inside the history modal (the element is
+        // re-parented between the two, so handlers are attached to #thread-list).
+        function initThreadPullToRefresh() {
+            const list = get('thread-list');
+            if (!list) return;
+
+            const TRIGGER_DIST = 60;
+            const MAX_PULL_DIST = 88;
+            const HOLD_DIST = 52;
+            const RESISTANCE = 0.5;
+            const PULL_DEAD_ZONE = 8;
+
+            let pullStartY = 0;
+            let pulling = false;
+            let pullDist = 0;
+            let pullRefreshPromise = null;
+
+            const indicatorEl = () => get('thread-pull-indicator');
+            const labelEl = () => {
+                const ind = indicatorEl();
+                return ind ? ind.querySelector('.thread-pull-label') : null;
+            };
+
+            const applyPullUI = (dist) => {
+                const ind = indicatorEl();
+                if (!ind) return;
+                ind.style.height = Math.min(dist, MAX_PULL_DIST) + 'px';
+                ind.classList.toggle('active', dist > 2);
+                ind.classList.toggle('pull-ready', dist >= TRIGGER_DIST);
+                const lab = labelEl();
+                if (lab) lab.textContent = dist >= TRIGGER_DIST ? '離して更新' : '引っ張って更新';
+            };
+
+            const resetPullUI = () => {
+                const ind = indicatorEl();
+                if (!ind) return;
+                ind.style.height = '0px';
+                ind.classList.remove('active', 'pull-ready', 'refreshing');
+                ind.classList.remove('dragging');
+            };
+
+            list.addEventListener('touchstart', (e) => {
+                if (pullRefreshPromise) { pulling = false; return; }
+                if (list.scrollTop > 0) { pulling = false; return; }
+                const t = e.touches[0];
+                if (!t) return;
+                pullStartY = t.clientY;
+                pullDist = 0;
+                pulling = true;
+            }, { passive: true });
+
+            list.addEventListener('touchmove', (e) => {
+                if (!pulling || pullRefreshPromise) return;
+                if (list.scrollTop > 0) {
+                    pulling = false;
+                    return;
+                }
+                const t = e.touches[0];
+                if (!t) return;
+                const dy = t.clientY - pullStartY;
+                if (dy <= 0) {
+                    if (pullDist > 0) {
+                        pullDist = 0;
+                        applyPullUI(0);
+                    }
+                    pulling = false;
+                    return;
+                }
+                const ind = indicatorEl();
+                if (ind && !ind.classList.contains('dragging')) ind.classList.add('dragging');
+                pullDist = Math.min(dy * RESISTANCE, MAX_PULL_DIST);
+                applyPullUI(pullDist);
+                if (dy >= PULL_DEAD_ZONE) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+
+            list.addEventListener('touchend', () => {
+                if (!pulling) return;
+                pulling = false;
+                if (pullRefreshPromise) return;
+                const ind = indicatorEl();
+                if (ind) ind.classList.remove('dragging');
+                const shouldRefresh = pullDist >= TRIGGER_DIST;
+                pullDist = 0;
+                if (!shouldRefresh) {
+                    resetPullUI();
+                    return;
+                }
+                let p;
+                try { p = loadThreads(false); } catch (err) { p = null; }
+                // loadThreads(false) synchronously rebuilt the list, so grab the
+                // freshly re-created indicator and keep it in the refreshing state.
+                const ind3 = indicatorEl();
+                if (ind3) {
+                    ind3.classList.add('refreshing');
+                    ind3.style.height = HOLD_DIST + 'px';
+                    const lab = ind3.querySelector('.thread-pull-label');
+                    if (lab) lab.textContent = '更新中...';
+                }
+                if (p && typeof p.then === 'function') {
+                    pullRefreshPromise = p;
+                    p.catch(() => {}).finally(() => {
+                        pullRefreshPromise = null;
+                        resetPullUI();
+                    });
+                } else {
+                    // Load was already in flight or failed synchronously; snap back shortly.
+                    pullRefreshPromise = Promise.resolve();
+                    setTimeout(() => {
+                        pullRefreshPromise = null;
+                        resetPullUI();
+                    }, 400);
+                }
+            });
+
+            list.addEventListener('touchcancel', () => {
+                pulling = false;
+                pullDist = 0;
+                resetPullUI();
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initThreadPullToRefresh, { once: true });
+        } else {
+            initThreadPullToRefresh();
         }
 
         async function toggleBookmark(e, tid) {

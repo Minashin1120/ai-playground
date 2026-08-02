@@ -177,6 +177,12 @@
         <div class="px-2 py-2 hide-compact"><div class="flex justify-between items-center px-2 mb-1"><span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Gems</span><button id="add-gem-btn" data-progress-no-spinner="true" class="text-xs text-blue-400 hover:text-blue-300 btn-hover"><i class="fas fa-plus"></i> New</button></div><div id="gem-list" class="space-y-1 overflow-y-auto max-h-40"></div></div>
         <div class="border-t border-gray-700 my-1 hide-compact"></div>
         <div class="flex-1 overflow-y-auto p-2 space-y-1 hide-compact" id="thread-list">
+            <!-- Pull-to-refresh indicator -->
+            <div id="thread-pull-indicator" class="thread-pull-indicator" aria-hidden="true">
+                <i class="fas fa-arrow-down thread-pull-icon"></i>
+                <i class="fas fa-spinner fa-spin thread-pull-spinner"></i>
+                <span class="thread-pull-label"></span>
+            </div>
             <!-- Threads loaded dynamically -->
             <div id="scroll-sentinel"></div>
         </div>

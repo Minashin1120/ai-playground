@@ -4585,6 +4585,9 @@
                 try { window.turnstile.reset(turnstileWidgetId); } catch (e) {}
             }
         }
+        function isBotDetectionActive() {
+            return !!(botConfig && botConfig.globalEnabled && botConfig.accountEnabled && !isAdminUser && botConfig.turnstileSiteKey);
+        }
         const botTelemetry = (() => {
             const state = {
                 enabled: false,
@@ -4713,7 +4716,9 @@
                 if ((payload.clicks + payload.keys + payload.moves) === 0) return;
                 if (!force && !isSuspicious(payload)) return;
                 payload.turnstile_token = await getTurnstileToken();
-                if (botConfig && botConfig.turnstileSiteKey && !payload.turnstile_token) return;
+                if (botConfig && botConfig.turnstileSiteKey && !payload.turnstile_token) {
+                    payload.turnstile_failed = true;
+                }
                 try {
                     const res = await apiFetch('/api/bot-telemetry', {
                         method: 'POST',
@@ -14066,6 +14071,14 @@
             if (uploadProgressState.active > 0) {
                 showToast("ファイルの送信・処理中です。しばらくお待ちください。", "warning", true);
                 return;
+            }
+            if (isBotDetectionActive()) {
+                const gateToken = await getTurnstileToken();
+                if (!gateToken) {
+                    showToast("安全性の確認を完了できませんでした。しばらく待ってから再送信してください。", "error", true);
+                    botTelemetry.send(true);
+                    return;
+                }
             }
             const rawText = get('prompt-input').value; // RAW INPUT (No trim)
 

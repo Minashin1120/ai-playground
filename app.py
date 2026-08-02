@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-011')
-app.config['SYSTEM_VERSION'] = 'V4.8.699'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-012')
+app.config['SYSTEM_VERSION'] = 'V4.8.700'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -15117,8 +15117,12 @@ def bot_telemetry():
         return jsonify({'error': 'banned'}), 403
     data = request.json or {}
     if not verify_turnstile(data.get('turnstile_token')):
-        return jsonify({'error': 'turnstile_failed'}), 403
+        if not data.get('turnstile_failed'):
+            return jsonify({'error': 'turnstile_failed'}), 403
     score, reasons = evaluate_bot_score(data)
+    if data.get('turnstile_failed'):
+        score += 2
+        reasons.append('turnstile_failed')
     if score <= 0:
         return jsonify({'status': 'ok', 'score': 0})
     key = f"bot:score:{current_user.id}"

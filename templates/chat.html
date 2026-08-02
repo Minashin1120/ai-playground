@@ -1801,5 +1801,19 @@
             </div>
         </div>
     </div>
+    <script>
+        (function () {
+            var dock = document.querySelector('.composer-dock');
+            if (!dock || typeof ResizeObserver === 'undefined') return;
+            var root = document.documentElement;
+            var update = function () {
+                root.style.setProperty('--composer-h', Math.ceil(dock.getBoundingClientRect().height) + 'px');
+            };
+            var ro = new ResizeObserver(update);
+            ro.observe(dock);
+            window.addEventListener('resize', update);
+            update();
+        })();
+    </script>
 </body>
 </html>

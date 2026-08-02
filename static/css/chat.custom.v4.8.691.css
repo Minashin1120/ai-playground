@@ -648,7 +648,7 @@
         #offline-banner {
             position: fixed;
             right: 16px;
-            bottom: 16px;
+            bottom: calc(var(--composer-h, 0px) + 16px);
             max-width: min(calc(100vw - 32px), 420px);
             background: rgba(4, 8, 24, 0.92);
             backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
@@ -689,7 +689,10 @@
             background: rgba(3, 34, 26, 0.92);
         }
         body.network-banner-visible #global-progress-spinner {
-            bottom: 64px !important;
+            bottom: calc(var(--composer-h, 0px) + 64px) !important;
+        }
+        #global-progress-spinner {
+            bottom: calc(var(--composer-h, 0px) + 16px) !important;
         }
         #image-viewer {
             position: fixed; inset: 0; background: rgba(2,6,16,0.96);

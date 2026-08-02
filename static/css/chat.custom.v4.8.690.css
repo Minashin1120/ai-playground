@@ -3261,7 +3261,8 @@ html.performance-lite-mode body:not(.liquid-glass-mode) .overlay {
         background: rgba(0, 0, 0, 0.62);
 }
 html.performance-lite-mode body:not(.liquid-glass-mode) .fade-in,
-html.performance-lite-mode body:not(.liquid-glass-mode) .slide-in-animate {
+html.performance-lite-mode body:not(.liquid-glass-mode) .slide-in-animate,
+html.performance-lite-mode body:not(.liquid-glass-mode) .model-list-animate {
         opacity: 1 !important;
         transform: none !important;
 }

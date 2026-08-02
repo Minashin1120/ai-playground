@@ -267,6 +267,24 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("opacity: 1 !important", lite_css)
         self.assertIn("transform: none !important", lite_css)
 
+    def test_lite_mode_does_not_hide_thread_and_gem_list_items(self):
+        # V4.8.690: thread/gem list items are rendered with `model-list-animate
+        # opacity-0` and rely on the enter animation to reach opacity 1. Lite mode
+        # disables all animations, so the lite CSS must force them visible too,
+        # otherwise the sidebar history and Gems stay invisible until normal mode.
+        source = _current_asset("css", "chat.custom.v4.8.*.css")
+        lite_css = source[source.index("V4.8.683 — adaptive lite mode") :]
+        self.assertIn("html.performance-lite-mode body:not(.liquid-glass-mode) .model-list-animate", lite_css)
+        self.assertIn("opacity: 1 !important", lite_css)
+
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        thread_item = script[script.index("async function loadThreads(append=false) {") :]
+        thread_item = thread_item[: thread_item.index("async function loadGems()")]
+        self.assertIn("model-list-animate opacity-0", thread_item)
+        gem_item = script[script.index("async function loadGems() {") :]
+        gem_item = gem_item[: gem_item.index("async function openEditGemModal")]
+        self.assertIn("model-list-animate opacity-0", gem_item)
+
 
 if __name__ == "__main__":
     unittest.main()

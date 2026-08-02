@@ -118,11 +118,13 @@ class PerformanceRegressionTests(unittest.TestCase):
         self.assertLess(inline_pos, files_api_pos)
         self.assertIn("types.Part.from_bytes", image_branch)
 
-    def test_small_images_can_use_direct_and_fast_chat_paths(self):
+    def test_small_images_remain_eligible_for_the_fast_queue(self):
         source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
         route = source[source.index("def chat_stream():"):source.index("def estimate_prompt_tokens_api():")]
         self.assertIn("low_latency_image_attachments = _is_low_latency_image_attachment_set", route)
-        self.assertGreaterEqual(route.count("(no_attachments or low_latency_image_attachments)"), 2)
+        self.assertEqual(route.count("(no_attachments or low_latency_image_attachments)"), 1)
+        self.assertIn('execution_path = "queued_fast" if fast_queue_eligible else "queued_heavy"', route)
+        self.assertNotIn('execution_path = "direct"', route)
 
     def test_browser_fast_mode_streams_directly_then_persists(self):
         chat_files = list((APP_ROOT / "static/js").glob("chat_core.v*.js"))

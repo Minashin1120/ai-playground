@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-008')
-app.config['SYSTEM_VERSION'] = 'V4.8.696'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-009')
+app.config['SYSTEM_VERSION'] = 'V4.8.697'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -776,7 +776,6 @@ chat_fast_queue = Queue(_CHAT_FAST_QUEUE_NAME, connection=redis_conn)
 chat_heavy_queue = Queue(_CHAT_HEAVY_QUEUE_NAME, connection=redis_conn)
 _LATENCY_TRACE_PREFIX = "latency_trace:"
 _LATENCY_TRACE_TTL_SECONDS = max(300, _env_int("LATENCY_TRACE_TTL_SECONDS", 86400))
-_DIRECT_FIRST_TURN_ENABLED = _env_bool("CHAT_STREAM_DIRECT_FIRST_TURN", True)
 
 _TEMP_CHAT_TIMEOUT_MIN_SECONDS = max(10, _env_int("TEMP_CHAT_TIMEOUT_MIN_SECONDS", 30))
 _TEMP_CHAT_TIMEOUT_MAX_SECONDS = max(_TEMP_CHAT_TIMEOUT_MIN_SECONDS, _env_int("TEMP_CHAT_TIMEOUT_MAX_SECONDS", 3600))
@@ -12067,45 +12066,19 @@ def chat_stream():
 
     model_key = str(data.get('model') or '').strip()
     model_key_l = model_key.lower()
-    is_gemini_3 = "gemini-3" in model_key_l or "gemini-3.1" in model_key_l
     no_attachments = not bool(norm_image_urls)
     low_latency_image_attachments = _is_low_latency_image_attachment_set(norm_image_urls)
-    no_special_tools = not bool(data.get('enable_search')) and not bool(data.get('enable_python')) and not (bool(data.get('enable_maps')) and is_gemini_3)
-    no_quote = not bool(data.get('quote_text'))
-    no_thread_custom_instruction = not bool((data.get('thread_custom_instruction') or '').strip())
     model_looks_heavy = any(x in model_key_l for x in ("image", "video", "tts", "audio", "native-audio"))
-    supports_direct_first_turn = not model_looks_heavy
-    # Enhanced Direct Execution: Allow direct path if thread is new OR message history is short (<15 msgs)
-    # This prevents the queue-induced delay (Dispatch delay) for typical chat interactions.
-    history_is_short = False
-    try:
-        if not thread_was_created:
-            msg_count = Message.query.filter_by(thread_id=thread_id).count()
-            history_is_short = (msg_count <= 15)
-        else:
-            history_is_short = True
-    except:
-        history_is_short = thread_was_created
 
-    is_reasoning_minimal = (options.get('reasoning_effort') or "").lower() == "minimal"
-    
+    # Every generation runs outside gunicorn so a web-service restart cannot
+    # terminate an in-process daemon thread. Small text/image requests retain
+    # the low-latency fast queue; only the unsafe direct execution is removed.
     fast_queue_eligible = bool(
         not model_looks_heavy
         and (no_attachments or low_latency_image_attachments)
-        # Now allows tools in the fast queue to reduce Dispatch delay
     )
     queue_name = _CHAT_FAST_QUEUE_NAME if fast_queue_eligible else _CHAT_HEAVY_QUEUE_NAME
-    
-    first_turn_direct_eligible = bool(
-        _DIRECT_FIRST_TURN_ENABLED
-        and history_is_short
-        and supports_direct_first_turn
-        and (no_attachments or low_latency_image_attachments)
-        # Removed no_special_tools constraint: 
-        # Allow tools in direct path for fast TTFB when history is short
-        and no_thread_custom_instruction
-    )
-    execution_path = "direct" if first_turn_direct_eligible else "queued"
+    execution_path = "queued_fast" if fast_queue_eligible else "queued_heavy"
     try:
         redis_conn.hset(
             _latency_trace_key(job_id),
@@ -12121,21 +12094,20 @@ def chat_stream():
     except Exception:
         pass
 
-    if execution_path == "queued":
-        enqueue_queue = chat_fast_queue if queue_name == _CHAT_FAST_QUEUE_NAME else chat_heavy_queue
-        enqueue_queue.enqueue(
-            background_chat_task,
-            job_id,
-            thread_id,
-            data.get('model'),
-            user_msg.id,
-            options,
-            current_user.id,
-            user_config,
-            job_timeout=600,
-            at_front=(queue_name == _CHAT_FAST_QUEUE_NAME)
-        )
-        _latency_mark_once(job_id, "route_dispatch_ms")
+    enqueue_queue = chat_fast_queue if queue_name == _CHAT_FAST_QUEUE_NAME else chat_heavy_queue
+    enqueue_queue.enqueue(
+        background_chat_task,
+        job_id,
+        thread_id,
+        data.get('model'),
+        user_msg.id,
+        options,
+        current_user.id,
+        user_config,
+        job_timeout=600,
+        at_front=(queue_name == _CHAT_FAST_QUEUE_NAME)
+    )
+    _latency_mark_once(job_id, "route_dispatch_ms")
     try:
         redis_conn.setex(
             f"pending_job:{current_user.id}:{thread_id}",
@@ -12150,34 +12122,12 @@ def chat_stream():
     except Exception:
         pass
     try:
-        if execution_path == "direct":
-            redis_conn.setex(f"stream_acc:{job_id}:status", 600, "高速経路で実行中です。モデル応答を待機しています...")
+        if queue_name == _CHAT_FAST_QUEUE_NAME:
+            redis_conn.setex(f"stream_acc:{job_id}:status", 600, "高速キューに投入しました。優先ワーカー待機中です...")
         else:
-            if queue_name == _CHAT_FAST_QUEUE_NAME:
-                redis_conn.setex(f"stream_acc:{job_id}:status", 600, "高速キューに投入しました。優先ワーカー待機中です...")
-            else:
-                redis_conn.setex(f"stream_acc:{job_id}:status", 600, "通常キューに投入しました。ワーカー待機中です...")
+            redis_conn.setex(f"stream_acc:{job_id}:status", 600, "通常キューに投入しました。ワーカー待機中です...")
     except Exception:
         pass
-
-    direct_worker_started = False
-    direct_worker_lock = threading.Lock()
-    def _start_direct_worker_once():
-        nonlocal direct_worker_started
-        if execution_path != "direct":
-            return
-        with direct_worker_lock:
-            if direct_worker_started:
-                return
-            direct_worker_started = True
-            _latency_mark_once(job_id, "route_dispatch_ms")
-            th = threading.Thread(
-                target=background_chat_task,
-                args=(job_id, thread_id, data.get('model'), user_msg.id, options, current_user.id, user_config),
-                daemon=True,
-                name=f"direct-chat-{job_id}"
-            )
-            th.start()
 
     # Publish the accepted job before opening the stream. A retry after an
     # ambiguous disconnect can resume this exact job instead of creating a
@@ -12197,7 +12147,6 @@ def chat_stream():
         pubsub.subscribe(channel)
         start_time = time.time()
         _latency_mark_once(job_id, "route_stream_open_ms")
-        _start_direct_worker_once()
         if thread_stream_id:
             yield json.dumps({"type": "thread_id", "content": thread_stream_id}) + "\n"
         yield json.dumps({"type": "job_id", "content": job_id}) + "\n"

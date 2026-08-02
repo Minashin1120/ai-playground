@@ -2603,6 +2603,7 @@
         let manualStopSeq = 0;
         let isStopMode = false;
         const suppressedPendingJobIds = new Set();
+        const pendingStreamReconnectJobs = new Set();
         let editingMessageId = null; // Track message being edited
         const messageStore = {}, lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), attachMode: false, searchQuery: '' };
         const LIB_SORT_KEY = 'lib_sort_order';
@@ -4481,6 +4482,61 @@
                 ? Array.from(window.crypto.getRandomValues(new Uint32Array(4))).map((value) => value.toString(16)).join('')
                 : `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
             return `req-${randomPart}`.slice(0, 64);
+        }
+        async function reconnectPendingStreamUntilAvailable(pending, threadId) {
+            const reconnectThreadId = threadId !== null && threadId !== undefined ? String(threadId) : '';
+            const reconnectJobId = normalizeJobIdForUi(pending && pending.job_id);
+            const reconnectKey = reconnectJobId || `thread:${reconnectThreadId}`;
+            if (!reconnectThreadId || pendingStreamReconnectJobs.has(reconnectKey)) return;
+            pendingStreamReconnectJobs.add(reconnectKey);
+            const reconnectController = new AbortController();
+            let handedOffToResume = false;
+            abortController = reconnectController;
+            currentJobId = reconnectJobId;
+            setSendBtnToStopMode();
+            try {
+                while (!reconnectController.signal.aborted) {
+                    if (String(currentThreadId || '') !== reconnectThreadId) return;
+                    if (reconnectJobId && isPendingJobSuppressed(reconnectJobId)) return;
+                    const bubble = getActiveStreamingBubbleElement();
+                    updatePendingSkeletonStatus(
+                        bubble,
+                        'サーバーへの再接続を待っています...',
+                        '回答処理はバックグラウンドで継続しています'
+                    );
+                    await waitForConnectionRetry(reconnectController.signal);
+                    const loaded = await loadMessages(reconnectThreadId, {
+                        preserveDraft: true,
+                        silent: true,
+                        skipHistory: true
+                    });
+                    if (!loaded) {
+                        probeServerConnection();
+                        continue;
+                    }
+                    const latestPending = currentThreadPending;
+                    if (latestPending && latestPending.job_id && !isPendingJobSuppressed(latestPending.job_id)) {
+                        if (abortController === reconnectController) abortController = null;
+                        handedOffToResume = true;
+                        resumePendingStream(latestPending);
+                    } else {
+                        markServerConnectionReachable();
+                    }
+                    return;
+                }
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    sendClientDebugLog('error', `Stream reconnect failed: ${error.message}`);
+                }
+            } finally {
+                pendingStreamReconnectJobs.delete(reconnectKey);
+                if (abortController === reconnectController) abortController = null;
+                if (!handedOffToResume) {
+                    currentJobId = null;
+                    setSendBtnToSendMode();
+                    updateFilePreview();
+                }
+            }
         }
         window.initTurnstileWidget = () => {
             if (!botConfig || !botConfig.turnstileSiteKey || !window.turnstile) return;
@@ -14470,6 +14526,7 @@
             let requestAccepted = false;
             let retryAfterApiKeySetup = false;
             let resumeAcceptedSubmission = null;
+            let reconnectAfterStreamDisconnect = null;
             try {
                 if (p.thread_id && activeGem) {
                     threadGemMap[p.thread_id] = activeGem;
@@ -14769,7 +14826,8 @@
 
             } catch(e){
                 let syncedAfterAbort = false;
-                if (e.name === 'AbortError' && !isManualStopAbortForThread(streamStartedThreadId)) {
+                const manuallyStopped = e.name === 'AbortError' && isManualStopAbortForThread(streamStartedThreadId);
+                if (e.name === 'AbortError' && !manuallyStopped) {
                     syncedAfterAbort = await syncThreadAfterAbortedStream(streamStartedThreadId, { retries: 2, retryDelayMs: 180, notifyOnFailure: true });
                 }
                 sendClientDebugLog('error', `Prompt send error: ${e.message}`);
@@ -14791,6 +14849,14 @@
                     get('prompt-input').style.height = 'auto';
                     resetUploadState();
                     clearQuote();
+                } else if (requestAccepted && !manuallyStopped) {
+                    reconnectAfterStreamDisconnect = {
+                        job_id: normalizeJobIdForUi(currentJobId),
+                        thread_id: currentThreadId !== null && currentThreadId !== undefined ? String(currentThreadId) : null,
+                        model: p.model
+                    };
+                    setUnavailableConnectionStatus(navigator.onLine ? 'server-down' : 'offline');
+                    showToast('回答への接続が切れました。バックグラウンド処理へ自動再接続します。', 'warning', false);
                 } else if (e.serverCode === 'api_key_missing') {
                     const missingKeyModel = e.serverModel || p.model;
                     const action = await showApiKeyRequiredModalAsync(missingKeyModel);
@@ -14822,8 +14888,13 @@
                 if (previousThreadId !== currentThreadId || location.pathname !== '/c/' + currentThreadId) {
                     history.pushState({}, '', '/c/' + currentThreadId);
                 }
-                await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
-                return;
+                return reconnectPendingStreamUntilAvailable(resumeAcceptedSubmission, currentThreadId);
+            }
+            if (reconnectAfterStreamDisconnect && reconnectAfterStreamDisconnect.thread_id) {
+                return reconnectPendingStreamUntilAvailable(
+                    reconnectAfterStreamDisconnect,
+                    reconnectAfterStreamDisconnect.thread_id
+                );
             }
             if (retryAfterApiKeySetup) return sendMessage();
         }
@@ -14888,6 +14959,7 @@
             const finishResumeProgress = window.ProgressSpinner
                 ? window.ProgressSpinner.start('生成中...')
                 : null;
+            let reconnectAfterResumeDisconnect = false;
             try {
                 const r = await apiFetch("/chat_stream_resume", {
                     method: 'POST',
@@ -15065,12 +15137,14 @@
                     loadThreads(false);
                 }
             } catch (e) {
-                if (e.name === 'AbortError' && !isManualStopAbortForThread(resumeStartedThreadId)) {
+                const manuallyStopped = e.name === 'AbortError' && isManualStopAbortForThread(resumeStartedThreadId);
+                if (e.name === 'AbortError' && !manuallyStopped) {
                     await syncThreadAfterAbortedStream(resumeStartedThreadId, { retries: 2, retryDelayMs: 180, notifyOnFailure: true });
                 }
-                if (e.name !== 'AbortError') {
-                    const msg = "Connection Error: " + e.message;
-                    showToast(msg, "error", true);
+                if (!manuallyStopped) {
+                    reconnectAfterResumeDisconnect = true;
+                    setUnavailableConnectionStatus(navigator.onLine ? 'server-down' : 'offline');
+                    showToast('回答への再接続が切れました。自動的に再試行します。', 'warning', false);
                 }
             } finally {
                 if (finishResumeProgress) finishResumeProgress();
@@ -15080,6 +15154,12 @@
                 abortController = null;
                 currentJobId = null;
                 currentThreadPending = null;
+            }
+            if (reconnectAfterResumeDisconnect) {
+                return reconnectPendingStreamUntilAvailable(
+                    { job_id: jobId, model: pendingModelRaw },
+                    resumeStartedThreadId
+                );
             }
         }
 
@@ -15323,7 +15403,7 @@
                 if (!r.ok) throw new Error(`thread request failed (${r.status})`);
                 const threadData = await r.json();
                 if (!threadData || !Array.isArray(threadData.messages)) throw new Error('invalid thread response');
-                if (loadSequence !== threadLoadSequence) return;
+                if (loadSequence !== threadLoadSequence) return false;
             setCurrentChatHeaderTitle(threadData && threadData.title);
             allMessages = threadData.messages;
             threadHasOlderMessages = !!threadData.has_older_messages;
@@ -15400,11 +15480,13 @@
             }
             if (!preserveDraft) schedulePromptTokenEstimate(true);
             if(window.innerWidth < 768) get('overlay').click();
+            return true;
             } catch (err) {
-                if (loadSequence !== threadLoadSequence) return;
+                if (loadSequence !== threadLoadSequence) return false;
                 console.error('Failed to load chat thread:', err);
                 if (!silent) showChatLoadError(tid);
-                showToast('チャットの読み込みに失敗しました', 'error', true);
+                if (!silent) showToast('チャットの読み込みに失敗しました', 'error', true);
+                return false;
             }
         }
 

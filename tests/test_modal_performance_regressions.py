@@ -310,6 +310,15 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("!modals.some(isModalVisible)", chat_html)
         self.assertIn("composerVisible ? Math.ceil(rect.height) + 'px' : '0px'", chat_html)
         self.assertIn("new MutationObserver(update)", chat_html)
+        # V4.8.694: opening the mobile side menu also covers the composer and
+        # must move both notifications to the viewport bottom.
+        self.assertIn("sidebar.classList.contains('open')", chat_html)
+        self.assertIn("!modals.some(isModalVisible) && !sideMenuOpen", chat_html)
+        self.assertIn("modalObserver.observe(sidebar", chat_html)
+
+        # Position changes should be animated for both notification types.
+        self.assertIn("bottom 0.32s var(--ease-out)", banner_block)
+        self.assertIn("bottom 0.32s var(--ease-out) !important", spinner_block)
 
 
 if __name__ == "__main__":

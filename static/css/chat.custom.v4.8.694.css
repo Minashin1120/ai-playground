@@ -666,7 +666,7 @@
             visibility: hidden;
             transform: translateY(6px);
             pointer-events: none;
-            transition: opacity 0.28s var(--ease-out), transform 0.28s var(--ease-out), visibility 0.28s var(--ease-standard);
+            transition: opacity 0.28s var(--ease-out), transform 0.28s var(--ease-out), visibility 0.28s var(--ease-standard), bottom 0.32s var(--ease-out);
         }
         #offline-banner.visible {
             opacity: 1;
@@ -693,6 +693,7 @@
         }
         #global-progress-spinner {
             bottom: calc(var(--composer-h, 0px) + 16px) !important;
+            transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s ease, bottom 0.32s var(--ease-out) !important;
         }
         #image-viewer {
             position: fixed; inset: 0; background: rgba(2,6,16,0.96);
@@ -2485,6 +2486,7 @@ input[type="checkbox"]::after {
     #image-viewer,
     #file-viewer,
     #offline-banner,
+    #global-progress-spinner,
     .overlay {
         transition-duration: 0.01ms !important;
     }

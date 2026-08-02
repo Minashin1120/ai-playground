@@ -1806,6 +1806,7 @@
             var dock = document.querySelector('.composer-dock');
             if (!dock || typeof ResizeObserver === 'undefined') return;
             var root = document.documentElement;
+            var sidebar = document.getElementById('sidebar');
             var modals = Array.prototype.slice.call(document.querySelectorAll('[id$="-modal"]'));
             var isModalVisible = function (modal) {
                 var style = window.getComputedStyle(modal);
@@ -1814,9 +1815,11 @@
             var update = function () {
                 var dockStyle = window.getComputedStyle(dock);
                 var rect = dock.getBoundingClientRect();
+                var sideMenuOpen = window.matchMedia('(max-width: 768px)').matches &&
+                    sidebar && sidebar.classList.contains('open');
                 var composerVisible = dockStyle.display !== 'none' &&
                     dockStyle.visibility !== 'hidden' && rect.width > 0 && rect.height > 0 &&
-                    !modals.some(isModalVisible);
+                    !modals.some(isModalVisible) && !sideMenuOpen;
                 root.style.setProperty('--composer-h', composerVisible ? Math.ceil(rect.height) + 'px' : '0px');
             };
             var ro = new ResizeObserver(update);
@@ -1825,6 +1828,9 @@
             modals.forEach(function (modal) {
                 modalObserver.observe(modal, { attributes: true, attributeFilter: ['class', 'style'] });
             });
+            if (sidebar) {
+                modalObserver.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+            }
             window.addEventListener('resize', update);
             update();
         })();

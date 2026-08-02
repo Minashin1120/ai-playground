@@ -4546,6 +4546,7 @@
             turnstileWidgetId = window.turnstile.render(container, {
                 sitekey: botConfig.turnstileSiteKey,
                 size: 'compact',
+                appearance: 'interaction-only',
                 callback: (token) => { turnstileToken = token; turnstilePending = false; container.classList.add('hidden'); },
                 'expired-callback': () => { turnstileToken = null; turnstilePending = false; container.classList.add('hidden'); },
                 'error-callback': () => { turnstileToken = null; turnstilePending = false; container.classList.add('hidden'); }

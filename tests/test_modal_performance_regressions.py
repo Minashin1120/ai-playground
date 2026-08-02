@@ -213,6 +213,27 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("event.stopPropagation()", show_toast)
         self.assertIn("if (onClick) el.addEventListener('click', onClick)", show_toast)
 
+    def test_lite_mode_toast_is_not_blocked_by_cookie_write_failure(self):
+        # V4.8.687: when cookies are blocked, writeAdaptiveBlurCookie must not
+        # throw, and the toast must be scheduled before the lite cookie write so
+        # the auto-apply notification is always shown.
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+
+        write_cookie = script[
+            script.index("const writeAdaptiveBlurCookie = (cookieName, value, maxAge = 31536000) => {") :
+            script.index("const ADAPTIVE_BLUR_TRIGGER_IDS")
+        ]
+        self.assertIn("try {", write_cookie)
+        self.assertIn("catch (error) {", write_cookie)
+
+        lite_enable = script[
+            script.index("const enableAdaptiveBlurLite = () => {") :
+            script.index("const openAdaptiveBlurSettingsFromToast")
+        ]
+        toast_index = lite_enable.index("showToast('描画負荷が高いため、軽量表示（最小負荷）を自動適用しました。タップで設定を開く'")
+        lite_cookie_write = lite_enable.index("writeAdaptiveBlurCookie(ADAPTIVE_LITE_COOKIE, '1')")
+        self.assertLess(toast_index, lite_cookie_write)
+
 
 if __name__ == "__main__":
     unittest.main()

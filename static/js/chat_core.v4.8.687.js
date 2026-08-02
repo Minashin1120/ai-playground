@@ -12,8 +12,12 @@
         };
         const normalizeAdaptiveBlurMode = (mode) => ['enabled', 'disabled', 'lite'].includes(mode) ? mode : 'auto';
         const writeAdaptiveBlurCookie = (cookieName, value, maxAge = 31536000) => {
-            const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-            document.cookie = `${cookieName}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
+            try {
+                const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+                document.cookie = `${cookieName}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
+            } catch (error) {
+                // Cookie access can be blocked by browser policy; the visual mode still applies.
+            }
         };
         const ADAPTIVE_BLUR_TRIGGER_IDS = new Set([
             'menu-btn',
@@ -59,9 +63,9 @@
                 writeAdaptiveBlurCookie(ADAPTIVE_BLUR_COOKIE, '1');
             }
             document.documentElement.classList.add('performance-lite-mode');
-            writeAdaptiveBlurCookie(ADAPTIVE_LITE_COOKIE, '1');
             syncAdaptiveBlurSettingsUi();
             showToast('描画負荷が高いため、軽量表示（最小負荷）を自動適用しました。タップで設定を開く', 'info', false, openAdaptiveBlurSettingsFromToast);
+            writeAdaptiveBlurCookie(ADAPTIVE_LITE_COOKIE, '1');
         };
         const openAdaptiveBlurSettingsFromToast = () => {
             if (typeof window.openSettingsModal === 'function') {

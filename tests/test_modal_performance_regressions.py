@@ -150,9 +150,14 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
 
         original_details = source[source.index("#prompt-details-controls {") :]
         original_details = original_details[: original_details.index("/* Shimmer sweep animation")]
-        self.assertIn("transition: max-height 0.34s", original_details)
+        self.assertIn("transition: grid-template-rows 0.34s", original_details)
         self.assertIn("#prompt-details-controls.collapsed", original_details)
         self.assertIn("#prompt-details-controls.expanded", original_details)
+        self.assertIn("grid-template-rows: 0fr", original_details)
+        self.assertIn("grid-template-rows: 1fr", original_details)
+        self.assertIn(".prompt-details-inner", original_details)
+        self.assertNotIn("max-height 0.34s", original_details)
+        self.assertIn("class=\"prompt-details-inner", template)
 
     def test_lite_mode_is_a_second_tier_after_the_blur_fallback(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")

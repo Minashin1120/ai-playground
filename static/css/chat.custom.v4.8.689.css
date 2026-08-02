@@ -1403,26 +1403,41 @@ body.liquid-glass-mode .liquid-glass-surface.liquid-glass-pressed {
 
 /* Prompt Details Animation (Compact Mode) */
 #prompt-details-controls {
-    transition: max-height 0.34s var(--ease-out), opacity 0.26s var(--ease-standard), margin-top 0.26s var(--ease-standard), margin-bottom 0.26s var(--ease-standard);
-    max-height: 500px;
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.34s var(--ease-out), opacity 0.26s var(--ease-standard), margin-top 0.26s var(--ease-standard), margin-bottom 0.26s var(--ease-standard);
     opacity: 1;
     overflow: hidden;
 }
 
+/* Non-compact mode (no toggle classes applied): keep details fully visible */
+#prompt-details-controls:not(.collapsed):not(.expanded) {
+    grid-template-rows: 1fr;
+}
+
+#prompt-details-controls > .prompt-details-inner {
+    min-height: 0;
+    overflow: hidden;
+}
+
 #prompt-details-controls.collapsed {
-    max-height: 0 !important;
+    grid-template-rows: 0fr;
     opacity: 0 !important;
     margin-top: 0 !important;
     margin-bottom: 0 !important;
     pointer-events: none;
-    border-top-width: 0 !important;
-    border-bottom-width: 0 !important;
 }
 
 #prompt-details-controls.expanded {
-    max-height: 500px !important;
+    grid-template-rows: 1fr;
     opacity: 1 !important;
     margin-top: 0.5rem !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #prompt-details-controls {
+        transition: none !important;
+    }
 }
 
 /* Shimmer sweep animation - light sweep from left to right */

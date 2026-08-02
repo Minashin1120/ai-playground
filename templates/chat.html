@@ -369,7 +369,8 @@
                             <i id="prompt-controls-toggle-icon" class="fas fa-chevron-down text-[10px]"></i>
                         </button>
                     </div>
-                    <div id="prompt-details-controls" class="flex items-center gap-2 flex-wrap">
+                    <div id="prompt-details-controls">
+                        <div class="prompt-details-inner flex items-center gap-2 flex-wrap min-w-0">
                         <div id="standard-chat-controls" class="flex gap-3 items-center flex-wrap">
                         <label id="search-container" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label>
                         <label id="url-context-container" class="flex items-center space-x-1 cursor-pointer select-none hidden"><input type="checkbox" id="enable-url-context" class="accent-indigo-500 w-3 h-3"><span>URLs</span></label>
@@ -421,6 +422,7 @@
                             <button type="button" onclick="openTemporaryChatSettings()" class="text-[10px] text-amber-300 hover:text-amber-200 border border-amber-500/40 rounded px-1.5 py-0.5 transition btn-hover" title="一時チャット設定を開く">
                                 設定
                             </button>
+                        </div>
                         </div>
                     </div>
                 </div>

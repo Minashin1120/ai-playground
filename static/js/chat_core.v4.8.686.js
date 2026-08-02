@@ -8727,7 +8727,7 @@
             if (get('search-box')) {
                 get('search-box').addEventListener('input', () => {
                     clearTimeout(searchTimeout);
-                    searchTimeout = setTimeout(() => { threadPage=1; get('thread-list').innerHTML='<div id="thread-pull-indicator" class="thread-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down thread-pull-icon"></i><i class="fas fa-spinner fa-spin thread-pull-spinner"></i><span class="thread-pull-label"></span></div><div id="scroll-sentinel"></div>'; loadThreads(); }, 300);
+                    searchTimeout = setTimeout(() => { threadPage=1; get('thread-list').innerHTML='<div id="thread-pull-indicator" class="ptr-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div><div id="scroll-sentinel"></div>'; loadThreads(); }, 300);
                 });
             }
             if (get('mobile-new-chat-btn')) get('mobile-new-chat-btn').onclick = () => startNewChat();
@@ -14931,7 +14931,7 @@
             if(!append) {
                 threadPage = 1;
                 hasMoreThreads = true;
-                get('thread-list').innerHTML = '<div id="thread-pull-indicator" class="thread-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down thread-pull-icon"></i><i class="fas fa-spinner fa-spin thread-pull-spinner"></i><span class="thread-pull-label"></span></div><div id="scroll-sentinel"></div>';
+                get('thread-list').innerHTML = '<div id="thread-pull-indicator" class="ptr-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div><div id="scroll-sentinel"></div>';
                 if (threadObserver) {
                     threadObserver.disconnect();
                     threadObserver.observe(get('scroll-sentinel'));
@@ -14970,12 +14970,14 @@
             updateThreadHighlighting();
         }
 
-        // Pull-to-refresh for the chat history list (#thread-list).
+        // Generic pull-to-refresh for a scrollable list.
         // Works both in the sidebar and inside the history modal (the element is
-        // re-parented between the two, so handlers are attached to #thread-list).
-        function initThreadPullToRefresh() {
-            const list = get('thread-list');
+        // re-parented between the two, so handlers are attached to the list element).
+        // refreshFn must return a promise (or undefined if a load is already running).
+        function initPullToRefresh(listId, refreshFn) {
+            const list = get(listId);
             if (!list) return;
+            const indicatorId = `${listId}-pull-indicator`;
 
             const TRIGGER_DIST = 60;
             const MAX_PULL_DIST = 88;
@@ -14988,10 +14990,10 @@
             let pullDist = 0;
             let pullRefreshPromise = null;
 
-            const indicatorEl = () => get('thread-pull-indicator');
+            const indicatorEl = () => get(indicatorId);
             const labelEl = () => {
                 const ind = indicatorEl();
-                return ind ? ind.querySelector('.thread-pull-label') : null;
+                return ind ? ind.querySelector('.ptr-pull-label') : null;
             };
 
             const applyPullUI = (dist) => {
@@ -15061,14 +15063,14 @@
                     return;
                 }
                 let p;
-                try { p = loadThreads(false); } catch (err) { p = null; }
-                // loadThreads(false) synchronously rebuilt the list, so grab the
-                // freshly re-created indicator and keep it in the refreshing state.
+                try { p = refreshFn(); } catch (err) { p = null; }
+                // If refreshFn rebuilds the list synchronously (loadThreads), grab the
+                // freshly re-created indicator; otherwise keep the current one spinning.
                 const ind3 = indicatorEl();
                 if (ind3) {
                     ind3.classList.add('refreshing');
                     ind3.style.height = HOLD_DIST + 'px';
-                    const lab = ind3.querySelector('.thread-pull-label');
+                    const lab = ind3.querySelector('.ptr-pull-label');
                     if (lab) lab.textContent = '更新中...';
                 }
                 if (p && typeof p.then === 'function') {
@@ -15094,10 +15096,18 @@
             });
         }
 
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initThreadPullToRefresh, { once: true });
-        } else {
+        const initThreadPullToRefresh = () => initPullToRefresh('thread-list', () => loadThreads(false));
+        const initGemPullToRefresh = () => initPullToRefresh('gem-list', () => loadGems());
+
+        const initPullToRefreshAll = () => {
             initThreadPullToRefresh();
+            initGemPullToRefresh();
+        };
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initPullToRefreshAll, { once: true });
+        } else {
+            initPullToRefreshAll();
         }
 
         async function toggleBookmark(e, tid) {
@@ -15413,7 +15423,7 @@
             const gs = await r.json();
             loadedGems = gs;
             const l = get('gem-list');
-            l.innerHTML = '';
+            l.innerHTML = '<div id="gem-pull-indicator" class="ptr-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div>';
             gs.forEach((g, i) => {
                 const d = document.createElement('div');
                 d.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group model-list-animate opacity-0';

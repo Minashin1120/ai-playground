@@ -128,9 +128,9 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
 
         self.assertIn("const ADAPTIVE_BLUR_COOKIE = 'adaptive_blur_disabled'", script)
         self.assertIn("const ADAPTIVE_BLUR_MODE_COOKIE = 'adaptive_blur_mode'", script)
-        self.assertIn("'menu-btn'", script)
-        self.assertIn("'sidebar-toggle-btn'", script)
-        self.assertIn("'prompt-controls-toggle-btn'", script)
+        self.assertIn("target.closest('button, a, input, select, textarea, [role=\"button\"], [tabindex]')", script)
+        self.assertIn("adaptiveBlurInteractionCooldownMs", script)
+        self.assertIn("activeStreamingBubbleId", script)
         self.assertIn("document.visibilityState !== 'visible'", script)
         self.assertIn("requestAnimationFrame(sampleFrame)", script)
         self.assertIn("droppedFrames >= 5", script)
@@ -221,7 +221,7 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
 
         write_cookie = script[
             script.index("const writeAdaptiveBlurCookie = (cookieName, value, maxAge = 31536000) => {") :
-            script.index("const ADAPTIVE_BLUR_TRIGGER_IDS")
+            script.index("const adaptiveBlurInteractionCooldownMs")
         ]
         self.assertIn("try {", write_cookie)
         self.assertIn("catch (error) {", write_cookie)
@@ -233,6 +233,34 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         toast_index = lite_enable.index("showToast('描画負荷が高いため、軽量表示（最小負荷）を自動適用しました。タップで設定を開く'")
         lite_cookie_write = lite_enable.index("writeAdaptiveBlurCookie(ADAPTIVE_LITE_COOKIE, '1')")
         self.assertLess(toast_index, lite_cookie_write)
+
+    def test_measurement_covers_page_load_and_broad_interactions(self):
+        # V4.8.688: measurement is no longer limited to three sidebar buttons.
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        source = _current_asset("css", "chat.custom.v4.8.*.css")
+        lite_css = source[source.index("V4.8.683 — adaptive lite mode") :]
+
+        # A forced measurement runs right after theme init so the load-time
+        # entrance motion is sampled on every visit.
+        theme_init = script[script.index("initThemeFromServer();") :]
+        self.assertIn("measureInteractionFrames(true)", theme_init)
+
+        # Interaction measurements are rate-limited and skipped while busy.
+        measure = script[script.index("const adaptiveBlurIsBusy = () => {") :]
+        measure = measure[: measure.index("const externalScriptLoads")]
+        self.assertIn("adaptiveBlurInteractionCooldownMs", measure)
+        self.assertIn("if (adaptiveBlurIsBusy()) return", measure)
+        self.assertIn("activeStreamingBubbleId", measure)
+        self.assertIn("document.querySelector('.modal-overlay.modal-open", measure)
+
+        # The click handler now starts from any interactive element, not a fixed id list.
+        self.assertNotIn("ADAPTIVE_BLUR_TRIGGER_IDS", script)
+
+        # Lite mode must not hide entrance-animated elements (welcome screen etc.).
+        self.assertIn("html.performance-lite-mode body:not(.liquid-glass-mode) .fade-in", lite_css)
+        self.assertIn("html.performance-lite-mode body:not(.liquid-glass-mode) .slide-in-animate", lite_css)
+        self.assertIn("opacity: 1 !important", lite_css)
+        self.assertIn("transform: none !important", lite_css)
 
 
 if __name__ == "__main__":

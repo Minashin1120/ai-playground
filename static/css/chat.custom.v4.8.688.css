@@ -3245,3 +3245,8 @@ html.performance-lite-mode body:not(.liquid-glass-mode) #welcome-screen .welcome
 html.performance-lite-mode body:not(.liquid-glass-mode) .overlay {
         background: rgba(0, 0, 0, 0.62);
 }
+html.performance-lite-mode body:not(.liquid-glass-mode) .fade-in,
+html.performance-lite-mode body:not(.liquid-glass-mode) .slide-in-animate {
+        opacity: 1 !important;
+        transform: none !important;
+}

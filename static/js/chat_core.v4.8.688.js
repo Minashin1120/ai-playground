@@ -19,13 +19,10 @@
                 // Cookie access can be blocked by browser policy; the visual mode still applies.
             }
         };
-        const ADAPTIVE_BLUR_TRIGGER_IDS = new Set([
-            'menu-btn',
-            'sidebar-toggle-btn',
-            'prompt-controls-toggle-btn'
-        ]);
+        const adaptiveBlurInteractionCooldownMs = 3000;
         let adaptiveBlurPreferenceMode = normalizeAdaptiveBlurMode(readCookieValue(ADAPTIVE_BLUR_MODE_COOKIE));
         let adaptiveBlurMeasurementActive = false;
+        let adaptiveBlurMeasurementLastAt = 0;
         let adaptiveBlurFallbackEnabled = document.documentElement.classList.contains('performance-blur-disabled');
         let adaptiveBlurLiteEnabled = document.documentElement.classList.contains('performance-lite-mode');
         const syncAdaptiveBlurSettingsUi = () => {
@@ -100,8 +97,21 @@
             document.documentElement.classList.toggle('performance-lite-mode', adaptiveBlurLiteEnabled);
             syncAdaptiveBlurSettingsUi();
         };
-        const measureInteractionFrames = () => {
+        const adaptiveBlurIsBusy = () => {
+            if (activeStreamingBubbleId) return true;
+            if (document.querySelector('.modal-overlay.modal-open, .modal-overlay.modal-prep, .modal-overlay.modal-close')) return true;
+            return false;
+        };
+        const measureInteractionFrames = (force = false) => {
             if (adaptiveBlurPreferenceMode !== 'auto' || adaptiveBlurLiteEnabled || adaptiveBlurMeasurementActive || document.visibilityState !== 'visible') return;
+            if (!force) {
+                const now = Date.now();
+                if (now - adaptiveBlurMeasurementLastAt < adaptiveBlurInteractionCooldownMs) return;
+                if (adaptiveBlurIsBusy()) return;
+                adaptiveBlurMeasurementLastAt = now;
+            } else {
+                adaptiveBlurMeasurementLastAt = Date.now();
+            }
             adaptiveBlurMeasurementActive = true;
             const frameIntervals = [];
             let previousTimestamp = 0;
@@ -141,10 +151,14 @@
             };
             requestAnimationFrame(sampleFrame);
         };
-        document.addEventListener('click', (event) => {
+        const measureAdaptiveBlurAfterInteraction = () => {
             if (document.readyState !== 'complete' || adaptiveBlurLiteEnabled) return;
-            const trigger = event.target instanceof Element ? event.target.closest('button') : null;
-            if (trigger && ADAPTIVE_BLUR_TRIGGER_IDS.has(trigger.id)) measureInteractionFrames();
+            measureInteractionFrames();
+        };
+        document.addEventListener('click', (event) => {
+            const target = event.target instanceof Element ? event.target : null;
+            if (!target) return;
+            if (target.closest('button, a, input, select, textarea, [role="button"], [tabindex]')) measureAdaptiveBlurAfterInteraction();
         }, true);
         const externalScriptLoads = new Map();
         const loadExternalScript = (src, globalReady) => {
@@ -734,6 +748,7 @@
         };
         initThemeFromServer();
         applyLiquidGlassMode(INITIAL_LIQUID_GLASS_ENABLED);
+        measureInteractionFrames(true);
         const modalCloseTimers = new WeakMap();
         const modalOpenFrames = new WeakMap();
         const cancelModalTransitions = (el) => {

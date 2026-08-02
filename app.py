@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-003')
-app.config['SYSTEM_VERSION'] = 'V4.8.691'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-004')
+app.config['SYSTEM_VERSION'] = 'V4.8.692'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -7347,7 +7347,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             except: pass
                         if parts: contents.append(types.Content(role='model' if m['role'] == 'assistant' else 'user', parts=parts))
 
-                    curr_parts = [types.Part(text=final_message_text)]
+                    curr_parts = []
+                    if final_message_text and str(final_message_text).strip():
+                        curr_parts.append(types.Part(text=final_message_text))
                     media_inline_limit = 20 * 1024 * 1024  # 20MiB limit for inline audio
                     pending_file_error = None
 
@@ -8482,7 +8484,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             claude_messages.append({"role": role, "content": msg_parts})
 
                     # Current message
-                    curr_parts = [{"type": "text", "text": final_message_text}]
+                    curr_parts = []
+                    if final_message_text and str(final_message_text).strip():
+                        curr_parts.append({"type": "text", "text": final_message_text})
                     for fi in loaded_files:
                         if fi.get('bytes'):
                             if fi.get('mime', '').startswith('image/'):
@@ -8640,11 +8644,17 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     else:
                         chat_session.append(x_user(m['content']) if m['role'] == 'user' else x_assistant(m['content']))
                 
-                curr_user_content = [final_message_text]
+                curr_user_content = []
+                if final_message_text and str(final_message_text).strip():
+                    curr_user_content.append(final_message_text)
                 current_image_names = []
                 for fi in loaded_files:
-                    if fi.get('text'): 
-                        curr_user_content[0] += f"\n\n[File: {fi.get('send_name') or fi.get('name') or 'file'}]\n{fi['text']}"
+                    if fi.get('text'):
+                        file_text_block = f"\n\n[File: {fi.get('send_name') or fi.get('name') or 'file'}]\n{fi['text']}"
+                        if curr_user_content:
+                            curr_user_content[0] += file_text_block
+                        else:
+                            curr_user_content.append(file_text_block.strip())
                     elif fi.get('bytes') and fi.get('mime', '').startswith('image/'):
                         d_uri = f"data:{fi['mime']};base64,{base64.b64encode(fi['bytes']).decode('utf-8')}"
                         curr_user_content.append(x_image(d_uri))
@@ -8652,7 +8662,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         current_image_names.append(os.path.basename(str(img_label)))
                 name_block = _build_attachment_name_block(current_image_names)
                 if name_block:
-                    curr_user_content[0] += f"\n\n{name_block}"
+                    if curr_user_content:
+                        curr_user_content[0] += f"\n\n{name_block}"
+                    else:
+                        curr_user_content.append(name_block)
                 
                 chat_session.append(x_user(*curr_user_content))
                 
@@ -9290,7 +9303,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 return
                         if analysis_texts:
                             analysis_block = "The user attached the following image(s). Detailed descriptions are provided below:\n\n" + "\n\n".join(analysis_texts)
-                            messages.append({"role": "system", "content": analysis_block})
+                            if user_text.strip():
+                                messages.append({"role": "system", "content": analysis_block})
+                            else:
+                                # Image-only send: use the vision analysis as the user turn.
+                                user_text = analysis_block
                             pub("image_analysis", f"全{len(analysis_texts)}枚の画像解析完了。DeepSeek で応答生成中...")
                         else:
                             pub("error", "画像の解析に失敗しました。Vision Model の API 設定を確認してください。")
@@ -9565,7 +9582,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 return
                         if analysis_texts:
                             analysis_block = "The user attached the following image(s). Detailed descriptions are provided below:\n\n" + "\n\n".join(analysis_texts)
-                            messages.append({"role": "system", "content": analysis_block})
+                            if user_text.strip():
+                                messages.append({"role": "system", "content": analysis_block})
+                            else:
+                                # Image-only send: use the vision analysis as the user turn.
+                                user_text = analysis_block
                             pub("image_analysis", f"全{len(analysis_texts)}枚の画像解析完了。Kimi K3 で応答生成中...")
                         else:
                             pub("error", "画像の解析に失敗しました。Vision Model の API 設定を確認してください。")
@@ -9672,7 +9693,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                 curr_content = []
                 if quote_text: curr_content.append({"type": text_type, "text": f"User Quote:\n{quote_text}\n---"})
-                curr_content.append({"type": text_type, "text": message_text})
+                if message_text and str(message_text).strip():
+                    curr_content.append({"type": text_type, "text": message_text})
                 file_inline_limit = 20 * 1024 * 1024  # 20MiB inline limit for file inputs
                 file_attach_errors = []
                 current_image_names = []
@@ -11467,7 +11489,13 @@ def save_browser_fast_mode_chat():
     assistant_text = data.get('assistant_content')
     thought_text = data.get('thought_content') or ''
     model_key = str(data.get('model') or '').strip()
-    if not isinstance(user_text, str) or not user_text.strip() or len(user_text) > 500_000:
+    if not isinstance(user_text, str) or len(user_text) > 500_000:
+        return jsonify({'error': 'Invalid or oversized message'}), 400
+    # Allow image-only sends (no prompt text) when images are attached.
+    fast_refs = data.get('image_urls') or []
+    if not isinstance(fast_refs, list):
+        fast_refs = [fast_refs]
+    if not user_text.strip() and not bool([r for r in fast_refs if r]):
         return jsonify({'error': 'Invalid or oversized message'}), 400
     if not isinstance(assistant_text, str) or not assistant_text.strip() or len(assistant_text) > 2_000_000:
         return jsonify({'error': 'Invalid or oversized assistant content'}), 400
@@ -11618,7 +11646,14 @@ def chat_stream():
     if not isinstance(data, dict):
         return jsonify({'error': 'Invalid request'}), 400
     raw_message = data.get('message')
-    if not isinstance(raw_message, str) or not raw_message.strip() or len(raw_message) > 500_000:
+    if not isinstance(raw_message, str) or len(raw_message) > 500_000:
+        return jsonify({'error': 'Invalid or oversized message'}), 400
+    # Allow image/file-only sends (no prompt text) as long as attachments are present.
+    raw_img_hint = data.get('image_urls') or []
+    if not isinstance(raw_img_hint, list):
+        raw_img_hint = [raw_img_hint]
+    has_attachment_hint = bool([u for u in raw_img_hint if u]) or bool(data.get('image_items')) or bool(data.get('uploaded_image_urls'))
+    if not raw_message.strip() and not has_attachment_hint:
         return jsonify({'error': 'Invalid or oversized message'}), 400
     model_key = str(data.get('model') or '').strip()
     if model_key not in ALL_VALID_MODEL_IDS:

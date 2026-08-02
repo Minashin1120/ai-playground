@@ -643,6 +643,8 @@
         .toast.error { border-color: #f9708d; color: #fecaca; }
         .toast button { color: inherit; opacity: 0.7; }
         .toast button:hover { opacity: 1; }
+        .toast-clickable { cursor: pointer; }
+        .toast-clickable:hover { border-color: var(--theme-400); }
         #offline-banner {
             position: fixed;
             right: 16px;

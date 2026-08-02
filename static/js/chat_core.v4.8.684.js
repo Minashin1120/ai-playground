@@ -61,6 +61,21 @@
             document.documentElement.classList.add('performance-lite-mode');
             writeAdaptiveBlurCookie(ADAPTIVE_LITE_COOKIE, '1');
             syncAdaptiveBlurSettingsUi();
+            showToast('描画負荷が高いため、軽量表示（最小負荷）を自動適用しました。タップで設定を開く', 'info', false, openAdaptiveBlurSettingsFromToast);
+        };
+        const openAdaptiveBlurSettingsFromToast = () => {
+            if (typeof window.openSettingsModal === 'function') {
+                window.openSettingsModal();
+            }
+            const select = get('set-background-blur-mode');
+            const tab = get('tab-general');
+            if (!select || !tab) return;
+            for (const child of tab.children) {
+                if (child.contains(select)) {
+                    jumpToSetting('general', child);
+                    return;
+                }
+            }
         };
         const applyAdaptiveBlurPreference = (mode) => {
             const normalizedMode = normalizeAdaptiveBlurMode(mode);
@@ -4619,16 +4634,20 @@
             body.innerHTML = '';
             viewer.classList.remove('visible');
         }
-        function showToast(msg, type = "error", sticky = false) {
+        function showToast(msg, type = "error", sticky = false, onClick = null) {
             const stack = get('toast-stack');
             if (!stack) return;
             while (stack.children.length >= 3) {
                 stack.removeChild(stack.firstChild);
             }
             const el = document.createElement('div');
-            el.className = `toast ${type}`;
+            el.className = `toast ${type}${onClick ? ' toast-clickable' : ''}`;
             el.innerHTML = `<i class="fas ${type==='error' ? 'fa-triangle-exclamation' : 'fa-circle-info'}"></i><span class="flex-1">${escapeHtml(msg)}</span><button aria-label="close"><i class="fas fa-times"></i></button>`;
-            el.querySelector('button').onclick = () => el.remove();
+            el.querySelector('button').onclick = (event) => {
+                event.stopPropagation();
+                el.remove();
+            };
+            if (onClick) el.addEventListener('click', onClick);
             stack.appendChild(el);
             if (!sticky) setTimeout(() => { if (el.parentNode) el.remove(); }, 7000);
             return el;

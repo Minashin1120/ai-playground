@@ -192,6 +192,27 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("const liteEnabled = mode === 'lite' || (mode === 'auto'", cookie_bootstrap)
         self.assertIn('<option value="lite">常に軽量（最小負荷）</option>', template)
 
+    def test_lite_mode_auto_apply_shows_a_clickable_toast(self):
+        source = _current_asset("css", "chat.custom.v4.8.*.css")
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+
+        self.assertIn(".toast-clickable { cursor: pointer; }", source)
+        self.assertIn(".toast-clickable:hover", source)
+        self.assertIn("showToast('描画負荷が高いため、軽量表示（最小負荷）を自動適用しました。タップで設定を開く'", script)
+        self.assertIn("openAdaptiveBlurSettingsFromToast", script)
+        # The toast body itself jumps to the blur setting section.
+        toast_jump = script[script.index("const openAdaptiveBlurSettingsFromToast = () => {") :]
+        toast_jump = toast_jump[: toast_jump.index("const applyAdaptiveBlurPreference")]
+        self.assertIn("window.openSettingsModal()", toast_jump)
+        self.assertIn("jumpToSetting('general', child)", toast_jump)
+        self.assertIn("child.contains(select)", toast_jump)
+        # showToast gained an optional onClick that marks the toast clickable.
+        show_toast = script[script.index("function showToast(msg, type = \"error\", sticky = false, onClick = null) {") :]
+        show_toast = show_toast[: show_toast.index("function showProgressToast")]
+        self.assertIn("toast-clickable", show_toast)
+        self.assertIn("event.stopPropagation()", show_toast)
+        self.assertIn("if (onClick) el.addEventListener('click', onClick)", show_toast)
+
 
 if __name__ == "__main__":
     unittest.main()

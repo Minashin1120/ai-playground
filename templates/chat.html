@@ -1806,11 +1806,25 @@
             var dock = document.querySelector('.composer-dock');
             if (!dock || typeof ResizeObserver === 'undefined') return;
             var root = document.documentElement;
+            var modals = Array.prototype.slice.call(document.querySelectorAll('[id$="-modal"]'));
+            var isModalVisible = function (modal) {
+                var style = window.getComputedStyle(modal);
+                return !modal.classList.contains('hidden') && style.display !== 'none' && style.visibility !== 'hidden';
+            };
             var update = function () {
-                root.style.setProperty('--composer-h', Math.ceil(dock.getBoundingClientRect().height) + 'px');
+                var dockStyle = window.getComputedStyle(dock);
+                var rect = dock.getBoundingClientRect();
+                var composerVisible = dockStyle.display !== 'none' &&
+                    dockStyle.visibility !== 'hidden' && rect.width > 0 && rect.height > 0 &&
+                    !modals.some(isModalVisible);
+                root.style.setProperty('--composer-h', composerVisible ? Math.ceil(rect.height) + 'px' : '0px');
             };
             var ro = new ResizeObserver(update);
             ro.observe(dock);
+            var modalObserver = new MutationObserver(update);
+            modals.forEach(function (modal) {
+                modalObserver.observe(modal, { attributes: true, attributeFilter: ['class', 'style'] });
+            });
             window.addEventListener('resize', update);
             update();
         })();

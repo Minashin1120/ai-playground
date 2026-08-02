@@ -285,11 +285,11 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         gem_item = gem_item[: gem_item.index("async function openEditGemModal")]
         self.assertIn("model-list-animate opacity-0", gem_item)
 
-    def test_overlay_notifications_sit_above_the_composer_dock(self):
+    def test_overlay_notifications_follow_visible_composer_dock(self):
         # V4.8.691: the offline connection banner and the global progress spinner
         # were fixed at the bottom-right corner and overlapped the prompt bar /
         # send button. They must be offset by the live composer dock height so
-        # they always render above the prompt bar.
+        # they render above the prompt bar while it is available.
         css = _current_asset("css", "chat.custom.v4.8.*.css")
         banner_block = css[css.index("#offline-banner {") :]
         banner_block = banner_block[: banner_block.index("#image-viewer {")]
@@ -303,6 +303,13 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("querySelector('.composer-dock')", chat_html)
         self.assertIn("--composer-h", chat_html)
         self.assertIn("new ResizeObserver(update)", chat_html)
+        # V4.8.693: a full-screen modal covers the composer. In that state the
+        # offset must return to zero so notifications sit at the viewport bottom
+        # instead of leaving a composer-sized empty margin.
+        self.assertIn("querySelectorAll('[id$=\"-modal\"]')", chat_html)
+        self.assertIn("!modals.some(isModalVisible)", chat_html)
+        self.assertIn("composerVisible ? Math.ceil(rect.height) + 'px' : '0px'", chat_html)
+        self.assertIn("new MutationObserver(update)", chat_html)
 
 
 if __name__ == "__main__":

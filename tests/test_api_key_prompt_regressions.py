@@ -34,7 +34,7 @@ class ApiKeyPromptRegressionTests(unittest.TestCase):
 
     def test_failed_preflight_preserves_prompt_and_attachments_for_retry(self):
         source = _current_chat_js()
-        fetch_at = source.index("const r = await apiFetch(CHAT_CONFIG.urls.chatStream")
+        fetch_at = source.index("const r = await fetchChatStreamWithUnavailableRetry(")
         accepted_at = source.index("requestAccepted = true", fetch_at)
 
         self.assertGreater(source.index("resetUploadState();", fetch_at), accepted_at)

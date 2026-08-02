@@ -2544,6 +2544,7 @@
         const CONNECTION_UNSTABLE_LATENCY_MS = 2000;
         const CONNECTION_SLOW_TO_UNSTABLE = 3;
         const CONNECTION_RECOVERED_BANNER_MS = 5000;
+        const CONNECTION_RETRY_DELAY_MS = 2000;
         let activeGem = null, editingGemUuid = null, currentImageUrls = [], currentMaskImage = null, abortController = null, richPasteAbortController = null, userAutoScroll = true, searchTimeout;
 
         // Prompt History
@@ -4231,7 +4232,7 @@
                 connectionRecoveredHideTimer = null;
             }
             if (mode === 'hidden') {
-                b.classList.remove('visible', 'offline', 'unstable', 'online');
+                b.classList.remove('visible', 'offline', 'unstable', 'maintenance', 'server-down', 'online');
                 document.body.classList.remove('network-banner-visible');
                 return;
             }
@@ -4239,22 +4240,53 @@
             document.body.classList.add('network-banner-visible');
             if (mode === 'offline') {
                 b.classList.add('offline');
-                b.classList.remove('unstable', 'online');
-                icon.className = 'fas fa-wifi';
-                text.textContent = message || 'サーバーとの通信が切断されています';
+                b.classList.remove('unstable', 'maintenance', 'server-down', 'online');
+                icon.className = 'fas fa-wifi-slash';
+                text.textContent = message || 'インターネット接続が切断されています';
+                return;
+            }
+            if (mode === 'maintenance') {
+                b.classList.add('maintenance');
+                b.classList.remove('offline', 'unstable', 'server-down', 'online');
+                icon.className = 'fas fa-screwdriver-wrench';
+                text.textContent = message || 'サーバーはメンテナンス中です（自動再接続します）';
+                return;
+            }
+            if (mode === 'server-down') {
+                b.classList.add('server-down');
+                b.classList.remove('offline', 'unstable', 'maintenance', 'online');
+                icon.className = 'fas fa-server';
+                text.textContent = message || 'サーバーが停止しているか応答していません（自動再接続します）';
                 return;
             }
             if (mode === 'online') {
                 b.classList.add('online');
-                b.classList.remove('offline', 'unstable');
+                b.classList.remove('offline', 'unstable', 'maintenance', 'server-down');
                 icon.className = 'fas fa-check-circle';
                 text.textContent = message || 'サーバーとの通信が復帰しました';
                 return;
             }
             b.classList.add('unstable');
-            b.classList.remove('offline', 'online');
+            b.classList.remove('offline', 'maintenance', 'server-down', 'online');
             icon.className = 'fas fa-exclamation-triangle';
             text.textContent = message || 'サーバーとの通信が不安定です';
+        }
+        function isDisconnectedConnectionStatus(status = connectionStatus) {
+            return ['offline', 'unstable', 'maintenance', 'server-down'].includes(status);
+        }
+        function setUnavailableConnectionStatus(mode, message = '') {
+            connectionConsecutiveSlow = 0;
+            connectionStatus = mode;
+            setConnectionBanner(mode, message);
+            refreshConnectionMonitorTimer();
+        }
+        function markServerConnectionReachable() {
+            const wasDisconnected = isDisconnectedConnectionStatus();
+            connectionConsecutiveSlow = 0;
+            connectionStatus = 'online';
+            if (wasDisconnected) showConnectionRecoveredBanner();
+            else setConnectionBanner('hidden');
+            refreshConnectionMonitorTimer();
         }
         function showConnectionRecoveredBanner(message = 'サーバーとの通信が復帰しました') {
             setConnectionBanner('online', message);
@@ -4266,7 +4298,7 @@
             }, CONNECTION_RECOVERED_BANNER_MS);
         }
         function getConnectionCheckIntervalMs() {
-            if (connectionStatus === 'offline' || connectionStatus === 'unstable') return CONNECTION_CHECK_FAST_INTERVAL_MS;
+            if (isDisconnectedConnectionStatus()) return CONNECTION_CHECK_FAST_INTERVAL_MS;
             return CONNECTION_CHECK_INTERVAL_MS;
         }
         function refreshConnectionMonitorTimer(force = false) {
@@ -4290,10 +4322,7 @@
         async function probeServerConnection() {
             if (!navigator.onLine) {
                 if (connectionCheckInFlight) cancelActiveConnectionProbe();
-                connectionConsecutiveSlow = 0;
-                connectionStatus = 'offline';
-                setConnectionBanner('offline');
-                refreshConnectionMonitorTimer();
+                setUnavailableConnectionStatus('offline');
                 return;
             }
             if (connectionCheckInFlight) return;
@@ -4311,11 +4340,26 @@
                     signal: ctrl.signal,
                     headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' }
                 });
-                if (!heartbeatRes.ok) throw new Error(`heartbeat ${heartbeatRes.status}`);
+                if (probeSequence !== connectionProbeSequence) return;
+                if (heartbeatRes.status === 503) {
+                    const maintenanceResponse = heartbeatRes.headers.get('X-AI-Maintenance') === '1';
+                    setUnavailableConnectionStatus(maintenanceResponse ? 'maintenance' : 'server-down');
+                    return;
+                }
+                if ([502, 504, 521, 522, 523, 524].includes(heartbeatRes.status)) {
+                    setUnavailableConnectionStatus('server-down');
+                    return;
+                }
+                if (!heartbeatRes.ok) {
+                    connectionStatus = 'unstable';
+                    setConnectionBanner('unstable', `サーバーでエラーが発生しています（HTTP ${heartbeatRes.status}）`);
+                    refreshConnectionMonitorTimer();
+                    return;
+                }
                 const hbData = await heartbeatRes.json();
                 if (probeSequence !== connectionProbeSequence) return;
                 const latencyMs = Math.round(performance.now() - startedAt);
-                const wasDisconnected = connectionStatus === 'offline' || connectionStatus === 'unstable';
+                const wasDisconnected = isDisconnectedConnectionStatus();
                 if (latencyMs >= CONNECTION_UNSTABLE_LATENCY_MS) {
                     connectionConsecutiveSlow += 1;
                 } else {
@@ -4344,10 +4388,7 @@
                 }
             } catch (e) {
                 if (probeSequence !== connectionProbeSequence) return;
-                connectionConsecutiveSlow = 0;
-                connectionStatus = 'offline';
-                setConnectionBanner('offline');
-                refreshConnectionMonitorTimer();
+                setUnavailableConnectionStatus(navigator.onLine ? 'server-down' : 'offline');
             } finally {
                 window.clearTimeout(timeoutId);
                 if (probeSequence === connectionProbeSequence) {
@@ -4371,6 +4412,75 @@
                 window.clearTimeout(connectionRecoveredHideTimer);
                 connectionRecoveredHideTimer = null;
             }
+        }
+        function waitForConnectionRetry(signal, delayMs = CONNECTION_RETRY_DELAY_MS) {
+            return new Promise((resolve, reject) => {
+                if (signal && signal.aborted) {
+                    reject(new DOMException('Aborted', 'AbortError'));
+                    return;
+                }
+                const timer = window.setTimeout(() => {
+                    if (signal) signal.removeEventListener('abort', onAbort);
+                    resolve();
+                }, delayMs);
+                const onAbort = () => {
+                    window.clearTimeout(timer);
+                    if (signal) signal.removeEventListener('abort', onAbort);
+                    reject(new DOMException('Aborted', 'AbortError'));
+                };
+                if (signal) signal.addEventListener('abort', onAbort, { once: true });
+            });
+        }
+        function connectionRetryModeForResponse(response) {
+            if (response.status === 503) {
+                return response.headers.get('X-AI-Maintenance') === '1' ? 'maintenance' : 'server-down';
+            }
+            if ([502, 504, 521, 522, 523, 524].includes(response.status)) return 'server-down';
+            return null;
+        }
+        async function fetchChatStreamWithUnavailableRetry(url, options, pendingBubble) {
+            let retryCount = 0;
+            while (true) {
+                if (options.signal && options.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+                try {
+                    const response = await apiFetch(url, options);
+                    const unavailableMode = connectionRetryModeForResponse(response);
+                    let submissionProcessing = false;
+                    if (response.status === 425) {
+                        const pendingPayload = await response.clone().json().catch(() => ({}));
+                        submissionProcessing = pendingPayload.code === 'submission_in_progress';
+                    }
+                    if (!unavailableMode && !submissionProcessing) {
+                        markServerConnectionReachable();
+                        return response;
+                    }
+                    retryCount += 1;
+                    if (unavailableMode) setUnavailableConnectionStatus(unavailableMode);
+                    updatePendingSkeletonStatus(
+                        pendingBubble,
+                        unavailableMode === 'maintenance' ? 'メンテナンス終了を待っています...' : 'サーバーの復帰を待っています...',
+                        `送信内容を保持して自動再試行中（${retryCount}回目）`
+                    );
+                } catch (error) {
+                    if ((options.signal && options.signal.aborted) || error.name === 'AbortError') throw error;
+                    retryCount += 1;
+                    const unavailableMode = navigator.onLine ? 'server-down' : 'offline';
+                    setUnavailableConnectionStatus(unavailableMode);
+                    updatePendingSkeletonStatus(
+                        pendingBubble,
+                        unavailableMode === 'offline' ? 'インターネット接続の復帰を待っています...' : 'サーバーの復帰を待っています...',
+                        `送信内容を保持して自動再試行中（${retryCount}回目）`
+                    );
+                }
+                await waitForConnectionRetry(options.signal);
+            }
+        }
+        function createClientRequestId() {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+            const randomPart = window.crypto && typeof window.crypto.getRandomValues === 'function'
+                ? Array.from(window.crypto.getRandomValues(new Uint32Array(4))).map((value) => value.toString(16)).join('')
+                : `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
+            return `req-${randomPart}`.slice(0, 64);
         }
         window.initTurnstileWidget = () => {
             if (!botConfig || !botConfig.turnstileSiteKey || !window.turnstile) return;
@@ -6991,10 +7101,7 @@
             });
             window.addEventListener('offline', () => {
                 cancelActiveConnectionProbe();
-                connectionConsecutiveSlow = 0;
-                connectionStatus = 'offline';
-                setConnectionBanner('offline');
-                refreshConnectionMonitorTimer();
+                setUnavailableConnectionStatus('offline');
             });
             window.addEventListener('focus', probeServerConnection);
             document.addEventListener('visibilitychange', () => {
@@ -13849,10 +13956,11 @@
                     await uploadBrowserFastLocalFiles();
                 }
                 const refs = collectImageUrlsForSend();
-                const saveResponse = await apiFetch('/api/browser_fast_mode/save', {
+                const saveResponse = await fetchChatStreamWithUnavailableRetry('/api/browser_fast_mode/save', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        client_request_id: createClientRequestId(),
                         message: rawText,
                         assistant_content: content,
                         thought_content: thought,
@@ -13863,7 +13971,8 @@
                         parent_id: bootstrap.parent_id || null,
                         thought_signatures: thoughtSignatures,
                     }),
-                });
+                    signal: abortController.signal,
+                }, adiv);
                 const saved = await saveResponse.json().catch(() => ({}));
                 if (!saveResponse.ok || !saved.thread_id) throw new Error(saved.error || 'DB保存に失敗しました');
                 const createdThread = !currentThreadId;
@@ -14209,6 +14318,7 @@
             }
 
             const p = {
+                client_request_id: createClientRequestId(),
                 thread_id: currentThreadId,
                 message: t,
                 model: get('model-select').value,
@@ -14359,18 +14469,25 @@
                 : null;
             let requestAccepted = false;
             let retryAfterApiKeySetup = false;
+            let resumeAcceptedSubmission = null;
             try {
                 if (p.thread_id && activeGem) {
                     threadGemMap[p.thread_id] = activeGem;
                     pendingGemForNewThread = null;
                 }
-                const r = await apiFetch(CHAT_CONFIG.urls.chatStream, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p), signal:abortController.signal});
+                const r = await fetchChatStreamWithUnavailableRetry(
+                    CHAT_CONFIG.urls.chatStream,
+                    {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p), signal:abortController.signal},
+                    adiv
+                );
                 sendClientDebugLog('info', `Prompt stream response status: ${r.status}`);
                 if (!r.ok) {
                     const errorPayload = await r.json().catch(() => ({}));
                     const requestError = new Error(errorPayload.error || `HTTP ${r.status}`);
                     requestError.serverCode = errorPayload.code || null;
                     requestError.serverModel = errorPayload.model || p.model;
+                    requestError.acceptedJobId = errorPayload.job_id || null;
+                    requestError.acceptedThreadId = errorPayload.thread_id || null;
                     throw requestError;
                 }
                 requestAccepted = true;
@@ -14663,7 +14780,18 @@
                     delete messageStore[optimisticUserId];
                     delete messageMeta[optimisticUserId];
                 }
-                if (e.serverCode === 'api_key_missing') {
+                if (e.serverCode === 'request_already_accepted' && e.acceptedJobId && e.acceptedThreadId) {
+                    requestAccepted = true;
+                    resumeAcceptedSubmission = {
+                        job_id: e.acceptedJobId,
+                        thread_id: String(e.acceptedThreadId),
+                        model: p.model
+                    };
+                    get('prompt-input').value = '';
+                    get('prompt-input').style.height = 'auto';
+                    resetUploadState();
+                    clearQuote();
+                } else if (e.serverCode === 'api_key_missing') {
                     const missingKeyModel = e.serverModel || p.model;
                     const action = await showApiKeyRequiredModalAsync(missingKeyModel);
                     if (action === 'set') {
@@ -14685,6 +14813,17 @@
                 updateFilePreview();
                 if (activeStreamingBubbleId === aid) activeStreamingBubbleId = null;
                 abortController=null; currentJobId=null; editingMessageId=null; setEditUi(false);
+            }
+            if (resumeAcceptedSubmission) {
+                const previousThreadId = currentThreadId !== null && currentThreadId !== undefined
+                    ? String(currentThreadId)
+                    : null;
+                currentThreadId = resumeAcceptedSubmission.thread_id;
+                if (previousThreadId !== currentThreadId || location.pathname !== '/c/' + currentThreadId) {
+                    history.pushState({}, '', '/c/' + currentThreadId);
+                }
+                await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
+                return;
             }
             if (retryAfterApiKeySetup) return sendMessage();
         }

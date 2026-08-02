@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-007')
-app.config['SYSTEM_VERSION'] = 'V4.8.695'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-008')
+app.config['SYSTEM_VERSION'] = 'V4.8.696'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3607,6 +3607,65 @@ def _pending_job_id_for_thread(user_id, thread_db_id):
         except Exception:
             return None
 
+def _chat_submission_key(user_id, client_request_id):
+    return f"chat_submission:{int(user_id)}:{client_request_id}"
+
+def _claim_chat_submission(user_id, client_request_id):
+    """Claim one client send ID or return its existing processing/accepted state."""
+    if not client_request_id:
+        return True, None
+    key = _chat_submission_key(user_id, client_request_id)
+    try:
+        claimed = redis_conn.set(key, "processing", nx=True, ex=600)
+        if claimed:
+            return True, None
+        raw = redis_conn.get(key)
+        if not raw:
+            return False, {"state": "processing"}
+        text_value = raw.decode("utf-8", "ignore") if isinstance(raw, bytes) else str(raw)
+        if text_value == "processing":
+            return False, {"state": "processing"}
+        parsed = json.loads(text_value)
+        return False, parsed if isinstance(parsed, dict) else {"state": "processing"}
+    except Exception:
+        # Availability must not depend on the dedupe cache. Redis is also
+        # required by chat dispatch, so a wider outage will still fail safely.
+        return True, None
+
+def _complete_chat_submission(user_id, client_request_id, job_id, thread_public_id, message_id, model):
+    if not client_request_id:
+        return
+    payload = {
+        "state": "accepted",
+        "job_id": str(job_id),
+        "thread_id": str(thread_public_id),
+        "message_id": int(message_id),
+        "model": str(model or "")[:80],
+    }
+    _store_idempotent_submission(user_id, client_request_id, payload)
+
+def _store_idempotent_submission(user_id, client_request_id, payload):
+    if not client_request_id:
+        return
+    stored = dict(payload or {})
+    stored["state"] = "accepted"
+    try:
+        redis_conn.setex(
+            _chat_submission_key(user_id, client_request_id),
+            600,
+            json.dumps(stored, ensure_ascii=False),
+        )
+    except Exception:
+        pass
+
+def _release_chat_submission(user_id, client_request_id):
+    if not client_request_id:
+        return
+    try:
+        redis_conn.delete(_chat_submission_key(user_id, client_request_id))
+    except Exception:
+        pass
+
 def resolve_thread_for_user(identifier, user_id):
     if identifier is None:
         return None
@@ -5042,7 +5101,9 @@ def check_maintenance():
     if app.config.get('MAINTENANCE_MODE'):
         if request.endpoint in ['static', 'login', 'logout', 'toggle_maintenance', 'login_passkey_options', 'login_passkey_verify']: return
         if current_user.is_authenticated and getattr(current_user, "is_admin", False): return
-        return render_template('maintenance.html'), 503
+        response = make_response(render_template('maintenance.html'), 503)
+        response.headers['X-AI-Maintenance'] = '1'
+        return response
 
 @app.before_request
 def check_bot_ban():
@@ -10777,6 +10838,12 @@ def api_ban_appeal_status():
 
 @app.route('/api/version')
 def api_version():
+    if request.args.get('heartbeat') and app.config.get('MAINTENANCE_MODE'):
+        resp = jsonify({'error': 'maintenance', 'code': 'maintenance'})
+        resp.status_code = 503
+        resp.headers['X-AI-Maintenance'] = '1'
+        resp.headers['Cache-Control'] = 'no-store'
+        return resp
     resp = jsonify({'version': app.config.get('APP_VERSION', '')})
     resp.headers['Cache-Control'] = 'no-store'
     return resp
@@ -11484,6 +11551,9 @@ def save_browser_fast_mode_chat():
     data = request.get_json(silent=True) or {}
     if not isinstance(data, dict):
         return jsonify({'error': 'Invalid request'}), 400
+    client_request_id = str(data.get('client_request_id') or '').strip()
+    if client_request_id and not re.fullmatch(r'[A-Za-z0-9_-]{8,64}', client_request_id):
+        return jsonify({'error': 'Invalid client request ID'}), 400
 
     user_text = data.get('message')
     assistant_text = data.get('assistant_content')
@@ -11585,6 +11655,16 @@ def save_browser_fast_mode_chat():
                 return jsonify({'error': 'Invalid parent message'}), 400
         elif not created_thread:
             parent_message = Message.query.filter_by(thread_id=thread.id).order_by(Message.id.desc()).first()
+        submission_claimed, existing_submission = _claim_chat_submission(current_user.id, client_request_id)
+        if not submission_claimed:
+            if existing_submission and existing_submission.get("state") == "accepted":
+                cached_response = existing_submission.get("response")
+                if isinstance(cached_response, dict):
+                    return jsonify(cached_response)
+            return jsonify({
+                "error": "This browser-fast turn is still being saved",
+                "code": "submission_in_progress",
+            }), 425
         user_msg = Message(
             thread_id=thread.id,
             role='user',
@@ -11626,15 +11706,22 @@ def save_browser_fast_mode_chat():
                 _track_temp_chat_uploaded_refs(thread, current_user.id, refs)
             except Exception as exc:
                 logger.warning("Browser fast mode temporary tracking failed for thread %s: %s", thread.id, exc)
-        return jsonify({
+        response_payload = {
             'status': 'ok',
             'thread_id': thread.public_id,
             'user_message_id': user_msg.id,
             'assistant_message_id': assistant_msg.id,
             'created_thread': created_thread,
-        })
+        }
+        _store_idempotent_submission(
+            current_user.id,
+            client_request_id,
+            {"response": response_payload},
+        )
+        return jsonify(response_payload)
     except Exception as exc:
         db.session.rollback()
+        _release_chat_submission(current_user.id, client_request_id)
         logger.error("Browser fast mode save failed for user %s: %s", current_user.id, exc)
         return jsonify({'error': 'Failed to save browser fast mode chat'}), 500
 
@@ -11655,6 +11742,9 @@ def chat_stream():
     has_attachment_hint = bool([u for u in raw_img_hint if u]) or bool(data.get('image_items')) or bool(data.get('uploaded_image_urls'))
     if not raw_message.strip() and not has_attachment_hint:
         return jsonify({'error': 'Invalid or oversized message'}), 400
+    client_request_id = str(data.get('client_request_id') or '').strip()
+    if client_request_id and not re.fullmatch(r'[A-Za-z0-9_-]{8,64}', client_request_id):
+        return jsonify({'error': 'Invalid client request ID'}), 400
     model_key = str(data.get('model') or '').strip()
     if model_key not in ALL_VALID_MODEL_IDS:
         return jsonify({'error': 'Invalid model'}), 400
@@ -11764,6 +11854,21 @@ def chat_stream():
         return jsonify({
             'error': f'PromptCache有効中は他API（{next_label}）のモデルに変更できません。ロック中: {locked_label}'
         }), 400
+    submission_claimed, existing_submission = _claim_chat_submission(current_user.id, client_request_id)
+    if not submission_claimed:
+        if existing_submission and existing_submission.get("state") == "accepted":
+            return jsonify({
+                "error": "This prompt was already accepted",
+                "code": "request_already_accepted",
+                "job_id": existing_submission.get("job_id"),
+                "thread_id": existing_submission.get("thread_id"),
+                "message_id": existing_submission.get("message_id"),
+                "model": existing_submission.get("model") or model_key,
+            }), 409
+        return jsonify({
+            "error": "This prompt is still being accepted",
+            "code": "submission_in_progress",
+        }), 425
     
     user_msg = None
     attachment_name_map = {}
@@ -11799,6 +11904,7 @@ def chat_stream():
             uploaded_image_refs.append(explicit_uploaded_refs)
         max_files = int(app.config.get('ATTACHMENT_MAX_FILES') or 30)
         if len(norm_image_urls) > max_files:
+            _release_chat_submission(current_user.id, client_request_id)
             return jsonify({'error': f'Too many attachments. Max {max_files} files per message.'}), 400
         
         parent_id = data.get('parent_id', None)
@@ -11888,6 +11994,7 @@ def chat_stream():
             _clear_temp_chat_tracking_for_thread(t)
     except Exception as e:
         logger.error(f"Failed to save user msg: {e}")
+        _release_chat_submission(current_user.id, client_request_id)
         return jsonify({'error': 'Failed to save message'}), 500
 
     quote_text = data.get('quote_text')
@@ -12071,6 +12178,18 @@ def chat_stream():
                 name=f"direct-chat-{job_id}"
             )
             th.start()
+
+    # Publish the accepted job before opening the stream. A retry after an
+    # ambiguous disconnect can resume this exact job instead of creating a
+    # second user message.
+    _complete_chat_submission(
+        current_user.id,
+        client_request_id,
+        job_id,
+        thread_stream_id,
+        user_msg.id,
+        model_key,
+    )
 
     def generate():
         pubsub = redis_conn.pubsub()

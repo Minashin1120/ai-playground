@@ -4662,11 +4662,15 @@
             if (botDetectionGatePromise) return botDetectionGatePromise;
             botDetectionGatePromise = (async () => {
                 while (!botDetectionVerified) {
+                    // Show the blocking overlay immediately, even before the
+                    // Turnstile widget has finished rendering, so an unverified
+                    // user is never left with a usable page (which allowed rapid
+                    // clicks to accumulate bot-detection failures with no overlay).
+                    showBotDetectionOverlay();
                     if (!window.__turnstileApiLoaded || turnstileWidgetId === null) {
-                        await new Promise((resolve) => setTimeout(resolve, 500));
+                        await new Promise((resolve) => setTimeout(resolve, 1000));
                         continue;
                     }
-                    showBotDetectionOverlay();
                     const token = await getTurnstileToken(25000);
                     if (token) {
                         const ok = await verifyTurnstileOnServer(token, true);
@@ -4837,7 +4841,11 @@
                 if (!opts.forceReport && (payload.clicks + payload.keys + payload.moves) === 0) return;
                 if (!force && !isSuspicious(payload)) return;
                 payload.turnstile_token = await getTurnstileToken();
-                if (botConfig && botConfig.turnstileSiteKey && !payload.turnstile_token) {
+                // Only report a Turnstile failure when the user is NOT verified.
+                // Verified users can momentarily have no client token (it is reset
+                // after each report); counting that as a failure was banning legit
+                // users who rapidly clicked buttons while already verified.
+                if (botConfig && botConfig.turnstileSiteKey && !payload.turnstile_token && !botDetectionVerified) {
                     payload.turnstile_failed = true;
                 }
                 try {
@@ -7570,6 +7578,7 @@
                             <div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(statusLabel)}</div>
                             <div class="text-xs text-gray-200 mt-2 whitespace-pre-wrap">${escapeHtml(a.message || '')}</div>
                             <div class="text-[10px] text-gray-500 mt-2">BAN理由: ${escapeHtml(a.ban_reason || 'N/A')}</div>
+                            ${a.evidence ? `<details class="mt-2"><summary class="text-[10px] text-cyan-300 cursor-pointer">不審な履歴（記録）を表示</summary><pre class="mt-1 text-[10px] text-gray-300 whitespace-pre-wrap bg-gray-950/70 border border-gray-700 rounded p-2 max-h-60 overflow-auto">${escapeHtml(a.evidence)}</pre></details>` : ''}
                             <div class="mt-3">
                                 <label class="text-[10px] text-gray-400">管理者返信</label>
                                 <textarea class="ban-appeal-reply w-full mt-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-[11px] text-gray-100" rows="3" placeholder="返信内容">${escapeHtml(replyValue)}</textarea>

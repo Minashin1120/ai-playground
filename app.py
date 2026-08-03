@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-015')
-app.config['SYSTEM_VERSION'] = 'V4.8.703'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-016')
+app.config['SYSTEM_VERSION'] = 'V4.8.704'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2966,6 +2966,7 @@ class User(UserMixin, db.Model):
     bot_ban_reason = db.Column(db.Text, nullable=True)
     bot_unbanned_at = db.Column(db.DateTime, nullable=True)
     bot_unban_notice = db.Column(db.Boolean, default=False)
+    bot_evidence = db.Column(db.Text, nullable=True)
     appeal_blocked = db.Column(db.Boolean, default=False)
     appeal_block_reason = db.Column(db.Text, nullable=True)
     appeal_blocked_at = db.Column(db.DateTime, nullable=True)
@@ -3098,8 +3099,24 @@ class BanAppeal(db.Model):
     ban_at = db.Column(db.DateTime, nullable=True)
     ip_address = db.Column(db.String(64), nullable=True)
     user_agent = db.Column(db.Text, nullable=True)
+    evidence = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class BotEvidenceLog(db.Model):
+    """Persistent log of bot-detection events for moderation and ban review."""
+    __tablename__ = 'bot_evidence_log'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False, index=True)
+    username = db.Column(db.String(80), nullable=True)
+    event_type = db.Column(db.String(32), nullable=False)  # telemetry, turnstile_fail, verify_ok, verify_fail, ban
+    score = db.Column(db.Float, nullable=True)
+    behavior_score = db.Column(db.Float, nullable=True)
+    reasons = db.Column(db.Text, nullable=True)
+    details = db.Column(db.Text, nullable=True)
+    ip_address = db.Column(db.String(64), nullable=True)
+    user_agent = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
 class AppSetting(db.Model):
     key = db.Column(db.String(64), primary_key=True)
@@ -4203,6 +4220,26 @@ def ensure_user_debug_settings_columns():
     except Exception:
         pass
 
+def ensure_bot_evidence_columns():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='bot_evidence'")).fetchone()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN bot_evidence TEXT"))
+                conn.commit()
+    except Exception:
+        pass
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='ban_appeal' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='evidence'")).fetchone()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE ban_appeal ADD COLUMN evidence TEXT"))
+                conn.commit()
+    except Exception:
+        pass
+
 def ensure_user_cache_settings_columns():
     try:
         with db.engine.connect() as conn:
@@ -5195,11 +5232,72 @@ _BOT_TURNSTILE_GATE_WHITELIST = {
     'static',
 }
 
+def _log_bot_evidence(event_type, score=None, behavior_score=None, reasons=None, details=None):
+    """Persist a bot-detection event for moderation and ban appeal review."""
+    try:
+        entry = BotEvidenceLog(
+            user_id=current_user.id,
+            username=getattr(current_user, 'username', None),
+            event_type=event_type,
+            score=score,
+            behavior_score=behavior_score,
+            reasons=reasons,
+            details=details,
+            ip_address=get_client_ip(),
+            user_agent=get_request_user_agent()
+        )
+        db.session.add(entry)
+        safe_db_commit()
+    except Exception:
+        pass
+
+def _build_bot_evidence_snapshot():
+    """Build a human-readable evidence snapshot captured at ban time."""
+    def _redis_float(key):
+        try:
+            return float(redis_conn.get(key) or 0)
+        except Exception:
+            return 0.0
+    def _redis_int(key):
+        try:
+            return int(redis_conn.get(key) or 0)
+        except Exception:
+            return 0
+    recent = []
+    try:
+        rows = BotEvidenceLog.query.filter_by(user_id=current_user.id)\
+            .order_by(BotEvidenceLog.created_at.desc(), BotEvidenceLog.id.desc()).limit(25).all()
+        for r in reversed(rows):
+            recent.append(
+                f"{r.created_at.strftime('%Y-%m-%d %H:%M:%S')} [{r.event_type}] "
+                f"score={r.score if r.score is not None else 0:g} "
+                f"behavior={r.behavior_score if r.behavior_score is not None else 0:g} "
+                f"reasons={r.reasons or '-'}"
+            )
+    except Exception:
+        pass
+    snapshot = {
+        "reason": current_user.bot_ban_reason or "",
+        "banned_at": (current_user.bot_banned_at or datetime.utcnow()).isoformat() + "Z",
+        "turnstile_fail_count": _redis_int(f"bot:tst:fail:{current_user.id}"),
+        "turnstile_cycle_count": _redis_int(f"bot:tst:cycle:{current_user.id}"),
+        "accumulated_score": _redis_float(f"bot:score:{current_user.id}"),
+        "accumulated_behavior_score": _redis_float(f"bot:behavior:{current_user.id}"),
+        "recent_events": recent,
+    }
+    return json.dumps(snapshot, ensure_ascii=False, indent=2)
+
 def _apply_bot_ban(reason):
     """Mark the current user as bot-banned and cascade to related accounts."""
     current_user.is_bot_banned = True
     current_user.bot_banned_at = datetime.utcnow()
     current_user.bot_ban_reason = reason
+    current_user.bot_evidence = _build_bot_evidence_snapshot()
+    try:
+        log_force(f"BOT-BAN: user={current_user.id} username={current_user.username} reason={reason}")
+    except Exception:
+        pass
+    _log_bot_evidence('ban', reasons=reason, details=current_user.bot_evidence)
     ban_related_accounts(current_user, reason)
 
 def _bot_turnstile_register_failure():
@@ -10940,6 +11038,7 @@ def banned():
         'banned.html',
         reason=current_user.bot_ban_reason,
         banned_at=current_user.bot_banned_at,
+        evidence=current_user.bot_evidence,
         latest_appeal=latest_appeal,
         appeal_submitted=session.pop('appeal_submitted', False),
         appeal_error=session.pop('appeal_error', None),
@@ -10971,7 +11070,8 @@ def submit_ban_appeal():
         ban_reason=current_user.bot_ban_reason,
         ban_at=current_user.bot_banned_at,
         ip_address=get_client_ip(),
-        user_agent=get_request_user_agent()
+        user_agent=get_request_user_agent(),
+        evidence=current_user.bot_evidence
     )
     db.session.add(appeal)
     safe_db_commit()
@@ -10989,7 +11089,10 @@ def api_ban_appeal_status():
     return jsonify({
         'has_appeal': True,
         'status': latest.status,
-        'created_at': latest.created_at.isoformat() + "Z" if latest.created_at else None
+        'created_at': latest.created_at.isoformat() + "Z" if latest.created_at else None,
+        'evidence': current_user.bot_evidence or "",
+        'ban_reason': current_user.bot_ban_reason or "",
+        'banned_at': current_user.bot_banned_at.isoformat() + "Z" if current_user.bot_banned_at else None
     })
 
 @app.route('/api/version')
@@ -15197,6 +15300,7 @@ def api_ban_appeals():
             'ban_at': a.ban_at.isoformat() + "Z" if a.ban_at else None,
             'ip_address': a.ip_address or "",
             'user_agent': a.user_agent or "",
+            'evidence': a.evidence or "",
             'created_at': a.created_at.isoformat() + "Z" if a.created_at else None,
             'updated_at': a.updated_at.isoformat() + "Z" if a.updated_at else None
         })
@@ -15293,6 +15397,22 @@ def bot_telemetry():
         reasons.append('turnstile_failed')
     else:
         total_score = raw_behavior
+    if raw_behavior > 0 or data.get('turnstile_failed'):
+        try:
+            if rate_limit(f"rl:bot_ev_log:{current_user.id}", 60, 60):
+                _log_bot_evidence(
+                    'telemetry',
+                    score=total_score,
+                    behavior_score=raw_behavior,
+                    reasons=",".join(reasons),
+                    details=", ".join(f"{k}={data.get(k)}" for k in (
+                        'window_ms', 'clicks', 'keys', 'fast_clicks', 'fast_keys',
+                        'click_burst', 'key_burst', 'event_rate', 'avg_click_ms',
+                        'click_cv', 'pointer_speed_max'
+                    ) if data.get(k) is not None)
+                )
+        except Exception:
+            pass
     if total_score <= 0:
         return jsonify({'status': 'ok', 'score': 0})
     key = f"bot:score:{current_user.id}"
@@ -15309,10 +15429,7 @@ def bot_telemetry():
     # Turnstile-failure ban is handled by _bot_turnstile_register_failure when
     # the challenge fails repeatedly.)
     if new_score >= 8 and new_behavior >= 6:
-        current_user.is_bot_banned = True
-        current_user.bot_banned_at = datetime.utcnow()
-        current_user.bot_ban_reason = "Automated behavior detected (fast clicks/inputs)"
-        ban_related_accounts(current_user, current_user.bot_ban_reason)
+        _apply_bot_ban("Automated behavior detected (fast clicks/inputs)")
         return jsonify({'error': 'banned', 'score': new_score, 'reasons': reasons}), 403
     return jsonify({'status': 'ok', 'score': new_score, 'reasons': reasons})
 
@@ -15328,11 +15445,13 @@ def bot_turnstile_verify():
         return jsonify({'error': 'rate_limit'}), 429
     data = request.get_json(silent=True) or {}
     if not verify_turnstile(data.get('turnstile_token')):
+        _log_bot_evidence('verify_fail', reasons='turnstile_failed')
         if _bot_turnstile_register_failure():
             return jsonify({'error': 'banned'}), 403
         return jsonify({'error': 'turnstile_failed'}), 403
     if _bot_turnstile_register_success():
         return jsonify({'error': 'banned'}), 403
+    _log_bot_evidence('verify_ok')
     return jsonify({'status': 'ok'})
 
 @app.route('/api/bot/unban', methods=['POST'])
@@ -17523,6 +17642,10 @@ with app.app_context():
         pass
     try:
         ensure_user_debug_settings_columns()
+    except Exception:
+        pass
+    try:
+        ensure_bot_evidence_columns()
     except Exception:
         pass
     try:

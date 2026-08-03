@@ -80,6 +80,21 @@
             resize: vertical;
         }
         .hint { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+        .evidence-box {
+            margin-top: 10px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 11px;
+            line-height: 1.6;
+            color: #cbd5f5;
+            background: rgba(12,20,30,0.6);
+            border: 1px solid rgba(148,163,184,0.15);
+            border-radius: 8px;
+            padding: 10px 12px;
+            max-height: 320px;
+            overflow: auto;
+        }
         .alert { margin-top: 10px; font-size: 12px; padding: 8px 10px; border-radius: 8px; }
         .alert.success { background: rgba(34,197,94,0.15); color: #a7f3d0; border: 1px solid rgba(34,197,94,0.35); }
         .alert.error { background: rgba(239,68,68,0.15); color: #fecaca; border: 1px solid rgba(239,68,68,0.35); }
@@ -96,6 +111,13 @@
         {% endif %}
         {% if banned_at %}
         <p class="meta">日時: {{ banned_at }}</p>
+        {% endif %}
+        {% if evidence %}
+        <div class="appeal-box">
+            <h2>アカウントの不審な履歴（記録）</h2>
+            <p>BAN 判定時に記録された情報です。異議申し立ての参考にしてください。</p>
+            <pre class="evidence-box">{{ evidence }}</pre>
+        </div>
         {% endif %}
         <div class="appeal-box">
             <h2>異議申し立て<span class="badge">管理者に通知されます</span></h2>

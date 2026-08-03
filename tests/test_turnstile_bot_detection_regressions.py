@@ -595,6 +595,70 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
                     res = self.post_turnstile_verify(client, {"turnstile_token": "valid"})
                     self.assertEqual(res.status_code, 200)
 
+    def test_ban_records_evidence_and_log(self):
+        # BAN 時に不審な履歴のスナップショットとログが残る
+        fake = _FakeRedis()
+        with mock.patch.object(target, "verify_turnstile", return_value=False):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    for _ in range(5):
+                        self.post_telemetry(client, {
+                            "turnstile_failed": True,
+                            "window_ms": 4000,
+                            "clicks": 2,
+                            "keys": 2,
+                            "moves": 2,
+                        })
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertTrue(user.is_bot_banned)
+            self.assertTrue(user.bot_evidence)
+            import json as _json
+            snapshot = _json.loads(user.bot_evidence)
+            self.assertIn("reason", snapshot)
+            self.assertIn("recent_events", snapshot)
+            logs = target.BotEvidenceLog.query.filter_by(user_id=self.user_id).all()
+            self.assertGreaterEqual(len(logs), 1)
+            self.assertIn("ban", [entry.event_type for entry in logs])
+
+    def test_appeal_submission_stores_evidence(self):
+        # 異議申し立て時に不審な履歴が添付される
+        fake = _FakeRedis()
+        with mock.patch.object(target, "verify_turnstile", return_value=False):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    for _ in range(5):
+                        self.post_telemetry(client, {
+                            "turnstile_failed": True,
+                            "window_ms": 4000,
+                            "clicks": 2,
+                            "keys": 2,
+                            "moves": 2,
+                        })
+                    res = client.post(
+                        "/ban/appeal",
+                        data={"message": "これは誤判定です。確認してください。", "csrf_token": "csrf-test-token"},
+                        headers={"X-CSRF-Token": "csrf-test-token"},
+                    )
+                    self.assertEqual(res.status_code, 302)
+        with target.app.app_context():
+            appeal = target.BanAppeal.query.filter_by(user_id=self.user_id).first()
+            self.assertIsNotNone(appeal)
+            self.assertTrue(appeal.evidence)
+
+    def test_js_skips_turnstile_failed_when_verified(self):
+        # 検証済みユーザーは turnstile_failed を送信しない（誤BAN防止）
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        self.assertIn("payload.turnstile_failed = true;", source)
+        self.assertIn("!botDetectionVerified", source)
+        # オーバーレイは Turnstile ウィジェット読込前でも表示される
+        self.assertIn("showBotDetectionOverlay();", source)
+        self.assertIn("turnstileWidgetId === null", source)
+
 
 if __name__ == "__main__":
     unittest.main()

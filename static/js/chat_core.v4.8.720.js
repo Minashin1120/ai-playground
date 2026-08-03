@@ -2455,6 +2455,9 @@
             }
             return response;
         };
+        const manualSpinnerRequestOptions = (options) => window.ProgressSpinner
+            ? window.ProgressSpinner.manualRequestOptions(options)
+            : options;
 
         window.updateGoogleLinkUI = (d) => {
             const linkText = get('google-link-text');
@@ -14375,20 +14378,19 @@
             let contentEl = null;
             let thoughtEl = null;
             let started = false;
-            const finishProgress = window.ProgressSpinner ? window.ProgressSpinner.start('Geminiへ送信中...') : null;
+            const finishProgress = window.ProgressSpinner ? window.ProgressSpinner.startFlow('browserFast') : null;
             try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, manualSpinnerRequestOptions({
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': browserFastApiKey },
                     body: JSON.stringify(payload),
                     signal: abortController.signal,
-                    progressSpinner: false,
-                });
+                }));
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
                     throw new Error(errorData && errorData.error && errorData.error.message ? errorData.error.message : `Gemini API HTTP ${response.status}`);
                 }
-                if (finishProgress) finishProgress.setLabel('Geminiの応答待機中...');
+                if (finishProgress) finishProgress.setPhase('waiting');
                 get('prompt-input').value = '';
                 get('prompt-input').style.height = 'auto';
                 const reader = response.body.getReader();
@@ -14438,7 +14440,7 @@
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
-                    if (finishProgress) finishProgress.setLabel('受信中...');
+                    if (finishProgress) finishProgress.setPhase('receiving');
                     buffer += decoder.decode(value, { stream: true });
                     const blocks = buffer.split(/\r?\n\r?\n/);
                     buffer = blocks.pop() || '';
@@ -14451,13 +14453,13 @@
                 if (thoughtEl) thoughtEl.classList.add('collapsed');
 
                 if (localEntries.length) {
-                    if (finishProgress) finishProgress.setLabel('保存中...');
+                    if (finishProgress) finishProgress.setPhase('saving');
                     showToast('回答が完了しました。画像と履歴をサーバーへ保存しています。', 'info', false);
                     await uploadBrowserFastLocalFiles();
                 }
-                if (finishProgress) finishProgress.setLabel('保存中...');
+                if (finishProgress) finishProgress.setPhase('saving');
                 const refs = collectImageUrlsForSend();
-                const saveResponse = await fetchChatStreamWithUnavailableRetry('/api/browser_fast_mode/save', {
+                const saveResponse = await fetchChatStreamWithUnavailableRetry('/api/browser_fast_mode/save', manualSpinnerRequestOptions({
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -14474,8 +14476,7 @@
                         turnstile_token: botTurnstileTokenForRequest(),
                     }),
                     signal: abortController.signal,
-                    progressSpinner: false,
-                }, adiv);
+                }), adiv);
                 const saved = await saveResponse.json().catch(() => ({}));
                 if (!saveResponse.ok || !saved.thread_id) throw new Error(saved.error || 'DB保存に失敗しました');
                 const createdThread = !currentThreadId;
@@ -15001,9 +15002,9 @@
                 else if (eventType === 'content') firstContentLatencySent = true;
             };
             // fetch() resolves when response headers arrive, before its streaming body is done.
-            // Keep the global progress operation alive until the reader loop and final sync finish.
+            // Keep the dedicated progress flow alive until the reader loop reaches EOF.
             const finishStreamProgress = window.ProgressSpinner
-                ? window.ProgressSpinner.start('送信中...')
+                ? window.ProgressSpinner.startFlow('chat')
                 : null;
             let requestAccepted = false;
             let retryAfterApiKeySetup = false;
@@ -15016,7 +15017,7 @@
                 }
                 const r = await fetchChatStreamWithUnavailableRetry(
                     CHAT_CONFIG.urls.chatStream,
-                    {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p), signal:abortController.signal, progressSpinner:false},
+                    manualSpinnerRequestOptions({method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p), signal:abortController.signal}),
                     adiv
                 );
                 sendClientDebugLog('info', `Prompt stream response status: ${r.status}`);
@@ -15030,7 +15031,7 @@
                     throw requestError;
                 }
                 requestAccepted = true;
-                if (finishStreamProgress) finishStreamProgress.setLabel('モデルの応答待機中...');
+                if (finishStreamProgress) finishStreamProgress.setPhase('waiting');
                 get('prompt-input').value = '';
                 get('prompt-input').style.height = 'auto';
                 schedulePromptTokenEstimate(true);
@@ -15062,7 +15063,7 @@
                 while(true) {
                     const {done, value} = await reader.read();
                     if(done) break;
-                    if (finishStreamProgress) finishStreamProgress.setLabel('受信中...');
+                    if (finishStreamProgress) finishStreamProgress.setPhase('receiving');
                     buf += dec.decode(value, {stream:true});
                     let ls = buf.split("\n");
                     buf = ls.pop();
@@ -15451,27 +15452,26 @@
             const pyBoxes = {};
             let lastRenderTime = 0;
             const finishResumeProgress = window.ProgressSpinner
-                ? window.ProgressSpinner.start('再接続中...')
+                ? window.ProgressSpinner.startFlow('chatResume')
                 : null;
             let reconnectAfterResumeDisconnect = false;
             try {
-                const r = await apiFetch("/chat_stream_resume", {
+                const r = await apiFetch("/chat_stream_resume", manualSpinnerRequestOptions({
                     method: 'POST',
                     headers: {'Content-Type':'application/json'},
                     body: JSON.stringify({ thread_id: currentThreadId, job_id: jobId, turnstile_token: botTurnstileTokenForRequest() }),
-                    signal: abortController.signal,
-                    progressSpinner: false
-                });
+                    signal: abortController.signal
+                }));
                 if (!r.ok) {
                     throw new Error(`Resume failed (${r.status})`);
                 }
-                if (finishResumeProgress) finishResumeProgress.setLabel('モデルの応答待機中...');
+                if (finishResumeProgress) finishResumeProgress.setPhase('waiting');
                 const reader = r.body.getReader();
                 const dec = new TextDecoder();
                 while (true) {
                     const {done, value} = await reader.read();
                     if (done) break;
-                    if (finishResumeProgress) finishResumeProgress.setLabel('受信中...');
+                    if (finishResumeProgress) finishResumeProgress.setPhase('receiving');
                     buf += dec.decode(value, {stream:true});
                     let ls = buf.split("\n");
                     buf = ls.pop();

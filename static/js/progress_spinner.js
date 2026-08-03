@@ -7,6 +7,21 @@
     const DISPLAY_DELAY_MS = 400;
     const FORM_FALLBACK_MS = 15000;
     const DEFAULT_SPINNER_TEXT = '通信中...';
+    const PHASE_LABELS = Object.freeze({
+        communicating: DEFAULT_SPINNER_TEXT,
+        sending: '送信中...',
+        waiting: 'モデルの応答待機中...',
+        receiving: '受信中...',
+        reconnecting: '再接続中...',
+        saving: '保存中...',
+        uploading: 'アップロード中...',
+        generating: '生成中...'
+    });
+    const FLOW_INITIAL_PHASES = Object.freeze({
+        chat: 'sending',
+        chatResume: 'reconnecting',
+        browserFast: 'sending'
+    });
     const PASSIVE_REQUEST_RE = /(?:\/api\/version(?:[/?]|$)|\/api\/(?:debug|metrics)(?:[/?]|$)|\/api\/bot-telemetry(?:[/?]|$)|\/api\/temporary_chat\/heartbeat(?:[/?]|$))/i;
 
     let nextOperationId = 1;
@@ -87,6 +102,11 @@
 
     function normalizeSpinnerLabel(raw) {
         return typeof raw === 'string' ? raw.replace(/\s+/g, ' ').trim() : '';
+    }
+
+    function spinnerTextForPhase(phase) {
+        const key = normalizeSpinnerLabel(phase);
+        return PHASE_LABELS[key] || DEFAULT_SPINNER_TEXT;
     }
 
     function inferSpinnerTextFromText(rawText) {
@@ -227,6 +247,9 @@
             if (finished || !operations.has(operation.id)) return;
             operation.label = normalizeSpinnerLabel(label) || DEFAULT_SPINNER_TEXT;
             updateSpinnerText();
+        };
+        finishOperation.setPhase = function (phase) {
+            finishOperation.setLabel(spinnerTextForPhase(phase));
         };
         return finishOperation;
     }
@@ -409,6 +432,13 @@
 
     function installPublicApi() {
         window.ProgressSpinner = Object.freeze({
+            startFlow: function (flowName) {
+                const initialPhase = FLOW_INITIAL_PHASES[flowName] || 'communicating';
+                return startOperation({ label: spinnerTextForPhase(initialPhase) });
+            },
+            manualRequestOptions: function (options) {
+                return Object.assign({}, options || {}, { progressSpinner: false });
+            },
             start: function (label) {
                 return startOperation({ label: inferSpinnerTextFromText(label) || label });
             },

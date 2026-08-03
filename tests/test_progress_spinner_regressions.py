@@ -44,24 +44,26 @@ class ProgressSpinnerRegressionTests(unittest.TestCase):
         self.assertIn(f"SYSTEM_VERSION'] = '{m.group(1)}'", app_source)
         for name in ("chat", "login", "signup", "verify_2fa", "setup", "landing", "banned"):
             template = (APP_ROOT / "templates" / f"{name}.html").read_text(encoding="utf-8")
-            self.assertIn("filename='js/progress_spinner.js', v='4.8.719'", template)
+            self.assertIn("filename='js/progress_spinner.js', v='4.8.720'", template)
 
     def test_chat_streams_remain_tracked_until_body_consumption_finishes(self):
         assets = list((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(assets), 1)
         source = assets[0].read_text(encoding="utf-8")
 
-        self.assertEqual(source.count("window.ProgressSpinner.start('送信中...')"), 1)
-        self.assertEqual(source.count("window.ProgressSpinner.start('再接続中...')"), 1)
+        self.assertEqual(source.count("window.ProgressSpinner.startFlow('chat')"), 1)
+        self.assertEqual(source.count("window.ProgressSpinner.startFlow('chatResume')"), 1)
+        self.assertEqual(source.count("window.ProgressSpinner.startFlow('browserFast')"), 1)
         # End at stream EOF, with an idempotent finally fallback for errors/aborts.
         self.assertEqual(source.count("if (finishStreamProgress) finishStreamProgress()"), 2)
         self.assertEqual(source.count("if (finishResumeProgress) finishResumeProgress()"), 2)
-        self.assertIn("finishStreamProgress.setLabel('モデルの応答待機中...')", source)
-        self.assertIn("finishStreamProgress.setLabel('受信中...')", source)
-        self.assertIn("finishResumeProgress.setLabel('モデルの応答待機中...')", source)
-        self.assertIn("finishResumeProgress.setLabel('受信中...')", source)
-        explicit_opt_outs = source.count("progressSpinner: false") + source.count("progressSpinner:false")
-        self.assertGreaterEqual(explicit_opt_outs, 4)
+        self.assertIn("finishStreamProgress.setPhase('waiting')", source)
+        self.assertIn("finishStreamProgress.setPhase('receiving')", source)
+        self.assertIn("finishResumeProgress.setPhase('waiting')", source)
+        self.assertIn("finishResumeProgress.setPhase('receiving')", source)
+        self.assertEqual(source.count("manualSpinnerRequestOptions("), 4)
+        self.assertNotIn("progressSpinner: false", source)
+        self.assertNotIn("progressSpinner:false", source)
 
     def test_spinner_labels_switch_when_response_body_is_received(self):
         source = SPINNER_SOURCE.read_text(encoding="utf-8")
@@ -70,6 +72,20 @@ class ProgressSpinnerRegressionTests(unittest.TestCase):
         self.assertIn("finishOperation.setLabel = function (label)", source)
         self.assertIn("finish.setLabel('受信中...')", source)
         self.assertNotIn("const DEFAULT_SPINNER_TEXT = '処理中...'", source)
+
+    def test_manual_flow_labels_are_centralized_in_spinner_module(self):
+        spinner_source = SPINNER_SOURCE.read_text(encoding="utf-8")
+        assets = list((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1)
+        chat_source = assets[0].read_text(encoding="utf-8")
+
+        self.assertIn("const PHASE_LABELS = Object.freeze({", spinner_source)
+        self.assertIn("const FLOW_INITIAL_PHASES = Object.freeze({", spinner_source)
+        self.assertIn("startFlow: function (flowName)", spinner_source)
+        self.assertIn("finishOperation.setPhase = function (phase)", spinner_source)
+        self.assertIn("manualRequestOptions: function (options)", spinner_source)
+        self.assertNotIn("ProgressSpinner.start('", chat_source)
+        self.assertNotIn(".setLabel('モデルの応答待機中...')", chat_source)
 
     def test_read_only_requests_ignore_action_button_labels(self):
         source = SPINNER_SOURCE.read_text(encoding="utf-8")

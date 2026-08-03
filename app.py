@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-020')
-app.config['SYSTEM_VERSION'] = 'V4.8.708'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-021')
+app.config['SYSTEM_VERSION'] = 'V4.8.709'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -5220,6 +5220,8 @@ _BOT_TURNSTILE_STATE_TTL = 30 * 60
 _BOT_TURNSTILE_GATE_WHITELIST = {
     'bot_turnstile_verify',
     'bot_telemetry',
+    'bot_lock',
+    'bot_lock_status',
     'logout',
     'submit_ban_appeal',
     'api_ban_appeal',
@@ -5231,6 +5233,105 @@ _BOT_TURNSTILE_GATE_WHITELIST = {
     'client_log',
     'static',
 }
+
+# Rapid-send / rapid-click lock: a suspicious user is temporarily locked out of
+# most server communication for _BOT_LOCK_TTL seconds with a visible reason.
+# Reaching the lock repeatedly (within the lock-count TTL) escalates to a ban.
+_BOT_LOCK_TTL = 10 * 60  # 10 minutes
+_BOT_LOCK_COUNT_LIMIT = 3  # 3 lock events (within window) -> ban
+_BOT_LOCK_COUNT_TTL = 60 * 60  # lock-count window (1 hour)
+# Endpoints a locked user may still reach (page rendering, appeals, logs).
+_BOT_LOCK_GATE_WHITELIST = {
+    'logout',
+    'banned',
+    'submit_ban_appeal',
+    'api_ban_appeal',
+    'api_ban_appeal_status',
+    'api_ban_appeals_summary',
+    'api_ban_appeals_mark_read',
+    'api_ban_appeals_update',
+    'receive_client_log',
+    'client_log',
+    'bot_lock',
+    'bot_lock_status',
+    'static',
+}
+
+def _bot_lock_info():
+    """Return (active, reason, remaining_seconds) for the current user's lock."""
+    try:
+        raw = redis_conn.get(f"bot:lock:{current_user.id}")
+        if not raw:
+            return False, None, 0
+        ttl = redis_conn.ttl(f"bot:lock:{current_user.id}")
+        reason = raw.decode('utf-8', 'replace') if isinstance(raw, bytes) else str(raw)
+        return True, reason, max(0, ttl)
+    except Exception:
+        return False, None, 0
+
+def _bot_lock_config():
+    """Lock state to embed in the chat page bootstrap (None if not locked)."""
+    active, reason, remaining = _bot_lock_info()
+    if not active:
+        return None
+    return {
+        'active': True,
+        'message': reason or '送信操作が速すぎるため、一時的にロックしています。',
+        'remaining_seconds': remaining,
+    }
+
+def _apply_bot_lock(reason):
+    """Lock the current user for _BOT_LOCK_TTL seconds with a visible reason.
+
+    Each fresh lock increments the lock counter; reaching
+    _BOT_LOCK_COUNT_LIMIT escalates to a bot ban. Returns a dict describing
+    the resulting state: {'status': 'locked'|'banned'|'already_locked', ...}.
+    """
+    if current_user.is_bot_banned:
+        return {'status': 'banned'}
+    try:
+        lock_key = f"bot:lock:{current_user.id}"
+        if redis_conn.exists(lock_key):
+            return {'status': 'already_locked'}
+        redis_conn.set(lock_key, str(reason or '送信操作が速すぎるため、一時的にロックしています。'), ex=_BOT_LOCK_TTL)
+        count_key = f"bot:lock:count:{current_user.id}"
+        count = redis_conn.incr(count_key)
+        redis_conn.expire(count_key, _BOT_LOCK_COUNT_TTL)
+        _log_bot_evidence('lock', reasons=reason or 'rapid_send')
+        if count >= _BOT_LOCK_COUNT_LIMIT:
+            _apply_bot_ban("Repeated rapid-operation lock (bot-like behavior)")
+            return {'status': 'banned'}
+        return {'status': 'locked'}
+    except Exception:
+        return {'status': 'locked'}
+
+def _bot_lock_gate():
+    """before_request guard: block most communication while the account is locked.
+
+    Read-only GET page loads are allowed so the user can view the lock reason,
+    but state-changing POSTs and API calls are rejected while the lock is active.
+    """
+    if request.endpoint == 'static':
+        return
+    if not current_user.is_authenticated:
+        return
+    if getattr(current_user, "is_admin", False):
+        return
+    if current_user.is_bot_banned:
+        return  # handled by check_bot_ban
+    active, reason, remaining = _bot_lock_info()
+    if not active:
+        return
+    if request.endpoint in _BOT_LOCK_GATE_WHITELIST:
+        return
+    # Allow page rendering GETs so the user can see the lock screen/reason.
+    if request.method == 'GET':
+        return
+    return jsonify({
+        'error': 'account_locked',
+        'message': reason or '送信操作が速すぎるため、一時的にロックしています。',
+        'remaining_seconds': remaining,
+    }), 403
 
 def _log_bot_evidence(event_type, score=None, behavior_score=None, reasons=None, details=None):
     """Persist a bot-detection event for moderation and ban appeal review."""
@@ -5422,6 +5523,11 @@ def gate_bot_detection_unverified():
         'error': 'turnstile_required',
         'message': '安全性の確認が完了するまでご利用いただけません。',
     }), 403
+
+@app.before_request
+def gate_bot_lock():
+    """Block most server communication while the account is temporarily locked."""
+    return _bot_lock_gate()
 
 _LOCAL_RATE_LIMIT_LOCK = threading.Lock()
 _LOCAL_RATE_LIMITS = {}
@@ -10867,7 +10973,8 @@ def index():
             "globalEnabled": get_bot_detection_global_enabled(),
             "accountEnabled": current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
             "turnstileSiteKey": os.getenv('TURNSTILE_SITE_KEY') or "",
-            "turnstileVerified": _bot_turnstile_active() and _bot_turnstile_verified()
+            "turnstileVerified": _bot_turnstile_active() and _bot_turnstile_verified(),
+            "lock": _bot_lock_config()
         }
         return render_template('chat.html', easy_login_used=easy_login_used, bot_config=bot_config)
     return render_template('landing.html')
@@ -10896,7 +11003,8 @@ def modal_pages():
         "globalEnabled": get_bot_detection_global_enabled(),
         "accountEnabled": current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
         "turnstileSiteKey": os.getenv('TURNSTILE_SITE_KEY') or "",
-        "turnstileVerified": _bot_turnstile_active() and _bot_turnstile_verified()
+        "turnstileVerified": _bot_turnstile_active() and _bot_turnstile_verified(),
+        "lock": _bot_lock_config()
     }
     return render_template('chat.html', easy_login_used=easy_login_used, bot_config=bot_config)
 
@@ -10913,7 +11021,8 @@ def chat_permalink(thread_id):
         "globalEnabled": get_bot_detection_global_enabled(),
         "accountEnabled": current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
         "turnstileSiteKey": os.getenv('TURNSTILE_SITE_KEY') or "",
-        "turnstileVerified": _bot_turnstile_active() and _bot_turnstile_verified()
+        "turnstileVerified": _bot_turnstile_active() and _bot_turnstile_verified(),
+        "lock": _bot_lock_config()
     }
     initial_thread_id = thread.public_id or thread.id
     return render_template('chat.html', initial_thread_id=initial_thread_id, easy_login_used=easy_login_used, bot_config=bot_config)
@@ -15460,6 +15569,46 @@ def bot_turnstile_verify():
         return jsonify({'error': 'banned'}), 403
     _log_bot_evidence('verify_ok')
     return jsonify({'status': 'ok'})
+
+@app.route('/api/bot/lock', methods=['POST'])
+@login_required
+def bot_lock():
+    """Apply a temporary lock after suspicious rapid operation (e.g. send spam).
+
+    The client reports rapid send-button clicking; the server locks the account
+    for _BOT_LOCK_TTL seconds and returns the reason. Repeated locks escalate
+    to a ban.
+    """
+    if getattr(current_user, "is_admin", False):
+        return jsonify({'status': 'skipped', 'skipped': True})
+    if not get_bot_detection_global_enabled() or not current_user.bot_detection_enabled:
+        return jsonify({'status': 'disabled'})
+    if current_user.is_bot_banned:
+        return jsonify({'error': 'banned'}), 403
+    if not rate_limit(f"rl:bot_lock:{current_user.id}", 5, 60):
+        return jsonify({'error': 'rate_limit'}), 429
+    data = request.get_json(silent=True) or {}
+    reason = str(data.get('reason') or '送信操作が速すぎるため、一時的にロックしています。')[:300]
+    result = _apply_bot_lock(reason)
+    if result.get('status') == 'banned':
+        return jsonify({'error': 'banned', 'message': 'ロックが繰り返されたため、BANされました。'}), 403
+    active, active_reason, remaining = _bot_lock_info()
+    return jsonify({
+        'status': 'locked',
+        'message': active_reason or reason,
+        'remaining_seconds': remaining,
+    })
+
+@app.route('/api/bot/lock-status', methods=['GET'])
+@login_required
+def bot_lock_status():
+    """Return the current lock state so the UI can render the lock screen."""
+    active, reason, remaining = _bot_lock_info()
+    return jsonify({
+        'active': active,
+        'message': reason or '',
+        'remaining_seconds': remaining,
+    })
 
 @app.route('/api/bot/unban', methods=['POST'])
 @login_required

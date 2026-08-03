@@ -63,6 +63,15 @@ class _FakeRedis:
         self._d[key] = (entry[0], time.time() + ttl)
         return True
 
+    def ttl(self, key):
+        entry = self._d.get(key)
+        if entry is None:
+            return -2
+        value, expires_at = entry
+        if expires_at is None:
+            return -1
+        return int(expires_at - time.time())
+
     def incr(self, key):
         current = self.get(key)
         new_value = (int(current) + 1) if current is not None else 1
@@ -133,6 +142,14 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         return client.post(
             "/api/bot/turnstile-verify",
             data=target.json.dumps(payload),
+            content_type="application/json",
+            headers={"X-CSRF-Token": "csrf-test-token"},
+        )
+
+    def post_bot_lock(self, client, payload=None):
+        return client.post(
+            "/api/bot/lock",
+            data=target.json.dumps(payload or {}),
             content_type="application/json",
             headers={"X-CSRF-Token": "csrf-test-token"},
         )
@@ -811,10 +828,68 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         css = assets[0].read_text(encoding="utf-8")
         self.assertIn(".turnstile-box { position: fixed; left: -9999px", css)
 
+    def test_bot_lock_blocks_posts_and_returns_reason(self):
+        # 連打ロック中はほとんどのPOSTが 403 account_locked でブロックされ、
+        # ロック理由が返る
+        fake = _FakeRedis()
+        with mock.patch.object(target, "verify_turnstile", return_value=True):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    res = self.post_bot_lock(client, {"reason": "連打検出"})
+                    self.assertEqual(res.status_code, 200)
+                    self.assertEqual(res.get_json().get("status"), "locked")
+                    # ロック中は chat_stream のPOSTが account_locked で拒否される
+                    blocked = self.post_chat_stream(client, {"message": "hello", "turnstile_token": "valid"})
+                    self.assertEqual(blocked.status_code, 403)
+                    body = blocked.get_json()
+                    self.assertEqual(body.get("error"), "account_locked")
+                    self.assertIn("remaining_seconds", body)
+                    self.assertTrue(body.get("remaining_seconds") > 0)
+
+    def test_bot_lock_escalates_to_ban_after_repeats(self):
+        # ロックが繰り返されると（別イベントとして3回）BANにエスカレーションする
+        fake = _FakeRedis()
+        with mock.patch.object(target, "redis_conn", fake):
+            with self.turnstile_env():
+                client = self.authenticated_client()
+                # 1回目・2回目はロック（TTL切れで解除しながら別イベントを積む）
+                for _ in range(2):
+                    res = self.post_bot_lock(client, {"reason": "連打"})
+                    self.assertEqual(res.get_json().get("status"), "locked")
+                    fake.delete(f"bot:lock:{self.user_id}")  # TTL切れを模擬
+                # 3回目の別ロックでBAN
+                res = self.post_bot_lock(client, {"reason": "連打"})
+                self.assertEqual(res.status_code, 403)
+                self.assertEqual(res.get_json().get("error"), "banned")
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertTrue(user.is_bot_banned)
+
+    def test_bot_lock_admin_skipped(self):
+        # 管理者はロック対象外
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.is_admin = True
+            target.db.session.commit()
+        fake = _FakeRedis()
+        with mock.patch.object(target, "redis_conn", fake):
+            with self.turnstile_env():
+                client = self.authenticated_client()
+                res = self.post_bot_lock(client, {"reason": "連打"})
+                self.assertEqual(res.status_code, 200)
+                self.assertEqual(res.get_json().get("status"), "skipped")
+
+    def test_banned_page_does_not_show_evidence(self):
+        # BAN画面では不審履歴（evidence）を表示しない（管理者画面専用）
+        html = (APP_ROOT / "templates" / "banned.html").read_text(encoding="utf-8")
+        self.assertNotIn("アカウントの不審な履歴", html)
+        self.assertNotIn("evidence-box", html)
+
     def test_js_send_spam_triggers_bot_check_dialog(self):
-        # 送信ボタンの連打（5回/2秒）でボットチェックダイアログを出し、
-        # 検証が終わるまで送信を続行しない（サーバー負荷対策）。
-        # ただし検証済みユーザーにはダイアログを出さない。
+        # 送信ボタンの連打（5回/2秒）でアカウントロック（10分）をかけ、
+        # 理由を表示してサーバー通信をブロックする（サーバー負荷対策）。
+        # ただし検証済みユーザーにはロックをかけない。
         assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
         source = assets[0].read_text(encoding="utf-8")
@@ -826,21 +901,37 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         self.assertIn("送信操作が速すぎるため", gate)
         self.assertIn("registerSendButtonSpam", source)
         self.assertIn("runSendSpamVerification", source)
-        # 検証済みユーザーは連打ダイアログ対象外
+        # 検証済みユーザーは連打ロック対象外
         self.assertIn("isBotDetectionActive() && !botDetectionVerified", gate)
 
-    def test_js_send_spam_verification_shows_overlay_with_turnstile(self):
-        # runSendSpamVerification は可視のオーバーレイ＋Turnstileボックスで
-        # challenged=true 検証し、成功時にオーバーレイを閉じる
+    def test_js_send_spam_locks_account_via_server(self):
+        # runSendSpamVerification は /api/bot/lock を呼んでサーバー側で
+        # アカウントをロックし、理由付きロック画面を表示する
         assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
         source = assets[0].read_text(encoding="utf-8")
         fn = source[source.index("async function runSendSpamVerification()") :]
         fn = fn[: fn.index("let turnstileServerVerifiedAt = 0;")]
-        self.assertIn("showBotDetectionOverlay(", fn)
-        self.assertIn("getTurnstileToken(25000)", fn)
-        self.assertIn("verifyTurnstileOnServer(token, true, true)", fn)
-        self.assertIn("hideBotDetectionOverlay()", fn)
+        self.assertIn("applyBotLockFromServer(", fn)
+        self.assertIn("return await applyBotLockFromServer(", fn)
+        # /api/bot/lock は applyBotLockFromServer 内にある（ソース全体で確認）
+        self.assertIn("'/api/bot/lock'", source)
+
+    def test_js_lock_overlay_and_endpoint(self):
+        # ロック画面は理由と残り時間を表示し、403 account_locked で表示される
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        self.assertIn("function showBotLockOverlay(", source)
+        self.assertIn("function hideBotLockOverlay(", source)
+        self.assertIn("bot-lock-overlay", source)
+        self.assertIn("アカウントが一時的にロックされました", source)
+        self.assertIn("errBody.error === 'account_locked'", source)
+        # ロック画面はAPIリクエスト時にサーバーから取得した残り時間でカウントダウン
+        self.assertIn("applyBotLockFromServer", source)
+        # サーバーにロック状態取得エンドポイントが定義されている
+        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn("/api/bot/lock-status", app_source)
 
 
 if __name__ == "__main__":

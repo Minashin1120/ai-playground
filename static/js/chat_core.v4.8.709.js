@@ -2417,6 +2417,12 @@
             if (requiresCsrf && (response.status === 403 || response.status === 404)) {
                 let errBody = null;
                 try { errBody = await response.clone().json(); } catch (e) {}
+                if (errBody && errBody.error === 'account_locked' && !document.getElementById('bot-lock-overlay')) {
+                    // The account is temporarily locked: show the reason and
+                    // remaining time. POSTs are blocked server-side while locked.
+                    showBotLockOverlay(errBody.message || 'アカウントが一時的にロックされています。', errBody.remaining_seconds);
+                    return response;
+                }
                 if (errBody && errBody.error === 'turnstile_required' && isBotDetectionActive()) {
                     // Marker expired mid-session: force a fresh verification, then retry once.
                     botDetectionVerified = false;
@@ -4716,6 +4722,101 @@
             const overlay = document.getElementById('bot-detection-overlay');
             if (overlay) overlay.remove();
         }
+        let botLockOverlay = null;
+        let botLockTimer = null;
+        function showBotLockOverlay(message = '送信操作が速すぎるため、一時的にロックしています。', remainingSeconds = 600) {
+            hideBotDetectionOverlay();
+            let overlay = document.getElementById('bot-lock-overlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'bot-lock-overlay';
+                overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:rgba(3,7,18,0.94);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;';
+                const card = document.createElement('div');
+                card.style.cssText = 'max-width:440px;width:100%;background:#0f172a;border:1px solid #f59e0b;border-radius:12px;padding:24px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5);display:flex;flex-direction:column;align-items:center;gap:12px;';
+                const icon = document.createElement('div');
+                icon.style.cssText = 'font-size:26px;color:#fbbf24;';
+                icon.innerHTML = '<i class="fas fa-lock"></i>';
+                const title = document.createElement('div');
+                title.id = 'bot-lock-overlay-title';
+                title.style.cssText = 'font-weight:700;font-size:16px;color:#fbbf24;';
+                title.textContent = 'アカウントが一時的にロックされました';
+                const desc = document.createElement('div');
+                desc.id = 'bot-lock-overlay-message';
+                desc.style.cssText = 'font-size:13px;color:#f1f5f9;line-height:1.7;';
+                desc.textContent = message;
+                const timer = document.createElement('div');
+                timer.id = 'bot-lock-overlay-timer';
+                timer.style.cssText = 'font-size:12px;color:#94a3b8;margin-top:2px;';
+                const note = document.createElement('div');
+                note.style.cssText = 'font-size:11px;color:#94a3b8;line-height:1.6;';
+                note.textContent = 'ロック解除までしばらくお待ちください。同じ操作を繰り返すとBANされる場合があります。';
+                card.appendChild(icon);
+                card.appendChild(title);
+                card.appendChild(desc);
+                card.appendChild(timer);
+                card.appendChild(note);
+                overlay.appendChild(card);
+                document.body.appendChild(overlay);
+            } else {
+                overlay.style.display = 'flex';
+                const msgEl = document.getElementById('bot-lock-overlay-message');
+                if (msgEl && message) msgEl.textContent = message;
+            }
+            botLockOverlay = overlay;
+            updateBotLockTimer(remainingSeconds);
+            return overlay;
+        }
+        function updateBotLockTimer(remainingSeconds) {
+            if (botLockTimer) { clearInterval(botLockTimer); botLockTimer = null; }
+            const timerEl = document.getElementById('bot-lock-overlay-timer');
+            if (!timerEl) return;
+            const render = () => {
+                const s = Math.max(0, Math.round(Number(remainingSeconds) || 0));
+                const m = Math.floor(s / 60);
+                const sec = String(s % 60).padStart(2, '0');
+                timerEl.textContent = `ロック解除まで: ${m}:${sec}`;
+            };
+            render();
+            botLockTimer = setInterval(() => {
+                remainingSeconds -= 1;
+                render();
+                if (remainingSeconds <= 0) {
+                    if (botLockTimer) { clearInterval(botLockTimer); botLockTimer = null; }
+                    location.reload();
+                }
+            }, 1000);
+        }
+        function hideBotLockOverlay() {
+            if (botLockTimer) { clearInterval(botLockTimer); botLockTimer = null; }
+            const overlay = document.getElementById('bot-lock-overlay');
+            if (overlay) overlay.remove();
+            botLockOverlay = null;
+        }
+        async function applyBotLockFromServer(reason) {
+            // Report rapid operation to the server, which locks the account and
+            // returns the remaining lock time. Repeated locks escalate to a ban.
+            let remaining = 600;
+            try {
+                const res = await apiFetch('/api/bot/lock', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason: reason || '' })
+                });
+                if (res.status === 403) {
+                    let data = null;
+                    try { data = await res.json(); } catch (e) {}
+                    if (data && data.error === 'banned') {
+                        showToast('ロックが繰り返されたためBANされました。', 'error', true);
+                        setTimeout(() => { location.href = '/banned'; }, 800);
+                        return false;
+                    }
+                }
+                const data = await res.json().catch(() => ({}));
+                if (data && typeof data.remaining_seconds === 'number') remaining = data.remaining_seconds;
+            } catch (e) {}
+            showBotLockOverlay(reason || '送信操作が速すぎるため、一時的にロックしています。', remaining);
+            return false;
+        }
         const runBotDetectionGate = () => {
             if (botDetectionVerified || !isBotDetectionActive()) return Promise.resolve(true);
             if (botDetectionGatePromise) return botDetectionGatePromise;
@@ -4770,23 +4871,11 @@
             sendButtonSpamTimestamps = [];
         }
         async function runSendSpamVerification() {
-            // Rapid send-button clicking is treated as suspicious: force a
-            // visible bot-check dialog (with the Turnstile box) so a legit user
-            // can prove they are human before more requests are sent.
+            // Rapid send-button clicking is treated as suspicious: report it to
+            // the server, which temporarily locks the account (10 min) with a
+            // visible reason. Repeated locks escalate to a ban.
             if (!isBotDetectionActive()) return true;
-            showBotDetectionOverlay('送信が速すぎるため、安全性の確認を実施します。');
-            try {
-                const token = await getTurnstileToken(25000);
-                if (token) {
-                    const ok = await verifyTurnstileOnServer(token, true, true);
-                    if (ok) { hideBotDetectionOverlay(); return true; }
-                }
-                try { botTelemetry.send(true, { forceReport: true }); } catch (e) {}
-            } finally {
-                resetSendButtonSpam();
-            }
-            hideBotDetectionOverlay();
-            return false;
+            return await applyBotLockFromServer('送信操作が速すぎるため、一時的にロックしています。');
         }
         let turnstileServerVerifiedAt = 0;
         async function verifyTurnstileOnServer(token, force = false, challenged = null) {
@@ -7416,6 +7505,11 @@
             });
             window.addEventListener('pagehide', stopConnectionMonitor);
             applyCacheMode(useSwCache);
+            // If the account is temporarily locked, show the lock screen before
+            // doing anything else so the user sees the reason and remaining time.
+            if (botConfig && botConfig.lock && botConfig.lock.active) {
+                showBotLockOverlay(botConfig.lock.message, botConfig.lock.remaining_seconds);
+            }
             if (window.__turnstileApiLoaded && window.initTurnstileWidget) window.initTurnstileWidget();
             if (botConfig && botConfig.globalEnabled && botConfig.accountEnabled && !isAdminUser) {
                 if (botConfig.turnstileVerified) botDetectionVerified = true;

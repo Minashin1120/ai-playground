@@ -403,6 +403,78 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         self.assertIn("def bot_turnstile_verify():", source)
         self.assertIn("'turnstile_required'", source)
 
+    def test_turnstile_failures_alone_never_accumulate_to_ban(self):
+        # Turnstile 未検証（turnstile_failed）だけの報告が何度積み重なっても
+        # BAN にはならない（挙動スコアが低い場合は安全側に倒す）。
+        fake = _FakeRedis()
+        with mock.patch.object(target, "verify_turnstile", return_value=False):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    for _ in range(6):
+                        res = self.post_telemetry(client, {
+                            "turnstile_failed": True,
+                            "window_ms": 4000,
+                            "clicks": 2,
+                            "keys": 2,
+                            "moves": 2,
+                        })
+                        self.assertEqual(res.status_code, 200)
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertFalse(user.is_bot_banned)
+
+    def test_high_behavior_score_bans_without_turnstile_failure(self):
+        # 挙動スコアだけで BAN しきい値に達した場合は Turnstile 失敗がなくても BAN
+        fake = _FakeRedis()
+        with mock.patch.object(target, "verify_turnstile", return_value=True):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    res = self.post_telemetry(client, {
+                        "window_ms": 2000,
+                        "clicks": 30,
+                        "keys": 30,
+                        "moves": 10,
+                        "fast_clicks": 8,
+                        "fast_keys": 20,
+                        "click_burst": 15,
+                        "key_burst": 20,
+                        "event_rate": 35.0,
+                        "avg_click_ms": 80,
+                        "click_cv": 0.02,
+                        "pointer_speed_max": 9000,
+                    })
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(res.get_json().get("error"), "banned")
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertTrue(user.is_bot_banned)
+
+    def test_js_counts_clicks_via_pointerdown_only(self):
+        # クリック検知は pointerdown 主体とし、二重計上のもとになった touchstart
+        # の重複リスナーを削除（click は PointerEvent 非対応環境のフォールバックのみ）
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        telemetry = source[source.index("const botTelemetry = (() => {") :]
+        telemetry = telemetry[: telemetry.index("return { start, refreshEnabled, send };")]
+        self.assertIn("document.addEventListener('pointerdown', recordClick, true)", telemetry)
+        self.assertNotIn("document.addEventListener('touchstart', recordClick, true)", telemetry)
+        self.assertNotIn("document.addEventListener('mousedown', recordClick, true)", telemetry)
+        self.assertNotIn("document.addEventListener('touchend', recordClick, true)", telemetry)
+
+    def test_js_ignores_new_chat_control_clicks(self):
+        # 新規チャットボタンのクリックは bot 判定の対象外にする
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        self.assertIn("data-bot-ignore-click", source)
+        self.assertIn("#new-chat-btn", source)
+        html = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        self.assertIn('id="new-chat-btn" data-bot-ignore-click="true"', html)
+        self.assertIn('id="mobile-new-chat-btn" data-bot-ignore-click="true"', html)
+
 
 if __name__ == "__main__":
     unittest.main()

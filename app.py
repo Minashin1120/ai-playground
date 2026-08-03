@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-013')
-app.config['SYSTEM_VERSION'] = 'V4.8.701'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-014')
+app.config['SYSTEM_VERSION'] = 'V4.8.702'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -15173,19 +15173,28 @@ def bot_telemetry():
     if not verify_turnstile(data.get('turnstile_token')):
         if not data.get('turnstile_failed'):
             return jsonify({'error': 'turnstile_failed'}), 403
-    score, reasons = evaluate_bot_score(data)
+    raw_behavior, reasons = evaluate_bot_score(data)
     if data.get('turnstile_failed'):
-        score += 2
+        total_score = raw_behavior + 2
         reasons.append('turnstile_failed')
-    if score <= 0:
+    else:
+        total_score = raw_behavior
+    if total_score <= 0:
         return jsonify({'status': 'ok', 'score': 0})
     key = f"bot:score:{current_user.id}"
+    behavior_key = f"bot:behavior:{current_user.id}"
     try:
-        new_score = redis_conn.incrbyfloat(key, float(score))
+        new_score = redis_conn.incrbyfloat(key, float(total_score))
         redis_conn.expire(key, 300)
+        new_behavior = redis_conn.incrbyfloat(behavior_key, float(raw_behavior))
+        redis_conn.expire(behavior_key, 300)
     except Exception:
-        new_score = float(score)
-    if new_score >= 8:
+        new_score = float(total_score)
+        new_behavior = float(raw_behavior)
+    # A ban must never be triggered by Turnstile verification failures alone
+    # (legit users who haven't finished the challenge yet are still flagged
+    # turnstile_failed). Require genuine automated-behavior evidence too.
+    if new_score >= 8 and new_behavior >= 6:
         current_user.is_bot_banned = True
         current_user.bot_banned_at = datetime.utcnow()
         current_user.bot_ban_reason = "Automated behavior detected (fast clicks/inputs)"

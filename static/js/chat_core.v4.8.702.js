@@ -4648,7 +4648,13 @@
                 state.speedSum = 0;
                 state.speedSamples = 0;
             };
-            const recordClick = () => {
+            const isControlClick = (e) => {
+                const el = e && e.target;
+                if (!el || typeof el.closest !== 'function') return false;
+                return !!el.closest('[data-bot-ignore-click], #new-chat-btn, #mobile-new-chat-btn');
+            };
+            const recordClick = (e) => {
+                if (isControlClick(e)) return;
                 const now = performance.now();
                 state.clicks += 1;
                 if (state.lastClickTs) {
@@ -4763,9 +4769,11 @@
             const start = () => {
                 refreshEnabled();
                 if (!state.enabled) return;
-                document.addEventListener('click', recordClick, true);
-                document.addEventListener('pointerdown', recordClick, true);
-                document.addEventListener('touchstart', recordClick, true);
+                if (typeof window.PointerEvent !== 'undefined') {
+                    document.addEventListener('pointerdown', recordClick, true);
+                } else {
+                    document.addEventListener('click', recordClick, true);
+                }
                 document.addEventListener('keydown', recordKey, true);
                 document.addEventListener('wheel', () => { state.moves += 1; }, { passive: true });
                 document.addEventListener('mousemove', recordMove, true);

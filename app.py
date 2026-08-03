@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-014')
-app.config['SYSTEM_VERSION'] = 'V4.8.702'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-015')
+app.config['SYSTEM_VERSION'] = 'V4.8.703'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -5172,6 +5172,79 @@ def verify_turnstile(token):
     except: return False
 
 _BOT_TURNSTILE_VERIFIED_TTL = 15 * 60
+# Repeated Turnstile failures (within the state TTL) trigger a ban so that
+# automated clients that cannot/will not complete the challenge are stopped.
+_BOT_TURNSTILE_FAIL_LIMIT = 5
+# A pass that resets accumulated failures but is followed by more failures
+# (pass/fail cycling) is also a bot signature and triggers a ban.
+_BOT_TURNSTILE_CYCLE_LIMIT = 3
+_BOT_TURNSTILE_STATE_TTL = 30 * 60
+# Endpoints a bot-detection-active, not-yet-verified user still needs to reach.
+_BOT_TURNSTILE_GATE_WHITELIST = {
+    'bot_turnstile_verify',
+    'bot_telemetry',
+    'logout',
+    'submit_ban_appeal',
+    'api_ban_appeal',
+    'api_ban_appeal_status',
+    'api_ban_appeals_summary',
+    'api_ban_appeals_mark_read',
+    'api_ban_appeals_update',
+    'receive_client_log',
+    'client_log',
+    'static',
+}
+
+def _apply_bot_ban(reason):
+    """Mark the current user as bot-banned and cascade to related accounts."""
+    current_user.is_bot_banned = True
+    current_user.bot_banned_at = datetime.utcnow()
+    current_user.bot_ban_reason = reason
+    ban_related_accounts(current_user, reason)
+
+def _bot_turnstile_register_failure():
+    """Count a Turnstile verification failure.
+
+    Returns True when the accumulated failures now warrant a ban (the ban has
+    already been applied). A success later resets the failure counter.
+    """
+    if current_user.is_bot_banned:
+        return False
+    try:
+        fail_key = f"bot:tst:fail:{current_user.id}"
+        fails = redis_conn.incr(fail_key)
+        redis_conn.expire(fail_key, _BOT_TURNSTILE_STATE_TTL)
+        if fails >= _BOT_TURNSTILE_FAIL_LIMIT:
+            _apply_bot_ban("Turnstile verification failed repeatedly")
+            return True
+    except Exception:
+        pass
+    return False
+
+def _bot_turnstile_register_success():
+    """Record a successful verification and detect pass/fail cycling.
+
+    A pass normally lets the user through (resets the failure counter), but a
+    pass that is repeatedly followed by fresh failures is treated as a bot
+    signature. Returns True when the user should be banned.
+    """
+    if current_user.is_bot_banned:
+        return False
+    try:
+        fail_key = f"bot:tst:fail:{current_user.id}"
+        cycle_key = f"bot:tst:cycle:{current_user.id}"
+        prev_fails = int(redis_conn.get(fail_key) or 0)
+        redis_conn.delete(fail_key)
+        if prev_fails > 0:
+            cycles = redis_conn.incr(cycle_key)
+            redis_conn.expire(cycle_key, _BOT_TURNSTILE_STATE_TTL)
+            if cycles >= _BOT_TURNSTILE_CYCLE_LIMIT:
+                _apply_bot_ban("Turnstile verification cycled repeatedly (pass/fail)")
+                return True
+    except Exception:
+        pass
+    _bot_turnstile_mark_verified()
+    return False
 
 def _bot_turnstile_active():
     """True if the API-level Turnstile gate applies to the current user."""
@@ -5214,6 +5287,42 @@ def _bot_turnstile_gate(token=None):
     return jsonify({
         'error': 'turnstile_required',
         'message': '安全性の確認が完了するまでご利用いただけません。しばらく待ってから再度お試しください。',
+    }), 403
+
+@app.before_request
+def gate_bot_detection_unverified():
+    """Block state-changing API calls until the Turnstile check has passed.
+
+    Bot-detection-active users who have not completed the challenge (no Redis
+    verified marker) are rejected with 403 turnstile_required on every POST,
+    so the account (and, once banned, related accounts) cannot reach the server
+    until verification succeeds. Read-only GETs are left alone so the page can
+    still render; a valid inline turnstile_token lets a request through when
+    the marker simply expired mid-session.
+    """
+    if request.endpoint == 'static':
+        return
+    if request.method != 'POST':
+        return
+    if not current_user.is_authenticated:
+        return
+    if not getattr(current_user, "is_setup_completed", False):
+        return  # setup-stage users have no Turnstile widget yet
+    if not _bot_turnstile_active():
+        return
+    if current_user.is_bot_banned:
+        return  # handled by check_bot_ban
+    if _bot_turnstile_verified():
+        return
+    if request.endpoint in _BOT_TURNSTILE_GATE_WHITELIST:
+        return
+    body = request.get_json(silent=True) or {}
+    if body and isinstance(body, dict) and verify_turnstile(body.get('turnstile_token')):
+        _bot_turnstile_mark_verified()
+        return
+    return jsonify({
+        'error': 'turnstile_required',
+        'message': '安全性の確認が完了するまでご利用いただけません。',
     }), 403
 
 _LOCAL_RATE_LIMIT_LOCK = threading.Lock()
@@ -10659,7 +10768,8 @@ def index():
             "isAdmin": bool(getattr(current_user, "is_admin", False)),
             "globalEnabled": get_bot_detection_global_enabled(),
             "accountEnabled": current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
-            "turnstileSiteKey": os.getenv('TURNSTILE_SITE_KEY') or ""
+            "turnstileSiteKey": os.getenv('TURNSTILE_SITE_KEY') or "",
+            "turnstileVerified": _bot_turnstile_active() and _bot_turnstile_verified()
         }
         return render_template('chat.html', easy_login_used=easy_login_used, bot_config=bot_config)
     return render_template('landing.html')
@@ -10687,7 +10797,8 @@ def modal_pages():
         "isAdmin": bool(getattr(current_user, "is_admin", False)),
         "globalEnabled": get_bot_detection_global_enabled(),
         "accountEnabled": current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
-        "turnstileSiteKey": os.getenv('TURNSTILE_SITE_KEY') or ""
+        "turnstileSiteKey": os.getenv('TURNSTILE_SITE_KEY') or "",
+        "turnstileVerified": _bot_turnstile_active() and _bot_turnstile_verified()
     }
     return render_template('chat.html', easy_login_used=easy_login_used, bot_config=bot_config)
 
@@ -10703,7 +10814,8 @@ def chat_permalink(thread_id):
         "isAdmin": bool(getattr(current_user, "is_admin", False)),
         "globalEnabled": get_bot_detection_global_enabled(),
         "accountEnabled": current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
-        "turnstileSiteKey": os.getenv('TURNSTILE_SITE_KEY') or ""
+        "turnstileSiteKey": os.getenv('TURNSTILE_SITE_KEY') or "",
+        "turnstileVerified": _bot_turnstile_active() and _bot_turnstile_verified()
     }
     initial_thread_id = thread.public_id or thread.id
     return render_template('chat.html', initial_thread_id=initial_thread_id, easy_login_used=easy_login_used, bot_config=bot_config)
@@ -15173,6 +15285,8 @@ def bot_telemetry():
     if not verify_turnstile(data.get('turnstile_token')):
         if not data.get('turnstile_failed'):
             return jsonify({'error': 'turnstile_failed'}), 403
+        if _bot_turnstile_register_failure():
+            return jsonify({'error': 'banned'}), 403
     raw_behavior, reasons = evaluate_bot_score(data)
     if data.get('turnstile_failed'):
         total_score = raw_behavior + 2
@@ -15191,9 +15305,9 @@ def bot_telemetry():
     except Exception:
         new_score = float(total_score)
         new_behavior = float(raw_behavior)
-    # A ban must never be triggered by Turnstile verification failures alone
-    # (legit users who haven't finished the challenge yet are still flagged
-    # turnstile_failed). Require genuine automated-behavior evidence too.
+    # Score-based ban: require genuine automated-behavior evidence. (A separate
+    # Turnstile-failure ban is handled by _bot_turnstile_register_failure when
+    # the challenge fails repeatedly.)
     if new_score >= 8 and new_behavior >= 6:
         current_user.is_bot_banned = True
         current_user.bot_banned_at = datetime.utcnow()
@@ -15214,8 +15328,11 @@ def bot_turnstile_verify():
         return jsonify({'error': 'rate_limit'}), 429
     data = request.get_json(silent=True) or {}
     if not verify_turnstile(data.get('turnstile_token')):
+        if _bot_turnstile_register_failure():
+            return jsonify({'error': 'banned'}), 403
         return jsonify({'error': 'turnstile_failed'}), 403
-    _bot_turnstile_mark_verified()
+    if _bot_turnstile_register_success():
+        return jsonify({'error': 'banned'}), 403
     return jsonify({'status': 'ok'})
 
 @app.route('/api/bot/unban', methods=['POST'])

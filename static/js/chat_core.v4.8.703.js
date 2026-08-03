@@ -2415,10 +2415,25 @@
             // Apache's error override can surface an application CSRF 403 as a 404 page.
             // Refresh from the current signed session and replay an unsafe request at most once.
             if (requiresCsrf && (response.status === 403 || response.status === 404)) {
-                const refreshed = await refreshCsrfToken();
-                if (refreshed) {
-                    headers['X-CSRF-Token'] = csrfToken;
-                    response = await fetch(url, Object.assign({}, opts, { headers, credentials }));
+                let errBody = null;
+                try { errBody = await response.clone().json(); } catch (e) {}
+                if (errBody && errBody.error === 'turnstile_required' && isBotDetectionActive()) {
+                    // Marker expired mid-session: force a fresh verification, then retry once.
+                    botDetectionVerified = false;
+                    const verified = await Promise.race([
+                        runBotDetectionGate(),
+                        new Promise((resolve) => setTimeout(() => resolve(false), 30000))
+                    ]);
+                    if (verified) {
+                        headers['X-CSRF-Token'] = csrfToken;
+                        response = await fetch(url, Object.assign({}, opts, { headers, credentials }));
+                    }
+                } else {
+                    const refreshed = await refreshCsrfToken();
+                    if (refreshed) {
+                        headers['X-CSRF-Token'] = csrfToken;
+                        response = await fetch(url, Object.assign({}, opts, { headers, credentials }));
+                    }
                 }
             }
             return response;
@@ -2676,6 +2691,9 @@
         let turnstileWidgetId = null;
         let turnstileToken = null;
         let turnstilePending = false;
+        let botDetectionVerified = false;
+        let botDetectionGatePromise = null;
+        let botDetectionOverlayShown = false;
         let chatDefaultsLoaded = false;
         let modelApiKeyMap = {};
         const THREAD_INITIAL_MESSAGE_LIMIT = 50;
@@ -4551,8 +4569,9 @@
                 'expired-callback': () => { turnstileToken = null; turnstilePending = false; container.classList.add('hidden'); },
                 'error-callback': () => { turnstileToken = null; turnstilePending = false; container.classList.add('hidden'); }
             });
+            if (isBotDetectionActive()) runBotDetectionGate();
         };
-        async function getTurnstileToken() {
+        async function getTurnstileToken(timeoutMs = 1500) {
             if (!botConfig || !botConfig.turnstileSiteKey) return null;
             if (turnstileToken) return turnstileToken;
             if (!window.turnstile || turnstileWidgetId === null) return null;
@@ -4561,7 +4580,7 @@
             turnstilePending = true;
             return await new Promise((resolve) => {
                 const prevToken = turnstileToken;
-                const timeout = setTimeout(() => resolve(null), 1500);
+                const timeout = setTimeout(() => resolve(null), Math.max(500, Number(timeoutMs) || 1500));
                 try {
                     window.turnstile.execute(turnstileWidgetId);
                 } catch (e) {
@@ -4589,6 +4608,78 @@
         function isBotDetectionActive() {
             return !!(botConfig && botConfig.globalEnabled && botConfig.accountEnabled && !isAdminUser && botConfig.turnstileSiteKey);
         }
+        function showBotDetectionOverlay(message = '') {
+            let overlay = document.getElementById('bot-detection-overlay');
+            const tc = document.getElementById('turnstile-container');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'bot-detection-overlay';
+                overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:rgba(3,7,18,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;';
+                const card = document.createElement('div');
+                card.style.cssText = 'max-width:420px;width:100%;background:#0f172a;border:1px solid #334155;border-radius:12px;padding:24px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5);display:flex;flex-direction:column;align-items:center;gap:12px;';
+                const title = document.createElement('div');
+                title.id = 'bot-detection-overlay-title';
+                title.style.cssText = 'font-weight:700;font-size:15px;color:#f1f5f9;';
+                title.textContent = message || '安全性の確認中...';
+                const desc = document.createElement('div');
+                desc.style.cssText = 'font-size:12px;color:#94a3b8;line-height:1.6;';
+                desc.textContent = '自動アクセス防止のため、確認が完了するまで操作できません。';
+                card.appendChild(title);
+                card.appendChild(desc);
+                if (tc) {
+                    tc.style.position = 'static';
+                    card.appendChild(tc);
+                }
+                overlay.appendChild(card);
+                document.body.appendChild(overlay);
+            } else {
+                overlay.style.display = 'flex';
+                if (tc && tc.parentElement !== overlay) {
+                    tc.style.position = 'static';
+                    overlay.firstChild.appendChild(tc);
+                }
+            }
+            const titleEl = document.getElementById('bot-detection-overlay-title');
+            if (message && titleEl) titleEl.textContent = message;
+            if (tc) tc.classList.remove('hidden');
+            botDetectionOverlayShown = true;
+        }
+        function hideBotDetectionOverlay() {
+            botDetectionOverlayShown = false;
+            const overlay = document.getElementById('bot-detection-overlay');
+            const tc = document.getElementById('turnstile-container');
+            if (tc) {
+                tc.classList.add('hidden');
+                if (overlay && tc.parentElement === overlay) {
+                    document.body.appendChild(tc);
+                }
+                tc.style.position = '';
+            }
+            if (overlay) overlay.remove();
+        }
+        const runBotDetectionGate = () => {
+            if (botDetectionVerified || !isBotDetectionActive()) return Promise.resolve(true);
+            if (botDetectionGatePromise) return botDetectionGatePromise;
+            botDetectionGatePromise = (async () => {
+                while (!botDetectionVerified) {
+                    if (!window.__turnstileApiLoaded || turnstileWidgetId === null) {
+                        await new Promise((resolve) => setTimeout(resolve, 500));
+                        continue;
+                    }
+                    showBotDetectionOverlay();
+                    const token = await getTurnstileToken(25000);
+                    if (token) {
+                        const ok = await verifyTurnstileOnServer(token, true);
+                        if (ok) break;
+                    }
+                    try { botTelemetry.send(true, { forceReport: true }); } catch (e) {}
+                    await new Promise((resolve) => setTimeout(resolve, 5000));
+                }
+                hideBotDetectionOverlay();
+                return true;
+            })().finally(() => { botDetectionGatePromise = null; });
+            return botDetectionGatePromise;
+        };
         let turnstileServerVerifiedAt = 0;
         async function verifyTurnstileOnServer(token, force = false) {
             if (!token || !isBotDetectionActive()) return true;
@@ -4602,6 +4693,8 @@
                 });
                 if (res.ok) {
                     turnstileServerVerifiedAt = now;
+                    botDetectionVerified = true;
+                    hideBotDetectionOverlay();
                     return true;
                 }
                 return false;
@@ -4651,7 +4744,7 @@
             const isControlClick = (e) => {
                 const el = e && e.target;
                 if (!el || typeof el.closest !== 'function') return false;
-                return !!el.closest('[data-bot-ignore-click], #new-chat-btn, #mobile-new-chat-btn');
+                return !!el.closest('[data-bot-ignore-click], #new-chat-btn, #mobile-new-chat-btn, #bot-detection-overlay');
             };
             const recordClick = (e) => {
                 if (isControlClick(e)) return;
@@ -4735,13 +4828,13 @@
                 if (payload.avg_click_ms > 0 && payload.avg_click_ms < 160 && payload.click_cv < 0.08) return true;
                 return false;
             };
-            const send = async (force = false) => {
+            const send = async (force = false, opts = {}) => {
                 if (!state.enabled) return;
                 const now = performance.now();
                 if (!force && now - state.lastSend < 3000) return;
                 state.lastSend = now;
                 const payload = computeStats();
-                if ((payload.clicks + payload.keys + payload.moves) === 0) return;
+                if (!opts.forceReport && (payload.clicks + payload.keys + payload.moves) === 0) return;
                 if (!force && !isSuspicious(payload)) return;
                 payload.turnstile_token = await getTurnstileToken();
                 if (botConfig && botConfig.turnstileSiteKey && !payload.turnstile_token) {
@@ -7203,7 +7296,9 @@
             applyCacheMode(useSwCache);
             if (window.__turnstileApiLoaded && window.initTurnstileWidget) window.initTurnstileWidget();
             if (botConfig && botConfig.globalEnabled && botConfig.accountEnabled && !isAdminUser) {
+                if (botConfig.turnstileVerified) botDetectionVerified = true;
                 try { botTelemetry.start(); } catch (e) { console.error(e); }
+                try { runBotDetectionGate(); } catch (e) { console.error(e); }
             } else {
                 const container = get('turnstile-container');
                 if (container) container.classList.add('hidden');

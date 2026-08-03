@@ -347,7 +347,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
         source = assets[0].read_text(encoding="utf-8")
         render_block = source[source.index("window.initTurnstileWidget = () =>") :]
-        render_block = render_block[: render_block.index("async function getTurnstileToken()")]
+        render_block = render_block[: render_block.index("async function getTurnstileToken(")]
         self.assertIn("appearance: 'interaction-only'", render_block)
 
     def test_js_blocks_send_when_token_unavailable(self):
@@ -403,15 +403,14 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         self.assertIn("def bot_turnstile_verify():", source)
         self.assertIn("'turnstile_required'", source)
 
-    def test_turnstile_failures_alone_never_accumulate_to_ban(self):
-        # Turnstile 未検証（turnstile_failed）だけの報告が何度積み重なっても
-        # BAN にはならない（挙動スコアが低い場合は安全側に倒す）。
+    def test_turnstile_failures_below_limit_do_not_ban(self):
+        # Turnstile 未検証の報告が失敗リミット（5回）未満なら BAN されない
         fake = _FakeRedis()
         with mock.patch.object(target, "verify_turnstile", return_value=False):
             with mock.patch.object(target, "redis_conn", fake):
                 with self.turnstile_env():
                     client = self.authenticated_client()
-                    for _ in range(6):
+                    for _ in range(4):
                         res = self.post_telemetry(client, {
                             "turnstile_failed": True,
                             "window_ms": 4000,
@@ -423,6 +422,78 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         with target.app.app_context():
             user = target.db.session.get(target.User, self.user_id)
             self.assertFalse(user.is_bot_banned)
+
+    def test_turnstile_failures_reach_limit_ban(self):
+        # Turnstile チェックが一定回数（5回）ダメだったら BAN
+        fake = _FakeRedis()
+        with mock.patch.object(target, "verify_turnstile", return_value=False):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    for _ in range(5):
+                        res = self.post_telemetry(client, {
+                            "turnstile_failed": True,
+                            "window_ms": 4000,
+                            "clicks": 2,
+                            "keys": 2,
+                            "moves": 2,
+                        })
+                    self.assertEqual(res.status_code, 403)
+                    self.assertEqual(res.get_json().get("error"), "banned")
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertTrue(user.is_bot_banned)
+            self.assertIn("Turnstile", user.bot_ban_reason)
+
+    def test_turnstile_pass_resets_failure_count(self):
+        # 一度成功すれば失敗カウントはリセットされ、BAN には至らない
+        fake = _FakeRedis()
+        with mock.patch.object(
+            target, "verify_turnstile", side_effect=[False, False, False, False, True]
+        ):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    for _ in range(4):
+                        self.post_telemetry(client, {
+                            "turnstile_failed": True,
+                            "window_ms": 4000,
+                            "clicks": 2,
+                            "keys": 2,
+                            "moves": 2,
+                        })
+                    res = self.post_turnstile_verify(client, {"turnstile_token": "t"})
+                    self.assertEqual(res.status_code, 200)
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertFalse(user.is_bot_banned)
+
+    def test_turnstile_pass_fail_cycling_bans(self):
+        # 成功→失敗が繰り返される（パス/フェイルのサイクリング）なら BAN
+        fake = _FakeRedis()
+        results = [False, True, False, True, False, True]
+        with mock.patch.object(target, "verify_turnstile", side_effect=results):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    res = None
+                    for r in results:
+                        if r:
+                            res = self.post_turnstile_verify(client, {"turnstile_token": "t"})
+                        else:
+                            res = self.post_telemetry(client, {
+                                "turnstile_failed": True,
+                                "window_ms": 4000,
+                                "clicks": 2,
+                                "keys": 2,
+                                "moves": 2,
+                            })
+                    self.assertEqual(res.status_code, 403)
+                    self.assertEqual(res.get_json().get("error"), "banned")
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertTrue(user.is_bot_banned)
+            self.assertIn("cycled", user.bot_ban_reason)
 
     def test_high_behavior_score_bans_without_turnstile_failure(self):
         # 挙動スコアだけで BAN しきい値に達した場合は Turnstile 失敗がなくても BAN
@@ -474,6 +545,55 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         html = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
         self.assertIn('id="new-chat-btn" data-bot-ignore-click="true"', html)
         self.assertIn('id="mobile-new-chat-btn" data-bot-ignore-click="true"', html)
+
+    def test_js_defines_blocking_verification_gate(self):
+        # 未検証ユーザーは画面をオーバーレイでブロックし、検証が終わるまで操作不可にする
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        self.assertIn("function showBotDetectionOverlay", source)
+        self.assertIn("function hideBotDetectionOverlay", source)
+        self.assertIn("const runBotDetectionGate = () =>", source)
+        self.assertIn("botDetectionVerified = true", source)
+        # API からの turnstile_required を検知して再検証＋再送する
+        self.assertIn("errBody.error === 'turnstile_required'", source)
+
+    def test_unverified_post_blocked_until_turnstile_verified(self):
+        # Turnstile 検証が終わるまで、そのユーザーのサーバー通信（POST）をブロックする
+        fake = _FakeRedis()
+        with mock.patch.object(target, "verify_turnstile", return_value=False):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    res = client.post(
+                        "/api/threads",
+                        data=target.json.dumps({"is_temporary": False}),
+                        content_type="application/json",
+                        headers={"X-CSRF-Token": "csrf-test-token"},
+                    )
+                    self.assertEqual(res.status_code, 403)
+                    self.assertEqual(res.get_json().get("error"), "turnstile_required")
+                    # 検証が成功するとマーカーが立ち、POST が通るようになる
+                    with mock.patch.object(target, "verify_turnstile", return_value=True):
+                        vres = self.post_turnstile_verify(client, {"turnstile_token": "valid"})
+                        self.assertEqual(vres.status_code, 200)
+                    res2 = client.post(
+                        "/api/threads",
+                        data=target.json.dumps({"is_temporary": False}),
+                        content_type="application/json",
+                        headers={"X-CSRF-Token": "csrf-test-token"},
+                    )
+                    self.assertEqual(res2.status_code, 200)
+
+    def test_verify_endpoint_stays_reachable_while_unverified(self):
+        # 検証エンドポイント自体は未検証でも到達できる（ホワイトリスト）
+        fake = _FakeRedis()
+        with mock.patch.object(target, "verify_turnstile", return_value=True):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    res = self.post_turnstile_verify(client, {"turnstile_token": "valid"})
+                    self.assertEqual(res.status_code, 200)
 
 
 if __name__ == "__main__":

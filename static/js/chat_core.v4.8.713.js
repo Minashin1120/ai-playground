@@ -831,6 +831,7 @@
             }, MODAL_ANIM_MS);
             modalCloseTimers.set(el, closeTimer);
         };
+        window.hideModal = hideModal;
         const RICH_PASTE_ALLOWED_TAGS = [
             'a', 'abbr', 'address', 'article', 'b', 'blockquote', 'br', 'caption', 'cite', 'code',
             'col', 'colgroup', 'dd', 'del', 'details', 'div', 'dl', 'dt', 'em', 'figcaption',
@@ -8781,11 +8782,12 @@
                     list.innerHTML = '<div class="text-xs text-gray-400">該当ユーザーがいません。</div>';
                     return;
                 }
-                users.forEach(u => {
+                users.forEach((u, idx) => {
                     const isBanned = !!u.is_bot_banned;
                     const detOn = u.bot_detection_enabled !== false;
                     const row = document.createElement('div');
-                    row.className = 'flex items-center gap-2 bg-gray-900 border border-gray-700 rounded p-2 text-xs';
+                    row.className = 'flex items-center gap-2 bg-gray-900 border border-gray-700 rounded p-2 text-xs model-list-animate';
+                    row.style.animationDelay = `${Math.min(idx, 12) * 0.02}s`;
                     row.innerHTML = `
                         <div class="flex-1">
                             <div class="text-gray-200 font-bold">${escapeHtml(u.username)}</div>
@@ -8799,26 +8801,49 @@
                 });
             };
             const loadBotUsers = async (q = '') => {
-                const res = await apiFetch(`/api/bot/users?q=${encodeURIComponent(q)}`);
-                const data = await res.json();
-                if (res.ok && data && data.users) renderBotUsers(data.users);
-                else showToast('ユーザー一覧取得に失敗しました', 'error', true);
+                const list = get('bot-admin-list');
+                if (list) {
+                    list.innerHTML = '<div class="text-xs text-gray-400 py-2"><i class="fas fa-spinner fa-spin mr-1"></i>読み込み中...</div>';
+                }
+                try {
+                    const res = await apiFetch(`/api/bot/users?q=${encodeURIComponent(q)}`);
+                    const data = await res.json();
+                    if (res.ok && data && data.users) renderBotUsers(data.users);
+                    else {
+                        if (list) list.innerHTML = '<div class="text-xs text-red-400">ユーザー一覧の取得に失敗しました。</div>';
+                        showToast('ユーザー一覧取得に失敗しました', 'error', true);
+                    }
+                } catch (err) {
+                    if (list) list.innerHTML = '<div class="text-xs text-red-400">ユーザー一覧の取得に失敗しました。</div>';
+                    showToast('ユーザー一覧取得に失敗しました', 'error', true);
+                }
             };
             const openBotAdminModal = async () => {
-                if (botAdminModal) showModal('bot-admin-modal');
+                if (!isAdminUser) return;
+                const modal = get('bot-admin-modal') || botAdminModal;
+                if (!modal) return;
+                // 設定モーダルの上に重ねると背面オーバーレイで開閉アニメが見えにくいため、
+                // 設定を先に閉じてからアカウント管理を開く（履歴は /settings を残し、閉じたときに戻れる）
+                const settingsEl = get('settings-modal');
+                if (settingsEl && (settingsEl.classList.contains('modal-open') || settingsEl.classList.contains('modal-prep'))) {
+                    hideModal('settings-modal');
+                }
+                showModal('bot-admin-modal');
                 if (location.pathname !== '/admin-bots') {
                     history.pushState({ modal: 'admin-bots' }, '', '/admin-bots');
                 }
                 await loadBotUsers(get('bot-admin-search') ? get('bot-admin-search').value.trim() : '');
             };
+            window.openBotAdminModal = openBotAdminModal;
             window.closeBotAdminModal = (skipHistory = false) => {
-                if (botAdminModal) hideModal('bot-admin-modal');
+                const modal = get('bot-admin-modal') || botAdminModal;
+                if (modal) hideModal('bot-admin-modal');
                 if (!skipHistory && location.pathname === '/admin-bots') {
                     history.back();
                 }
             };
             if (get('bot-admin-open')) {
-                get('bot-admin-open').onclick = openBotAdminModal;
+                get('bot-admin-open').onclick = () => { openBotAdminModal(); };
             }
             if (get('bot-admin-close')) {
                 get('bot-admin-close').onclick = () => closeBotAdminModal();
@@ -8893,7 +8918,7 @@
                 '/model': { id: 'model-modal', open: () => openModelModal() },
                 '/gem': { id: 'gem-modal', open: () => { editingGemUuid = null; get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem`; showModal('gem-modal'); } },
                 '/compression': { id: 'compression-modal', open: () => window.openCompressionModal() },
-                '/admin-bots': { id: 'bot-admin-modal', open: () => { if(CHAT_CONFIG.botConfig && CHAT_CONFIG.botConfig.isAdmin) showModal('bot-admin-modal'); } }
+                '/admin-bots': { id: 'bot-admin-modal', open: () => openBotAdminModal() }
             };
 
             const closeModalById = (id, skipHistory = false) => {

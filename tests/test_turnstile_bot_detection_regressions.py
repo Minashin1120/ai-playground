@@ -889,7 +889,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
     def test_js_send_spam_triggers_bot_check_dialog(self):
         # 送信ボタンの連打（5回/2秒）でアカウントロック（10分）をかけ、
         # 理由を表示してサーバー通信をブロックする（サーバー負荷対策）。
-        # ただし検証済みユーザーにはロックをかけない。
+        # 検証済みユーザーでも発動する（DOM連打を検出するため）。
         assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
         source = assets[0].read_text(encoding="utf-8")
@@ -901,8 +901,9 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         self.assertIn("送信操作が速すぎるため", gate)
         self.assertIn("registerSendButtonSpam", source)
         self.assertIn("runSendSpamVerification", source)
-        # 検証済みユーザーは連打ロック対象外
-        self.assertIn("isBotDetectionActive() && !botDetectionVerified", gate)
+        # 検証済みユーザーでも連打ロック対象（!botDetectionVerified 条件を外す）
+        self.assertIn("if (isBotDetectionActive()) {", gate)
+        self.assertNotIn("isBotDetectionActive() && !botDetectionVerified", gate)
 
     def test_js_send_spam_locks_account_via_server(self):
         # runSendSpamVerification は /api/bot/lock を呼んでサーバー側で

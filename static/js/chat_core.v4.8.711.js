@@ -14416,11 +14416,10 @@
                 return;
             }
             // Rapid send-button clicking would fire many chat_stream requests
-            // and load the server, so once the threshold is hit we force a
-            // visible bot-check dialog (Turnstile) before allowing more sends.
-            // Verified users already passed Turnstile (Redis marker), so the
-            // dialog is only shown to unverified / still-challenged users.
-            if (isBotDetectionActive() && !botDetectionVerified) {
+            // and load the server, so once the threshold is hit we lock the
+            // account (10 min) with a visible reason. This applies even to
+            // already-verified users so DOM-driven rapid clicking is caught too.
+            if (isBotDetectionActive()) {
                 const sendCount = registerSendButtonSpam();
                 if (sendCount >= 5) {
                     const ok = await runSendSpamVerification();

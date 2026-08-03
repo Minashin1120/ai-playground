@@ -991,6 +991,68 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
                 res = self.post_bot_lock(client, {"reason": "連打"})
                 self.assertEqual(res.status_code, 200)
                 self.assertEqual(res.get_json().get("status"), "skipped")
+                # 管理者にはロックキーが作られない
+                lock_keys = [
+                    k for k in fake._d
+                    if (k if isinstance(k, str) else k.decode()).startswith("bot:lock:")
+                ]
+                self.assertEqual(lock_keys, [])
+
+    def test_admin_not_locked_via_ip_cookie_cascade(self):
+        # 一般ユーザーの連打ロックは IP/クッキーにも記録されるが、
+        # 同一IPの管理者アカウントはロック対象外（BANの関連アカウント除外と同じ方針）。
+        fake = _FakeRedis()
+        with target.app.app_context():
+            admin = target.User(
+                username="admin-lock-exempt",
+                is_setup_completed=True,
+                is_admin=True,
+            )
+            admin.set_password("test-password")
+            target.db.session.add(admin)
+            target.db.session.commit()
+            admin_id = admin.id
+        with mock.patch.object(target, "verify_turnstile", return_value=True):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    normal = self.authenticated_client()
+                    res = self.post_bot_lock(normal, {"reason": "連打検出"})
+                    self.assertEqual(res.status_code, 200)
+                    self.assertEqual(res.get_json().get("status"), "locked")
+                    # 一般ユーザーはロック中
+                    blocked = self.post_chat_stream(
+                        normal, {"message": "hello", "turnstile_token": "valid"}
+                    )
+                    self.assertEqual(blocked.status_code, 403)
+                    self.assertEqual(blocked.get_json().get("error"), "account_locked")
+                    # 同一環境の管理者は lock-status が inactive で POST も account_locked にならない
+                    admin_client = target.app.test_client()
+                    with admin_client.session_transaction() as sess:
+                        sess["_user_id"] = str(admin_id)
+                        sess["_fresh"] = True
+                        sess["csrf_token"] = "csrf-test-token"
+                    status = admin_client.get("/api/bot/lock-status")
+                    self.assertEqual(status.status_code, 200)
+                    self.assertFalse(status.get_json().get("active"))
+                    admin_post = admin_client.post(
+                        "/chat_stream",
+                        data=target.json.dumps(
+                            {"message": "hello", "turnstile_token": "valid"}
+                        ),
+                        content_type="application/json",
+                        headers={"X-CSRF-Token": "csrf-test-token"},
+                    )
+                    admin_body = admin_post.get_json() or {}
+                    self.assertNotEqual(admin_body.get("error"), "account_locked")
+
+    def test_js_admin_skips_lock_overlay(self):
+        # 管理者はロック画面を出さない（bootstrap / apiFetch / applyBotLockFromServer）
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        self.assertIn("botConfig.lock.active && !isAdminUser", source)
+        self.assertIn("if (isAdminUser) return true;", source)
+        self.assertIn("!isAdminUser && !document.getElementById('bot-lock-overlay')", source)
 
     def test_banned_page_does_not_show_evidence(self):
         # BAN画面では不審履歴（evidence）を表示しない（管理者画面専用）

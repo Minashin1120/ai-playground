@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-003')
-app.config['SYSTEM_VERSION'] = 'V4.8.715'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-004')
+app.config['SYSTEM_VERSION'] = 'V4.8.716'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -5284,8 +5284,17 @@ def _bot_lock_info():
     The lock is keyed by user id AND by the IP/cookie identifiers recorded when
     it was applied, so that clearing cookies and creating a new account on the
     same network still keeps the lock active (prevents lock-bypass).
+
+    Admins (and the primary admin) are never considered locked — same policy as
+    bot-ban related-account cascade, which leaves admin accounts untouched even
+    when a linked non-admin is locked via shared IP/cookie.
     """
     try:
+        if not current_user.is_authenticated:
+            return False, None, 0
+        # Admins are outside bot-detection monitoring (ban and temporary lock).
+        if _is_admin_exempt(current_user):
+            return False, None, 0
         raw = redis_conn.get(f"bot:lock:{current_user.id}")
         if not raw:
             ip, token = _bot_lock_identifiers()
@@ -5325,8 +5334,12 @@ def _apply_bot_lock(reason):
     _BOT_LOCK_COUNT_LIMIT escalates to a bot ban. The lock is also recorded
     against the current IP/cookie so clearing cookies / creating a new account
     on the same network cannot bypass it. Returns a dict describing the
-    resulting state: {'status': 'locked'|'banned'|'already_locked', ...}.
+    resulting state: {'status': 'locked'|'banned'|'already_locked'|'skipped', ...}.
+
+    Admin accounts are never locked (matches ban-related monitoring exemption).
     """
+    if not current_user.is_authenticated or _is_admin_exempt(current_user):
+        return {'status': 'skipped'}
     if current_user.is_bot_banned:
         return {'status': 'banned'}
     try:
@@ -5356,14 +5369,15 @@ def _bot_lock_gate():
 
     Read-only GET page loads are allowed so the user can view the lock reason,
     but state-changing POSTs and API calls are rejected while the lock is active.
-    The IP/cookie locks apply to any account reaching the server from the same
-    network/device, closing the "clear cookies / create new account" bypass.
+    The IP/cookie locks apply to any non-admin account reaching the server from
+    the same network/device, closing the "clear cookies / create new account"
+    bypass. Admins are never locked (same exemption as related-account ban).
     """
     if request.endpoint == 'static':
         return
     if not current_user.is_authenticated:
         return
-    if getattr(current_user, "is_admin", False):
+    if _is_admin_exempt(current_user):
         return
     if current_user.is_bot_banned:
         return  # handled by check_bot_ban
@@ -15692,7 +15706,7 @@ def bot_lock():
     for _BOT_LOCK_TTL seconds and returns the reason. Repeated locks escalate
     to a ban.
     """
-    if getattr(current_user, "is_admin", False):
+    if _is_admin_exempt(current_user):
         return jsonify({'status': 'skipped', 'skipped': True})
     if not get_bot_detection_global_enabled() or not current_user.bot_detection_enabled:
         return jsonify({'status': 'disabled'})
@@ -15703,6 +15717,8 @@ def bot_lock():
     data = request.get_json(silent=True) or {}
     reason = str(data.get('reason') or '送信操作が速すぎるため、一時的にロックしています。')[:300]
     result = _apply_bot_lock(reason)
+    if result.get('status') == 'skipped':
+        return jsonify({'status': 'skipped', 'skipped': True})
     if result.get('status') == 'banned':
         return jsonify({'error': 'banned', 'message': 'ロックが繰り返されたため、BANされました。'}), 403
     active, active_reason, remaining = _bot_lock_info()

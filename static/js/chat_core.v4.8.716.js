@@ -2424,7 +2424,9 @@
                 // used to stack verify_fail counts and ban new accounts).
                 const botErr = errBody && errBody.error;
                 if (botErr === 'account_locked') {
-                    if (!document.getElementById('bot-lock-overlay')) {
+                    // Admins are never subject to temporary locks (server-side
+                    // also skips them); never show the lock overlay for admins.
+                    if (!isAdminUser && !document.getElementById('bot-lock-overlay')) {
                         showBotLockOverlay(errBody.message || 'アカウントが一時的にロックされています。', errBody.remaining_seconds);
                     }
                     return response;
@@ -4804,6 +4806,8 @@
         async function applyBotLockFromServer(reason) {
             // Report rapid operation to the server, which locks the account and
             // returns the remaining lock time. Repeated locks escalate to a ban.
+            // Admins are never locked (server returns skipped; no overlay).
+            if (isAdminUser) return true;
             let remaining = 600;
             try {
                 const res = await apiFetch('/api/bot/lock', {
@@ -4821,6 +4825,7 @@
                     }
                 }
                 const data = await res.json().catch(() => ({}));
+                if (data && (data.status === 'skipped' || data.skipped)) return true;
                 if (data && typeof data.remaining_seconds === 'number') remaining = data.remaining_seconds;
             } catch (e) {}
             showBotLockOverlay(reason || '送信操作が速すぎるため、一時的にロックしています。', remaining);
@@ -7569,7 +7574,8 @@
             applyCacheMode(useSwCache);
             // If the account is temporarily locked, show the lock screen before
             // doing anything else so the user sees the reason and remaining time.
-            if (botConfig && botConfig.lock && botConfig.lock.active) {
+            // Admins are never locked (ban/lock monitoring exemption).
+            if (botConfig && botConfig.lock && botConfig.lock.active && !isAdminUser) {
                 showBotLockOverlay(botConfig.lock.message, botConfig.lock.remaining_seconds);
             }
             if (window.__turnstileApiLoaded && window.initTurnstileWidget) window.initTurnstileWidget();

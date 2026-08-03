@@ -934,6 +934,58 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
         self.assertIn("/api/bot/lock-status", app_source)
 
+    def test_js_detects_synthetic_events(self):
+        # コンソール等の合成イベント（isTrusted===false）を検出し、
+        # untrusted_input を付けて即報告（BANの根拠）する
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        telemetry = source[source.index("const botTelemetry = (() => {") :]
+        telemetry = telemetry[: telemetry.index("return { start, refreshEnabled, send, looksSuspicious };")]
+        self.assertIn("e.isTrusted === false", telemetry)
+        self.assertIn("state.untrustedInput = true", telemetry)
+        self.assertIn("untrusted_input: !!state.untrustedInput", telemetry)
+
+    def test_untrusted_input_bans_immediately(self):
+        # untrusted_input 付きテレメトリは即BAN
+        fake = _FakeRedis()
+        with mock.patch.object(target, "verify_turnstile", return_value=False):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    res = self.post_telemetry(client, {
+                        "untrusted_input": True,
+                        "window_ms": 1000,
+                        "clicks": 0,
+                        "keys": 0,
+                        "moves": 0,
+                        "turnstile_failed": True,
+                    })
+                    self.assertEqual(res.status_code, 403)
+                    self.assertEqual(res.get_json().get("error"), "banned")
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertTrue(user.is_bot_banned)
+            self.assertIn("Synthetic", user.bot_ban_reason)
+
+    def test_lock_applies_to_ip_and_cookie(self):
+        # ロックは IP / クッキーにも記録され、別アカウントでも同一IPならロックされる
+        fake = _FakeRedis()
+        with mock.patch.object(target, "redis_conn", fake):
+            with self.turnstile_env():
+                client = self.authenticated_client()
+                res = self.post_bot_lock(client, {"reason": "連打検出"})
+                self.assertEqual(res.get_json().get("status"), "locked")
+                # IP ロックキーが存在する（クッキーはテストでは未設定の場合があるため IP を確認）
+                ip_keys = [k for k in fake._d if b"bot:lock:ip:" in (k if isinstance(k, bytes) else k.encode())]
+                self.assertTrue(ip_keys, "IP lock key should be recorded")
+
+    def test_bot_telemetry_server_rejects_untrusted_flag(self):
+        # サーバー側 /api/bot-telemetry が untrusted_input を処理する
+        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn("data.get('untrusted_input')", app_source)
+        self.assertIn("_apply_bot_ban(\"Synthetic (script-injected) input events detected\")", app_source)
+
 
 if __name__ == "__main__":
     unittest.main()

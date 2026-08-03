@@ -4911,6 +4911,7 @@
                 moves: 0,
                 fastClicks: 0,
                 fastKeys: 0,
+                untrustedInput: false,
                 clickTimes: [],
                 keyTimes: [],
                 clickIntervals: [],
@@ -4932,6 +4933,7 @@
                 state.moves = 0;
                 state.fastClicks = 0;
                 state.fastKeys = 0;
+                state.untrustedInput = false;
                 state.clickTimes = [];
                 state.keyTimes = [];
                 state.clickIntervals = [];
@@ -4946,6 +4948,14 @@
             };
             const recordClick = (e) => {
                 if (isControlClick(e)) return;
+                // Script-injected synthetic events (console / automation) have
+                // isTrusted === false. A normal user cannot produce these, so
+                // treat them as definitive bot evidence and report immediately.
+                if (e && e.isTrusted === false) {
+                    state.untrustedInput = true;
+                    send(true);
+                    return;
+                }
                 const now = performance.now();
                 state.clicks += 1;
                 if (state.lastClickTs) {
@@ -4959,7 +4969,13 @@
                 state.clickTimes = state.clickTimes.filter(t => now - t <= 2000);
                 if (state.fastClicks >= 4) send(true);
             };
-            const recordKey = () => {
+            const recordKey = (e) => {
+                // Script-injected synthetic key events are also bot evidence.
+                if (e && e.isTrusted === false) {
+                    state.untrustedInput = true;
+                    send(true);
+                    return;
+                }
                 const now = performance.now();
                 state.keys += 1;
                 if (state.lastKeyTs) {
@@ -5008,6 +5024,7 @@
                     moves: state.moves,
                     fast_clicks: state.fastClicks,
                     fast_keys: state.fastKeys,
+                    untrusted_input: !!state.untrustedInput,
                     click_burst: clickBurst,
                     key_burst: keyBurst,
                     avg_click_ms: avgClick,
@@ -5032,8 +5049,8 @@
                 if (!force && now - state.lastSend < 3000) return;
                 state.lastSend = now;
                 const payload = computeStats();
-                if (!opts.forceReport && (payload.clicks + payload.keys + payload.moves) === 0) return;
-                if (!force && !isSuspicious(payload)) return;
+                if (!opts.forceReport && (payload.clicks + payload.keys + payload.moves) === 0 && !payload.untrusted_input) return;
+                if (!force && !payload.untrusted_input && !isSuspicious(payload)) return;
                 payload.turnstile_token = await getTurnstileToken();
                 // Only report a Turnstile failure when the user is NOT verified AND
                 // the verification dialog is actually on screen. Verified users can

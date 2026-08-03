@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-023')
-app.config['SYSTEM_VERSION'] = 'V4.8.711'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-024')
+app.config['SYSTEM_VERSION'] = 'V4.8.712'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -5257,11 +5257,42 @@ _BOT_LOCK_GATE_WHITELIST = {
     'static',
 }
 
+def _bot_lock_identifiers():
+    """Return (ip, token) identifiers for the current request/user context."""
+    ip = None
+    token = None
+    try:
+        ip = get_client_ip()
+    except Exception:
+        pass
+    try:
+        token = get_client_token()
+    except Exception:
+        pass
+    return ip, token
+
 def _bot_lock_info():
-    """Return (active, reason, remaining_seconds) for the current user's lock."""
+    """Return (active, reason, remaining_seconds) for the current user's lock.
+
+    The lock is keyed by user id AND by the IP/cookie identifiers recorded when
+    it was applied, so that clearing cookies and creating a new account on the
+    same network still keeps the lock active (prevents lock-bypass).
+    """
     try:
         raw = redis_conn.get(f"bot:lock:{current_user.id}")
         if not raw:
+            ip, token = _bot_lock_identifiers()
+            candidates = []
+            if ip:
+                candidates.append(f"bot:lock:ip:{ip}")
+            if token:
+                candidates.append(f"bot:lock:cookie:{token}")
+            for ck in candidates:
+                raw = redis_conn.get(ck)
+                if raw:
+                    ttl = redis_conn.ttl(ck)
+                    reason = raw.decode('utf-8', 'replace') if isinstance(raw, bytes) else str(raw)
+                    return True, reason, max(0, ttl)
             return False, None, 0
         ttl = redis_conn.ttl(f"bot:lock:{current_user.id}")
         reason = raw.decode('utf-8', 'replace') if isinstance(raw, bytes) else str(raw)
@@ -5284,8 +5315,10 @@ def _apply_bot_lock(reason):
     """Lock the current user for _BOT_LOCK_TTL seconds with a visible reason.
 
     Each fresh lock increments the lock counter; reaching
-    _BOT_LOCK_COUNT_LIMIT escalates to a bot ban. Returns a dict describing
-    the resulting state: {'status': 'locked'|'banned'|'already_locked', ...}.
+    _BOT_LOCK_COUNT_LIMIT escalates to a bot ban. The lock is also recorded
+    against the current IP/cookie so clearing cookies / creating a new account
+    on the same network cannot bypass it. Returns a dict describing the
+    resulting state: {'status': 'locked'|'banned'|'already_locked', ...}.
     """
     if current_user.is_bot_banned:
         return {'status': 'banned'}
@@ -5293,7 +5326,13 @@ def _apply_bot_lock(reason):
         lock_key = f"bot:lock:{current_user.id}"
         if redis_conn.exists(lock_key):
             return {'status': 'already_locked'}
-        redis_conn.set(lock_key, str(reason or '送信操作が速すぎるため、一時的にロックしています。'), ex=_BOT_LOCK_TTL)
+        reason_str = str(reason or '送信操作が速すぎるため、一時的にロックしています。')
+        redis_conn.set(lock_key, reason_str, ex=_BOT_LOCK_TTL)
+        ip, token = _bot_lock_identifiers()
+        if ip:
+            redis_conn.set(f"bot:lock:ip:{ip}", reason_str, ex=_BOT_LOCK_TTL)
+        if token:
+            redis_conn.set(f"bot:lock:cookie:{token}", reason_str, ex=_BOT_LOCK_TTL)
         count_key = f"bot:lock:count:{current_user.id}"
         count = redis_conn.incr(count_key)
         redis_conn.expire(count_key, _BOT_LOCK_COUNT_TTL)
@@ -5310,6 +5349,8 @@ def _bot_lock_gate():
 
     Read-only GET page loads are allowed so the user can view the lock reason,
     but state-changing POSTs and API calls are rejected while the lock is active.
+    The IP/cookie locks apply to any account reaching the server from the same
+    network/device, closing the "clear cookies / create new account" bypass.
     """
     if request.endpoint == 'static':
         return
@@ -15495,6 +15536,12 @@ def bot_telemetry():
     if current_user.is_bot_banned:
         return jsonify({'error': 'banned'}), 403
     data = request.json or {}
+    # Script-injected synthetic input events (isTrusted === false) cannot be
+    # produced by a normal user. Treat them as definitive bot evidence and ban
+    # immediately, regardless of Turnstile status.
+    if data.get('untrusted_input'):
+        _apply_bot_ban("Synthetic (script-injected) input events detected")
+        return jsonify({'error': 'banned', 'reasons': ['untrusted_input']}), 403
     if not verify_turnstile(data.get('turnstile_token')):
         if not data.get('turnstile_failed'):
             return jsonify({'error': 'turnstile_failed'}), 403

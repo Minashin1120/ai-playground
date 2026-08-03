@@ -377,7 +377,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
         source = assets[0].read_text(encoding="utf-8")
-        self.assertIn("async function verifyTurnstileOnServer(token, force = false)", source)
+        self.assertIn("async function verifyTurnstileOnServer(token, force = false, challenged = null)", source)
         self.assertIn("'/api/bot/turnstile-verify'", source)
 
     def test_js_send_attaches_turnstile_token_to_api_payload(self):
@@ -387,7 +387,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         source = assets[0].read_text(encoding="utf-8")
         self.assertIn("if (botTurnstileToken) p.turnstile_token = botTurnstileToken;", source)
         self.assertIn("turnstile_token: botTurnstileTokenForRequest()", source)
-        self.assertIn("async function verifyTurnstileOnServer(token, force = false)", source)
+        self.assertIn("async function verifyTurnstileOnServer(token, force = false, challenged = null)", source)
 
     def test_js_handles_turnstile_required_from_api(self):
         # サーバーが 403 turnstile_required を返した場合は再検証して再送を案内する
@@ -404,13 +404,58 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         self.assertIn("'turnstile_required'", source)
 
     def test_turnstile_failures_below_limit_do_not_ban(self):
-        # Turnstile 未検証の報告が失敗リミット（5回）未満なら BAN されない
+        # ダイアログ表示中（challenged）の Turnstile 失敗がリミット（5回）未満なら BAN されない
         fake = _FakeRedis()
         with mock.patch.object(target, "verify_turnstile", return_value=False):
             with mock.patch.object(target, "redis_conn", fake):
                 with self.turnstile_env():
                     client = self.authenticated_client()
                     for _ in range(4):
+                        res = self.post_telemetry(client, {
+                            "turnstile_failed": True,
+                            "challenged": True,
+                            "window_ms": 4000,
+                            "clicks": 2,
+                            "keys": 2,
+                            "moves": 2,
+                        })
+                        self.assertEqual(res.status_code, 200)
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertFalse(user.is_bot_banned)
+
+    def test_turnstile_failures_reach_limit_ban(self):
+        # ダイアログ表示中（challenged）の Turnstile チェックが一定回数（5回）ダメだったら BAN
+        fake = _FakeRedis()
+        with mock.patch.object(target, "verify_turnstile", return_value=False):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    for _ in range(5):
+                        res = self.post_telemetry(client, {
+                            "turnstile_failed": True,
+                            "challenged": True,
+                            "window_ms": 4000,
+                            "clicks": 2,
+                            "keys": 2,
+                            "moves": 2,
+                        })
+                    self.assertEqual(res.status_code, 403)
+                    self.assertEqual(res.get_json().get("error"), "banned")
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertTrue(user.is_bot_banned)
+            self.assertIn("Turnstile", user.bot_ban_reason)
+
+    def test_unchallenged_turnstile_failed_does_not_ban(self):
+        # ダイアログ未表示（challenged なし）の turnstile_failed は BAN に積み上がらない
+        # （ダイアログを出さずにいきなり BAN する誤判定の防止）
+        fake = _FakeRedis()
+        with mock.patch.object(target, "verify_turnstile", return_value=False):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    for _ in range(12):
                         res = self.post_telemetry(client, {
                             "turnstile_failed": True,
                             "window_ms": 4000,
@@ -423,27 +468,38 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
             user = target.db.session.get(target.User, self.user_id)
             self.assertFalse(user.is_bot_banned)
 
-    def test_turnstile_failures_reach_limit_ban(self):
-        # Turnstile チェックが一定回数（5回）ダメだったら BAN
+    def test_verify_fail_without_challenged_does_not_ban(self):
+        # ダイアログ未表示の verify 失敗は失敗カウントに加算されず BAN に至らない
+        fake = _FakeRedis()
+        with mock.patch.object(target, "verify_turnstile", return_value=False):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    for _ in range(12):
+                        res = self.post_turnstile_verify(client, {"turnstile_token": "invalid"})
+                        self.assertEqual(res.status_code, 403)
+                        self.assertEqual(res.get_json().get("error"), "turnstile_failed")
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertFalse(user.is_bot_banned)
+
+    def test_verify_fail_with_challenged_bans_after_limit(self):
+        # ダイアログ表示中（challenged）の verify 失敗はカウントされ、5回で BAN
         fake = _FakeRedis()
         with mock.patch.object(target, "verify_turnstile", return_value=False):
             with mock.patch.object(target, "redis_conn", fake):
                 with self.turnstile_env():
                     client = self.authenticated_client()
                     for _ in range(5):
-                        res = self.post_telemetry(client, {
-                            "turnstile_failed": True,
-                            "window_ms": 4000,
-                            "clicks": 2,
-                            "keys": 2,
-                            "moves": 2,
+                        res = self.post_turnstile_verify(client, {
+                            "turnstile_token": "invalid",
+                            "challenged": True,
                         })
                     self.assertEqual(res.status_code, 403)
                     self.assertEqual(res.get_json().get("error"), "banned")
         with target.app.app_context():
             user = target.db.session.get(target.User, self.user_id)
             self.assertTrue(user.is_bot_banned)
-            self.assertIn("Turnstile", user.bot_ban_reason)
 
     def test_turnstile_pass_resets_failure_count(self):
         # 一度成功すれば失敗カウントはリセットされ、BAN には至らない
@@ -457,6 +513,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
                     for _ in range(4):
                         self.post_telemetry(client, {
                             "turnstile_failed": True,
+                            "challenged": True,
                             "window_ms": 4000,
                             "clicks": 2,
                             "keys": 2,
@@ -469,7 +526,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
             self.assertFalse(user.is_bot_banned)
 
     def test_turnstile_pass_fail_cycling_bans(self):
-        # 成功→失敗が繰り返される（パス/フェイルのサイクリング）なら BAN
+        # ダイアログ表示中の成功→失敗が繰り返される（パス/フェイルのサイクリング）なら BAN
         fake = _FakeRedis()
         results = [False, True, False, True, False, True]
         with mock.patch.object(target, "verify_turnstile", side_effect=results):
@@ -483,6 +540,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
                         else:
                             res = self.post_telemetry(client, {
                                 "turnstile_failed": True,
+                                "challenged": True,
                                 "window_ms": 4000,
                                 "clicks": 2,
                                 "keys": 2,
@@ -529,7 +587,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
         source = assets[0].read_text(encoding="utf-8")
         telemetry = source[source.index("const botTelemetry = (() => {") :]
-        telemetry = telemetry[: telemetry.index("return { start, refreshEnabled, send };")]
+        telemetry = telemetry[: telemetry.index("return { start, refreshEnabled, send, looksSuspicious };")]
         self.assertIn("document.addEventListener('pointerdown', recordClick, true)", telemetry)
         self.assertNotIn("document.addEventListener('touchstart', recordClick, true)", telemetry)
         self.assertNotIn("document.addEventListener('mousedown', recordClick, true)", telemetry)
@@ -605,6 +663,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
                     for _ in range(5):
                         self.post_telemetry(client, {
                             "turnstile_failed": True,
+                            "challenged": True,
                             "window_ms": 4000,
                             "clicks": 2,
                             "keys": 2,
@@ -632,6 +691,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
                     for _ in range(5):
                         self.post_telemetry(client, {
                             "turnstile_failed": True,
+                            "challenged": True,
                             "window_ms": 4000,
                             "clicks": 2,
                             "keys": 2,
@@ -658,6 +718,56 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         # オーバーレイは Turnstile ウィジェット読込前でも表示される
         self.assertIn("showBotDetectionOverlay();", source)
         self.assertIn("turnstileWidgetId === null", source)
+
+    def test_js_gate_verifies_silently_before_showing_overlay(self):
+        # 通常ユーザーには毎回ダイアログを出さない。ゲートは最初にサイレント検証を
+        # 試み、怪しい（失敗が続く／挙動が怪しい）時だけオーバーレイを表示する
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        gate = source[source.index("const runBotDetectionGate = () => {") :]
+        gate = gate[: gate.index("let turnstileServerVerifiedAt = 0;")]
+        # サイレントフェーズ（オーバーレイ未表示）が存在する
+        self.assertIn("!botDetectionOverlayShown", gate)
+        # オーバーレイ表示前に getTurnstileToken による検証を試みる
+        silent_idx = gate.index("if (!botDetectionOverlayShown)")
+        overlay_idx = gate.index("showBotDetectionOverlay();")
+        self.assertLess(silent_idx, overlay_idx, "Silent verification must come before the overlay")
+        self.assertIn("silentAttempts", gate)
+
+    def test_js_turnstile_failed_only_when_dialog_shown(self):
+        # turnstile_failed はダイアログ表示中（botDetectionOverlayShown）だけ送る。
+        # ダイアログを出さずに失敗が積んで BAN される誤判定を防ぐ
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        telemetry = source[source.index("const botTelemetry = (() => {") :]
+        telemetry = telemetry[: telemetry.index("return { start, refreshEnabled, send, looksSuspicious };")]
+        self.assertIn("payload.turnstile_failed = true;", telemetry)
+        self.assertIn("botDetectionOverlayShown", telemetry)
+        self.assertIn("payload.challenged = true;", telemetry)
+
+    def test_js_dialog_renders_visible_turnstile_widget(self):
+        # ダイアログ内に可視の Turnstile ウィジェットを描画する（ボックスが出ない問題の修正）
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        self.assertIn("function renderBotDetectionDialogWidget()", source)
+        self.assertIn("bot-detection-widget-box", source)
+        self.assertIn("window.turnstile.render", source)
+        self.assertIn("botDetectionDialogWidgetId", source)
+        # ダイアログ専用ウィジェットの callback は challenged=true で検証する
+        dialog = source[source.index("function renderBotDetectionDialogWidget()") :]
+        dialog = dialog[: dialog.index("function showBotDetectionOverlay")]
+        self.assertIn("verifyTurnstileOnServer(token, true, true)", dialog)
+
+    def test_js_server_verify_sends_challenged_flag(self):
+        # /api/bot/turnstile-verify はダイアログ表示時 challenged を送る
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        self.assertIn("challenged: !!challenged", source)
+        self.assertIn("async function verifyTurnstileOnServer(token, force = false, challenged = null)", source)
 
 
 if __name__ == "__main__":

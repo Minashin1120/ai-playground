@@ -2694,6 +2694,7 @@
         let botDetectionVerified = false;
         let botDetectionGatePromise = null;
         let botDetectionOverlayShown = false;
+        let botDetectionDialogWidgetId = null;
         let chatDefaultsLoaded = false;
         let modelApiKeyMap = {};
         const THREAD_INITIAL_MESSAGE_LIMIT = 50;
@@ -4574,7 +4575,25 @@
         async function getTurnstileToken(timeoutMs = 1500) {
             if (!botConfig || !botConfig.turnstileSiteKey) return null;
             if (turnstileToken) return turnstileToken;
-            if (!window.turnstile || turnstileWidgetId === null) return null;
+            if (!window.turnstile) return null;
+            // When the blocking dialog is visible, wait for its dedicated
+            // (visible) widget to be solved instead of executing the hidden
+            // background widget (which would pop a box in the corner).
+            if (botDetectionOverlayShown && botDetectionDialogWidgetId !== null) {
+                turnstilePending = true;
+                return await new Promise((resolve) => {
+                    const prevToken = turnstileToken;
+                    const timeout = setTimeout(() => resolve(null), Math.max(500, Number(timeoutMs) || 1500));
+                    const interval = setInterval(() => {
+                        if (turnstileToken && turnstileToken !== prevToken) {
+                            clearTimeout(timeout);
+                            clearInterval(interval);
+                            resolve(turnstileToken);
+                        }
+                    }, 50);
+                });
+            }
+            if (turnstileWidgetId === null) return null;
             const container = document.getElementById('turnstile-container');
             if (container) container.classList.remove('hidden');
             turnstilePending = true;
@@ -4604,13 +4623,35 @@
             if (window.turnstile && turnstileWidgetId !== null) {
                 try { window.turnstile.reset(turnstileWidgetId); } catch (e) {}
             }
+            if (window.turnstile && botDetectionDialogWidgetId !== null) {
+                try { window.turnstile.reset(botDetectionDialogWidgetId); } catch (e) {}
+            }
         }
         function isBotDetectionActive() {
             return !!(botConfig && botConfig.globalEnabled && botConfig.accountEnabled && !isAdminUser && botConfig.turnstileSiteKey);
         }
+        function renderBotDetectionDialogWidget() {
+            if (botDetectionDialogWidgetId !== null) return;
+            if (!botConfig || !botConfig.turnstileSiteKey || !window.turnstile) return;
+            const box = document.getElementById('bot-detection-widget-box');
+            if (!box) return;
+            try {
+                botDetectionDialogWidgetId = window.turnstile.render(box, {
+                    sitekey: botConfig.turnstileSiteKey,
+                    theme: 'dark',
+                    size: 'flexible',
+                    callback: (token) => {
+                        turnstileToken = token;
+                        turnstilePending = false;
+                        verifyTurnstileOnServer(token, true, true);
+                    },
+                    'expired-callback': () => { turnstileToken = null; turnstilePending = false; },
+                    'error-callback': () => { turnstileToken = null; turnstilePending = false; }
+                });
+            } catch (e) { console.error('bot-detection dialog widget error', e); }
+        }
         function showBotDetectionOverlay(message = '') {
             let overlay = document.getElementById('bot-detection-overlay');
-            const tc = document.getElementById('turnstile-container');
             if (!overlay) {
                 overlay = document.createElement('div');
                 overlay.id = 'bot-detection-overlay';
@@ -4623,57 +4664,68 @@
                 title.textContent = message || '安全性の確認中...';
                 const desc = document.createElement('div');
                 desc.style.cssText = 'font-size:12px;color:#94a3b8;line-height:1.6;';
-                desc.textContent = '自動アクセス防止のため、確認が完了するまで操作できません。';
+                desc.textContent = '自動アクセス防止のため、確認を完了してください。';
+                const box = document.createElement('div');
+                box.id = 'bot-detection-widget-box';
+                box.style.cssText = 'margin-top:8px;display:flex;justify-content:center;';
                 card.appendChild(title);
                 card.appendChild(desc);
-                if (tc) {
-                    tc.style.position = 'static';
-                    card.appendChild(tc);
-                }
+                card.appendChild(box);
                 overlay.appendChild(card);
                 document.body.appendChild(overlay);
             } else {
                 overlay.style.display = 'flex';
-                if (tc && tc.parentElement !== overlay) {
-                    tc.style.position = 'static';
-                    overlay.firstChild.appendChild(tc);
-                }
             }
             const titleEl = document.getElementById('bot-detection-overlay-title');
             if (message && titleEl) titleEl.textContent = message;
-            if (tc) tc.classList.remove('hidden');
             botDetectionOverlayShown = true;
+            renderBotDetectionDialogWidget();
         }
         function hideBotDetectionOverlay() {
             botDetectionOverlayShown = false;
-            const overlay = document.getElementById('bot-detection-overlay');
-            const tc = document.getElementById('turnstile-container');
-            if (tc) {
-                tc.classList.add('hidden');
-                if (overlay && tc.parentElement === overlay) {
-                    document.body.appendChild(tc);
-                }
-                tc.style.position = '';
+            if (botDetectionDialogWidgetId !== null) {
+                try { window.turnstile.remove(botDetectionDialogWidgetId); } catch (e) {}
+                botDetectionDialogWidgetId = null;
             }
+            const box = document.getElementById('bot-detection-widget-box');
+            if (box) box.replaceChildren();
+            const overlay = document.getElementById('bot-detection-overlay');
             if (overlay) overlay.remove();
         }
         const runBotDetectionGate = () => {
             if (botDetectionVerified || !isBotDetectionActive()) return Promise.resolve(true);
             if (botDetectionGatePromise) return botDetectionGatePromise;
             botDetectionGatePromise = (async () => {
+                let silentAttempts = 0;
                 while (!botDetectionVerified) {
-                    // Show the blocking overlay immediately, even before the
-                    // Turnstile widget has finished rendering, so an unverified
-                    // user is never left with a usable page (which allowed rapid
-                    // clicks to accumulate bot-detection failures with no overlay).
-                    showBotDetectionOverlay();
-                    if (!window.__turnstileApiLoaded || turnstileWidgetId === null) {
-                        await new Promise((resolve) => setTimeout(resolve, 1000));
+                    // Silent phase: don't show the dialog. Normal users are
+                    // verified invisibly (interaction-only widget) and never see
+                    // the overlay. Only escalate to the visible dialog once the
+                    // silent challenge keeps failing or behavior looks suspicious.
+                    if (!botDetectionOverlayShown) {
+                        if (!window.__turnstileApiLoaded || turnstileWidgetId === null) {
+                            await new Promise((resolve) => setTimeout(resolve, 1000));
+                            continue;
+                        }
+                        const token = await getTurnstileToken(8000);
+                        if (token) {
+                            const ok = await verifyTurnstileOnServer(token, true, false);
+                            if (ok) break;
+                        }
+                        silentAttempts += 1;
+                        let suspicious = false;
+                        try {
+                            suspicious = !!(botTelemetry && botTelemetry.looksSuspicious && botTelemetry.looksSuspicious());
+                        } catch (e) {}
+                        if (silentAttempts >= 2 || suspicious) {
+                            showBotDetectionOverlay();
+                        }
                         continue;
                     }
+                    // Dialog is shown: block until the user completes the visible box.
                     const token = await getTurnstileToken(25000);
                     if (token) {
-                        const ok = await verifyTurnstileOnServer(token, true);
+                        const ok = await verifyTurnstileOnServer(token, true, true);
                         if (ok) break;
                     }
                     try { botTelemetry.send(true, { forceReport: true }); } catch (e) {}
@@ -4685,15 +4737,16 @@
             return botDetectionGatePromise;
         };
         let turnstileServerVerifiedAt = 0;
-        async function verifyTurnstileOnServer(token, force = false) {
+        async function verifyTurnstileOnServer(token, force = false, challenged = null) {
             if (!token || !isBotDetectionActive()) return true;
+            if (challenged === null) challenged = botDetectionOverlayShown;
             const now = Date.now();
             if (!force && now - turnstileServerVerifiedAt < 60 * 1000) return true;
             try {
                 const res = await apiFetch('/api/bot/turnstile-verify', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ turnstile_token: token })
+                    body: JSON.stringify({ turnstile_token: token, challenged: !!challenged })
                 });
                 if (res.ok) {
                     turnstileServerVerifiedAt = now;
@@ -4841,12 +4894,16 @@
                 if (!opts.forceReport && (payload.clicks + payload.keys + payload.moves) === 0) return;
                 if (!force && !isSuspicious(payload)) return;
                 payload.turnstile_token = await getTurnstileToken();
-                // Only report a Turnstile failure when the user is NOT verified.
-                // Verified users can momentarily have no client token (it is reset
-                // after each report); counting that as a failure was banning legit
-                // users who rapidly clicked buttons while already verified.
-                if (botConfig && botConfig.turnstileSiteKey && !payload.turnstile_token && !botDetectionVerified) {
+                // Only report a Turnstile failure when the user is NOT verified AND
+                // the verification dialog is actually on screen. Verified users can
+                // momentarily have no client token (it is reset after each report);
+                // counting that as a failure was banning legit users. Reporting a
+                // failure while the dialog is NOT shown (silent phase) was also
+                // banning users who were never shown the dialog, so we only flag it
+                // when the user has actually been challenged.
+                if (botConfig && botConfig.turnstileSiteKey && !payload.turnstile_token && !botDetectionVerified && botDetectionOverlayShown) {
                     payload.turnstile_failed = true;
+                    payload.challenged = true;
                 }
                 try {
                     const res = await apiFetch('/api/bot-telemetry', {
@@ -4867,6 +4924,11 @@
                 resetTurnstileToken();
                 resetWindow();
             };
+            const looksSuspicious = () => {
+                if (!state.enabled) return false;
+                const payload = computeStats();
+                return isSuspicious(payload);
+            };
             const start = () => {
                 refreshEnabled();
                 if (!state.enabled) return;
@@ -4880,7 +4942,7 @@
                 document.addEventListener('mousemove', recordMove, true);
                 setInterval(() => send(false), 4000);
             };
-            return { start, refreshEnabled, send };
+            return { start, refreshEnabled, send, looksSuspicious };
         })();
         function openImageViewer(url) {
             const viewer = get('image-viewer');
@@ -14210,6 +14272,16 @@
             let botTurnstileToken = null;
             if (isBotDetectionActive()) {
                 botTurnstileToken = await getTurnstileToken();
+                if (!botTurnstileToken) {
+                    // Token could not be obtained. If the user is not yet verified,
+                    // run the gate (which shows the dialog only when suspicious)
+                    // before giving up, so we never accumulate turnstile failures
+                    // towards a ban without the dialog ever being shown.
+                    if (!botDetectionVerified) {
+                        try { await runBotDetectionGate(); } catch (e) {}
+                        botTurnstileToken = await getTurnstileToken();
+                    }
+                }
                 if (!botTurnstileToken) {
                     showToast("安全性の確認を完了できませんでした。しばらく待ってから再送信してください。", "error", true);
                     botTelemetry.send(true);

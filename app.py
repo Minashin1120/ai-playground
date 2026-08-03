@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-016')
-app.config['SYSTEM_VERSION'] = 'V4.8.704'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-017')
+app.config['SYSTEM_VERSION'] = 'V4.8.705'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -15389,7 +15389,11 @@ def bot_telemetry():
     if not verify_turnstile(data.get('turnstile_token')):
         if not data.get('turnstile_failed'):
             return jsonify({'error': 'turnstile_failed'}), 403
-        if _bot_turnstile_register_failure():
+        # A Turnstile failure is only counted toward a ban when the client was
+        # actually shown the verification dialog (challenged). The silent phase
+        # (no dialog) must never accumulate failures that could ban a user who
+        # was never given the chance to complete the challenge.
+        if data.get('challenged') and _bot_turnstile_register_failure():
             return jsonify({'error': 'banned'}), 403
     raw_behavior, reasons = evaluate_bot_score(data)
     if data.get('turnstile_failed'):
@@ -15446,7 +15450,10 @@ def bot_turnstile_verify():
     data = request.get_json(silent=True) or {}
     if not verify_turnstile(data.get('turnstile_token')):
         _log_bot_evidence('verify_fail', reasons='turnstile_failed')
-        if _bot_turnstile_register_failure():
+        # Only count toward a ban when the client actually showed the dialog
+        # (challenged). Silent background verification failures must not ban a
+        # user who was never shown the challenge.
+        if data.get('challenged') and _bot_turnstile_register_failure():
             return jsonify({'error': 'banned'}), 403
         return jsonify({'error': 'turnstile_failed'}), 403
     if _bot_turnstile_register_success():

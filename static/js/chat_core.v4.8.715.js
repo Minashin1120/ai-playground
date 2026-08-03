@@ -4873,7 +4873,8 @@
         function registerSendButtonSpam() {
             const now = performance.now();
             sendButtonSpamTimestamps.push(now);
-            sendButtonSpamTimestamps = sendButtonSpamTimestamps.filter(t => now - t <= 2000);
+            // 3s window: slightly more tolerant of accidental double-taps / retries
+            sendButtonSpamTimestamps = sendButtonSpamTimestamps.filter(t => now - t <= 3000);
             return sendButtonSpamTimestamps.length;
         }
         function resetSendButtonSpam() {
@@ -14504,9 +14505,11 @@
             // and load the server, so once the threshold is hit we lock the
             // account (10 min) with a visible reason. This applies even to
             // already-verified users so DOM-driven rapid clicking is caught too.
+            // Threshold is intentionally lenient (8 presses / 3s) so normal
+            // retries and double-taps do not immediately lock the account.
             if (isBotDetectionActive()) {
                 const sendCount = registerSendButtonSpam();
-                if (sendCount >= 5) {
+                if (sendCount >= 8) {
                     const ok = await runSendSpamVerification();
                     if (!ok) {
                         showToast("送信操作が速すぎるため、確認後に再度お試しください。", "warning", true);

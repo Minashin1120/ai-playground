@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.714'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-003')
+app.config['SYSTEM_VERSION'] = 'V4.8.715'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -5244,6 +5244,8 @@ _BOT_LOCK_TTL = 10 * 60  # 10 minutes
 _BOT_LOCK_COUNT_LIMIT = 3  # 3 lock events (within window) -> ban
 _BOT_LOCK_COUNT_TTL = 60 * 60  # lock-count window (1 hour)
 # Endpoints a locked user may still reach (page rendering, appeals, logs).
+# bot_telemetry / bot_turnstile_verify stay open so automated / synthetic
+# behaviour can still escalate from a temporary lock to a permanent ban.
 _BOT_LOCK_GATE_WHITELIST = {
     'logout',
     'banned',
@@ -5257,6 +5259,8 @@ _BOT_LOCK_GATE_WHITELIST = {
     'client_log',
     'bot_lock',
     'bot_lock_status',
+    'bot_telemetry',
+    'bot_turnstile_verify',
     'static',
 }
 

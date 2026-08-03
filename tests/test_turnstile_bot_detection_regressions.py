@@ -999,20 +999,23 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         self.assertNotIn("evidence-box", html)
 
     def test_js_send_spam_triggers_bot_check_dialog(self):
-        # 送信ボタンの連打（5回/2秒）でアカウントロック（10分）をかけ、
+        # 送信ボタンの連打（8回/3秒）でアカウントロック（10分）をかけ、
         # 理由を表示してサーバー通信をブロックする（サーバー負荷対策）。
         # 検証済みユーザーでも発動する（DOM連打を検出するため）。
+        # 閾値は通常の再試行・ダブルタップで誤ロックしにくいよう緩めている。
         assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
         source = assets[0].read_text(encoding="utf-8")
         gate = source[source.index("async function sendMessage()") :]
         gate = gate[: gate.index("const rawText = get('prompt-input').value")]
         self.assertIn("registerSendButtonSpam()", gate)
-        self.assertIn("sendCount >= 5", gate)
+        self.assertIn("sendCount >= 8", gate)
         self.assertIn("runSendSpamVerification()", gate)
         self.assertIn("送信操作が速すぎるため", gate)
         self.assertIn("registerSendButtonSpam", source)
         self.assertIn("runSendSpamVerification", source)
+        # 3秒窓で集計（2秒から緩和）
+        self.assertIn("now - t <= 3000", source)
         # 検証済みユーザーでも連打ロック対象（!botDetectionVerified 条件を外す）
         self.assertIn("if (isBotDetectionActive()) {", gate)
         self.assertNotIn("isBotDetectionActive() && !botDetectionVerified", gate)
@@ -1097,6 +1100,87 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
         self.assertIn("data.get('untrusted_input')", app_source)
         self.assertIn("_apply_bot_ban(\"Synthetic (script-injected) input events detected\")", app_source)
+
+    def test_lock_gate_allows_bot_telemetry_and_turnstile_verify(self):
+        # アカウントロック中でもボット検出テレメトリ／Turnstile検証は到達できる
+        # （ロック中に合成イベント等を送ってもBANへ進めるため）
+        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        # _BOT_LOCK_GATE_WHITELIST 内に両エンドポイントがあること
+        whitelist_start = app_source.index("_BOT_LOCK_GATE_WHITELIST = {")
+        whitelist = app_source[whitelist_start: whitelist_start + 800]
+        self.assertIn("'bot_telemetry'", whitelist)
+        self.assertIn("'bot_turnstile_verify'", whitelist)
+
+    def test_untrusted_input_bans_while_account_locked(self):
+        # ロック中に untrusted_input テレメトリを送ると、ロックをすり抜けずBANされる
+        fake = _FakeRedis()
+        # verify_turnstile=True で Turnstile ゲートを通過させ、ロックゲートを検証する
+        with mock.patch.object(target, "verify_turnstile", return_value=True):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    lock_res = self.post_bot_lock(client, {"reason": "連打検出"})
+                    self.assertEqual(lock_res.status_code, 200)
+                    self.assertEqual(lock_res.get_json().get("status"), "locked")
+                    # ロック中でも chat_stream は拒否される（ロック自体は有効）
+                    blocked = self.post_chat_stream(
+                        client, {"message": "hello", "turnstile_token": "valid"}
+                    )
+                    self.assertEqual(blocked.status_code, 403)
+                    self.assertEqual(blocked.get_json().get("error"), "account_locked")
+                    # ロック中でも bot-telemetry の untrusted_input は到達してBAN
+                    # （untrusted_input は Turnstile 状態に関係なく即BAN）
+                    ban_res = self.post_telemetry(client, {
+                        "untrusted_input": True,
+                        "window_ms": 1000,
+                        "clicks": 0,
+                        "keys": 0,
+                        "moves": 0,
+                        "turnstile_token": "valid",
+                    })
+                    self.assertEqual(ban_res.status_code, 403)
+                    self.assertEqual(ban_res.get_json().get("error"), "banned")
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertTrue(user.is_bot_banned)
+            self.assertIn("Synthetic", user.bot_ban_reason)
+
+    def test_behavior_score_ban_while_account_locked(self):
+        # ロック中でも挙動スコアBAN（累積スコア>=8 かつ 挙動>=6）が適用される
+        fake = _FakeRedis()
+        with mock.patch.object(target, "verify_turnstile", return_value=True):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    lock_res = self.post_bot_lock(client, {"reason": "連打検出"})
+                    self.assertEqual(lock_res.get_json().get("status"), "locked")
+                    # 高スコアの挙動テレメトリを複数回送りBAN条件を満たす
+                    high_score_payload = {
+                        "window_ms": 2000,
+                        "clicks": 40,
+                        "keys": 0,
+                        "moves": 0,
+                        "fast_clicks": 30,
+                        "fast_keys": 0,
+                        "click_burst": 40,
+                        "key_burst": 0,
+                        "event_rate": 30,
+                        "avg_click_ms": 50,
+                        "click_cv": 0.02,
+                        "pointer_speed_max": 0,
+                        "turnstile_token": "valid",
+                    }
+                    last = None
+                    for _ in range(3):
+                        last = self.post_telemetry(client, high_score_payload)
+                        if last.status_code == 403 and last.get_json().get("error") == "banned":
+                            break
+                    self.assertIsNotNone(last)
+                    self.assertEqual(last.status_code, 403)
+                    self.assertEqual(last.get_json().get("error"), "banned")
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertTrue(user.is_bot_banned)
 
 
 if __name__ == "__main__":

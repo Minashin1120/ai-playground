@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-004')
-app.config['SYSTEM_VERSION'] = 'V4.8.716'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-005')
+app.config['SYSTEM_VERSION'] = 'V4.8.717'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -11805,6 +11805,11 @@ def signup():
         db.session.add(new_user)
         safe_db_commit()
         login_user(new_user)
+        # Establish the server-side session before redirecting.  Deferring this
+        # to ensure_active_session on the first /setup request allowed parallel
+        # browser requests (manifest/service-worker, etc.) to create competing
+        # sessions; one could revoke the other and send the user back to /login.
+        create_user_session(new_user)
         record_user_client_token(new_user)
         return redirect(url_for('setup'))
     return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'))

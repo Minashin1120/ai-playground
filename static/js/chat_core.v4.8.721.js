@@ -7781,6 +7781,93 @@
             });
             const storageRefreshBtn = get('storage-usage-refresh');
             if (storageRefreshBtn) storageRefreshBtn.onclick = () => loadStorageUsage();
+            const accountExportBtn = get('account-export-btn');
+            if (accountExportBtn) {
+                accountExportBtn.onclick = async () => {
+                    accountExportBtn.disabled = true;
+                    try {
+                        const res = await apiFetch('/api/account/export', {cache: 'no-store'});
+                        if (!res.ok) {
+                            const data = await res.json().catch(() => ({}));
+                            throw new Error(data.message || data.error || 'エクスポートに失敗しました');
+                        }
+                        const blob = await res.blob();
+                        const disposition = res.headers.get('Content-Disposition') || '';
+                        const match = disposition.match(/filename\*?=(?:UTF-8''|\")?([^\";]+)/i);
+                        const filename = match ? decodeURIComponent(match[1].replace(/^\"|\"$/g, '')) : 'ai-playground-account.zip';
+                        const href = URL.createObjectURL(blob);
+                        const anchor = document.createElement('a');
+                        anchor.href = href;
+                        anchor.download = filename;
+                        document.body.appendChild(anchor);
+                        anchor.click();
+                        anchor.remove();
+                        setTimeout(() => URL.revokeObjectURL(href), 1000);
+                        showToast('アカウントデータをエクスポートしました', 'success');
+                    } catch (error) {
+                        showToast(error && error.message ? error.message : 'エクスポートに失敗しました', 'error', true);
+                    } finally {
+                        accountExportBtn.disabled = false;
+                    }
+                };
+            }
+            const accountImportBtn = get('account-import-btn');
+            if (accountImportBtn) {
+                accountImportBtn.onclick = async () => {
+                    const input = get('account-import-file');
+                    const file = input && input.files ? input.files[0] : null;
+                    const categoryBox = get('account-import-categories');
+                    const categories = categoryBox
+                        ? Array.from(categoryBox.querySelectorAll('input[type="checkbox"]:checked')).map(el => el.value)
+                        : [];
+                    if (!file) {
+                        showToast('インポートするZIPファイルを選択してください', 'error', true);
+                        return;
+                    }
+                    if (!categories.length) {
+                        showToast('インポートするデータを1つ以上選択してください', 'error', true);
+                        return;
+                    }
+                    const selectedLabels = categoryBox
+                        ? Array.from(categoryBox.querySelectorAll('input[type="checkbox"]:checked')).map(el => (el.closest('label') && el.closest('label').textContent || el.value).trim())
+                        : categories;
+                    if (!confirm(`次のデータをインポートします。既存データは削除されません。\n\n${selectedLabels.join('、')}\n\n続行しますか？`)) return;
+                    const form = new FormData();
+                    form.append('file', file, file.name);
+                    form.append('categories', categories.join(','));
+                    accountImportBtn.disabled = true;
+                    const resultBox = get('account-import-result');
+                    try {
+                        const res = await apiFetch('/api/account/import', {method: 'POST', body: form});
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) throw new Error(data.error || 'インポートに失敗しました');
+                        const imported = data.imported || {};
+                        const detail = [
+                            `チャット ${imported.chats || 0}件`, `Gem ${imported.gems || 0}件`,
+                            `ファイル ${imported.files || 0}件`, `フィードバック ${imported.feedback || 0}件`,
+                            `診断データ ${imported.diagnostics || 0}件`,
+                        ].join(' / ');
+                        if (resultBox) {
+                            resultBox.textContent = `完了: ${detail}`;
+                            resultBox.classList.remove('hidden', 'text-red-300');
+                            resultBox.classList.add('text-emerald-300');
+                        }
+                        showToast('選択したアカウントデータをインポートしました', 'success');
+                        if (categories.includes('chats')) loadThreads();
+                        if (categories.includes('gems')) loadGems();
+                        if (categories.includes('files')) loadStorageUsage();
+                    } catch (error) {
+                        if (resultBox) {
+                            resultBox.textContent = error && error.message ? error.message : 'インポートに失敗しました';
+                            resultBox.classList.remove('hidden', 'text-emerald-300');
+                            resultBox.classList.add('text-red-300');
+                        }
+                        showToast(error && error.message ? error.message : 'インポートに失敗しました', 'error', true);
+                    } finally {
+                        accountImportBtn.disabled = false;
+                    }
+                };
+            }
             const siteCacheRefreshBtn = get('site-cache-usage-refresh');
             if (siteCacheRefreshBtn) siteCacheRefreshBtn.onclick = () => loadSiteCacheUsage();
             const clearSiteCacheBtn = get('clear-site-cache-btn');

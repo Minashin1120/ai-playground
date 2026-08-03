@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-008')
-app.config['SYSTEM_VERSION'] = 'V4.8.720'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-009')
+app.config['SYSTEM_VERSION'] = 'V4.8.721'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -807,7 +807,7 @@ login_manager.login_view = 'login'
 def _apply_per_user_upload_limits():
     endpoint = request.endpoint or ''
     global_limit = app.config.get('MAX_CONTENT_LENGTH')
-    if endpoint not in ('upload', 'upload_chunk'):
+    if endpoint not in ('upload', 'upload_chunk', 'import_account_data'):
         endpoint_limit = 4 * 1024 * 1024
         if endpoint in {'transcribe', 'speech_to_speech', 'save_sts_direct'}:
             endpoint_limit = 32 * 1024 * 1024
@@ -816,7 +816,9 @@ def _apply_per_user_upload_limits():
         request.max_content_length = min(global_limit, endpoint_limit) if global_limit else endpoint_limit
         return
     try:
-        if current_user.is_authenticated and _is_primary_admin_user(current_user):
+        if endpoint == 'import_account_data':
+            request.max_content_length = global_limit
+        elif current_user.is_authenticated and _is_primary_admin_user(current_user):
             request.max_content_length = min(global_limit or 12 * 1024 * 1024, 12 * 1024 * 1024) if endpoint == 'upload_chunk' else global_limit
         else:
             limit = _get_user_storage_limit_bytes(current_user) if current_user.is_authenticated else None
@@ -3177,6 +3179,327 @@ class ChatLatencyTrace(db.Model):
     client_total_latency_ms = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# Account portability deliberately excludes identity, authentication, active sessions,
+# privileges and moderation state.  In particular, username is never written to an
+# export archive and can never be changed by an import.
+ACCOUNT_EXPORT_FORMAT = "ai-playground-account-export"
+ACCOUNT_EXPORT_VERSION = 1
+ACCOUNT_IMPORT_CATEGORIES = frozenset({
+    "settings", "api_credentials", "chats", "gems", "files", "feedback", "diagnostics"
+})
+ACCOUNT_SETTING_FIELDS = (
+    "system_prompt", "system_prompt_enabled", "apply_global_system_prompt",
+    "apply_auto_system_prompt_notices", "auto_system_prompt_notices_config",
+    "gemini_backend", "gemini_vertex_location", "mic_transcribe_mode", "stt_model",
+    "llm_transcribe_prompt", "enter_to_send", "use_sw_cache", "clear_cache_on_version_update",
+    "theme_color", "liquid_glass_enabled", "auto_search_on_links", "compact_prompt_mode",
+    "use_last_chat_settings", "temp_chat_timeout_seconds", "default_model",
+    "default_enable_search", "default_enable_url_context", "default_enable_maps",
+    "default_enable_python", "default_enable_thinking", "default_thinking_level",
+    "default_thinking_budget", "default_reasoning_effort", "default_enable_system_prompt",
+    "default_safety_setting", "default_vision_model", "rich_paste_prompt_default",
+    "rich_paste_prompt_use_custom_default", "last_model", "last_enable_search",
+    "last_enable_url_context", "last_enable_maps", "last_enable_python",
+    "last_enable_thinking", "last_thinking_level", "last_thinking_budget",
+    "last_reasoning_effort", "last_enable_system_prompt", "last_safety_setting",
+    "enable_latency_metrics", "enable_client_debug_log",
+)
+ACCOUNT_SECRET_FIELDS = (
+    "openai_api_key", "gemini_api_key", "anthropic_api_key", "deepseek_api_key",
+    "kimi_api_key", "model_api_keys", "gemini_vertex_project",
+    "gemini_vertex_credentials_json", "xai_api_key", "google_api_key", "google_cloud_project",
+)
+ACCOUNT_BOOL_SETTING_FIELDS = frozenset({
+    "system_prompt_enabled", "apply_global_system_prompt", "apply_auto_system_prompt_notices",
+    "enter_to_send", "use_sw_cache", "clear_cache_on_version_update", "liquid_glass_enabled",
+    "auto_search_on_links", "compact_prompt_mode", "use_last_chat_settings",
+    "default_enable_search", "default_enable_url_context", "default_enable_maps",
+    "default_enable_python", "default_enable_thinking", "default_enable_system_prompt",
+    "rich_paste_prompt_use_custom_default", "last_enable_search", "last_enable_url_context",
+    "last_enable_maps", "last_enable_python", "last_enable_thinking",
+    "last_enable_system_prompt", "enable_latency_metrics", "enable_client_debug_log",
+})
+ACCOUNT_INT_SETTING_FIELDS = frozenset({
+    "temp_chat_timeout_seconds", "default_thinking_budget", "last_thinking_budget",
+})
+ACCOUNT_TEXT_SETTING_LIMITS = {
+    "system_prompt": 500_000,
+    "auto_system_prompt_notices_config": 500_000,
+    "llm_transcribe_prompt": 100_000,
+    "rich_paste_prompt_default": 100_000,
+}
+
+
+def _portable_datetime(value):
+    return value.isoformat() + ("Z" if value and value.tzinfo is None else "") if value else None
+
+
+def _parse_portable_datetime(value):
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+        return parsed.replace(tzinfo=None) if parsed.tzinfo else parsed
+    except Exception:
+        return None
+
+
+def _account_export_settings(user):
+    result = {}
+    for field in ACCOUNT_SETTING_FIELDS:
+        value = getattr(user, field, None)
+        if field == "system_prompt" and value and user.enable_e2ee:
+            value = decrypt_val(value)
+        result[field] = value
+    return result
+
+
+def _account_export_secrets(user):
+    result = {}
+    for field in ACCOUNT_SECRET_FIELDS:
+        value = getattr(user, field, None)
+        if field == "model_api_keys":
+            result[field] = _load_user_model_api_key_map(user)
+        else:
+            result[field] = decrypt_val(value) if value else None
+    return result
+
+
+def _account_export_threads(user_id):
+    rows = []
+    threads = Thread.query.filter_by(user_id=user_id).order_by(Thread.id.asc()).all()
+    for thread in threads:
+        messages = []
+        for message in Message.query.filter_by(thread_id=thread.id).order_by(Message.id.asc()).all():
+            content = decrypt_val(message.content) if message.is_encrypted else message.content
+            thought = decrypt_val(message.thought_data) if message.is_encrypted and message.thought_data else message.thought_data
+            messages.append({
+                "export_id": message.id,
+                "parent_export_id": message.parent_id,
+                "role": message.role,
+                "content": content,
+                "model": message.model,
+                "image_url": message.image_url,
+                "timestamp": _portable_datetime(message.timestamp),
+                "tokens": message.tokens,
+                "tokens_in": message.tokens_in,
+                "tokens_out": message.tokens_out,
+                "tokens_thought": message.tokens_thought,
+                "thought_data": thought,
+                "quote_text": message.quote_text,
+                "thought_signature": message.thought_signature,
+                "gem_uuid": message.gem_uuid,
+                "gem_name": message.gem_name,
+            })
+        rows.append({
+            "title": thread.title,
+            "is_bookmarked": bool(thread.is_bookmarked),
+            "bookmarked_at": _portable_datetime(thread.bookmarked_at),
+            "is_temporary": bool(thread.is_temporary),
+            "custom_instruction": thread.custom_instruction,
+            "include_global_instruction": bool(thread.include_global_instruction),
+            "last_model": thread.last_model,
+            "last_gem_uuid": thread.last_gem_uuid,
+            "enable_prompt_caching": bool(thread.enable_prompt_caching),
+            "prompt_cache_provider": thread.prompt_cache_provider,
+            "updated_at": _portable_datetime(thread.updated_at),
+            "messages": messages,
+        })
+    return rows
+
+
+def _account_export_gems(user_id):
+    return [{
+        "uuid": row.uuid,
+        "name": row.name,
+        "description": row.description,
+        "instruction": row.instruction,
+        "fixed_prompts_json": row.fixed_prompts_json,
+        "default_model": row.default_model,
+        "created_at": _portable_datetime(row.created_at),
+    } for row in Gem.query.filter_by(user_id=user_id).order_by(Gem.id.asc()).all()]
+
+
+def _account_export_feedback(user_id):
+    return [{
+        "title": row.title,
+        "message": row.message,
+        "status": row.status,
+        "admin_reply": row.admin_reply,
+        "created_at": _portable_datetime(row.created_at),
+        "updated_at": _portable_datetime(row.updated_at),
+    } for row in Feedback.query.filter_by(user_id=user_id).order_by(Feedback.id.asc()).all()]
+
+
+def _account_export_diagnostics(user_id):
+    first_tokens = [{
+        "thread_public_id": row.thread_public_id, "job_id": row.job_id, "model": row.model,
+        "first_event_type": row.first_event_type, "latency_seconds": row.latency_seconds,
+        "latency_ms": row.latency_ms, "client_sent_at": _portable_datetime(row.client_sent_at),
+        "created_at": _portable_datetime(row.created_at),
+    } for row in FirstTokenLatencyMetric.query.filter_by(user_id=user_id).order_by(FirstTokenLatencyMetric.id.asc()).all()]
+    trace_fields = [column.name for column in ChatLatencyTrace.__table__.columns if column.name not in {"id", "user_id"}]
+    traces = []
+    for row in ChatLatencyTrace.query.filter_by(user_id=user_id).order_by(ChatLatencyTrace.id.asc()).all():
+        item = {}
+        for field in trace_fields:
+            value = getattr(row, field)
+            item[field] = _portable_datetime(value) if isinstance(value, datetime) else value
+        traces.append(item)
+    return {"first_token_metrics": first_tokens, "chat_latency_traces": traces}
+
+
+def _account_file_rows(user_id):
+    user_dir = os.path.join(app.config["UPLOAD_FOLDER"], str(user_id))
+    labels = _get_user_file_label_map(user_id)
+    rows = []
+    if not os.path.isdir(user_dir):
+        return rows
+    for root, dirs, filenames in os.walk(user_dir):
+        dirs[:] = [name for name in dirs if not name.startswith(".")]
+        for filename in sorted(filenames):
+            disk_path = os.path.join(root, filename)
+            is_encrypted = filename.endswith(".enc")
+            logical_path = disk_path[:-4] if is_encrypted else disk_path
+            rel_inside = os.path.relpath(logical_path, user_dir)
+            rel_path = os.path.join(str(user_id), rel_inside).replace(os.sep, "/")
+            # If both representations somehow exist, prefer the plaintext one once.
+            if is_encrypted and os.path.exists(logical_path):
+                continue
+            info = _get_file_disk_info(rel_path)
+            if info.get("exists") and not _path_is_within(app.config["UPLOAD_FOLDER"], info.get("disk_path")):
+                continue
+            data = _load_user_file_bytes(rel_path, info)
+            if data is None:
+                continue
+            rows.append({
+                "rel_path": rel_path,
+                "display_name": labels.get(rel_path),
+                "mime_type": mimetypes.guess_type(logical_path)[0],
+                "data": data,
+            })
+    return rows
+
+
+def _coerce_account_import_categories(raw):
+    if isinstance(raw, str):
+        raw = [part.strip() for part in raw.split(",")]
+    if not isinstance(raw, list):
+        return set()
+    return {str(item).strip() for item in raw if str(item).strip() in ACCOUNT_IMPORT_CATEGORIES}
+
+
+def _safe_account_import_text(value, max_chars):
+    text_value = "" if value is None else str(value).replace("\x00", "")
+    if len(text_value) > max_chars:
+        raise ValueError("import_value_too_large")
+    return text_value
+
+
+def _apply_imported_account_settings(user, values):
+    if not isinstance(values, dict):
+        raise ValueError("invalid_settings")
+    for field in ACCOUNT_SETTING_FIELDS:
+        if field not in values:
+            continue
+        value = values.get(field)
+        if field in ACCOUNT_BOOL_SETTING_FIELDS:
+            value = bool(value)
+        elif field in ACCOUNT_INT_SETTING_FIELDS:
+            value = int(value or 0)
+            if field == "temp_chat_timeout_seconds":
+                value = _normalize_temp_chat_timeout_seconds(value)
+            else:
+                value = max(0, min(value, 32768))
+        else:
+            value = _safe_account_import_text(value, ACCOUNT_TEXT_SETTING_LIMITS.get(field, 4096))
+        if field in {"default_model", "default_vision_model", "last_model"} and value not in ALL_VALID_MODEL_IDS:
+            continue
+        if field == "stt_model" and value not in VALID_STT_MODELS:
+            continue
+        if field == "theme_color":
+            value = normalize_theme_color(value)
+        elif field == "gemini_backend":
+            value = _normalize_gemini_backend(value)
+        elif field == "gemini_vertex_location":
+            value = _normalize_gemini_vertex_location(value)
+        elif field == "mic_transcribe_mode":
+            value = _normalize_mic_transcribe_mode(value)
+        elif field == "llm_transcribe_prompt":
+            value = _normalize_llm_transcribe_prompt(value)
+        elif field == "system_prompt" and user.enable_e2ee:
+            value = encrypt_val(value)
+        setattr(user, field, value)
+
+
+def _apply_imported_account_secrets(user, values):
+    if not isinstance(values, dict):
+        raise ValueError("invalid_api_credentials")
+    for field in ACCOUNT_SECRET_FIELDS:
+        if field not in values:
+            continue
+        value = values.get(field)
+        if field == "model_api_keys":
+            if not isinstance(value, dict) or len(value) > 500:
+                raise ValueError("invalid_model_api_keys")
+            clean = {}
+            for model_id, secret in value.items():
+                model_id = str(model_id).strip()
+                secret = _safe_account_import_text(secret, 4096)
+                if model_id in ALL_VALID_MODEL_IDS and secret:
+                    clean[model_id] = secret
+            _save_user_model_api_key_map(user, clean)
+            continue
+        max_chars = 100_000 if field == "gemini_vertex_credentials_json" else 4096
+        value = _safe_account_import_text(value, max_chars) if value else None
+        if field == "gemini_vertex_credentials_json" and value:
+            value = _normalize_gemini_vertex_credentials_json(value)
+        setattr(user, field, encrypt_val(value) if value else None)
+
+
+def _unique_import_file_rel_path(user_id, original_rel_path):
+    base_name = _sanitize_file_display_name(os.path.basename(str(original_rel_path or ""))) or "imported-file"
+    stem, ext = os.path.splitext(base_name)
+    stem = (stem or "imported-file")[:120]
+    for _ in range(100):
+        candidate = f"{user_id}/import-{secrets.token_hex(6)}-{stem}{ext}"
+        base = os.path.join(app.config["UPLOAD_FOLDER"], candidate)
+        if not os.path.exists(base) and not os.path.exists(base + ".enc"):
+            return candidate
+    raise ValueError("file_name_collision")
+
+
+def _rewrite_imported_attachment_value(raw_value, file_map, target_user_id):
+    if not raw_value:
+        return raw_value
+    try:
+        parsed = json.loads(raw_value) if isinstance(raw_value, str) else raw_value
+    except Exception:
+        parsed = raw_value
+
+    def rewrite(item):
+        if isinstance(item, list):
+            return [rewrite(child) for child in item]
+        if isinstance(item, dict):
+            result = dict(item)
+            for key in ("path", "filepath", "file", "url", "name"):
+                if key in result and result[key]:
+                    result[key] = rewrite(result[key])
+                    break
+            return result
+        norm = _normalize_upload_ref(item)
+        if norm in file_map:
+            return file_map[norm]
+        if norm and norm.startswith(f"{target_user_id}/") and _get_file_disk_info(norm).get("exists"):
+            return norm
+        return item
+
+    rewritten = rewrite(parsed)
+    if isinstance(raw_value, str) and isinstance(parsed, (list, dict)):
+        return json.dumps(rewritten, ensure_ascii=False, separators=(",", ":"))
+    return rewritten
 
 _LATENCY_PHASE_TO_FIELD = {
     "route_received_ms": "route_received_at",
@@ -15367,6 +15690,337 @@ def delete_account():
         logout_user()
         return jsonify({'status': 'ok'})
     except Exception as e: return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/account/export', methods=['GET'])
+@login_required
+def export_account_data():
+    if not rate_limit(f"rl:account_export:user:{current_user.id}", 3, 3600):
+        return jsonify({'error': 'rate_limit'}), 429
+    export_path = None
+    try:
+        file_rows = _account_file_rows(current_user.id)
+        manifest = {
+            "format": ACCOUNT_EXPORT_FORMAT,
+            "format_version": ACCOUNT_EXPORT_VERSION,
+            "exported_at": _portable_datetime(datetime.utcnow()),
+            "system_version": app.config.get("SYSTEM_VERSION"),
+            "excluded": [
+                "username", "password", "google_identity", "two_factor_secrets", "passkeys",
+                "login_sessions", "account_privileges", "moderation_and_security_state",
+            ],
+            "data": {
+                "settings": _account_export_settings(current_user),
+                "api_credentials": _account_export_secrets(current_user),
+                "chats": _account_export_threads(current_user.id),
+                "gems": _account_export_gems(current_user.id),
+                "feedback": _account_export_feedback(current_user.id),
+                "diagnostics": _account_export_diagnostics(current_user.id),
+                "files": [],
+            },
+        }
+        fd, export_path = tempfile.mkstemp(prefix="ai-account-export-", suffix=".zip")
+        os.close(fd)
+        with zipfile.ZipFile(export_path, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
+            for index, row in enumerate(file_rows, start=1):
+                archive_name = f"files/{index:06d}.bin"
+                raw = row.pop("data")
+                item = dict(row)
+                item["archive_path"] = archive_name
+                item["size_bytes"] = len(raw)
+                item["sha256"] = hashlib.sha256(raw).hexdigest()
+                manifest["data"]["files"].append(item)
+                archive.writestr(archive_name, raw)
+            archive.writestr(
+                "account_data.json",
+                json.dumps(manifest, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
+            )
+        filename = f"ai-playground-account-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.zip"
+        response = send_file(export_path, mimetype="application/zip", as_attachment=True, download_name=filename)
+        response.headers["Cache-Control"] = "private, no-store, max-age=0"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.call_on_close(lambda: os.path.exists(export_path) and os.remove(export_path))
+        return response
+    except Exception as exc:
+        if export_path and os.path.exists(export_path):
+            try:
+                os.remove(export_path)
+            except Exception:
+                pass
+        logger.exception("Account export failed for user %s", current_user.id)
+        return jsonify({'error': 'export_failed', 'message': str(exc)}), 500
+
+
+@app.route('/api/account/import', methods=['POST'])
+@login_required
+def import_account_data():
+    if not rate_limit(f"rl:account_import:user:{current_user.id}", 6, 3600):
+        return jsonify({'error': 'rate_limit'}), 429
+    upload_file = request.files.get("file")
+    categories = _coerce_account_import_categories(request.form.get("categories", ""))
+    if not upload_file or not upload_file.filename:
+        return jsonify({'error': 'file_required'}), 400
+    if not categories:
+        return jsonify({'error': 'categories_required'}), 400
+
+    created_paths = []
+    try:
+        with zipfile.ZipFile(upload_file.stream, "r") as archive:
+            members = archive.infolist()
+            if len(members) > 10_000:
+                raise ValueError("too_many_archive_entries")
+            by_name = {item.filename: item for item in members}
+            manifest_info = by_name.get("account_data.json")
+            if not manifest_info or manifest_info.file_size > 128 * 1024 * 1024:
+                raise ValueError("invalid_manifest")
+            manifest = json.loads(archive.read(manifest_info).decode("utf-8"))
+            if not isinstance(manifest, dict) or manifest.get("format") != ACCOUNT_EXPORT_FORMAT:
+                raise ValueError("unsupported_export_format")
+            if int(manifest.get("format_version") or 0) != ACCOUNT_EXPORT_VERSION:
+                raise ValueError("unsupported_export_version")
+            data = manifest.get("data")
+            if not isinstance(data, dict):
+                raise ValueError("invalid_manifest")
+
+            file_map = {}
+            staged_files = []
+            if "files" in categories:
+                file_items = data.get("files") or []
+                if not isinstance(file_items, list) or len(file_items) > 10_000:
+                    raise ValueError("invalid_files")
+                total_file_bytes = 0
+                for item in file_items:
+                    if not isinstance(item, dict):
+                        raise ValueError("invalid_files")
+                    archive_path = str(item.get("archive_path") or "")
+                    entry = by_name.get(archive_path)
+                    if not entry or not archive_path.startswith("files/") or entry.is_dir():
+                        raise ValueError("missing_archive_file")
+                    if entry.file_size < 0 or entry.file_size > (app.config.get("MAX_CONTENT_LENGTH") or 512 * 1024 * 1024):
+                        raise ValueError("archive_file_too_large")
+                    total_file_bytes += entry.file_size
+                capacity_ok, _, _ = _check_storage_capacity(current_user, total_file_bytes)
+                if not capacity_ok:
+                    raise StorageLimitError("storage_limit_exceeded")
+                for item in file_items:
+                    archive_path = str(item.get("archive_path"))
+                    raw = archive.read(by_name[archive_path])
+                    expected_size_raw = item.get("size_bytes")
+                    expected_size = int(expected_size_raw) if expected_size_raw is not None else -1
+                    expected_hash = str(item.get("sha256") or "")
+                    if len(raw) != expected_size or not secrets.compare_digest(hashlib.sha256(raw).hexdigest(), expected_hash):
+                        raise ValueError("file_integrity_error")
+                    old_rel = _normalize_upload_ref(item.get("rel_path"))
+                    if not old_rel:
+                        raise ValueError("invalid_file_path")
+                    new_rel = _unique_import_file_rel_path(current_user.id, old_rel)
+                    disk_data = encrypt_bytes(raw) if current_user.enable_e2ee else raw
+                    staged_files.append((old_rel, new_rel, disk_data, item.get("display_name")))
+                    file_map[old_rel] = new_rel
+                exact_import_bytes = sum(len(item[2]) for item in staged_files)
+                capacity_ok, _, _ = _check_storage_capacity(current_user, exact_import_bytes)
+                if not capacity_ok:
+                    raise StorageLimitError("storage_limit_exceeded")
+
+            gem_uuid_map = {}
+            counts = {category: 0 for category in ACCOUNT_IMPORT_CATEGORIES}
+            if "settings" in categories:
+                _apply_imported_account_settings(current_user, data.get("settings") or {})
+                counts["settings"] = 1
+            if "api_credentials" in categories:
+                _apply_imported_account_secrets(current_user, data.get("api_credentials") or {})
+                counts["api_credentials"] = 1
+
+            if "gems" in categories:
+                gem_items = data.get("gems") or []
+                if not isinstance(gem_items, list) or len(gem_items) > 10_000:
+                    raise ValueError("invalid_gems")
+                import uuid as _uuid_import
+                for item in gem_items:
+                    payload = _normalize_gem_payload(item)
+                    old_uuid = str(item.get("uuid") or "")
+                    new_uuid = str(_uuid_import.uuid4())
+                    gem = Gem(
+                        uuid=new_uuid,
+                        user_id=current_user.id,
+                        created_at=_parse_portable_datetime(item.get("created_at")) or datetime.utcnow(),
+                        **payload,
+                    )
+                    db.session.add(gem)
+                    if old_uuid:
+                        gem_uuid_map[old_uuid] = new_uuid
+                    counts["gems"] += 1
+
+            if "files" in categories:
+                for old_rel, new_rel, disk_data, display_name in staged_files:
+                    destination = os.path.join(app.config["UPLOAD_FOLDER"], new_rel)
+                    os.makedirs(os.path.dirname(destination), mode=0o700, exist_ok=True)
+                    disk_destination = destination + ".enc" if current_user.enable_e2ee else destination
+                    with open(disk_destination, "xb") as handle:
+                        handle.write(disk_data)
+                    created_paths.append(disk_destination)
+                    clean_label = _sanitize_file_display_name(display_name)
+                    if clean_label:
+                        _upsert_file_cache(
+                            current_user.id, new_rel, "label", file_uri=clean_label,
+                            state="ready", last_error=None,
+                        )
+                    counts["files"] += 1
+
+            if "chats" in categories:
+                chat_items = data.get("chats") or []
+                if not isinstance(chat_items, list) or len(chat_items) > 100_000:
+                    raise ValueError("invalid_chats")
+                total_messages = 0
+                for item in chat_items:
+                    if not isinstance(item, dict):
+                        raise ValueError("invalid_chats")
+                    messages = item.get("messages") or []
+                    if not isinstance(messages, list):
+                        raise ValueError("invalid_messages")
+                    total_messages += len(messages)
+                    if total_messages > 1_000_000:
+                        raise ValueError("too_many_messages")
+                    thread = Thread(
+                        user_id=current_user.id,
+                        public_id=generate_thread_public_id(),
+                        title=_normalize_thread_title(item.get("title")),
+                        is_bookmarked=bool(item.get("is_bookmarked")),
+                        bookmarked_at=_parse_portable_datetime(item.get("bookmarked_at")),
+                        is_temporary=False,
+                        custom_instruction=_safe_account_import_text(item.get("custom_instruction"), 500_000) if item.get("custom_instruction") else None,
+                        include_global_instruction=bool(item.get("include_global_instruction", True)),
+                        last_model=item.get("last_model") if item.get("last_model") in ALL_VALID_MODEL_IDS else None,
+                        last_gem_uuid=gem_uuid_map.get(str(item.get("last_gem_uuid") or "")),
+                        enable_prompt_caching=bool(item.get("enable_prompt_caching")),
+                        prompt_cache_provider=_safe_account_import_text(item.get("prompt_cache_provider"), 32) if item.get("prompt_cache_provider") else None,
+                        updated_at=_parse_portable_datetime(item.get("updated_at")) or datetime.utcnow(),
+                    )
+                    db.session.add(thread)
+                    db.session.flush()
+                    id_map = {}
+                    pending_parents = []
+                    for message_item in messages:
+                        if not isinstance(message_item, dict):
+                            raise ValueError("invalid_messages")
+                        content = _safe_account_import_text(message_item.get("content"), 20_000_000)
+                        thought = _safe_account_import_text(message_item.get("thought_data"), 20_000_000) if message_item.get("thought_data") else None
+                        encrypted = bool(current_user.enable_e2ee)
+                        message = Message(
+                            thread_id=thread.id,
+                            role=_safe_account_import_text(message_item.get("role"), 20)[:20],
+                            content=encrypt_val(content) if encrypted and content else content,
+                            model=_safe_account_import_text(message_item.get("model"), 50)[:50] if message_item.get("model") else None,
+                            image_url=_rewrite_imported_attachment_value(message_item.get("image_url"), file_map, current_user.id),
+                            timestamp=_parse_portable_datetime(message_item.get("timestamp")) or datetime.utcnow(),
+                            tokens=max(0, int(message_item.get("tokens") or 0)),
+                            tokens_in=max(0, int(message_item.get("tokens_in") or 0)),
+                            tokens_out=max(0, int(message_item.get("tokens_out") or 0)),
+                            tokens_thought=max(0, int(message_item.get("tokens_thought") or 0)),
+                            thought_data=encrypt_val(thought) if encrypted and thought else thought,
+                            quote_text=_safe_account_import_text(message_item.get("quote_text"), 20_000_000) if message_item.get("quote_text") else None,
+                            is_encrypted=encrypted,
+                            thought_signature=_safe_account_import_text(message_item.get("thought_signature"), 20_000_000) if message_item.get("thought_signature") else None,
+                            gem_uuid=gem_uuid_map.get(str(message_item.get("gem_uuid") or "")),
+                            gem_name=_safe_account_import_text(message_item.get("gem_name"), 100)[:100] if message_item.get("gem_name") else None,
+                        )
+                        db.session.add(message)
+                        db.session.flush()
+                        export_id = message_item.get("export_id")
+                        if export_id is not None:
+                            id_map[str(export_id)] = message.id
+                        pending_parents.append((message, message_item.get("parent_export_id")))
+                    for message, old_parent_id in pending_parents:
+                        if old_parent_id is not None:
+                            message.parent_id = id_map.get(str(old_parent_id))
+                    counts["chats"] += 1
+
+            if "feedback" in categories:
+                feedback_items = data.get("feedback") or []
+                if not isinstance(feedback_items, list) or len(feedback_items) > 100_000:
+                    raise ValueError("invalid_feedback")
+                for item in feedback_items:
+                    if not isinstance(item, dict):
+                        raise ValueError("invalid_feedback")
+                    status = str(item.get("status") or "new")
+                    if status not in {"new", "in_review", "replied", "rejected", "resolved"}:
+                        status = "new"
+                    db.session.add(Feedback(
+                        user_id=current_user.id,
+                        title=_safe_account_import_text(item.get("title"), 200)[:200],
+                        message=_safe_account_import_text(item.get("message"), 500_000),
+                        status=status,
+                        admin_reply=_safe_account_import_text(item.get("admin_reply"), 500_000) if item.get("admin_reply") else None,
+                        created_at=_parse_portable_datetime(item.get("created_at")) or datetime.utcnow(),
+                        updated_at=_parse_portable_datetime(item.get("updated_at")) or datetime.utcnow(),
+                    ))
+                    counts["feedback"] += 1
+
+            if "diagnostics" in categories:
+                diagnostics = data.get("diagnostics") or {}
+                metric_items = diagnostics.get("first_token_metrics") or [] if isinstance(diagnostics, dict) else []
+                trace_items = diagnostics.get("chat_latency_traces") or [] if isinstance(diagnostics, dict) else []
+                if not isinstance(metric_items, list) or not isinstance(trace_items, list) or len(metric_items) + len(trace_items) > 500_000:
+                    raise ValueError("invalid_diagnostics")
+                for item in metric_items:
+                    if not isinstance(item, dict):
+                        continue
+                    latency_ms = max(0, int(item.get("latency_ms") or 0))
+                    db.session.add(FirstTokenLatencyMetric(
+                        user_id=current_user.id,
+                        thread_public_id=_safe_account_import_text(item.get("thread_public_id"), 64)[:64] if item.get("thread_public_id") else None,
+                        job_id=f"import-{secrets.token_hex(8)}",
+                        model=_safe_account_import_text(item.get("model"), 80)[:80] if item.get("model") else None,
+                        first_event_type=_safe_account_import_text(item.get("first_event_type"), 32)[:32] if item.get("first_event_type") else None,
+                        latency_seconds=max(0.0, float(item.get("latency_seconds") or latency_ms / 1000.0)),
+                        latency_ms=latency_ms,
+                        client_sent_at=_parse_portable_datetime(item.get("client_sent_at")),
+                        created_at=_parse_portable_datetime(item.get("created_at")) or datetime.utcnow(),
+                    ))
+                    counts["diagnostics"] += 1
+                trace_columns = {column.name: column for column in ChatLatencyTrace.__table__.columns}
+                datetime_columns = {name for name, column in trace_columns.items() if isinstance(column.type, db.DateTime)}
+                for item in trace_items:
+                    if not isinstance(item, dict):
+                        continue
+                    kwargs = {"user_id": current_user.id, "job_id": f"import-{secrets.token_hex(12)}"}
+                    for field, column in trace_columns.items():
+                        if field in {"id", "user_id", "job_id"} or field not in item:
+                            continue
+                        value = item.get(field)
+                        if field in datetime_columns:
+                            value = _parse_portable_datetime(value)
+                        elif isinstance(column.type, db.Integer):
+                            value = int(value) if value is not None else None
+                        elif value is not None:
+                            value = _safe_account_import_text(value, getattr(column.type, "length", None) or 4096)
+                        kwargs[field] = value
+                    db.session.add(ChatLatencyTrace(**kwargs))
+                    counts["diagnostics"] += 1
+
+            db.session.commit()
+            response = jsonify({"status": "ok", "imported": counts, "selected": sorted(categories)})
+            response.headers["Cache-Control"] = "no-store"
+            return response
+    except zipfile.BadZipFile:
+        db.session.rollback()
+        return jsonify({'error': 'invalid_zip'}), 400
+    except StorageLimitError:
+        db.session.rollback()
+        for path in created_paths:
+            secure_delete(path)
+        return jsonify({'error': 'storage_limit_exceeded'}), 413
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        db.session.rollback()
+        for path in created_paths:
+            secure_delete(path)
+        return jsonify({'error': str(exc) or 'invalid_import'}), 400
+    except Exception:
+        db.session.rollback()
+        for path in created_paths:
+            secure_delete(path)
+        logger.exception("Account import failed for user %s", current_user.id)
+        return jsonify({'error': 'import_failed'}), 500
 
 @app.route('/api/feedback', methods=['GET', 'POST'])
 @login_required

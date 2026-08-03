@@ -2695,6 +2695,7 @@
         let botDetectionGatePromise = null;
         let botDetectionOverlayShown = false;
         let botDetectionDialogWidgetId = null;
+        let sendButtonSpamTimestamps = [];
         let chatDefaultsLoaded = false;
         let modelApiKeyMap = {};
         const THREAD_INITIAL_MESSAGE_LIMIT = 50;
@@ -4759,6 +4760,34 @@
             })().finally(() => { botDetectionGatePromise = null; });
             return botDetectionGatePromise;
         };
+        function registerSendButtonSpam() {
+            const now = performance.now();
+            sendButtonSpamTimestamps.push(now);
+            sendButtonSpamTimestamps = sendButtonSpamTimestamps.filter(t => now - t <= 2000);
+            return sendButtonSpamTimestamps.length;
+        }
+        function resetSendButtonSpam() {
+            sendButtonSpamTimestamps = [];
+        }
+        async function runSendSpamVerification() {
+            // Rapid send-button clicking is treated as suspicious: force a
+            // visible bot-check dialog (with the Turnstile box) so a legit user
+            // can prove they are human before more requests are sent.
+            if (!isBotDetectionActive()) return true;
+            showBotDetectionOverlay('送信が速すぎるため、安全性の確認を実施します。');
+            try {
+                const token = await getTurnstileToken(25000);
+                if (token) {
+                    const ok = await verifyTurnstileOnServer(token, true, true);
+                    if (ok) { hideBotDetectionOverlay(); return true; }
+                }
+                try { botTelemetry.send(true, { forceReport: true }); } catch (e) {}
+            } finally {
+                resetSendButtonSpam();
+            }
+            hideBotDetectionOverlay();
+            return false;
+        }
         let turnstileServerVerifiedAt = 0;
         async function verifyTurnstileOnServer(token, force = false, challenged = null) {
             if (!token || !isBotDetectionActive()) return true;
@@ -14291,6 +14320,19 @@
             if (uploadProgressState.active > 0) {
                 showToast("ファイルの送信・処理中です。しばらくお待ちください。", "warning", true);
                 return;
+            }
+            // Rapid send-button clicking would fire many chat_stream requests
+            // and load the server, so once the threshold is hit we force a
+            // visible bot-check dialog (Turnstile) before allowing more sends.
+            if (isBotDetectionActive()) {
+                const sendCount = registerSendButtonSpam();
+                if (sendCount >= 5) {
+                    const ok = await runSendSpamVerification();
+                    if (!ok) {
+                        showToast("送信操作が速すぎるため、確認後に再度お試しください。", "warning", true);
+                        return;
+                    }
+                }
             }
             let botTurnstileToken = null;
             if (isBotDetectionActive()) {

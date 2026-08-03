@@ -811,6 +811,34 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         css = assets[0].read_text(encoding="utf-8")
         self.assertIn(".turnstile-box { position: fixed; left: -9999px", css)
 
+    def test_js_send_spam_triggers_bot_check_dialog(self):
+        # 送信ボタンの連打（5回/2秒）でボットチェックダイアログを出し、
+        # 検証が終わるまで送信を続行しない（サーバー負荷対策）
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        gate = source[source.index("async function sendMessage()") :]
+        gate = gate[: gate.index("const rawText = get('prompt-input').value")]
+        self.assertIn("registerSendButtonSpam()", gate)
+        self.assertIn("sendCount >= 5", gate)
+        self.assertIn("runSendSpamVerification()", gate)
+        self.assertIn("送信操作が速すぎるため", gate)
+        self.assertIn("registerSendButtonSpam", source)
+        self.assertIn("runSendSpamVerification", source)
+
+    def test_js_send_spam_verification_shows_overlay_with_turnstile(self):
+        # runSendSpamVerification は可視のオーバーレイ＋Turnstileボックスで
+        # challenged=true 検証し、成功時にオーバーレイを閉じる
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        fn = source[source.index("async function runSendSpamVerification()") :]
+        fn = fn[: fn.index("let turnstileServerVerifiedAt = 0;")]
+        self.assertIn("showBotDetectionOverlay(", fn)
+        self.assertIn("getTurnstileToken(25000)", fn)
+        self.assertIn("verifyTurnstileOnServer(token, true, true)", fn)
+        self.assertIn("hideBotDetectionOverlay()", fn)
+
 
 if __name__ == "__main__":
     unittest.main()

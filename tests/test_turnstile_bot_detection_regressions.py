@@ -769,6 +769,48 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         self.assertIn("challenged: !!challenged", source)
         self.assertIn("async function verifyTurnstileOnServer(token, force = false, challenged = null)", source)
 
+    def test_js_verified_user_not_blocked_when_token_unavailable(self):
+        # 検証済みユーザーは、連打時にトークンが一時的に取れなくても
+        # 「安全性を確認できませんでした」で送信をブロックしない
+        # （サーバー側は Redis マーカーで通過できるため）
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        gate = source[source.index("async function sendMessage()") :]
+        gate = gate[: gate.index("const rawText = get('prompt-input').value")]
+        # ブロック条件は「トークンなし かつ 未検証」のときだけ
+        self.assertIn("if (!botTurnstileToken && !botDetectionVerified)", gate)
+        self.assertIn("if (botTurnstileToken) await verifyTurnstileOnServer(botTurnstileToken);", gate)
+
+    def test_js_init_removes_hidden_before_render(self):
+        # Turnstile は display:none コンテナでは初期化できないため、
+        # 描画前に hidden を外してから render する（ボックスが出ない問題の修正）
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        init = source[source.index("window.initTurnstileWidget = () => {") :]
+        init = init[: init.index("if (isBotDetectionActive()) runBotDetectionGate();")]
+        self.assertIn("container.classList.remove('hidden')", init)
+        self.assertNotIn("container.classList.add('hidden')", init)
+
+    def test_js_dialog_widget_retries_when_api_not_ready(self):
+        # ダイアログの Turnstile ウィジェットは API 未ロード時に再試行する
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        dialog = source[source.index("function renderBotDetectionDialogWidget()") :]
+        dialog = dialog[: dialog.index("function showBotDetectionOverlay")]
+        self.assertIn("setTimeout(renderBotDetectionDialogWidget, 250)", dialog)
+        self.assertIn("window.turnstile.reset", dialog)
+
+    def test_css_dialog_card_stretches_widget_box(self):
+        # ダイアログのカードが align-items:stretch で #bot-detection-widget-box を
+        # 幅いっぱいに広げ、Turnstile の size:flexible が 0 幅にならないようにする
+        assets = sorted((APP_ROOT / "static" / "css").glob("chat.custom.v4.8.*.css"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat custom asset should remain")
+        css = assets[0].read_text(encoding="utf-8")
+        self.assertIn(".turnstile-box { position: fixed; left: -9999px", css)
+
 
 if __name__ == "__main__":
     unittest.main()

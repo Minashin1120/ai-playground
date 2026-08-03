@@ -4562,13 +4562,18 @@
             if (turnstileWidgetId !== null) return;
             const container = document.getElementById('turnstile-container');
             if (!container) return;
+            // Turnstile must not be rendered inside a display:none container or
+            // it may never initialize (this was why the box never appeared).
+            // The widget uses appearance:'interaction-only', so it stays visually
+            // invisible for normal users while still being ready to execute.
+            container.classList.remove('hidden');
             turnstileWidgetId = window.turnstile.render(container, {
                 sitekey: botConfig.turnstileSiteKey,
                 size: 'compact',
                 appearance: 'interaction-only',
-                callback: (token) => { turnstileToken = token; turnstilePending = false; container.classList.add('hidden'); verifyTurnstileOnServer(token); },
-                'expired-callback': () => { turnstileToken = null; turnstilePending = false; container.classList.add('hidden'); },
-                'error-callback': () => { turnstileToken = null; turnstilePending = false; container.classList.add('hidden'); }
+                callback: (token) => { turnstileToken = token; turnstilePending = false; verifyTurnstileOnServer(token); },
+                'expired-callback': () => { turnstileToken = null; turnstilePending = false; },
+                'error-callback': () => { turnstileToken = null; turnstilePending = false; }
             });
             if (isBotDetectionActive()) runBotDetectionGate();
         };
@@ -4632,9 +4637,15 @@
         }
         function renderBotDetectionDialogWidget() {
             if (botDetectionDialogWidgetId !== null) return;
-            if (!botConfig || !botConfig.turnstileSiteKey || !window.turnstile) return;
+            if (!botConfig || !botConfig.turnstileSiteKey) return;
             const box = document.getElementById('bot-detection-widget-box');
             if (!box) return;
+            if (!window.turnstile) {
+                // Turnstile API not loaded yet: retry shortly so the dialog box
+                // reliably appears once the script finishes loading.
+                setTimeout(renderBotDetectionDialogWidget, 250);
+                return;
+            }
             try {
                 botDetectionDialogWidgetId = window.turnstile.render(box, {
                     sitekey: botConfig.turnstileSiteKey,
@@ -4645,8 +4656,20 @@
                         turnstilePending = false;
                         verifyTurnstileOnServer(token, true, true);
                     },
-                    'expired-callback': () => { turnstileToken = null; turnstilePending = false; },
-                    'error-callback': () => { turnstileToken = null; turnstilePending = false; }
+                    'expired-callback': () => {
+                        turnstileToken = null;
+                        turnstilePending = false;
+                        if (botDetectionDialogWidgetId !== null) {
+                            try { window.turnstile.reset(botDetectionDialogWidgetId); } catch (e) {}
+                        }
+                    },
+                    'error-callback': () => {
+                        turnstileToken = null;
+                        turnstilePending = false;
+                        if (botDetectionDialogWidgetId !== null) {
+                            try { window.turnstile.reset(botDetectionDialogWidgetId); } catch (e) {}
+                        }
+                    }
                 });
             } catch (e) { console.error('bot-detection dialog widget error', e); }
         }
@@ -4657,7 +4680,7 @@
                 overlay.id = 'bot-detection-overlay';
                 overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:rgba(3,7,18,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;';
                 const card = document.createElement('div');
-                card.style.cssText = 'max-width:420px;width:100%;background:#0f172a;border:1px solid #334155;border-radius:12px;padding:24px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5);display:flex;flex-direction:column;align-items:center;gap:12px;';
+                card.style.cssText = 'max-width:420px;width:100%;background:#0f172a;border:1px solid #334155;border-radius:12px;padding:24px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5);display:flex;flex-direction:column;align-items:stretch;gap:12px;';
                 const title = document.createElement('div');
                 title.id = 'bot-detection-overlay-title';
                 title.style.cssText = 'font-weight:700;font-size:15px;color:#f1f5f9;';
@@ -4667,7 +4690,7 @@
                 desc.textContent = '自動アクセス防止のため、確認を完了してください。';
                 const box = document.createElement('div');
                 box.id = 'bot-detection-widget-box';
-                box.style.cssText = 'margin-top:8px;display:flex;justify-content:center;';
+                box.style.cssText = 'margin-top:8px;min-height:65px;display:flex;justify-content:center;';
                 card.appendChild(title);
                 card.appendChild(desc);
                 card.appendChild(box);
@@ -14272,22 +14295,20 @@
             let botTurnstileToken = null;
             if (isBotDetectionActive()) {
                 botTurnstileToken = await getTurnstileToken();
-                if (!botTurnstileToken) {
-                    // Token could not be obtained. If the user is not yet verified,
-                    // run the gate (which shows the dialog only when suspicious)
+                if (!botTurnstileToken && !botDetectionVerified) {
+                    // Token could not be obtained and the user is not yet verified.
+                    // Run the gate (which shows the dialog only when suspicious)
                     // before giving up, so we never accumulate turnstile failures
                     // towards a ban without the dialog ever being shown.
-                    if (!botDetectionVerified) {
-                        try { await runBotDetectionGate(); } catch (e) {}
-                        botTurnstileToken = await getTurnstileToken();
-                    }
+                    try { await runBotDetectionGate(); } catch (e) {}
+                    botTurnstileToken = await getTurnstileToken();
                 }
-                if (!botTurnstileToken) {
+                if (!botTurnstileToken && !botDetectionVerified) {
                     showToast("安全性の確認を完了できませんでした。しばらく待ってから再送信してください。", "error", true);
                     botTelemetry.send(true);
                     return;
                 }
-                await verifyTurnstileOnServer(botTurnstileToken);
+                if (botTurnstileToken) await verifyTurnstileOnServer(botTurnstileToken);
             }
             const rawText = get('prompt-input').value; // RAW INPUT (No trim)
 

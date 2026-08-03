@@ -14375,18 +14375,20 @@
             let contentEl = null;
             let thoughtEl = null;
             let started = false;
-            const finishProgress = window.ProgressSpinner ? window.ProgressSpinner.start('高速モードで生成中...') : null;
+            const finishProgress = window.ProgressSpinner ? window.ProgressSpinner.start('Geminiへ送信中...') : null;
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': browserFastApiKey },
                     body: JSON.stringify(payload),
                     signal: abortController.signal,
+                    progressSpinner: false,
                 });
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
                     throw new Error(errorData && errorData.error && errorData.error.message ? errorData.error.message : `Gemini API HTTP ${response.status}`);
                 }
+                if (finishProgress) finishProgress.setLabel('Geminiの応答待機中...');
                 get('prompt-input').value = '';
                 get('prompt-input').style.height = 'auto';
                 const reader = response.body.getReader();
@@ -14436,6 +14438,7 @@
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
+                    if (finishProgress) finishProgress.setLabel('受信中...');
                     buffer += decoder.decode(value, { stream: true });
                     const blocks = buffer.split(/\r?\n\r?\n/);
                     buffer = blocks.pop() || '';
@@ -14448,9 +14451,11 @@
                 if (thoughtEl) thoughtEl.classList.add('collapsed');
 
                 if (localEntries.length) {
+                    if (finishProgress) finishProgress.setLabel('保存中...');
                     showToast('回答が完了しました。画像と履歴をサーバーへ保存しています。', 'info', false);
                     await uploadBrowserFastLocalFiles();
                 }
+                if (finishProgress) finishProgress.setLabel('保存中...');
                 const refs = collectImageUrlsForSend();
                 const saveResponse = await fetchChatStreamWithUnavailableRetry('/api/browser_fast_mode/save', {
                     method: 'POST',
@@ -14469,6 +14474,7 @@
                         turnstile_token: botTurnstileTokenForRequest(),
                     }),
                     signal: abortController.signal,
+                    progressSpinner: false,
                 }, adiv);
                 const saved = await saveResponse.json().catch(() => ({}));
                 if (!saveResponse.ok || !saved.thread_id) throw new Error(saved.error || 'DB保存に失敗しました');
@@ -15010,7 +15016,7 @@
                 }
                 const r = await fetchChatStreamWithUnavailableRetry(
                     CHAT_CONFIG.urls.chatStream,
-                    {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p), signal:abortController.signal},
+                    {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p), signal:abortController.signal, progressSpinner:false},
                     adiv
                 );
                 sendClientDebugLog('info', `Prompt stream response status: ${r.status}`);
@@ -15024,6 +15030,7 @@
                     throw requestError;
                 }
                 requestAccepted = true;
+                if (finishStreamProgress) finishStreamProgress.setLabel('モデルの応答待機中...');
                 get('prompt-input').value = '';
                 get('prompt-input').style.height = 'auto';
                 schedulePromptTokenEstimate(true);
@@ -15055,6 +15062,7 @@
                 while(true) {
                     const {done, value} = await reader.read();
                     if(done) break;
+                    if (finishStreamProgress) finishStreamProgress.setLabel('受信中...');
                     buf += dec.decode(value, {stream:true});
                     let ls = buf.split("\n");
                     buf = ls.pop();
@@ -15219,6 +15227,7 @@
                     }
                     scrollToBottom();
                 }
+                if (finishStreamProgress) finishStreamProgress();
                 // Final render to catch any remaining content
                 if (cEl) {
                     const collapseState = snapshotCodeCollapse(cEl);
@@ -15442,7 +15451,7 @@
             const pyBoxes = {};
             let lastRenderTime = 0;
             const finishResumeProgress = window.ProgressSpinner
-                ? window.ProgressSpinner.start('生成中...')
+                ? window.ProgressSpinner.start('再接続中...')
                 : null;
             let reconnectAfterResumeDisconnect = false;
             try {
@@ -15450,16 +15459,19 @@
                     method: 'POST',
                     headers: {'Content-Type':'application/json'},
                     body: JSON.stringify({ thread_id: currentThreadId, job_id: jobId, turnstile_token: botTurnstileTokenForRequest() }),
-                    signal: abortController.signal
+                    signal: abortController.signal,
+                    progressSpinner: false
                 });
                 if (!r.ok) {
                     throw new Error(`Resume failed (${r.status})`);
                 }
+                if (finishResumeProgress) finishResumeProgress.setLabel('モデルの応答待機中...');
                 const reader = r.body.getReader();
                 const dec = new TextDecoder();
                 while (true) {
                     const {done, value} = await reader.read();
                     if (done) break;
+                    if (finishResumeProgress) finishResumeProgress.setLabel('受信中...');
                     buf += dec.decode(value, {stream:true});
                     let ls = buf.split("\n");
                     buf = ls.pop();
@@ -15602,6 +15614,7 @@
                     }
                     scrollToBottom();
                 }
+                if (finishResumeProgress) finishResumeProgress();
                 // Final render to catch any remaining content
                 if (cEl) {
                     const collapseState = snapshotCodeCollapse(cEl);

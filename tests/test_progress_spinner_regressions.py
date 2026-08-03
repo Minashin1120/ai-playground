@@ -44,7 +44,7 @@ class ProgressSpinnerRegressionTests(unittest.TestCase):
         self.assertIn(f"SYSTEM_VERSION'] = '{m.group(1)}'", app_source)
         for name in ("chat", "login", "signup", "verify_2fa", "setup", "landing", "banned"):
             template = (APP_ROOT / "templates" / f"{name}.html").read_text(encoding="utf-8")
-            self.assertIn("filename='js/progress_spinner.js', v='4.8.640'", template)
+            self.assertIn("filename='js/progress_spinner.js', v='4.8.718'", template)
 
     def test_chat_streams_remain_tracked_until_body_consumption_finishes(self):
         assets = list((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
@@ -52,9 +52,24 @@ class ProgressSpinnerRegressionTests(unittest.TestCase):
         source = assets[0].read_text(encoding="utf-8")
 
         self.assertEqual(source.count("window.ProgressSpinner.start('送信中...')"), 1)
-        self.assertEqual(source.count("window.ProgressSpinner.start('生成中...')"), 1)
-        self.assertEqual(source.count("if (finishStreamProgress) finishStreamProgress()"), 1)
-        self.assertEqual(source.count("if (finishResumeProgress) finishResumeProgress()"), 1)
+        self.assertEqual(source.count("window.ProgressSpinner.start('再接続中...')"), 1)
+        # End at stream EOF, with an idempotent finally fallback for errors/aborts.
+        self.assertEqual(source.count("if (finishStreamProgress) finishStreamProgress()"), 2)
+        self.assertEqual(source.count("if (finishResumeProgress) finishResumeProgress()"), 2)
+        self.assertIn("finishStreamProgress.setLabel('モデルの応答待機中...')", source)
+        self.assertIn("finishStreamProgress.setLabel('受信中...')", source)
+        self.assertIn("finishResumeProgress.setLabel('モデルの応答待機中...')", source)
+        self.assertIn("finishResumeProgress.setLabel('受信中...')", source)
+        explicit_opt_outs = source.count("progressSpinner: false") + source.count("progressSpinner:false")
+        self.assertGreaterEqual(explicit_opt_outs, 4)
+
+    def test_spinner_labels_switch_when_response_body_is_received(self):
+        source = SPINNER_SOURCE.read_text(encoding="utf-8")
+
+        self.assertIn("const DEFAULT_SPINNER_TEXT = '通信中...'", source)
+        self.assertIn("finishOperation.setLabel = function (label)", source)
+        self.assertIn("finish.setLabel('受信中...')", source)
+        self.assertNotIn("const DEFAULT_SPINNER_TEXT = '処理中...'", source)
 
     def test_image_generation_progress_does_not_replace_pending_skeleton(self):
         app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")

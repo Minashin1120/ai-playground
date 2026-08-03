@@ -6,7 +6,7 @@
 
     const DISPLAY_DELAY_MS = 400;
     const FORM_FALLBACK_MS = 15000;
-    const DEFAULT_SPINNER_TEXT = '処理中...';
+    const DEFAULT_SPINNER_TEXT = '通信中...';
     const PASSIVE_REQUEST_RE = /(?:\/api\/version(?:[/?]|$)|\/api\/(?:debug|metrics)(?:[/?]|$)|\/api\/bot-telemetry(?:[/?]|$)|\/api\/temporary_chat\/heartbeat(?:[/?]|$))/i;
 
     let nextOperationId = 1;
@@ -76,7 +76,7 @@
             spinnerEl.id = 'global-progress-spinner';
             spinnerEl.setAttribute('role', 'status');
             spinnerEl.setAttribute('aria-live', 'polite');
-            spinnerEl.setAttribute('aria-label', '処理中');
+            spinnerEl.setAttribute('aria-label', '通信中');
             spinnerEl.innerHTML = '<span class="spinner" aria-hidden="true"></span><span class="progress-text"></span>';
             document.body.appendChild(spinnerEl);
         }
@@ -206,12 +206,18 @@
         syncSpinner();
 
         let finished = false;
-        return function finishOperation() {
+        const finishOperation = function () {
             if (finished) return;
             finished = true;
             operations.delete(operation.id);
             syncSpinner();
         };
+        finishOperation.setLabel = function (label) {
+            if (finished || !operations.has(operation.id)) return;
+            operation.label = normalizeSpinnerLabel(label) || DEFAULT_SPINNER_TEXT;
+            updateSpinnerText();
+        };
+        return finishOperation;
     }
 
     function shouldTrackRequest(url, explicitlyDisabled) {
@@ -277,6 +283,7 @@
                 if (bodyStarted) return;
                 bodyStarted = true;
                 window.clearTimeout(unusedResponseTimer);
+                finish.setLabel('受信中...');
             };
 
             ['arrayBuffer', 'blob', 'formData', 'json', 'text'].forEach(function (methodName) {
@@ -374,7 +381,12 @@
             const tracked = shouldTrackRequest(this.__progressSpinnerUrl, false);
             const label = activeInteractionLabel || inferSpinnerTextFromUrl(this.__progressSpinnerUrl, this.__progressSpinnerMethod);
             const finish = tracked ? startOperation({ label }) : null;
-            if (finish) this.addEventListener('loadend', finish, { once: true });
+            if (finish) {
+                this.addEventListener('progress', function () {
+                    finish.setLabel('受信中...');
+                }, { once: true });
+                this.addEventListener('loadend', finish, { once: true });
+            }
             try {
                 return originalSend.apply(this, arguments);
             } catch (error) {

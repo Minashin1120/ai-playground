@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-010')
-app.config['SYSTEM_VERSION'] = 'V4.8.722'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-011')
+app.config['SYSTEM_VERSION'] = 'V4.8.723'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1832,7 +1832,17 @@ def secure_delete(path):
                 os.unlink(path)
                 return
             size = os.path.getsize(path)
-            with open(path, "wb") as f: f.write(os.urandom(size))
+            # Do not allocate a buffer as large as the file.  Export archives can
+            # be hundreds of MB (or more), and cleanup must not create another
+            # memory spike after the download has finished or disconnected.
+            with open(path, "r+b") as f:
+                remaining = size
+                while remaining:
+                    chunk_size = min(1024 * 1024, remaining)
+                    f.write(os.urandom(chunk_size))
+                    remaining -= chunk_size
+                f.flush()
+                os.fsync(f.fileno())
             os.remove(path)
         except: pass
 
@@ -3456,6 +3466,70 @@ def _write_account_export_file(archive, archive_name, row):
                 digest.update(chunk)
                 size_bytes += len(chunk)
     return size_bytes, digest.hexdigest()
+
+
+def _stream_account_export(path, user_id, job_id):
+    """Stream a generated export and always erase the temporary archive.
+
+    Flask's ``send_file`` may use the web server's file wrapper, in which case a
+    response ``call_on_close`` callback is not guaranteed to run after a client
+    disconnect.  Keeping cleanup in this generator's ``finally`` block ties the
+    temporary file lifetime to the actual response body instead.
+    """
+    total_size = max(1, os.path.getsize(path))
+    sent_size = 0
+    last_progress = -1
+    completed = False
+    try:
+        with open(path, "rb") as source:
+            while True:
+                if _account_transfer_cancelled(user_id, job_id):
+                    raise AccountTransferCancelled()
+                chunk = source.read(1024 * 1024)
+                if not chunk:
+                    completed = True
+                    _set_account_transfer_status(
+                        user_id, job_id, "completed", 100, "completed", "エクスポートが完了しました"
+                    )
+                    break
+                sent_size += len(chunk)
+                progress = min(99, 94 + int(5 * sent_size / total_size))
+                if progress != last_progress:
+                    _set_account_transfer_status(
+                        user_id, job_id, "running", progress, "downloading", "ダウンロードしています"
+                    )
+                    last_progress = progress
+                yield chunk
+    except AccountTransferCancelled:
+        _set_account_transfer_status(
+            user_id, job_id, "cancelled", 0, "cancelled", "エクスポートをキャンセルしました"
+        )
+        return
+    except GeneratorExit:
+        _set_account_transfer_status(
+            user_id, job_id, "failed", 0, "failed", "ダウンロードが中断されました"
+        )
+        raise
+    except Exception:
+        logger.exception("Account export download failed for user %s", user_id)
+        _set_account_transfer_status(
+            user_id, job_id, "failed", 0, "failed", "ダウンロードに失敗しました"
+        )
+        raise
+    finally:
+        secure_delete(path)
+        if not completed and not _account_transfer_cancelled(user_id, job_id):
+            # The explicit exception paths above have already supplied a more
+            # useful state.  This fallback covers unusual WSGI iterator closure.
+            try:
+                raw = redis_conn.get(_account_transfer_status_key(user_id, job_id))
+                state = json.loads(raw).get("state") if raw else None
+            except Exception:
+                state = None
+            if state not in {"failed", "cancelled"}:
+                _set_account_transfer_status(
+                    user_id, job_id, "failed", 0, "failed", "ダウンロードが中断されました"
+                )
 
 
 def _fernet_encrypted_size(plain_size):
@@ -15880,11 +15954,17 @@ def export_account_data():
             )
         _account_transfer_checkpoint(current_user.id, job_id, 99, "ready", "ダウンロードを開始します")
         filename = f"ai-playground-account-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.zip"
-        response = send_file(export_path, mimetype="application/zip", as_attachment=True, download_name=filename)
+        export_size = os.path.getsize(export_path)
+        response = Response(
+            stream_with_context(_stream_account_export(export_path, current_user.id, job_id)),
+            mimetype="application/zip",
+            direct_passthrough=True,
+        )
+        response.headers.set("Content-Disposition", "attachment", filename=filename)
+        response.headers["Content-Length"] = str(export_size)
         response.headers["Cache-Control"] = "private, no-store, max-age=0"
         response.headers["X-Content-Type-Options"] = "nosniff"
-        _set_account_transfer_status(current_user.id, job_id, "completed", 100, "completed", "エクスポートが完了しました")
-        response.call_on_close(lambda: os.path.exists(export_path) and os.remove(export_path))
+        _set_account_transfer_status(current_user.id, job_id, "running", 94, "downloading", "ダウンロードしています")
         return response
     except AccountTransferCancelled:
         if export_path and os.path.exists(export_path):
@@ -15893,10 +15973,7 @@ def export_account_data():
         return jsonify({'error': 'cancelled'}), 409
     except Exception as exc:
         if export_path and os.path.exists(export_path):
-            try:
-                os.remove(export_path)
-            except Exception:
-                pass
+            secure_delete(export_path)
         logger.exception("Account export failed for user %s", current_user.id)
         _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "エクスポートに失敗しました")
         return jsonify({'error': 'export_failed', 'message': str(exc)}), 500

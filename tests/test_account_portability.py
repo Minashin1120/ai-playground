@@ -298,6 +298,30 @@ class AccountPortabilityTests(unittest.TestCase):
         self.assertEqual(response.get_json()["error"], "cancelled")
         self.assertTrue(any(call.args[2] == "cancelled" for call in set_status.call_args_list))
 
+    def test_export_temp_archive_is_erased_when_download_closes_early(self):
+        real_mkstemp = target.tempfile.mkstemp
+
+        def local_mkstemp(*args, **kwargs):
+            kwargs["dir"] = self.temp_dir.name
+            return real_mkstemp(*args, **kwargs)
+
+        with mock.patch.object(target.tempfile, "mkstemp", side_effect=local_mkstemp):
+            response = self.client_for(self.source_id).get(
+                "/api/account/export?job_id=" + "d" * 32,
+                base_url="https://localhost",
+                buffered=False,
+            )
+            self.assertEqual(response.status_code, 200)
+            export_paths = [
+                os.path.join(self.temp_dir.name, name)
+                for name in os.listdir(self.temp_dir.name)
+                if name.startswith("ai-account-export-") and name.endswith(".zip")
+            ]
+            self.assertEqual(len(export_paths), 1)
+            self.assertTrue(os.path.exists(export_paths[0]))
+            response.close()
+            self.assertFalse(os.path.exists(export_paths[0]))
+
     def test_cancelled_import_removes_files_and_rolls_back_database(self):
         archive_bytes = self.export_archive()
         original_checkpoint = target._account_transfer_checkpoint
@@ -332,7 +356,7 @@ class AccountPortabilityTests(unittest.TestCase):
 
     def test_frontend_uses_direct_download_with_progress_and_cancel(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "static", "js", "chat_core.v4.8.722.js"), encoding="utf-8") as handle:
+        with open(os.path.join(root, "static", "js", "chat_core.v4.8.723.js"), encoding="utf-8") as handle:
             source = handle.read()
         with open(os.path.join(root, "templates", "chat.html"), encoding="utf-8") as handle:
             template = handle.read()

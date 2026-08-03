@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.713'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.714'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -5216,6 +5216,9 @@ _BOT_TURNSTILE_FAIL_LIMIT = 5
 # (pass/fail cycling) is also a bot signature and triggers a ban.
 _BOT_TURNSTILE_CYCLE_LIMIT = 3
 _BOT_TURNSTILE_STATE_TTL = 30 * 60
+# Minimum seconds between counted Turnstile failures. Concurrent re-submits of
+# the same single-use token must not jump the fail counter by N in one second.
+_BOT_TURNSTILE_FAIL_COOLDOWN_SEC = 15
 # Endpoints a bot-detection-active, not-yet-verified user still needs to reach.
 _BOT_TURNSTILE_GATE_WHITELIST = {
     'bot_turnstile_verify',
@@ -5447,10 +5450,23 @@ def _bot_turnstile_register_failure():
 
     Returns True when the accumulated failures now warrant a ban (the ban has
     already been applied). A success later resets the failure counter.
+
+    Already-verified users never accumulate failures (concurrent re-submits of a
+    just-consumed single-use token used to stack fails right after a success and
+    ban brand-new accounts). Failures are also cooldown-gated so a burst of
+    concurrent requests can only increment the counter once.
     """
     if current_user.is_bot_banned:
         return False
+    if _bot_turnstile_verified():
+        return False
     try:
+        # At most one counted failure per cooldown window — prevents same-token
+        # races from jumping the fail counter by 5 in a single second.
+        cooldown_key = f"bot:tst:fail_cd:{current_user.id}"
+        cd = max(0, int(_BOT_TURNSTILE_FAIL_COOLDOWN_SEC or 0))
+        if cd > 0 and not redis_conn.set(cooldown_key, "1", nx=True, ex=cd):
+            return False
         fail_key = f"bot:tst:fail:{current_user.id}"
         fails = redis_conn.incr(fail_key)
         redis_conn.expire(fail_key, _BOT_TURNSTILE_STATE_TTL)
@@ -15548,8 +15564,9 @@ def bot_telemetry():
         # A Turnstile failure is only counted toward a ban when the client was
         # actually shown the verification dialog (challenged). The silent phase
         # (no dialog) must never accumulate failures that could ban a user who
-        # was never given the chance to complete the challenge.
-        if data.get('challenged') and _bot_turnstile_register_failure():
+        # was never given the chance to complete the challenge. Already-verified
+        # users also never accumulate (handled inside _bot_turnstile_register_failure).
+        if data.get('challenged') and not _bot_turnstile_verified() and _bot_turnstile_register_failure():
             return jsonify({'error': 'banned'}), 403
     raw_behavior, reasons = evaluate_bot_score(data)
     if data.get('turnstile_failed'):
@@ -15596,15 +15613,55 @@ def bot_telemetry():
 @app.route('/api/bot/turnstile-verify', methods=['POST'])
 @login_required
 def bot_turnstile_verify():
-    """Verify a client-provided Turnstile token and mark the user as verified."""
+    """Verify a client-provided Turnstile token and mark the user as verified.
+
+    Turnstile tokens are single-use. Concurrent client paths (widget callback +
+    gate + getTurnstileToken) can submit the same token several times; the first
+    succeeds and the rest fail with Cloudflare's timeout-or-duplicate. Those
+    races must not ban a user who just verified successfully.
+    """
     if not _bot_turnstile_active():
         return jsonify({'status': 'ok', 'skipped': True})
     if current_user.is_bot_banned:
         return jsonify({'error': 'banned'}), 403
+    # Already verified: never re-verify or count failures for this user.
+    if _bot_turnstile_verified():
+        return jsonify({'status': 'ok', 'already': True})
     if not rate_limit(f"rl:bot_tst_verify:{current_user.id}", 30, 60):
         return jsonify({'error': 'rate_limit'}), 429
     data = request.get_json(silent=True) or {}
-    if not verify_turnstile(data.get('turnstile_token')):
+    token = data.get('turnstile_token')
+    # Per-token dedup: only the first request for a given token may call
+    # siteverify / count a failure. Concurrent duplicates of a spent token
+    # used to produce verify_ok + N×verify_fail in the same second and ban.
+    token_seen_key = None
+    if token:
+        try:
+            token_fp = hashlib.sha256(str(token).encode('utf-8', errors='ignore')).hexdigest()[:32]
+            token_seen_key = f"bot:tst:tok:{current_user.id}:{token_fp}"
+            claimed = redis_conn.set(token_seen_key, "pending", nx=True, ex=120)
+            if not claimed:
+                prev = redis_conn.get(token_seen_key)
+                prev_s = prev.decode('utf-8', errors='ignore') if isinstance(prev, (bytes, bytearray)) else str(prev or '')
+                if prev_s in ('ok', 'pending') or _bot_turnstile_verified():
+                    # Another request is using / already accepted this token.
+                    if prev_s == 'ok' or _bot_turnstile_verified():
+                        return jsonify({'status': 'ok', 'already': True})
+                    # Still pending elsewhere — soft-fail without counting.
+                    return jsonify({'error': 'turnstile_failed', 'dedup': True}), 403
+                # Previous attempt with this token failed: soft-fail, no re-count.
+                return jsonify({'error': 'turnstile_failed', 'dedup': True}), 403
+        except Exception:
+            token_seen_key = None
+    if not verify_turnstile(token):
+        if token_seen_key:
+            try:
+                redis_conn.set(token_seen_key, "fail", ex=120)
+            except Exception:
+                pass
+        # A concurrent sibling request may have just marked the user verified.
+        if _bot_turnstile_verified():
+            return jsonify({'status': 'ok', 'already': True})
         _log_bot_evidence('verify_fail', reasons='turnstile_failed')
         # Only count toward a ban when the client actually showed the dialog
         # (challenged). Silent background verification failures must not ban a
@@ -15612,6 +15669,11 @@ def bot_turnstile_verify():
         if data.get('challenged') and _bot_turnstile_register_failure():
             return jsonify({'error': 'banned'}), 403
         return jsonify({'error': 'turnstile_failed'}), 403
+    if token_seen_key:
+        try:
+            redis_conn.set(token_seen_key, "ok", ex=120)
+        except Exception:
+            pass
     if _bot_turnstile_register_success():
         return jsonify({'error': 'banned'}), 403
     _log_bot_evidence('verify_ok')

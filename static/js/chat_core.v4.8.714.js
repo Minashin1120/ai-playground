@@ -2418,13 +2418,21 @@
             if (requiresCsrf && (response.status === 403 || response.status === 404)) {
                 let errBody = null;
                 try { errBody = await response.clone().json(); } catch (e) {}
-                if (errBody && errBody.error === 'account_locked' && !document.getElementById('bot-lock-overlay')) {
-                    // The account is temporarily locked: show the reason and
-                    // remaining time. POSTs are blocked server-side while locked.
-                    showBotLockOverlay(errBody.message || 'アカウントが一時的にロックされています。', errBody.remaining_seconds);
+                // Bot / lock / ban responses are intentional application errors —
+                // never treat them as CSRF failures and never retry the same
+                // body (Turnstile tokens are single-use; retrying a spent token
+                // used to stack verify_fail counts and ban new accounts).
+                const botErr = errBody && errBody.error;
+                if (botErr === 'account_locked') {
+                    if (!document.getElementById('bot-lock-overlay')) {
+                        showBotLockOverlay(errBody.message || 'アカウントが一時的にロックされています。', errBody.remaining_seconds);
+                    }
                     return response;
                 }
-                if (errBody && errBody.error === 'turnstile_required' && isBotDetectionActive()) {
+                if (botErr === 'banned' || botErr === 'turnstile_failed' || botErr === 'rate_limit') {
+                    return response;
+                }
+                if (botErr === 'turnstile_required' && isBotDetectionActive()) {
                     // Marker expired mid-session: force a fresh verification, then retry once.
                     botDetectionVerified = false;
                     const verified = await Promise.race([
@@ -2435,12 +2443,12 @@
                         headers['X-CSRF-Token'] = csrfToken;
                         response = await fetch(url, Object.assign({}, opts, { headers, credentials }));
                     }
-                } else {
-                    const refreshed = await refreshCsrfToken();
-                    if (refreshed) {
-                        headers['X-CSRF-Token'] = csrfToken;
-                        response = await fetch(url, Object.assign({}, opts, { headers, credentials }));
-                    }
+                    return response;
+                }
+                const refreshed = await refreshCsrfToken();
+                if (refreshed) {
+                    headers['X-CSRF-Token'] = csrfToken;
+                    response = await fetch(url, Object.assign({}, opts, { headers, credentials }));
                 }
             }
             return response;
@@ -4879,25 +4887,60 @@
             return await applyBotLockFromServer('送信操作が速すぎるため、一時的にロックしています。');
         }
         let turnstileServerVerifiedAt = 0;
+        // Single-flight + per-token dedup for server verification. Widget
+        // callback, getTurnstileToken, and runBotDetectionGate can all fire for
+        // the same single-use Turnstile token; only one POST must go out.
+        let turnstileVerifyInFlight = null;
+        let turnstileVerifyInFlightToken = null;
+        let turnstileLastSubmittedToken = null;
         async function verifyTurnstileOnServer(token, force = false, challenged = null) {
             if (!token || !isBotDetectionActive()) return true;
+            if (botDetectionVerified) return true;
             if (challenged === null) challenged = botDetectionOverlayShown;
             const now = Date.now();
             if (!force && now - turnstileServerVerifiedAt < 60 * 1000) return true;
-            try {
-                const res = await apiFetch('/api/bot/turnstile-verify', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ turnstile_token: token, challenged: !!challenged })
-                });
-                if (res.ok) {
-                    turnstileServerVerifiedAt = now;
-                    botDetectionVerified = true;
-                    hideBotDetectionOverlay();
-                    return true;
+            // Join an in-flight verify for the same token, or skip a token that
+            // was already submitted (Turnstile tokens are single-use).
+            if (turnstileVerifyInFlight && turnstileVerifyInFlightToken === token) {
+                return turnstileVerifyInFlight;
+            }
+            if (turnstileLastSubmittedToken === token && !force) {
+                return !!botDetectionVerified;
+            }
+            // force=true still must not re-POST a token that already went out.
+            if (turnstileLastSubmittedToken === token) {
+                if (turnstileVerifyInFlight && turnstileVerifyInFlightToken === token) {
+                    return turnstileVerifyInFlight;
                 }
-                return false;
-            } catch (e) { return false; }
+                return !!botDetectionVerified;
+            }
+            turnstileLastSubmittedToken = token;
+            turnstileVerifyInFlightToken = token;
+            const challengedFlag = !!challenged;
+            turnstileVerifyInFlight = (async () => {
+                try {
+                    const res = await apiFetch('/api/bot/turnstile-verify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ turnstile_token: token, challenged: challengedFlag })
+                    });
+                    if (res.ok) {
+                        turnstileServerVerifiedAt = Date.now();
+                        botDetectionVerified = true;
+                        hideBotDetectionOverlay();
+                        return true;
+                    }
+                    return false;
+                } catch (e) {
+                    return false;
+                } finally {
+                    if (turnstileVerifyInFlightToken === token) {
+                        turnstileVerifyInFlight = null;
+                        turnstileVerifyInFlightToken = null;
+                    }
+                }
+            })();
+            return turnstileVerifyInFlight;
         }
         function botTurnstileTokenForRequest() {
             return isBotDetectionActive() ? turnstileToken : null;

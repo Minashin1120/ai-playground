@@ -34,7 +34,12 @@ class _FakeRedis:
             return 0
         return 1
 
-    def set(self, key, value, ex=None):
+    def set(self, key, value, ex=None, nx=False, xx=False):
+        exists = self.exists(key)
+        if nx and exists:
+            return False
+        if xx and not exists:
+            return False
         self._d[key] = (value, time.time() + ex if ex else None)
         return True
 
@@ -153,6 +158,13 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
             content_type="application/json",
             headers={"X-CSRF-Token": "csrf-test-token"},
         )
+
+    def clear_fail_cooldown(self, fake):
+        """Allow the next failure to count (tests fire faster than the 15s cooldown)."""
+        fake.delete(f"bot:tst:fail_cd:{self.user_id}")
+
+    def clear_verified_marker(self, fake):
+        fake.delete(f"bot:tst:v:{self.user_id}")
 
     def turnstile_env(self):
         # Turnstile keys are only enabled for the duration of the API-level gate tests,
@@ -428,6 +440,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
                 with self.turnstile_env():
                     client = self.authenticated_client()
                     for _ in range(4):
+                        self.clear_fail_cooldown(fake)
                         res = self.post_telemetry(client, {
                             "turnstile_failed": True,
                             "challenged": True,
@@ -449,6 +462,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
                 with self.turnstile_env():
                     client = self.authenticated_client()
                     for _ in range(5):
+                        self.clear_fail_cooldown(fake)
                         res = self.post_telemetry(client, {
                             "turnstile_failed": True,
                             "challenged": True,
@@ -473,6 +487,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
                 with self.turnstile_env():
                     client = self.authenticated_client()
                     for _ in range(12):
+                        self.clear_fail_cooldown(fake)
                         res = self.post_telemetry(client, {
                             "turnstile_failed": True,
                             "window_ms": 4000,
@@ -492,8 +507,10 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
             with mock.patch.object(target, "redis_conn", fake):
                 with self.turnstile_env():
                     client = self.authenticated_client()
-                    for _ in range(12):
-                        res = self.post_turnstile_verify(client, {"turnstile_token": "invalid"})
+                    for i in range(12):
+                        self.clear_fail_cooldown(fake)
+                        # Unique tokens: same token is deduped and not re-counted
+                        res = self.post_turnstile_verify(client, {"turnstile_token": f"invalid-{i}"})
                         self.assertEqual(res.status_code, 403)
                         self.assertEqual(res.get_json().get("error"), "turnstile_failed")
         with target.app.app_context():
@@ -507,9 +524,10 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
             with mock.patch.object(target, "redis_conn", fake):
                 with self.turnstile_env():
                     client = self.authenticated_client()
-                    for _ in range(5):
+                    for i in range(5):
+                        self.clear_fail_cooldown(fake)
                         res = self.post_turnstile_verify(client, {
-                            "turnstile_token": "invalid",
+                            "turnstile_token": f"invalid-{i}",
                             "challenged": True,
                         })
                     self.assertEqual(res.status_code, 403)
@@ -528,6 +546,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
                 with self.turnstile_env():
                     client = self.authenticated_client()
                     for _ in range(4):
+                        self.clear_fail_cooldown(fake)
                         self.post_telemetry(client, {
                             "turnstile_failed": True,
                             "challenged": True,
@@ -536,7 +555,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
                             "keys": 2,
                             "moves": 2,
                         })
-                    res = self.post_turnstile_verify(client, {"turnstile_token": "t"})
+                    res = self.post_turnstile_verify(client, {"turnstile_token": "t-ok"})
                     self.assertEqual(res.status_code, 200)
         with target.app.app_context():
             user = target.db.session.get(target.User, self.user_id)
@@ -544,6 +563,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
 
     def test_turnstile_pass_fail_cycling_bans(self):
         # ダイアログ表示中の成功→失敗が繰り返される（パス/フェイルのサイクリング）なら BAN
+        # 検証マーカー失効後の再チャレンジをシミュレートするため、失敗の前に verified を消す
         fake = _FakeRedis()
         results = [False, True, False, True, False, True]
         with mock.patch.object(target, "verify_turnstile", side_effect=results):
@@ -551,10 +571,12 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
                 with self.turnstile_env():
                     client = self.authenticated_client()
                     res = None
-                    for r in results:
+                    for i, r in enumerate(results):
                         if r:
-                            res = self.post_turnstile_verify(client, {"turnstile_token": "t"})
+                            res = self.post_turnstile_verify(client, {"turnstile_token": f"ok-{i}"})
                         else:
+                            self.clear_verified_marker(fake)
+                            self.clear_fail_cooldown(fake)
                             res = self.post_telemetry(client, {
                                 "turnstile_failed": True,
                                 "challenged": True,
@@ -569,6 +591,94 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
             user = target.db.session.get(target.User, self.user_id)
             self.assertTrue(user.is_bot_banned)
             self.assertIn("cycled", user.bot_ban_reason)
+
+    def test_same_token_concurrent_fails_after_success_do_not_ban(self):
+        # 再現: アカウント作成直後、同一 Turnstile トークンが複数経路から同時送信され
+        # verify_ok の直後に verify_fail が同一秒で積み上がって即 BAN されていた問題。
+        # 成功後の同一トークン再送・検証済みユーザーの失敗は BAN に数えない。
+        fake = _FakeRedis()
+        with mock.patch.object(target, "verify_turnstile", side_effect=[True] + [False] * 8):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    ok = self.post_turnstile_verify(client, {
+                        "turnstile_token": "shared-token",
+                        "challenged": True,
+                    })
+                    self.assertEqual(ok.status_code, 200)
+                    for _ in range(8):
+                        self.clear_fail_cooldown(fake)
+                        res = self.post_turnstile_verify(client, {
+                            "turnstile_token": "shared-token",
+                            "challenged": True,
+                        })
+                        # Already verified / token dedup → soft ok or soft fail, never ban
+                        self.assertNotEqual(res.get_json().get("error"), "banned")
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertFalse(user.is_bot_banned)
+
+    def test_duplicate_token_submits_do_not_stack_fail_count(self):
+        # 同一トークンの多重送信は1回分しか失敗カウントしない（dedup）
+        fake = _FakeRedis()
+        with mock.patch.object(target, "verify_turnstile", return_value=False):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    for _ in range(10):
+                        self.clear_fail_cooldown(fake)
+                        res = self.post_turnstile_verify(client, {
+                            "turnstile_token": "same-bad-token",
+                            "challenged": True,
+                        })
+                        self.assertEqual(res.status_code, 403)
+                        self.assertEqual(res.get_json().get("error"), "turnstile_failed")
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertFalse(user.is_bot_banned)
+        # Only the first attempt may claim the token; fail count stays at 0 or 1
+        fail_count = int(fake.get(f"bot:tst:fail:{self.user_id}") or 0)
+        self.assertLessEqual(fail_count, 1)
+
+    def test_fail_cooldown_prevents_burst_ban(self):
+        # クールダウン中の連続失敗は1回しかカウントされず、バーストで即 BAN しない
+        fake = _FakeRedis()
+        with mock.patch.object(target, "verify_turnstile", return_value=False):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    # Do NOT clear cooldown between posts
+                    for i in range(10):
+                        res = self.post_turnstile_verify(client, {
+                            "turnstile_token": f"burst-bad-{i}",
+                            "challenged": True,
+                        })
+                        self.assertEqual(res.status_code, 403)
+                        self.assertNotEqual(res.get_json().get("error"), "banned")
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertFalse(user.is_bot_banned)
+        fail_count = int(fake.get(f"bot:tst:fail:{self.user_id}") or 0)
+        self.assertEqual(fail_count, 1)
+
+    def test_js_verify_is_single_flight_per_token(self):
+        # クライアントは同一トークンのサーバー検証を単一フライトにし、多重 POST しない
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        self.assertIn("turnstileVerifyInFlight", source)
+        self.assertIn("turnstileLastSubmittedToken", source)
+        self.assertIn("Turnstile tokens are single-use", source)
+
+    def test_js_api_fetch_does_not_retry_turnstile_failed(self):
+        # turnstile_failed / banned を CSRF と誤認して同一ボディで再送しない
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        api = source[source.index("const apiFetch = async (url, opts = {}) => {") :]
+        api = api[: api.index("window.updateGoogleLinkUI")]
+        self.assertIn("botErr === 'banned' || botErr === 'turnstile_failed'", api)
+        self.assertIn("return response;", api)
 
     def test_high_behavior_score_bans_without_turnstile_failure(self):
         # 挙動スコアだけで BAN しきい値に達した場合は Turnstile 失敗がなくても BAN
@@ -631,7 +741,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         self.assertIn("const runBotDetectionGate = () =>", source)
         self.assertIn("botDetectionVerified = true", source)
         # API からの turnstile_required を検知して再検証＋再送する
-        self.assertIn("errBody.error === 'turnstile_required'", source)
+        self.assertIn("botErr === 'turnstile_required'", source)
 
     def test_unverified_post_blocked_until_turnstile_verified(self):
         # Turnstile 検証が終わるまで、そのユーザーのサーバー通信（POST）をブロックする
@@ -678,6 +788,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
                 with self.turnstile_env():
                     client = self.authenticated_client()
                     for _ in range(5):
+                        self.clear_fail_cooldown(fake)
                         self.post_telemetry(client, {
                             "turnstile_failed": True,
                             "challenged": True,
@@ -706,6 +817,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
                 with self.turnstile_env():
                     client = self.authenticated_client()
                     for _ in range(5):
+                        self.clear_fail_cooldown(fake)
                         self.post_telemetry(client, {
                             "turnstile_failed": True,
                             "challenged": True,
@@ -783,7 +895,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
         source = assets[0].read_text(encoding="utf-8")
-        self.assertIn("challenged: !!challenged", source)
+        self.assertIn("challenged: challengedFlag", source)
         self.assertIn("async function verifyTurnstileOnServer(token, force = false, challenged = null)", source)
 
     def test_js_verified_user_not_blocked_when_token_unavailable(self):
@@ -927,7 +1039,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         self.assertIn("function hideBotLockOverlay(", source)
         self.assertIn("bot-lock-overlay", source)
         self.assertIn("アカウントが一時的にロックされました", source)
-        self.assertIn("errBody.error === 'account_locked'", source)
+        self.assertIn("botErr === 'account_locked'", source)
         # ロック画面はAPIリクエスト時にサーバーから取得した残り時間でカウントダウン
         self.assertIn("applyBotLockFromServer", source)
         # サーバーにロック状態取得エンドポイントが定義されている

@@ -127,6 +127,10 @@
         const urlText = normalizeSpinnerLabel(url).toLowerCase();
         const methodText = normalizeSpinnerLabel(method || 'GET').toUpperCase();
         const combined = `${methodText} ${urlText}`;
+        // Read-only requests load data even when the button that triggered them is
+        // named "Settings", "Update", etc. Classify by HTTP semantics first so
+        // opening a modal never looks like settings are being saved/applied.
+        if (methodText === 'GET' || methodText === 'HEAD') return '読み込み中...';
         if (/delete|remove/.test(combined) || methodText === 'DELETE') return '削除中...';
         if (/message|chat|prompt|stream|reply/.test(combined)) return '送信中...';
         if (/setting|config|preference/.test(combined)) return '保存中...';
@@ -135,9 +139,16 @@
         if (/upload|attachment|\/photo/.test(combined)) return 'アップロード中...';
         if (/generate|image|imagine/.test(combined)) return '生成中...';
         if (/save|update/.test(combined) || methodText === 'PUT' || methodText === 'PATCH') return '保存中...';
-        if (methodText === 'GET' || methodText === 'HEAD') return '読み込み中...';
         if (methodText === 'POST') return '送信中...';
         return DEFAULT_SPINNER_TEXT;
+    }
+
+    function requestSpinnerLabel(url, method) {
+        const methodText = normalizeSpinnerLabel(method || 'GET').toUpperCase();
+        if (methodText === 'GET' || methodText === 'HEAD') {
+            return inferSpinnerTextFromUrl(url, methodText);
+        }
+        return activeInteractionLabel || inferSpinnerTextFromUrl(url, methodText);
     }
 
     function getFetchDetails(args) {
@@ -345,7 +356,7 @@
         window.fetch = function () {
             const details = getFetchDetails(arguments);
             const tracked = shouldTrackRequest(details.url, details.disabled);
-            const label = activeInteractionLabel || inferSpinnerTextFromUrl(details.url, details.method);
+            const label = requestSpinnerLabel(details.url, details.method);
             const finish = tracked ? startOperation({ label }) : null;
             let result;
             try {
@@ -379,7 +390,7 @@
         };
         window.XMLHttpRequest.prototype.send = function () {
             const tracked = shouldTrackRequest(this.__progressSpinnerUrl, false);
-            const label = activeInteractionLabel || inferSpinnerTextFromUrl(this.__progressSpinnerUrl, this.__progressSpinnerMethod);
+            const label = requestSpinnerLabel(this.__progressSpinnerUrl, this.__progressSpinnerMethod);
             const finish = tracked ? startOperation({ label }) : null;
             if (finish) {
                 this.addEventListener('progress', function () {

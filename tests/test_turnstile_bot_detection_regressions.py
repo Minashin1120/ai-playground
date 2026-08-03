@@ -813,7 +813,8 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
 
     def test_js_send_spam_triggers_bot_check_dialog(self):
         # 送信ボタンの連打（5回/2秒）でボットチェックダイアログを出し、
-        # 検証が終わるまで送信を続行しない（サーバー負荷対策）
+        # 検証が終わるまで送信を続行しない（サーバー負荷対策）。
+        # ただし検証済みユーザーにはダイアログを出さない。
         assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
         source = assets[0].read_text(encoding="utf-8")
@@ -825,6 +826,8 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         self.assertIn("送信操作が速すぎるため", gate)
         self.assertIn("registerSendButtonSpam", source)
         self.assertIn("runSendSpamVerification", source)
+        # 検証済みユーザーは連打ダイアログ対象外
+        self.assertIn("isBotDetectionActive() && !botDetectionVerified", gate)
 
     def test_js_send_spam_verification_shows_overlay_with_turnstile(self):
         # runSendSpamVerification は可視のオーバーレイ＋Turnstileボックスで

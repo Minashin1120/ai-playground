@@ -4547,7 +4547,7 @@
                 sitekey: botConfig.turnstileSiteKey,
                 size: 'compact',
                 appearance: 'interaction-only',
-                callback: (token) => { turnstileToken = token; turnstilePending = false; container.classList.add('hidden'); },
+                callback: (token) => { turnstileToken = token; turnstilePending = false; container.classList.add('hidden'); verifyTurnstileOnServer(token); },
                 'expired-callback': () => { turnstileToken = null; turnstilePending = false; container.classList.add('hidden'); },
                 'error-callback': () => { turnstileToken = null; turnstilePending = false; container.classList.add('hidden'); }
             });
@@ -4573,6 +4573,7 @@
                     if (turnstileToken && turnstileToken !== prevToken) {
                         clearTimeout(timeout);
                         clearInterval(interval);
+                        verifyTurnstileOnServer(turnstileToken);
                         resolve(turnstileToken);
                     }
                 }, 50);
@@ -4587,6 +4588,27 @@
         }
         function isBotDetectionActive() {
             return !!(botConfig && botConfig.globalEnabled && botConfig.accountEnabled && !isAdminUser && botConfig.turnstileSiteKey);
+        }
+        let turnstileServerVerifiedAt = 0;
+        async function verifyTurnstileOnServer(token, force = false) {
+            if (!token || !isBotDetectionActive()) return true;
+            const now = Date.now();
+            if (!force && now - turnstileServerVerifiedAt < 60 * 1000) return true;
+            try {
+                const res = await apiFetch('/api/bot/turnstile-verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ turnstile_token: token })
+                });
+                if (res.ok) {
+                    turnstileServerVerifiedAt = now;
+                    return true;
+                }
+                return false;
+            } catch (e) { return false; }
+        }
+        function botTurnstileTokenForRequest() {
+            return isBotDetectionActive() ? turnstileToken : null;
         }
         const botTelemetry = (() => {
             const state = {
@@ -14032,6 +14054,7 @@
                         thread_id: currentThreadId || null,
                         parent_id: bootstrap.parent_id || null,
                         thought_signatures: thoughtSignatures,
+                        turnstile_token: botTurnstileTokenForRequest(),
                     }),
                     signal: abortController.signal,
                 }, adiv);
@@ -14072,13 +14095,15 @@
                 showToast("ファイルの送信・処理中です。しばらくお待ちください。", "warning", true);
                 return;
             }
+            let botTurnstileToken = null;
             if (isBotDetectionActive()) {
-                const gateToken = await getTurnstileToken();
-                if (!gateToken) {
+                botTurnstileToken = await getTurnstileToken();
+                if (!botTurnstileToken) {
                     showToast("安全性の確認を完了できませんでした。しばらく待ってから再送信してください。", "error", true);
                     botTelemetry.send(true);
                     return;
                 }
+                await verifyTurnstileOnServer(botTurnstileToken);
             }
             const rawText = get('prompt-input').value; // RAW INPUT (No trim)
 
@@ -14448,6 +14473,7 @@
                     explicit: candidate.explicit === true
                 })) : []
             };
+            if (botTurnstileToken) p.turnstile_token = botTurnstileToken;
             const threadCustomInstructionEl = get('thread-custom-instruction');
             if (threadCustomInstructionEl) {
                 p.thread_custom_instruction = threadCustomInstructionEl.value || '';
@@ -14871,6 +14897,15 @@
                     };
                     setUnavailableConnectionStatus(navigator.onLine ? 'server-down' : 'offline');
                     showToast('回答への接続が切れました。バックグラウンド処理へ自動再接続します。', 'warning', false);
+                } else if (e.serverCode === 'turnstile_required') {
+                    // APIレベルでもTurnstile未検証はブロックされるため、再検証を試みる。
+                    const retryToken = await getTurnstileToken();
+                    if (retryToken) {
+                        await verifyTurnstileOnServer(retryToken, true);
+                        showToast('安全性の確認を完了しました。もう一度送信してください。', 'warning', false);
+                    } else {
+                        showToast('安全性の確認を完了できませんでした。しばらく待ってから再送信してください。', 'error', true);
+                    }
                 } else if (e.serverCode === 'api_key_missing') {
                     const missingKeyModel = e.serverModel || p.model;
                     const action = await showApiKeyRequiredModalAsync(missingKeyModel);
@@ -14978,7 +15013,7 @@
                 const r = await apiFetch("/chat_stream_resume", {
                     method: 'POST',
                     headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({ thread_id: currentThreadId, job_id: jobId }),
+                    body: JSON.stringify({ thread_id: currentThreadId, job_id: jobId, turnstile_token: botTurnstileTokenForRequest() }),
                     signal: abortController.signal
                 });
                 if (!r.ok) {

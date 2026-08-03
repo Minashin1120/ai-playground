@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-012')
-app.config['SYSTEM_VERSION'] = 'V4.8.700'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-03-013')
+app.config['SYSTEM_VERSION'] = 'V4.8.701'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -5170,6 +5170,51 @@ def verify_turnstile(token):
     if not token: return False
     try: return requests.post('https://challenges.cloudflare.com/turnstile/v0/siteverify', data={'secret': secret, 'response': token}, timeout=5).json().get('success', False)
     except: return False
+
+_BOT_TURNSTILE_VERIFIED_TTL = 15 * 60
+
+def _bot_turnstile_active():
+    """True if the API-level Turnstile gate applies to the current user."""
+    if getattr(current_user, 'is_admin', False):
+        return False
+    if not get_bot_detection_global_enabled():
+        return False
+    if not current_user.bot_detection_enabled:
+        return False
+    if not os.getenv('TURNSTILE_SITE_KEY') or not os.getenv('TURNSTILE_SECRET_KEY'):
+        return False
+    return True
+
+def _bot_turnstile_verified():
+    try:
+        return bool(redis_conn.exists(f"bot:tst:v:{current_user.id}"))
+    except Exception:
+        return False
+
+def _bot_turnstile_mark_verified():
+    try:
+        redis_conn.set(f"bot:tst:v:{current_user.id}", "1", ex=_BOT_TURNSTILE_VERIFIED_TTL)
+    except Exception:
+        pass
+
+def _bot_turnstile_gate(token=None):
+    """API-level gate: block chat API calls while Turnstile has not yet been verified.
+
+    Returns a Flask response (403) to reject the request, or None when the request
+    may proceed. Bot-detection-active users must hold a recent verified marker in
+    Redis (set via /api/bot/turnstile-verify) or present a valid Turnstile token.
+    """
+    if not _bot_turnstile_active():
+        return None
+    if _bot_turnstile_verified():
+        return None
+    if token and verify_turnstile(token):
+        _bot_turnstile_mark_verified()
+        return None
+    return jsonify({
+        'error': 'turnstile_required',
+        'message': '安全性の確認が完了するまでご利用いただけません。しばらく待ってから再度お試しください。',
+    }), 403
 
 _LOCAL_RATE_LIMIT_LOCK = threading.Lock()
 _LOCAL_RATE_LIMITS = {}
@@ -11550,6 +11595,9 @@ def save_browser_fast_mode_chat():
     data = request.get_json(silent=True) or {}
     if not isinstance(data, dict):
         return jsonify({'error': 'Invalid request'}), 400
+    gate_resp = _bot_turnstile_gate(data.get('turnstile_token'))
+    if gate_resp is not None:
+        return gate_resp
     client_request_id = str(data.get('client_request_id') or '').strip()
     if client_request_id and not re.fullmatch(r'[A-Za-z0-9_-]{8,64}', client_request_id):
         return jsonify({'error': 'Invalid client request ID'}), 400
@@ -11731,6 +11779,9 @@ def chat_stream():
     data = request.get_json(silent=True) or {}
     if not isinstance(data, dict):
         return jsonify({'error': 'Invalid request'}), 400
+    gate_resp = _bot_turnstile_gate(data.get('turnstile_token'))
+    if gate_resp is not None:
+        return gate_resp
     raw_message = data.get('message')
     if not isinstance(raw_message, str) or len(raw_message) > 500_000:
         return jsonify({'error': 'Invalid or oversized message'}), 400
@@ -12286,6 +12337,9 @@ def estimate_prompt_tokens_api():
 @login_required
 def chat_stream_resume():
     data = request.get_json(silent=True) or {}
+    gate_resp = _bot_turnstile_gate(data.get('turnstile_token'))
+    if gate_resp is not None:
+        return gate_resp
     job_id = str(data.get('job_id') or '')
     thread_id = data.get('thread_id')
     if not _is_valid_job_id(job_id) or not thread_id:
@@ -15138,6 +15192,22 @@ def bot_telemetry():
         ban_related_accounts(current_user, current_user.bot_ban_reason)
         return jsonify({'error': 'banned', 'score': new_score, 'reasons': reasons}), 403
     return jsonify({'status': 'ok', 'score': new_score, 'reasons': reasons})
+
+@app.route('/api/bot/turnstile-verify', methods=['POST'])
+@login_required
+def bot_turnstile_verify():
+    """Verify a client-provided Turnstile token and mark the user as verified."""
+    if not _bot_turnstile_active():
+        return jsonify({'status': 'ok', 'skipped': True})
+    if current_user.is_bot_banned:
+        return jsonify({'error': 'banned'}), 403
+    if not rate_limit(f"rl:bot_tst_verify:{current_user.id}", 30, 60):
+        return jsonify({'error': 'rate_limit'}), 429
+    data = request.get_json(silent=True) or {}
+    if not verify_turnstile(data.get('turnstile_token')):
+        return jsonify({'error': 'turnstile_failed'}), 403
+    _bot_turnstile_mark_verified()
+    return jsonify({'status': 'ok'})
 
 @app.route('/api/bot/unban', methods=['POST'])
 @login_required

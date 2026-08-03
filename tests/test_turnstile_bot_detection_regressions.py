@@ -1,5 +1,6 @@
 import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -15,6 +16,69 @@ import app as target
 
 
 APP_ROOT = Path(__file__).resolve().parents[1]
+
+
+class _FakeRedis:
+    """Minimal dict-backed Redis stand-in for tests (keys with TTL)."""
+
+    def __init__(self):
+        self._d = {}
+
+    def exists(self, key):
+        entry = self._d.get(key)
+        if entry is None:
+            return 0
+        value, expires_at = entry
+        if expires_at is not None and time.time() >= expires_at:
+            self._d.pop(key, None)
+            return 0
+        return 1
+
+    def set(self, key, value, ex=None):
+        self._d[key] = (value, time.time() + ex if ex else None)
+        return True
+
+    def get(self, key):
+        entry = self._d.get(key)
+        if entry is None:
+            return None
+        value, expires_at = entry
+        if expires_at is not None and time.time() >= expires_at:
+            self._d.pop(key, None)
+            return None
+        return value
+
+    def delete(self, *keys):
+        removed = 0
+        for key in keys:
+            if key in self._d:
+                del self._d[key]
+                removed += 1
+        return removed
+
+    def expire(self, key, ttl):
+        entry = self._d.get(key)
+        if entry is None:
+            return True
+        self._d[key] = (entry[0], time.time() + ttl)
+        return True
+
+    def incr(self, key):
+        current = self.get(key)
+        new_value = (int(current) + 1) if current is not None else 1
+        self._d[key] = (new_value, None)
+        return new_value
+
+    def incrbyfloat(self, key, amount):
+        current = self.get(key)
+        new_value = (float(current) + float(amount)) if current is not None else float(amount)
+        self._d[key] = (new_value, None)
+        return new_value
+
+    def __getattr__(self, name):
+        def _missing(*args, **kwargs):
+            raise NotImplementedError(name)
+        return _missing
 
 
 class TurnstileBotDetectionRegressionTests(unittest.TestCase):
@@ -55,6 +119,30 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
             data=target.json.dumps(payload),
             content_type="application/json",
             headers={"X-CSRF-Token": "csrf-test-token"},
+        )
+
+    def post_chat_stream(self, client, payload):
+        return client.post(
+            "/chat_stream",
+            data=target.json.dumps(payload),
+            content_type="application/json",
+            headers={"X-CSRF-Token": "csrf-test-token"},
+        )
+
+    def post_turnstile_verify(self, client, payload):
+        return client.post(
+            "/api/bot/turnstile-verify",
+            data=target.json.dumps(payload),
+            content_type="application/json",
+            headers={"X-CSRF-Token": "csrf-test-token"},
+        )
+
+    def turnstile_env(self):
+        # Turnstile keys are only enabled for the duration of the API-level gate tests,
+        # so other test modules are not affected by the gate.
+        return mock.patch.dict(
+            os.environ,
+            {"TURNSTILE_SITE_KEY": "test-site-key", "TURNSTILE_SECRET_KEY": "test-secret-key"},
         )
 
     def test_turnstile_failed_report_is_scored_not_rejected(self):
@@ -164,6 +252,96 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
             user = target.db.session.get(target.User, self.user_id)
             self.assertTrue(user.is_bot_banned)
 
+    def test_chat_stream_blocked_without_turnstile_verification(self):
+        # ボット検出が有効なユーザーは、API から未検証で送信しようとすると
+        # 403 turnstile_required でブロックされる（API レベルでのゲート）。
+        with mock.patch.object(target, "verify_turnstile", return_value=False):
+            with mock.patch.object(target, "redis_conn", _FakeRedis()):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    res = self.post_chat_stream(client, {"message": "hello"})
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(res.get_json().get("error"), "turnstile_required")
+
+    def test_chat_stream_blocked_with_invalid_token(self):
+        # 無効なトークンだけを添えて送信しても 403 turnstile_required
+        with mock.patch.object(target, "verify_turnstile", return_value=False):
+            with mock.patch.object(target, "redis_conn", _FakeRedis()):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    res = self.post_chat_stream(client, {"message": "hello", "turnstile_token": "invalid"})
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(res.get_json().get("error"), "turnstile_required")
+
+    def test_chat_stream_allowed_with_valid_token_inline(self):
+        # 本文に有効なトークンがあればゲートを通過（後続の入力検証 400 へ進む）
+        with mock.patch.object(target, "verify_turnstile", return_value=True):
+            with mock.patch.object(target, "redis_conn", _FakeRedis()):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    res = self.post_chat_stream(client, {"message": "hello", "turnstile_token": "valid"})
+        self.assertNotEqual(res.status_code, 403)
+        self.assertNotEqual(res.get_json().get("error"), "turnstile_required")
+
+    def test_turnstile_verify_sets_marker_then_chat_stream_passes(self):
+        # /api/bot/turnstile-verify でマーカーが立つと、トークンなしの送信も通過する
+        with mock.patch.object(target, "verify_turnstile", return_value=True):
+            fake = _FakeRedis()
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    verify_res = self.post_turnstile_verify(client, {"turnstile_token": "valid"})
+                    self.assertEqual(verify_res.status_code, 200)
+                    res = self.post_chat_stream(client, {"message": "hello"})
+        self.assertNotEqual(res.status_code, 403)
+        self.assertNotEqual(res.get_json().get("error"), "turnstile_required")
+
+    def test_turnstile_verify_rejects_invalid_token(self):
+        with mock.patch.object(target, "verify_turnstile", return_value=False):
+            with mock.patch.object(target, "redis_conn", _FakeRedis()):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    res = self.post_turnstile_verify(client, {"turnstile_token": "invalid"})
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(res.get_json().get("error"), "turnstile_failed")
+
+    def test_gate_skipped_for_admin_user(self):
+        # 管理者はゲート対象外（マーカー・トークンなしでも通過）
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.is_admin = True
+            target.db.session.commit()
+        with mock.patch.object(target, "verify_turnstile", return_value=False):
+            with mock.patch.object(target, "redis_conn", _FakeRedis()):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    res = self.post_chat_stream(client, {"message": "hello"})
+        self.assertNotEqual(res.status_code, 403)
+        self.assertNotEqual(res.get_json().get("error"), "turnstile_required")
+
+    def test_chat_stream_resume_and_fast_save_are_gated(self):
+        # 復帰・ブラウザ高速モード保存も未検証では 403 turnstile_required
+        with mock.patch.object(target, "verify_turnstile", return_value=False):
+            with mock.patch.object(target, "redis_conn", _FakeRedis()):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    resume_res = client.post(
+                        "/chat_stream_resume",
+                        data=target.json.dumps({"job_id": "job_1234567890_1_abc", "thread_id": "thread-1"}),
+                        content_type="application/json",
+                        headers={"X-CSRF-Token": "csrf-test-token"},
+                    )
+                    self.assertEqual(resume_res.status_code, 403)
+                    self.assertEqual(resume_res.get_json().get("error"), "turnstile_required")
+                    save_res = client.post(
+                        "/api/browser_fast_mode/save",
+                        data=target.json.dumps({"message": "hi", "assistant_content": "hello"}),
+                        content_type="application/json",
+                        headers={"X-CSRF-Token": "csrf-test-token"},
+                    )
+                    self.assertEqual(save_res.status_code, 403)
+                    self.assertEqual(save_res.get_json().get("error"), "turnstile_required")
+
     def test_js_uses_interaction_only_appearance(self):
         assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
@@ -179,7 +357,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         self.assertIn("function isBotDetectionActive()", source)
         gate = source[source.index("async function sendMessage()") :]
         gate = gate[: gate.index("const rawText = get('prompt-input').value")]
-        self.assertIn("const gateToken = await getTurnstileToken();", gate)
+        self.assertIn("botTurnstileToken = await getTurnstileToken();", gate)
         self.assertIn("安全性の確認を完了できませんでした", gate)
         self.assertIn("botTelemetry.send(true);", gate)
         self.assertIn("return;", gate)
@@ -193,6 +371,37 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
             "if (botConfig && botConfig.turnstileSiteKey && !payload.turnstile_token) return;",
             source,
         )
+
+    def test_js_verifies_turnstile_on_server(self):
+        # クライアントはトークン取得成功時に /api/bot/turnstile-verify で検証マーカーを立てる
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        self.assertIn("async function verifyTurnstileOnServer(token, force = false)", source)
+        self.assertIn("'/api/bot/turnstile-verify'", source)
+
+    def test_js_send_attaches_turnstile_token_to_api_payload(self):
+        # 送信ゲートで取得したトークンを /chat_stream 等のペイロードへ含める（APIレベルのゲートを通過するため）
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        self.assertIn("if (botTurnstileToken) p.turnstile_token = botTurnstileToken;", source)
+        self.assertIn("turnstile_token: botTurnstileTokenForRequest()", source)
+        self.assertIn("async function verifyTurnstileOnServer(token, force = false)", source)
+
+    def test_js_handles_turnstile_required_from_api(self):
+        # サーバーが 403 turnstile_required を返した場合は再検証して再送を案内する
+        assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
+        source = assets[0].read_text(encoding="utf-8")
+        self.assertIn("e.serverCode === 'turnstile_required'", source)
+        self.assertIn("もう一度送信してください", source)
+
+    def test_server_defines_api_level_turnstile_gate(self):
+        source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn("def _bot_turnstile_gate(token=None):", source)
+        self.assertIn("def bot_turnstile_verify():", source)
+        self.assertIn("'turnstile_required'", source)
 
 
 if __name__ == "__main__":

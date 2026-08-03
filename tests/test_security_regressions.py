@@ -51,6 +51,11 @@ class SecurityRegressionTests(unittest.TestCase):
             target.db.session.add(user)
             target.db.session.commit()
             self.user_id = user.id
+        # The API-level Turnstile gate (V4.8.701) is out of scope for these
+        # security regression tests; disable it so they exercise the target logic.
+        self._turnstile_gate_patcher = mock.patch.object(target, "_bot_turnstile_active", return_value=False)
+        self._turnstile_gate_patcher.start()
+        self.addCleanup(self._turnstile_gate_patcher.stop)
 
     def tearDown(self):
         with target.app.app_context():

@@ -7781,34 +7781,110 @@
             });
             const storageRefreshBtn = get('storage-usage-refresh');
             if (storageRefreshBtn) storageRefreshBtn.onclick = () => loadStorageUsage();
+            let activeAccountTransfer = null;
+            const createAccountTransferId = () => {
+                const bytes = new Uint8Array(16);
+                window.crypto.getRandomValues(bytes);
+                return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+            };
+            const renderAccountTransferProgress = (payload = {}) => {
+                const wrap = get('account-transfer-progress');
+                const bar = get('account-transfer-progress-bar');
+                const percent = get('account-transfer-progress-percent');
+                const textEl = get('account-transfer-progress-text');
+                const detail = get('account-transfer-progress-detail');
+                const value = Math.max(0, Math.min(100, Number(payload.progress) || 0));
+                if (wrap) wrap.classList.remove('hidden');
+                if (bar) bar.style.width = `${value}%`;
+                if (percent) percent.textContent = `${Math.round(value)}%`;
+                if (textEl) textEl.textContent = payload.message || '処理状況を確認しています';
+                if (detail) {
+                    const labels = {
+                        preparing: 'データを準備中', exporting_files: 'ファイルを書き出し中',
+                        finalizing: '最終処理中', ready: 'ダウンロード準備完了',
+                        validating: 'ZIPを検証中', validating_files: 'ファイル情報を検証中',
+                        reading_files: 'ファイルを読み込み中', importing_settings: '設定を反映中',
+                        importing_credentials: '認証情報を反映中', importing_gems: 'Gemを追加中',
+                        saving_files: 'ファイルを保存中', importing_chats: 'チャット履歴を追加中',
+                        importing_feedback: 'フィードバックを追加中', importing_diagnostics: '診断データを追加中',
+                        cancelling: 'キャンセル処理中', cancelled: 'キャンセル済み',
+                        completed: '完了', failed: '失敗'
+                    };
+                    detail.textContent = labels[payload.phase] || '処理状況を確認しています。';
+                }
+            };
+            const setAccountTransferControls = (running) => {
+                if (accountExportBtn) accountExportBtn.disabled = !!running;
+                const importBtn = get('account-import-btn');
+                if (importBtn) importBtn.disabled = !!running;
+                const cancelBtn = get('account-transfer-cancel-btn');
+                if (cancelBtn) cancelBtn.disabled = !running;
+            };
+            const pollAccountTransfer = async (transfer) => {
+                while (activeAccountTransfer === transfer && !transfer.stopped) {
+                    try {
+                        const res = await apiFetch(`/api/account/transfer/${transfer.id}`, manualSpinnerRequestOptions({
+                            cache: 'no-store',
+                        }));
+                        const data = await res.json().catch(() => ({}));
+                        if (res.ok) {
+                            renderAccountTransferProgress(data);
+                            if (['completed', 'failed', 'cancelled'].includes(data.state)) return data;
+                        }
+                    } catch (_) {}
+                    await new Promise(resolve => setTimeout(resolve, 700));
+                }
+                return null;
+            };
+            const finishAccountTransfer = (transfer) => {
+                if (activeAccountTransfer === transfer) activeAccountTransfer = null;
+                transfer.stopped = true;
+                setAccountTransferControls(false);
+            };
+            const accountTransferCancelBtn = get('account-transfer-cancel-btn');
+            if (accountTransferCancelBtn) {
+                accountTransferCancelBtn.onclick = async () => {
+                    const transfer = activeAccountTransfer;
+                    if (!transfer || transfer.stopped) return;
+                    transfer.cancelRequested = true;
+                    accountTransferCancelBtn.disabled = true;
+                    renderAccountTransferProgress({progress: 0, phase: 'cancelling', message: 'キャンセルしています'});
+                    try {
+                        await apiFetch(`/api/account/transfer/${transfer.id}/cancel`, manualSpinnerRequestOptions({
+                            method: 'POST',
+                        }));
+                    } catch (_) {}
+                    if (transfer.controller) transfer.controller.abort();
+                    if (transfer.frame) transfer.frame.src = 'about:blank';
+                    renderAccountTransferProgress({progress: 0, phase: 'cancelled', message: 'キャンセルしました'});
+                    finishAccountTransfer(transfer);
+                    showToast('処理をキャンセルしました', 'info');
+                };
+            }
             const accountExportBtn = get('account-export-btn');
             if (accountExportBtn) {
-                accountExportBtn.onclick = async () => {
-                    accountExportBtn.disabled = true;
-                    try {
-                        const res = await apiFetch('/api/account/export', {cache: 'no-store'});
-                        if (!res.ok) {
-                            const data = await res.json().catch(() => ({}));
-                            throw new Error(data.message || data.error || 'エクスポートに失敗しました');
+                accountExportBtn.onclick = () => {
+                    if (activeAccountTransfer) return;
+                    const transfer = {id: createAccountTransferId(), type: 'export', stopped: false, frame: null};
+                    activeAccountTransfer = transfer;
+                    setAccountTransferControls(true);
+                    renderAccountTransferProgress({progress: 0, phase: 'preparing', message: 'エクスポートを開始しています'});
+                    const frame = document.createElement('iframe');
+                    frame.className = 'hidden';
+                    frame.setAttribute('aria-hidden', 'true');
+                    frame.src = `/api/account/export?job_id=${encodeURIComponent(transfer.id)}`;
+                    transfer.frame = frame;
+                    document.body.appendChild(frame);
+                    pollAccountTransfer(transfer).then(data => {
+                        if (!data || transfer.cancelRequested) return;
+                        if (data.state === 'completed') {
+                            showToast('アカウントデータのダウンロードを開始しました', 'success');
+                        } else if (data.state === 'failed') {
+                            showToast(data.message || 'エクスポートに失敗しました', 'error', true);
                         }
-                        const blob = await res.blob();
-                        const disposition = res.headers.get('Content-Disposition') || '';
-                        const match = disposition.match(/filename\*?=(?:UTF-8''|\")?([^\";]+)/i);
-                        const filename = match ? decodeURIComponent(match[1].replace(/^\"|\"$/g, '')) : 'ai-playground-account.zip';
-                        const href = URL.createObjectURL(blob);
-                        const anchor = document.createElement('a');
-                        anchor.href = href;
-                        anchor.download = filename;
-                        document.body.appendChild(anchor);
-                        anchor.click();
-                        anchor.remove();
-                        setTimeout(() => URL.revokeObjectURL(href), 1000);
-                        showToast('アカウントデータをエクスポートしました', 'success');
-                    } catch (error) {
-                        showToast(error && error.message ? error.message : 'エクスポートに失敗しました', 'error', true);
-                    } finally {
-                        accountExportBtn.disabled = false;
-                    }
+                        finishAccountTransfer(transfer);
+                        setTimeout(() => frame.remove(), 10 * 60 * 1000);
+                    });
                 };
             }
             const accountImportBtn = get('account-import-btn');
@@ -7835,10 +7911,20 @@
                     const form = new FormData();
                     form.append('file', file, file.name);
                     form.append('categories', categories.join(','));
-                    accountImportBtn.disabled = true;
+                    const transfer = {
+                        id: createAccountTransferId(), type: 'import', stopped: false,
+                        controller: new AbortController()
+                    };
+                    form.append('job_id', transfer.id);
+                    activeAccountTransfer = transfer;
+                    setAccountTransferControls(true);
+                    renderAccountTransferProgress({progress: 1, phase: 'validating', message: 'ZIPをアップロードしています'});
                     const resultBox = get('account-import-result');
+                    const pollPromise = pollAccountTransfer(transfer);
                     try {
-                        const res = await apiFetch('/api/account/import', {method: 'POST', body: form});
+                        const res = await apiFetch('/api/account/import', manualSpinnerRequestOptions({
+                            method: 'POST', body: form, signal: transfer.controller.signal,
+                        }));
                         const data = await res.json().catch(() => ({}));
                         if (!res.ok) throw new Error(data.error || 'インポートに失敗しました');
                         const imported = data.imported || {};
@@ -7857,14 +7943,22 @@
                         if (categories.includes('gems')) loadGems();
                         if (categories.includes('files')) loadStorageUsage();
                     } catch (error) {
+                        if (transfer.cancelRequested || (error && error.name === 'AbortError')) return;
+                        const rawMessage = error && error.message ? error.message : '';
+                        const friendlyMessage = rawMessage === 'storage_limit_exceeded'
+                            ? 'ストレージ上限を超えるためインポートできません'
+                            : (rawMessage || 'インポートに失敗しました');
+                        renderAccountTransferProgress({progress: 0, phase: 'failed', message: friendlyMessage});
                         if (resultBox) {
-                            resultBox.textContent = error && error.message ? error.message : 'インポートに失敗しました';
+                            resultBox.textContent = friendlyMessage;
                             resultBox.classList.remove('hidden', 'text-emerald-300');
                             resultBox.classList.add('text-red-300');
                         }
-                        showToast(error && error.message ? error.message : 'インポートに失敗しました', 'error', true);
+                        showToast(friendlyMessage, 'error', true);
                     } finally {
-                        accountImportBtn.disabled = false;
+                        transfer.stopped = true;
+                        await pollPromise.catch(() => null);
+                        finishAccountTransfer(transfer);
                     }
                 };
             }

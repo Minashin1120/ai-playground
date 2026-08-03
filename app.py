@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-009')
-app.config['SYSTEM_VERSION'] = 'V4.8.721'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-010')
+app.config['SYSTEM_VERSION'] = 'V4.8.722'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3230,6 +3230,59 @@ ACCOUNT_TEXT_SETTING_LIMITS = {
     "llm_transcribe_prompt": 100_000,
     "rich_paste_prompt_default": 100_000,
 }
+ACCOUNT_TRANSFER_JOB_RE = re.compile(r"^[a-f0-9]{32}$")
+ACCOUNT_TRANSFER_STATUS_TTL = 3600
+
+
+class AccountTransferCancelled(Exception):
+    pass
+
+
+def _account_transfer_status_key(user_id, job_id):
+    return f"account_transfer:status:{int(user_id)}:{job_id}"
+
+
+def _account_transfer_cancel_key(user_id, job_id):
+    return f"account_transfer:cancel:{int(user_id)}:{job_id}"
+
+
+def _valid_account_transfer_job_id(job_id):
+    return bool(ACCOUNT_TRANSFER_JOB_RE.fullmatch(str(job_id or "")))
+
+
+def _set_account_transfer_status(user_id, job_id, state, progress, phase, message=""):
+    if not _valid_account_transfer_job_id(job_id):
+        return
+    payload = {
+        "state": str(state),
+        "progress": max(0, min(100, int(progress or 0))),
+        "phase": str(phase or ""),
+        "message": str(message or ""),
+        "updated_at": _portable_datetime(datetime.utcnow()),
+    }
+    try:
+        redis_conn.setex(
+            _account_transfer_status_key(user_id, job_id),
+            ACCOUNT_TRANSFER_STATUS_TTL,
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+        )
+    except Exception:
+        pass
+
+
+def _account_transfer_cancelled(user_id, job_id):
+    if not _valid_account_transfer_job_id(job_id):
+        return False
+    try:
+        return bool(redis_conn.exists(_account_transfer_cancel_key(user_id, job_id)))
+    except Exception:
+        return False
+
+
+def _account_transfer_checkpoint(user_id, job_id, progress, phase, message=""):
+    if _account_transfer_cancelled(user_id, job_id):
+        raise AccountTransferCancelled()
+    _set_account_transfer_status(user_id, job_id, "running", progress, phase, message)
 
 
 def _portable_datetime(value):
@@ -3371,16 +3424,45 @@ def _account_file_rows(user_id):
             info = _get_file_disk_info(rel_path)
             if info.get("exists") and not _path_is_within(app.config["UPLOAD_FOLDER"], info.get("disk_path")):
                 continue
-            data = _load_user_file_bytes(rel_path, info)
-            if data is None:
-                continue
             rows.append({
                 "rel_path": rel_path,
                 "display_name": labels.get(rel_path),
                 "mime_type": mimetypes.guess_type(logical_path)[0],
-                "data": data,
+                "info": info,
             })
     return rows
+
+
+def _write_account_export_file(archive, archive_name, row):
+    info = row.get("info") or {}
+    if not info.get("exists"):
+        raise ValueError("export_file_missing")
+    digest = hashlib.sha256()
+    size_bytes = 0
+    if info.get("is_encrypted"):
+        data = _load_user_file_bytes(row.get("rel_path"), info)
+        if data is None:
+            raise ValueError("export_file_unreadable")
+        digest.update(data)
+        size_bytes = len(data)
+        archive.writestr(archive_name, data)
+    else:
+        with open(info["disk_path"], "rb") as source, archive.open(archive_name, "w", force_zip64=True) as target:
+            while True:
+                chunk = source.read(1024 * 1024)
+                if not chunk:
+                    break
+                target.write(chunk)
+                digest.update(chunk)
+                size_bytes += len(chunk)
+    return size_bytes, digest.hexdigest()
+
+
+def _fernet_encrypted_size(plain_size):
+    size = max(0, int(plain_size or 0))
+    padded_ciphertext_size = 16 * ((size // 16) + 1)
+    token_binary_size = 57 + padded_ciphertext_size
+    return 4 * ((token_binary_size + 2) // 3)
 
 
 def _coerce_account_import_categories(raw):
@@ -15692,13 +15774,59 @@ def delete_account():
     except Exception as e: return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/account/transfer/<job_id>', methods=['GET'])
+@login_required
+def get_account_transfer_status(job_id):
+    if not _valid_account_transfer_job_id(job_id):
+        return jsonify({'error': 'invalid_job_id'}), 400
+    try:
+        raw = redis_conn.get(_account_transfer_status_key(current_user.id, job_id))
+        if not raw:
+            return jsonify({'state': 'pending', 'progress': 0, 'phase': 'pending', 'message': ''})
+        payload = json.loads(raw.decode("utf-8") if isinstance(raw, bytes) else raw)
+        response = jsonify(payload)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+    except Exception:
+        return jsonify({'error': 'status_unavailable'}), 503
+
+
+@app.route('/api/account/transfer/<job_id>/cancel', methods=['POST'])
+@login_required
+def cancel_account_transfer(job_id):
+    if not _valid_account_transfer_job_id(job_id):
+        return jsonify({'error': 'invalid_job_id'}), 400
+    try:
+        existing_raw = redis_conn.get(_account_transfer_status_key(current_user.id, job_id))
+        if existing_raw:
+            existing = json.loads(existing_raw.decode("utf-8") if isinstance(existing_raw, bytes) else existing_raw)
+            if existing.get("state") in {"completed", "failed", "cancelled"}:
+                return jsonify({'status': existing.get("state")})
+        redis_conn.setex(
+            _account_transfer_cancel_key(current_user.id, job_id),
+            ACCOUNT_TRANSFER_STATUS_TTL,
+            "1",
+        )
+        _set_account_transfer_status(
+            current_user.id, job_id, "cancelling", 0, "cancelling", "キャンセルしています"
+        )
+        return jsonify({'status': 'ok'})
+    except Exception:
+        return jsonify({'error': 'cancel_failed'}), 503
+
+
 @app.route('/api/account/export', methods=['GET'])
 @login_required
 def export_account_data():
+    job_id = str(request.args.get("job_id") or secrets.token_hex(16)).lower()
+    if not _valid_account_transfer_job_id(job_id):
+        return jsonify({'error': 'invalid_job_id'}), 400
     if not rate_limit(f"rl:account_export:user:{current_user.id}", 3, 3600):
+        _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "エクスポート回数の上限に達しました")
         return jsonify({'error': 'rate_limit'}), 429
     export_path = None
     try:
+        _account_transfer_checkpoint(current_user.id, job_id, 2, "preparing", "エクスポート対象を確認しています")
         file_rows = _account_file_rows(current_user.id)
         manifest = {
             "format": ACCOUNT_EXPORT_FORMAT,
@@ -15712,35 +15840,57 @@ def export_account_data():
             "data": {
                 "settings": _account_export_settings(current_user),
                 "api_credentials": _account_export_secrets(current_user),
-                "chats": _account_export_threads(current_user.id),
-                "gems": _account_export_gems(current_user.id),
-                "feedback": _account_export_feedback(current_user.id),
-                "diagnostics": _account_export_diagnostics(current_user.id),
+                "chats": [],
+                "gems": [],
+                "feedback": [],
+                "diagnostics": {},
                 "files": [],
             },
         }
+        _account_transfer_checkpoint(current_user.id, job_id, 5, "preparing", "チャット履歴を読み込んでいます")
+        manifest["data"]["chats"] = _account_export_threads(current_user.id)
+        _account_transfer_checkpoint(current_user.id, job_id, 12, "preparing", "Gemとフィードバックを読み込んでいます")
+        manifest["data"]["gems"] = _account_export_gems(current_user.id)
+        manifest["data"]["feedback"] = _account_export_feedback(current_user.id)
+        _account_transfer_checkpoint(current_user.id, job_id, 16, "preparing", "診断データを読み込んでいます")
+        manifest["data"]["diagnostics"] = _account_export_diagnostics(current_user.id)
         fd, export_path = tempfile.mkstemp(prefix="ai-account-export-", suffix=".zip")
         os.close(fd)
+        total_file_weight = sum(max(1, int((row.get("info") or {}).get("size") or 0)) for row in file_rows) or 1
+        completed_file_weight = 0
         with zipfile.ZipFile(export_path, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
             for index, row in enumerate(file_rows, start=1):
+                progress = 18 + int(72 * completed_file_weight / total_file_weight)
+                _account_transfer_checkpoint(
+                    current_user.id, job_id, progress, "exporting_files",
+                    f"ファイルを書き出しています（{index}/{len(file_rows)}）",
+                )
                 archive_name = f"files/{index:06d}.bin"
-                raw = row.pop("data")
-                item = dict(row)
+                size_bytes, sha256 = _write_account_export_file(archive, archive_name, row)
+                item = {key: value for key, value in row.items() if key != "info"}
                 item["archive_path"] = archive_name
-                item["size_bytes"] = len(raw)
-                item["sha256"] = hashlib.sha256(raw).hexdigest()
+                item["size_bytes"] = size_bytes
+                item["sha256"] = sha256
                 manifest["data"]["files"].append(item)
-                archive.writestr(archive_name, raw)
+                completed_file_weight += max(1, int((row.get("info") or {}).get("size") or 0))
+            _account_transfer_checkpoint(current_user.id, job_id, 92, "finalizing", "ZIPを仕上げています")
             archive.writestr(
                 "account_data.json",
                 json.dumps(manifest, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
             )
+        _account_transfer_checkpoint(current_user.id, job_id, 99, "ready", "ダウンロードを開始します")
         filename = f"ai-playground-account-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.zip"
         response = send_file(export_path, mimetype="application/zip", as_attachment=True, download_name=filename)
         response.headers["Cache-Control"] = "private, no-store, max-age=0"
         response.headers["X-Content-Type-Options"] = "nosniff"
+        _set_account_transfer_status(current_user.id, job_id, "completed", 100, "completed", "エクスポートが完了しました")
         response.call_on_close(lambda: os.path.exists(export_path) and os.remove(export_path))
         return response
+    except AccountTransferCancelled:
+        if export_path and os.path.exists(export_path):
+            secure_delete(export_path)
+        _set_account_transfer_status(current_user.id, job_id, "cancelled", 0, "cancelled", "エクスポートをキャンセルしました")
+        return jsonify({'error': 'cancelled'}), 409
     except Exception as exc:
         if export_path and os.path.exists(export_path):
             try:
@@ -15748,23 +15898,31 @@ def export_account_data():
             except Exception:
                 pass
         logger.exception("Account export failed for user %s", current_user.id)
+        _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "エクスポートに失敗しました")
         return jsonify({'error': 'export_failed', 'message': str(exc)}), 500
 
 
 @app.route('/api/account/import', methods=['POST'])
 @login_required
 def import_account_data():
-    if not rate_limit(f"rl:account_import:user:{current_user.id}", 6, 3600):
-        return jsonify({'error': 'rate_limit'}), 429
     upload_file = request.files.get("file")
     categories = _coerce_account_import_categories(request.form.get("categories", ""))
+    job_id = str(request.form.get("job_id") or secrets.token_hex(16)).lower()
+    if not _valid_account_transfer_job_id(job_id):
+        return jsonify({'error': 'invalid_job_id'}), 400
+    if not rate_limit(f"rl:account_import:user:{current_user.id}", 6, 3600):
+        _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "インポート回数の上限に達しました")
+        return jsonify({'error': 'rate_limit'}), 429
     if not upload_file or not upload_file.filename:
+        _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "ZIPファイルがありません")
         return jsonify({'error': 'file_required'}), 400
     if not categories:
+        _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "インポート対象が選択されていません")
         return jsonify({'error': 'categories_required'}), 400
 
     created_paths = []
     try:
+        _account_transfer_checkpoint(current_user.id, job_id, 3, "validating", "ZIPを検証しています")
         with zipfile.ZipFile(upload_file.stream, "r") as archive:
             members = archive.infolist()
             if len(members) > 10_000:
@@ -15781,15 +15939,23 @@ def import_account_data():
             data = manifest.get("data")
             if not isinstance(data, dict):
                 raise ValueError("invalid_manifest")
+            _account_transfer_checkpoint(current_user.id, job_id, 10, "validating", "データ構成を確認しています")
 
             file_map = {}
-            staged_files = []
+            imported_files = []
             if "files" in categories:
                 file_items = data.get("files") or []
                 if not isinstance(file_items, list) or len(file_items) > 10_000:
                     raise ValueError("invalid_files")
                 total_file_bytes = 0
-                for item in file_items:
+                total_stored_bytes = 0
+                for item_index, item in enumerate(file_items, start=1):
+                    if item_index == 1 or item_index % 25 == 0:
+                        progress = 10 + int(8 * item_index / max(1, len(file_items)))
+                        _account_transfer_checkpoint(
+                            current_user.id, job_id, progress, "validating_files",
+                            f"ファイル情報を確認しています（{item_index}/{len(file_items)}）",
+                        )
                     if not isinstance(item, dict):
                         raise ValueError("invalid_files")
                     archive_path = str(item.get("archive_path") or "")
@@ -15799,10 +15965,22 @@ def import_account_data():
                     if entry.file_size < 0 or entry.file_size > (app.config.get("MAX_CONTENT_LENGTH") or 512 * 1024 * 1024):
                         raise ValueError("archive_file_too_large")
                     total_file_bytes += entry.file_size
+                    total_stored_bytes += (
+                        _fernet_encrypted_size(entry.file_size)
+                        if current_user.enable_e2ee else entry.file_size
+                    )
                 capacity_ok, _, _ = _check_storage_capacity(current_user, total_file_bytes)
                 if not capacity_ok:
                     raise StorageLimitError("storage_limit_exceeded")
-                for item in file_items:
+                capacity_ok, _, _ = _check_storage_capacity(current_user, total_stored_bytes)
+                if not capacity_ok:
+                    raise StorageLimitError("storage_limit_exceeded")
+                for item_index, item in enumerate(file_items, start=1):
+                    progress = 18 + int(20 * (item_index - 1) / max(1, len(file_items)))
+                    _account_transfer_checkpoint(
+                        current_user.id, job_id, progress, "reading_files",
+                        f"ファイルを読み込んでいます（{item_index}/{len(file_items)}）",
+                    )
                     archive_path = str(item.get("archive_path"))
                     raw = archive.read(by_name[archive_path])
                     expected_size_raw = item.get("size_bytes")
@@ -15815,19 +15993,25 @@ def import_account_data():
                         raise ValueError("invalid_file_path")
                     new_rel = _unique_import_file_rel_path(current_user.id, old_rel)
                     disk_data = encrypt_bytes(raw) if current_user.enable_e2ee else raw
-                    staged_files.append((old_rel, new_rel, disk_data, item.get("display_name")))
+                    destination = os.path.join(app.config["UPLOAD_FOLDER"], new_rel)
+                    os.makedirs(os.path.dirname(destination), mode=0o700, exist_ok=True)
+                    disk_destination = destination + ".enc" if current_user.enable_e2ee else destination
+                    handle = open(disk_destination, "xb")
+                    created_paths.append(disk_destination)
+                    with handle:
+                        handle.write(disk_data)
+                    imported_files.append((old_rel, new_rel, item.get("display_name")))
                     file_map[old_rel] = new_rel
-                exact_import_bytes = sum(len(item[2]) for item in staged_files)
-                capacity_ok, _, _ = _check_storage_capacity(current_user, exact_import_bytes)
-                if not capacity_ok:
-                    raise StorageLimitError("storage_limit_exceeded")
+                    del raw, disk_data
 
             gem_uuid_map = {}
             counts = {category: 0 for category in ACCOUNT_IMPORT_CATEGORIES}
             if "settings" in categories:
+                _account_transfer_checkpoint(current_user.id, job_id, 40, "importing_settings", "設定を取り込んでいます")
                 _apply_imported_account_settings(current_user, data.get("settings") or {})
                 counts["settings"] = 1
             if "api_credentials" in categories:
+                _account_transfer_checkpoint(current_user.id, job_id, 43, "importing_credentials", "認証情報を取り込んでいます")
                 _apply_imported_account_secrets(current_user, data.get("api_credentials") or {})
                 counts["api_credentials"] = 1
 
@@ -15836,7 +16020,13 @@ def import_account_data():
                 if not isinstance(gem_items, list) or len(gem_items) > 10_000:
                     raise ValueError("invalid_gems")
                 import uuid as _uuid_import
-                for item in gem_items:
+                for item_index, item in enumerate(gem_items, start=1):
+                    if item_index == 1 or item_index % 25 == 0:
+                        progress = 46 + int(8 * item_index / max(1, len(gem_items)))
+                        _account_transfer_checkpoint(
+                            current_user.id, job_id, progress, "importing_gems",
+                            f"Gemを取り込んでいます（{item_index}/{len(gem_items)}）",
+                        )
                     payload = _normalize_gem_payload(item)
                     old_uuid = str(item.get("uuid") or "")
                     new_uuid = str(_uuid_import.uuid4())
@@ -15852,13 +16042,12 @@ def import_account_data():
                     counts["gems"] += 1
 
             if "files" in categories:
-                for old_rel, new_rel, disk_data, display_name in staged_files:
-                    destination = os.path.join(app.config["UPLOAD_FOLDER"], new_rel)
-                    os.makedirs(os.path.dirname(destination), mode=0o700, exist_ok=True)
-                    disk_destination = destination + ".enc" if current_user.enable_e2ee else destination
-                    with open(disk_destination, "xb") as handle:
-                        handle.write(disk_data)
-                    created_paths.append(disk_destination)
+                for file_index, (old_rel, new_rel, display_name) in enumerate(imported_files, start=1):
+                    progress = 55 + int(15 * (file_index - 1) / max(1, len(imported_files)))
+                    _account_transfer_checkpoint(
+                        current_user.id, job_id, progress, "saving_files",
+                        f"ファイル情報を登録しています（{file_index}/{len(imported_files)}）",
+                    )
                     clean_label = _sanitize_file_display_name(display_name)
                     if clean_label:
                         _upsert_file_cache(
@@ -15872,7 +16061,12 @@ def import_account_data():
                 if not isinstance(chat_items, list) or len(chat_items) > 100_000:
                     raise ValueError("invalid_chats")
                 total_messages = 0
-                for item in chat_items:
+                for chat_index, item in enumerate(chat_items, start=1):
+                    progress = 71 + int(18 * (chat_index - 1) / max(1, len(chat_items)))
+                    _account_transfer_checkpoint(
+                        current_user.id, job_id, progress, "importing_chats",
+                        f"チャット履歴を取り込んでいます（{chat_index}/{len(chat_items)}）",
+                    )
                     if not isinstance(item, dict):
                         raise ValueError("invalid_chats")
                     messages = item.get("messages") or []
@@ -15900,7 +16094,12 @@ def import_account_data():
                     db.session.flush()
                     id_map = {}
                     pending_parents = []
-                    for message_item in messages:
+                    for message_index, message_item in enumerate(messages, start=1):
+                        if message_index % 100 == 0:
+                            _account_transfer_checkpoint(
+                                current_user.id, job_id, progress, "importing_chats",
+                                f"チャット{chat_index}/{len(chat_items)}・メッセージ{message_index}/{len(messages)}",
+                            )
                         if not isinstance(message_item, dict):
                             raise ValueError("invalid_messages")
                         content = _safe_account_import_text(message_item.get("content"), 20_000_000)
@@ -15936,6 +16135,7 @@ def import_account_data():
                     counts["chats"] += 1
 
             if "feedback" in categories:
+                _account_transfer_checkpoint(current_user.id, job_id, 90, "importing_feedback", "フィードバックを取り込んでいます")
                 feedback_items = data.get("feedback") or []
                 if not isinstance(feedback_items, list) or len(feedback_items) > 100_000:
                     raise ValueError("invalid_feedback")
@@ -15957,6 +16157,7 @@ def import_account_data():
                     counts["feedback"] += 1
 
             if "diagnostics" in categories:
+                _account_transfer_checkpoint(current_user.id, job_id, 94, "importing_diagnostics", "診断データを取り込んでいます")
                 diagnostics = data.get("diagnostics") or {}
                 metric_items = diagnostics.get("first_token_metrics") or [] if isinstance(diagnostics, dict) else []
                 trace_items = diagnostics.get("chat_latency_traces") or [] if isinstance(diagnostics, dict) else []
@@ -15998,28 +16199,40 @@ def import_account_data():
                     db.session.add(ChatLatencyTrace(**kwargs))
                     counts["diagnostics"] += 1
 
+            _account_transfer_checkpoint(current_user.id, job_id, 98, "finalizing", "変更を確定しています")
             db.session.commit()
+            _set_account_transfer_status(current_user.id, job_id, "completed", 100, "completed", "インポートが完了しました")
             response = jsonify({"status": "ok", "imported": counts, "selected": sorted(categories)})
             response.headers["Cache-Control"] = "no-store"
             return response
+    except AccountTransferCancelled:
+        db.session.rollback()
+        for path in created_paths:
+            secure_delete(path)
+        _set_account_transfer_status(current_user.id, job_id, "cancelled", 0, "cancelled", "インポートをキャンセルしました")
+        return jsonify({'error': 'cancelled'}), 409
     except zipfile.BadZipFile:
         db.session.rollback()
+        _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "ZIP形式が正しくありません")
         return jsonify({'error': 'invalid_zip'}), 400
     except StorageLimitError:
         db.session.rollback()
         for path in created_paths:
             secure_delete(path)
+        _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "ストレージ上限を超えるためインポートできません")
         return jsonify({'error': 'storage_limit_exceeded'}), 413
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         db.session.rollback()
         for path in created_paths:
             secure_delete(path)
+        _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "インポートデータが正しくありません")
         return jsonify({'error': str(exc) or 'invalid_import'}), 400
     except Exception:
         db.session.rollback()
         for path in created_paths:
             secure_delete(path)
         logger.exception("Account import failed for user %s", current_user.id)
+        _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "インポートに失敗しました")
         return jsonify({'error': 'import_failed'}), 500
 
 @app.route('/api/feedback', methods=['GET', 'POST'])

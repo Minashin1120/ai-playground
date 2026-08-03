@@ -154,6 +154,11 @@ class AccountPortabilityTests(unittest.TestCase):
         return payload
 
     def test_export_omits_identity_authentication_and_moderation_secrets(self):
+        with target.app.app_context():
+            rows = target._account_file_rows(self.source_id)
+            self.assertTrue(rows)
+            self.assertNotIn("data", rows[0])
+            self.assertIn("info", rows[0])
         archive_bytes = self.export_archive()
         with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
             manifest = json.loads(archive.read("account_data.json"))
@@ -258,6 +263,85 @@ class AccountPortabilityTests(unittest.TestCase):
         )
         self.assertEqual(invalid.status_code, 400)
         self.assertEqual(invalid.get_json()["error"], "invalid_zip")
+
+    def test_encrypted_import_uses_stored_size_for_storage_limit(self):
+        for size in (0, 1, 15, 16, 17, 1024):
+            self.assertEqual(target._fernet_encrypted_size(size), len(target.encrypt_bytes(b"x" * size)))
+        archive_bytes = self.export_archive()
+        with mock.patch.object(target, "_get_user_storage_limit_bytes", return_value=50):
+            response = self.client_for(self.destination_id).post(
+                "/api/account/import",
+                data={
+                    "job_id": "a" * 32,
+                    "categories": "files",
+                    "file": (io.BytesIO(archive_bytes), "account.zip"),
+                },
+                headers={"X-CSRF-Token": "csrf-test-token"},
+                content_type="multipart/form-data",
+                base_url="https://localhost",
+            )
+        self.assertEqual(response.status_code, 413, response.get_data(as_text=True))
+        self.assertEqual(response.get_json()["error"], "storage_limit_exceeded")
+        with target.app.app_context():
+            self.assertEqual(target.FileCache.query.filter_by(user_id=self.destination_id).count(), 0)
+            destination_dir = os.path.join(self.temp_dir.name, str(self.destination_id))
+            self.assertFalse(os.path.exists(destination_dir))
+
+    def test_export_honors_server_side_cancellation(self):
+        with mock.patch.object(target, "_account_transfer_cancelled", return_value=True), \
+             mock.patch.object(target, "_set_account_transfer_status") as set_status:
+            response = self.client_for(self.source_id).get(
+                "/api/account/export?job_id=" + "b" * 32,
+                base_url="https://localhost",
+            )
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.get_json()["error"], "cancelled")
+        self.assertTrue(any(call.args[2] == "cancelled" for call in set_status.call_args_list))
+
+    def test_cancelled_import_removes_files_and_rolls_back_database(self):
+        archive_bytes = self.export_archive()
+        original_checkpoint = target._account_transfer_checkpoint
+
+        def cancel_after_files(user_id, job_id, progress, phase, message=""):
+            if phase == "importing_settings":
+                raise target.AccountTransferCancelled()
+            return original_checkpoint(user_id, job_id, progress, phase, message)
+
+        with mock.patch.object(target, "_account_transfer_checkpoint", side_effect=cancel_after_files):
+            response = self.client_for(self.destination_id).post(
+                "/api/account/import",
+                data={
+                    "job_id": "c" * 32,
+                    "categories": "files,settings",
+                    "file": (io.BytesIO(archive_bytes), "account.zip"),
+                },
+                headers={"X-CSRF-Token": "csrf-test-token"},
+                content_type="multipart/form-data",
+                base_url="https://localhost",
+            )
+        self.assertEqual(response.status_code, 409, response.get_data(as_text=True))
+        with target.app.app_context():
+            destination = target.db.session.get(target.User, self.destination_id)
+            self.assertEqual(destination.theme_color, "#abcdef")
+            self.assertEqual(target.FileCache.query.filter_by(user_id=self.destination_id).count(), 0)
+        destination_dir = os.path.join(self.temp_dir.name, str(self.destination_id))
+        remaining = []
+        if os.path.isdir(destination_dir):
+            remaining = [name for _, _, names in os.walk(destination_dir) for name in names]
+        self.assertEqual(remaining, [])
+
+    def test_frontend_uses_direct_download_with_progress_and_cancel(self):
+        root = os.path.dirname(os.path.dirname(__file__))
+        with open(os.path.join(root, "static", "js", "chat_core.v4.8.722.js"), encoding="utf-8") as handle:
+            source = handle.read()
+        with open(os.path.join(root, "templates", "chat.html"), encoding="utf-8") as handle:
+            template = handle.read()
+        self.assertNotIn("await res.blob()", source)
+        self.assertIn("frame.src = `/api/account/export?job_id=", source)
+        self.assertIn("pollAccountTransfer", source)
+        self.assertIn("/cancel`, manualSpinnerRequestOptions", source)
+        self.assertIn('id="account-transfer-progress-bar"', template)
+        self.assertIn('id="account-transfer-cancel-btn"', template)
 
 
 if __name__ == "__main__":

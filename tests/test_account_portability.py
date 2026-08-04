@@ -472,7 +472,7 @@ class AccountPortabilityTests(unittest.TestCase):
 
     def test_frontend_restores_background_export_with_download_and_cancel(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "static", "js", "chat_core.v4.8.726.js"), encoding="utf-8") as handle:
+        with open(os.path.join(root, "static", "js", "chat_core.v4.8.727.js"), encoding="utf-8") as handle:
             source = handle.read()
         with open(os.path.join(root, "templates", "chat.html"), encoding="utf-8") as handle:
             template = handle.read()

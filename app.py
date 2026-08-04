@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-014')
-app.config['SYSTEM_VERSION'] = 'V4.8.726'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-015')
+app.config['SYSTEM_VERSION'] = 'V4.8.727'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -16343,7 +16343,7 @@ def start_account_import_upload():
     upload_dir = _account_import_upload_dir(current_user.id, upload_id)
     os.makedirs(upload_dir, mode=0o700, exist_ok=False)
     with open(os.path.join(upload_dir, 'meta.json'), 'w', encoding='utf-8') as meta_file:
-        json.dump({'size': total_size, 'received': 0, 'chunks': (total_size + _ACCOUNT_IMPORT_CHUNK_BYTES - 1) // _ACCOUNT_IMPORT_CHUNK_BYTES,
+        json.dump({'size': total_size, 'received': 0, 'received_chunks': [], 'chunks': (total_size + _ACCOUNT_IMPORT_CHUNK_BYTES - 1) // _ACCOUNT_IMPORT_CHUNK_BYTES,
                    'updated': int(time.time()), 'state': 'receiving'}, meta_file)
     return jsonify({'upload_id': upload_id, 'chunk_size': _ACCOUNT_IMPORT_CHUNK_BYTES,
                     'total_chunks': (total_size + _ACCOUNT_IMPORT_CHUNK_BYTES - 1) // _ACCOUNT_IMPORT_CHUNK_BYTES})
@@ -16366,17 +16366,28 @@ def account_import_upload_chunk(upload_id):
     total_size = int(meta.get('size') or 0)
     received = int(meta.get('received') or 0)
     total_chunks = int(meta.get('chunks') or 0)
-    if meta.get('state') != 'receiving' or index != received // _ACCOUNT_IMPORT_CHUNK_BYTES or index >= total_chunks:
-        return jsonify({'error': 'invalid_chunk_order'}), 409
-    expected = min(_ACCOUNT_IMPORT_CHUNK_BYTES, total_size - received)
+    received_chunks = {int(value) for value in (meta.get('received_chunks') or [])}
+    if meta.get('state') != 'receiving' or index >= total_chunks:
+        return jsonify({'error': 'invalid_chunk_index'}), 409
+    expected = min(_ACCOUNT_IMPORT_CHUNK_BYTES, total_size - (index * _ACCOUNT_IMPORT_CHUNK_BYTES))
+    part_path = os.path.join(upload_dir, f'chunk_{index:08d}.part')
+    if index in received_chunks and os.path.isfile(part_path) and os.path.getsize(part_path) == expected:
+        return jsonify({'received': received, 'total': total_size, 'index': index, 'duplicate': True})
     payload = chunk_file.read(_ACCOUNT_IMPORT_CHUNK_BYTES + 1)
     if len(payload) != expected:
         return jsonify({'error': 'invalid_chunk_size'}), 400
-    part_path = os.path.join(upload_dir, 'data.part')
-    with open(part_path, 'ab') as part_file:
-        part_file.write(payload)
-    meta.update(received=received + len(payload), updated=int(time.time()))
-    _save_chunk_meta(meta_path, meta)
+    with _chunk_upload_lock(upload_dir):
+        meta = _load_chunk_meta(meta_path) or {}
+        received_chunks = {int(value) for value in (meta.get('received_chunks') or [])}
+        if index in received_chunks and os.path.isfile(part_path) and os.path.getsize(part_path) == expected:
+            return jsonify({'received': int(meta.get('received') or 0), 'total': total_size, 'index': index, 'duplicate': True})
+        if index in received_chunks:
+            return jsonify({'error': 'chunk_already_received'}), 409
+        with open(part_path, 'wb') as part_file:
+            part_file.write(payload)
+        received_chunks.add(index)
+        meta.update(received=int(meta.get('received') or 0) + len(payload), received_chunks=sorted(received_chunks), updated=int(time.time()))
+        _save_chunk_meta(meta_path, meta)
     return jsonify({'received': meta['received'], 'total': total_size, 'index': index})
 
 @app.route('/api/account/import/upload/<upload_id>/complete', methods=['POST'])
@@ -16388,9 +16399,24 @@ def complete_account_import_upload(upload_id):
     meta_path = os.path.join(upload_dir, 'meta.json') if upload_dir else None
     part_path = os.path.join(upload_dir, 'data.part') if upload_dir else None
     meta = _load_chunk_meta(meta_path) if meta_path else None
-    if not meta or not os.path.isfile(part_path):
+    if not meta:
         return jsonify({'error': 'upload_not_found'}), 404
-    if int(meta.get('received') or 0) != int(meta.get('size') or 0) or os.path.getsize(part_path) != int(meta.get('size') or 0):
+    total_size = int(meta.get('size') or 0)
+    total_chunks = int(meta.get('chunks') or 0)
+    received_chunks = {int(value) for value in (meta.get('received_chunks') or [])}
+    if len(received_chunks) != total_chunks or received_chunks != set(range(total_chunks)) or int(meta.get('received') or 0) != total_size:
+        return jsonify({'error': 'upload_incomplete'}), 400
+    temp_path = f'{part_path}.tmp'
+    with open(temp_path, 'wb') as output:
+        for index in range(total_chunks):
+            chunk_path = os.path.join(upload_dir, f'chunk_{index:08d}.part')
+            expected = min(_ACCOUNT_IMPORT_CHUNK_BYTES, total_size - (index * _ACCOUNT_IMPORT_CHUNK_BYTES))
+            if not os.path.isfile(chunk_path) or os.path.getsize(chunk_path) != expected:
+                return jsonify({'error': 'upload_incomplete'}), 400
+            with open(chunk_path, 'rb') as chunk_input:
+                shutil.copyfileobj(chunk_input, output, length=1024 * 1024)
+    os.replace(temp_path, part_path)
+    if os.path.getsize(part_path) != total_size:
         return jsonify({'error': 'upload_incomplete'}), 400
     meta.update(state='ready', updated=int(time.time()))
     _save_chunk_meta(meta_path, meta)

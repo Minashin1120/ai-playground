@@ -8000,18 +8000,26 @@
                         if (!startRes.ok) throw new Error(startData.error || 'アップロードを開始できません');
                         transfer.uploadId = startData.upload_id;
                         const actualChunkSize = startData.chunk_size || chunkSize;
-                        for (let index = 0; index < totalChunks; index++) {
-                            const chunk = file.slice(index * actualChunkSize, Math.min(file.size, (index + 1) * actualChunkSize));
-                            const chunkForm = new FormData();
-                            chunkForm.append('chunk', chunk, file.name);
-                            chunkForm.append('index', String(index));
-                            const chunkRes = await apiFetch(`/api/account/import/upload/${encodeURIComponent(transfer.uploadId)}/chunk`, manualSpinnerRequestOptions({
-                                method: 'POST', body: chunkForm, signal: transfer.controller.signal,
-                            }));
-                            const chunkData = await chunkRes.json().catch(() => ({}));
-                            if (!chunkRes.ok) throw new Error(chunkData.error || 'アップロードに失敗しました');
-                            renderAccountTransferProgress({progress: Math.min(35, 3 + Math.round(((index + 1) / totalChunks) * 32)), phase: 'uploading', message: `ZIPをアップロードしています（${index + 1}/${totalChunks}）`});
-                        }
+                        let uploadedChunks = 0;
+                        let nextChunk = 0;
+                        const uploadWorker = async () => {
+                            while (true) {
+                                const index = nextChunk++;
+                                if (index >= totalChunks) return;
+                                const chunk = file.slice(index * actualChunkSize, Math.min(file.size, (index + 1) * actualChunkSize));
+                                const chunkForm = new FormData();
+                                chunkForm.append('chunk', chunk, file.name);
+                                chunkForm.append('index', String(index));
+                                const chunkRes = await apiFetch(`/api/account/import/upload/${encodeURIComponent(transfer.uploadId)}/chunk`, manualSpinnerRequestOptions({
+                                    method: 'POST', body: chunkForm, signal: transfer.controller.signal,
+                                }));
+                                const chunkData = await chunkRes.json().catch(() => ({}));
+                                if (!chunkRes.ok) throw new Error(chunkData.error || 'アップロードに失敗しました');
+                                uploadedChunks++;
+                                renderAccountTransferProgress({progress: Math.min(35, 3 + Math.round((uploadedChunks / totalChunks) * 32)), phase: 'uploading', message: `ZIPを並列アップロードしています（${uploadedChunks}/${totalChunks}）`});
+                            }
+                        };
+                        await Promise.all([uploadWorker(), uploadWorker(), uploadWorker()]);
                         const completeRes = await apiFetch(`/api/account/import/upload/${encodeURIComponent(transfer.uploadId)}/complete`, manualSpinnerRequestOptions({method: 'POST', signal: transfer.controller.signal}));
                         const completeData = await completeRes.json().catch(() => ({}));
                         if (!completeRes.ok) throw new Error(completeData.error || 'アップロードを完了できません');

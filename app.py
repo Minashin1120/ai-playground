@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-011')
-app.config['SYSTEM_VERSION'] = 'V4.8.723'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-012')
+app.config['SYSTEM_VERSION'] = 'V4.8.724'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3248,6 +3248,10 @@ class AccountTransferCancelled(Exception):
     pass
 
 
+class AccountExportFileUnreadable(Exception):
+    pass
+
+
 def _account_transfer_status_key(user_id, job_id):
     return f"account_transfer:status:{int(user_id)}:{job_id}"
 
@@ -3446,13 +3450,13 @@ def _account_file_rows(user_id):
 def _write_account_export_file(archive, archive_name, row):
     info = row.get("info") or {}
     if not info.get("exists"):
-        raise ValueError("export_file_missing")
+        raise AccountExportFileUnreadable("export_file_missing")
     digest = hashlib.sha256()
     size_bytes = 0
     if info.get("is_encrypted"):
         data = _load_user_file_bytes(row.get("rel_path"), info)
         if data is None:
-            raise ValueError("export_file_unreadable")
+            raise AccountExportFileUnreadable("export_file_unreadable")
         digest.update(data)
         size_bytes = len(data)
         archive.writestr(archive_name, data)
@@ -3468,7 +3472,29 @@ def _write_account_export_file(archive, archive_name, row):
     return size_bytes, digest.hexdigest()
 
 
-def _stream_account_export(path, user_id, job_id):
+def _write_account_export_recovery_file(archive, archive_name, row):
+    """Preserve an unreadable file byte-for-byte for possible future recovery."""
+    info = row.get("info") or {}
+    disk_path = info.get("disk_path")
+    if not info.get("exists") or not disk_path or not _path_is_within(app.config["UPLOAD_FOLDER"], disk_path):
+        return None
+    digest = hashlib.sha256()
+    size_bytes = 0
+    try:
+        with open(disk_path, "rb") as source, archive.open(archive_name, "w", force_zip64=True) as target:
+            while True:
+                chunk = source.read(1024 * 1024)
+                if not chunk:
+                    break
+                target.write(chunk)
+                digest.update(chunk)
+                size_bytes += len(chunk)
+    except OSError:
+        return None
+    return {"archive_path": archive_name, "size_bytes": size_bytes, "sha256": digest.hexdigest()}
+
+
+def _stream_account_export(path, user_id, job_id, completion_message="エクスポートが完了しました"):
     """Stream a generated export and always erase the temporary archive.
 
     Flask's ``send_file`` may use the web server's file wrapper, in which case a
@@ -3489,7 +3515,7 @@ def _stream_account_export(path, user_id, job_id):
                 if not chunk:
                     completed = True
                     _set_account_transfer_status(
-                        user_id, job_id, "completed", 100, "completed", "エクスポートが完了しました"
+                        user_id, job_id, "completed", 100, "completed", completion_message
                     )
                     break
                 sent_size += len(chunk)
@@ -15919,6 +15945,7 @@ def export_account_data():
                 "feedback": [],
                 "diagnostics": {},
                 "files": [],
+                "unreadable_files": [],
             },
         }
         _account_transfer_checkpoint(current_user.id, job_id, 5, "preparing", "チャット履歴を読み込んでいます")
@@ -15940,12 +15967,31 @@ def export_account_data():
                     f"ファイルを書き出しています（{index}/{len(file_rows)}）",
                 )
                 archive_name = f"files/{index:06d}.bin"
-                size_bytes, sha256 = _write_account_export_file(archive, archive_name, row)
-                item = {key: value for key, value in row.items() if key != "info"}
-                item["archive_path"] = archive_name
-                item["size_bytes"] = size_bytes
-                item["sha256"] = sha256
-                manifest["data"]["files"].append(item)
+                try:
+                    size_bytes, sha256 = _write_account_export_file(archive, archive_name, row)
+                    item = {key: value for key, value in row.items() if key != "info"}
+                    item["archive_path"] = archive_name
+                    item["size_bytes"] = size_bytes
+                    item["sha256"] = sha256
+                    manifest["data"]["files"].append(item)
+                except AccountExportFileUnreadable as exc:
+                    recovery_archive_name = f"recovery_files/{index:06d}.enc"
+                    recovery = _write_account_export_recovery_file(
+                        archive, recovery_archive_name, row
+                    )
+                    recovery_item = {key: value for key, value in row.items() if key != "info"}
+                    recovery_item.update({
+                        "reason": str(exc),
+                        "importable": False,
+                        "encrypted_source": bool((row.get("info") or {}).get("is_encrypted")),
+                    })
+                    if recovery:
+                        recovery_item.update(recovery)
+                    manifest["data"]["unreadable_files"].append(recovery_item)
+                    logger.warning(
+                        "Preserved unreadable account export file for user %s: %s",
+                        current_user.id, row.get("rel_path"),
+                    )
                 completed_file_weight += max(1, int((row.get("info") or {}).get("size") or 0))
             _account_transfer_checkpoint(current_user.id, job_id, 92, "finalizing", "ZIPを仕上げています")
             archive.writestr(
@@ -15955,8 +16001,15 @@ def export_account_data():
         _account_transfer_checkpoint(current_user.id, job_id, 99, "ready", "ダウンロードを開始します")
         filename = f"ai-playground-account-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.zip"
         export_size = os.path.getsize(export_path)
+        unreadable_count = len(manifest["data"]["unreadable_files"])
+        completion_message = (
+            f"エクスポートが完了しました（読取不能な{unreadable_count}件は復旧用データとして収録）"
+            if unreadable_count else "エクスポートが完了しました"
+        )
         response = Response(
-            stream_with_context(_stream_account_export(export_path, current_user.id, job_id)),
+            stream_with_context(_stream_account_export(
+                export_path, current_user.id, job_id, completion_message
+            )),
             mimetype="application/zip",
             direct_passthrough=True,
         )

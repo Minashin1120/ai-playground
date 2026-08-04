@@ -176,6 +176,37 @@ class AccountPortabilityTests(unittest.TestCase):
             file_item = manifest["data"]["files"][0]
             self.assertEqual(archive.read(file_item["archive_path"]), b"portable file body")
 
+    def test_export_preserves_unreadable_encrypted_files_without_failing(self):
+        corrupt_bytes = b"not-a-valid-fernet-token"
+        corrupt_rel = f"{self.source_id}/corrupt.bin"
+        corrupt_path = os.path.join(self.temp_dir.name, str(self.source_id), "corrupt.bin.enc")
+        with open(corrupt_path, "wb") as handle:
+            handle.write(corrupt_bytes)
+
+        archive_bytes = self.export_archive()
+        with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+            manifest = json.loads(archive.read("account_data.json"))
+            self.assertEqual(len(manifest["data"]["files"]), 1)
+            self.assertEqual(len(manifest["data"]["unreadable_files"]), 1)
+            recovery = manifest["data"]["unreadable_files"][0]
+            self.assertEqual(recovery["rel_path"], corrupt_rel)
+            self.assertFalse(recovery["importable"])
+            self.assertTrue(recovery["encrypted_source"])
+            self.assertEqual(archive.read(recovery["archive_path"]), corrupt_bytes)
+
+        response = self.client_for(self.destination_id).post(
+            "/api/account/import",
+            data={
+                "categories": "files",
+                "file": (io.BytesIO(archive_bytes), "account.zip"),
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            content_type="multipart/form-data",
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(response.get_json()["imported"]["files"], 1)
+
     def test_selective_import_adds_content_without_changing_username_or_unselected_settings(self):
         archive_bytes = self.export_archive()
         response = self.client_for(self.destination_id).post(
@@ -356,7 +387,7 @@ class AccountPortabilityTests(unittest.TestCase):
 
     def test_frontend_uses_direct_download_with_progress_and_cancel(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "static", "js", "chat_core.v4.8.723.js"), encoding="utf-8") as handle:
+        with open(os.path.join(root, "static", "js", "chat_core.v4.8.724.js"), encoding="utf-8") as handle:
             source = handle.read()
         with open(os.path.join(root, "templates", "chat.html"), encoding="utf-8") as handle:
             template = handle.read()
@@ -364,6 +395,8 @@ class AccountPortabilityTests(unittest.TestCase):
         self.assertIn("frame.src = `/api/account/export?job_id=", source)
         self.assertIn("pollAccountTransfer", source)
         self.assertIn("/cancel`, manualSpinnerRequestOptions", source)
+        self.assertIn("includes('読取不能')", source)
+        self.assertIn("downloading: 'ダウンロード中'", source)
         self.assertIn('id="account-transfer-progress-bar"', template)
         self.assertIn('id="account-transfer-cancel-btn"', template)
 

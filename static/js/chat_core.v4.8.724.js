@@ -7801,7 +7801,7 @@
                 if (detail) {
                     const labels = {
                         preparing: 'データを準備中', exporting_files: 'ファイルを書き出し中',
-                        finalizing: '最終処理中', ready: 'ダウンロード準備完了',
+                        finalizing: '最終処理中', ready: 'ダウンロード準備完了', downloading: 'ダウンロード中',
                         validating: 'ZIPを検証中', validating_files: 'ファイル情報を検証中',
                         reading_files: 'ファイルを読み込み中', importing_settings: '設定を反映中',
                         importing_credentials: '認証情報を反映中', importing_gems: 'Gemを追加中',
@@ -7878,7 +7878,11 @@
                     pollAccountTransfer(transfer).then(data => {
                         if (!data || transfer.cancelRequested) return;
                         if (data.state === 'completed') {
-                            showToast('アカウントデータのダウンロードを開始しました', 'success');
+                            if (String(data.message || '').includes('読取不能')) {
+                                showToast(data.message, 'warning', true);
+                            } else {
+                                showToast('アカウントデータのダウンロードを開始しました', 'success');
+                            }
                         } else if (data.state === 'failed') {
                             showToast(data.message || 'エクスポートに失敗しました', 'error', true);
                         }

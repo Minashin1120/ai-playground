@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-015')
-app.config['SYSTEM_VERSION'] = 'V4.8.727'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-05-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.728'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3766,6 +3766,10 @@ def build_account_export_task(user_id, job_id):
             _account_transfer_checkpoint(user.id, job_id, 96, "finalizing", "ダウンロード用ZIPを保存しています")
             os.chmod(part_path, 0o600)
             os.replace(part_path, final_path)
+            try:
+                os.chmod(final_path, 0o600)
+            except OSError:
+                pass
             ready_ts = int(time.time())
             expires_ts = ready_ts + ACCOUNT_EXPORT_RETENTION_SECONDS
             filename = f"ai-playground-account-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.zip"
@@ -5486,6 +5490,7 @@ def _temp_chat_monitor_loop():
                 with app.app_context():
                     _cleanup_stale_temp_chats()
                     _maybe_sweep_stale_chunk_uploads()
+                    _cleanup_all_stale_account_import_uploads()
         except Exception as e:
             logger.error(f"Temporary chat monitor error: {e}")
         time.sleep(_TEMP_CHAT_MONITOR_INTERVAL)
@@ -16297,7 +16302,13 @@ _ACCOUNT_IMPORT_CHUNK_BYTES = 10 * 1024 * 1024
 _ACCOUNT_IMPORT_MAX_BYTES = 2 * 1024 * 1024 * 1024
 
 def _account_import_upload_root():
-    return os.path.join(app.instance_path, "account_import_uploads")
+    path = os.path.join(app.instance_path, "account_import_uploads")
+    try:
+        os.makedirs(path, mode=0o700, exist_ok=True)
+        os.chmod(path, 0o700)
+    except OSError:
+        pass
+    return path
 
 def _is_valid_account_import_upload_id(upload_id):
     return bool(_ACCOUNT_IMPORT_UPLOAD_ID_RE.fullmatch(str(upload_id or "")))
@@ -16324,6 +16335,23 @@ def _cleanup_stale_account_import_uploads(user_id):
     except Exception:
         logger.debug("Unable to sweep stale account import uploads", exc_info=True)
 
+def _cleanup_all_stale_account_import_uploads():
+    root = _account_import_upload_root()
+    if not os.path.isdir(root):
+        return
+    try:
+        entries = list(os.scandir(root))
+    except OSError:
+        return
+    for entry in entries:
+        if not entry.is_dir(follow_symlinks=False):
+            continue
+        try:
+            int(entry.name)
+        except (TypeError, ValueError):
+            continue
+        _cleanup_stale_account_import_uploads(entry.name)
+
 @app.route('/api/account/import/upload/start', methods=['POST'])
 @login_required
 def start_account_import_upload():
@@ -16339,12 +16367,25 @@ def start_account_import_upload():
     _cleanup_stale_account_import_uploads(current_user.id)
     user_root = os.path.join(_account_import_upload_root(), str(current_user.id))
     os.makedirs(user_root, mode=0o700, exist_ok=True)
+    try:
+        os.chmod(user_root, 0o700)
+    except OSError:
+        pass
     upload_id = f"imp_{int(time.time())}_{secrets.token_hex(8)}"
     upload_dir = _account_import_upload_dir(current_user.id, upload_id)
     os.makedirs(upload_dir, mode=0o700, exist_ok=False)
-    with open(os.path.join(upload_dir, 'meta.json'), 'w', encoding='utf-8') as meta_file:
+    try:
+        os.chmod(upload_dir, 0o700)
+    except OSError:
+        pass
+    meta_path = os.path.join(upload_dir, 'meta.json')
+    with open(meta_path, 'w', encoding='utf-8') as meta_file:
         json.dump({'size': total_size, 'received': 0, 'received_chunks': [], 'chunks': (total_size + _ACCOUNT_IMPORT_CHUNK_BYTES - 1) // _ACCOUNT_IMPORT_CHUNK_BYTES,
                    'updated': int(time.time()), 'state': 'receiving'}, meta_file)
+    try:
+        os.chmod(meta_path, 0o600)
+    except OSError:
+        pass
     return jsonify({'upload_id': upload_id, 'chunk_size': _ACCOUNT_IMPORT_CHUNK_BYTES,
                     'total_chunks': (total_size + _ACCOUNT_IMPORT_CHUNK_BYTES - 1) // _ACCOUNT_IMPORT_CHUNK_BYTES})
 
@@ -16385,6 +16426,10 @@ def account_import_upload_chunk(upload_id):
             return jsonify({'error': 'chunk_already_received'}), 409
         with open(part_path, 'wb') as part_file:
             part_file.write(payload)
+        try:
+            os.chmod(part_path, 0o600)
+        except OSError:
+            pass
         received_chunks.add(index)
         meta.update(received=int(meta.get('received') or 0) + len(payload), received_chunks=sorted(received_chunks), updated=int(time.time()))
         _save_chunk_meta(meta_path, meta)
@@ -16406,16 +16451,30 @@ def complete_account_import_upload(upload_id):
     received_chunks = {int(value) for value in (meta.get('received_chunks') or [])}
     if len(received_chunks) != total_chunks or received_chunks != set(range(total_chunks)) or int(meta.get('received') or 0) != total_size:
         return jsonify({'error': 'upload_incomplete'}), 400
+    for index in range(total_chunks):
+        chunk_path = os.path.join(upload_dir, f'chunk_{index:08d}.part')
+        expected = min(_ACCOUNT_IMPORT_CHUNK_BYTES, total_size - (index * _ACCOUNT_IMPORT_CHUNK_BYTES))
+        if not os.path.isfile(chunk_path) or os.path.getsize(chunk_path) != expected:
+            return jsonify({'error': 'upload_incomplete'}), 400
     temp_path = f'{part_path}.tmp'
-    with open(temp_path, 'wb') as output:
-        for index in range(total_chunks):
-            chunk_path = os.path.join(upload_dir, f'chunk_{index:08d}.part')
-            expected = min(_ACCOUNT_IMPORT_CHUNK_BYTES, total_size - (index * _ACCOUNT_IMPORT_CHUNK_BYTES))
-            if not os.path.isfile(chunk_path) or os.path.getsize(chunk_path) != expected:
-                return jsonify({'error': 'upload_incomplete'}), 400
-            with open(chunk_path, 'rb') as chunk_input:
-                shutil.copyfileobj(chunk_input, output, length=1024 * 1024)
+    try:
+        with open(temp_path, 'wb') as output:
+            for index in range(total_chunks):
+                chunk_path = os.path.join(upload_dir, f'chunk_{index:08d}.part')
+                with open(chunk_path, 'rb') as chunk_input:
+                    shutil.copyfileobj(chunk_input, output, length=1024 * 1024)
+    except Exception:
+        try:
+            if os.path.lexists(temp_path):
+                os.remove(temp_path)
+        except Exception:
+            pass
+        raise
     os.replace(temp_path, part_path)
+    try:
+        os.chmod(part_path, 0o600)
+    except OSError:
+        pass
     if os.path.getsize(part_path) != total_size:
         return jsonify({'error': 'upload_incomplete'}), 400
     meta.update(state='ready', updated=int(time.time()))

@@ -11,6 +11,8 @@ db_fix.py
 cookie.txt
 .DS_Store
 instance/uploads/*
+instance/account_exports/
+instance/account_import_uploads/
 static/uploads/*
 !static/uploads/.htaccess
 !static/uploads/legal/

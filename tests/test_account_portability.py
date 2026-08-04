@@ -472,7 +472,7 @@ class AccountPortabilityTests(unittest.TestCase):
 
     def test_frontend_restores_background_export_with_download_and_cancel(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "static", "js", "chat_core.v4.8.728.js"), encoding="utf-8") as handle:
+        with open(os.path.join(root, "static", "js", "chat_core.v4.8.729.js"), encoding="utf-8") as handle:
             source = handle.read()
         with open(os.path.join(root, "templates", "chat.html"), encoding="utf-8") as handle:
             template = handle.read()
@@ -492,6 +492,27 @@ class AccountPortabilityTests(unittest.TestCase):
         with open(os.path.join(root, "worker.py"), encoding="utf-8") as handle:
             worker_source = handle.read()
         self.assertIn("worker.work(with_scheduler=True)", worker_source)
+
+    def test_import_chunk_upload_accepts_chunks_larger_than_the_generic_body_limit(self):
+        client = self.client_for(self.destination_id)
+        start = client.post(
+            "/api/account/import/upload/start",
+            json={"size": 20 * 1024 * 1024},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(start.status_code, 200, start.get_data(as_text=True))
+        upload_id = start.get_json()["upload_id"]
+        chunk = io.BytesIO(b"x" * (10 * 1024 * 1024))
+        response = client.post(
+            f"/api/account/import/upload/{upload_id}/chunk",
+            data={"index": "0", "chunk": (chunk, "account.zip")},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            content_type="multipart/form-data",
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(response.get_json()["received"], 10 * 1024 * 1024)
 
 
 if __name__ == "__main__":

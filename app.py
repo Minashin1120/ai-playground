@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-05-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.728'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-05-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.729'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -807,7 +807,7 @@ login_manager.login_view = 'login'
 def _apply_per_user_upload_limits():
     endpoint = request.endpoint or ''
     global_limit = app.config.get('MAX_CONTENT_LENGTH')
-    if endpoint not in ('upload', 'upload_chunk', 'import_account_data'):
+    if endpoint not in ('upload', 'upload_chunk', 'import_account_data', 'account_import_upload_chunk'):
         endpoint_limit = 4 * 1024 * 1024
         if endpoint in {'transcribe', 'speech_to_speech', 'save_sts_direct'}:
             endpoint_limit = 32 * 1024 * 1024
@@ -816,7 +816,7 @@ def _apply_per_user_upload_limits():
         request.max_content_length = min(global_limit, endpoint_limit) if global_limit else endpoint_limit
         return
     try:
-        if endpoint == 'import_account_data':
+        if endpoint in ('import_account_data', 'account_import_upload_chunk'):
             request.max_content_length = global_limit
         elif current_user.is_authenticated and _is_primary_admin_user(current_user):
             request.max_content_length = min(global_limit or 12 * 1024 * 1024, 12 * 1024 * 1024) if endpoint == 'upload_chunk' else global_limit

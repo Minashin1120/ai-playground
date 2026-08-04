@@ -7800,17 +7800,21 @@
                 if (textEl) textEl.textContent = payload.message || '処理状況を確認しています';
                 if (detail) {
                     const labels = {
-                        preparing: 'データを準備中', exporting_files: 'ファイルを書き出し中',
+                        queued: '順番待ち', preparing: 'データを準備中', exporting_files: 'ファイルを書き出し中',
                         finalizing: '最終処理中', ready: 'ダウンロード準備完了', downloading: 'ダウンロード中',
                         validating: 'ZIPを検証中', validating_files: 'ファイル情報を検証中',
                         reading_files: 'ファイルを読み込み中', importing_settings: '設定を反映中',
                         importing_credentials: '認証情報を反映中', importing_gems: 'Gemを追加中',
                         saving_files: 'ファイルを保存中', importing_chats: 'チャット履歴を追加中',
                         importing_feedback: 'フィードバックを追加中', importing_diagnostics: '診断データを追加中',
-                        cancelling: 'キャンセル処理中', cancelled: 'キャンセル済み',
+                        cancelling: 'キャンセル処理中', cancelled: 'キャンセル済み', expired: '保存期限切れ',
                         completed: '完了', failed: '失敗'
                     };
                     detail.textContent = labels[payload.phase] || '処理状況を確認しています。';
+                }
+                const cancelBtn = get('account-transfer-cancel-btn');
+                if (cancelBtn) {
+                    cancelBtn.classList.toggle('hidden', ['ready', 'completed', 'failed', 'cancelled', 'expired'].includes(payload.phase));
                 }
             };
             const setAccountTransferControls = (running) => {
@@ -7819,6 +7823,35 @@
                 if (importBtn) importBtn.disabled = !!running;
                 const cancelBtn = get('account-transfer-cancel-btn');
                 if (cancelBtn) cancelBtn.disabled = !running;
+            };
+            const renderAccountExportAvailability = (payload = {}) => {
+                const wrap = get('account-export-ready');
+                const textEl = get('account-export-ready-text');
+                const expiryEl = get('account-export-expiry');
+                const downloadBtn = get('account-export-download-btn');
+                const available = !!(payload.available && payload.download_url);
+                if (wrap) wrap.classList.toggle('hidden', !available);
+                if (!available) {
+                    if (downloadBtn) downloadBtn.removeAttribute('href');
+                    return;
+                }
+                const size = Math.max(0, Number(payload.size_bytes) || 0);
+                const sizeLabel = size >= 1024 * 1024 * 1024
+                    ? `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`
+                    : `${(size / (1024 * 1024)).toFixed(1)} MB`;
+                if (textEl) {
+                    const warning = Number(payload.unreadable_count) > 0
+                        ? `（読取不能 ${Number(payload.unreadable_count)}件を復旧用として収録）`
+                        : '';
+                    textEl.textContent = `エクスポートZIPをダウンロードできます：${sizeLabel}${warning}`;
+                }
+                if (expiryEl) {
+                    const expiry = payload.expires_at ? new Date(payload.expires_at) : null;
+                    expiryEl.textContent = expiry && !Number.isNaN(expiry.getTime())
+                        ? `保存期限：${expiry.toLocaleString()}（期限後に自動削除）`
+                        : '完成から1時間後に自動削除されます。';
+                }
+                if (downloadBtn) downloadBtn.href = payload.download_url;
             };
             const pollAccountTransfer = async (transfer) => {
                 while (activeAccountTransfer === transfer && !transfer.stopped) {
@@ -7829,12 +7862,44 @@
                         const data = await res.json().catch(() => ({}));
                         if (res.ok) {
                             renderAccountTransferProgress(data);
-                            if (['completed', 'failed', 'cancelled'].includes(data.state)) return data;
+                            if (['ready', 'completed', 'failed', 'cancelled', 'expired'].includes(data.state)) return data;
                         }
                     } catch (_) {}
                     await new Promise(resolve => setTimeout(resolve, 700));
                 }
                 return null;
+            };
+            const handleFinishedAccountExport = (transfer, data, notify = true) => {
+                if (!data) return;
+                renderAccountTransferProgress(data);
+                renderAccountExportAvailability(data);
+                if (notify && data.state === 'ready') {
+                    showToast(data.message || 'エクスポートZIPの準備が完了しました', Number(data.unreadable_count) > 0 ? 'warning' : 'success', Number(data.unreadable_count) > 0);
+                } else if (notify && data.state === 'failed') {
+                    showToast(data.message || 'エクスポートに失敗しました', 'error', true);
+                }
+                finishAccountTransfer(transfer);
+            };
+            const refreshLatestAccountExport = async () => {
+                try {
+                    const res = await apiFetch('/api/account/export/latest', manualSpinnerRequestOptions({cache: 'no-store'}));
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) return;
+                    renderAccountExportAvailability(data);
+                    if (data.state === 'ready') {
+                        renderAccountTransferProgress(data);
+                        return;
+                    }
+                    if (!['queued', 'running', 'cancelling'].includes(data.state) || !data.job_id) return;
+                    if (activeAccountTransfer && activeAccountTransfer.id === data.job_id) return;
+                    if (activeAccountTransfer) return;
+                    const transfer = {id: data.job_id, type: 'export', stopped: false, restored: true};
+                    activeAccountTransfer = transfer;
+                    setAccountTransferControls(true);
+                    renderAccountTransferProgress(data);
+                    const finished = await pollAccountTransfer(transfer);
+                    if (finished) handleFinishedAccountExport(transfer, finished, true);
+                } catch (_) {}
             };
             const finishAccountTransfer = (transfer) => {
                 if (activeAccountTransfer === transfer) activeAccountTransfer = null;
@@ -7855,42 +7920,45 @@
                         }));
                     } catch (_) {}
                     if (transfer.controller) transfer.controller.abort();
-                    if (transfer.frame) transfer.frame.src = 'about:blank';
                     renderAccountTransferProgress({progress: 0, phase: 'cancelled', message: 'キャンセルしました'});
+                    if (transfer.type === 'export') renderAccountExportAvailability({available: false});
                     finishAccountTransfer(transfer);
                     showToast('処理をキャンセルしました', 'info');
                 };
             }
             const accountExportBtn = get('account-export-btn');
             if (accountExportBtn) {
-                accountExportBtn.onclick = () => {
+                accountExportBtn.onclick = async () => {
                     if (activeAccountTransfer) return;
-                    const transfer = {id: createAccountTransferId(), type: 'export', stopped: false, frame: null};
+                    const transfer = {id: createAccountTransferId(), type: 'export', stopped: false};
                     activeAccountTransfer = transfer;
                     setAccountTransferControls(true);
-                    renderAccountTransferProgress({progress: 0, phase: 'preparing', message: 'エクスポートを開始しています'});
-                    const frame = document.createElement('iframe');
-                    frame.className = 'hidden';
-                    frame.setAttribute('aria-hidden', 'true');
-                    frame.src = `/api/account/export?job_id=${encodeURIComponent(transfer.id)}`;
-                    transfer.frame = frame;
-                    document.body.appendChild(frame);
-                    pollAccountTransfer(transfer).then(data => {
-                        if (!data || transfer.cancelRequested) return;
-                        if (data.state === 'completed') {
-                            if (String(data.message || '').includes('読取不能')) {
-                                showToast(data.message, 'warning', true);
-                            } else {
-                                showToast('アカウントデータのダウンロードを開始しました', 'success');
-                            }
-                        } else if (data.state === 'failed') {
-                            showToast(data.message || 'エクスポートに失敗しました', 'error', true);
+                    renderAccountExportAvailability({available: false});
+                    renderAccountTransferProgress({progress: 0, phase: 'queued', message: 'エクスポートを受け付けています'});
+                    try {
+                        const res = await apiFetch('/api/account/export', manualSpinnerRequestOptions({
+                            method: 'POST', headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({job_id: transfer.id}), keepalive: true,
+                        }));
+                        const data = await res.json().catch(() => ({}));
+                        if (res.status === 409 && data.error === 'export_in_progress' && data.job_id) {
+                            transfer.id = data.job_id;
+                        } else if (!res.ok) {
+                            throw new Error(data.error === 'rate_limit' ? 'エクスポート回数の上限に達しました' : (data.error || 'エクスポートを開始できませんでした'));
                         }
+                        renderAccountTransferProgress({progress: 0, phase: 'queued', message: 'バックグラウンドでエクスポートしています'});
+                        const finished = await pollAccountTransfer(transfer);
+                        if (!transfer.cancelRequested && finished) handleFinishedAccountExport(transfer, finished, true);
+                    } catch (error) {
+                        const message = error && error.message ? error.message : 'エクスポートを開始できませんでした';
+                        renderAccountTransferProgress({progress: 0, phase: 'failed', message});
+                        showToast(message, 'error', true);
                         finishAccountTransfer(transfer);
-                        setTimeout(() => frame.remove(), 10 * 60 * 1000);
-                    });
+                    }
                 };
             }
+            setAccountTransferControls(false);
+            refreshLatestAccountExport();
             const accountImportBtn = get('account-import-btn');
             if (accountImportBtn) {
                 accountImportBtn.onclick = async () => {
@@ -8315,6 +8383,7 @@
                 syncAdaptiveBlurSettingsUi();
                 loadStorageUsage();
                 loadSiteCacheUsage();
+                refreshLatestAccountExport();
                 ensureLlmTranscribePromptSettingsUi();
                 if (location.pathname !== '/settings') {
                     history.pushState({ modal: 'settings', from: location.pathname }, '', '/settings');

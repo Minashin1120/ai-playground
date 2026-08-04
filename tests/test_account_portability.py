@@ -16,6 +16,38 @@ os.environ.setdefault("VERBOSE_DEBUG_LOGS", "0")
 import app as target
 
 
+class MemoryRedis:
+    def __init__(self):
+        self.data = {}
+
+    def set(self, key, value, nx=False, ex=None):
+        if nx and key in self.data:
+            return False
+        self.data[key] = value
+        return True
+
+    def setex(self, key, ttl, value):
+        self.data[key] = value
+        return True
+
+    def get(self, key):
+        return self.data.get(key)
+
+    def exists(self, key):
+        return key in self.data
+
+    def delete(self, *keys):
+        count = 0
+        for key in keys:
+            if key in self.data:
+                del self.data[key]
+                count += 1
+        return count
+
+    def expire(self, key, ttl):
+        return key in self.data
+
+
 class AccountPortabilityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -25,8 +57,29 @@ class AccountPortabilityTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         target.app.config["UPLOAD_FOLDER"] = self.temp_dir.name
+        self.export_dir = os.path.join(self.temp_dir.name, "account-exports")
+        os.makedirs(self.export_dir, mode=0o700)
+        self.memory_redis = MemoryRedis()
+
+        def immediate_enqueue(func, *args, **kwargs):
+            func(*args)
+            return mock.Mock(id="test-job")
+
+        self.redis_patcher = mock.patch.object(target, "redis_conn", self.memory_redis)
+        self.export_dir_patcher = mock.patch.object(target, "_account_export_dir", return_value=self.export_dir)
+        self.enqueue_patcher = mock.patch.object(target.task_queue, "enqueue", side_effect=immediate_enqueue)
+        self.enqueue_in_patcher = mock.patch.object(target.task_queue, "enqueue_in", return_value=mock.Mock(id="cleanup-job"))
+        self.redis_patcher.start()
+        self.export_dir_patcher.start()
+        self.enqueue_mock = self.enqueue_patcher.start()
+        self.enqueue_in_mock = self.enqueue_in_patcher.start()
+        self.addCleanup(self.redis_patcher.stop)
+        self.addCleanup(self.export_dir_patcher.stop)
+        self.addCleanup(self.enqueue_patcher.stop)
+        self.addCleanup(self.enqueue_in_patcher.stop)
         with target.app.app_context():
             target.db.session.remove()
+            target.db.engine.dispose()
             target.db.drop_all()
             target.db.create_all()
             source = target.User(
@@ -133,6 +186,7 @@ class AccountPortabilityTests(unittest.TestCase):
     def tearDown(self):
         with target.app.app_context():
             target.db.session.remove()
+            target.db.engine.dispose()
         self.temp_dir.cleanup()
 
     def client_for(self, user_id):
@@ -144,8 +198,16 @@ class AccountPortabilityTests(unittest.TestCase):
         return client
 
     def export_archive(self):
+        job_id = "e" * 32
+        start = self.client_for(self.source_id).post(
+            "/api/account/export",
+            json={"job_id": job_id},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(start.status_code, 202, start.get_data(as_text=True))
         response = self.client_for(self.source_id).get(
-            "/api/account/export", base_url="https://localhost"
+            f"/api/account/export/{job_id}/download", base_url="https://localhost"
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.mimetype, "application/zip")
@@ -321,37 +383,60 @@ class AccountPortabilityTests(unittest.TestCase):
     def test_export_honors_server_side_cancellation(self):
         with mock.patch.object(target, "_account_transfer_cancelled", return_value=True), \
              mock.patch.object(target, "_set_account_transfer_status") as set_status:
-            response = self.client_for(self.source_id).get(
-                "/api/account/export?job_id=" + "b" * 32,
-                base_url="https://localhost",
-            )
-        self.assertEqual(response.status_code, 409)
-        self.assertEqual(response.get_json()["error"], "cancelled")
+            target.build_account_export_task(self.source_id, "b" * 32)
         self.assertTrue(any(call.args[2] == "cancelled" for call in set_status.call_args_list))
 
-    def test_export_temp_archive_is_erased_when_download_closes_early(self):
-        real_mkstemp = target.tempfile.mkstemp
+    def test_rq_failure_callback_removes_partial_export_and_unlocks_account(self):
+        job_id = "a" * 32
+        part_path = target._account_export_path(self.source_id, job_id, "part")
+        with open(part_path, "wb") as handle:
+            handle.write(b"partial-sensitive-export")
+        self.memory_redis.set(target._account_export_active_key(self.source_id), job_id)
+        job = mock.Mock(args=(self.source_id, job_id))
+        target.account_export_job_failure(job, self.memory_redis, RuntimeError, RuntimeError("stopped"), "trace")
+        self.assertFalse(os.path.exists(part_path))
+        self.assertFalse(self.memory_redis.exists(target._account_export_active_key(self.source_id)))
+        status = target._account_transfer_status_payload(self.source_id, job_id)
+        self.assertEqual(status["state"], "failed")
 
-        def local_mkstemp(*args, **kwargs):
-            kwargs["dir"] = self.temp_dir.name
-            return real_mkstemp(*args, **kwargs)
-
-        with mock.patch.object(target.tempfile, "mkstemp", side_effect=local_mkstemp):
-            response = self.client_for(self.source_id).get(
-                "/api/account/export?job_id=" + "d" * 32,
-                base_url="https://localhost",
-                buffered=False,
-            )
-            self.assertEqual(response.status_code, 200)
-            export_paths = [
-                os.path.join(self.temp_dir.name, name)
-                for name in os.listdir(self.temp_dir.name)
-                if name.startswith("ai-account-export-") and name.endswith(".zip")
-            ]
-            self.assertEqual(len(export_paths), 1)
-            self.assertTrue(os.path.exists(export_paths[0]))
-            response.close()
-            self.assertFalse(os.path.exists(export_paths[0]))
+    def test_export_survives_download_close_and_is_erased_after_one_hour(self):
+        job_id = "d" * 32
+        start = self.client_for(self.source_id).post(
+            "/api/account/export",
+            json={"job_id": job_id},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(start.status_code, 202)
+        self.assertIs(self.enqueue_mock.call_args.kwargs.get("on_failure"), target.account_export_job_failure)
+        export_path = target._account_export_path(self.source_id, job_id)
+        self.assertTrue(os.path.exists(export_path))
+        latest = self.client_for(self.source_id).get(
+            "/api/account/export/latest", base_url="https://localhost"
+        )
+        self.assertEqual(latest.status_code, 200)
+        self.assertEqual(latest.get_json()["state"], "ready")
+        self.assertEqual(latest.get_json()["download_url"], f"/api/account/export/{job_id}/download")
+        self.assertTrue(self.enqueue_in_mock.called)
+        denied = self.client_for(self.destination_id).get(
+            f"/api/account/export/{job_id}/download", base_url="https://localhost"
+        )
+        self.assertEqual(denied.status_code, 404)
+        response = self.client_for(self.source_id).get(
+            f"/api/account/export/{job_id}/download",
+            base_url="https://localhost",
+            buffered=False,
+        )
+        self.assertEqual(response.status_code, 200)
+        response.close()
+        self.assertTrue(os.path.exists(export_path))
+        metadata = json.loads(self.memory_redis.get(target._account_export_artifact_key(self.source_id, job_id)))
+        with mock.patch.object(target.time, "time", return_value=metadata["expires_ts"] + 1):
+            target.delete_account_export_task(self.source_id, job_id)
+        self.assertFalse(os.path.exists(export_path))
+        status = target._account_transfer_status_payload(self.source_id, job_id)
+        self.assertEqual(status["state"], "expired")
+        self.assertFalse(status["available"])
 
     def test_cancelled_import_removes_files_and_rolls_back_database(self):
         archive_bytes = self.export_archive()
@@ -385,20 +470,28 @@ class AccountPortabilityTests(unittest.TestCase):
             remaining = [name for _, _, names in os.walk(destination_dir) for name in names]
         self.assertEqual(remaining, [])
 
-    def test_frontend_uses_direct_download_with_progress_and_cancel(self):
+    def test_frontend_restores_background_export_with_download_and_cancel(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "static", "js", "chat_core.v4.8.724.js"), encoding="utf-8") as handle:
+        with open(os.path.join(root, "static", "js", "chat_core.v4.8.725.js"), encoding="utf-8") as handle:
             source = handle.read()
         with open(os.path.join(root, "templates", "chat.html"), encoding="utf-8") as handle:
             template = handle.read()
         self.assertNotIn("await res.blob()", source)
-        self.assertIn("frame.src = `/api/account/export?job_id=", source)
+        self.assertNotIn("frame.src = `/api/account/export?job_id=", source)
+        self.assertIn("apiFetch('/api/account/export'", source)
+        self.assertIn("keepalive: true", source)
+        self.assertIn("/api/account/export/latest", source)
+        self.assertIn("payload.download_url", source)
         self.assertIn("pollAccountTransfer", source)
         self.assertIn("/cancel`, manualSpinnerRequestOptions", source)
-        self.assertIn("includes('読取不能')", source)
+        self.assertIn("Number(payload.unreadable_count)", source)
         self.assertIn("downloading: 'ダウンロード中'", source)
         self.assertIn('id="account-transfer-progress-bar"', template)
         self.assertIn('id="account-transfer-cancel-btn"', template)
+        self.assertIn('id="account-export-download-btn"', template)
+        with open(os.path.join(root, "worker.py"), encoding="utf-8") as handle:
+            worker_source = handle.read()
+        self.assertIn("worker.work(with_scheduler=True)", worker_source)
 
 
 if __name__ == "__main__":

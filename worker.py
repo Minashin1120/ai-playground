@@ -41,7 +41,10 @@ def main():
         queues = [Queue(name, connection=conn) for name in queue_names]
         worker = SimpleWorker(queues, connection=conn)
         logger.info("Worker starting (queues=%s)", ",".join(queue_names))
-        worker.work()
+        # Scheduled jobs delete completed account-export archives exactly after
+        # their one-hour retention window. RQ coordinates the scheduler lock
+        # when multiple worker instances enable this option.
+        worker.work(with_scheduler=True)
         return 0
     except Exception:
         logger.exception("Worker failed to start or exited with error")

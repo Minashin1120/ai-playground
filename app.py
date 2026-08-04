@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-012')
-app.config['SYSTEM_VERSION'] = 'V4.8.724'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-013')
+app.config['SYSTEM_VERSION'] = 'V4.8.725'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3241,7 +3241,9 @@ ACCOUNT_TEXT_SETTING_LIMITS = {
     "rich_paste_prompt_default": 100_000,
 }
 ACCOUNT_TRANSFER_JOB_RE = re.compile(r"^[a-f0-9]{32}$")
-ACCOUNT_TRANSFER_STATUS_TTL = 3600
+ACCOUNT_EXPORT_RETENTION_SECONDS = 3600
+ACCOUNT_TRANSFER_STATUS_TTL = ACCOUNT_EXPORT_RETENTION_SECONDS + 600
+ACCOUNT_EXPORT_FILE_RE = re.compile(r"^(\d+)-([a-f0-9]{32})\.(zip|part)$")
 
 
 class AccountTransferCancelled(Exception):
@@ -3260,11 +3262,48 @@ def _account_transfer_cancel_key(user_id, job_id):
     return f"account_transfer:cancel:{int(user_id)}:{job_id}"
 
 
+def _account_export_artifact_key(user_id, job_id):
+    return f"account_export:artifact:{int(user_id)}:{job_id}"
+
+
+def _account_export_latest_key(user_id):
+    return f"account_export:latest:{int(user_id)}"
+
+
+def _account_export_active_key(user_id):
+    return f"account_export:active:{int(user_id)}"
+
+
+def _account_export_dir():
+    path = os.path.join(app.instance_path, "account_exports")
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    try:
+        os.chmod(path, 0o700)
+    except OSError:
+        pass
+    return path
+
+
+def _account_export_path(user_id, job_id, suffix="zip"):
+    if not _valid_account_transfer_job_id(job_id) or suffix not in {"zip", "part"}:
+        return None
+    return os.path.join(_account_export_dir(), f"{int(user_id)}-{job_id}.{suffix}")
+
+
+def _decode_redis_json(raw):
+    if not raw:
+        return None
+    try:
+        return json.loads(raw.decode("utf-8") if isinstance(raw, bytes) else raw)
+    except Exception:
+        return None
+
+
 def _valid_account_transfer_job_id(job_id):
     return bool(ACCOUNT_TRANSFER_JOB_RE.fullmatch(str(job_id or "")))
 
 
-def _set_account_transfer_status(user_id, job_id, state, progress, phase, message=""):
+def _set_account_transfer_status(user_id, job_id, state, progress, phase, message="", **details):
     if not _valid_account_transfer_job_id(job_id):
         return
     payload = {
@@ -3274,6 +3313,9 @@ def _set_account_transfer_status(user_id, job_id, state, progress, phase, messag
         "message": str(message or ""),
         "updated_at": _portable_datetime(datetime.utcnow()),
     }
+    for key in ("expires_at", "filename", "size_bytes", "available"):
+        if key in details:
+            payload[key] = details[key]
     try:
         redis_conn.setex(
             _account_transfer_status_key(user_id, job_id),
@@ -3297,6 +3339,146 @@ def _account_transfer_checkpoint(user_id, job_id, progress, phase, message=""):
     if _account_transfer_cancelled(user_id, job_id):
         raise AccountTransferCancelled()
     _set_account_transfer_status(user_id, job_id, "running", progress, phase, message)
+
+
+def _account_export_artifact(user_id, job_id):
+    if not _valid_account_transfer_job_id(job_id):
+        return None
+    try:
+        metadata = _decode_redis_json(redis_conn.get(_account_export_artifact_key(user_id, job_id)))
+    except Exception:
+        metadata = None
+    if not isinstance(metadata, dict):
+        return None
+    path = _account_export_path(user_id, job_id)
+    expires_ts = int(metadata.get("expires_ts") or 0)
+    if not path or expires_ts <= int(time.time()) or not os.path.isfile(path):
+        _delete_account_export_artifact(user_id, job_id, state="expired")
+        return None
+    metadata["path"] = path
+    return metadata
+
+
+def _account_transfer_status_payload(user_id, job_id):
+    try:
+        payload = _decode_redis_json(redis_conn.get(_account_transfer_status_key(user_id, job_id))) or {
+            "state": "pending", "progress": 0, "phase": "pending", "message": ""
+        }
+    except Exception:
+        payload = {"state": "pending", "progress": 0, "phase": "pending", "message": ""}
+    payload["job_id"] = job_id
+    artifact = _account_export_artifact(user_id, job_id)
+    if artifact:
+        payload.update({
+            "state": "ready",
+            "progress": 100,
+            "phase": "ready",
+            "available": True,
+            "filename": artifact.get("filename"),
+            "size_bytes": artifact.get("size_bytes"),
+            "expires_at": artifact.get("expires_at"),
+            "download_url": f"/api/account/export/{job_id}/download",
+            "unreadable_count": int(artifact.get("unreadable_count") or 0),
+        })
+    else:
+        payload["available"] = False
+    return payload
+
+
+def _delete_account_export_artifact(user_id, job_id, state=None):
+    if not _valid_account_transfer_job_id(job_id):
+        return
+    for suffix in ("zip", "part"):
+        path = _account_export_path(user_id, job_id, suffix)
+        if path and os.path.lexists(path):
+            secure_delete(path)
+    try:
+        redis_conn.delete(_account_export_artifact_key(user_id, job_id))
+        latest_raw = redis_conn.get(_account_export_latest_key(user_id))
+        latest = latest_raw.decode("utf-8") if isinstance(latest_raw, bytes) else str(latest_raw or "")
+        if latest == job_id:
+            if state:
+                redis_conn.expire(_account_export_latest_key(user_id), 600)
+            else:
+                redis_conn.delete(_account_export_latest_key(user_id))
+        if state:
+            message = "エクスポートZIPの保存期限が切れました" if state == "expired" else "エクスポートをキャンセルしました"
+            _set_account_transfer_status(user_id, job_id, state, 0, state, message, available=False)
+    except Exception:
+        pass
+
+
+def _cleanup_expired_account_export_files(now_ts=None):
+    now_ts = int(now_ts or time.time())
+    export_dir = _account_export_dir()
+    try:
+        entries = list(os.scandir(export_dir))
+    except OSError:
+        return
+    for entry in entries:
+        match = ACCOUNT_EXPORT_FILE_RE.fullmatch(entry.name)
+        if not match or not entry.is_file(follow_symlinks=False):
+            continue
+        max_age = ACCOUNT_EXPORT_RETENTION_SECONDS if match.group(3) == "zip" else 2 * ACCOUNT_EXPORT_RETENTION_SECONDS
+        try:
+            expired = now_ts - int(entry.stat(follow_symlinks=False).st_mtime) >= max_age
+        except OSError:
+            continue
+        if expired:
+            secure_delete(entry.path)
+
+
+def _delete_all_account_export_artifacts(user_id):
+    export_dir = _account_export_dir()
+    prefix = f"{int(user_id)}-"
+    try:
+        for entry in os.scandir(export_dir):
+            if entry.name.startswith(prefix) and ACCOUNT_EXPORT_FILE_RE.fullmatch(entry.name) and entry.is_file(follow_symlinks=False):
+                secure_delete(entry.path)
+    except OSError:
+        pass
+    try:
+        latest_raw = redis_conn.get(_account_export_latest_key(user_id))
+        latest = latest_raw.decode("utf-8") if isinstance(latest_raw, bytes) else str(latest_raw or "")
+        keys = [_account_export_latest_key(user_id), _account_export_active_key(user_id)]
+        if _valid_account_transfer_job_id(latest):
+            keys.extend([
+                _account_export_artifact_key(user_id, latest),
+                _account_transfer_status_key(user_id, latest),
+                _account_transfer_cancel_key(user_id, latest),
+            ])
+        redis_conn.delete(*keys)
+    except Exception:
+        pass
+
+
+def delete_account_export_task(user_id, job_id):
+    with app.app_context():
+        metadata = None
+        try:
+            metadata = _decode_redis_json(redis_conn.get(_account_export_artifact_key(user_id, job_id)))
+        except Exception:
+            pass
+        expires_ts = int((metadata or {}).get("expires_ts") or 0)
+        remaining = expires_ts - int(time.time())
+        if remaining > 0:
+            task_queue.enqueue_in(
+                timedelta(seconds=remaining), delete_account_export_task,
+                int(user_id), str(job_id), job_timeout=300,
+            )
+            return
+        _delete_account_export_artifact(user_id, job_id, state="expired")
+        leftovers = [
+            path for path in (
+                _account_export_path(user_id, job_id, "zip"),
+                _account_export_path(user_id, job_id, "part"),
+            ) if path and os.path.lexists(path)
+        ]
+        if leftovers:
+            task_queue.enqueue_in(
+                timedelta(seconds=60), delete_account_export_task,
+                int(user_id), str(job_id), job_timeout=300,
+            )
 
 
 def _portable_datetime(value):
@@ -3494,68 +3676,173 @@ def _write_account_export_recovery_file(archive, archive_name, row):
     return {"archive_path": archive_name, "size_bytes": size_bytes, "sha256": digest.hexdigest()}
 
 
-def _stream_account_export(path, user_id, job_id, completion_message="エクスポートが完了しました"):
-    """Stream a generated export and always erase the temporary archive.
-
-    Flask's ``send_file`` may use the web server's file wrapper, in which case a
-    response ``call_on_close`` callback is not guaranteed to run after a client
-    disconnect.  Keeping cleanup in this generator's ``finally`` block ties the
-    temporary file lifetime to the actual response body instead.
-    """
-    total_size = max(1, os.path.getsize(path))
-    sent_size = 0
-    last_progress = -1
-    completed = False
-    try:
-        with open(path, "rb") as source:
-            while True:
-                if _account_transfer_cancelled(user_id, job_id):
-                    raise AccountTransferCancelled()
-                chunk = source.read(1024 * 1024)
-                if not chunk:
-                    completed = True
-                    _set_account_transfer_status(
-                        user_id, job_id, "completed", 100, "completed", completion_message
-                    )
-                    break
-                sent_size += len(chunk)
-                progress = min(99, 94 + int(5 * sent_size / total_size))
-                if progress != last_progress:
-                    _set_account_transfer_status(
-                        user_id, job_id, "running", progress, "downloading", "ダウンロードしています"
-                    )
-                    last_progress = progress
-                yield chunk
-    except AccountTransferCancelled:
-        _set_account_transfer_status(
-            user_id, job_id, "cancelled", 0, "cancelled", "エクスポートをキャンセルしました"
-        )
-        return
-    except GeneratorExit:
-        _set_account_transfer_status(
-            user_id, job_id, "failed", 0, "failed", "ダウンロードが中断されました"
-        )
-        raise
-    except Exception:
-        logger.exception("Account export download failed for user %s", user_id)
-        _set_account_transfer_status(
-            user_id, job_id, "failed", 0, "failed", "ダウンロードに失敗しました"
-        )
-        raise
-    finally:
-        secure_delete(path)
-        if not completed and not _account_transfer_cancelled(user_id, job_id):
-            # The explicit exception paths above have already supplied a more
-            # useful state.  This fallback covers unusual WSGI iterator closure.
+def _build_account_export_archive(user, job_id, export_path):
+    _account_transfer_checkpoint(user.id, job_id, 2, "preparing", "エクスポート対象を確認しています")
+    file_rows = _account_file_rows(user.id)
+    manifest = {
+        "format": ACCOUNT_EXPORT_FORMAT,
+        "format_version": ACCOUNT_EXPORT_VERSION,
+        "exported_at": _portable_datetime(datetime.utcnow()),
+        "system_version": app.config.get("SYSTEM_VERSION"),
+        "excluded": [
+            "username", "password", "google_identity", "two_factor_secrets", "passkeys",
+            "login_sessions", "account_privileges", "moderation_and_security_state",
+        ],
+        "data": {
+            "settings": _account_export_settings(user),
+            "api_credentials": _account_export_secrets(user),
+            "chats": [],
+            "gems": [],
+            "feedback": [],
+            "diagnostics": {},
+            "files": [],
+            "unreadable_files": [],
+        },
+    }
+    _account_transfer_checkpoint(user.id, job_id, 5, "preparing", "チャット履歴を読み込んでいます")
+    manifest["data"]["chats"] = _account_export_threads(user.id)
+    _account_transfer_checkpoint(user.id, job_id, 12, "preparing", "Gemとフィードバックを読み込んでいます")
+    manifest["data"]["gems"] = _account_export_gems(user.id)
+    manifest["data"]["feedback"] = _account_export_feedback(user.id)
+    _account_transfer_checkpoint(user.id, job_id, 16, "preparing", "診断データを読み込んでいます")
+    manifest["data"]["diagnostics"] = _account_export_diagnostics(user.id)
+    total_file_weight = sum(max(1, int((row.get("info") or {}).get("size") or 0)) for row in file_rows) or 1
+    completed_file_weight = 0
+    with zipfile.ZipFile(export_path, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
+        for index, row in enumerate(file_rows, start=1):
+            progress = 18 + int(72 * completed_file_weight / total_file_weight)
+            _account_transfer_checkpoint(
+                user.id, job_id, progress, "exporting_files",
+                f"ファイルを書き出しています（{index}/{len(file_rows)}）",
+            )
+            archive_name = f"files/{index:06d}.bin"
             try:
-                raw = redis_conn.get(_account_transfer_status_key(user_id, job_id))
-                state = json.loads(raw).get("state") if raw else None
-            except Exception:
-                state = None
-            if state not in {"failed", "cancelled"}:
-                _set_account_transfer_status(
-                    user_id, job_id, "failed", 0, "failed", "ダウンロードが中断されました"
+                size_bytes, sha256 = _write_account_export_file(archive, archive_name, row)
+                item = {key: value for key, value in row.items() if key != "info"}
+                item["archive_path"] = archive_name
+                item["size_bytes"] = size_bytes
+                item["sha256"] = sha256
+                manifest["data"]["files"].append(item)
+            except AccountExportFileUnreadable as exc:
+                recovery_archive_name = f"recovery_files/{index:06d}.enc"
+                recovery = _write_account_export_recovery_file(archive, recovery_archive_name, row)
+                recovery_item = {key: value for key, value in row.items() if key != "info"}
+                recovery_item.update({
+                    "reason": str(exc),
+                    "importable": False,
+                    "encrypted_source": bool((row.get("info") or {}).get("is_encrypted")),
+                })
+                if recovery:
+                    recovery_item.update(recovery)
+                manifest["data"]["unreadable_files"].append(recovery_item)
+                logger.warning(
+                    "Preserved unreadable account export file for user %s: %s",
+                    user.id, row.get("rel_path"),
                 )
+            completed_file_weight += max(1, int((row.get("info") or {}).get("size") or 0))
+        _account_transfer_checkpoint(user.id, job_id, 92, "finalizing", "ZIPを仕上げています")
+        archive.writestr(
+            "account_data.json",
+            json.dumps(manifest, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
+        )
+    return manifest
+
+
+def build_account_export_task(user_id, job_id):
+    with app.app_context():
+        part_path = _account_export_path(user_id, job_id, "part")
+        final_path = _account_export_path(user_id, job_id, "zip")
+        try:
+            if not part_path or not final_path:
+                raise ValueError("invalid_export_path")
+            user = db.session.get(User, int(user_id))
+            if not user:
+                raise ValueError("account_not_found")
+            _cleanup_expired_account_export_files()
+            for path in (part_path, final_path):
+                if os.path.lexists(path):
+                    secure_delete(path)
+            manifest = _build_account_export_archive(user, job_id, part_path)
+            _account_transfer_checkpoint(user.id, job_id, 96, "finalizing", "ダウンロード用ZIPを保存しています")
+            os.chmod(part_path, 0o600)
+            os.replace(part_path, final_path)
+            ready_ts = int(time.time())
+            expires_ts = ready_ts + ACCOUNT_EXPORT_RETENTION_SECONDS
+            filename = f"ai-playground-account-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.zip"
+            unreadable_count = len(manifest["data"]["unreadable_files"])
+            message = (
+                f"エクスポートが完了しました（読取不能な{unreadable_count}件は復旧用データとして収録）"
+                if unreadable_count else "エクスポートZIPの準備が完了しました"
+            )
+            metadata = {
+                "job_id": job_id,
+                "filename": filename,
+                "size_bytes": os.path.getsize(final_path),
+                "ready_ts": ready_ts,
+                "expires_ts": expires_ts,
+                "expires_at": _portable_datetime(datetime.utcfromtimestamp(expires_ts)),
+                "unreadable_count": unreadable_count,
+            }
+            redis_conn.setex(
+                _account_export_artifact_key(user.id, job_id),
+                ACCOUNT_TRANSFER_STATUS_TTL,
+                json.dumps(metadata, ensure_ascii=False, separators=(",", ":")),
+            )
+            redis_conn.setex(_account_export_latest_key(user.id), ACCOUNT_TRANSFER_STATUS_TTL, job_id)
+            _set_account_transfer_status(
+                user.id, job_id, "ready", 100, "ready", message,
+                expires_at=metadata["expires_at"], filename=filename,
+                size_bytes=metadata["size_bytes"], available=True,
+            )
+            task_queue.enqueue_in(
+                timedelta(seconds=ACCOUNT_EXPORT_RETENTION_SECONDS),
+                delete_account_export_task, user.id, job_id, job_timeout=300,
+            )
+        except AccountTransferCancelled:
+            if part_path and os.path.lexists(part_path):
+                secure_delete(part_path)
+            _set_account_transfer_status(
+                user_id, job_id, "cancelled", 0, "cancelled", "エクスポートをキャンセルしました",
+                available=False,
+            )
+        except Exception:
+            for path in (part_path, final_path):
+                if path and os.path.lexists(path):
+                    secure_delete(path)
+            logger.exception("Background account export failed for user %s", user_id)
+            _set_account_transfer_status(
+                user_id, job_id, "failed", 0, "failed", "エクスポートに失敗しました",
+                available=False,
+            )
+        finally:
+            try:
+                active_raw = redis_conn.get(_account_export_active_key(user_id))
+                active = active_raw.decode("utf-8") if isinstance(active_raw, bytes) else str(active_raw or "")
+                if active == job_id:
+                    redis_conn.delete(_account_export_active_key(user_id))
+            except Exception:
+                pass
+
+
+def account_export_job_failure(job, connection, exc_type, exc_value, traceback_text):
+    """Clean up and publish a terminal state if RQ stops the export itself."""
+    try:
+        user_id, job_id = job.args[:2]
+    except Exception:
+        return
+    with app.app_context():
+        _delete_account_export_artifact(user_id, job_id)
+        _set_account_transfer_status(
+            user_id, job_id, "failed", 0, "failed", "バックグラウンド処理が中断されました",
+            available=False,
+        )
+        try:
+            active_raw = redis_conn.get(_account_export_active_key(user_id))
+            active = active_raw.decode("utf-8") if isinstance(active_raw, bytes) else str(active_raw or "")
+            if active == job_id:
+                redis_conn.delete(_account_export_active_key(user_id))
+        except Exception:
+            pass
 
 
 def _fernet_encrypted_size(plain_size):
@@ -4089,6 +4376,7 @@ def _delete_user_account_immediately(user):
     user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
     _secure_delete_tree(user_dir)
     _secure_delete_tree(_chunk_user_dir(user_id))
+    _delete_all_account_export_artifacts(user_id)
 
     try:
         redis_conn.delete(f"migration_status:{user_id}")
@@ -15880,11 +16168,7 @@ def get_account_transfer_status(job_id):
     if not _valid_account_transfer_job_id(job_id):
         return jsonify({'error': 'invalid_job_id'}), 400
     try:
-        raw = redis_conn.get(_account_transfer_status_key(current_user.id, job_id))
-        if not raw:
-            return jsonify({'state': 'pending', 'progress': 0, 'phase': 'pending', 'message': ''})
-        payload = json.loads(raw.decode("utf-8") if isinstance(raw, bytes) else raw)
-        response = jsonify(payload)
+        response = jsonify(_account_transfer_status_payload(current_user.id, job_id))
         response.headers["Cache-Control"] = "no-store"
         return response
     except Exception:
@@ -15897,10 +16181,12 @@ def cancel_account_transfer(job_id):
     if not _valid_account_transfer_job_id(job_id):
         return jsonify({'error': 'invalid_job_id'}), 400
     try:
-        existing_raw = redis_conn.get(_account_transfer_status_key(current_user.id, job_id))
-        if existing_raw:
-            existing = json.loads(existing_raw.decode("utf-8") if isinstance(existing_raw, bytes) else existing_raw)
-            if existing.get("state") in {"completed", "failed", "cancelled"}:
+        existing = _account_transfer_status_payload(current_user.id, job_id)
+        if existing.get("state") == "ready" and existing.get("available"):
+            _delete_account_export_artifact(current_user.id, job_id, state="cancelled")
+            return jsonify({'status': 'cancelled'})
+        if existing:
+            if existing.get("state") in {"completed", "failed", "cancelled", "expired"}:
                 return jsonify({'status': existing.get("state")})
         redis_conn.setex(
             _account_transfer_cancel_key(current_user.id, job_id),
@@ -15915,121 +16201,95 @@ def cancel_account_transfer(job_id):
         return jsonify({'error': 'cancel_failed'}), 503
 
 
-@app.route('/api/account/export', methods=['GET'])
+@app.route('/api/account/export/latest', methods=['GET'])
+@login_required
+def get_latest_account_export():
+    _cleanup_expired_account_export_files()
+    try:
+        raw = redis_conn.get(_account_export_latest_key(current_user.id))
+        job_id = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw or "")
+    except Exception:
+        return jsonify({'error': 'status_unavailable'}), 503
+    if not _valid_account_transfer_job_id(job_id):
+        response = jsonify({'state': 'idle', 'available': False})
+        response.headers["Cache-Control"] = "no-store"
+        return response
+    response = jsonify(_account_transfer_status_payload(current_user.id, job_id))
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route('/api/account/export', methods=['POST'])
 @login_required
 def export_account_data():
-    job_id = str(request.args.get("job_id") or secrets.token_hex(16)).lower()
+    body = request.get_json(silent=True) or {}
+    job_id = str(body.get("job_id") or secrets.token_hex(16)).lower()
     if not _valid_account_transfer_job_id(job_id):
         return jsonify({'error': 'invalid_job_id'}), 400
-    if not rate_limit(f"rl:account_export:user:{current_user.id}", 3, 3600):
-        _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "エクスポート回数の上限に達しました")
-        return jsonify({'error': 'rate_limit'}), 429
-    export_path = None
     try:
-        _account_transfer_checkpoint(current_user.id, job_id, 2, "preparing", "エクスポート対象を確認しています")
-        file_rows = _account_file_rows(current_user.id)
-        manifest = {
-            "format": ACCOUNT_EXPORT_FORMAT,
-            "format_version": ACCOUNT_EXPORT_VERSION,
-            "exported_at": _portable_datetime(datetime.utcnow()),
-            "system_version": app.config.get("SYSTEM_VERSION"),
-            "excluded": [
-                "username", "password", "google_identity", "two_factor_secrets", "passkeys",
-                "login_sessions", "account_privileges", "moderation_and_security_state",
-            ],
-            "data": {
-                "settings": _account_export_settings(current_user),
-                "api_credentials": _account_export_secrets(current_user),
-                "chats": [],
-                "gems": [],
-                "feedback": [],
-                "diagnostics": {},
-                "files": [],
-                "unreadable_files": [],
-            },
-        }
-        _account_transfer_checkpoint(current_user.id, job_id, 5, "preparing", "チャット履歴を読み込んでいます")
-        manifest["data"]["chats"] = _account_export_threads(current_user.id)
-        _account_transfer_checkpoint(current_user.id, job_id, 12, "preparing", "Gemとフィードバックを読み込んでいます")
-        manifest["data"]["gems"] = _account_export_gems(current_user.id)
-        manifest["data"]["feedback"] = _account_export_feedback(current_user.id)
-        _account_transfer_checkpoint(current_user.id, job_id, 16, "preparing", "診断データを読み込んでいます")
-        manifest["data"]["diagnostics"] = _account_export_diagnostics(current_user.id)
-        fd, export_path = tempfile.mkstemp(prefix="ai-account-export-", suffix=".zip")
-        os.close(fd)
-        total_file_weight = sum(max(1, int((row.get("info") or {}).get("size") or 0)) for row in file_rows) or 1
-        completed_file_weight = 0
-        with zipfile.ZipFile(export_path, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
-            for index, row in enumerate(file_rows, start=1):
-                progress = 18 + int(72 * completed_file_weight / total_file_weight)
-                _account_transfer_checkpoint(
-                    current_user.id, job_id, progress, "exporting_files",
-                    f"ファイルを書き出しています（{index}/{len(file_rows)}）",
-                )
-                archive_name = f"files/{index:06d}.bin"
-                try:
-                    size_bytes, sha256 = _write_account_export_file(archive, archive_name, row)
-                    item = {key: value for key, value in row.items() if key != "info"}
-                    item["archive_path"] = archive_name
-                    item["size_bytes"] = size_bytes
-                    item["sha256"] = sha256
-                    manifest["data"]["files"].append(item)
-                except AccountExportFileUnreadable as exc:
-                    recovery_archive_name = f"recovery_files/{index:06d}.enc"
-                    recovery = _write_account_export_recovery_file(
-                        archive, recovery_archive_name, row
-                    )
-                    recovery_item = {key: value for key, value in row.items() if key != "info"}
-                    recovery_item.update({
-                        "reason": str(exc),
-                        "importable": False,
-                        "encrypted_source": bool((row.get("info") or {}).get("is_encrypted")),
-                    })
-                    if recovery:
-                        recovery_item.update(recovery)
-                    manifest["data"]["unreadable_files"].append(recovery_item)
-                    logger.warning(
-                        "Preserved unreadable account export file for user %s: %s",
-                        current_user.id, row.get("rel_path"),
-                    )
-                completed_file_weight += max(1, int((row.get("info") or {}).get("size") or 0))
-            _account_transfer_checkpoint(current_user.id, job_id, 92, "finalizing", "ZIPを仕上げています")
-            archive.writestr(
-                "account_data.json",
-                json.dumps(manifest, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
-            )
-        _account_transfer_checkpoint(current_user.id, job_id, 99, "ready", "ダウンロードを開始します")
-        filename = f"ai-playground-account-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.zip"
-        export_size = os.path.getsize(export_path)
-        unreadable_count = len(manifest["data"]["unreadable_files"])
-        completion_message = (
-            f"エクスポートが完了しました（読取不能な{unreadable_count}件は復旧用データとして収録）"
-            if unreadable_count else "エクスポートが完了しました"
+        _cleanup_expired_account_export_files()
+        claimed = redis_conn.set(
+            _account_export_active_key(current_user.id), job_id,
+            nx=True, ex=ACCOUNT_EXPORT_RETENTION_SECONDS,
         )
-        response = Response(
-            stream_with_context(_stream_account_export(
-                export_path, current_user.id, job_id, completion_message
-            )),
-            mimetype="application/zip",
-            direct_passthrough=True,
+        if not claimed:
+            active_raw = redis_conn.get(_account_export_active_key(current_user.id))
+            active_job_id = active_raw.decode("utf-8") if isinstance(active_raw, bytes) else str(active_raw or "")
+            return jsonify({'error': 'export_in_progress', 'job_id': active_job_id}), 409
+        if not rate_limit(f"rl:account_export:user:{current_user.id}", 3, 3600):
+            redis_conn.delete(_account_export_active_key(current_user.id))
+            _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "エクスポート回数の上限に達しました")
+            return jsonify({'error': 'rate_limit'}), 429
+        old_raw = redis_conn.get(_account_export_latest_key(current_user.id))
+        old_job_id = old_raw.decode("utf-8") if isinstance(old_raw, bytes) else str(old_raw or "")
+        if _valid_account_transfer_job_id(old_job_id) and old_job_id != job_id:
+            _delete_account_export_artifact(current_user.id, old_job_id)
+        redis_conn.delete(_account_transfer_cancel_key(current_user.id, job_id))
+        redis_conn.setex(_account_export_latest_key(current_user.id), ACCOUNT_TRANSFER_STATUS_TTL, job_id)
+        _set_account_transfer_status(
+            current_user.id, job_id, "queued", 0, "queued", "エクスポートを受け付けました",
+            available=False,
         )
-        response.headers.set("Content-Disposition", "attachment", filename=filename)
-        response.headers["Content-Length"] = str(export_size)
-        response.headers["Cache-Control"] = "private, no-store, max-age=0"
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        _set_account_transfer_status(current_user.id, job_id, "running", 94, "downloading", "ダウンロードしています")
-        return response
-    except AccountTransferCancelled:
-        if export_path and os.path.exists(export_path):
-            secure_delete(export_path)
-        _set_account_transfer_status(current_user.id, job_id, "cancelled", 0, "cancelled", "エクスポートをキャンセルしました")
-        return jsonify({'error': 'cancelled'}), 409
-    except Exception as exc:
-        if export_path and os.path.exists(export_path):
-            secure_delete(export_path)
-        logger.exception("Account export failed for user %s", current_user.id)
-        _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "エクスポートに失敗しました")
-        return jsonify({'error': 'export_failed', 'message': str(exc)}), 500
+        task_queue.enqueue(
+            build_account_export_task, current_user.id, job_id,
+            job_timeout=600, result_ttl=ACCOUNT_TRANSFER_STATUS_TTL,
+            failure_ttl=ACCOUNT_TRANSFER_STATUS_TTL,
+            on_failure=account_export_job_failure,
+        )
+        response = jsonify({'status': 'accepted', 'job_id': job_id})
+        response.headers["Cache-Control"] = "no-store"
+        return response, 202
+    except Exception:
+        try:
+            redis_conn.delete(_account_export_active_key(current_user.id))
+        except Exception:
+            pass
+        logger.exception("Failed to enqueue account export for user %s", current_user.id)
+        _set_account_transfer_status(
+            current_user.id, job_id, "failed", 0, "failed", "エクスポートを開始できませんでした",
+            available=False,
+        )
+        return jsonify({'error': 'export_enqueue_failed'}), 503
+
+
+@app.route('/api/account/export/<job_id>/download', methods=['GET'])
+@login_required
+def download_account_export(job_id):
+    if not _valid_account_transfer_job_id(job_id):
+        return jsonify({'error': 'invalid_job_id'}), 400
+    artifact = _account_export_artifact(current_user.id, job_id)
+    if not artifact:
+        return jsonify({'error': 'export_not_available'}), 404
+    if not rate_limit(f"rl:account_export_download:user:{current_user.id}", 30, 3600):
+        return jsonify({'error': 'rate_limit'}), 429
+    response = send_file(
+        artifact["path"], mimetype="application/zip", as_attachment=True,
+        download_name=artifact.get("filename") or "ai-playground-account.zip",
+        conditional=True,
+    )
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 @app.route('/api/account/import', methods=['POST'])

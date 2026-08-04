@@ -7802,7 +7802,7 @@
                     const labels = {
                         queued: '順番待ち', preparing: 'データを準備中', exporting_files: 'ファイルを書き出し中',
                         finalizing: '最終処理中', ready: 'ダウンロード準備完了', downloading: 'ダウンロード中',
-                        validating: 'ZIPを検証中', validating_files: 'ファイル情報を検証中',
+                        uploading: 'ZIPをアップロード中', validating: 'ZIPを検証中', validating_files: 'ファイル情報を検証中',
                         reading_files: 'ファイルを読み込み中', importing_settings: '設定を反映中',
                         importing_credentials: '認証情報を反映中', importing_gems: 'Gemを追加中',
                         saving_files: 'ファイルを保存中', importing_chats: 'チャット履歴を追加中',
@@ -7861,7 +7861,10 @@
                         }));
                         const data = await res.json().catch(() => ({}));
                         if (res.ok) {
-                            renderAccountTransferProgress(data);
+                            // A missing Redis status is reported as "pending"; do not
+                            // overwrite client-side upload progress while the server
+                            // has not yet begun the actual import.
+                            if (data.state !== 'pending') renderAccountTransferProgress(data);
                             if (['ready', 'completed', 'failed', 'cancelled', 'expired'].includes(data.state)) return data;
                         }
                     } catch (_) {}
@@ -7986,9 +7989,9 @@
                     };
                     activeAccountTransfer = transfer;
                     setAccountTransferControls(true);
-                    renderAccountTransferProgress({progress: 1, phase: 'validating', message: 'ZIPをアップロードしています'});
+                    renderAccountTransferProgress({progress: 0, phase: 'uploading', message: 'アップロードを準備しています'});
                     const resultBox = get('account-import-result');
-                    const pollPromise = pollAccountTransfer(transfer);
+                    let pollPromise = Promise.resolve(null);
                     try {
                         const chunkSize = 10 * 1024 * 1024;
                         const totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
@@ -8016,13 +8019,15 @@
                                 const chunkData = await chunkRes.json().catch(() => ({}));
                                 if (!chunkRes.ok) throw new Error(chunkData.error || 'アップロードに失敗しました');
                                 uploadedChunks++;
-                                renderAccountTransferProgress({progress: Math.min(35, 3 + Math.round((uploadedChunks / totalChunks) * 32)), phase: 'uploading', message: `ZIPを並列アップロードしています（${uploadedChunks}/${totalChunks}）`});
+                                renderAccountTransferProgress({progress: Math.min(35, Math.round((uploadedChunks / totalChunks) * 35)), phase: 'uploading', message: `ZIPを並列アップロードしています（${uploadedChunks}/${totalChunks}）`});
                             }
                         };
                         await Promise.all([uploadWorker(), uploadWorker(), uploadWorker()]);
                         const completeRes = await apiFetch(`/api/account/import/upload/${encodeURIComponent(transfer.uploadId)}/complete`, manualSpinnerRequestOptions({method: 'POST', signal: transfer.controller.signal}));
                         const completeData = await completeRes.json().catch(() => ({}));
                         if (!completeRes.ok) throw new Error(completeData.error || 'アップロードを完了できません');
+                        renderAccountTransferProgress({progress: 35, phase: 'validating', message: 'ZIPを検証しています'});
+                        pollPromise = pollAccountTransfer(transfer);
                         const res = await apiFetch('/api/account/import', manualSpinnerRequestOptions({
                             method: 'POST', headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify({upload_id: transfer.uploadId, categories: categories.join(','), job_id: transfer.id}),
@@ -8041,6 +8046,7 @@
                             resultBox.classList.remove('hidden', 'text-red-300');
                             resultBox.classList.add('text-emerald-300');
                         }
+                        renderAccountTransferProgress({progress: 100, phase: 'completed', message: 'インポートが完了しました'});
                         showToast('選択したアカウントデータをインポートしました', 'success');
                         if (categories.includes('chats')) loadThreads();
                         if (categories.includes('gems')) loadGems();

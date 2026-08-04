@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import re
 import tempfile
 import unittest
 import zipfile
@@ -472,7 +473,7 @@ class AccountPortabilityTests(unittest.TestCase):
 
     def test_frontend_restores_background_export_with_download_and_cancel(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "static", "js", "chat_core.v4.8.729.js"), encoding="utf-8") as handle:
+        with open(os.path.join(root, "static", "js", "chat_core.v4.8.730.js"), encoding="utf-8") as handle:
             source = handle.read()
         with open(os.path.join(root, "templates", "chat.html"), encoding="utf-8") as handle:
             template = handle.read()
@@ -513,6 +514,52 @@ class AccountPortabilityTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
         self.assertEqual(response.get_json()["received"], 10 * 1024 * 1024)
+
+    def test_import_progress_is_overall_and_continuous_after_upload(self):
+        root = os.path.dirname(os.path.dirname(__file__))
+        with open(os.path.join(root, "app.py"), encoding="utf-8") as handle:
+            app_source = handle.read()
+        section = app_source[app_source.index("def import_account_data(") :]
+        fixed = [36, 38, 57, 59, 93, 95, 98]
+        self.assertEqual(sorted(fixed), fixed)
+        self.assertIn('job_id, 36, "validating", "ZIPを検証しています"', section)
+        self.assertIn('job_id, 38, "validating", "データ構成を確認しています"', section)
+        self.assertIn('job_id, 57, "importing_settings"', section)
+        self.assertIn('job_id, 59, "importing_credentials"', section)
+        self.assertIn('job_id, 93, "importing_feedback"', section)
+        self.assertIn('job_id, 95, "importing_diagnostics"', section)
+        self.assertIn('job_id, 98, "finalizing"', section)
+        for expr in [
+            "progress = 38 + int(4 *", "progress = 43 + int(12 *", "progress = 60 + int(6 *",
+            "progress = 67 + int(11 *", "progress = 79 + int(12 *",
+        ]:
+            self.assertIn(expr, section)
+        self.assertIn('job_id, "completed", 100, "completed", "インポートが完了しました"', section)
+
+    def test_import_progress_starts_after_upload_phase(self):
+        root = os.path.dirname(os.path.dirname(__file__))
+        with open(os.path.join(root, "app.py"), encoding="utf-8") as handle:
+            app_source = handle.read()
+        section = app_source[app_source.index("def import_account_data(") :]
+        first = re.search(r"_account_transfer_checkpoint\([^,]+,[^,]+,\s*(\d+), \"validating\"", section)
+        self.assertIsNotNone(first)
+        if first is not None:
+            self.assertEqual(int(first.group(1)), 36)
+        self.assertIn('"validating", "ZIPを検証しています"', section)
+        self.assertIn('"finalizing", "変更を確定しています"', section)
+
+    def test_frontend_import_progress_uses_overall_scale_and_poll_after_upload(self):
+        root = os.path.dirname(os.path.dirname(__file__))
+        with open(os.path.join(root, "static", "js", "chat_core.v4.8.730.js"), encoding="utf-8") as handle:
+            source = handle.read()
+        self.assertIn("Math.min(35, Math.round((uploadedChunks / totalChunks) * 35))", source)
+        self.assertNotIn("3 + Math.round((uploadedChunks / totalChunks) * 32)", source)
+        self.assertIn("if (data.state !== 'pending') renderAccountTransferProgress(data)", source)
+        import_index = source.index("pollPromise = pollAccountTransfer(transfer)")
+        upload_complete = source.index("'アップロードを完了できません'")
+        self.assertGreater(import_index, upload_complete, "polling must start only after the upload completes")
+        self.assertIn("{progress: 100, phase: 'completed', message: 'インポートが完了しました'}", source)
+        self.assertIn("uploading: 'ZIPをアップロード中'", source)
 
 
 if __name__ == "__main__":

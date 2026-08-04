@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-05-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.729'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-05-003')
+app.config['SYSTEM_VERSION'] = 'V4.8.730'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -16530,7 +16530,7 @@ def import_account_data():
 
     created_paths = []
     try:
-        _account_transfer_checkpoint(current_user.id, job_id, 3, "validating", "ZIPを検証しています")
+        _account_transfer_checkpoint(current_user.id, job_id, 36, "validating", "ZIPを検証しています")
         with zipfile.ZipFile(import_stream, "r") as archive:
             members = archive.infolist()
             if len(members) > 10_000:
@@ -16547,7 +16547,7 @@ def import_account_data():
             data = manifest.get("data")
             if not isinstance(data, dict):
                 raise ValueError("invalid_manifest")
-            _account_transfer_checkpoint(current_user.id, job_id, 10, "validating", "データ構成を確認しています")
+            _account_transfer_checkpoint(current_user.id, job_id, 38, "validating", "データ構成を確認しています")
 
             file_map = {}
             imported_files = []
@@ -16559,7 +16559,7 @@ def import_account_data():
                 total_stored_bytes = 0
                 for item_index, item in enumerate(file_items, start=1):
                     if item_index == 1 or item_index % 25 == 0:
-                        progress = 10 + int(8 * item_index / max(1, len(file_items)))
+                        progress = 38 + int(4 * item_index / max(1, len(file_items)))
                         _account_transfer_checkpoint(
                             current_user.id, job_id, progress, "validating_files",
                             f"ファイル情報を確認しています（{item_index}/{len(file_items)}）",
@@ -16584,7 +16584,7 @@ def import_account_data():
                 if not capacity_ok:
                     raise StorageLimitError("storage_limit_exceeded")
                 for item_index, item in enumerate(file_items, start=1):
-                    progress = 18 + int(20 * (item_index - 1) / max(1, len(file_items)))
+                    progress = 43 + int(12 * (item_index - 1) / max(1, len(file_items)))
                     _account_transfer_checkpoint(
                         current_user.id, job_id, progress, "reading_files",
                         f"ファイルを読み込んでいます（{item_index}/{len(file_items)}）",
@@ -16615,11 +16615,11 @@ def import_account_data():
             gem_uuid_map = {}
             counts = {category: 0 for category in ACCOUNT_IMPORT_CATEGORIES}
             if "settings" in categories:
-                _account_transfer_checkpoint(current_user.id, job_id, 40, "importing_settings", "設定を取り込んでいます")
+                _account_transfer_checkpoint(current_user.id, job_id, 57, "importing_settings", "設定を取り込んでいます")
                 _apply_imported_account_settings(current_user, data.get("settings") or {})
                 counts["settings"] = 1
             if "api_credentials" in categories:
-                _account_transfer_checkpoint(current_user.id, job_id, 43, "importing_credentials", "認証情報を取り込んでいます")
+                _account_transfer_checkpoint(current_user.id, job_id, 59, "importing_credentials", "認証情報を取り込んでいます")
                 _apply_imported_account_secrets(current_user, data.get("api_credentials") or {})
                 counts["api_credentials"] = 1
 
@@ -16630,7 +16630,7 @@ def import_account_data():
                 import uuid as _uuid_import
                 for item_index, item in enumerate(gem_items, start=1):
                     if item_index == 1 or item_index % 25 == 0:
-                        progress = 46 + int(8 * item_index / max(1, len(gem_items)))
+                        progress = 60 + int(6 * item_index / max(1, len(gem_items)))
                         _account_transfer_checkpoint(
                             current_user.id, job_id, progress, "importing_gems",
                             f"Gemを取り込んでいます（{item_index}/{len(gem_items)}）",
@@ -16651,7 +16651,7 @@ def import_account_data():
 
             if "files" in categories:
                 for file_index, (old_rel, new_rel, display_name) in enumerate(imported_files, start=1):
-                    progress = 55 + int(15 * (file_index - 1) / max(1, len(imported_files)))
+                    progress = 67 + int(11 * (file_index - 1) / max(1, len(imported_files)))
                     _account_transfer_checkpoint(
                         current_user.id, job_id, progress, "saving_files",
                         f"ファイル情報を登録しています（{file_index}/{len(imported_files)}）",
@@ -16670,7 +16670,7 @@ def import_account_data():
                     raise ValueError("invalid_chats")
                 total_messages = 0
                 for chat_index, item in enumerate(chat_items, start=1):
-                    progress = 71 + int(18 * (chat_index - 1) / max(1, len(chat_items)))
+                    progress = 79 + int(12 * (chat_index - 1) / max(1, len(chat_items)))
                     _account_transfer_checkpoint(
                         current_user.id, job_id, progress, "importing_chats",
                         f"チャット履歴を取り込んでいます（{chat_index}/{len(chat_items)}）",
@@ -16743,7 +16743,7 @@ def import_account_data():
                     counts["chats"] += 1
 
             if "feedback" in categories:
-                _account_transfer_checkpoint(current_user.id, job_id, 90, "importing_feedback", "フィードバックを取り込んでいます")
+                _account_transfer_checkpoint(current_user.id, job_id, 93, "importing_feedback", "フィードバックを取り込んでいます")
                 feedback_items = data.get("feedback") or []
                 if not isinstance(feedback_items, list) or len(feedback_items) > 100_000:
                     raise ValueError("invalid_feedback")
@@ -16765,7 +16765,7 @@ def import_account_data():
                     counts["feedback"] += 1
 
             if "diagnostics" in categories:
-                _account_transfer_checkpoint(current_user.id, job_id, 94, "importing_diagnostics", "診断データを取り込んでいます")
+                _account_transfer_checkpoint(current_user.id, job_id, 95, "importing_diagnostics", "診断データを取り込んでいます")
                 diagnostics = data.get("diagnostics") or {}
                 metric_items = diagnostics.get("first_token_metrics") or [] if isinstance(diagnostics, dict) else []
                 trace_items = diagnostics.get("chat_latency_traces") or [] if isinstance(diagnostics, dict) else []

@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-05-003')
-app.config['SYSTEM_VERSION'] = 'V4.8.730'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-05-004')
+app.config['SYSTEM_VERSION'] = 'V4.8.731'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -12612,6 +12612,35 @@ def signup():
         return redirect(url_for('setup'))
     return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'))
 
+def _user_has_unencrypted_data(user):
+    """True when the account still stores plaintext messages or files.
+
+    During setup a freshly imported account may already contain chats/files
+    before the user picks E2EE on the final keys step.  When E2EE is enabled at
+    that point the imported data must be re-encrypted to match, so the setup
+    handler can detect whether a migration job is actually needed.
+    """
+    try:
+        has_unencrypted_message = db.session.query(Message.id).join(
+            Thread, Message.thread_id == Thread.id
+        ).filter(
+            Thread.user_id == user.id,
+            or_(Message.is_encrypted.is_(None), Message.is_encrypted.is_(False)),
+        ).first() is not None
+    except Exception:
+        has_unencrypted_message = False
+    has_unencrypted_file = False
+    user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user.id))
+    if os.path.isdir(user_dir):
+        try:
+            for root, _, names in os.walk(user_dir):
+                if any(not name.endswith('.enc') for name in names):
+                    has_unencrypted_file = True
+                    break
+        except Exception:
+            pass
+    return has_unencrypted_message or has_unencrypted_file
+
 @app.route('/setup', methods=['GET', 'POST'])
 @login_required
 def setup():
@@ -12621,23 +12650,40 @@ def setup():
             vertex_credentials_json = _normalize_gemini_vertex_credentials_json(request.form.get('gemini_vertex_credentials_json'))
         except ValueError as e:
             return render_template('setup.html', error=str(e))
-        current_user.openai_api_key = encrypt_val(request.form.get('openai_key'))
-        current_user.gemini_api_key = encrypt_val(request.form.get('gemini_key'))
-        current_user.deepseek_api_key = encrypt_val(request.form.get('deepseek_key'))
-        current_user.kimi_api_key = encrypt_val(request.form.get('kimi_key'))
+        # Preserve secrets imported during the setup step when a key field is
+        # left empty here, instead of overwriting them with an empty value.
+        for field, raw_value in (
+            ('openai_api_key', request.form.get('openai_key')),
+            ('gemini_api_key', request.form.get('gemini_key')),
+            ('deepseek_api_key', request.form.get('deepseek_key')),
+            ('kimi_api_key', request.form.get('kimi_key')),
+            ('xai_api_key', request.form.get('xai_key')),
+            ('google_api_key', request.form.get('google_key')),
+            ('google_cloud_project', request.form.get('google_project')),
+            ('gemini_vertex_project', request.form.get('gemini_vertex_project')),
+            ('gemini_vertex_credentials_json', vertex_credentials_json),
+        ):
+            value = str(raw_value or '').strip()
+            if value:
+                setattr(current_user, field, encrypt_val(value))
         current_user.gemini_backend = _normalize_gemini_backend(request.form.get('gemini_backend'))
-        current_user.gemini_vertex_project = encrypt_val(request.form.get('gemini_vertex_project'))
         current_user.gemini_vertex_location = _normalize_gemini_vertex_location(request.form.get('gemini_vertex_location'))
-        current_user.gemini_vertex_credentials_json = encrypt_val(vertex_credentials_json)
-        current_user.xai_api_key = encrypt_val(request.form.get('xai_key'))
-        current_user.google_api_key = encrypt_val(request.form.get('google_key'))
-        current_user.google_cloud_project = encrypt_val(request.form.get('google_project'))
         current_user.default_model = request.form.get('default_model') or "gemini-3.6-flash"
         current_user.enable_e2ee = (request.form.get('enable_e2ee') == 'on')
         current_user.is_setup_completed = True
         safe_db_commit()
+        # Data imported during the setup step is stored with the account's
+        # pre-setup E2EE state (plaintext).  When the user enables E2EE here,
+        # re-encrypt the imported content in the background so it matches, in
+        # the same way toggling E2EE on the settings screen triggers a migration.
+        if current_user.enable_e2ee and _user_has_unencrypted_data(current_user):
+            task_queue.enqueue(migrate_e2ee_task, current_user.id, True)
         return redirect(url_for('index'))
-    return render_template('setup.html')
+    return render_template(
+        'setup.html',
+        default_model=current_user.default_model or 'gemini-3.6-flash',
+        gemini_backend=_normalize_gemini_backend(current_user.gemini_backend),
+    )
 
 @app.route('/logout', methods=['POST'])
 def logout():

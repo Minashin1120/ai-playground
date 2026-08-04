@@ -6,7 +6,7 @@
     {% include 'pwa_meta.html' %}
     <title>初期セットアップ - AI Chat</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.' ~ (system_version | lower) ~ '.css') }}?v={{ app_version }}">
-    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.730') }}"></script>
+    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.731') }}"></script>
     <script src="{{ url_for('static', filename='js/pwa_install.js') }}?v={{ app_version }}" defer></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -47,7 +47,7 @@
     <div class="max-w-2xl w-full setup-card rounded-2xl overflow-hidden animate-enter">
         <div class="bg-slate-900/60 p-4 border-b border-slate-700/70 flex justify-between items-center">
             <h1 class="text-lg font-bold text-teal-300"><i class="fas fa-magic mr-2"></i>初期セットアップ</h1>
-            <div class="text-xs text-slate-400 font-mono">Step <span id="step-num" class="text-white font-bold">1</span> / 2</div>
+            <div class="text-xs text-slate-400 font-mono">Step <span id="step-num" class="text-white font-bold">1</span> / 3</div>
         </div>
         <form method="POST" id="setup-form" class="p-6">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -68,8 +68,49 @@
                     <button type="button" onclick="nextStep(2)" class="px-8 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-900 font-bold rounded-lg shadow-lg btn-glow flex items-center gap-2">始める <i class="fas fa-arrow-right"></i></button>
                 </div>
             </div>
-            <!-- Step 2: Keys -->
+            <!-- Step 2: Import (optional) -->
             <div id="step-2" class="hidden space-y-6 animate-enter">
+                <div class="text-center mb-6">
+                    <h3 class="text-xl font-bold mb-1 text-amber-300"><i class="fas fa-file-import mr-2"></i>アカウントデータのインポート（任意）</h3>
+                    <p class="text-sm text-slate-400">以前にエクスポートしたZIPファイルからデータを復元できます。<br><span class="text-[10px] opacity-70">スキップしても後から設定画面でインポートできます。</span></p>
+                </div>
+                <div class="rounded-xl border border-slate-700 bg-slate-900/50 p-4 space-y-4">
+                    <div class="text-[10px] text-slate-500">設定、チャット、Gem、ファイルなどを復元できます。ユーザー名、パスワード、2FA、パスキー、ログイン連携・セッション、権限、BAN情報は対象外です。</div>
+                    <input type="file" id="setup-account-import-file" accept=".zip,application/zip" class="block w-full text-xs text-slate-300 file:mr-3 file:rounded file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-white hover:file:bg-slate-600">
+                    <div class="text-xs font-bold text-slate-300">インポートするデータを選択</div>
+                    <div id="setup-account-import-categories" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-300">
+                        <label class="flex items-center gap-2"><input type="checkbox" value="settings" checked class="accent-teal-500">設定</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" value="api_credentials" checked class="accent-teal-500">APIキー・クラウド認証</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" value="chats" checked class="accent-teal-500">チャット履歴</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" value="gems" checked class="accent-teal-500">Gem</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" value="files" checked class="accent-teal-500">アップロードファイル</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" value="feedback" checked class="accent-teal-500">フィードバック</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" value="diagnostics" checked class="accent-teal-500">診断メトリクス</label>
+                    </div>
+                    <div class="text-[10px] text-slate-500">既存データは削除されません。設定と認証情報は選択時のみ上書きし、それ以外は追加します。ユーザー名は変更されません。</div>
+                    <button type="button" id="setup-account-import-btn" data-progress-no-spinner="true" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-2 rounded text-xs font-bold btn-glow"><i class="fas fa-file-import mr-1"></i>選択したデータをインポート</button>
+                    <div id="setup-account-transfer-progress" class="hidden rounded border border-blue-500/40 bg-blue-950/20 p-3 space-y-2">
+                        <div class="flex items-center justify-between gap-3">
+                            <div id="setup-account-transfer-progress-text" class="text-[11px] font-bold text-blue-200">準備しています</div>
+                            <div id="setup-account-transfer-progress-percent" class="text-[10px] font-mono text-blue-300">0%</div>
+                        </div>
+                        <div class="h-2 rounded bg-slate-800 overflow-hidden border border-slate-700">
+                            <div id="setup-account-transfer-progress-bar" class="h-full bg-blue-500 transition-[width] duration-300" style="width:0%"></div>
+                        </div>
+                        <div class="flex items-center justify-between gap-3">
+                            <div id="setup-account-transfer-progress-detail" class="text-[10px] text-slate-400">処理状況を確認しています。</div>
+                            <button type="button" id="setup-account-transfer-cancel-btn" data-progress-no-spinner="true" class="shrink-0 bg-red-800 hover:bg-red-700 text-red-100 px-3 py-1.5 rounded text-[10px] font-bold btn-glow hidden">キャンセル</button>
+                        </div>
+                    </div>
+                    <div id="setup-account-import-result" class="hidden text-[11px] text-slate-300"></div>
+                </div>
+                <div class="flex justify-between items-center w-full pt-2">
+                    <button type="button" onclick="nextStep(1)" class="text-slate-400 hover:text-white transition text-sm">戻る</button>
+                    <button type="button" onclick="nextStep(3)" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition">スキップして次へ <i class="fas fa-arrow-right"></i></button>
+                </div>
+            </div>
+            <!-- Step 3: Keys -->
+            <div id="step-3" class="hidden space-y-6 animate-enter">
                 <div class="text-center mb-6">
                     <h3 class="text-xl font-bold mb-1 text-amber-300"><i class="fas fa-robot mr-2"></i>既定のモデルとAPIキーの設定</h3>
                     <p class="text-sm text-slate-400">使用するAIモデルの選択とAPIキーを入力してください。<br><span class="text-[10px] opacity-70">（後で設定画面から変更可能です）</span></p>
@@ -78,8 +119,10 @@
                     <div class="relative group">
                         <label class="block text-xs text-slate-400 mb-1">既定のモデル</label>
                         <select name="default_model" class="w-full bg-[#0b121a] border border-slate-700 rounded-xl p-3 text-white text-sm outline-none focus:border-teal-500 transition">
+                            {% set setup_model_options = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-preview', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite-image', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-transcribe', 'gpt-live-transcribe', 'gpt-realtime-2', 'gpt-realtime-translate', 'gpt-realtime-whisper', 'gpt-5.5', 'gpt-5.5-mini', 'gpt-5.5-nano', 'gpt-5.5-pro', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano', 'gpt-5.4-pro', 'gpt-4o', 'gpt-4o-mini', 'gpt-5.2', 'deepseek-v4-flash-0731', 'deepseek-v4-pro', 'claude-opus-4-6', 'claude-sonnet-4-6', 'kimi-k3', 'grok-voice-latest', 'grok-voice-think-fast-1.0', 'grok-4.3', 'grok-build-0.1', 'grok-4.20-reasoning', 'grok-4.20-non-reasoning', 'grok-4.20-multi-agent', 'grok-imagine-image-quality', 'grok-imagine-image', 'grok-imagine-image-pro', 'grok-imagine-video', 'gemini-3.1-flash-tts-preview', 'gemini-2.5-flash-preview-tts', 'gpt-4o-mini-tts', 'grok-tts'] %}
+                            {% if default_model not in setup_model_options %}<option value="{{ default_model }}" selected>{{ default_model }}</option>{% endif %}
                             <optgroup label="Gemini 3.6 / 3.5">
-                                <option value="gemini-3.6-flash" selected>Gemini 3.6 Flash</option>
+                                <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
                                 <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
                                 <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite</option>
                             </optgroup>
@@ -215,7 +258,7 @@
                 </div>
                 <div class="flex flex-col gap-3 pt-6 border-t border-slate-700/70">
                     <div class="flex justify-between items-center w-full">
-                        <button type="button" onclick="nextStep(1)" class="text-slate-400 hover:text-white transition text-sm">戻る</button>
+                        <button type="button" onclick="nextStep(2)" class="text-slate-400 hover:text-white transition text-sm">戻る</button>
                         <div class="flex gap-2">
                             <button type="button" onclick="skipKeys()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition">スキップして完了</button>
                             <button type="submit" class="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-900 font-bold py-2 px-6 rounded-lg shadow-lg btn-glow transition">完了</button>
@@ -226,19 +269,24 @@
         </form>
     </div>
     <script>
+        let setupImportActive = false;
         function nextStep(n) {
-            [1,2].forEach(i => {
+            if (setupImportActive) {
+                alert('インポート処理が完了するまでお待ちください。');
+                return;
+            }
+            [1,2,3].forEach(i => {
                 const el = document.getElementById('step-'+i);
-                if(i === n) { el.classList.remove('hidden'); el.classList.add('animate-enter'); } 
+                if (!el) return;
+                if(i === n) { el.classList.remove('hidden'); el.classList.add('animate-enter'); }
                 else { el.classList.add('hidden'); el.classList.remove('animate-enter'); }
             });
-            document.getElementById('step-num').innerText = n;
+            const numEl = document.getElementById('step-num');
+            if (numEl) numEl.innerText = n;
         }
         function skipKeys() {
-            const inputs = document.querySelectorAll('#step-2 input[type="password"], #step-2 input[type="text"], #step-2 textarea');
+            const inputs = document.querySelectorAll('#step-3 input[type="password"], #step-3 input[type="text"], #step-3 textarea');
             inputs.forEach(i => i.value = '');
-            const backend = document.getElementById('setup-gemini-backend');
-            if (backend) backend.value = 'gemini_api';
             toggleSetupGeminiBackend();
             document.getElementById('setup-form').submit();
         }
@@ -253,7 +301,223 @@
         if (backendEl) {
             backendEl.addEventListener('change', toggleSetupGeminiBackend);
         }
+        const setupDefaultModel = '{{ default_model }}';
+        const setupGeminiBackend = '{{ gemini_backend }}';
+        const setupModelSelect = document.querySelector('select[name="default_model"]');
+        if (setupModelSelect && Array.from(setupModelSelect.options).some(o => o.value === setupDefaultModel)) {
+            setupModelSelect.value = setupDefaultModel;
+        }
+        const setupBackendSelect = document.getElementById('setup-gemini-backend');
+        if (setupBackendSelect && Array.from(setupBackendSelect.options).some(o => o.value === setupGeminiBackend)) {
+            setupBackendSelect.value = setupGeminiBackend;
+        }
         toggleSetupGeminiBackend();
+
+        (function setupAccountImport() {
+            const get = (id) => document.getElementById(id);
+            const manualOpts = (options) => window.ProgressSpinner
+                ? window.ProgressSpinner.manualRequestOptions(options)
+                : options;
+            const getCsrf = () => {
+                const form = get('setup-form');
+                const input = form ? form.querySelector('input[name="csrf_token"]') : null;
+                return input ? input.value : '';
+            };
+            const createTransferId = () => {
+                const bytes = new Uint8Array(16);
+                window.crypto.getRandomValues(bytes);
+                return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+            };
+            const phaseLabels = {
+                queued: '順番待ち', preparing: 'データを準備中', exporting_files: 'ファイルを書き出し中',
+                finalizing: '最終処理中', ready: 'ダウンロード準備完了', downloading: 'ダウンロード中',
+                uploading: 'ZIPをアップロード中', validating: 'ZIPを検証中', validating_files: 'ファイル情報を検証中',
+                reading_files: 'ファイルを読み込み中', importing_settings: '設定を反映中',
+                importing_credentials: '認証情報を反映中', importing_gems: 'Gemを追加中',
+                saving_files: 'ファイルを保存中', importing_chats: 'チャット履歴を追加中',
+                importing_feedback: 'フィードバックを追加中', importing_diagnostics: '診断データを追加中',
+                cancelling: 'キャンセル処理中', cancelled: 'キャンセル済み', expired: '保存期限切れ',
+                completed: '完了', failed: '失敗'
+            };
+            let activeTransfer = null;
+            const renderProgress = (payload = {}) => {
+                const wrap = get('setup-account-transfer-progress');
+                const bar = get('setup-account-transfer-progress-bar');
+                const percent = get('setup-account-transfer-progress-percent');
+                const textEl = get('setup-account-transfer-progress-text');
+                const detail = get('setup-account-transfer-progress-detail');
+                const value = Math.max(0, Math.min(100, Number(payload.progress) || 0));
+                if (wrap) wrap.classList.remove('hidden');
+                if (bar) bar.style.width = value + '%';
+                if (percent) percent.textContent = Math.round(value) + '%';
+                if (textEl) textEl.textContent = payload.message || '処理状況を確認しています';
+                if (detail) detail.textContent = phaseLabels[payload.phase] || '処理状況を確認しています。';
+                const cancelBtn = get('setup-account-transfer-cancel-btn');
+                if (cancelBtn) {
+                    cancelBtn.classList.toggle('hidden', ['ready', 'completed', 'failed', 'cancelled', 'expired'].includes(payload.phase));
+                }
+            };
+            const setControls = (running) => {
+                const importBtn = get('setup-account-import-btn');
+                if (importBtn) importBtn.disabled = !!running;
+                const cancelBtn = get('setup-account-transfer-cancel-btn');
+                if (cancelBtn) cancelBtn.disabled = !running;
+            };
+            const pollTransfer = async (transfer) => {
+                while (activeTransfer === transfer && !transfer.stopped) {
+                    try {
+                        const res = await fetch('/api/account/transfer/' + transfer.id, manualOpts({
+                            cache: 'no-store', headers: { 'X-CSRF-Token': getCsrf() },
+                        }));
+                        const data = await res.json().catch(() => ({}));
+                        if (res.ok) {
+                            if (data.state !== 'pending') renderProgress(data);
+                            if (['ready', 'completed', 'failed', 'cancelled', 'expired'].includes(data.state)) return data;
+                        }
+                    } catch (_) {}
+                    await new Promise(resolve => setTimeout(resolve, 700));
+                }
+                return null;
+            };
+            const finish = (transfer) => {
+                if (activeTransfer === transfer) activeTransfer = null;
+                transfer.stopped = true;
+                setupImportActive = false;
+                setControls(false);
+            };
+            const importBtn = get('setup-account-import-btn');
+            if (importBtn) {
+                importBtn.onclick = async () => {
+                    if (activeTransfer) return;
+                    const input = get('setup-account-import-file');
+                    const file = input && input.files ? input.files[0] : null;
+                    const categoryBox = get('setup-account-import-categories');
+                    const categories = categoryBox
+                        ? Array.from(categoryBox.querySelectorAll('input[type="checkbox"]:checked')).map(el => el.value)
+                        : [];
+                    if (!file) {
+                        alert('インポートするZIPファイルを選択してください');
+                        return;
+                    }
+                    if (!categories.length) {
+                        alert('インポートするデータを1つ以上選択してください');
+                        return;
+                    }
+                    const selectedLabels = categoryBox
+                        ? Array.from(categoryBox.querySelectorAll('input[type="checkbox"]:checked')).map(el => (el.closest('label') && el.closest('label').textContent || el.value).trim())
+                        : categories;
+                    if (!confirm('次のデータをインポートします。既存データは削除されません。\n\n' + selectedLabels.join('、') + '\n\n続行しますか？')) return;
+                    const transfer = {
+                        id: createTransferId(), stopped: false, controller: new AbortController()
+                    };
+                    activeTransfer = transfer;
+                    setupImportActive = true;
+                    setControls(true);
+                    renderProgress({progress: 0, phase: 'uploading', message: 'アップロードを準備しています'});
+                    const resultBox = get('setup-account-import-result');
+                    let pollPromise = Promise.resolve(null);
+                    try {
+                        const csrf = getCsrf();
+                        const chunkSize = 10 * 1024 * 1024;
+                        const totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
+                        const startRes = await fetch('/api/account/import/upload/start', manualOpts({
+                            method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},
+                            body: JSON.stringify({size: file.size}), signal: transfer.controller.signal,
+                        }));
+                        const startData = await startRes.json().catch(() => ({}));
+                        if (!startRes.ok) throw new Error(startData.error || 'アップロードを開始できません');
+                        transfer.uploadId = startData.upload_id;
+                        const actualChunkSize = startData.chunk_size || chunkSize;
+                        let uploadedChunks = 0;
+                        let nextChunk = 0;
+                        const uploadWorker = async () => {
+                            while (true) {
+                                const index = nextChunk++;
+                                if (index >= totalChunks) return;
+                                const chunk = file.slice(index * actualChunkSize, Math.min(file.size, (index + 1) * actualChunkSize));
+                                const chunkForm = new FormData();
+                                chunkForm.append('chunk', chunk, file.name);
+                                chunkForm.append('index', String(index));
+                                const chunkRes = await fetch('/api/account/import/upload/' + encodeURIComponent(transfer.uploadId) + '/chunk', manualOpts({
+                                    method: 'POST', body: chunkForm, headers: {'X-CSRF-Token': csrf}, signal: transfer.controller.signal,
+                                }));
+                                const chunkData = await chunkRes.json().catch(() => ({}));
+                                if (!chunkRes.ok) throw new Error(chunkData.error || 'アップロードに失敗しました');
+                                uploadedChunks++;
+                                renderProgress({progress: Math.min(35, Math.round((uploadedChunks / totalChunks) * 35)), phase: 'uploading', message: 'ZIPを並列アップロードしています（' + uploadedChunks + '/' + totalChunks + '）'});
+                            }
+                        };
+                        await Promise.all([uploadWorker(), uploadWorker(), uploadWorker()]);
+                        const completeRes = await fetch('/api/account/import/upload/' + encodeURIComponent(transfer.uploadId) + '/complete', manualOpts({
+                            method: 'POST', headers: {'X-CSRF-Token': csrf}, signal: transfer.controller.signal,
+                        }));
+                        const completeData = await completeRes.json().catch(() => ({}));
+                        if (!completeRes.ok) throw new Error(completeData.error || 'アップロードを完了できません');
+                        renderProgress({progress: 35, phase: 'validating', message: 'ZIPを検証しています'});
+                        pollPromise = pollTransfer(transfer);
+                        const res = await fetch('/api/account/import', manualOpts({
+                            method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},
+                            body: JSON.stringify({upload_id: transfer.uploadId, categories: categories.join(','), job_id: transfer.id}),
+                            signal: transfer.controller.signal,
+                        }));
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) throw new Error(data.error || 'インポートに失敗しました');
+                        const imported = data.imported || {};
+                        const detail = [
+                            'チャット ' + (imported.chats || 0) + '件', 'Gem ' + (imported.gems || 0) + '件',
+                            'ファイル ' + (imported.files || 0) + '件', 'フィードバック ' + (imported.feedback || 0) + '件',
+                            '診断データ ' + (imported.diagnostics || 0) + '件',
+                        ].join(' / ');
+                        if (resultBox) {
+                            resultBox.textContent = '完了: ' + detail;
+                            resultBox.classList.remove('hidden', 'text-red-300');
+                            resultBox.classList.add('text-emerald-300');
+                        }
+                        renderProgress({progress: 100, phase: 'completed', message: 'インポートが完了しました'});
+                    } catch (error) {
+                        if (transfer.uploadId) {
+                            fetch('/api/account/import/upload/' + encodeURIComponent(transfer.uploadId), manualOpts({
+                                method: 'DELETE', headers: {'X-CSRF-Token': getCsrf()},
+                            })).catch(() => null);
+                        }
+                        if (transfer.cancelRequested || (error && error.name === 'AbortError')) return;
+                        const rawMessage = error && error.message ? error.message : '';
+                        const friendlyMessage = rawMessage === 'storage_limit_exceeded'
+                            ? 'ストレージ上限を超えるためインポートできません'
+                            : (rawMessage || 'インポートに失敗しました');
+                        renderProgress({progress: 0, phase: 'failed', message: friendlyMessage});
+                        if (resultBox) {
+                            resultBox.textContent = friendlyMessage;
+                            resultBox.classList.remove('hidden', 'text-emerald-300');
+                            resultBox.classList.add('text-red-300');
+                        }
+                    } finally {
+                        transfer.stopped = true;
+                        await pollPromise.catch(() => null);
+                        finish(transfer);
+                    }
+                };
+            }
+            const cancelBtn = get('setup-account-transfer-cancel-btn');
+            if (cancelBtn) {
+                cancelBtn.onclick = async () => {
+                    const transfer = activeTransfer;
+                    if (!transfer || transfer.stopped) return;
+                    transfer.cancelRequested = true;
+                    cancelBtn.disabled = true;
+                    renderProgress({progress: 0, phase: 'cancelling', message: 'キャンセルしています'});
+                    try {
+                        await fetch('/api/account/transfer/' + transfer.id + '/cancel', manualOpts({
+                            method: 'POST', headers: {'X-CSRF-Token': getCsrf()},
+                        }));
+                    } catch (_) {}
+                    if (transfer.controller) transfer.controller.abort();
+                    renderProgress({progress: 0, phase: 'cancelled', message: 'キャンセルしました'});
+                    finish(transfer);
+                };
+            }
+            setControls(false);
+        })();
     </script>
 </body>
 </html>

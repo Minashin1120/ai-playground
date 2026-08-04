@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-013')
-app.config['SYSTEM_VERSION'] = 'V4.8.725'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-04-014')
+app.config['SYSTEM_VERSION'] = 'V4.8.726'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -16292,28 +16292,161 @@ def download_account_export(job_id):
     return response
 
 
+_ACCOUNT_IMPORT_UPLOAD_ID_RE = re.compile(r"^imp_[0-9]{10}_[0-9a-f]{16}$")
+_ACCOUNT_IMPORT_CHUNK_BYTES = 10 * 1024 * 1024
+_ACCOUNT_IMPORT_MAX_BYTES = 2 * 1024 * 1024 * 1024
+
+def _account_import_upload_root():
+    return os.path.join(app.instance_path, "account_import_uploads")
+
+def _is_valid_account_import_upload_id(upload_id):
+    return bool(_ACCOUNT_IMPORT_UPLOAD_ID_RE.fullmatch(str(upload_id or "")))
+
+def _account_import_upload_dir(user_id, upload_id):
+    if not _is_valid_account_import_upload_id(upload_id):
+        return None
+    user_root = os.path.realpath(os.path.join(_account_import_upload_root(), str(user_id)))
+    candidate = os.path.realpath(os.path.join(user_root, upload_id))
+    try:
+        return candidate if os.path.commonpath((user_root, candidate)) == user_root else None
+    except Exception:
+        return None
+
+def _cleanup_stale_account_import_uploads(user_id):
+    root = os.path.join(_account_import_upload_root(), str(user_id))
+    if not os.path.isdir(root):
+        return
+    cutoff = time.time() - 3600
+    try:
+        for entry in os.scandir(root):
+            if entry.is_dir(follow_symlinks=False) and entry.stat(follow_symlinks=False).st_mtime < cutoff:
+                _secure_delete_tree(entry.path)
+    except Exception:
+        logger.debug("Unable to sweep stale account import uploads", exc_info=True)
+
+@app.route('/api/account/import/upload/start', methods=['POST'])
+@login_required
+def start_account_import_upload():
+    data = request.get_json(silent=True) or {}
+    try:
+        total_size = int(data.get('size') or 0)
+    except (TypeError, ValueError):
+        total_size = 0
+    if total_size <= 0 or total_size > _ACCOUNT_IMPORT_MAX_BYTES:
+        return jsonify({'error': 'invalid_upload_size'}), 413
+    if not rate_limit(f"rl:account_import_upload_start:user:{current_user.id}", 6, 3600):
+        return jsonify({'error': 'rate_limit'}), 429
+    _cleanup_stale_account_import_uploads(current_user.id)
+    user_root = os.path.join(_account_import_upload_root(), str(current_user.id))
+    os.makedirs(user_root, mode=0o700, exist_ok=True)
+    upload_id = f"imp_{int(time.time())}_{secrets.token_hex(8)}"
+    upload_dir = _account_import_upload_dir(current_user.id, upload_id)
+    os.makedirs(upload_dir, mode=0o700, exist_ok=False)
+    with open(os.path.join(upload_dir, 'meta.json'), 'w', encoding='utf-8') as meta_file:
+        json.dump({'size': total_size, 'received': 0, 'chunks': (total_size + _ACCOUNT_IMPORT_CHUNK_BYTES - 1) // _ACCOUNT_IMPORT_CHUNK_BYTES,
+                   'updated': int(time.time()), 'state': 'receiving'}, meta_file)
+    return jsonify({'upload_id': upload_id, 'chunk_size': _ACCOUNT_IMPORT_CHUNK_BYTES,
+                    'total_chunks': (total_size + _ACCOUNT_IMPORT_CHUNK_BYTES - 1) // _ACCOUNT_IMPORT_CHUNK_BYTES})
+
+@app.route('/api/account/import/upload/<upload_id>/chunk', methods=['POST'])
+@login_required
+def account_import_upload_chunk(upload_id):
+    if not _is_valid_account_import_upload_id(upload_id):
+        return jsonify({'error': 'invalid_upload_id'}), 400
+    upload_dir = _account_import_upload_dir(current_user.id, upload_id)
+    meta_path = os.path.join(upload_dir, 'meta.json') if upload_dir else None
+    chunk_file = request.files.get('chunk')
+    try:
+        index = int(request.form.get('index') or -1)
+    except (TypeError, ValueError):
+        index = -1
+    if not upload_dir or not os.path.isfile(meta_path) or not chunk_file or index < 0:
+        return jsonify({'error': 'invalid_chunk'}), 400
+    meta = _load_chunk_meta(meta_path) or {}
+    total_size = int(meta.get('size') or 0)
+    received = int(meta.get('received') or 0)
+    total_chunks = int(meta.get('chunks') or 0)
+    if meta.get('state') != 'receiving' or index != received // _ACCOUNT_IMPORT_CHUNK_BYTES or index >= total_chunks:
+        return jsonify({'error': 'invalid_chunk_order'}), 409
+    expected = min(_ACCOUNT_IMPORT_CHUNK_BYTES, total_size - received)
+    payload = chunk_file.read(_ACCOUNT_IMPORT_CHUNK_BYTES + 1)
+    if len(payload) != expected:
+        return jsonify({'error': 'invalid_chunk_size'}), 400
+    part_path = os.path.join(upload_dir, 'data.part')
+    with open(part_path, 'ab') as part_file:
+        part_file.write(payload)
+    meta.update(received=received + len(payload), updated=int(time.time()))
+    _save_chunk_meta(meta_path, meta)
+    return jsonify({'received': meta['received'], 'total': total_size, 'index': index})
+
+@app.route('/api/account/import/upload/<upload_id>/complete', methods=['POST'])
+@login_required
+def complete_account_import_upload(upload_id):
+    if not _is_valid_account_import_upload_id(upload_id):
+        return jsonify({'error': 'invalid_upload_id'}), 400
+    upload_dir = _account_import_upload_dir(current_user.id, upload_id)
+    meta_path = os.path.join(upload_dir, 'meta.json') if upload_dir else None
+    part_path = os.path.join(upload_dir, 'data.part') if upload_dir else None
+    meta = _load_chunk_meta(meta_path) if meta_path else None
+    if not meta or not os.path.isfile(part_path):
+        return jsonify({'error': 'upload_not_found'}), 404
+    if int(meta.get('received') or 0) != int(meta.get('size') or 0) or os.path.getsize(part_path) != int(meta.get('size') or 0):
+        return jsonify({'error': 'upload_incomplete'}), 400
+    meta.update(state='ready', updated=int(time.time()))
+    _save_chunk_meta(meta_path, meta)
+    return jsonify({'upload_id': upload_id, 'size': meta['size'], 'status': 'ready'})
+
+@app.route('/api/account/import/upload/<upload_id>', methods=['DELETE'])
+@login_required
+def cancel_account_import_upload(upload_id):
+    if not _is_valid_account_import_upload_id(upload_id):
+        return jsonify({'error': 'invalid_upload_id'}), 400
+    upload_dir = _account_import_upload_dir(current_user.id, upload_id)
+    if upload_dir:
+        _secure_delete_tree(upload_dir)
+    return jsonify({'status': 'cancelled'})
+
+
 @app.route('/api/account/import', methods=['POST'])
 @login_required
 def import_account_data():
     upload_file = request.files.get("file")
-    categories = _coerce_account_import_categories(request.form.get("categories", ""))
-    job_id = str(request.form.get("job_id") or secrets.token_hex(16)).lower()
+    body = request.get_json(silent=True) if request.is_json else {}
+    body = body if isinstance(body, dict) else {}
+    upload_id = str(request.form.get("upload_id") or body.get("upload_id") or "").strip()
+    categories = _coerce_account_import_categories(request.form.get("categories", body.get("categories", "")))
+    job_id = str(request.form.get("job_id") or body.get("job_id") or secrets.token_hex(16)).lower()
     if not _valid_account_transfer_job_id(job_id):
         return jsonify({'error': 'invalid_job_id'}), 400
     if not rate_limit(f"rl:account_import:user:{current_user.id}", 6, 3600):
         _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "インポート回数の上限に達しました")
         return jsonify({'error': 'rate_limit'}), 429
-    if not upload_file or not upload_file.filename:
+    import_upload_dir = None
+    import_stream = upload_file.stream if upload_file and upload_file.filename else None
+    if upload_id:
+        if not _is_valid_account_import_upload_id(upload_id):
+            return jsonify({'error': 'invalid_upload_id'}), 400
+        import_upload_dir = _account_import_upload_dir(current_user.id, upload_id)
+        import_stream = os.path.join(import_upload_dir, 'data.part') if import_upload_dir else None
+        if not import_stream or not os.path.isfile(import_stream):
+            _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "アップロードデータがありません")
+            return jsonify({'error': 'upload_not_found'}), 404
+        import_stream = open(import_stream, 'rb')
+    if not import_stream:
         _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "ZIPファイルがありません")
         return jsonify({'error': 'file_required'}), 400
     if not categories:
+        if hasattr(import_stream, 'close'):
+            import_stream.close()
+        if import_upload_dir:
+            _secure_delete_tree(import_upload_dir)
         _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "インポート対象が選択されていません")
         return jsonify({'error': 'categories_required'}), 400
 
     created_paths = []
     try:
         _account_transfer_checkpoint(current_user.id, job_id, 3, "validating", "ZIPを検証しています")
-        with zipfile.ZipFile(upload_file.stream, "r") as archive:
+        with zipfile.ZipFile(import_stream, "r") as archive:
             members = archive.infolist()
             if len(members) > 10_000:
                 raise ValueError("too_many_archive_entries")
@@ -16594,31 +16727,55 @@ def import_account_data():
             _set_account_transfer_status(current_user.id, job_id, "completed", 100, "completed", "インポートが完了しました")
             response = jsonify({"status": "ok", "imported": counts, "selected": sorted(categories)})
             response.headers["Cache-Control"] = "no-store"
+            if hasattr(import_stream, 'close'):
+                import_stream.close()
+            if import_upload_dir:
+                _secure_delete_tree(import_upload_dir)
             return response
     except AccountTransferCancelled:
         db.session.rollback()
+        if hasattr(import_stream, 'close'):
+            import_stream.close()
+        if import_upload_dir:
+            _secure_delete_tree(import_upload_dir)
         for path in created_paths:
             secure_delete(path)
         _set_account_transfer_status(current_user.id, job_id, "cancelled", 0, "cancelled", "インポートをキャンセルしました")
         return jsonify({'error': 'cancelled'}), 409
     except zipfile.BadZipFile:
         db.session.rollback()
+        if hasattr(import_stream, 'close'):
+            import_stream.close()
+        if import_upload_dir:
+            _secure_delete_tree(import_upload_dir)
         _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "ZIP形式が正しくありません")
         return jsonify({'error': 'invalid_zip'}), 400
     except StorageLimitError:
         db.session.rollback()
+        if hasattr(import_stream, 'close'):
+            import_stream.close()
+        if import_upload_dir:
+            _secure_delete_tree(import_upload_dir)
         for path in created_paths:
             secure_delete(path)
         _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "ストレージ上限を超えるためインポートできません")
         return jsonify({'error': 'storage_limit_exceeded'}), 413
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         db.session.rollback()
+        if hasattr(import_stream, 'close'):
+            import_stream.close()
+        if import_upload_dir:
+            _secure_delete_tree(import_upload_dir)
         for path in created_paths:
             secure_delete(path)
         _set_account_transfer_status(current_user.id, job_id, "failed", 0, "failed", "インポートデータが正しくありません")
         return jsonify({'error': str(exc) or 'invalid_import'}), 400
     except Exception:
         db.session.rollback()
+        if hasattr(import_stream, 'close'):
+            import_stream.close()
+        if import_upload_dir:
+            _secure_delete_tree(import_upload_dir)
         for path in created_paths:
             secure_delete(path)
         logger.exception("Account import failed for user %s", current_user.id)

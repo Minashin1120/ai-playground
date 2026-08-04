@@ -7980,22 +7980,45 @@
                         ? Array.from(categoryBox.querySelectorAll('input[type="checkbox"]:checked')).map(el => (el.closest('label') && el.closest('label').textContent || el.value).trim())
                         : categories;
                     if (!confirm(`次のデータをインポートします。既存データは削除されません。\n\n${selectedLabels.join('、')}\n\n続行しますか？`)) return;
-                    const form = new FormData();
-                    form.append('file', file, file.name);
-                    form.append('categories', categories.join(','));
                     const transfer = {
                         id: createAccountTransferId(), type: 'import', stopped: false,
                         controller: new AbortController()
                     };
-                    form.append('job_id', transfer.id);
                     activeAccountTransfer = transfer;
                     setAccountTransferControls(true);
                     renderAccountTransferProgress({progress: 1, phase: 'validating', message: 'ZIPをアップロードしています'});
                     const resultBox = get('account-import-result');
                     const pollPromise = pollAccountTransfer(transfer);
                     try {
+                        const chunkSize = 10 * 1024 * 1024;
+                        const totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
+                        const startRes = await apiFetch('/api/account/import/upload/start', manualSpinnerRequestOptions({
+                            method: 'POST', headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({size: file.size}), signal: transfer.controller.signal,
+                        }));
+                        const startData = await startRes.json().catch(() => ({}));
+                        if (!startRes.ok) throw new Error(startData.error || 'アップロードを開始できません');
+                        transfer.uploadId = startData.upload_id;
+                        const actualChunkSize = startData.chunk_size || chunkSize;
+                        for (let index = 0; index < totalChunks; index++) {
+                            const chunk = file.slice(index * actualChunkSize, Math.min(file.size, (index + 1) * actualChunkSize));
+                            const chunkForm = new FormData();
+                            chunkForm.append('chunk', chunk, file.name);
+                            chunkForm.append('index', String(index));
+                            const chunkRes = await apiFetch(`/api/account/import/upload/${encodeURIComponent(transfer.uploadId)}/chunk`, manualSpinnerRequestOptions({
+                                method: 'POST', body: chunkForm, signal: transfer.controller.signal,
+                            }));
+                            const chunkData = await chunkRes.json().catch(() => ({}));
+                            if (!chunkRes.ok) throw new Error(chunkData.error || 'アップロードに失敗しました');
+                            renderAccountTransferProgress({progress: Math.min(35, 3 + Math.round(((index + 1) / totalChunks) * 32)), phase: 'uploading', message: `ZIPをアップロードしています（${index + 1}/${totalChunks}）`});
+                        }
+                        const completeRes = await apiFetch(`/api/account/import/upload/${encodeURIComponent(transfer.uploadId)}/complete`, manualSpinnerRequestOptions({method: 'POST', signal: transfer.controller.signal}));
+                        const completeData = await completeRes.json().catch(() => ({}));
+                        if (!completeRes.ok) throw new Error(completeData.error || 'アップロードを完了できません');
                         const res = await apiFetch('/api/account/import', manualSpinnerRequestOptions({
-                            method: 'POST', body: form, signal: transfer.controller.signal,
+                            method: 'POST', headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({upload_id: transfer.uploadId, categories: categories.join(','), job_id: transfer.id}),
+                            signal: transfer.controller.signal,
                         }));
                         const data = await res.json().catch(() => ({}));
                         if (!res.ok) throw new Error(data.error || 'インポートに失敗しました');
@@ -8015,6 +8038,9 @@
                         if (categories.includes('gems')) loadGems();
                         if (categories.includes('files')) loadStorageUsage();
                     } catch (error) {
+                        if (transfer.uploadId) {
+                            apiFetch(`/api/account/import/upload/${encodeURIComponent(transfer.uploadId)}`, manualSpinnerRequestOptions({method: 'DELETE'})).catch(() => null);
+                        }
                         if (transfer.cancelRequested || (error && error.name === 'AbortError')) return;
                         const rawMessage = error && error.message ? error.message : '';
                         const friendlyMessage = rawMessage === 'storage_limit_exceeded'

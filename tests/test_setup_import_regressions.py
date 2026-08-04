@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 import zipfile
+from pathlib import Path
 from unittest import mock
 
 
@@ -364,6 +365,44 @@ class SetupImportRegressionTests(unittest.TestCase):
             source = handle.read()
         self.assertIn("def _user_has_unencrypted_data(user):", source)
         self.assertIn("task_queue.enqueue(migrate_e2ee_task, current_user.id, True)", source)
+
+    def test_setup_import_handles_storage_limit_file_selection(self):
+        root = Path(__file__).resolve().parents[1]
+        with open(root / "templates" / "setup.html", encoding="utf-8") as handle:
+            template = handle.read()
+        for expected in [
+            'id="setup-import-files-modal"',
+            'id="setup-import-files-grid"',
+            'id="setup-import-files-summary"',
+            'id="setup-import-files-confirm"',
+            'id="setup-import-files-select-all"',
+            'id="setup-import-files-none"',
+            "data.error === 'storage_limit_files'",
+            "selected_files: selectedFiles",
+            "__none__",
+            "showSetupImportFileSelection(data)",
+            "setupImportActive",
+        ]:
+            self.assertIn(expected, template)
+
+    def test_settings_import_handles_storage_limit_file_selection(self):
+        root = Path(__file__).resolve().parents[1]
+        with open(root / "templates" / "chat.html", encoding="utf-8") as handle:
+            chat_template = handle.read()
+        js_assets = list((root / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(js_assets), 1)
+        js_source = js_assets[0].read_text(encoding="utf-8")
+        for expected in [
+            'id="import-files-modal"',
+            'id="import-files-grid"',
+            'id="import-files-summary"',
+            'id="import-files-confirm"',
+            "showImportFileSelection(data)",
+            "data.error === 'storage_limit_files'",
+            "selected_files: selectedFiles",
+            "'__none__'",
+        ]:
+            self.assertIn(expected, chat_template if expected.startswith('id=') else js_source)
 
 
 if __name__ == "__main__":

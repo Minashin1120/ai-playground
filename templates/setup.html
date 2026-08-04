@@ -6,7 +6,7 @@
     {% include 'pwa_meta.html' %}
     <title>初期セットアップ - AI Chat</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.' ~ (system_version | lower) ~ '.css') }}?v={{ app_version }}">
-    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.731') }}"></script>
+    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.732') }}"></script>
     <script src="{{ url_for('static', filename='js/pwa_install.js') }}?v={{ app_version }}" defer></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -268,6 +268,30 @@
             </div>
         </form>
     </div>
+    <!-- Import file selection modal (storage limit exceeded) -->
+    <div id="setup-import-files-modal" class="fixed inset-0 bg-gray-900/95 z-[200] hidden items-center justify-center backdrop-blur-sm modal-overlay">
+        <div class="w-full h-full flex flex-col modal-panel">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800 shadow-lg shrink-0">
+                <h2 class="text-lg font-bold text-white"><i class="fas fa-file-import mr-2 text-emerald-400"></i>インポートするファイルを選択</h2>
+                <button type="button" id="setup-import-files-close" class="text-slate-400 w-8 h-8 rounded-full hover:bg-slate-700" aria-label="閉じる">✕</button>
+            </div>
+            <div class="p-2 border-b border-slate-700 bg-slate-800/50 flex flex-wrap justify-between items-center gap-2 shrink-0">
+                <span id="setup-import-files-info" class="text-xs text-slate-400 px-2">0 files</span>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="setup-import-files-select-all" class="bg-slate-700 text-white px-4 py-1.5 rounded text-xs btn-hover">すべて選択</button>
+                    <button type="button" id="setup-import-files-none" class="bg-slate-700 text-white px-4 py-1.5 rounded text-xs btn-hover">すべて解除</button>
+                </div>
+            </div>
+            <div id="setup-import-files-grid" class="flex-1 overflow-y-auto p-4" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;align-content:start;"></div>
+            <div class="p-4 border-t border-slate-700 flex flex-wrap justify-between items-center gap-3 shrink-0 bg-slate-800">
+                <div id="setup-import-files-summary" class="text-[11px] text-slate-400">選択中: 0 MB / 利用可能: 0 MB</div>
+                <div class="flex gap-2">
+                    <button type="button" id="setup-import-files-cancel" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded text-xs font-bold btn-hover">キャンセル</button>
+                    <button type="button" id="setup-import-files-confirm" class="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded text-xs font-bold btn-hover">選択したファイルをインポート</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <script>
         let setupImportActive = false;
         function nextStep(n) {
@@ -385,6 +409,117 @@
                 setupImportActive = false;
                 setControls(false);
             };
+            const escapeHtmlSetup = (str) => String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+            const formatBytes = (bytes) => {
+                const n = Math.max(0, Number(bytes) || 0);
+                if (n >= 1024 * 1024 * 1024) return (n / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+                if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+                if (n >= 1024) return Math.round(n / 1024) + ' KB';
+                return n + ' B';
+            };
+            const fileModal = get('setup-import-files-modal');
+            const fileGrid = get('setup-import-files-grid');
+            const fileInfo = get('setup-import-files-info');
+            const fileSummary = get('setup-import-files-summary');
+            let importFileSelection = null;
+            const updateSetupImportFileSelectionUi = () => {
+                if (!importFileSelection) return;
+                const files = importFileSelection.files;
+                const selection = importFileSelection.selection;
+                let total = 0;
+                files.forEach((f) => { if (selection.has(f.archive_path)) total += (Number(f.size_bytes) || 0); });
+                const available = Number(importFileSelection.available_bytes) || 0;
+                const over = total > available;
+                if (fileSummary) {
+                    fileSummary.textContent = '選択中: ' + formatBytes(total) + ' / 利用可能: ' + formatBytes(available) + (over ? ' （容量超過）' : '');
+                    fileSummary.classList.toggle('text-red-300', over);
+                }
+                if (fileInfo) fileInfo.textContent = files.length + ' files';
+            };
+            const renderSetupImportFileItems = () => {
+                if (!fileGrid || !importFileSelection) return;
+                fileGrid.innerHTML = '';
+                const files = importFileSelection.files;
+                if (!files.length) {
+                    fileGrid.innerHTML = '<div class="text-xs text-slate-500">インポート可能なファイルがありません。</div>';
+                    updateSetupImportFileSelectionUi();
+                    return;
+                }
+                files.forEach((f) => {
+                    const label = document.createElement('label');
+                    const checked = importFileSelection.selection.has(f.archive_path);
+                    label.className = 'relative bg-slate-800 border rounded flex items-center gap-2 p-2 cursor-pointer transition hover:border-emerald-500 ' + (checked ? 'border-emerald-500' : 'border-slate-600');
+                    label.innerHTML =
+                        '<input type="checkbox" class="setup-import-file-check accent-emerald-500 w-4 h-4 shrink-0"' + (checked ? ' checked' : '') + '>' +
+                        '<div class="min-w-0 flex-1">' +
+                            '<div class="text-xs text-slate-200 truncate" title="' + escapeHtmlSetup(f.display_name) + '">' + escapeHtmlSetup(f.display_name) + '</div>' +
+                            '<div class="text-[10px] text-slate-500">' + formatBytes(f.size_bytes) + '</div>' +
+                        '</div>';
+                    const checkbox = label.querySelector('.setup-import-file-check');
+                    checkbox.addEventListener('change', () => {
+                        if (checkbox.checked) importFileSelection.selection.add(f.archive_path);
+                        else importFileSelection.selection.delete(f.archive_path);
+                        label.classList.toggle('border-emerald-500', checkbox.checked);
+                        label.classList.toggle('border-slate-600', !checkbox.checked);
+                        updateSetupImportFileSelectionUi();
+                    });
+                    fileGrid.appendChild(label);
+                });
+                updateSetupImportFileSelectionUi();
+            };
+            const showSetupImportFileSelection = (payload) => new Promise((resolve) => {
+                importFileSelection = {
+                    files: payload.files || [],
+                    selection: new Set((payload.files || []).map(f => f.archive_path)),
+                    available_bytes: payload.available_bytes,
+                    resolve,
+                };
+                renderSetupImportFileItems();
+                if (fileModal) {
+                    fileModal.classList.remove('hidden');
+                    fileModal.classList.add('flex');
+                }
+            });
+            const closeSetupImportFileSelection = (result) => {
+                if (fileModal) {
+                    fileModal.classList.add('hidden');
+                    fileModal.classList.remove('flex');
+                }
+                if (importFileSelection) {
+                    const resolver = importFileSelection.resolve;
+                    importFileSelection = null;
+                    resolver(result);
+                }
+            };
+            const setupFileCloseBtn = get('setup-import-files-close');
+            if (setupFileCloseBtn) setupFileCloseBtn.onclick = () => closeSetupImportFileSelection(null);
+            const setupFileCancelBtn = get('setup-import-files-cancel');
+            if (setupFileCancelBtn) setupFileCancelBtn.onclick = () => closeSetupImportFileSelection(null);
+            const setupFileConfirmBtn = get('setup-import-files-confirm');
+            if (setupFileConfirmBtn) {
+                setupFileConfirmBtn.onclick = () => {
+                    if (!importFileSelection) return;
+                    const selected = Array.from(importFileSelection.selection);
+                    closeSetupImportFileSelection(selected.length ? selected.join(',') : '__none__');
+                };
+            }
+            const setupFileSelectAllBtn = get('setup-import-files-select-all');
+            if (setupFileSelectAllBtn) {
+                setupFileSelectAllBtn.onclick = () => {
+                    if (!importFileSelection) return;
+                    importFileSelection.files.forEach((f) => importFileSelection.selection.add(f.archive_path));
+                    renderSetupImportFileItems();
+                };
+            }
+            const setupFileNoneBtn = get('setup-import-files-none');
+            if (setupFileNoneBtn) {
+                setupFileNoneBtn.onclick = () => {
+                    if (!importFileSelection) return;
+                    importFileSelection.selection.clear();
+                    renderSetupImportFileItems();
+                };
+            }
+
             const importBtn = get('setup-account-import-btn');
             if (importBtn) {
                 importBtn.onclick = async () => {
@@ -454,26 +589,48 @@
                         const completeData = await completeRes.json().catch(() => ({}));
                         if (!completeRes.ok) throw new Error(completeData.error || 'アップロードを完了できません');
                         renderProgress({progress: 35, phase: 'validating', message: 'ZIPを検証しています'});
-                        pollPromise = pollTransfer(transfer);
-                        const res = await fetch('/api/account/import', manualOpts({
-                            method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},
-                            body: JSON.stringify({upload_id: transfer.uploadId, categories: categories.join(','), job_id: transfer.id}),
-                            signal: transfer.controller.signal,
-                        }));
-                        const data = await res.json().catch(() => ({}));
-                        if (!res.ok) throw new Error(data.error || 'インポートに失敗しました');
-                        const imported = data.imported || {};
-                        const detail = [
-                            'チャット ' + (imported.chats || 0) + '件', 'Gem ' + (imported.gems || 0) + '件',
-                            'ファイル ' + (imported.files || 0) + '件', 'フィードバック ' + (imported.feedback || 0) + '件',
-                            '診断データ ' + (imported.diagnostics || 0) + '件',
-                        ].join(' / ');
-                        if (resultBox) {
-                            resultBox.textContent = '完了: ' + detail;
-                            resultBox.classList.remove('hidden', 'text-red-300');
-                            resultBox.classList.add('text-emerald-300');
+                        let selectedFiles = '';
+                        let importDone = false;
+                        while (!importDone) {
+                            transfer.stopped = true;
+                            await pollPromise.catch(() => null);
+                            transfer.stopped = false;
+                            pollPromise = pollTransfer(transfer);
+                            const res = await fetch('/api/account/import', manualOpts({
+                                method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},
+                                body: JSON.stringify({upload_id: transfer.uploadId, categories: categories.join(','), job_id: transfer.id, selected_files: selectedFiles}),
+                                signal: transfer.controller.signal,
+                            }));
+                            const data = await res.json().catch(() => ({}));
+                            if (!res.ok && data.error === 'storage_limit_files' && data.files) {
+                                const chosen = await showSetupImportFileSelection(data);
+                                if (chosen === null) {
+                                    renderProgress({progress: 0, phase: 'cancelled', message: 'ファイル選択をキャンセルしました'});
+                                    if (transfer.uploadId) {
+                                        fetch('/api/account/import/upload/' + encodeURIComponent(transfer.uploadId), manualOpts({
+                                            method: 'DELETE', headers: {'X-CSRF-Token': getCsrf()},
+                                        })).catch(() => null);
+                                    }
+                                    return;
+                                }
+                                selectedFiles = chosen;
+                                continue;
+                            }
+                            if (!res.ok) throw new Error(data.error || 'インポートに失敗しました');
+                            const imported = data.imported || {};
+                            const detail = [
+                                'チャット ' + (imported.chats || 0) + '件', 'Gem ' + (imported.gems || 0) + '件',
+                                'ファイル ' + (imported.files || 0) + '件', 'フィードバック ' + (imported.feedback || 0) + '件',
+                                '診断データ ' + (imported.diagnostics || 0) + '件',
+                            ].join(' / ');
+                            if (resultBox) {
+                                resultBox.textContent = '完了: ' + detail;
+                                resultBox.classList.remove('hidden', 'text-red-300');
+                                resultBox.classList.add('text-emerald-300');
+                            }
+                            renderProgress({progress: 100, phase: 'completed', message: 'インポートが完了しました'});
+                            importDone = true;
                         }
-                        renderProgress({progress: 100, phase: 'completed', message: 'インポートが完了しました'});
                     } catch (error) {
                         if (transfer.uploadId) {
                             fetch('/api/account/import/upload/' + encodeURIComponent(transfer.uploadId), manualOpts({

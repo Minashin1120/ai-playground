@@ -7962,6 +7962,117 @@
             }
             setAccountTransferControls(false);
             refreshLatestAccountExport();
+            // ---- Import file selection modal (storage limit exceeded) ----
+            const importFileModal = get('import-files-modal');
+            const importFileGrid = get('import-files-grid');
+            const importFileInfo = get('import-files-info');
+            const importFileSummary = get('import-files-summary');
+            const importFormatBytes = (bytes) => {
+                const n = Math.max(0, Number(bytes) || 0);
+                if (n >= 1024 * 1024 * 1024) return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+                if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+                if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+                return `${n} B`;
+            };
+            let importFileSelection = null;
+            const updateImportFileSelectionUi = () => {
+                if (!importFileSelection) return;
+                const files = importFileSelection.files;
+                const selection = importFileSelection.selection;
+                let total = 0;
+                files.forEach((f) => { if (selection.has(f.archive_path)) total += (Number(f.size_bytes) || 0); });
+                const available = Number(importFileSelection.available_bytes) || 0;
+                const over = total > available;
+                if (importFileSummary) {
+                    importFileSummary.textContent = `選択中: ${importFormatBytes(total)} / 利用可能: ${importFormatBytes(available)}${over ? ' （容量超過）' : ''}`;
+                    importFileSummary.classList.toggle('text-red-300', over);
+                }
+                if (importFileInfo) importFileInfo.textContent = `${files.length} files`;
+            };
+            const renderImportFileItems = () => {
+                if (!importFileGrid || !importFileSelection) return;
+                importFileGrid.innerHTML = '';
+                const files = importFileSelection.files;
+                if (!files.length) {
+                    importFileGrid.innerHTML = '<div class="text-xs text-gray-500">インポート可能なファイルがありません。</div>';
+                    updateImportFileSelectionUi();
+                    return;
+                }
+                files.forEach((f) => {
+                    const label = document.createElement('label');
+                    const checked = importFileSelection.selection.has(f.archive_path);
+                    label.className = `relative bg-gray-800 border rounded flex items-center gap-2 p-2 cursor-pointer transition hover:border-blue-500 ${checked ? 'border-blue-500' : 'border-gray-600'}`;
+                    label.innerHTML =
+                        `<input type="checkbox" class="import-file-check accent-blue-500 w-4 h-4 shrink-0"${checked ? ' checked' : ''}>` +
+                        `<div class="min-w-0 flex-1">` +
+                            `<div class="text-xs text-gray-200 truncate" title="${escapeHtml(f.display_name)}">${escapeHtml(f.display_name)}</div>` +
+                            `<div class="text-[10px] text-gray-500">${importFormatBytes(f.size_bytes)}</div>` +
+                        `</div>`;
+                    const checkbox = label.querySelector('.import-file-check');
+                    checkbox.addEventListener('change', () => {
+                        if (checkbox.checked) importFileSelection.selection.add(f.archive_path);
+                        else importFileSelection.selection.delete(f.archive_path);
+                        label.classList.toggle('border-blue-500', checkbox.checked);
+                        label.classList.toggle('border-gray-600', !checkbox.checked);
+                        updateImportFileSelectionUi();
+                    });
+                    importFileGrid.appendChild(label);
+                });
+                updateImportFileSelectionUi();
+            };
+            const showImportFileSelection = (payload) => new Promise((resolve) => {
+                importFileSelection = {
+                    files: payload.files || [],
+                    selection: new Set((payload.files || []).map(f => f.archive_path)),
+                    available_bytes: payload.available_bytes,
+                    resolve,
+                };
+                renderImportFileItems();
+                if (importFileModal) {
+                    importFileModal.classList.remove('hidden');
+                    importFileModal.classList.add('flex');
+                }
+            });
+            const closeImportFileSelection = (result) => {
+                if (importFileModal) {
+                    importFileModal.classList.add('hidden');
+                    importFileModal.classList.remove('flex');
+                }
+                if (importFileSelection) {
+                    const resolver = importFileSelection.resolve;
+                    importFileSelection = null;
+                    resolver(result);
+                }
+            };
+            const importFileCloseBtn = get('import-files-close');
+            if (importFileCloseBtn) importFileCloseBtn.onclick = () => closeImportFileSelection(null);
+            const importFileCancelBtn = get('import-files-cancel');
+            if (importFileCancelBtn) importFileCancelBtn.onclick = () => closeImportFileSelection(null);
+            const importFileConfirmBtn = get('import-files-confirm');
+            if (importFileConfirmBtn) {
+                importFileConfirmBtn.onclick = () => {
+                    if (!importFileSelection) return;
+                    const selected = Array.from(importFileSelection.selection);
+                    closeImportFileSelection(selected.length ? selected.join(',') : '__none__');
+                };
+            }
+            const importFileSelectAllBtn = get('import-files-select-all');
+            if (importFileSelectAllBtn) {
+                importFileSelectAllBtn.onclick = () => {
+                    if (!importFileSelection) return;
+                    importFileSelection.files.forEach((f) => importFileSelection.selection.add(f.archive_path));
+                    renderImportFileItems();
+                };
+            }
+            const importFileNoneBtn = get('import-files-none');
+            if (importFileNoneBtn) {
+                importFileNoneBtn.onclick = () => {
+                    if (!importFileSelection) return;
+                    importFileSelection.selection.clear();
+                    renderImportFileItems();
+                };
+            }
+
             const accountImportBtn = get('account-import-btn');
             if (accountImportBtn) {
                 accountImportBtn.onclick = async () => {
@@ -8027,30 +8138,50 @@
                         const completeData = await completeRes.json().catch(() => ({}));
                         if (!completeRes.ok) throw new Error(completeData.error || 'アップロードを完了できません');
                         renderAccountTransferProgress({progress: 35, phase: 'validating', message: 'ZIPを検証しています'});
-                        pollPromise = pollAccountTransfer(transfer);
-                        const res = await apiFetch('/api/account/import', manualSpinnerRequestOptions({
-                            method: 'POST', headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({upload_id: transfer.uploadId, categories: categories.join(','), job_id: transfer.id}),
-                            signal: transfer.controller.signal,
-                        }));
-                        const data = await res.json().catch(() => ({}));
-                        if (!res.ok) throw new Error(data.error || 'インポートに失敗しました');
-                        const imported = data.imported || {};
-                        const detail = [
-                            `チャット ${imported.chats || 0}件`, `Gem ${imported.gems || 0}件`,
-                            `ファイル ${imported.files || 0}件`, `フィードバック ${imported.feedback || 0}件`,
-                            `診断データ ${imported.diagnostics || 0}件`,
-                        ].join(' / ');
-                        if (resultBox) {
-                            resultBox.textContent = `完了: ${detail}`;
-                            resultBox.classList.remove('hidden', 'text-red-300');
-                            resultBox.classList.add('text-emerald-300');
+                        let selectedFiles = '';
+                        let importDone = false;
+                        while (!importDone) {
+                            transfer.stopped = true;
+                            await pollPromise.catch(() => null);
+                            transfer.stopped = false;
+                            pollPromise = pollAccountTransfer(transfer);
+                            const res = await apiFetch('/api/account/import', manualSpinnerRequestOptions({
+                                method: 'POST', headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({upload_id: transfer.uploadId, categories: categories.join(','), job_id: transfer.id, selected_files: selectedFiles}),
+                                signal: transfer.controller.signal,
+                            }));
+                            const data = await res.json().catch(() => ({}));
+                            if (!res.ok && data.error === 'storage_limit_files' && data.files) {
+                                const chosen = await showImportFileSelection(data);
+                                if (chosen === null) {
+                                    renderAccountTransferProgress({progress: 0, phase: 'cancelled', message: 'ファイル選択をキャンセルしました'});
+                                    if (transfer.uploadId) {
+                                        apiFetch(`/api/account/import/upload/${encodeURIComponent(transfer.uploadId)}`, manualSpinnerRequestOptions({method: 'DELETE'})).catch(() => null);
+                                    }
+                                    return;
+                                }
+                                selectedFiles = chosen;
+                                continue;
+                            }
+                            if (!res.ok) throw new Error(data.error || 'インポートに失敗しました');
+                            const imported = data.imported || {};
+                            const detail = [
+                                `チャット ${imported.chats || 0}件`, `Gem ${imported.gems || 0}件`,
+                                `ファイル ${imported.files || 0}件`, `フィードバック ${imported.feedback || 0}件`,
+                                `診断データ ${imported.diagnostics || 0}件`,
+                            ].join(' / ');
+                            if (resultBox) {
+                                resultBox.textContent = `完了: ${detail}`;
+                                resultBox.classList.remove('hidden', 'text-red-300');
+                                resultBox.classList.add('text-emerald-300');
+                            }
+                            renderAccountTransferProgress({progress: 100, phase: 'completed', message: 'インポートが完了しました'});
+                            showToast('選択したアカウントデータをインポートしました', 'success');
+                            if (categories.includes('chats')) loadThreads();
+                            if (categories.includes('gems')) loadGems();
+                            if (categories.includes('files')) loadStorageUsage();
+                            importDone = true;
                         }
-                        renderAccountTransferProgress({progress: 100, phase: 'completed', message: 'インポートが完了しました'});
-                        showToast('選択したアカウントデータをインポートしました', 'success');
-                        if (categories.includes('chats')) loadThreads();
-                        if (categories.includes('gems')) loadGems();
-                        if (categories.includes('files')) loadStorageUsage();
                     } catch (error) {
                         if (transfer.uploadId) {
                             apiFetch(`/api/account/import/upload/${encodeURIComponent(transfer.uploadId)}`, manualSpinnerRequestOptions({method: 'DELETE'})).catch(() => null);

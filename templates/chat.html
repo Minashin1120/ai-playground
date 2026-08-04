@@ -46,7 +46,7 @@
         };
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&family=Noto+Sans+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.731') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.732') }}" defer></script>
     {% if bot_config and bot_config.turnstileSiteKey %}
     <script>
         window.__turnstileApiLoaded = false;
@@ -1454,6 +1454,31 @@
             <div class="flex justify-end gap-3 mt-5">
                 <button id="gemini-local-python-cancel" class="px-4 py-2 text-gray-400 hover:text-white transition">キャンセル</button>
                 <button id="gemini-local-python-continue" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded font-bold btn-hover">このまま送信</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import File Selection Modal (storage limit exceeded) -->
+    <div id="import-files-modal" class="fixed inset-0 bg-gray-900/95 z-[200] hidden items-center justify-center backdrop-blur-sm modal-overlay">
+        <div class="w-full h-full flex flex-col modal-panel">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shadow-lg shrink-0">
+                <h2 class="text-lg font-bold text-white"><i class="fas fa-file-import mr-2 text-emerald-400"></i>インポートするファイルを選択</h2>
+                <button type="button" id="import-files-close" class="text-gray-400 w-8 h-8 rounded-full hover:bg-gray-700" aria-label="閉じる">✕</button>
+            </div>
+            <div class="p-2 border-b border-gray-700 bg-gray-800/50 flex flex-wrap justify-between items-center gap-2 shrink-0">
+                <span id="import-files-info" class="text-xs text-gray-400 px-2">0 files</span>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="import-files-select-all" class="bg-gray-700 text-white px-4 py-1.5 rounded text-xs btn-hover">すべて選択</button>
+                    <button type="button" id="import-files-none" class="bg-gray-700 text-white px-4 py-1.5 rounded text-xs btn-hover">すべて解除</button>
+                </div>
+            </div>
+            <div id="import-files-grid" class="flex-1 overflow-y-auto p-4" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;align-content:start;"></div>
+            <div class="p-4 border-t border-gray-700 flex flex-wrap justify-between items-center gap-3 shrink-0 bg-gray-800">
+                <div id="import-files-summary" class="text-[11px] text-gray-400">選択中: 0 MB / 利用可能: 0 MB</div>
+                <div class="flex gap-2">
+                    <button type="button" id="import-files-cancel" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs font-bold btn-hover">キャンセル</button>
+                    <button type="button" id="import-files-confirm" class="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded text-xs font-bold btn-hover">選択したファイルをインポート</button>
+                </div>
             </div>
         </div>
     </div>

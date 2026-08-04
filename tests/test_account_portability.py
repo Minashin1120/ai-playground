@@ -362,6 +362,9 @@ class AccountPortabilityTests(unittest.TestCase):
         for size in (0, 1, 15, 16, 17, 1024):
             self.assertEqual(target._fernet_encrypted_size(size), len(target.encrypt_bytes(b"x" * size)))
         archive_bytes = self.export_archive()
+        # Plaintext size (~18B) fits under 50B but the Fernet-stored size does
+        # not; the import must therefore ask for a file selection instead of
+        # silently importing the file.
         with mock.patch.object(target, "_get_user_storage_limit_bytes", return_value=50):
             response = self.client_for(self.destination_id).post(
                 "/api/account/import",
@@ -374,12 +377,162 @@ class AccountPortabilityTests(unittest.TestCase):
                 content_type="multipart/form-data",
                 base_url="https://localhost",
             )
-        self.assertEqual(response.status_code, 413, response.get_data(as_text=True))
-        self.assertEqual(response.get_json()["error"], "storage_limit_exceeded")
+        self.assertEqual(response.status_code, 409, response.get_data(as_text=True))
+        payload = response.get_json()
+        self.assertEqual(payload["error"], "storage_limit_files")
+        self.assertEqual(len(payload["files"]), 1)
+        self.assertIn("used_bytes", payload)
+        self.assertIn("limit_bytes", payload)
         with target.app.app_context():
             self.assertEqual(target.FileCache.query.filter_by(user_id=self.destination_id).count(), 0)
             destination_dir = os.path.join(self.temp_dir.name, str(self.destination_id))
             self.assertFalse(os.path.exists(destination_dir))
+
+    def chunked_upload(self, client, archive_bytes):
+        start = client.post(
+            "/api/account/import/upload/start",
+            json={"size": len(archive_bytes)},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(start.status_code, 200, start.get_data(as_text=True))
+        upload_id = start.get_json()["upload_id"]
+        chunk = client.post(
+            f"/api/account/import/upload/{upload_id}/chunk",
+            data={"index": "0", "chunk": (io.BytesIO(archive_bytes), "account.zip")},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            content_type="multipart/form-data",
+            base_url="https://localhost",
+        )
+        self.assertEqual(chunk.status_code, 200, chunk.get_data(as_text=True))
+        complete = client.post(
+            f"/api/account/import/upload/{upload_id}/complete",
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(complete.status_code, 200, complete.get_data(as_text=True))
+        return upload_id
+
+    def test_import_storage_limit_returns_selection_and_keeps_upload(self):
+        archive_bytes = self.export_archive()
+        client = self.client_for(self.destination_id)
+        upload_id = self.chunked_upload(client, archive_bytes)
+        upload_dir = target._account_import_upload_dir(self.destination_id, upload_id)
+        self.assertTrue(os.path.isdir(upload_dir))
+        with mock.patch.object(target, "_get_user_storage_limit_bytes", return_value=50):
+            response = client.post(
+                "/api/account/import",
+                json={
+                    "upload_id": upload_id,
+                    "categories": "files",
+                    "job_id": "1" * 32,
+                },
+                headers={"X-CSRF-Token": "csrf-test-token"},
+                base_url="https://localhost",
+            )
+        self.assertEqual(response.status_code, 409, response.get_data(as_text=True))
+        payload = response.get_json()
+        self.assertEqual(payload["error"], "storage_limit_files")
+        self.assertEqual(len(payload["files"]), 1)
+        self.assertEqual(payload["files"][0]["archive_path"], "files/000001.bin")
+        self.assertGreaterEqual(payload["available_bytes"], 0)
+        self.assertTrue(os.path.isdir(upload_dir), "upload must be kept for the follow-up selection")
+
+    def test_import_with_selected_files_imports_only_selection(self):
+        archive_bytes = self.export_archive()
+        client = self.client_for(self.destination_id)
+        upload_id = self.chunked_upload(client, archive_bytes)
+        with mock.patch.object(target, "_get_user_storage_limit_bytes", return_value=10_000):
+            response = client.post(
+                "/api/account/import",
+                json={
+                    "upload_id": upload_id,
+                    "categories": "files",
+                    "job_id": "2" * 32,
+                    "selected_files": "files/000001.bin",
+                },
+                headers={"X-CSRF-Token": "csrf-test-token"},
+                base_url="https://localhost",
+            )
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(response.get_json()["imported"]["files"], 1)
+        self.assertFalse(os.path.isdir(target._account_import_upload_dir(self.destination_id, upload_id)))
+        with target.app.app_context():
+            self.assertEqual(target.FileCache.query.filter_by(user_id=self.destination_id).count(), 1)
+            destination_dir = os.path.join(self.temp_dir.name, str(self.destination_id))
+            self.assertTrue(any("portable" in name for _, _, names in os.walk(destination_dir) for name in names))
+
+    def test_import_with_selected_none_imports_no_files(self):
+        archive_bytes = self.export_archive()
+        client = self.client_for(self.destination_id)
+        upload_id = self.chunked_upload(client, archive_bytes)
+        response = client.post(
+            "/api/account/import",
+            json={
+                "upload_id": upload_id,
+                "categories": "files",
+                "job_id": "3" * 32,
+                "selected_files": "__none__",
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(response.get_json()["imported"]["files"], 0)
+        with target.app.app_context():
+            self.assertEqual(target.FileCache.query.filter_by(user_id=self.destination_id).count(), 0)
+
+    def test_import_selected_files_still_over_limit_returns_selection_again(self):
+        archive_bytes = self.export_archive()
+        client = self.client_for(self.destination_id)
+        upload_id = self.chunked_upload(client, archive_bytes)
+        with mock.patch.object(target, "_get_user_storage_limit_bytes", return_value=10):
+            response = client.post(
+                "/api/account/import",
+                json={
+                    "upload_id": upload_id,
+                    "categories": "files",
+                    "job_id": "4" * 32,
+                    "selected_files": "files/000001.bin",
+                },
+                headers={"X-CSRF-Token": "csrf-test-token"},
+                base_url="https://localhost",
+            )
+        self.assertEqual(response.status_code, 409, response.get_data(as_text=True))
+        self.assertEqual(response.get_json()["error"], "storage_limit_files")
+
+    def test_import_chunked_upload_removed_on_failure(self):
+        client = self.client_for(self.destination_id)
+        upload_id = self.chunked_upload(client, b"not-a-zip")
+        upload_dir = target._account_import_upload_dir(self.destination_id, upload_id)
+        self.assertTrue(os.path.isdir(upload_dir))
+        response = client.post(
+            "/api/account/import",
+            json={
+                "upload_id": upload_id,
+                "categories": "files",
+                "job_id": "5" * 32,
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 400, response.get_data(as_text=True))
+        self.assertEqual(response.get_json()["error"], "invalid_zip")
+        self.assertFalse(os.path.isdir(upload_dir), "failed import must delete the chunked upload")
+
+    def test_cancel_import_upload_endpoint_removes_upload(self):
+        archive_bytes = self.export_archive()
+        client = self.client_for(self.destination_id)
+        upload_id = self.chunked_upload(client, archive_bytes)
+        upload_dir = target._account_import_upload_dir(self.destination_id, upload_id)
+        self.assertTrue(os.path.isdir(upload_dir))
+        response = client.delete(
+            f"/api/account/import/upload/{upload_id}",
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(os.path.isdir(upload_dir))
 
     def test_export_honors_server_side_cancellation(self):
         with mock.patch.object(target, "_account_transfer_cancelled", return_value=True), \
@@ -473,7 +626,7 @@ class AccountPortabilityTests(unittest.TestCase):
 
     def test_frontend_restores_background_export_with_download_and_cancel(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "static", "js", "chat_core.v4.8.731.js"), encoding="utf-8") as handle:
+        with open(os.path.join(root, "static", "js", "chat_core.v4.8.732.js"), encoding="utf-8") as handle:
             source = handle.read()
         with open(os.path.join(root, "templates", "chat.html"), encoding="utf-8") as handle:
             template = handle.read()
@@ -550,7 +703,7 @@ class AccountPortabilityTests(unittest.TestCase):
 
     def test_frontend_import_progress_uses_overall_scale_and_poll_after_upload(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "static", "js", "chat_core.v4.8.731.js"), encoding="utf-8") as handle:
+        with open(os.path.join(root, "static", "js", "chat_core.v4.8.732.js"), encoding="utf-8") as handle:
             source = handle.read()
         self.assertIn("Math.min(35, Math.round((uploadedChunks / totalChunks) * 35))", source)
         self.assertNotIn("3 + Math.round((uploadedChunks / totalChunks) * 32)", source)

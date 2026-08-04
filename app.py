@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-05-004')
-app.config['SYSTEM_VERSION'] = 'V4.8.731'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-05-005')
+app.config['SYSTEM_VERSION'] = 'V4.8.732'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3862,6 +3862,57 @@ def _coerce_account_import_categories(raw):
     if not isinstance(raw, list):
         return set()
     return {str(item).strip() for item in raw if str(item).strip() in ACCOUNT_IMPORT_CATEGORIES}
+
+
+IMPORT_SELECTED_FILES_NONE = "__none__"
+
+
+def _coerce_import_selected_files(raw):
+    """Parse the archive_paths the client wants to import.
+
+    Returns ``None`` when no filter was supplied (import every file), an empty
+    set when the client explicitly deselected every file, or the set of allowed
+    ``files/`` archive paths.  Only entries under ``files/`` are accepted so a
+    crafted value cannot smuggle another archive member into the files list.
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, (list, tuple, set)):
+        items = [str(x).strip() for x in raw]
+    else:
+        items = [part.strip() for part in str(raw or "").split(",") if part.strip()]
+    if not items:
+        return None
+    if items == [IMPORT_SELECTED_FILES_NONE]:
+        return set()
+    return {item for item in items if item.startswith("files/")}
+
+
+def _account_storage_limit_response(file_items, used_bytes, limit_bytes):
+    """Build the response that asks the client to pick which files to import.
+
+    The chunked upload is intentionally left in place so the follow-up import
+    with ``selected_files`` can reuse it instead of forcing a re-upload.
+    """
+    files = []
+    for item in file_items or []:
+        if not isinstance(item, dict):
+            continue
+        files.append({
+            "archive_path": str(item.get("archive_path") or ""),
+            "rel_path": str(item.get("rel_path") or ""),
+            "display_name": str(item.get("display_name") or os.path.basename(str(item.get("rel_path") or "")) or "file"),
+            "size_bytes": int(item.get("size_bytes") or 0),
+        })
+    return jsonify({
+        "status": "storage_limit",
+        "error": "storage_limit_files",
+        "message": "ストレージ容量が不足しています。インポートするファイルを選択してください。",
+        "files": files,
+        "used_bytes": int(used_bytes or 0),
+        "limit_bytes": int(limit_bytes or 0),
+        "available_bytes": max(0, int(limit_bytes or 0) - int(used_bytes or 0)),
+    }), 409
 
 
 def _safe_account_import_text(value, max_chars):
@@ -16601,6 +16652,10 @@ def import_account_data():
                 file_items = data.get("files") or []
                 if not isinstance(file_items, list) or len(file_items) > 10_000:
                     raise ValueError("invalid_files")
+                selected_files = _coerce_import_selected_files(
+                    request.form.get("selected_files", body.get("selected_files", ""))
+                )
+                file_entries = []
                 total_file_bytes = 0
                 total_stored_bytes = 0
                 for item_index, item in enumerate(file_items, start=1):
@@ -16618,25 +16673,34 @@ def import_account_data():
                         raise ValueError("missing_archive_file")
                     if entry.file_size < 0 or entry.file_size > (app.config.get("MAX_CONTENT_LENGTH") or 512 * 1024 * 1024):
                         raise ValueError("archive_file_too_large")
+                    if selected_files is not None and archive_path not in selected_files:
+                        continue
+                    file_entries.append((item, archive_path, entry))
                     total_file_bytes += entry.file_size
                     total_stored_bytes += (
                         _fernet_encrypted_size(entry.file_size)
                         if current_user.enable_e2ee else entry.file_size
                     )
-                capacity_ok, _, _ = _check_storage_capacity(current_user, total_file_bytes)
-                if not capacity_ok:
-                    raise StorageLimitError("storage_limit_exceeded")
-                capacity_ok, _, _ = _check_storage_capacity(current_user, total_stored_bytes)
-                if not capacity_ok:
-                    raise StorageLimitError("storage_limit_exceeded")
-                for item_index, item in enumerate(file_items, start=1):
-                    progress = 43 + int(12 * (item_index - 1) / max(1, len(file_items)))
+                capacity_ok, used, limit = _check_storage_capacity(current_user, total_file_bytes)
+                stored_ok, _, _ = _check_storage_capacity(current_user, total_stored_bytes)
+                if not capacity_ok or not stored_ok:
+                    # Ask the client to choose which files to import instead of
+                    # failing the whole import.  The upload is kept on disk so the
+                    # follow-up import with selected_files can reuse it.
+                    _set_account_transfer_status(
+                        current_user.id, job_id, "needs_selection", 42, "validating_files",
+                        "ストレージ容量が不足しています。インポートするファイルを選択してください。",
+                    )
+                    if hasattr(import_stream, 'close'):
+                        import_stream.close()
+                    return _account_storage_limit_response(file_items, used, limit)
+                for file_index, (item, archive_path, entry) in enumerate(file_entries, start=1):
+                    progress = 43 + int(12 * (file_index - 1) / max(1, len(file_entries)))
                     _account_transfer_checkpoint(
                         current_user.id, job_id, progress, "reading_files",
-                        f"ファイルを読み込んでいます（{item_index}/{len(file_items)}）",
+                        f"ファイルを読み込んでいます（{file_index}/{len(file_entries)}）",
                     )
-                    archive_path = str(item.get("archive_path"))
-                    raw = archive.read(by_name[archive_path])
+                    raw = archive.read(entry)
                     expected_size_raw = item.get("size_bytes")
                     expected_size = int(expected_size_raw) if expected_size_raw is not None else -1
                     expected_hash = str(item.get("sha256") or "")

@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Drive headless Chrome via CDP to measure the live landing page layout and
-capture console/exceptions. Uses venv python (has websockets + requests)."""
+capture console/exceptions. Uses venv python (has websockets + requests).
+
+Usage:
+  CDP_VIEWPORT=375x800 venv/bin/python scripts/measure_landing_cdp.py
+"""
 import asyncio
 import json
-import re
+import os
 import subprocess
 import sys
 import time
@@ -11,43 +15,64 @@ import urllib.request
 
 CHROME = "/home/ai-chat-minashin1120/.cache/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell"
 URL = "https://ai.minashin1120.com/"
-DEBUG_PORT = 9333
+DEBUG_PORT = 9500 + (int(time.time()) % 200)
+PROFILE = "/tmp/opencode_cdp_profile_%d" % DEBUG_PORT
 
 MEASURE_JS = r"""
 (function () {
     var out = {};
-    out.viewport = { w: document.documentElement.clientWidth, h: window.innerHeight };
+    var vw = document.documentElement.clientWidth;
+    out.viewport = { w: vw, h: window.innerHeight };
     out.doc = { scrollW: document.documentElement.scrollWidth, scrollH: document.documentElement.scrollHeight,
-                bodyScrollW: document.body.scrollWidth, hasHOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1 };
+                hasHOverflow: document.documentElement.scrollWidth > vw + 1 };
+    var offenders = [];
+    var all = document.querySelectorAll('body *');
+    for (var i = 0; i < all.length; i++) {
+        var el = all[i];
+        var r = el.getBoundingClientRect();
+        if (r.width <= 0) continue;
+        if (r.right > vw + 1 || r.left < -1) {
+            var cs = window.getComputedStyle(el);
+            var cls = (typeof el.className === 'string' && el.className) ? '.' + el.className.split(' ').slice(0, 2).join('.') : '';
+            offenders.push({ tag: el.tagName.toLowerCase(), cls: cls, left: Math.round(r.left), right: Math.round(r.right), w: Math.round(r.width), pos: cs.position, overflowX: cs.overflowX });
+        }
+    }
+    out.offenderCount = offenders.length;
+    out.offenders = offenders.slice(0, 25);
     function rect(sel) {
         var el = document.querySelector(sel);
         if (!el) return null;
         var r = el.getBoundingClientRect();
-        return { top: Math.round(r.top), bottom: Math.round(r.bottom), h: Math.round(r.height), w: Math.round(r.width) };
+        return { top: Math.round(r.top), bottom: Math.round(r.bottom), h: Math.round(r.height), w: Math.round(r.width), left: Math.round(r.left), right: Math.round(r.right) };
     }
-    out.sections = {};
-    var secs = document.querySelectorAll('section, header, footer, main');
-    var i = 0;
-    out.sections.hero = rect('.hero-bg');
-    out.sections.demoStage = rect('.demo-stage');
-    out.sections.chatDemo = rect('.chat-demo');
-    out.sections.chatDemoBody = rect('.chat-demo-body');
-    out.sections.hubFrame = rect('.hub-frame');
-    out.sections.featuresGrid = rect('section:nth-of-type(4) .grid');
-    out.sections.marquee = rect('.marquee-wrap');
-    out.sections.faq = rect('.ld-faq');
-    out.sections.cta = rect('section.hero-bg.py-20');
-    out.header = rect('header');
-    out.footer = rect('footer');
-    /* negative margins anywhere that could cause awkward gaps */
-    var negs = [];
-    document.querySelectorAll('*').forEach(function (el) {
-        var cs = window.getComputedStyle(el);
-        if (cs && (parseFloat(cs.marginTop) < -1 || parseFloat(cs.marginBottom) < -1 || parseFloat(cs.marginLeft) < -1 || parseFloat(cs.marginRight) < -1)) {
-            if (el.className && typeof el.className === 'string') negs.push(el.tagName + '.' + el.className.split(' ').slice(0,2).join('.') + ' mt=' + cs.marginTop + ' mb=' + cs.marginBottom);
-        }
+    out.sections = {
+        header: rect('header'),
+        hero: rect('.hero-bg'),
+        chatDemo: rect('.chat-demo'),
+        chatCaption: rect('.hero-bg .text-xs.mt-4'),
+        marquee: rect('.marquee-wrap'),
+        hubFrame: rect('.hub-frame'),
+        featuresGrid: rect('section:nth-of-type(4) .grid'),
+        stepsGrid: rect('section:nth-of-type(5) .grid'),
+        faq: rect('.ld-faq'),
+        cta: rect('section.hero-bg.py-20'),
+        footer: rect('footer')
+    };
+    var items = ['header', '.hero-bg', '.marquee-wrap', '.hub-frame', 'section:nth-of-type(4) .grid', 'section:nth-of-type(5) .grid', '.ld-stat', '.ld-faq', 'section.hero-bg.py-20', 'footer'];
+    var rects = [];
+    items.forEach(function (sel) {
+        var el = document.querySelector(sel);
+        if (el) { var r = el.getBoundingClientRect(); rects.push({ sel: sel, top: r.top, bottom: r.bottom }); }
     });
-    out.negativeMargins = negs.slice(0, 20);
+    var gaps = [];
+    for (var k = 0; k < rects.length - 1; k++) gaps.push({ a: rects[k].sel, b: rects[k + 1].sel, gap: Math.round(rects[k + 1].top - rects[k].bottom) });
+    out.sectionGaps = gaps;
+    out.heroText = {
+        badge: rect('.hero-bg .inline-flex'),
+        h1: rect('.hero-bg h1'),
+        sub: rect('.hero-bg .max-w-xl'),
+        stats: rect('.hero-bg .mt-10')
+    };
     out.demoState = {
         built: !!document.querySelector('.chat-demo-body'),
         rows: document.querySelectorAll('.chat-demo-body .ld-row').length,
@@ -57,90 +82,106 @@ MEASURE_JS = r"""
 })();
 """
 
+
+class CDP:
+    def __init__(self, ws):
+        self.ws = ws
+        self._id = 0
+
+    async def cmd(self, method, params=None):
+        self._id += 1
+        req_id = self._id
+        await self.ws.send(json.dumps({"id": req_id, "method": method, "params": params or {}}))
+        while True:
+            msg = json.loads(await self.ws.recv())
+            if msg.get("id") == req_id:
+                return msg.get("result", {}), msg.get("error")
+
+    async def next_event(self, timeout):
+        try:
+            return json.loads(await asyncio.wait_for(self.ws.recv(), timeout))
+        except asyncio.TimeoutError:
+            return None
+
+
 async def main():
+    print("step: launching chrome", flush=True)
     proc = subprocess.Popen([
         CHROME, "--headless", "--no-sandbox", "--disable-gpu", "--remote-debugging-port=%d" % DEBUG_PORT,
-        "--user-data-dir=/tmp/opencode_cdp_profile", "about:blank"
+        "--user-data-dir=%s" % PROFILE, "about:blank"
     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
-        # wait for debugging endpoint
-        for _ in range(40):
+        for _ in range(50):
             try:
-                urllib.request.urlopen("http://127.0.0.1:%d/json/version" % DEBUG_PORT, timeout=2)
+                urllib.request.urlopen("http://127.0.0.1:%d/json/version" % DEBUG_PORT, timeout=1)
                 break
             except Exception:
-                time.sleep(0.25)
+                time.sleep(0.2)
+        print("step: debug endpoint up", flush=True)
 
-        # open the page
+        from urllib.parse import quote as urlquote
         req = urllib.request.Request(
-            "http://127.0.0.1:%d/json/new?%s" % (DEBUG_PORT, urllib.request.quote(URL, safe="")),
-            method="PUT")
+            "http://127.0.0.1:%d/json/new?%s" % (DEBUG_PORT, urlquote(URL, safe="")), method="PUT")
         target = json.loads(urllib.request.urlopen(req, timeout=5).read())
-        ws_url = target["webSocketDebuggerUrl"]
+        print("step: tab opened", flush=True)
 
         import websockets
-        async with websockets.connect(ws_url, max_size=2**24) as ws:
-            cmd_id = 0
-            async def cmd(method, params=None):
-                nonlocal cmd_id
-                cmd_id += 1
-                await ws.send(json.dumps({"id": cmd_id, "method": method, "params": params or {}}))
-                while True:
-                    msg = json.loads(await ws.recv())
-                    if msg.get("id") == cmd_id:
-                        return msg.get("result", {}), msg.get("error")
-            async def listen(timeout):
-                try:
-                    return json.loads(await asyncio.wait_for(ws.recv(), timeout))
-                except asyncio.TimeoutError:
-                    return None
-
-            await cmd("Page.enable")
-            await cmd("Runtime.enable")
-            await cmd("Log.enable")
-            # optional viewport (desktop check)
-            import os
+        async with websockets.connect(target["webSocketDebuggerUrl"], max_size=2**24) as ws:
+            cdp = CDP(ws)
+            await cdp.cmd("Runtime.enable")
+            await cdp.cmd("Log.enable")
             vp = os.environ.get("CDP_VIEWPORT", "")
             if vp:
                 w, h = vp.split("x")
-                await cmd("Emulation.setDeviceMetricsOverride", {"width": int(w), "height": int(h), "deviceScaleFactor": 1, "mobile": False})
-            await cmd("Page.navigate", {"url": URL})
-            # wait for load
-            for _ in range(60):
-                m = await listen(3)
-                if m and m.get("method") in ("Page.loadEventFired", "Page.frameStoppedLoading"):
+                await cdp.cmd("Emulation.setDeviceMetricsOverride", {"width": int(w), "height": int(h), "deviceScaleFactor": 1, "mobile": False})
+            print("step: navigating", flush=True)
+            await cdp.cmd("Page.navigate", {"url": URL})
+            # wait until the demo and hub are built (Rocket Loader defers scripts)
+            ready = False
+            i = -1
+            for i in range(80):
+                res, _ = await cdp.cmd("Runtime.evaluate", {"expression": "!!document.querySelector('.chat-demo-body') && !!document.querySelector('.hub-node-card')", "returnByValue": True})
+                try:
+                    ready = bool(res["result"]["value"])
+                except Exception:
+                    ready = False
+                if ready:
                     break
-            await asyncio.sleep(6)  # let Rocket Loader + demo run
+                await asyncio.sleep(0.25)
+            print("step: ready=%s after %ds" % (ready, i if ready else 20), flush=True)
+            await asyncio.sleep(4)
 
-            # collect console/exceptions
+            # capture console / exceptions (non-blocking pump)
             events = []
-            async def collect(timeout):
-                for _ in range(int(timeout / 0.1)):
-                    m = await listen(0.1)
-                    if m and m.get("method") in ("Runtime.exceptionThrown", "Log.entryAdded", "Runtime.consoleAPICalled"):
-                        events.append(m)
-            await collect(3)
+            for _ in range(30):
+                m = await cdp.next_event(0.1)
+                if m and m.get("method") in ("Runtime.exceptionThrown", "Log.entryAdded"):
+                    events.append(m)
 
-            # evaluate measurement
-            res, err = await cmd("Runtime.evaluate", {"expression": MEASURE_JS, "returnByValue": True})
+            res, err = await cdp.cmd("Runtime.evaluate", {"expression": MEASURE_JS, "returnByValue": True})
             val = None
             if res and res.get("result") and res["result"].get("value"):
                 val = res["result"]["value"]
             print("=== LAYOUT ===")
-            print(json.dumps(json.loads(val), ensure_ascii=False, indent=1) if val else "NO VALUE")
+            if val:
+                print(json.dumps(json.loads(val), ensure_ascii=False, indent=1))
+            elif res and res.get("exceptionDetails"):
+                print("EVAL EXCEPTION:", res["exceptionDetails"].get("exception", {}).get("description", ""))
+            else:
+                print("NO VALUE", "err=", err)
             print("=== JS EVENTS ===")
             for e in events:
                 if e["method"] == "Runtime.exceptionThrown":
                     d = e["params"]["exceptionDetails"]
                     print("EXCEPTION:", d.get("text"), d.get("exception", {}).get("description", ""))
                 elif e["method"] == "Log.entryAdded":
-                    print("LOG:", e["params"]["entry"].get("level"), "-", e["params"]["entry"].get("text"))
-                elif e["method"] == "Runtime.consoleAPICalled":
-                    args = e["params"]["args"]
-                    print("CONSOLE:", " ".join(a.get("value", a.get("description", "")) for a in args)[:300])
+                    en = e["params"]["entry"]
+                    print("LOG:", en.get("level"), "-", en.get("text"))
             if not events:
                 print("(none)")
     finally:
         proc.terminate()
 
-asyncio.run(main())
+
+if __name__ == "__main__":
+    asyncio.run(main())

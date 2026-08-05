@@ -269,7 +269,7 @@
     }
 
     function buildChatDemo(root) {
-        var systemVersion = (typeof window !== 'undefined' && window.LANDING_SYSTEM_VERSION) || 'V4.8.743';
+        var systemVersion = (typeof window !== 'undefined' && window.LANDING_SYSTEM_VERSION) || 'V4.8.744';
         var chrome = document.createElement('div');
         chrome.className = 'chat-demo-chrome';
         chrome.innerHTML =

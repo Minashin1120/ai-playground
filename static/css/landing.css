@@ -9,6 +9,10 @@
     --ld-panel: rgba(10, 16, 35, 0.82);
 }
 
+/* Never allow a single element (long flex text, marquee, blobs) to cause a
+ * horizontal scrollbar. `clip` avoids creating a scroll container. */
+html, body { overflow-x: clip; }
+
 /* ── Sections ── */
 .landing-section { position: relative; }
 .section-eyebrow {
@@ -29,12 +33,12 @@
 /* ── Hero demo stage ── */
 .demo-stage {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 3rem;
     align-items: center;
 }
 @media (min-width: 1024px) {
-    .demo-stage { grid-template-columns: 1.05fr 0.95fr; gap: 4rem; }
+    .demo-stage { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: 4rem; }
 }
 
 /* ── Chat window demo (mirrors the real app UI) ── */

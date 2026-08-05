@@ -43,6 +43,15 @@ class ConnectionStatusRegressionTests(unittest.TestCase):
         self.assertNotIn("navigator.onLine ? 'server-down' : 'offline'", failure)
         self.assertNotIn("setConnectionBanner('unstable'", failure)
 
+    def test_offline_banner_uses_an_icon_available_in_fontawesome_6(self):
+        source = _connection_script()
+        banner = source[source.index("function setConnectionBanner(mode, message = '')") :]
+        banner = banner[: banner.index("function isDisconnectedConnectionStatus")]
+        offline = banner[banner.index("if (mode === 'offline')") :]
+
+        self.assertIn("icon.className = 'fas fa-unlink'", offline)
+        self.assertNotIn("fa-wifi-slash", offline)
+
     def test_maintenance_and_full_server_down_have_distinct_states(self):
         source = _connection_script()
 

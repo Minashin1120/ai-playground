@@ -4282,7 +4282,7 @@
             if (mode === 'offline') {
                 b.classList.add('offline');
                 b.classList.remove('unstable', 'maintenance', 'server-down', 'online');
-                icon.className = 'fas fa-wifi-slash';
+                icon.className = 'fas fa-unlink';
                 text.textContent = message || 'インターネット接続が切断されています';
                 return;
             }

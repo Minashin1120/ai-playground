@@ -438,6 +438,37 @@ class AccountPortabilityTests(unittest.TestCase):
         self.assertGreaterEqual(payload["available_bytes"], 0)
         self.assertTrue(os.path.isdir(upload_dir), "upload must be kept for the follow-up selection")
 
+    def test_import_storage_limit_records_selection_in_transfer_status(self):
+        archive_bytes = self.export_archive()
+        client = self.client_for(self.destination_id)
+        upload_id = self.chunked_upload(client, archive_bytes)
+        job_id = "a" * 32
+        with mock.patch.object(target, "_get_user_storage_limit_bytes", return_value=50):
+            response = client.post(
+                "/api/account/import",
+                json={
+                    "upload_id": upload_id,
+                    "categories": "files",
+                    "job_id": job_id,
+                },
+                headers={"X-CSRF-Token": "csrf-test-token"},
+                base_url="https://localhost",
+            )
+        self.assertEqual(response.status_code, 409, response.get_data(as_text=True))
+        status = client.get(
+            f"/api/account/transfer/{job_id}",
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(status.status_code, 200, status.get_data(as_text=True))
+        payload = status.get_json()
+        self.assertEqual(payload["state"], "needs_selection")
+        self.assertEqual(len(payload["files"]), 1)
+        self.assertEqual(payload["files"][0]["archive_path"], "files/000001.bin")
+        self.assertIn("available_bytes", payload)
+        self.assertIn("limit_bytes", payload)
+        self.assertIn("used_bytes", payload)
+
     def test_import_with_selected_files_imports_only_selection(self):
         archive_bytes = self.export_archive()
         client = self.client_for(self.destination_id)
@@ -626,7 +657,7 @@ class AccountPortabilityTests(unittest.TestCase):
 
     def test_frontend_restores_background_export_with_download_and_cancel(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "static", "js", "chat_core.v4.8.733.js"), encoding="utf-8") as handle:
+        with open(os.path.join(root, "static", "js", "chat_core.v4.8.734.js"), encoding="utf-8") as handle:
             source = handle.read()
         with open(os.path.join(root, "templates", "chat.html"), encoding="utf-8") as handle:
             template = handle.read()
@@ -703,7 +734,7 @@ class AccountPortabilityTests(unittest.TestCase):
 
     def test_frontend_import_progress_uses_overall_scale_and_poll_after_upload(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "static", "js", "chat_core.v4.8.733.js"), encoding="utf-8") as handle:
+        with open(os.path.join(root, "static", "js", "chat_core.v4.8.734.js"), encoding="utf-8") as handle:
             source = handle.read()
         self.assertIn("Math.min(35, Math.round((uploadedChunks / totalChunks) * 35))", source)
         self.assertNotIn("3 + Math.round((uploadedChunks / totalChunks) * 32)", source)

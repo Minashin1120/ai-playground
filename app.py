@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-05-006')
-app.config['SYSTEM_VERSION'] = 'V4.8.733'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-05-007')
+app.config['SYSTEM_VERSION'] = 'V4.8.734'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3313,7 +3313,10 @@ def _set_account_transfer_status(user_id, job_id, state, progress, phase, messag
         "message": str(message or ""),
         "updated_at": _portable_datetime(datetime.utcnow()),
     }
-    for key in ("expires_at", "filename", "size_bytes", "available"):
+    for key in (
+        "expires_at", "filename", "size_bytes", "available",
+        "files", "used_bytes", "limit_bytes", "available_bytes",
+    ):
         if key in details:
             payload[key] = details[key]
     try:
@@ -3888,11 +3891,12 @@ def _coerce_import_selected_files(raw):
     return {item for item in items if item.startswith("files/")}
 
 
-def _account_storage_limit_response(file_items, used_bytes, limit_bytes):
-    """Build the response that asks the client to pick which files to import.
+def _account_storage_limit_payload(file_items, used_bytes, limit_bytes):
+    """Build the selection payload shown when an import exceeds storage.
 
-    The chunked upload is intentionally left in place so the follow-up import
-    with ``selected_files`` can reuse it instead of forcing a re-upload.
+    Shared by the HTTP response and the ``needs_selection`` transfer status so
+    the client can recover the file list even when the (potentially large)
+    409 response body is lost on a flaky connection.
     """
     files = []
     for item in file_items or []:
@@ -3904,7 +3908,7 @@ def _account_storage_limit_response(file_items, used_bytes, limit_bytes):
             "display_name": str(item.get("display_name") or os.path.basename(str(item.get("rel_path") or "")) or "file"),
             "size_bytes": int(item.get("size_bytes") or 0),
         })
-    return jsonify({
+    return {
         "status": "storage_limit",
         "error": "storage_limit_files",
         "message": "ストレージ容量が不足しています。インポートするファイルを選択してください。",
@@ -3912,7 +3916,7 @@ def _account_storage_limit_response(file_items, used_bytes, limit_bytes):
         "used_bytes": int(used_bytes or 0),
         "limit_bytes": int(limit_bytes or 0),
         "available_bytes": max(0, int(limit_bytes or 0) - int(used_bytes or 0)),
-    }), 409
+    }
 
 
 def _safe_account_import_text(value, max_chars):
@@ -16686,14 +16690,22 @@ def import_account_data():
                 if not capacity_ok or not stored_ok:
                     # Ask the client to choose which files to import instead of
                     # failing the whole import.  The upload is kept on disk so the
-                    # follow-up import with selected_files can reuse it.
+                    # follow-up import with selected_files can reuse it.  The
+                    # selection data is also recorded in the transfer status so the
+                    # client can recover the picker even when this (potentially
+                    # large) response body is lost on a flaky connection.
+                    selection_payload = _account_storage_limit_payload(file_items, used, limit)
                     _set_account_transfer_status(
                         current_user.id, job_id, "needs_selection", 42, "validating_files",
-                        "ストレージ容量が不足しています。インポートするファイルを選択してください。",
+                        selection_payload["message"],
+                        files=selection_payload["files"],
+                        used_bytes=selection_payload["used_bytes"],
+                        limit_bytes=selection_payload["limit_bytes"],
+                        available_bytes=selection_payload["available_bytes"],
                     )
                     if hasattr(import_stream, 'close'):
                         import_stream.close()
-                    return _account_storage_limit_response(file_items, used, limit)
+                    return jsonify(selection_payload), 409
                 for file_index, (item, archive_path, entry) in enumerate(file_entries, start=1):
                     progress = 43 + int(12 * (file_index - 1) / max(1, len(file_entries)))
                     _account_transfer_checkpoint(

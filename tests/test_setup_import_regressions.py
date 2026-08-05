@@ -409,6 +409,45 @@ class SetupImportRegressionTests(unittest.TestCase):
         ]:
             self.assertIn(expected, chat_template if expected.startswith('id=') else js_source)
 
+    def test_setup_import_reconciles_unreadable_response_with_transfer_status(self):
+        root = Path(__file__).resolve().parents[1]
+        with open(root / "templates" / "setup.html", encoding="utf-8") as handle:
+            template = handle.read()
+        for expected in [
+            "fetchImportStatus",
+            "settleUnreadableImport",
+            "outcome.state === 'completed'",
+            "outcome.state === 'needs_selection'",
+            "outcome.state === 'running'",
+            "status === 'done'",
+            "status === 'reselect'",
+            "status === 'cancelled'",
+            "parseFailures < 2",
+            "showSetupImportFileSelection({",
+            "available_bytes: outcome.available_bytes",
+        ]:
+            self.assertIn(expected, template)
+
+    def test_settings_import_reconciles_unreadable_response_with_transfer_status(self):
+        root = Path(__file__).resolve().parents[1]
+        js_assets = list((root / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(js_assets), 1)
+        js_source = js_assets[0].read_text(encoding="utf-8")
+        for expected in [
+            "fetchImportStatus",
+            "settleUnreadableImport",
+            "outcome.state === 'completed'",
+            "outcome.state === 'needs_selection'",
+            "outcome.state === 'running'",
+            "status === 'done'",
+            "status === 'reselect'",
+            "status === 'cancelled'",
+            "parseFailures < 2",
+            "showImportFileSelection({",
+            "available_bytes: outcome.available_bytes",
+        ]:
+            self.assertIn(expected, js_source)
+
 
 if __name__ == "__main__":
     unittest.main()

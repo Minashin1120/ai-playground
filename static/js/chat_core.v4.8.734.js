@@ -8138,16 +8138,99 @@
                         let selectedFiles = '';
                         let importDone = false;
                         let parseFailures = 0;
+                        const finishImportSuccess = (terminal) => {
+                            const message = (terminal && terminal.message) || 'インポートが完了しました';
+                            if (resultBox) {
+                                resultBox.textContent = `完了: ${message}`;
+                                resultBox.classList.remove('hidden', 'text-red-300');
+                                resultBox.classList.add('text-emerald-300');
+                            }
+                            renderAccountTransferProgress({progress: 100, phase: 'completed', message});
+                            showToast('選択したアカウントデータをインポートしました', 'success');
+                            if (categories.includes('chats')) loadThreads();
+                            if (categories.includes('gems')) loadGems();
+                            if (categories.includes('files')) loadStorageUsage();
+                        };
+                        const fetchImportStatus = async () => {
+                            try {
+                                const res = await apiFetch(`/api/account/transfer/${transfer.id}`, manualSpinnerRequestOptions({cache: 'no-store'}));
+                                const data = await res.json().catch(() => null);
+                                return data && data.state ? data : null;
+                            } catch (_) {
+                                return null;
+                            }
+                        };
+                        const settleUnreadableImport = async () => {
+                            // The import response could not be read. The authoritative
+                            // transfer status tells us what actually happened server-side:
+                            //   completed -> import really finished (response was lost)
+                            //   failed/cancelled/expired -> real server outcome
+                            //   needs_selection -> the picker data survived in the status
+                            //   running -> server still importing; wait for the terminal state
+                            const outcome = await fetchImportStatus();
+                            if (!outcome) return {status: 'unknown'};
+                            if (outcome.state === 'completed') {
+                                finishImportSuccess(outcome);
+                                return {status: 'done'};
+                            }
+                            if (['failed', 'cancelled', 'expired'].includes(outcome.state)) {
+                                throw new Error(outcome.message || 'インポートに失敗しました');
+                            }
+                            if (outcome.state === 'needs_selection' && Array.isArray(outcome.files)) {
+                                const chosen = await showImportFileSelection({
+                                    files: outcome.files,
+                                    available_bytes: outcome.available_bytes,
+                                });
+                                if (chosen === null) {
+                                    renderAccountTransferProgress({progress: 0, phase: 'cancelled', message: 'ファイル選択をキャンセルしました'});
+                                    if (transfer.uploadId) {
+                                        apiFetch(`/api/account/import/upload/${encodeURIComponent(transfer.uploadId)}`, manualSpinnerRequestOptions({method: 'DELETE'})).catch(() => null);
+                                    }
+                                    return {status: 'cancelled'};
+                                }
+                                selectedFiles = chosen;
+                                return {status: 'reselect'};
+                            }
+                            if (outcome.state === 'running') {
+                                // The connection dropped but the server is still importing.
+                                // The ongoing poller resolves once a terminal state is reached.
+                                const terminal = await Promise.race([
+                                    pollPromise.catch(() => null),
+                                    new Promise(resolve => setTimeout(() => resolve(null), 60000)),
+                                ]);
+                                if (terminal && terminal.state === 'completed') {
+                                    finishImportSuccess(terminal);
+                                    return {status: 'done'};
+                                }
+                                if (terminal && ['failed', 'cancelled', 'expired'].includes(terminal.state)) {
+                                    throw new Error(terminal.message || 'インポートに失敗しました');
+                                }
+                                throw new Error('インポート処理がサーバー側で継続中です。しばらくしてからページを再読み込みして確認してください');
+                            }
+                            // pending / unknown: the request never reached the server.
+                            return {status: 'unknown'};
+                        };
                         while (!importDone) {
                             transfer.stopped = true;
                             await pollPromise.catch(() => null);
                             transfer.stopped = false;
                             pollPromise = pollAccountTransfer(transfer);
-                            const res = await apiFetch('/api/account/import', manualSpinnerRequestOptions({
-                                method: 'POST', headers: {'Content-Type': 'application/json'},
-                                body: JSON.stringify({upload_id: transfer.uploadId, categories: categories.join(','), job_id: transfer.id, selected_files: selectedFiles}),
-                                signal: transfer.controller.signal,
-                            }));
+                            let res;
+                            try {
+                                res = await apiFetch('/api/account/import', manualSpinnerRequestOptions({
+                                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                                    body: JSON.stringify({upload_id: transfer.uploadId, categories: categories.join(','), job_id: transfer.id, selected_files: selectedFiles}),
+                                    signal: transfer.controller.signal,
+                                }));
+                            } catch (error) {
+                                if (transfer.cancelRequested || (error && error.name === 'AbortError')) throw error;
+                                const settled = await settleUnreadableImport();
+                                if (settled.status === 'done') { importDone = true; break; }
+                                if (settled.status === 'cancelled') return;
+                                if (settled.status === 'reselect') continue;
+                                if (parseFailures < 2) { parseFailures++; continue; }
+                                throw new Error('インポート応答を取得できませんでした。通信環境をご確認のうえ、もう一度お試しください');
+                            }
                             let data = null;
                             try {
                                 data = await res.json();
@@ -8155,14 +8238,12 @@
                                 data = null;
                             }
                             if (data === null) {
-                                // The storage-limit response can be large; on a flaky
-                                // connection the body may truncate. Retry it since the
-                                // chunked upload is retained and nothing was written yet.
-                                if (res.status === 409 && parseFailures < 2) {
-                                    parseFailures++;
-                                    continue;
-                                }
+                                const settled = await settleUnreadableImport();
+                                if (settled.status === 'done') { importDone = true; break; }
+                                if (settled.status === 'cancelled') return;
+                                if (settled.status === 'reselect') continue;
                                 if (res.ok) throw new Error('インポート結果を確認できませんでした。ページを再読み込みして確認してください');
+                                if (parseFailures < 2) { parseFailures++; continue; }
                                 throw new Error('インポート応答を取得できませんでした。通信環境をご確認のうえ、もう一度お試しください');
                             }
                             if (!res.ok && data.error === 'storage_limit_files' && data.files) {

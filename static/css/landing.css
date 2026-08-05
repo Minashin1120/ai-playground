@@ -30,11 +30,11 @@
 .demo-stage {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 2.5rem;
+    gap: 3rem;
     align-items: center;
 }
 @media (min-width: 1024px) {
-    .demo-stage { grid-template-columns: 1.05fr 0.95fr; }
+    .demo-stage { grid-template-columns: 1.05fr 0.95fr; gap: 4rem; }
 }
 
 /* ── Chat window demo (mirrors the real app UI) ── */
@@ -48,7 +48,37 @@
     -webkit-backdrop-filter: blur(18px);
     overflow: hidden;
     text-align: left;
+    min-height: 496px;
+    display: flex;
+    flex-direction: column;
+    justify-content: stretch;
 }
+/* Placeholder while the demo JS boots (prevents an empty collapsed box) */
+.chat-demo:empty::after {
+    content: "読み込み中...";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: #64748b;
+    font-size: 0.85rem;
+    background: linear-gradient(135deg, rgba(13, 212, 191, 0.04), transparent 60%);
+}
+.chat-demo:empty::before {
+    content: "";
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: 2px solid rgba(13, 212, 191, 0.3);
+    border-top-color: var(--theme-500);
+    animation: ld-spin 0.8s linear infinite;
+    position: absolute;
+    left: calc(50% - 6px);
+    top: calc(50% - 26px);
+}
+@keyframes ld-spin { to { transform: rotate(360deg); } }
+.chat-demo-body { flex: 1 1 auto; }
 .chat-demo-chrome {
     display: flex;
     align-items: center;

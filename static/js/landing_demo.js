@@ -269,7 +269,7 @@
     }
 
     function buildChatDemo(root) {
-        var systemVersion = (typeof window !== 'undefined' && window.LANDING_SYSTEM_VERSION) || 'V4.8.742';
+        var systemVersion = (typeof window !== 'undefined' && window.LANDING_SYSTEM_VERSION) || 'V4.8.743';
         var chrome = document.createElement('div');
         chrome.className = 'chat-demo-chrome';
         chrome.innerHTML =
@@ -570,7 +570,9 @@
         var chatRoot = options.chat || document.getElementById('landing-demo-chat');
         var statusEl = options.status || document.getElementById('landing-demo-hub-status');
 
-        if (hubRoot) {
+        /* Idempotency guard: never build the same root twice. */
+        if (hubRoot && !hubRoot.getAttribute('data-ld-built')) {
+            hubRoot.setAttribute('data-ld-built', '1');
             var hub = buildModelHub();
             hubRoot.appendChild(hub.svg);
             var idx = 0;
@@ -588,9 +590,27 @@
             }
         }
 
-        if (chatRoot) {
+        if (chatRoot && !chatRoot.getAttribute('data-ld-built')) {
+            chatRoot.setAttribute('data-ld-built', '1');
             var api = buildChatDemo(chatRoot);
             runChatDemo(api, chatRoot);
+        }
+    }
+
+    /* ── Self-boot ──
+     * Do not rely on a separate inline <script> + DOMContentLoaded listener:
+     * Cloudflare Rocket Loader rewrites inline/external scripts to a custom
+     * type and executes them after the document has already loaded, so a
+     * DOMContentLoaded listener registered from that script never fires.
+     * Instead, boot here based on document.readyState. */
+    function bootDemo() {
+        initDemo();
+    }
+    if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', bootDemo);
+        } else {
+            bootDemo();
         }
     }
 

@@ -63,7 +63,7 @@
                         <a href="/signup" class="px-8 py-4 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-900 text-lg font-bold rounded-xl shadow-xl transition transform hover:scale-105 text-center">無料で始める</a>
                         <a href="/login" class="px-8 py-4 bg-slate-900/70 hover:bg-slate-800 text-white text-lg font-bold rounded-xl border border-slate-700 transition text-center">ログイン</a>
                     </div>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-12 max-w-xl md:mx-0 mx-auto">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-10 max-w-xl md:mx-0 mx-auto">
                         <div class="text-left">
                             <div class="text-2xl font-extrabold text-teal-300">6+</div>
                             <div class="text-xs text-slate-500 mt-1">モデルプロバイダ</div>
@@ -384,11 +384,6 @@
         };
     </script>
     <script src="{{ url_for('static', filename='js/landing_demo.js') }}?v={{ app_version }}" defer></script>
-    <script>
-        window.addEventListener('DOMContentLoaded', function () {
-            if (window.LandingDemo) window.LandingDemo.initDemo();
-        });
-    </script>
     <script src="{{ url_for('static', filename='js/pwa_install.js') }}?v={{ app_version }}" defer></script>
 </body>
 </html>

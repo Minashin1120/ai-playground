@@ -289,6 +289,15 @@ def _gemini_vertex_auth_error_message():
 def _format_gemini_runtime_error(err, backend="gemini_api"):
     if _normalize_gemini_backend(backend) == "vertex_ai" and _is_missing_google_adc_error(err):
         return _gemini_vertex_auth_error_message()
+    try:
+        if "DEADLINE_EXCEEDED" in str(err) or "504" in str(err):
+            return (
+                "Gemini APIの応答が制限時間を超えました（504 DEADLINE_EXCEEDED）。"
+                "サーバー側でのPython実行・処理に時間がかかっています。"
+                "数分待って再度お試しください。"
+            )
+    except Exception:
+        pass
     return str(err)
 
 def _resolve_gemini_runtime(user):
@@ -566,6 +575,11 @@ _XAI_API_HOST = os.getenv("XAI_API_HOST", "api.x.ai").strip() or "api.x.ai"
 _XAI_TIMEOUT_SECONDS = _env_float("XAI_TIMEOUT_SECONDS", 120.0)
 
 _GEMINI_TIMEOUT_MS = _env_int("GEMINI_TIMEOUT_MS", 120000)
+# Agentic View / code execution requests run server-side Python and can take
+# several minutes. The client timeout is sent to Google as X-Server-Timeout,
+# so a short value makes the API abort with 504 DEADLINE_EXCEEDED before the
+# sandboxed Python finishes. Use a dedicated, longer deadline for these requests.
+_GEMINI_AGENTIC_TIMEOUT_MS = _env_int("GEMINI_AGENTIC_TIMEOUT_MS", 600000)
 
 _HTTPX_LIMITS = httpx.Limits(
     max_connections=_HTTP_MAX_CONNECTIONS,
@@ -719,8 +733,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-05-012')
-app.config['SYSTEM_VERSION'] = 'V4.8.739'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-05-013')
+app.config['SYSTEM_VERSION'] = 'V4.8.740'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -8654,6 +8668,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if options.get('enable_python') and not gemini_local_python:
                         if 'tools' not in conf: conf['tools'] = []
                         conf['tools'].append(types.Tool(code_execution=types.ToolCodeExecution()))
+                        # Agentic View runs Python server-side; give it a longer
+                        # deadline so it doesn't hit 504 DEADLINE_EXCEEDED.
+                        conf['http_options'] = types.HttpOptions(timeout=_GEMINI_AGENTIC_TIMEOUT_MS)
                     if options.get('system_prompt'):
                         conf['system_instruction'] = options.get('system_prompt')
                     

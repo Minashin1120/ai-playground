@@ -57,7 +57,7 @@ class ConnectionStatusRegressionTests(unittest.TestCase):
 
         self.assertIn("if (heartbeatRes.status === 503)", source)
         self.assertIn("setUnavailableConnectionStatus('maintenance')", source)
-        self.assertIn("if ([502, 504, 521, 522, 523, 524].includes(heartbeatRes.status))", source)
+        self.assertIn("if ([502, 504, 520, 521, 522, 523, 524].includes(heartbeatRes.status))", source)
         self.assertIn("setUnavailableConnectionStatus('server-down')", source)
         self.assertIn("b.classList.add('maintenance')", source)
         self.assertIn("b.classList.add('server-down')", source)

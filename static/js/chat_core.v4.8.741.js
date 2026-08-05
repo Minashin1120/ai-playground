@@ -4386,7 +4386,7 @@
                     setUnavailableConnectionStatus('maintenance');
                     return;
                 }
-                if ([502, 504, 521, 522, 523, 524].includes(heartbeatRes.status)) {
+                if ([502, 504, 520, 521, 522, 523, 524].includes(heartbeatRes.status)) {
                     setUnavailableConnectionStatus('server-down');
                     return;
                 }
@@ -4473,7 +4473,7 @@
         }
         function connectionRetryModeForResponse(response) {
             if (response.status === 503) return 'maintenance';
-            if ([502, 504, 521, 522, 523, 524].includes(response.status)) return 'server-down';
+            if ([502, 504, 520, 521, 522, 523, 524].includes(response.status)) return 'server-down';
             return null;
         }
         async function fetchChatStreamWithUnavailableRetry(url, options, pendingBubble) {

@@ -4,15 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token }}">
+    <meta name="description" content="Gemini 3.6, GPT-5.6, Grok 4.3, Claude, DeepSeek, Kimiなどの最新AIモデルを1つの画面で切り替えられるプライベートなAIチャット。Bring Your Own Keyで、あなたのAPIキーとデータはあなたの管理下に。">
     {% include 'pwa_meta.html' %}
-    <title>AI Chat Playground - 次世代AIチャット</title>
+    <title>AI Chat Playground - 複数のAIモデルを、ひとつの場所で</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.' ~ (system_version | lower) ~ '.css') }}?v={{ app_version }}">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app-design.css') }}?v={{ app_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}?v={{ app_version }}">
     <script src="{{ url_for('static', filename='vendor/marked-4.3.0.min.js') }}?v={{ app_version }}" integrity="sha384-QsSpx6a0USazT7nK7w8qXDgpSAPhFsb2XtpoLFQ5+X2yFN6hvCKnwEzN8M5FWaJb"></script>
     <script src="{{ url_for('static', filename='vendor/dompurify-3.4.11.min.js') }}?v={{ app_version }}" integrity="sha384-o44XUELLEnv/iSlA1NWxBweqbD4TSR0qgq2VzVsxtkHS989JJjGKSE9vkfo5MN4K"></script>
     <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.734') }}"></script>
+    <script>window.LANDING_SYSTEM_VERSION = "{{ system_version }}";</script>
     <style>
         body {
             background: var(--bg-1);
@@ -20,56 +23,314 @@
             font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
             position: relative;
         }
-        body::before {
-            content: "";
-            position: fixed;
-            inset: 0;
-            background-image: linear-gradient(transparent 97%, rgba(148,163,184,0.03) 98%),
-                              linear-gradient(90deg, transparent 97%, rgba(148,163,184,0.03) 98%);
-            background-size: 48px 48px;
-            pointer-events: none;
-            opacity: 0.35;
-            z-index: -1;
-        }
     </style>
 </head>
-<body class="flex flex-col min-h-screen">
+<body class="flex flex-col min-h-screen app-grid-overlay">
+    <!-- Aurora background -->
+    <div class="aurora-bg" aria-hidden="true">
+        <div class="aurora-blob blob-teal1"></div>
+        <div class="aurora-blob blob-amber1"></div>
+        <div class="aurora-blob blob-cyan1"></div>
+    </div>
+
     <header class="p-6 flex justify-between items-center max-w-7xl mx-auto w-full">
         <div class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-300 to-amber-300">
             AI Chat Playground <span class="text-xs glow-badge px-2 py-0.5 rounded ml-2 align-middle">ALPHA</span>
         </div>
-        <div class="flex gap-4">
+        <div class="flex gap-4 items-center">
             <a href="/login" class="px-4 py-2 text-slate-300 hover:text-white transition">ログイン</a>
             <a href="/signup" class="px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-900 rounded-lg font-bold transition shadow-lg shadow-teal-500/30">アカウント作成</a>
         </div>
     </header>
-    <main class="flex-1 flex flex-col items-center justify-center text-center p-8 hero-bg">
-        <h1 class="text-5xl md:text-7xl font-extrabold mb-6 tracking-tight">複数のAIモデルを、<br><span class="text-teal-300">ひとつの場所で。</span></h1>
-        <p class="text-xl text-slate-400 max-w-2xl mb-10 leading-relaxed">Gemini 3.0 Pro, GPT-5, Grok などの最新モデルをシームレスに切り替え。<br>あなたのAPIキーで動作する、プライベートかつ自由なチャット環境。</p>
-        <div class="flex flex-col sm:flex-row gap-4">
-            <a href="/signup" class="px-8 py-4 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-900 text-lg font-bold rounded-xl shadow-xl transition transform hover:scale-105">無料で始める</a>
-            <a href="/login" class="px-8 py-4 bg-slate-900/70 hover:bg-slate-800 text-white text-lg font-bold rounded-xl border border-slate-700 transition">ログイン</a>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-24 max-w-6xl w-full px-4">
-            <div class="feature-card p-6 rounded-xl text-left">
-                <div class="w-12 h-12 bg-teal-500/15 rounded-lg flex items-center justify-center mb-4 text-teal-300 text-2xl"><i class="fas fa-brain"></i></div>
-                <h3 class="text-xl font-bold mb-2">マルチモデル対応</h3>
-                <p class="text-slate-400 text-sm">Google, OpenAI, xAIの最新モデルを即座に切り替えて利用可能。推論プロセス（Thinking）も可視化。</p>
+
+    <main class="flex-1 flex flex-col">
+
+        <!-- ── Hero ── -->
+        <section class="hero-bg py-16 md:py-24">
+            <div class="max-w-7xl mx-auto px-6 demo-stage">
+                <div class="text-center md:text-left">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-teal-400/40 bg-teal-400/10 text-teal-200 text-xs font-semibold mb-6">
+                        <i class="fas fa-bolt"></i> Gemini 3.6 / GPT-5.6 / Grok 4.3 / Claude / DeepSeek / Kimi 対応
+                    </div>
+                    <h1 class="text-4xl md:text-6xl font-extrabold mb-6 tracking-tight leading-tight">
+                        複数のAIモデルを、<br><span class="text-teal-300">ひとつの場所で。</span>
+                    </h1>
+                    <p class="text-lg md:text-xl text-slate-400 max-w-xl mb-8 leading-relaxed md:mx-0 mx-auto">
+                        最新モデルをワンクリックで切り替え、推論プロセス（Thinking）も可視化。
+                        あなたのAPIキーで動く、プライベートかつ自由なチャット環境。
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+                        <a href="/signup" class="px-8 py-4 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-900 text-lg font-bold rounded-xl shadow-xl transition transform hover:scale-105 text-center">無料で始める</a>
+                        <a href="/login" class="px-8 py-4 bg-slate-900/70 hover:bg-slate-800 text-white text-lg font-bold rounded-xl border border-slate-700 transition text-center">ログイン</a>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-12 max-w-xl md:mx-0 mx-auto">
+                        <div class="text-left">
+                            <div class="text-2xl font-extrabold text-teal-300">6+</div>
+                            <div class="text-xs text-slate-500 mt-1">モデルプロバイダ</div>
+                        </div>
+                        <div class="text-left">
+                            <div class="text-2xl font-extrabold text-teal-300">40+</div>
+                            <div class="text-xs text-slate-500 mt-1">利用可能モデル</div>
+                        </div>
+                        <div class="text-left">
+                            <div class="text-2xl font-extrabold text-teal-300">1M</div>
+                            <div class="text-xs text-slate-500 mt-1">コンテキスト対応</div>
+                        </div>
+                        <div class="text-left">
+                            <div class="text-2xl font-extrabold text-teal-300">100%</div>
+                            <div class="text-xs text-slate-500 mt-1">Bring Your Own Key</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Animated chat operation demo -->
+                <div class="relative">
+                    <div class="absolute -inset-4 bg-gradient-to-tr from-teal-500/20 via-transparent to-amber-500/10 rounded-[28px] blur-2xl pointer-events-none" aria-hidden="true"></div>
+                    <div class="relative chat-demo" id="landing-demo-chat" role="img" aria-label="AI Chat Playgroundの操作画面のデモ"></div>
+                    <p class="text-xs text-slate-500 mt-4 text-center"><i class="fas fa-robot mr-1"></i>実際の操作画面のデモ（自動で繰り返し再生）</p>
+                </div>
             </div>
-            <div class="feature-card p-6 rounded-xl text-left">
-                <div class="w-12 h-12 bg-amber-500/15 rounded-lg flex items-center justify-center mb-4 text-amber-300 text-2xl"><i class="fas fa-shield-alt"></i></div>
-                <h3 class="text-xl font-bold mb-2">BYOK & プライバシー</h3>
-                <p class="text-slate-400 text-sm">Bring Your Own Key方式。APIキーは暗号化され、チャットデータはあなたの管理下に。</p>
+        </section>
+
+        <div class="landing-divider max-w-7xl mx-auto w-full"></div>
+
+        <!-- ── Provider marquee ── -->
+        <section class="py-10 landing-section">
+            <div class="max-w-7xl mx-auto px-6">
+                <p class="text-center text-xs uppercase tracking-widest text-slate-500 mb-6">対応モデルプロバイダ</p>
+                <div class="marquee-wrap overflow-hidden">
+                    <div class="marquee-track flex gap-4 w-max">
+                        <span class="provider-chip"><i class="fas fa-star text-yellow-400"></i>Gemini 3.6 Flash</span>
+                        <span class="provider-chip"><i class="fas fa-star text-yellow-400"></i>Gemini 3.5 Flash</span>
+                        <span class="provider-chip"><i class="fas fa-brain text-green-400"></i>GPT-5.6 Sol</span>
+                        <span class="provider-chip"><i class="fas fa-brain text-green-400"></i>GPT-5.6 Terra</span>
+                        <span class="provider-chip"><i class="fas fa-brain text-green-400"></i>GPT-5.6 Luna</span>
+                        <span class="provider-chip"><i class="fas fa-rocket text-slate-200"></i>Grok 4.3</span>
+                        <span class="provider-chip"><i class="fas fa-bolt text-cyan-400"></i>DeepSeek V4</span>
+                        <span class="provider-chip"><i class="fas fa-brain text-orange-400"></i>Claude Opus 4.6</span>
+                        <span class="provider-chip"><i class="fas fa-brain text-violet-400"></i>Kimi K3</span>
+                        <span class="provider-chip"><i class="fas fa-image text-pink-400"></i>Nano Banana 2</span>
+                        <span class="provider-chip"><i class="fas fa-magic text-blue-400"></i>Grok Imagine</span>
+                        <span class="provider-chip"><i class="fas fa-headset text-cyan-400"></i>リアルタイム音声</span>
+                        <span class="provider-chip"><i class="fas fa-star text-yellow-400"></i>Gemini 3.6 Flash</span>
+                        <span class="provider-chip"><i class="fas fa-star text-yellow-400"></i>Gemini 3.5 Flash</span>
+                        <span class="provider-chip"><i class="fas fa-brain text-green-400"></i>GPT-5.6 Sol</span>
+                        <span class="provider-chip"><i class="fas fa-brain text-green-400"></i>GPT-5.6 Terra</span>
+                        <span class="provider-chip"><i class="fas fa-brain text-green-400"></i>GPT-5.6 Luna</span>
+                        <span class="provider-chip"><i class="fas fa-rocket text-slate-200"></i>Grok 4.3</span>
+                        <span class="provider-chip"><i class="fas fa-bolt text-cyan-400"></i>DeepSeek V4</span>
+                        <span class="provider-chip"><i class="fas fa-brain text-orange-400"></i>Claude Opus 4.6</span>
+                        <span class="provider-chip"><i class="fas fa-brain text-violet-400"></i>Kimi K3</span>
+                        <span class="provider-chip"><i class="fas fa-image text-pink-400"></i>Nano Banana 2</span>
+                        <span class="provider-chip"><i class="fas fa-magic text-blue-400"></i>Grok Imagine</span>
+                        <span class="provider-chip"><i class="fas fa-headset text-cyan-400"></i>リアルタイム音声</span>
+                    </div>
+                </div>
             </div>
-            <div class="feature-card p-6 rounded-xl text-left">
-                <div class="w-12 h-12 bg-emerald-500/15 rounded-lg flex items-center justify-center mb-4 text-emerald-300 text-2xl"><i class="fas fa-file-upload"></i></div>
-                <h3 class="text-xl font-bold mb-2">マルチモーダル</h3>
-                <p class="text-slate-400 text-sm">画像やPDFファイルをドラッグ＆ドロップ。クリップボードからの貼り付けにも対応。</p>
+        </section>
+
+        <!-- ── Model hub (animated SVG) ── -->
+        <section class="py-16 md:py-24 landing-section">
+            <div class="max-w-7xl mx-auto px-6">
+                <div class="text-center mb-12">
+                    <span class="section-eyebrow"><i class="fas fa-share-nodes"></i> マルチモデルハブ</span>
+                    <h2 class="text-3xl md:text-4xl font-extrabold mt-4 mb-4">1つの画面から、すべてのモデルへ。</h2>
+                    <p class="text-slate-400 max-w-2xl mx-auto leading-relaxed">
+                        サイドバーのモデル選択から即座に切り替え。応答はその場でストリーミング表示され、
+                        使用トークン数や推論プロセスもひと目で分かります。
+                    </p>
+                </div>
+                <div class="grid md:grid-cols-2 gap-10 items-center">
+                    <div class="hub-frame order-2 md:order-1">
+                        <div id="landing-demo-hub" role="img" aria-label="チャットハブと複数のAIモデルの接続図"></div>
+                        <div class="mt-4 flex justify-center">
+                            <span class="hub-status" id="landing-demo-hub-status"></span>
+                        </div>
+                    </div>
+                    <div class="order-1 md:order-2 space-y-4">
+                        <div class="feature-card p-5 rounded-xl text-left">
+                            <div class="flex items-start gap-4">
+                                <div class="feature-icon bg-teal-500/15 text-teal-300"><i class="fas fa-exchange-alt"></i></div>
+                                <div>
+                                    <h3 class="font-bold mb-1">即時モデル切り替え</h3>
+                                    <p class="text-sm text-slate-400">回答内容に応じてGemini、GPT、Grok…とモデルを自由に変更。切り替えはボタンひとつ。</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="feature-card p-5 rounded-xl text-left">
+                            <div class="flex items-start gap-4">
+                                <div class="feature-icon bg-purple-500/15 text-purple-300"><i class="fas fa-brain"></i></div>
+                                <div>
+                                    <h3 class="font-bold mb-1">推論プロセスを可視化</h3>
+                                    <p class="text-sm text-slate-400">Thinking対応モデルの思考過程や、モデルごとの思考レベル・予算を細かく制御できます。</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="feature-card p-5 rounded-xl text-left">
+                            <div class="flex items-start gap-4">
+                                <div class="feature-icon bg-emerald-500/15 text-emerald-300"><i class="fas fa-arrows-alt-h"></i></div>
+                                <div>
+                                    <h3 class="font-bold mb-1">1Mトークン級の長文対応</h3>
+                                    <p class="text-sm text-slate-400">数万字規模のドキュメントや長いスレッドも、そのまま1つの文脈として扱えます。</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="feature-card p-5 rounded-xl text-left">
+                            <div class="flex items-start gap-4">
+                                <div class="feature-icon bg-amber-500/15 text-amber-300"><i class="fas fa-sliders-h"></i></div>
+                                <div>
+                                    <h3 class="font-bold mb-1">検索・URL・地図・Python連携</h3>
+                                    <p class="text-sm text-slate-400">最新情報の検索、Webページの要約、コード実行など、モデルを超えた拡張機能を統合。</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
+        </section>
+
+        <!-- ── Features ── -->
+        <section class="py-16 md:py-24 landing-section">
+            <div class="max-w-7xl mx-auto px-6">
+                <div class="text-center mb-14">
+                    <span class="section-eyebrow"><i class="fas fa-gem"></i> 特徴</span>
+                    <h2 class="text-3xl md:text-4xl font-extrabold mt-4 mb-4">なぜAI Chat Playgroundなのか</h2>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div class="feature-card p-6 rounded-xl text-left">
+                        <div class="feature-icon bg-teal-500/15 text-teal-300"><i class="fas fa-brain"></i></div>
+                        <h3 class="text-xl font-bold mb-2">マルチモデル対応</h3>
+                        <p class="text-slate-400 text-sm leading-relaxed">Google、OpenAI、xAI、Anthropic、DeepSeek、Moonshotの最新モデルを即座に切り替えて利用可能。推論プロセス（Thinking）も可視化。</p>
+                    </div>
+                    <div class="feature-card p-6 rounded-xl text-left">
+                        <div class="feature-icon bg-amber-500/15 text-amber-300"><i class="fas fa-shield-alt"></i></div>
+                        <h3 class="text-xl font-bold mb-2">BYOK & プライバシー</h3>
+                        <p class="text-slate-400 text-sm leading-relaxed">Bring Your Own Key方式。APIキーは暗号化され、チャットデータはあなたの管理下に。E2EEにも対応し、第三者の閲覧から保護します。</p>
+                    </div>
+                    <div class="feature-card p-6 rounded-xl text-left">
+                        <div class="feature-icon bg-emerald-500/15 text-emerald-300"><i class="fas fa-file-upload"></i></div>
+                        <h3 class="text-xl font-bold mb-2">マルチモーダル</h3>
+                        <p class="text-slate-400 text-sm leading-relaxed">画像やPDFファイルをドラッグ＆ドロップ。クリップボードからの貼り付けにも対応し、文書の要約・翻訳・解析もそのまま。</p>
+                    </div>
+                    <div class="feature-card p-6 rounded-xl text-left">
+                        <div class="feature-icon bg-purple-500/15 text-purple-300"><i class="fas fa-sliders-h"></i></div>
+                        <h3 class="text-xl font-bold mb-2">細かなパラメータ制御</h3>
+                        <p class="text-slate-400 text-sm leading-relaxed">Thinkingレベル、推論Effort、Safety設定、コンテキスト長をモデルごとに調整。検索・URL参照・コード実行のON/OFFも自由。</p>
+                    </div>
+                    <div class="feature-card p-6 rounded-xl text-left">
+                        <div class="feature-icon bg-pink-500/15 text-pink-300"><i class="fas fa-image"></i></div>
+                        <h3 class="text-xl font-bold mb-2">画像生成・音声会話</h3>
+                        <p class="text-slate-400 text-sm leading-relaxed">Nano Banana 2、GPT Image、Grok Imagineでの画像生成。TTS音声合成、リアルタイム音声対話モデルにも対応。</p>
+                    </div>
+                    <div class="feature-card p-6 rounded-xl text-left">
+                        <div class="feature-icon bg-sky-500/15 text-sky-300"><i class="fas fa-file-pdf"></i></div>
+                        <h3 class="text-xl font-bold mb-2">会話の保存と管理</h3>
+                        <p class="text-slate-400 text-sm leading-relaxed">チャット履歴は自動保存。スレッド分岐、PDFエクスポート、データの移行（エクスポート/インポート）にも対応。</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="landing-divider max-w-7xl mx-auto w-full"></div>
+
+        <!-- ── How it works ── -->
+        <section class="py-16 md:py-24 landing-section">
+            <div class="max-w-5xl mx-auto px-6">
+                <div class="text-center mb-14">
+                    <span class="section-eyebrow"><i class="fas fa-route"></i> 使い方</span>
+                    <h2 class="text-3xl md:text-4xl font-extrabold mt-4 mb-4">3ステップで始められます</h2>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div class="feature-card step-card p-6 rounded-xl text-left">
+                        <div class="step-num">1</div>
+                        <h3 class="font-bold mb-2">アカウントを作成</h3>
+                        <p class="text-sm text-slate-400 leading-relaxed">メールアドレスとパスワードだけでOK。APIキーの登録がまだでも、まずは準備画面から始められます。</p>
+                    </div>
+                    <div class="feature-card step-card p-6 rounded-xl text-left">
+                        <div class="step-num">2</div>
+                        <h3 class="font-bold mb-2">APIキーを登録</h3>
+                        <p class="text-sm text-slate-400 leading-relaxed">Gemini / OpenAI / xAI / Anthropicなどの公式サイトから取得したキーを設定画面に入力。キーは暗号化して保存されます。</p>
+                    </div>
+                    <div class="feature-card step-card p-6 rounded-xl text-left">
+                        <div class="step-num">3</div>
+                        <h3 class="font-bold mb-2">モデルを選んでチャット</h3>
+                        <p class="text-sm text-slate-400 leading-relaxed">サイドバーからモデルを選んで送信するだけ。タスクに合わせてモデルを切り替えながら進められます。</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Stats band ── -->
+        <section class="py-14 landing-section">
+            <div class="max-w-6xl mx-auto px-6">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+                    <div class="ld-stat">
+                        <div class="ld-stat-value">6+</div>
+                        <div class="ld-stat-label">モデルプロバイダ</div>
+                    </div>
+                    <div class="ld-stat">
+                        <div class="ld-stat-value">40+</div>
+                        <div class="ld-stat-label">利用可能モデル</div>
+                    </div>
+                    <div class="ld-stat">
+                        <div class="ld-stat-value">1M</div>
+                        <div class="ld-stat-label">最大コンテキスト</div>
+                    </div>
+                    <div class="ld-stat">
+                        <div class="ld-stat-value">E2EE</div>
+                        <div class="ld-stat-label">暗号化サポート</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── FAQ ── -->
+        <section class="py-16 md:py-24 landing-section">
+            <div class="max-w-3xl mx-auto px-6">
+                <div class="text-center mb-12">
+                    <span class="section-eyebrow"><i class="fas fa-circle-question"></i> FAQ</span>
+                    <h2 class="text-3xl md:text-4xl font-extrabold mt-4 mb-4">よくある質問</h2>
+                </div>
+                <div class="space-y-3">
+                    <details class="ld-faq">
+                        <summary>「BYOK（Bring Your Own Key）」とは何ですか？</summary>
+                        <div class="ld-faq-body">AIモデルのAPIキーを各自で用意していただく方式です。モデル利用料金はAPI提供元（Google、OpenAI、xAIなど）に直接支払われるため、サブスクリプション料金はかかりません。キーは暗号化して保存され、チャットリクエストのたびに使用されます。</div>
+                    </details>
+                    <details class="ld-faq">
+                        <summary>チャット履歴やデータはどこに保存されますか？</summary>
+                        <div class="ld-faq-body">チャット履歴・設定・アップロードファイルはアプリのデータベースとサーバーストレージに保存されます。E2EE（エンドツーエンド暗号化）を有効にすると、メッセージとファイルはサーバー上で復号できない形で暗号化して保存されます。</div>
+                    </details>
+                    <details class="ld-faq">
+                        <summary>どのモデルが使えますか？</summary>
+                        <div class="ld-faq-body">Gemini 3.6 / 3.5、GPT-5.6シリーズ、Grok 4.3、Claude Opus 4.6、DeepSeek V4、Kimi K3に加え、画像生成（Nano Banana、GPT Image、Grok Imagine）、TTS音声合成、リアルタイム音声対話モデルも利用できます。対応モデルは随時更新されます。</div>
+                    </details>
+                    <details class="ld-faq">
+                        <summary>無料で使えますか？</summary>
+                        <div class="ld-faq-body">アカウント登録は無料です。モデルの利用料金はご自身のAPIキーに請求されるため、APIキーが無い状態ではチャットは利用できません（アカウント作成・設定は無料で行えます）。</div>
+                    </details>
+                    <details class="ld-faq">
+                        <summary>セキュリティはどうなっていますか？</summary>
+                        <div class="ld-faq-body">パスワードはハッシュ化して保存、二段階認証（2FA）、ボット検出、不正ログイン対策、E2EE暗号化を備えています。またAPIキーは表示されることなく暗号化状態で保存され、サーバー内でのみ使用されます。</div>
+                    </details>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Final CTA ── -->
+        <section class="py-20 landing-section hero-bg">
+            <div class="max-w-4xl mx-auto px-6 text-center">
+                <h2 class="text-3xl md:text-5xl font-extrabold mb-6">さあ、最強のモデルを<br class="md:hidden"><span class="text-teal-300">手元に。</span></h2>
+                <p class="text-slate-400 text-lg max-w-2xl mx-auto mb-10 leading-relaxed">アカウント作成は無料。あとはAPIキーを登録して、すぐに使い始められます。</p>
+                <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                    <a href="/signup" class="px-8 py-4 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-900 text-lg font-bold rounded-xl shadow-xl transition transform hover:scale-105">無料で始める</a>
+                    <a href="/login" class="px-8 py-4 bg-slate-900/70 hover:bg-slate-800 text-white text-lg font-bold rounded-xl border border-slate-700 transition">ログイン</a>
+                </div>
+            </div>
+        </section>
     </main>
+
     <footer class="py-8 border-t border-slate-800 text-center text-sm text-slate-500">
-        <div class="flex justify-center gap-6 mb-4">
+        <div class="flex justify-center gap-6 mb-4 flex-wrap px-4">
             <a href="/changelog" class="hover:text-white transition">更新履歴</a>
             <button onclick="showLegal('terms')" class="hover:text-white transition">利用規約</button>
             <button onclick="showLegal('privacy')" class="hover:text-white transition">プライバシーポリシー</button>
@@ -121,6 +382,12 @@
         get('legal-modal').onclick = (e) => {
             if (e.target.id === 'legal-modal') hideLegal();
         };
+    </script>
+    <script src="{{ url_for('static', filename='js/landing_demo.js') }}?v={{ app_version }}" defer></script>
+    <script>
+        window.addEventListener('DOMContentLoaded', function () {
+            if (window.LandingDemo) window.LandingDemo.initDemo();
+        });
     </script>
     <script src="{{ url_for('static', filename='js/pwa_install.js') }}?v={{ app_version }}" defer></script>
 </body>

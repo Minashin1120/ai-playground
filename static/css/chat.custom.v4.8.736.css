@@ -2474,10 +2474,11 @@ input[type="checkbox"]::after {
 
 /* Canvas block list empty / chips already staggered */
 
-/* Quote popover container when button shown via style */
-#quote-popover-container:has(#quote-popover:not([style*="display: none"])) {
-    animation: popoverIn 0.22s var(--ease-out) both;
-}
+/* Quote popover: NO animation/transform on the container. A non-none transform (even
+   the popoverIn/ messagePop identity keyframes with fill-mode:both) makes the container a
+   containing block, so the button's position:fixed top/left (viewport coords from JS) get
+   resolved against this 0x0 box and the button is pushed off-screen. The entrance animation
+   lives on the button itself via #quote-popover[style*="display: block"] / .show above. */
 
 /* Smooth checkbox / switch already handled */
 

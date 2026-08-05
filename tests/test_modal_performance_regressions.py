@@ -320,6 +320,39 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("bottom 0.32s var(--ease-out)", banner_block)
         self.assertIn("bottom 0.32s var(--ease-out) !important", spinner_block)
 
+    def test_quote_popover_container_has_no_containing_block_transform(self):
+        # V4.8.710 moved #quote-popover out of .composer-dock because its
+        # backdrop-filter made the dock a containing block for the position:fixed
+        # button. That only fixed the dock: the container itself kept a transform
+        # (the fade-in messagePop animation with fill-mode:both, plus a :has()
+        # popoverIn animation rule), which is ALSO a containing block. JS then set
+        # viewport coords that were resolved against the container's 0x0 box and
+        # the button was pushed off-screen again. Neither the container nor any of
+        # its ancestors may carry a transform/backdrop-filter (incl. via CSS
+        # animation), otherwise position:fixed viewport coordinates break.
+        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        container_start = template.index('<div id="quote-popover-container"')
+        container_open = container_start + template[container_start:].index(">")
+        container_tag = template[container_start : container_open + 1]
+        self.assertNotIn("fade-in", container_tag)
+        self.assertNotIn("transform", container_tag)
+
+        css = _current_asset("css", "chat.custom.v4.8.*.css")
+        # The only remaining #quote-popover-container rule is a plain layout rule
+        # (right offset) with no animation/transform that could create a
+        # containing block for the fixed button.
+        self.assertEqual(css.count("#quote-popover-container {"), 1)
+        container_css = css[css.index("#quote-popover-container") :]
+        container_css = container_css[: container_css.index("}")]
+        self.assertNotIn("animation", container_css)
+        self.assertNotIn("transform", container_css)
+
+        # The entrance animation must live on the fixed button itself so the
+        # button still animates in while staying viewport-positioned.
+        button_block = css[css.index("#quote-popover[style*=\"display: block\"]") :]
+        button_block = button_block[: button_block.index("}")]
+        self.assertIn("animation: popoverIn", button_block)
+
 
 if __name__ == "__main__":
     unittest.main()

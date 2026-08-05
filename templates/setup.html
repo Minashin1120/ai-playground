@@ -6,7 +6,7 @@
     {% include 'pwa_meta.html' %}
     <title>初期セットアップ - AI Chat</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.' ~ (system_version | lower) ~ '.css') }}?v={{ app_version }}">
-    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.732') }}"></script>
+    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.733') }}"></script>
     <script src="{{ url_for('static', filename='js/pwa_install.js') }}?v={{ app_version }}" defer></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -475,15 +475,37 @@
                     resolve,
                 };
                 renderSetupImportFileItems();
-                if (fileModal) {
-                    fileModal.classList.remove('hidden');
-                    fileModal.classList.add('flex');
+                if (!fileModal) {
+                    resolve(null);
+                    return;
+                }
+                fileModal.classList.remove('hidden');
+                fileModal.style.display = 'flex';
+                fileModal.classList.remove('modal-close');
+                fileModal.classList.remove('modal-open');
+                fileModal.classList.add('modal-prep');
+                const openModal = () => {
+                    fileModal.classList.remove('modal-prep');
+                    fileModal.classList.add('modal-open');
+                };
+                if (typeof requestAnimationFrame === 'function') {
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(openModal);
+                    });
+                } else {
+                    openModal();
                 }
             });
             const closeSetupImportFileSelection = (result) => {
                 if (fileModal) {
-                    fileModal.classList.add('hidden');
-                    fileModal.classList.remove('flex');
+                    fileModal.classList.remove('modal-open');
+                    fileModal.classList.add('modal-close');
+                    setTimeout(() => {
+                        fileModal.style.display = 'none';
+                        fileModal.classList.remove('modal-close');
+                        fileModal.classList.remove('modal-prep');
+                        fileModal.classList.add('hidden');
+                    }, 300);
                 }
                 if (importFileSelection) {
                     const resolver = importFileSelection.resolve;
@@ -591,6 +613,7 @@
                         renderProgress({progress: 35, phase: 'validating', message: 'ZIPを検証しています'});
                         let selectedFiles = '';
                         let importDone = false;
+                        let parseFailures = 0;
                         while (!importDone) {
                             transfer.stopped = true;
                             await pollPromise.catch(() => null);
@@ -601,7 +624,23 @@
                                 body: JSON.stringify({upload_id: transfer.uploadId, categories: categories.join(','), job_id: transfer.id, selected_files: selectedFiles}),
                                 signal: transfer.controller.signal,
                             }));
-                            const data = await res.json().catch(() => ({}));
+                            let data = null;
+                            try {
+                                data = await res.json();
+                            } catch (_) {
+                                data = null;
+                            }
+                            if (data === null) {
+                                // The storage-limit response can be large; on a flaky
+                                // connection the body may truncate. Retry it since the
+                                // chunked upload is retained and nothing was written yet.
+                                if (res.status === 409 && parseFailures < 2) {
+                                    parseFailures++;
+                                    continue;
+                                }
+                                if (res.ok) throw new Error('インポート結果を確認できませんでした。ページを再読み込みして確認してください');
+                                throw new Error('インポート応答を取得できませんでした。通信環境をご確認のうえ、もう一度お試しください');
+                            }
                             if (!res.ok && data.error === 'storage_limit_files' && data.files) {
                                 const chosen = await showSetupImportFileSelection(data);
                                 if (chosen === null) {

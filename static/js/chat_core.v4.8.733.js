@@ -7963,7 +7963,6 @@
             setAccountTransferControls(false);
             refreshLatestAccountExport();
             // ---- Import file selection modal (storage limit exceeded) ----
-            const importFileModal = get('import-files-modal');
             const importFileGrid = get('import-files-grid');
             const importFileInfo = get('import-files-info');
             const importFileSummary = get('import-files-summary');
@@ -8028,16 +8027,14 @@
                     resolve,
                 };
                 renderImportFileItems();
-                if (importFileModal) {
-                    importFileModal.classList.remove('hidden');
-                    importFileModal.classList.add('flex');
+                if (!get('import-files-modal')) {
+                    resolve(null);
+                    return;
                 }
+                showModal('import-files-modal');
             });
             const closeImportFileSelection = (result) => {
-                if (importFileModal) {
-                    importFileModal.classList.add('hidden');
-                    importFileModal.classList.remove('flex');
-                }
+                hideModal('import-files-modal');
                 if (importFileSelection) {
                     const resolver = importFileSelection.resolve;
                     importFileSelection = null;
@@ -8140,6 +8137,7 @@
                         renderAccountTransferProgress({progress: 35, phase: 'validating', message: 'ZIPを検証しています'});
                         let selectedFiles = '';
                         let importDone = false;
+                        let parseFailures = 0;
                         while (!importDone) {
                             transfer.stopped = true;
                             await pollPromise.catch(() => null);
@@ -8150,7 +8148,23 @@
                                 body: JSON.stringify({upload_id: transfer.uploadId, categories: categories.join(','), job_id: transfer.id, selected_files: selectedFiles}),
                                 signal: transfer.controller.signal,
                             }));
-                            const data = await res.json().catch(() => ({}));
+                            let data = null;
+                            try {
+                                data = await res.json();
+                            } catch (_) {
+                                data = null;
+                            }
+                            if (data === null) {
+                                // The storage-limit response can be large; on a flaky
+                                // connection the body may truncate. Retry it since the
+                                // chunked upload is retained and nothing was written yet.
+                                if (res.status === 409 && parseFailures < 2) {
+                                    parseFailures++;
+                                    continue;
+                                }
+                                if (res.ok) throw new Error('インポート結果を確認できませんでした。ページを再読み込みして確認してください');
+                                throw new Error('インポート応答を取得できませんでした。通信環境をご確認のうえ、もう一度お試しください');
+                            }
                             if (!res.ok && data.error === 'storage_limit_files' && data.files) {
                                 const chosen = await showImportFileSelection(data);
                                 if (chosen === null) {

@@ -382,6 +382,9 @@ class SetupImportRegressionTests(unittest.TestCase):
             "__none__",
             "showSetupImportFileSelection(data)",
             "setupImportActive",
+            "modal-open",
+            "modal-prep",
+            "modal-close",
         ]:
             self.assertIn(expected, template)
 
@@ -401,6 +404,8 @@ class SetupImportRegressionTests(unittest.TestCase):
             "data.error === 'storage_limit_files'",
             "selected_files: selectedFiles",
             "'__none__'",
+            "showModal('import-files-modal')",
+            "hideModal('import-files-modal')",
         ]:
             self.assertIn(expected, chat_template if expected.startswith('id=') else js_source)
 

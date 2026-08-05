@@ -4383,8 +4383,7 @@
                 });
                 if (probeSequence !== connectionProbeSequence) return;
                 if (heartbeatRes.status === 503) {
-                    const maintenanceResponse = heartbeatRes.headers.get('X-AI-Maintenance') === '1';
-                    setUnavailableConnectionStatus(maintenanceResponse ? 'maintenance' : 'server-down');
+                    setUnavailableConnectionStatus('maintenance');
                     return;
                 }
                 if ([502, 504, 521, 522, 523, 524].includes(heartbeatRes.status)) {
@@ -4429,7 +4428,7 @@
                 }
             } catch (e) {
                 if (probeSequence !== connectionProbeSequence) return;
-                setUnavailableConnectionStatus(navigator.onLine ? 'server-down' : 'offline');
+                setUnavailableConnectionStatus('offline');
             } finally {
                 window.clearTimeout(timeoutId);
                 if (probeSequence === connectionProbeSequence) {
@@ -4473,9 +4472,7 @@
             });
         }
         function connectionRetryModeForResponse(response) {
-            if (response.status === 503) {
-                return response.headers.get('X-AI-Maintenance') === '1' ? 'maintenance' : 'server-down';
-            }
+            if (response.status === 503) return 'maintenance';
             if ([502, 504, 521, 522, 523, 524].includes(response.status)) return 'server-down';
             return null;
         }
@@ -4505,11 +4502,11 @@
                 } catch (error) {
                     if ((options.signal && options.signal.aborted) || error.name === 'AbortError') throw error;
                     retryCount += 1;
-                    const unavailableMode = navigator.onLine ? 'server-down' : 'offline';
+                    const unavailableMode = 'offline';
                     setUnavailableConnectionStatus(unavailableMode);
                     updatePendingSkeletonStatus(
                         pendingBubble,
-                        unavailableMode === 'offline' ? 'インターネット接続の復帰を待っています...' : 'サーバーの復帰を待っています...',
+                        'インターネット接続の復帰を待っています...',
                         `送信内容を保持して自動再試行中（${retryCount}回目）`
                     );
                 }
@@ -15916,7 +15913,7 @@
                         thread_id: currentThreadId !== null && currentThreadId !== undefined ? String(currentThreadId) : null,
                         model: p.model
                     };
-                    setUnavailableConnectionStatus(navigator.onLine ? 'server-down' : 'offline');
+                    setUnavailableConnectionStatus('offline');
                     showToast('回答への接続が切れました。バックグラウンド処理へ自動再接続します。', 'warning', false);
                 } else if (e.serverCode === 'turnstile_required') {
                     // APIレベルでもTurnstile未検証はブロックされるため、再検証を試みる。
@@ -16216,7 +16213,7 @@
                 }
                 if (!manuallyStopped) {
                     reconnectAfterResumeDisconnect = true;
-                    setUnavailableConnectionStatus(navigator.onLine ? 'server-down' : 'offline');
+                    setUnavailableConnectionStatus('offline');
                     showToast('回答への再接続が切れました。自動的に再試行します。', 'warning', false);
                 }
             } finally {

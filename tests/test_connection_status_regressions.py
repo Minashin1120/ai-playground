@@ -33,21 +33,23 @@ class ConnectionStatusRegressionTests(unittest.TestCase):
         self.assertNotIn("hadFailure", success)
         self.assertLess(success.index("connectionStatus = 'online'"), success.index("await purgeCaches()"))
 
-    def test_failed_heartbeat_distinguishes_local_offline_and_server_down(self):
+    def test_failed_heartbeat_is_treated_as_disconnected(self):
         source = _connection_script()
         probe = source[source.index("async function probeServerConnection()") :]
         probe = probe[: probe.index("function startConnectionMonitor()")]
         failure = probe[probe.index("} catch (e)") :]
 
-        self.assertIn("navigator.onLine ? 'server-down' : 'offline'", failure)
+        self.assertIn("setUnavailableConnectionStatus('offline')", failure)
+        self.assertNotIn("navigator.onLine ? 'server-down' : 'offline'", failure)
         self.assertNotIn("setConnectionBanner('unstable'", failure)
 
     def test_maintenance_and_full_server_down_have_distinct_states(self):
         source = _connection_script()
 
-        self.assertIn("heartbeatRes.headers.get('X-AI-Maintenance') === '1'", source)
-        self.assertIn("maintenanceResponse ? 'maintenance' : 'server-down'", source)
+        self.assertIn("if (heartbeatRes.status === 503)", source)
+        self.assertIn("setUnavailableConnectionStatus('maintenance')", source)
         self.assertIn("if ([502, 504, 521, 522, 523, 524].includes(heartbeatRes.status))", source)
+        self.assertIn("setUnavailableConnectionStatus('server-down')", source)
         self.assertIn("b.classList.add('maintenance')", source)
         self.assertIn("b.classList.add('server-down')", source)
         self.assertIn("サーバーはメンテナンス中です（自動再接続します）", source)

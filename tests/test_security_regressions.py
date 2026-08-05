@@ -779,6 +779,50 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertNotIn("cdnjs.cloudflare.com/ajax/libs/html2canvas", script)
         self.assertNotIn("cdnjs.cloudflare.com/ajax/libs/jspdf", script)
 
+    def test_delete_user_account_removes_latency_metric_rows(self):
+        # チャット遅延診断テーブル（first_token_latency_metric / chat_latency_trace）は
+        # user.id への外部キー制約（RESTRICT）を持つ。これらの行を削除しないと
+        # db.session.delete(user) が IntegrityError で失敗しアカウント削除ができないため、
+        # _delete_user_account_immediately が確実に削除することを検証する。
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            thread = target.Thread(user_id=user.id, public_id="del-thread-1", title="t")
+            target.db.session.add(thread)
+            target.db.session.flush()
+            target.db.session.add(target.Message(thread_id=thread.id, role="user", content="hello"))
+            target.db.session.add(
+                target.FirstTokenLatencyMetric(
+                    user_id=user.id, thread_public_id="del-thread-1",
+                    latency_seconds=1.0, latency_ms=1000,
+                )
+            )
+            target.db.session.add(
+                target.ChatLatencyTrace(user_id=user.id, thread_public_id="del-thread-1", job_id="job_del_1")
+            )
+            target.db.session.commit()
+            uid = user.id
+            target._delete_user_account_immediately(user)
+            self.assertIsNone(target.db.session.get(target.User, uid))
+            self.assertEqual(target.FirstTokenLatencyMetric.query.filter_by(user_id=uid).count(), 0)
+            self.assertEqual(target.ChatLatencyTrace.query.filter_by(user_id=uid).count(), 0)
+            self.assertEqual(target.Thread.query.filter_by(user_id=uid).count(), 0)
+            self.assertEqual(target.Message.query.count(), 0)
+
+    def test_delete_account_endpoint_removes_user(self):
+        # 設定画面からの自己削除（POST /api/account/delete）が成功し、
+        # ユーザーが DB から消えることを検証する。
+        client = self.authenticated_client()
+        response = client.post(
+            "/api/account/delete",
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["status"], "ok")
+        with target.app.app_context():
+            self.assertIsNone(target.db.session.get(target.User, self.user_id))
+
 
 if __name__ == "__main__":
     unittest.main()

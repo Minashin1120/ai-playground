@@ -9465,7 +9465,8 @@
                         if (res.status === 404) {
                             showToast(`ユーザー ${username} は既に見つかりません（削除された可能性があります）`, 'error', true);
                         } else if (!res.ok) {
-                            const d = await res.json();
+                            let d = {};
+                            try { d = await res.json(); } catch (e) {}
                             showToast(d.error || 'エラーが発生しました', 'error', true);
                         } else if (btn.classList.contains('bot-delete-account')) {
                             showToast(`ユーザー ${username} を削除しました`, 'success');
@@ -9723,10 +9724,25 @@
 
             if (get('delete-account-btn')) {
                 get('delete-account-btn').onclick = async () => {
-                    if(confirm("本当にアカウントを削除しますか？\nこの操作は取り消せません。")) {
-                        await apiFetch(CHAT_CONFIG.urls.deleteAccount, {method:'POST'});
-                        location.href = "/";
+                    if(!confirm("本当にアカウントを削除しますか？\nこの操作は取り消せません。")) return;
+                    let res;
+                    try {
+                        res = await apiFetch(CHAT_CONFIG.urls.deleteAccount, {method:'POST'});
+                    } catch (e) {
+                        showToast('通信エラーが発生しました。時間をおいて再度お試しください。', 'error', true);
+                        return;
                     }
+                    if (res.ok) {
+                        location.href = "/";
+                        return;
+                    }
+                    let d = {};
+                    try { d = await res.json(); } catch (e) {}
+                    if (d && d.error === 'turnstile_required') {
+                        showToast('アカウントを削除できませんでした。しばらく待ってから再度お試しください。', 'error', true);
+                        return;
+                    }
+                    showToast(d.error || 'アカウントを削除できませんでした。時間をおいて再度お試しください。', 'error', true);
                 };
             }
             get('prompt-input').onkeydown = (e) => {

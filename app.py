@@ -719,8 +719,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-05-007')
-app.config['SYSTEM_VERSION'] = 'V4.8.734'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-05-008')
+app.config['SYSTEM_VERSION'] = 'V4.8.735'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -4430,6 +4430,8 @@ def _delete_user_account_immediately(user):
     UserSession.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     FileCache.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     BannedIdentifier.query.filter_by(source_user_id=user_id).delete(synchronize_session=False)
+    ChatLatencyTrace.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    FirstTokenLatencyMetric.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     _unblock_identifiers(ips, tokens)
 
     user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
@@ -6088,6 +6090,7 @@ _BOT_TURNSTILE_GATE_WHITELIST = {
     'receive_client_log',
     'client_log',
     'static',
+    'delete_account',
 }
 
 # Rapid-send / rapid-click lock: a suspicious user is temporarily locked out of
@@ -6115,6 +6118,7 @@ _BOT_LOCK_GATE_WHITELIST = {
     'bot_telemetry',
     'bot_turnstile_verify',
     'static',
+    'delete_account',
 }
 
 def _bot_lock_identifiers():

@@ -348,6 +348,23 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         self.assertNotEqual(res.status_code, 403)
         self.assertNotEqual(res.get_json().get("error"), "turnstile_required")
 
+    def test_delete_account_not_blocked_by_turnstile_gate(self):
+        # アカウントの自己削除は認証済みの破壊的操作であり、Turnstile 未検証でも
+        # gate にブロックされず実行できる（未検証ユーザーが自分のアカウントを
+        # 削除できなくなる事象の回帰防止）。
+        with mock.patch.object(target, "verify_turnstile", return_value=False):
+            with mock.patch.object(target, "redis_conn", _FakeRedis()):
+                with self.turnstile_env():
+                    client = self.authenticated_client()
+                    res = client.post(
+                        "/api/account/delete",
+                        headers={"X-CSRF-Token": "csrf-test-token"},
+                    )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json().get("status"), "ok")
+        with target.app.app_context():
+            self.assertIsNone(target.db.session.get(target.User, self.user_id))
+
     def test_chat_stream_resume_and_fast_save_are_gated(self):
         # 復帰・ブラウザ高速モード保存も未検証では 403 turnstile_required
         with mock.patch.object(target, "verify_turnstile", return_value=False):

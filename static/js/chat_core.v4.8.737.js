@@ -5624,10 +5624,28 @@
         }
 
         // Quote Reply Logic
+        const isQuoteMobileLayout = () => window.matchMedia('(max-width: 768px)').matches;
+        let quotePreviewText = "";
+
+        function showQuotePreview(text) {
+            const bar = get('quote-bar');
+            quotePreviewText = text;
+            // A new pending quote supersedes any already-applied quote so the
+            // bar always reflects what the next message would quote.
+            if (!bar.classList.contains('preview')) {
+                currentQuote = "";
+                bar.classList.add('preview');
+            }
+            get('quote-text-display').innerText = text;
+            bar.classList.add('visible');
+            schedulePromptTokenEstimate();
+        }
+
         function handleQuotePopover() {
             const sel = window.getSelection();
             const btn = get('quote-popover');
             if (!btn) return;
+            const mobile = isQuoteMobileLayout();
             if (!sel || sel.rangeCount === 0) {
                 btn.style.display = 'none';
                 btn.classList.remove('show');
@@ -5635,6 +5653,13 @@
             }
             const text = sel.toString().trim();
             if (text.length > 0 && get('chat-container').contains(sel.anchorNode)) {
+                if (mobile) {
+                    // On mobile the floating button is hidden behind the native
+                    // selection UI, so show a one-line quote preview in the
+                    // composer bar instead. It is applied by #quote-confirm-btn.
+                    showQuotePreview(text);
+                    return;
+                }
                 const range = sel.getRangeAt(0);
                 const rect = range.getBoundingClientRect();
                 const wasHidden = btn.style.display === 'none' || !btn.style.display || getComputedStyle(btn).display === 'none';
@@ -5675,9 +5700,23 @@
             }
         };
 
+        // Mobile: confirm the pending quote shown in the composer bar.
+        get('quote-confirm-btn').onclick = () => {
+            if (!quotePreviewText) return;
+            currentQuote = quotePreviewText;
+            quotePreviewText = "";
+            const bar = get('quote-bar');
+            bar.classList.remove('preview');
+            get('prompt-input').focus();
+            schedulePromptTokenEstimate();
+        };
+
         window.clearQuote = () => {
             currentQuote = "";
-            get('quote-bar').classList.remove('visible');
+            quotePreviewText = "";
+            const bar = get('quote-bar');
+            bar.classList.remove('preview');
+            bar.classList.remove('visible');
             get('quote-text-display').innerText = "";
             schedulePromptTokenEstimate();
         };

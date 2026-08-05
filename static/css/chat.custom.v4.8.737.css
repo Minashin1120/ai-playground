@@ -471,6 +471,19 @@
             display: flex; align-items: center; justify-content: space-between;
             animation: barSlideIn 0.28s var(--ease-out) both;
         }
+        #quote-confirm-btn {
+            display: none; align-items: center; flex-shrink: 0; white-space: nowrap;
+            background: rgba(var(--theme-rgb), 0.16); color: var(--theme-200);
+            border: 1px solid rgba(var(--theme-rgb), 0.35); border-radius: 8px;
+            padding: 4px 10px; font-size: 11px; font-weight: 600; cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+        #quote-confirm-btn:hover { background: rgba(var(--theme-rgb), 0.3); color: #fff; }
+        /* Mobile only: show the confirm button while the quote is pending (the
+           floating popover is hidden behind the native selection UI on touch). */
+        @media (max-width: 768px) {
+            #quote-bar.preview #quote-confirm-btn { display: inline-flex; }
+        }
         #coding-target-bar {
             display: none; background: rgba(2, 44, 34, 0.88); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(52, 211, 153, 0.28); padding: 8px 12px; border-radius: 12px;

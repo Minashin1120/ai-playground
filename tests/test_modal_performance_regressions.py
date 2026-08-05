@@ -353,6 +353,37 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         button_block = button_block[: button_block.index("}")]
         self.assertIn("animation: popoverIn", button_block)
 
+    def test_mobile_quote_preview_uses_composer_bar(self):
+        # V4.8.737: on mobile (<=768px) the floating popover is hidden behind the
+        # native selection UI, so the selected text is shown as a one-line preview
+        # in the composer bar (#quote-bar) and applied via #quote-confirm-btn.
+        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        bar_start = template.index('<div id="quote-bar"')
+        bar_end = template.index("Coding Mode Target Bar", bar_start)
+        bar = template[bar_start:bar_end]
+        self.assertIn("id=\"quote-confirm-btn\"", bar)
+        self.assertIn("quote-text-display", bar)
+
+        css = _current_asset("css", "chat.custom.v4.8.*.css")
+        # Hidden everywhere; only revealed on mobile while the quote is pending.
+        self.assertIn("#quote-confirm-btn {", css)
+        self.assertIn("display: none", css[css.index("#quote-confirm-btn {") : css.index("#quote-confirm-btn:hover")])
+        self.assertIn("#quote-bar.preview #quote-confirm-btn { display: inline-flex; }", css)
+
+        js = _current_asset("js", "chat_core.v4.8.*.js")
+        self.assertIn("isQuoteMobileLayout", js)
+        self.assertIn("const isQuoteMobileLayout = () => window.matchMedia('(max-width: 768px)').matches", js)
+        self.assertIn("function showQuotePreview(text)", js)
+        # The mobile branch must return before the floating button is positioned.
+        handler = js[js.index("function handleQuotePopover()") :]
+        handler = handler[: handler.index("document.addEventListener('mouseup'")]
+        self.assertIn("showQuotePreview(text)", handler)
+        # The confirm button applies the pending preview as the quote.
+        self.assertIn("get('quote-confirm-btn').onclick", js)
+        self.assertIn("currentQuote = quotePreviewText", js)
+        # clearQuote must also reset the pending preview so no stale state remains.
+        self.assertIn('quotePreviewText = "";', js)
+
 
 if __name__ == "__main__":
     unittest.main()

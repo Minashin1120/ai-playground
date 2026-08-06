@@ -269,7 +269,7 @@
     }
 
     function buildChatDemo(root) {
-        var systemVersion = (typeof window !== 'undefined' && window.LANDING_SYSTEM_VERSION) || 'V4.8.744';
+        var systemVersion = (typeof window !== 'undefined' && window.LANDING_SYSTEM_VERSION) || 'V4.8.745';
         var chrome = document.createElement('div');
         chrome.className = 'chat-demo-chrome';
         chrome.innerHTML =
@@ -560,6 +560,45 @@
         sequence();
     }
 
+    /* ── Scroll-reveal (IntersectionObserver) ──
+     * Elements marked with .ld-reveal / .ld-reveal-fade fade+slide in when
+     * they enter the viewport. Safe under Rocket Loader (self-booted). */
+    function initReveal() {
+        if (typeof document === 'undefined') return;
+        var nodes = document.querySelectorAll('.ld-reveal, .ld-reveal-fade');
+        if (!nodes.length) return;
+
+        /* Reduced motion: show everything immediately, no transition. */
+        if (DEFAULTS.reduced || typeof IntersectionObserver === 'undefined') {
+            for (var i = 0; i < nodes.length; i++) {
+                nodes[i].classList.add('ld-reveal-visible');
+            }
+            return;
+        }
+
+        var io = new IntersectionObserver(function (entries) {
+            for (var e = 0; e < entries.length; e++) {
+                var entry = entries[e];
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('ld-reveal-visible');
+                    io.unobserve(entry.target);
+                }
+            }
+        }, { root: null, rootMargin: '0px 0px -8% 0px', threshold: 0.12 });
+
+        for (var n = 0; n < nodes.length; n++) {
+            /* Already in (or near) the first viewport: reveal without waiting
+             * a second paint so hero content does not sit invisible. */
+            var rect = nodes[n].getBoundingClientRect();
+            var vh = window.innerHeight || document.documentElement.clientHeight || 800;
+            if (rect.top < vh * 0.92 && rect.bottom > 0) {
+                nodes[n].classList.add('ld-reveal-visible');
+            } else {
+                io.observe(nodes[n]);
+            }
+        }
+    }
+
     /* ── Public API ── */
     function initDemo(options) {
         options = options || {};
@@ -595,6 +634,14 @@
             var api = buildChatDemo(chatRoot);
             runChatDemo(api, chatRoot);
         }
+
+        /* Reveal runs once per page load (guard via data attr on <html>).
+         * documentElement may be absent under the node DOM shim used by tests. */
+        var rootEl = document.documentElement;
+        if (rootEl && !rootEl.getAttribute('data-ld-reveal')) {
+            rootEl.setAttribute('data-ld-reveal', '1');
+            initReveal();
+        }
     }
 
     /* ── Self-boot ──
@@ -620,6 +667,7 @@
         computeModelHubGeometry: computeModelHubGeometry,
         sampleCubicBezier: sampleCubicBezier,
         validateModelHubGeometry: validateModelHubGeometry,
-        initDemo: initDemo
+        initDemo: initDemo,
+        initReveal: initReveal
     };
 });

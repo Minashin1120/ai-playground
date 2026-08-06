@@ -49,21 +49,21 @@
         <section class="hero-bg py-10 md:py-20">
             <div class="max-w-7xl mx-auto px-6 demo-stage">
                 <div class="text-center md:text-left">
-                    <div class="inline-flex items-center gap-2 flex-wrap px-3 py-1 rounded-full border border-teal-400/40 bg-teal-400/10 text-teal-200 text-xs font-semibold mb-6">
+                    <div class="inline-flex items-center gap-2 flex-wrap px-3 py-1 rounded-full border border-teal-400/40 bg-teal-400/10 text-teal-200 text-xs font-semibold mb-6 ld-reveal">
                         <i class="fas fa-bolt"></i><span>Gemini 3.6 / GPT-5.6 / Grok 4.3 / Claude / DeepSeek / Kimi 対応</span>
                     </div>
-                    <h1 class="text-4xl md:text-6xl font-extrabold mb-6 tracking-tight leading-tight">
+                    <h1 class="text-4xl md:text-6xl font-extrabold mb-6 tracking-tight leading-tight ld-reveal ld-reveal-delay-1">
                         複数のAIモデルを、<br><span class="text-teal-300">ひとつの場所で。</span>
                     </h1>
-                    <p class="text-lg md:text-xl text-slate-400 max-w-xl mb-8 leading-relaxed md:mx-0 mx-auto">
+                    <p class="text-lg md:text-xl text-slate-400 max-w-xl mb-8 leading-relaxed md:mx-0 mx-auto ld-reveal ld-reveal-delay-2">
                         最新モデルをワンクリックで切り替え、推論プロセス（Thinking）も可視化。
                         あなたのAPIキーで動く、プライベートかつ自由なチャット環境。
                     </p>
-                    <div class="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center md:justify-start ld-reveal ld-reveal-delay-3">
                         <a href="/signup" class="px-8 py-4 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-900 text-lg font-bold rounded-xl shadow-xl transition transform hover:scale-105 text-center">無料で始める</a>
                         <a href="/login" class="px-8 py-4 bg-slate-900/70 hover:bg-slate-800 text-white text-lg font-bold rounded-xl border border-slate-700 transition text-center">ログイン</a>
                     </div>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-10 max-w-xl md:mx-0 mx-auto">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-10 max-w-xl md:mx-0 mx-auto ld-reveal ld-reveal-delay-4">
                         <div class="text-left">
                             <div class="text-2xl font-extrabold text-teal-300">6+</div>
                             <div class="text-xs text-slate-500 mt-1">モデルプロバイダ</div>
@@ -84,7 +84,7 @@
                 </div>
 
                 <!-- Animated chat operation demo -->
-                <div class="relative">
+                <div class="relative ld-reveal ld-reveal-delay-2">
                     <div class="absolute -inset-4 bg-gradient-to-tr from-teal-500/20 via-transparent to-amber-500/10 rounded-[28px] blur-2xl pointer-events-none" aria-hidden="true"></div>
                     <div class="relative chat-demo" id="landing-demo-chat" role="img" aria-label="AI Chat Playgroundの操作画面のデモ"></div>
                     <p class="text-xs text-slate-500 mt-4 text-center"><i class="fas fa-robot mr-1"></i>実際の操作画面のデモ（自動で繰り返し再生）</p>
@@ -97,8 +97,8 @@
         <!-- ── Provider marquee ── -->
         <section class="py-10 landing-section">
             <div class="max-w-7xl mx-auto px-6">
-                <p class="text-center text-xs uppercase tracking-widest text-slate-500 mb-6">対応モデルプロバイダ</p>
-                <div class="marquee-wrap overflow-hidden">
+                <p class="text-center text-xs uppercase tracking-widest text-slate-500 mb-6 ld-reveal">対応モデルプロバイダ</p>
+                <div class="marquee-wrap overflow-hidden ld-reveal ld-reveal-delay-1">
                     <div class="marquee-track flex gap-4 w-max">
                         <span class="provider-chip"><i class="fas fa-star text-yellow-400"></i>Gemini 3.6 Flash</span>
                         <span class="provider-chip"><i class="fas fa-star text-yellow-400"></i>Gemini 3.5 Flash</span>
@@ -132,7 +132,7 @@
         <!-- ── Model hub (animated SVG) ── -->
         <section class="py-16 md:py-24 landing-section">
             <div class="max-w-7xl mx-auto px-6">
-                <div class="text-center mb-12">
+                <div class="text-center mb-12 ld-reveal">
                     <span class="section-eyebrow"><i class="fas fa-share-nodes"></i> マルチモデルハブ</span>
                     <h2 class="text-3xl md:text-4xl font-extrabold mt-4 mb-4">1つの画面から、すべてのモデルへ。</h2>
                     <p class="text-slate-400 max-w-2xl mx-auto leading-relaxed">
@@ -141,14 +141,14 @@
                     </p>
                 </div>
                 <div class="grid md:grid-cols-2 gap-10 items-center">
-                    <div class="hub-frame order-2 md:order-1">
+                    <div class="hub-frame order-2 md:order-1 ld-reveal ld-reveal-delay-1">
                         <div id="landing-demo-hub" role="img" aria-label="チャットハブと複数のAIモデルの接続図"></div>
                         <div class="mt-4 flex justify-center">
                             <span class="hub-status" id="landing-demo-hub-status"></span>
                         </div>
                     </div>
                     <div class="order-1 md:order-2 space-y-4">
-                        <div class="feature-card p-5 rounded-xl text-left">
+                        <div class="feature-card p-5 rounded-xl text-left ld-reveal ld-reveal-delay-1">
                             <div class="flex items-start gap-4">
                                 <div class="feature-icon bg-teal-500/15 text-teal-300"><i class="fas fa-exchange-alt"></i></div>
                                 <div>
@@ -157,7 +157,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="feature-card p-5 rounded-xl text-left">
+                        <div class="feature-card p-5 rounded-xl text-left ld-reveal ld-reveal-delay-2">
                             <div class="flex items-start gap-4">
                                 <div class="feature-icon bg-purple-500/15 text-purple-300"><i class="fas fa-brain"></i></div>
                                 <div>
@@ -166,7 +166,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="feature-card p-5 rounded-xl text-left">
+                        <div class="feature-card p-5 rounded-xl text-left ld-reveal ld-reveal-delay-3">
                             <div class="flex items-start gap-4">
                                 <div class="feature-icon bg-emerald-500/15 text-emerald-300"><i class="fas fa-arrows-alt-h"></i></div>
                                 <div>
@@ -175,7 +175,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="feature-card p-5 rounded-xl text-left">
+                        <div class="feature-card p-5 rounded-xl text-left ld-reveal ld-reveal-delay-4">
                             <div class="flex items-start gap-4">
                                 <div class="feature-icon bg-amber-500/15 text-amber-300"><i class="fas fa-sliders-h"></i></div>
                                 <div>
@@ -192,37 +192,37 @@
         <!-- ── Features ── -->
         <section class="py-16 md:py-24 landing-section">
             <div class="max-w-7xl mx-auto px-6">
-                <div class="text-center mb-14">
+                <div class="text-center mb-14 ld-reveal">
                     <span class="section-eyebrow"><i class="fas fa-gem"></i> 特徴</span>
                     <h2 class="text-3xl md:text-4xl font-extrabold mt-4 mb-4">なぜAI Chat Playgroundなのか</h2>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <div class="feature-card p-6 rounded-xl text-left">
+                    <div class="feature-card p-6 rounded-xl text-left ld-reveal ld-reveal-delay-1">
                         <div class="feature-icon bg-teal-500/15 text-teal-300"><i class="fas fa-brain"></i></div>
                         <h3 class="text-xl font-bold mb-2">マルチモデル対応</h3>
                         <p class="text-slate-400 text-sm leading-relaxed">Google、OpenAI、xAI、Anthropic、DeepSeek、Moonshotの最新モデルを即座に切り替えて利用可能。推論プロセス（Thinking）も可視化。</p>
                     </div>
-                    <div class="feature-card p-6 rounded-xl text-left">
+                    <div class="feature-card p-6 rounded-xl text-left ld-reveal ld-reveal-delay-2">
                         <div class="feature-icon bg-amber-500/15 text-amber-300"><i class="fas fa-shield-alt"></i></div>
                         <h3 class="text-xl font-bold mb-2">BYOK & プライバシー</h3>
                         <p class="text-slate-400 text-sm leading-relaxed">Bring Your Own Key方式。APIキーは暗号化され、チャットデータはあなたの管理下に。E2EEにも対応し、第三者の閲覧から保護します。</p>
                     </div>
-                    <div class="feature-card p-6 rounded-xl text-left">
+                    <div class="feature-card p-6 rounded-xl text-left ld-reveal ld-reveal-delay-3">
                         <div class="feature-icon bg-emerald-500/15 text-emerald-300"><i class="fas fa-file-upload"></i></div>
                         <h3 class="text-xl font-bold mb-2">マルチモーダル</h3>
                         <p class="text-slate-400 text-sm leading-relaxed">画像やPDFファイルをドラッグ＆ドロップ。クリップボードからの貼り付けにも対応し、文書の要約・翻訳・解析もそのまま。</p>
                     </div>
-                    <div class="feature-card p-6 rounded-xl text-left">
+                    <div class="feature-card p-6 rounded-xl text-left ld-reveal ld-reveal-delay-1">
                         <div class="feature-icon bg-purple-500/15 text-purple-300"><i class="fas fa-sliders-h"></i></div>
                         <h3 class="text-xl font-bold mb-2">細かなパラメータ制御</h3>
                         <p class="text-slate-400 text-sm leading-relaxed">Thinkingレベル、推論Effort、Safety設定、コンテキスト長をモデルごとに調整。検索・URL参照・コード実行のON/OFFも自由。</p>
                     </div>
-                    <div class="feature-card p-6 rounded-xl text-left">
+                    <div class="feature-card p-6 rounded-xl text-left ld-reveal ld-reveal-delay-2">
                         <div class="feature-icon bg-pink-500/15 text-pink-300"><i class="fas fa-image"></i></div>
                         <h3 class="text-xl font-bold mb-2">画像生成・音声会話</h3>
                         <p class="text-slate-400 text-sm leading-relaxed">Nano Banana 2、GPT Image、Grok Imagineでの画像生成。TTS音声合成、リアルタイム音声対話モデルにも対応。</p>
                     </div>
-                    <div class="feature-card p-6 rounded-xl text-left">
+                    <div class="feature-card p-6 rounded-xl text-left ld-reveal ld-reveal-delay-3">
                         <div class="feature-icon bg-sky-500/15 text-sky-300"><i class="fas fa-file-pdf"></i></div>
                         <h3 class="text-xl font-bold mb-2">会話の保存と管理</h3>
                         <p class="text-slate-400 text-sm leading-relaxed">チャット履歴は自動保存。スレッド分岐、PDFエクスポート、データの移行（エクスポート/インポート）にも対応。</p>
@@ -236,22 +236,22 @@
         <!-- ── How it works ── -->
         <section class="py-16 md:py-24 landing-section">
             <div class="max-w-5xl mx-auto px-6">
-                <div class="text-center mb-14">
+                <div class="text-center mb-14 ld-reveal">
                     <span class="section-eyebrow"><i class="fas fa-route"></i> 使い方</span>
                     <h2 class="text-3xl md:text-4xl font-extrabold mt-4 mb-4">3ステップで始められます</h2>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <div class="feature-card step-card p-6 rounded-xl text-left">
+                    <div class="feature-card step-card p-6 rounded-xl text-left ld-reveal ld-reveal-delay-1">
                         <div class="step-num">1</div>
                         <h3 class="font-bold mb-2">アカウントを作成</h3>
                         <p class="text-sm text-slate-400 leading-relaxed">メールアドレスとパスワードだけでOK。APIキーの登録がまだでも、まずは準備画面から始められます。</p>
                     </div>
-                    <div class="feature-card step-card p-6 rounded-xl text-left">
+                    <div class="feature-card step-card p-6 rounded-xl text-left ld-reveal ld-reveal-delay-2">
                         <div class="step-num">2</div>
                         <h3 class="font-bold mb-2">APIキーを登録</h3>
                         <p class="text-sm text-slate-400 leading-relaxed">Gemini / OpenAI / xAI / Anthropicなどの公式サイトから取得したキーを設定画面に入力。キーは暗号化して保存されます。</p>
                     </div>
-                    <div class="feature-card step-card p-6 rounded-xl text-left">
+                    <div class="feature-card step-card p-6 rounded-xl text-left ld-reveal ld-reveal-delay-3">
                         <div class="step-num">3</div>
                         <h3 class="font-bold mb-2">モデルを選んでチャット</h3>
                         <p class="text-sm text-slate-400 leading-relaxed">サイドバーからモデルを選んで送信するだけ。タスクに合わせてモデルを切り替えながら進められます。</p>
@@ -264,19 +264,19 @@
         <section class="py-14 landing-section">
             <div class="max-w-6xl mx-auto px-6">
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
-                    <div class="ld-stat">
+                    <div class="ld-stat ld-reveal ld-reveal-delay-1">
                         <div class="ld-stat-value">6+</div>
                         <div class="ld-stat-label">モデルプロバイダ</div>
                     </div>
-                    <div class="ld-stat">
+                    <div class="ld-stat ld-reveal ld-reveal-delay-2">
                         <div class="ld-stat-value">40+</div>
                         <div class="ld-stat-label">利用可能モデル</div>
                     </div>
-                    <div class="ld-stat">
+                    <div class="ld-stat ld-reveal ld-reveal-delay-3">
                         <div class="ld-stat-value">1M</div>
                         <div class="ld-stat-label">最大コンテキスト</div>
                     </div>
-                    <div class="ld-stat">
+                    <div class="ld-stat ld-reveal ld-reveal-delay-4">
                         <div class="ld-stat-value">E2EE</div>
                         <div class="ld-stat-label">暗号化サポート</div>
                     </div>
@@ -287,28 +287,28 @@
         <!-- ── FAQ ── -->
         <section class="py-16 md:py-24 landing-section">
             <div class="max-w-3xl mx-auto px-6">
-                <div class="text-center mb-12">
+                <div class="text-center mb-12 ld-reveal">
                     <span class="section-eyebrow"><i class="fas fa-circle-question"></i> FAQ</span>
                     <h2 class="text-3xl md:text-4xl font-extrabold mt-4 mb-4">よくある質問</h2>
                 </div>
                 <div class="space-y-3">
-                    <details class="ld-faq">
+                    <details class="ld-faq ld-reveal ld-reveal-delay-1">
                         <summary>「BYOK（Bring Your Own Key）」とは何ですか？</summary>
                         <div class="ld-faq-body">AIモデルのAPIキーを各自で用意していただく方式です。モデル利用料金はAPI提供元（Google、OpenAI、xAIなど）に直接支払われるため、サブスクリプション料金はかかりません。キーは暗号化して保存され、チャットリクエストのたびに使用されます。</div>
                     </details>
-                    <details class="ld-faq">
+                    <details class="ld-faq ld-reveal ld-reveal-delay-2">
                         <summary>チャット履歴やデータはどこに保存されますか？</summary>
                         <div class="ld-faq-body">チャット履歴・設定・アップロードファイルはアプリのデータベースとサーバーストレージに保存されます。E2EE（エンドツーエンド暗号化）を有効にすると、メッセージとファイルはサーバー上で復号できない形で暗号化して保存されます。</div>
                     </details>
-                    <details class="ld-faq">
+                    <details class="ld-faq ld-reveal ld-reveal-delay-3">
                         <summary>どのモデルが使えますか？</summary>
                         <div class="ld-faq-body">Gemini 3.6 / 3.5、GPT-5.6シリーズ、Grok 4.3、Claude Opus 4.6、DeepSeek V4、Kimi K3に加え、画像生成（Nano Banana、GPT Image、Grok Imagine）、TTS音声合成、リアルタイム音声対話モデルも利用できます。対応モデルは随時更新されます。</div>
                     </details>
-                    <details class="ld-faq">
+                    <details class="ld-faq ld-reveal ld-reveal-delay-1">
                         <summary>無料で使えますか？</summary>
                         <div class="ld-faq-body">アカウント登録は無料です。モデルの利用料金はご自身のAPIキーに請求されるため、APIキーが無い状態ではチャットは利用できません（アカウント作成・設定は無料で行えます）。</div>
                     </details>
-                    <details class="ld-faq">
+                    <details class="ld-faq ld-reveal ld-reveal-delay-2">
                         <summary>セキュリティはどうなっていますか？</summary>
                         <div class="ld-faq-body">パスワードはハッシュ化して保存、二段階認証（2FA）、ボット検出、不正ログイン対策、E2EE暗号化を備えています。またAPIキーは表示されることなく暗号化状態で保存され、サーバー内でのみ使用されます。</div>
                     </details>
@@ -318,7 +318,7 @@
 
         <!-- ── Final CTA ── -->
         <section class="py-20 landing-section hero-bg">
-            <div class="max-w-4xl mx-auto px-6 text-center">
+            <div class="max-w-4xl mx-auto px-6 text-center ld-reveal">
                 <h2 class="text-3xl md:text-5xl font-extrabold mb-6">さあ、最強のモデルを<br class="md:hidden"><span class="text-teal-300">手元に。</span></h2>
                 <p class="text-slate-400 text-lg max-w-2xl mx-auto mb-10 leading-relaxed">アカウント作成は無料。あとはAPIキーを登録して、すぐに使い始められます。</p>
                 <div class="flex flex-col sm:flex-row gap-4 justify-center">

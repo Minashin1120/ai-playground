@@ -14403,7 +14403,18 @@
             const skeletonHtml = buildPendingSkeletonHtml(modelId, '回答を生成中...');
             const html = `<div class="flex justify-start mb-4 ${fadeClass}"><div${idAttr} class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${skeletonHtml}</div></div>`;
             const container = target || get('chat-container');
-            container.insertAdjacentHTML('beforeend', html);
+            if (!container) return;
+            if (typeof container.insertAdjacentHTML === 'function') {
+                container.insertAdjacentHTML('beforeend', html);
+            } else {
+                // renderThreadTree builds into a DocumentFragment, which has no
+                // insertAdjacentHTML. Build the node and append it so a pending
+                // stream bubble renders on reload during generation.
+                const wrap = document.createElement('div');
+                wrap.innerHTML = html;
+                const node = wrap.firstElementChild;
+                if (node) container.appendChild(node);
+            }
             if (doScroll) scrollToBottom();
         }
 

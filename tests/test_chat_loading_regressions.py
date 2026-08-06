@@ -84,6 +84,31 @@ class ChatLoadingRegressionTests(unittest.TestCase):
         self.assertIn("data-chat-load-retry", source)
         self.assertIn("loadSequence !== threadLoadSequence", loader)
 
+    def test_pending_stream_bubble_renders_into_a_document_fragment_on_reload(self):
+        # V4.8.749: reloading during streaming renders the pending-job skeleton
+        # inside renderThreadTree's DocumentFragment. DocumentFragment has no
+        # insertAdjacentHTML, so calling it directly threw a TypeError and turned
+        # the whole thread load into "チャットを読み込めませんでした". renderPendingMessage
+        # must fall back to building the node and appending it.
+        source = _current_chat_core_source()
+        render = source[source.index("function renderPendingMessage(target = null"):]
+        render = render[: render.index("function beginPendingToStreamTransition")]
+
+        self.assertIn("renderPendingMessage(fragment", source)
+        self.assertIn("typeof container.insertAdjacentHTML === 'function'", render)
+        self.assertIn("container.insertAdjacentHTML('beforeend', html)", render)
+        self.assertIn("wrap.firstElementChild", render)
+        self.assertIn("container.appendChild(node)", render)
+
+    def test_pending_bubble_is_skipped_when_job_is_suppressed(self):
+        source = _current_chat_core_source()
+        tree = source[source.index("function renderThreadTree(opts = {})"):]
+        tree = tree[: tree.index("function switchVersion(targetId)")]
+
+        self.assertIn("const pending = currentThreadPending", tree)
+        self.assertIn("!isPendingJobSuppressed(pending.job_id)", tree)
+        self.assertIn("renderPendingMessage(fragment", tree)
+
     def test_back_forward_navigation_restores_thread_from_url(self):
         source = _current_chat_core_source()
         popstate = source[source.index("window.addEventListener('popstate'"):]

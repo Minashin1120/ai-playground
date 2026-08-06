@@ -150,6 +150,68 @@ class PerformanceRegressionTests(unittest.TestCase):
         self.assertIn("生成中に再読み込み・タブ終了・通信切断", template)
         self.assertIn("回答完了後に画像をサーバーへアップロードして同じ履歴へDB保存", template)
 
+    def test_browser_fast_mode_adds_code_execution_tool_when_python_enabled(self):
+        chat_files = list((APP_ROOT / "static/js").glob("chat_core.v*.js"))
+        self.assertEqual(len(chat_files), 1)
+        source = chat_files[0].read_text(encoding="utf-8")
+        fast_source = source[
+            source.index("async function sendBrowserFastMessage"):
+            source.index("async function sendMessage()")
+        ]
+
+        self.assertIn("const fastPythonEnabled = !!(get('enable-python') && get('enable-python').checked)", fast_source)
+        self.assertIn("if (fastPythonEnabled) {", fast_source)
+        self.assertIn("payload.tools = [{ codeExecution: {} }]", fast_source)
+
+    def test_browser_fast_mode_handles_code_execution_parts_and_persists_pyexec(self):
+        chat_files = list((APP_ROOT / "static/js").glob("chat_core.v*.js"))
+        self.assertEqual(len(chat_files), 1)
+        source = chat_files[0].read_text(encoding="utf-8")
+        fast_source = source[
+            source.index("function browserFastPythonBoxHtml(pyId)"):
+            source.index("async function sendMessage()")
+        ]
+
+        # SSE part parsing for Gemini code execution.
+        self.assertIn("part.executableCode && typeof part.executableCode.code === 'string'", fast_source)
+        self.assertIn("part.codeExecutionResult && typeof part.codeExecutionResult.output === 'string'", fast_source)
+        self.assertIn("\\n\\`\\`\\`python\\n${pyCode}", fast_source)
+        self.assertIn("\\n**Output:**\\n\\`\\`\\`\\n${pyOutput}", fast_source)
+        # Live python box rendering helpers.
+        self.assertIn("function browserFastPythonBoxHtml(pyId)", fast_source)
+        self.assertIn("function updateBrowserFastPythonBox(box, field, value)", fast_source)
+        self.assertIn("adiv.insertAdjacentHTML('afterbegin', browserFastPythonBoxHtml(", fast_source)
+        # Persistence: pyexec blocks appended to the content before saving.
+        self.assertIn("const pyExecPayloads = [];", fast_source)
+        self.assertIn("\\`\\`\\`pyexec\\n${JSON.stringify(payload)}", fast_source)
+
+    def test_browser_fast_mode_python_toggle_is_no_longer_restricted(self):
+        chat_files = list((APP_ROOT / "static/js").glob("chat_core.v*.js"))
+        self.assertEqual(len(chat_files), 1)
+        source = chat_files[0].read_text(encoding="utf-8")
+        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+
+        disabled_start = source.index("const BROWSER_FAST_DISABLED_OPTIONS = [")
+        disabled_block = source[disabled_start: source.index("];", disabled_start)]
+        self.assertNotIn("'enable-python'", disabled_block)
+
+        ineligible = source[
+            source.index("function browserFastModeIneligibility(rawText)"):
+            source.index("function fileToBase64Payload(file)")
+        ]
+        enabled_ids = ineligible[ineligible.index("const enabledIds = ["):]
+        enabled_ids = enabled_ids[: enabled_ids.index("];")]
+        self.assertNotIn("'enable-python'", enabled_ids)
+        self.assertIn("検索・URL参照・システム機能利用時は通常モードが必要です", ineligible)
+
+        warning = template[
+            template.index("有効化前に必ず確認してください"):
+            template.index("使用するキー")
+        ]
+        self.assertIn("Python（コード実行）は利用できます", warning)
+        self.assertNotIn("検索、URLs、Maps、Python、Gems", warning)
+
+
     def test_browser_fast_mode_keeps_local_images_out_of_upload_until_completion(self):
         chat_files = list((APP_ROOT / "static/js").glob("chat_core.v*.js"))
         source = chat_files[0].read_text(encoding="utf-8")

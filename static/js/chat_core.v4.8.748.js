@@ -6820,7 +6820,6 @@
             ['enable-search', 'search-container'],
             ['enable-url-context', 'url-context-container'],
             ['enable-maps', 'maps-grounding-container'],
-            ['enable-python', 'python-container'],
             ['enable-sys-prompt', 'sys-prompt-option'],
             ['enable-prompt-cache', 'prompt-cache-container'],
         ];
@@ -14814,8 +14813,8 @@
             if (activeGem) return 'Gems利用時は通常モードが必要です';
             if (currentQuote || editingMessageId) return '引用・編集時は通常モードが必要です';
             if (codingModeEnabled) return 'Coding Mode利用時は通常モードが必要です';
-            const enabledIds = ['enable-search', 'enable-url-context', 'enable-maps', 'enable-python', 'enable-sys-prompt', 'enable-prompt-cache'];
-            if (enabledIds.some((id) => { const el = get(id); return !!(el && el.checked); })) return '検索・Python・システム機能利用時は通常モードが必要です';
+            const enabledIds = ['enable-search', 'enable-url-context', 'enable-maps', 'enable-sys-prompt', 'enable-prompt-cache'];
+            if (enabledIds.some((id) => { const el = get(id); return !!(el && el.checked); })) return '検索・URL参照・システム機能利用時は通常モードが必要です';
             const custom = get('thread-custom-instruction');
             if (custom && String(custom.value || '').trim()) return 'チャット固有指示利用時は通常モードが必要です';
             const entries = Array.from(browserFastLocalFiles.values());
@@ -14904,6 +14903,31 @@
             return { includeThoughts: true, thinkingLevel: level };
         }
 
+        function browserFastPythonBoxHtml(pyId) {
+            return `<div class="code-wrapper python-box collapsed" data-py-id="${pyId}" data-collapsed="true" data-code-key="${pyId}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button><button class="copy-btn" data-copy="code" data-code=""><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code=""><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output"></code></pre></div></div></div>`;
+        }
+
+        function updateBrowserFastPythonBox(box, field, value) {
+            if (!box) return;
+            if (field === 'code') {
+                const codeText = value == null ? '' : String(value);
+                const codeEl = box.querySelector('.python-code');
+                if (codeEl) {
+                    codeEl.textContent = codeText;
+                    codeEl.removeAttribute('data-highlighted');
+                    queueHighlight(box, codeText);
+                }
+                const codeBtn = box.querySelector('.copy-btn[data-copy="code"]');
+                if (codeBtn) codeBtn.setAttribute('data-code', encodeURIComponent(codeText).replace(/'/g, "%27"));
+            } else if (field === 'output') {
+                const outText = value == null ? '' : String(value);
+                const outEl = box.querySelector('.python-output');
+                if (outEl) outEl.textContent = outText;
+                const outBtn = box.querySelector('.copy-btn[data-copy="output"]');
+                if (outBtn) outBtn.setAttribute('data-code', encodeURIComponent(outText).replace(/'/g, "%27"));
+            }
+        }
+
         async function sendBrowserFastMessage(rawText) {
             const model = String(get('model-select').value || '').trim();
             const bootstrap = await fetchBrowserFastBootstrap(false);
@@ -14926,6 +14950,10 @@
                 ],
                 generationConfig,
             };
+            const fastPythonEnabled = !!(get('enable-python') && get('enable-python').checked);
+            if (fastPythonEnabled) {
+                payload.tools = [{ codeExecution: {} }];
+            }
 
             if (rawText.trim() && (promptHistory.length === 0 || promptHistory[0] !== rawText)) {
                 promptHistory.unshift(rawText);
@@ -14950,6 +14978,10 @@
             let contentEl = null;
             let thoughtEl = null;
             let started = false;
+            const pyBoxes = {};
+            const pyExecPayloads = [];
+            let currentPyId = null;
+            let currentPyCode = '';
             const finishProgress = window.ProgressSpinner ? window.ProgressSpinner.startFlow('browserFast') : null;
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, manualSpinnerRequestOptions({
@@ -14979,6 +15011,30 @@
                         parts.forEach((part) => {
                             if (part && typeof part.thoughtSignature === 'string' && !thoughtSignatures.includes(part.thoughtSignature)) {
                                 thoughtSignatures.push(part.thoughtSignature);
+                            }
+                            if (part && part.executableCode && typeof part.executableCode.code === 'string') {
+                                const pyCode = part.executableCode.code;
+                                content += `\n\`\`\`python\n${pyCode}\n\`\`\`\n`;
+                                currentPyId = `browserFastPy_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                                currentPyCode = pyCode;
+                                if (!pyBoxes[currentPyId]) {
+                                    adiv.insertAdjacentHTML('afterbegin', browserFastPythonBoxHtml(currentPyId));
+                                    pyBoxes[currentPyId] = adiv.querySelector(`[data-py-id="${currentPyId}"]`);
+                                }
+                                updateBrowserFastPythonBox(pyBoxes[currentPyId], 'code', pyCode);
+                                return;
+                            }
+                            if (part && part.codeExecutionResult && typeof part.codeExecutionResult.output === 'string') {
+                                const pyOutput = part.codeExecutionResult.output;
+                                content += `\n**Output:**\n\`\`\`\n${pyOutput}\n\`\`\`\n`;
+                                const pyId = currentPyId || `browserFastPy_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                                pyExecPayloads.push({ code: currentPyCode || '', output: pyOutput });
+                                if (!pyBoxes[pyId]) {
+                                    adiv.insertAdjacentHTML('afterbegin', browserFastPythonBoxHtml(pyId));
+                                    pyBoxes[pyId] = adiv.querySelector(`[data-py-id="${pyId}"]`);
+                                }
+                                updateBrowserFastPythonBox(pyBoxes[pyId], 'output', pyOutput);
+                                return;
                             }
                             const text = typeof part.text === 'string' ? part.text : '';
                             if (!text) return;
@@ -15023,6 +15079,9 @@
                 if (!content.trim()) throw new Error('Geminiから回答本文が返されませんでした');
                 if (contentEl) renderAiMarkdownInto(contentEl, content, { incrementalMath: true });
                 if (thoughtEl) thoughtEl.classList.add('collapsed');
+                if (pyExecPayloads.length) {
+                    content += pyExecPayloads.map((payload) => `\n\`\`\`pyexec\n${JSON.stringify(payload)}\n\`\`\`\n`).join('');
+                }
 
                 if (localEntries.length) {
                     if (finishProgress) finishProgress.setPhase('saving');

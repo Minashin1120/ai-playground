@@ -559,8 +559,20 @@ html, body { overflow-x: clip; }
 .provider-chip:hover { transform: translateY(-2px); border-color: rgba(var(--theme-rgb), 0.4); }
 .provider-chip i { font-size: 0.8rem; }
 
-/* ── FAQ ── */
-.ld-faq { border: 1px solid var(--line-soft); border-radius: 14px; background: rgba(10, 16, 35, 0.6); overflow: hidden; }
+/* ── FAQ ──
+ * Open/close height animation is driven by landing_demo.js (native <details>
+ * does not animate content by default). Chevron / hover / body fade live here. */
+.ld-faq {
+    border: 1px solid var(--line-soft);
+    border-radius: 14px;
+    background: rgba(10, 16, 35, 0.6);
+    overflow: hidden;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.ld-faq[open] {
+    border-color: rgba(var(--theme-rgb), 0.35);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+}
 .ld-faq summary {
     list-style: none;
     cursor: pointer;
@@ -572,6 +584,11 @@ html, body { overflow-x: clip; }
     justify-content: space-between;
     gap: 1rem;
     user-select: none;
+    transition: background-color 0.22s ease, color 0.22s ease;
+}
+.ld-faq summary:hover {
+    background: rgba(148, 163, 184, 0.07);
+    color: #f8fafc;
 }
 .ld-faq summary::-webkit-details-marker { display: none; }
 .ld-faq summary::after {
@@ -579,10 +596,33 @@ html, body { overflow-x: clip; }
     font-family: "Font Awesome 6 Free";
     font-weight: 900;
     color: #64748b;
-    transition: transform 0.25s ease;
+    flex-shrink: 0;
+    transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), color 0.22s ease;
 }
-.ld-faq[open] summary::after { transform: rotate(180deg); }
-.ld-faq-body { padding: 0 1.2rem 1.1rem; font-size: 0.86rem; color: var(--muted); line-height: 1.75; }
+.ld-faq summary:hover::after { color: var(--theme-300); }
+.ld-faq[open] summary::after { transform: rotate(180deg); color: var(--theme-300); }
+.ld-faq-body {
+    padding: 0 1.2rem 1.1rem;
+    font-size: 0.86rem;
+    color: var(--muted);
+    line-height: 1.75;
+    /* height/opacity transition applied by JS for open/close */
+    transition:
+        height 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.28s ease,
+        padding 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ld-faq-body.ld-faq-animating {
+    overflow: hidden;
+}
+/* Subtle content slide when the panel finishes opening (class set by JS) */
+.ld-faq-body.ld-faq-opened {
+    animation: ld-faq-body-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes ld-faq-body-in {
+    from { opacity: 0.35; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
 
 /* ── Misc ── */
 .marquee-track { animation: ld-marquee 26s linear infinite; }
@@ -601,4 +641,10 @@ html, body { overflow-x: clip; }
         transform: none !important;
         transition: none !important;
     }
+    .ld-faq-body {
+        transition: none !important;
+        animation: none !important;
+    }
+    .ld-faq-body.ld-faq-opened { animation: none !important; }
+    .ld-faq summary::after { transition: none !important; }
 }

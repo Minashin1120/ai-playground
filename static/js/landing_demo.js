@@ -269,7 +269,7 @@
     }
 
     function buildChatDemo(root) {
-        var systemVersion = (typeof window !== 'undefined' && window.LANDING_SYSTEM_VERSION) || 'V4.8.745';
+        var systemVersion = (typeof window !== 'undefined' && window.LANDING_SYSTEM_VERSION) || 'V4.8.746';
         var chrome = document.createElement('div');
         chrome.className = 'chat-demo-chrome';
         chrome.innerHTML =
@@ -599,6 +599,114 @@
         }
     }
 
+    /* ── FAQ accordion open/close animation ──
+     * Native <details> swaps content visibility instantly. Intercept summary
+     * clicks and animate height/opacity so answers expand and collapse smoothly. */
+    function initFaqAccordion() {
+        if (typeof document === 'undefined') return;
+        /* Node DOM shim used by tests may lack querySelectorAll. */
+        if (typeof document.querySelectorAll !== 'function') return;
+        var items = document.querySelectorAll('details.ld-faq');
+        if (!items.length) return;
+
+        function clearInline(body) {
+            body.style.height = '';
+            body.style.opacity = '';
+            body.style.overflow = '';
+            body.style.paddingTop = '';
+            body.style.paddingBottom = '';
+            body.classList.remove('ld-faq-animating');
+        }
+
+        for (var i = 0; i < items.length; i++) {
+            (function (details) {
+                if (details.getAttribute('data-ld-faq-anim')) return;
+                details.setAttribute('data-ld-faq-anim', '1');
+                var body = details.querySelector('.ld-faq-body');
+                var summary = details.querySelector('summary');
+                if (!body || !summary) return;
+                var busy = false;
+                var endTimer = null;
+
+                function afterTransition(fn) {
+                    var finished = false;
+                    var wrap = function (ev) {
+                        if (ev && ev.target !== body) return;
+                        if (ev && ev.propertyName && ev.propertyName !== 'height') return;
+                        if (finished) return;
+                        finished = true;
+                        body.removeEventListener('transitionend', wrap);
+                        if (endTimer) { window.clearTimeout(endTimer); endTimer = null; }
+                        fn();
+                    };
+                    body.addEventListener('transitionend', wrap);
+                    endTimer = window.setTimeout(function () { wrap(null); }, 420);
+                }
+
+                summary.addEventListener('click', function (ev) {
+                    /* Let keyboard / assistive tech use the native toggle when
+                     * we are mid-animation or reduced-motion is preferred. */
+                    if (busy) {
+                        ev.preventDefault();
+                        return;
+                    }
+                    if (DEFAULTS.reduced) {
+                        /* Native toggle; still sync opened class for styling. */
+                        window.setTimeout(function () {
+                            body.classList.toggle('ld-faq-opened', details.open);
+                        }, 0);
+                        return;
+                    }
+
+                    ev.preventDefault();
+
+                    if (details.open) {
+                        /* ── Close ── */
+                        busy = true;
+                        body.classList.remove('ld-faq-opened');
+                        body.classList.add('ld-faq-animating');
+                        var startH = body.scrollHeight;
+                        body.style.height = startH + 'px';
+                        body.style.opacity = '1';
+                        body.style.overflow = 'hidden';
+                        void body.offsetHeight;
+                        body.style.height = '0px';
+                        body.style.opacity = '0';
+                        body.style.paddingTop = '0px';
+                        body.style.paddingBottom = '0px';
+                        afterTransition(function () {
+                            details.open = false;
+                            clearInline(body);
+                            busy = false;
+                        });
+                    } else {
+                        /* ── Open ── */
+                        busy = true;
+                        details.open = true;
+                        body.classList.add('ld-faq-animating');
+                        body.classList.remove('ld-faq-opened');
+                        /* Measure natural height first (height:auto), then collapse
+                         * to 0 and animate up — scrollHeight is unreliable while
+                         * height is forced to 0 in some engines. */
+                        body.style.height = 'auto';
+                        body.style.opacity = '0';
+                        body.style.overflow = 'hidden';
+                        var endH = body.scrollHeight;
+                        body.style.height = '0px';
+                        void body.offsetHeight;
+                        body.style.height = endH + 'px';
+                        body.style.opacity = '1';
+                        afterTransition(function () {
+                            clearInline(body);
+                            body.classList.add('ld-faq-opened');
+                            busy = false;
+                        });
+                    }
+                });
+            })(items[i]);
+        }
+    }
+
     /* ── Public API ── */
     function initDemo(options) {
         options = options || {};
@@ -642,6 +750,9 @@
             rootEl.setAttribute('data-ld-reveal', '1');
             initReveal();
         }
+
+        /* FAQ accordion animation (idempotent via data-ld-faq-anim). */
+        initFaqAccordion();
     }
 
     /* ── Self-boot ──
@@ -668,6 +779,7 @@
         sampleCubicBezier: sampleCubicBezier,
         validateModelHubGeometry: validateModelHubGeometry,
         initDemo: initDemo,
-        initReveal: initReveal
+        initReveal: initReveal,
+        initFaqAccordion: initFaqAccordion
     };
 });

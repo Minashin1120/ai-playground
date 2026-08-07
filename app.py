@@ -733,8 +733,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-07-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.751'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-07-003')
+app.config['SYSTEM_VERSION'] = 'V4.8.752'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -12021,6 +12021,10 @@ def _get_changelogs(page=1, limit=10):
         return all_logs, len(files)
     return [], 0
 
+@app.route('/help')
+def help_page():
+    return render_template('help.html')
+
 @app.route('/changelog')
 def changelog():
     logs, total = _get_changelogs(page=1, limit=10)
@@ -14151,6 +14155,8 @@ def robots_txt():
         "Allow: /login",
         "Allow: /signup",
         "Allow: /landing",
+        "Allow: /help",
+        "Allow: /changelog",
         "Allow: /"
     ]
     return Response("\n".join(lines), mimetype="text/plain")

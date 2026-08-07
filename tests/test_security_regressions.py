@@ -761,7 +761,7 @@ class SecurityRegressionTests(unittest.TestCase):
                     actual = base64.b64encode(hashlib.sha384(asset_file.read()).digest()).decode("ascii")
                 self.assertEqual(actual, sri_hash)
 
-        for template_name in ("chat.html", "landing.html", "login.html", "changelog.html"):
+        for template_name in ("chat.html", "landing.html", "login.html", "changelog.html", "help.html"):
             with self.subTest(template=template_name):
                 with open(os.path.join(root, "templates", template_name), encoding="utf-8") as template_file:
                     template = template_file.read()
@@ -778,6 +778,21 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("/static/vendor/jspdf-2.5.1.umd.min.js", script)
         self.assertNotIn("cdnjs.cloudflare.com/ajax/libs/html2canvas", script)
         self.assertNotIn("cdnjs.cloudflare.com/ajax/libs/jspdf", script)
+
+    def test_help_page_is_public_and_documents_fast_mode(self):
+        # ヘルプページはログイン不要で閲覧できる必要がある（匿名アクセスで200）。
+        client = target.app.test_client()
+        response = client.get("/help", base_url="https://localhost")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn("高速モード", body)
+        self.assertIn("マルチモデル対応", body)
+        self.assertIn("ヘルプセンター", body)
+
+        # ランディングページにもヘルプへのリンクが存在する
+        landing = client.get("/", base_url="https://localhost")
+        self.assertEqual(landing.status_code, 200)
+        self.assertIn('href="/help"', landing.get_data(as_text=True))
 
     def test_delete_user_account_removes_latency_metric_rows(self):
         # チャット遅延診断テーブル（first_token_latency_metric / chat_latency_trace）は

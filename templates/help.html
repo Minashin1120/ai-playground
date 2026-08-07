@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <meta name="description" content="AI Chat Playground のヘルプ。高速モード（ブラウザ直接送信）、マルチモデル対応、Thinking可視化、画像生成、データ移行、E2EEなど、全機能の解説。ログイン不要で閲覧できます。">
+    {% include 'pwa_meta.html' %}
+    <title>ヘルプ - AI Chat Playground</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.' ~ (system_version | lower) ~ '.css') }}?v={{ app_version }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app-design.css') }}?v={{ app_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}?v={{ app_version }}">
+    <script>window.LANDING_SYSTEM_VERSION = "{{ system_version }}";</script>
+    <style>
+        body {
+            background: var(--bg-1);
+            color: var(--text);
+            font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
+            position: relative;
+        }
+
+        /* ── Help hero ── */
+        .help-hero {
+            padding: 3rem 1.25rem 2.5rem;
+            text-align: center;
+            position: relative;
+        }
+        .help-hero h1 {
+            font-size: clamp(1.9rem, 4.5vw, 2.9rem);
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            line-height: 1.25;
+            margin: 0.75rem auto 1rem;
+            max-width: 44rem;
+        }
+        .help-hero p.lead {
+            color: var(--muted);
+            font-size: clamp(0.95rem, 2.2vw, 1.1rem);
+            max-width: 40rem;
+            margin: 0 auto;
+            line-height: 1.8;
+        }
+        .help-hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.35rem 0.9rem;
+            border-radius: 999px;
+            border: 1px solid rgba(45, 212, 191, 0.4);
+            background: rgba(45, 212, 191, 0.1);
+            color: #99f6e4;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+
+        /* ── Layout: sidebar TOC + content ── */
+        .help-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+            gap: 2rem;
+            max-width: 80rem;
+            margin: 0 auto;
+            padding: 0 1.25rem 4rem;
+            align-items: start;
+        }
+        @media (max-width: 900px) {
+            .help-layout { grid-template-columns: minmax(0, 1fr); }
+        }
+
+        .help-toc {
+            position: sticky;
+            top: 1rem;
+            max-height: calc(100vh - 2rem);
+            overflow-y: auto;
+            border: 1px solid var(--line);
+            background: rgba(10, 16, 35, 0.72);
+            backdrop-filter: blur(var(--blur-panel));
+            border-radius: var(--radius-md);
+            padding: 1rem;
+        }
+        @media (max-width: 900px) {
+            .help-toc {
+                position: static;
+                max-height: none;
+            }
+        }
+        .help-toc-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            text-transform: uppercase;
+            padding: 0 0.35rem 0.6rem;
+            border-bottom: 1px solid var(--line);
+            margin-bottom: 0.6rem;
+            cursor: pointer;
+        }
+        .help-toc-title .fa-chevron-down { transition: transform 0.2s ease; }
+        .help-toc.collapsed .help-toc-title .fa-chevron-down { transform: rotate(-90deg); }
+        .help-toc.collapsed .help-toc-links { display: none; }
+        .help-toc-links { display: flex; flex-direction: column; gap: 0.1rem; }
+        .help-toc a {
+            display: block;
+            padding: 0.42rem 0.55rem;
+            border-radius: 0.5rem;
+            font-size: 0.8rem;
+            color: #cbd5e1;
+            border-left: 2px solid transparent;
+            transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+        }
+        .help-toc a:hover { color: #fff; background: rgba(148, 163, 184, 0.1); }
+        .help-toc a.active {
+            color: var(--theme-200);
+            border-left-color: var(--theme-500);
+            background: rgba(var(--theme-rgb), 0.1);
+        }
+
+        /* ── Content sections ── */
+        .help-content { min-width: 0; }
+        .help-section {
+            scroll-margin-top: 1.5rem;
+            margin-bottom: 2.5rem;
+            border: 1px solid var(--line);
+            background: rgba(10, 16, 35, 0.6);
+            border-radius: var(--radius-lg);
+            padding: 1.75rem;
+        }
+        .help-section > h2 {
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+            font-size: 1.35rem;
+            font-weight: 800;
+            letter-spacing: -0.01em;
+            margin: 0 0 1rem;
+        }
+        .help-section > h2 .h2-ico {
+            width: 2.1rem;
+            height: 2.1rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.6rem;
+            font-size: 1rem;
+            flex: 0 0 auto;
+        }
+        .help-section > p { color: var(--muted); line-height: 1.85; font-size: 0.92rem; margin: 0 0 1rem; }
+        .help-section > p strong { color: var(--text); }
+        .help-section h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin: 1.4rem 0 0.55rem;
+            color: var(--text);
+        }
+        .help-section h3:first-of-type { margin-top: 0.25rem; }
+        .help-section ul, .help-section ol {
+            margin: 0 0 1rem;
+            padding-left: 1.25rem;
+            color: var(--muted);
+            font-size: 0.92rem;
+            line-height: 1.8;
+        }
+        .help-section li { margin-bottom: 0.3rem; }
+        .help-section li::marker { color: var(--theme-500); }
+        .help-section code {
+            background: rgba(148, 163, 184, 0.12);
+            border: 1px solid var(--line-soft);
+            padding: 0.08rem 0.35rem;
+            border-radius: 0.3rem;
+            font-size: 0.85em;
+            color: #a5f7ed;
+        }
+
+        /* Callout boxes */
+        .help-callout {
+            border-radius: var(--radius-sm);
+            padding: 0.9rem 1rem;
+            margin: 0 0 1.2rem;
+            font-size: 0.88rem;
+            line-height: 1.75;
+            border: 1px solid;
+        }
+        .help-callout.info {
+            border-color: rgba(59, 130, 246, 0.35);
+            background: rgba(59, 130, 246, 0.08);
+            color: #bfdbfe;
+        }
+        .help-callout.warn {
+            border-color: rgba(245, 158, 11, 0.4);
+            background: rgba(245, 158, 11, 0.08);
+            color: #fde68a;
+        }
+        .help-callout.success {
+            border-color: rgba(16, 185, 129, 0.4);
+            background: rgba(16, 185, 129, 0.08);
+            color: #a7f3d0;
+        }
+        .help-callout .ico { margin-right: 0.4rem; }
+
+        /* Feature grid (small cards) */
+        .help-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+            gap: 0.75rem;
+            margin-top: 0.75rem;
+        }
+        .help-card {
+            border: 1px solid var(--line);
+            border-radius: var(--radius-sm);
+            padding: 0.85rem 0.9rem;
+            background: rgba(16, 24, 48, 0.55);
+            transition: border-color 0.2s ease, transform 0.2s ease;
+        }
+        .help-card:hover { border-color: rgba(var(--theme-rgb), 0.5); transform: translateY(-1px); }
+        .help-card .card-ico {
+            display: inline-flex;
+            width: 1.9rem; height: 1.9rem;
+            align-items: center; justify-content: center;
+            border-radius: 0.55rem;
+            font-size: 0.85rem;
+            margin-bottom: 0.55rem;
+        }
+        .help-card h4 { font-size: 0.86rem; font-weight: 700; margin-bottom: 0.3rem; color: var(--text); }
+        .help-card p { font-size: 0.78rem; color: var(--muted); line-height: 1.65; margin: 0; }
+
+        /* Fast mode highlight panel */
+        .fast-panel {
+            border: 1px solid rgba(245, 158, 11, 0.45);
+            background: linear-gradient(160deg, rgba(245, 158, 11, 0.1), rgba(20, 184, 166, 0.08));
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            margin: 1.25rem 0;
+        }
+        .fast-panel h3 { margin-top: 0; color: #fde68a; }
+        .fast-badge-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.9rem; }
+        .fast-badge {
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 0.25rem 0.65rem;
+            border-radius: 999px;
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            background: rgba(245, 158, 11, 0.12);
+            color: #fde68a;
+        }
+        .fast-badge.green {
+            border-color: rgba(52, 211, 153, 0.45);
+            background: rgba(52, 211, 153, 0.12);
+            color: #a7f3d0;
+        }
+        .fast-badge.red {
+            border-color: rgba(249, 112, 141, 0.45);
+            background: rgba(249, 112, 141, 0.12);
+            color: #fecdd3;
+        }
+
+        /* Steps */
+        .help-steps { counter-reset: help-step; margin: 0 0 1rem; padding: 0; list-style: none; }
+        .help-steps li {
+            position: relative;
+            padding: 0.7rem 0.9rem 0.7rem 3rem;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-sm);
+            background: rgba(16, 24, 48, 0.5);
+            margin-bottom: 0.6rem;
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+        .help-steps li::before {
+            counter-increment: help-step;
+            content: counter(help-step);
+            position: absolute;
+            left: 0.9rem; top: 0.75rem;
+            width: 1.5rem; height: 1.5rem;
+            display: inline-flex;
+            align-items: center; justify-content: center;
+            border-radius: 999px;
+            background: rgba(var(--theme-rgb), 0.15);
+            color: var(--theme-300);
+            font-size: 0.75rem;
+            font-weight: 800;
+        }
+
+        /* Footer */
+        .help-footer {
+            border-top: 1px solid var(--line);
+            padding: 1.5rem 1.25rem;
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+        .help-footer .links { display: flex; justify-content: center; gap: 1.25rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
+        .help-footer a, .help-footer button { color: #cbd5e1; transition: color 0.15s ease; background: none; border: none; cursor: pointer; font-size: 0.8rem; }
+        .help-footer a:hover, .help-footer button:hover { color: #fff; }
+
+        /* Back-to-top */
+        .back-top {
+            position: fixed;
+            right: 1.1rem;
+            bottom: 1.1rem;
+            width: 2.6rem; height: 2.6rem;
+            border-radius: 999px;
+            background: rgba(var(--theme-rgb), 0.15);
+            border: 1px solid rgba(var(--theme-rgb), 0.45);
+            color: var(--theme-200);
+            display: none;
+            align-items: center; justify-content: center;
+            z-index: 30;
+            cursor: pointer;
+            transition: background 0.15s ease, transform 0.15s ease;
+        }
+        .back-top.show { display: inline-flex; }
+        .back-top:hover { background: rgba(var(--theme-rgb), 0.28); transform: translateY(-2px); }
+
+        @media (prefers-reduced-motion: reduce) {
+            * { transition: none !important; scroll-behavior: auto !important; }
+        }
+        html { scroll-behavior: smooth; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col app-grid-overlay">
+    <!-- Aurora background -->
+    <div class="aurora-bg" aria-hidden="true">
+        <div class="aurora-blob blob-teal1"></div>
+        <div class="aurora-blob blob-amber1"></div>
+        <div class="aurora-blob blob-cyan1"></div>
+    </div>
+
+    <header class="ld-header">
+        <div class="ld-header-inner">
+            <a href="/" class="ld-brand" aria-label="AI Chat Playground ホーム">
+                <span class="ld-brand-name">AI Chat Playground</span>
+                <span class="ld-brand-alpha glow-badge">ALPHA</span>
+            </a>
+            <nav class="ld-header-nav" aria-label="サイト内ナビゲーション">
+                <a href="/" class="ld-header-link">ホーム</a>
+                <a href="/changelog" class="ld-header-link">更新履歴</a>
+                {% if current_user.is_authenticated %}
+                <a href="/" class="ld-header-cta">アプリを開く</a>
+                {% else %}
+                <a href="/login" class="ld-header-link">ログイン</a>
+                <a href="/signup" class="ld-header-cta">アカウント作成</a>
+                {% endif %}
+            </nav>
+        </div>
+    </header>
+
+    <main class="flex-1 flex flex-col">
+        <!-- ── Help hero ── -->
+        <section class="help-hero hero-bg">
+            <span class="help-hero-badge"><i class="fas fa-circle-question"></i> ヘルプセンター</span>
+            <h1>AI Chat Playground の使い方</h1>
+            <p class="lead">
+                全機能の解説です。ログインしなくてもご覧いただけます。
+                まずは注目機能の <strong style="color:#fde68a">高速モード</strong> からどうぞ。
+            </p>
+        </section>
+
+        <div class="help-layout">
+            <!-- ── Sidebar TOC ── -->
+            <aside class="help-toc" id="help-toc" aria-label="目次">
+                <div class="help-toc-title" id="help-toc-title" role="button" tabindex="0" aria-expanded="true">
+                    <span><i class="fas fa-list mr-1"></i>目次</span>
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+                <nav class="help-toc-links" id="help-toc-links">
+                    <a href="#fast-mode">高速モード</a>
+                    <a href="#models">マルチモデル対応</a>
+                    <a href="#byok">BYOK・プライバシー</a>
+                    <a href="#thinking">Thinking 可視化</a>
+                    <a href="#multimodal">マルチモーダル</a>
+                    <a href="#tools">検索・URL・地図・Python</a>
+                    <a href="#canvas-coding">Canvas / Coding Mode</a>
+                    <a href="#image-voice">画像生成・音声</a>
+                    <a href="#history">チャット管理</a>
+                    <a href="#migration">データ移行</a>
+                    <a href="#security">セキュリティ</a>
+                    <a href="#convenience">便利機能</a>
+                    <a href="#faq">よくある質問</a>
+                </nav>
+            </aside>
+
+            <!-- ── Content ── -->
+            <div class="help-content">
+
+                <!-- ══ 高速モード ══ -->
+                <section class="help-section" id="fast-mode">
+                    <h2><span class="h2-ico bg-amber-500/15 text-amber-300"><i class="fas fa-bolt"></i></span>高速モード（ブラウザ直接送信）</h2>
+                    <p>
+                        <strong>高速モード</strong>は、Gemini のテキストモデルへの送信をサイトのサーバーを経由せず、
+                        <strong>ブラウザから Gemini API へ直接ストリーミング</strong>するモードです。サーバー往復が無いぶん、
+                        送信のたびに API キーやモデル設定を読み込む時間が省かれ、応答開始までの待ち時間を短縮できます。
+                    </p>
+
+                    <div class="fast-badge-row">
+                        <span class="fast-badge">Gemini テキストモデル専用</span>
+                        <span class="fast-badge green">Python（コード実行）対応</span>
+                        <span class="fast-badge">新規・既存チャット両対応</span>
+                        <span class="fast-badge red">生成中は再読み込み禁止</span>
+                    </div>
+
+                    <h3>使い方</h3>
+                    <ol class="help-steps">
+                        <li>プロンプトバーの <code>高速</code> 切替（雷アイコンのトグル）を ON にします。</li>
+                        <li>初回は警告ダイアログが表示されるので、内容を確認して「理解して有効化」を押します。</li>
+                        <li>選択中の Gemini モデルに登録されたモデル別キー（無ければ共通 Gemini キー）が自動で使われます。</li>
+                        <li>通常どおりメッセージを送信すると、ブラウザから Gemini へ直接送信され、回答がストリーミング表示されます。</li>
+                        <li>回答完了後、入力内容・回答・思考・添付情報が 1 回のトランザクションでチャット履歴へ自動保存されます。</li>
+                    </ol>
+
+                    <div class="fast-panel">
+                        <h3><i class="fas fa-check-circle mr-1"></i>高速モードでできること</h3>
+                        <ul style="color:#e2e8f0;">
+                            <li><strong style="color:#fde68a;">応答までの待ち時間を短縮</strong> — サーバー中継の処理時間を省きます。</li>
+                            <li><strong style="color:#fde68a;">Thinking（推論プロセス）の表示</strong> — 思考過程もその場でストリーミング表示されます。</li>
+                            <li><strong style="color:#fde68a;">Python（コード実行）</strong> — Gemini の <code>codeExecution</code> ツールで、API 側サンドボックス内でコードを実行できます。実行コードと出力が回答と一緒にライブ表示され、履歴にも保存されます。</li>
+                            <li><strong style="color:#fde68a;">画像の添付</strong> — 画像はブラウザ内に一時保持され、Gemini へ直接送信されます（新しいものから最大 4 枚・合計 12MB まで）。生成完了まではサイトのサーバーに保存されません。</li>
+                            <li><strong style="color:#fde68a;">複数ターンの継続</strong> — 保存後も高速モードは有効のため、既存チャットでも連続して利用できます。選択中の会話分岐の履歴が Gemini へ送信されます。</li>
+                        </ul>
+                        <h3 style="margin-top:1.1rem;"><i class="fas fa-exclamation-triangle mr-1"></i>高速モードで利用できない機能</h3>
+                        <ul style="color:#e2e8f0;">
+                            <li><span style="color:#fecdd3;">Search / URLs / Maps</span> などの検索系機能</li>
+                            <li><span style="color:#fecdd3;">Gems / SysPrompt / PromptCache / Coding Mode / 引用・編集</span></li>
+                            <li>これらは高速モード中に自動で無効化され、通常モードへ戻すと以前の設定へ復元されます。</li>
+                        </ul>
+                    </div>
+
+                    <div class="help-callout warn">
+                        <i class="fas fa-triangle-exclamation ico"></i>
+                        <strong>有効化前に確認すべき注意点</strong>
+                        <ul style="margin:0.4rem 0 0; padding-left:1.1rem;">
+                            <li>保存済みの API キーがサーバーで復号されてブラウザへ返されます。ブラウザ拡張・XSS・開発者ツールから取得されるリスクがあります。</li>
+                            <li>生成中に再読み込み・タブ終了・通信切断が起きると、生成と未保存内容は失われ再接続できません。</li>
+                            <li>回答完了後の履歴保存（後処理）が失敗すると、回答が履歴に残らないことがあります。</li>
+                            <li>共有管理者キー・環境変数キー・Vertex AI 認証情報はブラウザへ渡されません。</li>
+                        </ul>
+                    </div>
+
+                    <div class="help-callout info">
+                        <i class="fas fa-lightbulb ico"></i>
+                        <strong>通常モードとの使い分け</strong>
+                        検索・URL 参照・Coding Mode など拡張機能を併用する場合は通常モードが適しています。高速モードは、とにかく応答を素早く始めたい場合や、外部の拡張機能が不要なチャットでお使いください。
+                    </div>
+                </section>
+
+                <!-- ══ マルチモデル対応 ══ -->
+                <section class="help-section" id="models">
+                    <h2><span class="h2-ico bg-teal-500/15 text-teal-300"><i class="fas fa-share-nodes"></i></span>マルチモデル対応</h2>
+                    <p>
+                        1 つの画面から <strong>Google（Gemini）・OpenAI（GPT）・xAI（Grok）・Anthropic（Claude）・DeepSeek・Moonshot（Kimi）</strong>
+                        などの最新モデルを、モデル選択からワンクリックで切り替えて利用できます。40 以上のモデル・プロバイダに対応し、
+                        最大 1M トークン級の長いコンテキストも 1 つの文脈として扱えます。
+                    </p>
+                    <div class="help-grid">
+                        <div class="help-card">
+                            <span class="card-ico bg-yellow-500/15 text-yellow-300"><i class="fas fa-star"></i></span>
+                            <h4>Gemini シリーズ</h4>
+                            <p>Gemini 3.6 / 3.5 Flash など。検索・Maps・コード実行と高い親和性があります。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-green-500/15 text-green-300"><i class="fas fa-brain"></i></span>
+                            <h4>GPT シリーズ</h4>
+                            <p>GPT-5.6 Sol / Terra / Luna など。高度な推論とコード生成に強みがあります。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-slate-400/15 text-slate-200"><i class="fas fa-rocket"></i></span>
+                            <h4>Grok シリーズ</h4>
+                            <p>Grok 4.3 など。リアルタイム性の高い対話と画像生成（Grok Imagine）にも対応。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-orange-500/15 text-orange-300"><i class="fas fa-brain"></i></span>
+                            <h4>Claude シリーズ</h4>
+                            <p>Claude Opus 4.6 など。長文の理解と安全な応答に定評があります。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-cyan-500/15 text-cyan-300"><i class="fas fa-bolt"></i></span>
+                            <h4>DeepSeek / Kimi</h4>
+                            <p>DeepSeek V4、Kimi K3。コスト性能バランスに優れた選択肢です。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-blue-500/15 text-blue-300"><i class="fas fa-exchange-alt"></i></span>
+                            <h4>会話中の切り替え</h4>
+                            <p>回答の内容に合わせてモデルを途中で変更しても、会話の文脈は引き継がれます。</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══ BYOK ══ -->
+                <section class="help-section" id="byok">
+                    <h2><span class="h2-ico bg-amber-500/15 text-amber-300"><i class="fas fa-shield-alt"></i></span>BYOK（Bring Your Own Key）・プライバシー</h2>
+                    <p>
+                        <strong>Bring Your Own Key</strong> 方式を採用しています。AI モデルの API キーを各自で用意していただき、
+                        モデル利用料金は API 提供元（Google・OpenAI・xAI など）に直接支払われるため、サブスクリプション料金はかかりません。
+                    </p>
+                    <ul>
+                        <li>API キーは<strong>暗号化して保存</strong>され、画面には一切表示されません。</li>
+                        <li>キーはチャットリクエストのたびにサーバー内でのみ使用され、ブラウザや第三者に公開されません。</li>
+                        <li>モデルごとに<strong>モデル別キー</strong>と<strong>共通キー</strong>を設定でき、選択中モデルのキーを自動で使います。</li>
+                        <li>アカウントのデータ（チャット・設定・ファイル）は<strong>あなたの管理下</strong>にあり、いつでもエクスポートできます。</li>
+                    </ul>
+                </section>
+
+                <!-- ══ Thinking ══ -->
+                <section class="help-section" id="thinking">
+                    <h2><span class="h2-ico bg-purple-500/15 text-purple-300"><i class="fas fa-brain"></i></span>Thinking（推論プロセス）の可視化</h2>
+                    <p>
+                        Thinking 対応モデルでは、回答が生成される前にモデルが「考える」過程（推論プロセス）を、
+                        <strong>Thinking Process</strong> としてその場で表示できます。答えに至る思考の流れを追いながら、
+                        より信頼性の高い回答を確認できます。
+                    </p>
+                    <ul>
+                        <li>思考の表示 / 非表示は切り替え可能。生成後は折りたためます。</li>
+                        <li>モデルごとに<strong>思考レベル・推論 Effort・思考予算（トークン）</strong>を細かく調整できます。</li>
+                        <li>Gemini の思考署名（thoughtSignature）にも対応し、思考の一意性を判定します。</li>
+                        <li>思考プロセスも会話履歴に保存され、あとから見返せます。</li>
+                    </ul>
+                </section>
+
+                <!-- ══ マルチモーダル ══ -->
+                <section class="help-section" id="multimodal">
+                    <h2><span class="h2-ico bg-emerald-500/15 text-emerald-300"><i class="fas fa-file-upload"></i></span>マルチモーダル（画像・PDF・音声）</h2>
+                    <p>
+                        画像や PDF ファイルを<strong>ドラッグ＆ドロップ</strong>、またはクリップボードからの貼り付けで添付できます。
+                        文書の要約・翻訳・解析・画像の説明など、そのまま質問できます。
+                    </p>
+                    <ul>
+                        <li>画像・動画・音声・PDF など多様なファイル形式に対応。</li>
+                        <li><strong>リッチ貼り付け</strong>は、Web 上のコンテンツを PDF 化してからモデルへ渡します。</li>
+                        <li><strong>画像のみの送信</strong>も可能（添付がある場合は本文が空でも送信できます）。</li>
+                        <li>添付した画像の一部を<strong>マーカー</strong>でマークして、その範囲について質問できます。</li>
+                    </ul>
+                </section>
+
+                <!-- ══ ツール連携 ══ -->
+                <section class="help-section" id="tools">
+                    <h2><span class="h2-ico bg-sky-500/15 text-sky-300"><i class="fas fa-sliders-h"></i></span>検索・URL・地図・Python 連携</h2>
+                    <p>
+                        モデル単体の知識に加えて、以下の拡張ツールを統合できます。プロンプトバーのトグルで簡単に ON / OFF できます。
+                    </p>
+                    <div class="help-grid">
+                        <div class="help-card">
+                            <span class="card-ico bg-blue-500/15 text-blue-300"><i class="fas fa-search"></i></span>
+                            <h4>Search</h4>
+                            <p>最新情報や Web 検索結果を回答に反映します。日付・時事ネタに強い。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-indigo-500/15 text-indigo-300"><i class="fas fa-link"></i></span>
+                            <h4>URLs</h4>
+                            <p>指定した Web ページの内容を取得して、要約や考察をさせられます。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-emerald-500/15 text-emerald-300"><i class="fas fa-map-location-dot"></i></span>
+                            <h4>Maps</h4>
+                            <p>地図情報の検索・周辺情報の取得（Gemini 3 系で利用可能）。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-yellow-500/15 text-yellow-300"><i class="fas fa-code"></i></span>
+                            <h4>Python</h4>
+                            <p>モデルの API 側サンドボックスでコードを実行。計算・データ処理に。</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══ Canvas / Coding ══ -->
+                <section class="help-section" id="canvas-coding">
+                    <h2><span class="h2-ico bg-cyan-500/15 text-cyan-300"><i class="fas fa-window-restore"></i></span>Canvas / Coding Mode</h2>
+                    <h3>Canvas Mode</h3>
+                    <p>
+                        コードブロックを画面右側の <strong>Canvas</strong> でプレビューできます。HTML・CSS・JavaScript の実行結果を、
+                        チャットから離れずに確認・操作できます。
+                    </p>
+                    <h3>Coding Mode</h3>
+                    <p>
+                        既存コードの<strong>変更行だけ</strong>をモデルに生成させ、完成コードへ<strong>安全に反映</strong>するモードです。
+                        ファイル全体の書き換えによる副作用を防ぎ、コード修正を効率化します。
+                    </p>
+                </section>
+
+                <!-- ══ 画像生成・音声 ══ -->
+                <section class="help-section" id="image-voice">
+                    <h2><span class="h2-ico bg-pink-500/15 text-pink-300"><i class="fas fa-image"></i></span>画像生成・音声会話</h2>
+                    <div class="help-grid">
+                        <div class="help-card">
+                            <span class="card-ico bg-pink-500/15 text-pink-300"><i class="fas fa-palette"></i></span>
+                            <h4>Nano Banana 2</h4>
+                            <p>高品質な画像生成。マスク編集（Mask）にも対応。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-purple-500/15 text-purple-300"><i class="fas fa-magic"></i></span>
+                            <h4>Grok Imagine</h4>
+                            <p>Grok による画像生成。クリエイティブな作風が特徴です。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-emerald-500/15 text-emerald-300"><i class="fas fa-robot"></i></span>
+                            <h4>GPT Image</h4>
+                            <p>OpenAI の画像生成モデル。テキストの書き込み精度に優れます。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-cyan-500/15 text-cyan-300"><i class="fas fa-microphone"></i></span>
+                            <h4>音声入力 / TTS</h4>
+                            <p>マイクからの音声入力と、回答の音声合成（TTS）に対応。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-teal-500/15 text-teal-300"><i class="fas fa-headset"></i></span>
+                            <h4>リアルタイム音声対話</h4>
+                            <p>音声の無音検知による自動送信（Auto Send）にも対応した会話モデル。</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══ チャット管理 ══ -->
+                <section class="help-section" id="history">
+                    <h2><span class="h2-ico bg-blue-500/15 text-blue-300"><i class="fas fa-clock-rotate-left"></i></span>チャット管理（分岐・PDF・検索）</h2>
+                    <ul>
+                        <li><strong>自動保存</strong> — チャット履歴はすべて自動で保存され、サイドバーからいつでも再開できます。</li>
+                        <li><strong>スレッド分岐（ブランチ）</strong> — 会話の途中から別の方向へ分岐させて比較できます。</li>
+                        <li><strong>PDF 出力</strong> — 現在のチャットを PDF として書き出せます。</li>
+                        <li><strong>検索</strong> — サイドバーの検索ボックスから過去のチャットを全文検索できます。</li>
+                        <li><strong>引用（Quote）</strong> — 回答文のテキストを選択して引用し、続きの質問に使えます。</li>
+                        <li><strong>編集</strong> — 送信済みメッセージを編集して回答を再生成できます。</li>
+                        <li><strong>チャットの削除</strong> — 個別に削除でき、ゴミ箱からの復元にも対応しています。</li>
+                    </ul>
+                </section>
+
+                <!-- ══ データ移行 ══ -->
+                <section class="help-section" id="migration">
+                    <h2><span class="h2-ico bg-violet-500/15 text-violet-300"><i class="fas fa-arrows-rotate"></i></span>データ移行（エクスポート / インポート）</h2>
+                    <p>
+                        アカウントのデータを<strong>ZIP ファイル</strong>として書き出し（エクスポート）、別のアカウントや別の環境へ
+                        <strong>取り込み（インポート）</strong>できます。設定・API キー／クラウド認証・チャット履歴・Gem・ファイル・
+                        フィードバック・診断メトリクスをカテゴリ単位で選択できます。
+                    </p>
+                    <div class="help-grid">
+                        <div class="help-card">
+                            <span class="card-ico bg-cyan-500/15 text-cyan-300"><i class="fas fa-file-export"></i></span>
+                            <h4>エクスポート</h4>
+                            <p>バックグラウンドで ZIP を生成。完成後は設定画面からダウンロードできます。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-emerald-500/15 text-emerald-300"><i class="fas fa-file-import"></i></span>
+                            <h4>インポート</h4>
+                            <p>作成直後のセットアップ画面または設定画面から取り込めます。進捗バー付き。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-amber-500/15 text-amber-300"><i class="fas fa-database"></i></span>
+                            <h4>E2EE 連携</h4>
+                            <p>E2EE 有効化前にインポートしたデータは、完了後に自動で再暗号化されます。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-red-500/15 text-red-300"><i class="fas fa-shield-halved"></i></span>
+                            <h4>安全な取り扱い</h4>
+                            <p>生成された ZIP は一定時間で自動削除され、所有者以外はダウンロードできません。</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══ セキュリティ ══ -->
+                <section class="help-section" id="security">
+                    <h2><span class="h2-ico bg-green-500/15 text-green-300"><i class="fas fa-lock"></i></span>セキュリティとプライバシー</h2>
+                    <ul>
+                        <li><strong>E2EE（エンドツーエンド暗号化）</strong> — 有効にすると、メッセージとファイルはサーバー上で復号できない形で暗号化して保存されます。</li>
+                        <li><strong>パスワードのハッシュ化</strong> — 平文では保存されません。</li>
+                        <li><strong>二段階認証（2FA）</strong> — ワンタイムパスワードとパスキー（WebAuthn）によるログインに対応。</li>
+                        <li><strong>ボット検出</strong> — Cloudflare Turnstile による不正アクセス対策。</li>
+                        <li><strong>セッション管理</strong> — ログイン中の端末を一覧表示し、遠隔で失効できます。</li>
+                        <li><strong>一時チャット</strong> — 切断後にチャットと添付を自動削除するモード。</li>
+                    </ul>
+                </section>
+
+                <!-- ══ 便利機能 ══ -->
+                <section class="help-section" id="convenience">
+                    <h2><span class="h2-ico bg-orange-500/15 text-orange-300"><i class="fas fa-wand-magic-sparkles"></i></span>便利機能</h2>
+                    <div class="help-grid">
+                        <div class="help-card">
+                            <span class="card-ico bg-amber-500/15 text-amber-300"><i class="fas fa-hourglass-half"></i></span>
+                            <h4>低速回線モード</h4>
+                            <p>接続状況に応じて自動で切り替わり、省データで通信します。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-teal-500/15 text-teal-300"><i class="fas fa-gem"></i></span>
+                            <h4>Gems</h4>
+                            <p>よく使う指示・前提を保存したカスタムプロンプトを呼び出せます。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-indigo-500/15 text-indigo-300"><i class="fas fa-arrow-up-from-bracket"></i></span>
+                            <h4>クライアント圧縮</h4>
+                            <p>長い会話を要約して文脈を維持し、トークン消費を抑えます。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-slate-400/15 text-slate-200"><i class="fas fa-keyboard"></i></span>
+                            <h4>ショートカット</h4>
+                            <p>Ctrl + Enter で送信、Esc でキャンセルなど、効率的な操作ができます。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-pink-500/15 text-pink-300"><i class="fas fa-mobile-screen"></i></span>
+                            <h4>PWA 対応</h4>
+                            <p>スマホのホーム画面に追加して、アプリのように利用できます。</p>
+                        </div>
+                        <div class="help-card">
+                            <span class="card-ico bg-purple-500/15 text-purple-300"><i class="fas fa-palette"></i></span>
+                            <h4>カスタムテーマ</h4>
+                            <p>配色を自分好みにカスタマイズでき、端末に記憶されます。</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ══ FAQ ══ -->
+                <section class="help-section" id="faq">
+                    <h2><span class="h2-ico bg-red-500/15 text-red-300"><i class="fas fa-circle-question"></i></span>よくある質問</h2>
+                    <div class="space-y-3">
+                        <details class="ld-faq">
+                            <summary>アカウント作成やアプリの利用は無料ですか？</summary>
+                            <div class="ld-faq-body">アカウント登録と設定は無料です。モデルの利用料金はご自身の API キーに請求されるため、API キーが無い状態ではチャットは利用できません。</div>
+                        </details>
+                        <details class="ld-faq">
+                            <summary>高速モードと通常モードはどちらを選べばいいですか？</summary>
+                            <div class="ld-faq-body">応答を素早く始めたい場合は高速モード、検索・URL 参照・Coding Mode などの拡張機能を使う場合は通常モードをおすすめします。高速モードは Gemini のテキストモデル専用です。</div>
+                        </details>
+                        <details class="ld-faq">
+                            <summary>API キーはどこで入手できますか？</summary>
+                            <div class="ld-faq-body">各プロバイダの公式サイト（Google AI Studio、OpenAI Platform、xAI、Anthropic など）から取得してください。取得したキーは設定画面でモデルごとに入力できます。</div>
+                        </details>
+                        <details class="ld-faq">
+                            <summary>チャット履歴はサーバーに保存されますか？</summary>
+                            <div class="ld-faq-body">チャット履歴・設定・ファイルはアプリのデータベースとストレージに保存されます。E2EE を有効にすると、サーバー上で復号できない形で暗号化して保存されます。</div>
+                        </details>
+                        <details class="ld-faq">
+                            <summary>データを別の環境へ移行できますか？</summary>
+                            <div class="ld-faq-body">はい。設定画面の「エクスポート」から ZIP を書き出し、別アカウントのセットアップ画面や設定画面から「インポート」できます。</div>
+                        </details>
+                        <details class="ld-faq">
+                            <summary>回答の途中でページを閉じてしまいました。</summary>
+                            <div class="ld-faq-body">通常モードでは接続が自動で再開され、生成中の回答も復元されます。高速モードでは生成中に閉じると未保存の内容は失われます。</div>
+                        </details>
+                        <details class="ld-faq">
+                            <summary>エラーや不具合が起きたらどうすればいいですか？</summary>
+                            <div class="ld-faq-body">画面上にエラー内容が表示されます。通信環境をご確認のうえ、時間をおいて再試行してください。解決しない場合は設定画面からフィードバックを送信できます。</div>
+                        </details>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <footer class="help-footer">
+        <div class="links">
+            <a href="/">ホーム</a>
+            <a href="/changelog">更新履歴</a>
+            <button onclick="showLegal('terms')">利用規約</button>
+            <button onclick="showLegal('privacy')">プライバシーポリシー</button>
+        </div>
+        <p>&copy; 2026 AI Chat Playground (Alpha) - {{ system_version }}</p>
+    </footer>
+
+    <!-- Legal Modal -->
+    <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm modal-overlay">
+        <div class="bg-slate-900 rounded-2xl w-full max-w-3xl p-6 shadow-2xl border border-slate-700 m-4 flex flex-col max-h-[85vh] modal-panel">
+            <h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-slate-700 pb-2">利用規約</h2>
+            <div id="legal-content" class="overflow-y-auto pr-2 flex-1 text-sm text-slate-300 leading-relaxed space-y-4 prose max-w-none"></div>
+            <div class="flex justify-end mt-4 shrink-0">
+                <button onclick="hideLegal()" class="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl border border-slate-700 transition">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <button id="back-top-btn" class="back-top" aria-label="先頭へ戻る"><i class="fas fa-arrow-up"></i></button>
+
+    <script src="{{ url_for('static', filename='vendor/marked-4.3.0.min.js') }}?v={{ app_version }}"></script>
+    <script src="{{ url_for('static', filename='vendor/dompurify-3.4.11.min.js') }}?v={{ app_version }}"></script>
+    <script>
+        (function () {
+            'use strict';
+            var get = function (id) { return document.getElementById(id); };
+
+            var toc = get('help-toc');
+            var tocLinks = get('help-toc-links');
+            var tocTitle = get('help-toc-title');
+            if (tocTitle && toc && tocLinks) {
+                var setCollapsed = function (collapsed) {
+                    toc.classList.toggle('collapsed', collapsed);
+                    tocTitle.setAttribute('aria-expanded', String(!collapsed));
+                };
+                tocTitle.addEventListener('click', function () {
+                    setCollapsed(toc.classList.contains('collapsed') ? false : true);
+                });
+                tocTitle.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        tocTitle.click();
+                    }
+                });
+            }
+
+            var links = Array.prototype.slice.call(document.querySelectorAll('.help-toc a'));
+            var sections = links.map(function (a) {
+                var id = a.getAttribute('href').slice(1);
+                return get(id);
+            }).filter(Boolean);
+
+            function updateActive() {
+                var pos = window.scrollY + 100;
+                var currentId = null;
+                for (var i = 0; i < sections.length; i++) {
+                    if (sections[i].offsetTop <= pos) currentId = sections[i].id;
+                }
+                links.forEach(function (a) {
+                    a.classList.toggle('active', a.getAttribute('href') === '#' + currentId);
+                });
+            }
+            window.addEventListener('scroll', updateActive, { passive: true });
+            window.addEventListener('resize', updateActive, { passive: true });
+
+            var backTop = get('back-top-btn');
+            if (backTop) {
+                window.addEventListener('scroll', function () {
+                    backTop.classList.toggle('show', window.scrollY > 600);
+                }, { passive: true });
+                backTop.addEventListener('click', function () {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                });
+            }
+
+            window.showLegal = async function (t) {
+                var titleEl = get('legal-title');
+                var contentEl = get('legal-content');
+                var modal = get('legal-modal');
+                if (!titleEl || !contentEl || !modal) return;
+                titleEl.innerText = (t === 'terms' ? '利用規約' : 'プライバシーポリシー');
+                modal.classList.remove('hidden');
+                modal.style.display = 'flex';
+                void modal.offsetHeight;
+                modal.classList.add('modal-open');
+                try {
+                    var res = await fetch('/static/legal/' + t + '.md?t=' + Date.now());
+                    if (!res.ok) return;
+                    var text = await res.text();
+                    contentEl.innerHTML = DOMPurify.sanitize(marked.parse(text));
+                } catch (e) { /* ignore */ }
+            };
+            window.hideLegal = function () {
+                var modal = get('legal-modal');
+                if (!modal) return;
+                modal.classList.remove('modal-open');
+                setTimeout(function () {
+                    modal.style.display = 'none';
+                    modal.classList.add('hidden');
+                }, 300);
+            };
+            var legalModal = get('legal-modal');
+            if (legalModal) {
+                legalModal.addEventListener('click', function (e) {
+                    if (e.target === legalModal) window.hideLegal();
+                });
+            }
+        })();
+    </script>
+    <script src="{{ url_for('static', filename='js/pwa_install.js') }}?v={{ app_version }}" defer></script>
+</body>
+</html>

@@ -8485,12 +8485,15 @@
                     const btnLabel = encState === 'enc' ? '復号化' : '再暗号化';
                     const btnColor = encState === 'enc' ? 'bg-amber-600 hover:bg-amber-500' : 'bg-cyan-700 hover:bg-cyan-600';
                     const updated = t.updated_at ? new Date(t.updated_at).toLocaleString() : '';
+                    const tid = escapeHtml(String(t.thread_id));
+                    const isCurrent = currentThreadId && String(currentThreadId) === String(t.thread_id);
                     return `<div class="flex items-center gap-2 bg-gray-800/60 border border-gray-700 rounded p-2">
                         <div class="flex-1 min-w-0">
-                            <div class="font-bold text-gray-200 truncate" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</div>
+                            <div class="font-bold text-gray-200 truncate" title="${escapeHtml(t.title || '')}">${escapeHtml(t.title || '(無題)')}${isCurrent ? ' <span class="text-[10px] text-cyan-300 font-normal">（表示中）</span>' : ''}</div>
                             <div class="text-[10px] text-gray-500">${updated} / メッセージ: ${t.message_count} / 暗号化: ${t.encrypted_count}</div>
                         </div>
-                        <button class="admin-enc-toggle ${btnColor} text-white px-2 py-1 rounded" data-id="${escapeHtml(String(t.thread_id))}" data-enable="${encState === 'enc' ? '0' : '1'}" data-progress-expected-slow="true">${btnLabel}</button>
+                        <button type="button" class="admin-enc-open bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded shrink-0" data-id="${tid}" title="このチャットを開く"><i class="fas fa-external-link-alt mr-1"></i>開く</button>
+                        <button type="button" class="admin-enc-toggle ${btnColor} text-white px-2 py-1 rounded shrink-0" data-id="${tid}" data-enable="${encState === 'enc' ? '0' : '1'}" data-progress-expected-slow="true">${btnLabel}</button>
                     </div>`;
                 }).join('');
             };
@@ -8519,9 +8522,11 @@
             if (get('admin-enc-load')) {
                 get('admin-enc-load').onclick = () => loadAdminEncThreads();
             }
-            // Expose for loadMessages / openSettingsModal (defined outside this block's call sites).
+            // Expose for loadMessages / openSettingsModal / encryption modal (outside this block).
             window.__loadAdminEncThreads = loadAdminEncThreads;
             window.__refreshAdminThreadEncState = refreshCurrentThreadEncStateFromMessages;
+            window.__setAdminThreadEncryption = setAdminThreadEncryption;
+            window.__toggleCurrentThreadEncryption = toggleCurrentThreadEncryption;
             [get('admin-thread-enc-btn'), get('admin-thread-enc-btn-mobile')].filter(Boolean).forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     e.preventDefault();
@@ -8529,9 +8534,35 @@
                     toggleCurrentThreadEncryption();
                 });
             });
+            const encModalAdminToggle = get('encryption-status-admin-toggle');
+            if (encModalAdminToggle) {
+                encModalAdminToggle.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (typeof toggleThreadEncryptionFromModal === 'function') {
+                        toggleThreadEncryptionFromModal();
+                    }
+                });
+            }
             updateAdminThreadEncButtons();
             if (adminEncList) {
                 adminEncList.onclick = async (e) => {
+                    const openBtn = e.target.closest('.admin-enc-open');
+                    if (openBtn) {
+                        e.preventDefault();
+                        const threadId = openBtn.getAttribute('data-id');
+                        if (!threadId) return;
+                        if (typeof closeSettingsModal === 'function') {
+                            closeSettingsModal();
+                        } else if (typeof hideModal === 'function') {
+                            hideModal('settings-modal');
+                        }
+                        try {
+                            await loadMessages(threadId);
+                        } catch (err) {
+                            showToast('チャットを開けませんでした', 'error', true);
+                        }
+                        return;
+                    }
                     const btn = e.target.closest('.admin-enc-toggle');
                     if (!btn || adminThreadEncBusy) return;
                     const threadId = btn.getAttribute('data-id');
@@ -14555,8 +14586,13 @@
             }
             if (isEncrypted !== null && isEncrypted !== undefined) {
                 const lockIcon = isEncrypted ? 'fa-lock' : 'fa-lock-open';
-                const lockTitle = isEncrypted ? 'Encrypted' : 'Plain';
-                footerParts.push(`<button class="text-slate-300/80 hover:text-white" title="${lockTitle}" onclick="openEncryptionSettings('${id}')"><i class="fas ${lockIcon}"></i></button>`);
+                const lockTitle = isAdminUser
+                    ? (isEncrypted ? '暗号化状態（タップで復号化）' : '平文状態（タップで再暗号化）')
+                    : (isEncrypted ? 'Encrypted' : 'Plain');
+                const lockColor = isAdminUser
+                    ? (isEncrypted ? 'text-amber-300/90 hover:text-amber-200' : 'text-cyan-300/90 hover:text-cyan-200')
+                    : 'text-slate-300/80 hover:text-white';
+                footerParts.push(`<button class="${lockColor}" title="${lockTitle}" onclick="openEncryptionSettings('${id}')"><i class="fas ${lockIcon}"></i></button>`);
             }
             if (!isUser && pythonExtract.executions && pythonExtract.executions.length) {
                 const pyCount = pythonExtract.executions.length;
@@ -14652,15 +14688,67 @@
             if (!modal) return;
             const title = get('encryption-status-title');
             const body = get('encryption-status-body');
-            if (isEncrypted) {
+            const adminBox = get('encryption-status-admin-actions');
+            const adminBtn = get('encryption-status-admin-toggle');
+            const enc = !!isEncrypted;
+            if (enc) {
                 if (title) title.innerText = '暗号化されています';
-                if (body) body.innerText = 'このメッセージはE2EEで暗号化されています。';
+                if (body) {
+                    body.innerText = isAdminUser
+                        ? 'このメッセージはE2EEで暗号化されています。管理者は下のボタンでこのチャット全体を復号化できます。'
+                        : 'このメッセージはE2EEで暗号化されています。';
+                }
             } else {
                 if (title) title.innerText = '暗号化されていません';
-                if (body) body.innerText = 'このメッセージは暗号化されていません。';
+                if (body) {
+                    body.innerText = isAdminUser
+                        ? 'このメッセージは暗号化されていません。管理者は下のボタンでこのチャット全体を再暗号化できます。'
+                        : 'このメッセージは暗号化されていません。';
+                }
+            }
+            if (adminBox && adminBtn) {
+                const canToggle = !!(isAdminUser && currentThreadId);
+                if (canToggle) {
+                    adminBox.classList.remove('hidden');
+                    // Encrypted message → offer decrypt (enable=false). Plain → re-encrypt (enable=true).
+                    adminBtn.dataset.enable = enc ? '0' : '1';
+                    adminBtn.disabled = false;
+                    adminBtn.textContent = enc ? 'このチャットを復号化' : 'このチャットを再暗号化';
+                    adminBtn.className = enc
+                        ? 'w-full px-3 py-2 text-xs font-bold rounded text-white bg-amber-600 hover:bg-amber-500 btn-hover'
+                        : 'w-full px-3 py-2 text-xs font-bold rounded text-white bg-cyan-700 hover:bg-cyan-600 btn-hover';
+                } else {
+                    adminBox.classList.add('hidden');
+                }
             }
             modal.classList.remove('hidden');
             modal.classList.add('flex');
+        }
+
+        async function toggleThreadEncryptionFromModal() {
+            const adminBtn = get('encryption-status-admin-toggle');
+            if (!adminBtn || !isAdminUser || !currentThreadId) return;
+            if (adminBtn.disabled) return;
+            const enable = adminBtn.getAttribute('data-enable') === '1';
+            const action = enable ? '再暗号化' : '復号化';
+            if (!confirm(`このチャットを${action}しますか？`)) return;
+            adminBtn.disabled = true;
+            const original = adminBtn.textContent;
+            adminBtn.textContent = '処理中...';
+            try {
+                if (typeof window.__setAdminThreadEncryption !== 'function') {
+                    showToast('暗号化操作を利用できません', 'error', true);
+                    return;
+                }
+                const ok = await window.__setAdminThreadEncryption(currentThreadId, enable, {
+                    confirmPrompt: false,
+                    reloadCurrent: true
+                });
+                if (ok) closeEncryptionModal();
+            } finally {
+                adminBtn.disabled = false;
+                adminBtn.textContent = original;
+            }
         }
 
         function closeEncryptionModal() {
@@ -14676,7 +14764,7 @@
                 openSettingsModal();
                 switchTab('security');
                 setTimeout(() => {
-                    const card = get('e2ee-card');
+                    const card = (isAdminUser && get('admin-enc-card')) || get('e2ee-card');
                     if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }, 150);
             }

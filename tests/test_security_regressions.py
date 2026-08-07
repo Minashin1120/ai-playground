@@ -1004,6 +1004,26 @@ class SecurityRegressionTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 403)
 
+    def test_admin_encryption_ui_has_bubble_toggle_and_open_chat(self):
+        """Bubble lock modal and settings list expose admin decrypt/open controls."""
+        from pathlib import Path
+        root = Path(target.app.root_path)
+        js_assets = sorted((root / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(js_assets), 1)
+        js = js_assets[0].read_text(encoding="utf-8")
+        self.assertIn("toggleThreadEncryptionFromModal", js)
+        self.assertIn("window.__setAdminThreadEncryption", js)
+        self.assertIn("admin-enc-open", js)
+        self.assertIn("encryption-status-admin-toggle", js)
+        self.assertIn("このチャットを復号化", js)
+        self.assertIn("このチャットを再暗号化", js)
+
+        html = (root / "templates" / "chat.html").read_text(encoding="utf-8")
+        self.assertIn('id="encryption-status-admin-actions"', html)
+        self.assertIn('id="encryption-status-admin-toggle"', html)
+        self.assertIn('id="admin-enc-card"', html)
+        self.assertNotIn("admin-enc-username", html)
+
 
 if __name__ == "__main__":
     unittest.main()

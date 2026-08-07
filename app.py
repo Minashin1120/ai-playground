@@ -733,8 +733,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-07-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.750'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-07-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.751'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -16061,6 +16061,93 @@ def encryption_scan():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+def _resolve_thread_for_admin(identifier):
+    if identifier is None:
+        return None
+    ident_str = str(identifier).strip()
+    if not ident_str:
+        return None
+    t = Thread.query.filter_by(public_id=ident_str).first()
+    if t:
+        return t
+    if ident_str.isdigit():
+        t = Thread.query.get(int(ident_str))
+        if t:
+            return t
+    return None
+
+@app.route('/api/admin/threads', methods=['GET'])
+@login_required
+def admin_threads_list():
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({'error': '403'}), 403
+    username = (request.args.get('username') or '').strip()
+    if not username:
+        return jsonify({'error': 'username_required'}), 400
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return jsonify({'error': 'user_not_found'}), 404
+    q = (request.args.get('q') or '').strip()
+    query = Thread.query.filter_by(user_id=user.id)
+    if q:
+        query = query.filter(Thread.title.contains(q))
+    threads = query.order_by(Thread.updated_at.desc()).limit(500).all()
+    res = []
+    for t in threads:
+        msgs = Message.query.filter_by(thread_id=t.id).all()
+        total = len(msgs)
+        enc = sum(1 for m in msgs if m.is_encrypted)
+        res.append({
+            'thread_id': t.public_id or t.id,
+            'title': t.title,
+            'updated_at': t.updated_at.isoformat() if t.updated_at else None,
+            'message_count': total,
+            'encrypted_count': enc,
+            'encrypted': enc > 0,
+        })
+    return jsonify({
+        'user': {'username': user.username, 'enable_e2ee': bool(user.enable_e2ee)},
+        'threads': res
+    })
+
+@app.route('/api/admin/threads/<thread_id>/encryption', methods=['POST'])
+@login_required
+def admin_toggle_thread_encryption(thread_id):
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({'error': '403'}), 403
+    data = request.get_json(silent=True) or {}
+    enable = bool(data.get('enable'))
+    t = _resolve_thread_for_admin(thread_id)
+    if not t:
+        return jsonify({'error': 'thread_not_found'}), 404
+    owner = User.query.get(t.user_id)
+    if not owner:
+        return jsonify({'error': 'user_not_found'}), 404
+    changed = 0
+    for m in t.messages:
+        if enable and not m.is_encrypted:
+            if m.content:
+                m.content = encrypt_val(m.content)
+            if m.thought_data:
+                m.thought_data = encrypt_val(m.thought_data)
+            m.is_encrypted = True
+            changed += 1
+        elif not enable and m.is_encrypted:
+            if m.content:
+                m.content = decrypt_val(m.content)
+            if m.thought_data:
+                m.thought_data = decrypt_val(m.thought_data)
+            m.is_encrypted = False
+            changed += 1
+    safe_db_commit()
+    return jsonify({
+        'status': 'ok',
+        'thread_id': t.public_id or t.id,
+        'enable': enable,
+        'changed': changed,
+        'total': len(t.messages)
+    })
 
 @app.route('/api/threads/<thread_id>/settings', methods=['GET', 'PUT'])
 @login_required

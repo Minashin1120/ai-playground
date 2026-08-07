@@ -5,6 +5,7 @@ import re
 import tempfile
 import unittest
 import zipfile
+from pathlib import Path
 from unittest import mock
 
 
@@ -657,7 +658,9 @@ class AccountPortabilityTests(unittest.TestCase):
 
     def test_frontend_restores_background_export_with_download_and_cancel(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "static", "js", "chat_core.v4.8.750.js"), encoding="utf-8") as handle:
+        js_assets = sorted((Path(root) / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(js_assets), 1)
+        with open(js_assets[0], encoding="utf-8") as handle:
             source = handle.read()
         with open(os.path.join(root, "templates", "chat.html"), encoding="utf-8") as handle:
             template = handle.read()
@@ -734,7 +737,9 @@ class AccountPortabilityTests(unittest.TestCase):
 
     def test_frontend_import_progress_uses_overall_scale_and_poll_after_upload(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "static", "js", "chat_core.v4.8.750.js"), encoding="utf-8") as handle:
+        js_assets = sorted((Path(root) / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(js_assets), 1)
+        with open(js_assets[0], encoding="utf-8") as handle:
             source = handle.read()
         self.assertIn("Math.min(35, Math.round((uploadedChunks / totalChunks) * 35))", source)
         self.assertNotIn("3 + Math.round((uploadedChunks / totalChunks) * 32)", source)

@@ -823,6 +823,126 @@ class SecurityRegressionTests(unittest.TestCase):
         with target.app.app_context():
             self.assertIsNone(target.db.session.get(target.User, self.user_id))
 
+    def _seed_admin_and_target(self):
+        with target.app.app_context():
+            admin = target.User(username="enc-admin", is_setup_completed=True, is_admin=True)
+            admin.set_password("admin-password")
+            target.db.session.add(admin)
+            target.db.session.commit()
+            self.admin_id = admin.id
+
+            user = target.db.session.get(target.User, self.user_id)
+            user.enable_e2ee = True
+            thread = target.Thread(user_id=user.id, public_id="enc-target-thread", title="target chat")
+            target.db.session.add(thread)
+            target.db.session.flush()
+            target.db.session.add(target.Message(
+                thread_id=thread.id, role="user",
+                content=target.encrypt_val("secret question"), is_encrypted=True,
+            ))
+            target.db.session.add(target.Message(
+                thread_id=thread.id, role="assistant",
+                content=target.encrypt_val("secret answer"),
+                thought_data=target.encrypt_val("hidden reasoning"), is_encrypted=True,
+            ))
+            target.db.session.commit()
+
+    def _client_for_user(self, user_id):
+        client = target.app.test_client()
+        with client.session_transaction() as sess:
+            sess["_user_id"] = str(user_id)
+            sess["_fresh"] = True
+            sess["csrf_token"] = "csrf-test-token"
+        return client
+
+    def test_admin_thread_list_requires_admin(self):
+        self._seed_admin_and_target()
+        plain_client = self.authenticated_client()
+        response = plain_client.get("/api/admin/threads?username=enc-admin", base_url="https://localhost")
+        self.assertEqual(response.status_code, 403)
+
+    def test_admin_thread_list_and_per_thread_decrypt_encrypt_roundtrip(self):
+        self._seed_admin_and_target()
+        admin_client = self._client_for_user(self.admin_id)
+
+        listed = admin_client.get(
+            "/api/admin/threads?username=security-test", base_url="https://localhost"
+        )
+        self.assertEqual(listed.status_code, 200, listed.get_data(as_text=True))
+        payload = listed.get_json()
+        self.assertEqual(payload["user"]["username"], "security-test")
+        self.assertTrue(payload["user"]["enable_e2ee"])
+        self.assertEqual(len(payload["threads"]), 1)
+        thread = payload["threads"][0]
+        self.assertEqual(thread["thread_id"], "enc-target-thread")
+        self.assertEqual(thread["encrypted_count"], 2)
+        self.assertTrue(thread["encrypted"])
+
+        # Admin decrypts the specific thread only.
+        decrypted = admin_client.post(
+            "/api/admin/threads/enc-target-thread/encryption",
+            json={"enable": False},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(decrypted.status_code, 200, decrypted.get_data(as_text=True))
+        decrypted_payload = decrypted.get_json()
+        self.assertEqual(decrypted_payload["changed"], 2)
+        self.assertFalse(decrypted_payload["enable"])
+
+        with target.app.app_context():
+            thread_row = target.db.session.query(target.Thread).filter_by(public_id="enc-target-thread").first()
+            msgs = target.db.session.query(target.Message).filter_by(thread_id=thread_row.id).all()
+            self.assertEqual(len(msgs), 2)
+            for m in msgs:
+                self.assertFalse(m.is_encrypted)
+                self.assertNotEqual(m.content, target.encrypt_val(m.content))
+            assistant = [m for m in msgs if m.role == "assistant"][0]
+            self.assertEqual(assistant.content, "secret answer")
+            self.assertEqual(assistant.thought_data, "hidden reasoning")
+
+        # Admin re-encrypts the same thread.
+        reencrypted = admin_client.post(
+            "/api/admin/threads/enc-target-thread/encryption",
+            json={"enable": True},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(reencrypted.status_code, 200, reencrypted.get_data(as_text=True))
+        self.assertEqual(reencrypted.get_json()["changed"], 2)
+
+        with target.app.app_context():
+            thread_row = target.db.session.query(target.Thread).filter_by(public_id="enc-target-thread").first()
+            msgs = target.db.session.query(target.Message).filter_by(thread_id=thread_row.id).all()
+            for m in msgs:
+                self.assertTrue(m.is_encrypted)
+                self.assertNotEqual(m.content, target.decrypt_val(m.content))
+            assistant = [m for m in msgs if m.role == "assistant"][0]
+            self.assertEqual(target.decrypt_val(assistant.content), "secret answer")
+            self.assertEqual(target.decrypt_val(assistant.thought_data), "hidden reasoning")
+
+    def test_admin_thread_encryption_rejects_unknown_thread(self):
+        self._seed_admin_and_target()
+        admin_client = self._client_for_user(self.admin_id)
+        response = admin_client.post(
+            "/api/admin/threads/does-not-exist/encryption",
+            json={"enable": True},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_admin_thread_encryption_requires_admin(self):
+        self._seed_admin_and_target()
+        plain_client = self.authenticated_client()
+        response = plain_client.post(
+            "/api/admin/threads/enc-target-thread/encryption",
+            json={"enable": False},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 403)
+
 
 if __name__ == "__main__":
     unittest.main()

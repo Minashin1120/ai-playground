@@ -8376,6 +8376,80 @@
             if (encScanAllBtn) encScanAllBtn.onclick = () => runEncScan(null);
             const encScanThreadBtn = get('enc-scan-thread');
             if (encScanThreadBtn) encScanThreadBtn.onclick = () => currentThreadId ? runEncScan(currentThreadId) : showToast('スレッドがありません', 'error', true);
+            const adminEncList = get('admin-enc-list');
+            const renderAdminEncThreads = (data) => {
+                if (!adminEncList) return;
+                const threads = data.threads || [];
+                if (!threads.length) {
+                    adminEncList.innerHTML = '<div class="text-[11px] text-gray-400">チャットがありません。</div>';
+                    return;
+                }
+                adminEncList.innerHTML = threads.map(t => {
+                    const encState = t.encrypted_count > 0 ? 'enc' : 'plain';
+                    const btnLabel = encState === 'enc' ? '復号化' : '再暗号化';
+                    const btnColor = encState === 'enc' ? 'bg-amber-600 hover:bg-amber-500' : 'bg-cyan-700 hover:bg-cyan-600';
+                    const updated = t.updated_at ? new Date(t.updated_at).toLocaleString() : '';
+                    return `<div class="flex items-center gap-2 bg-gray-800/60 border border-gray-700 rounded p-2">
+                        <div class="flex-1 min-w-0">
+                            <div class="font-bold text-gray-200 truncate" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</div>
+                            <div class="text-[10px] text-gray-500">${updated} / メッセージ: ${t.message_count} / 暗号化: ${t.encrypted_count}</div>
+                        </div>
+                        <button class="admin-enc-toggle ${btnColor} text-white px-2 py-1 rounded" data-id="${escapeHtml(t.thread_id)}" data-enable="${encState === 'enc' ? '0' : '1'}" data-progress-expected-slow="true">${btnLabel}</button>
+                    </div>`;
+                }).join('');
+            };
+            const loadAdminEncThreads = async () => {
+                if (!adminEncList) return;
+                const username = get('admin-enc-username') ? get('admin-enc-username').value.trim() : '';
+                if (!username) { showToast('ユーザー名を入力してください', 'error', true); return; }
+                adminEncList.innerHTML = '<div class="text-[11px] text-gray-400"><i class="fas fa-spinner fa-spin mr-1"></i>読み込み中...</div>';
+                try {
+                    const res = await apiFetch(`/api/admin/threads?username=${encodeURIComponent(username)}`, { cache: 'no-store' });
+                    const data = await res.json();
+                    if (!res.ok) {
+                        adminEncList.innerHTML = `<div class="text-[11px] text-red-400">${escapeHtml(data.error || '読み込みに失敗しました')}</div>`;
+                        return;
+                    }
+                    renderAdminEncThreads(data);
+                } catch (e) {
+                    adminEncList.innerHTML = '<div class="text-[11px] text-red-400">読み込みに失敗しました</div>';
+                }
+            };
+            if (get('admin-enc-load')) {
+                get('admin-enc-load').onclick = () => loadAdminEncThreads();
+            }
+            const adminEncUserInput = get('admin-enc-username');
+            if (adminEncUserInput) {
+                adminEncUserInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadAdminEncThreads(); });
+            }
+            if (adminEncList) {
+                adminEncList.onclick = async (e) => {
+                    const btn = e.target.closest('.admin-enc-toggle');
+                    if (!btn) return;
+                    const threadId = btn.getAttribute('data-id');
+                    const enable = btn.getAttribute('data-enable') === '1';
+                    const action = enable ? '再暗号化' : '復号化';
+                    if (!confirm(`このチャットを${action}しますか？`)) return;
+                    btn.disabled = true;
+                    const original = btn.textContent;
+                    btn.textContent = '処理中...';
+                    try {
+                        const res = await apiFetch(`/api/admin/threads/${encodeURIComponent(threadId)}/encryption`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enable }) });
+                        const data = await res.json();
+                        if (!res.ok) {
+                            showToast(data.error || `${action}に失敗しました`, 'error', true);
+                        } else {
+                            showToast(`${action}しました（${data.changed || 0}件を変換）`, 'success');
+                        }
+                    } catch (err) {
+                        showToast(`${action}に失敗しました`, 'error', true);
+                    } finally {
+                        btn.disabled = false;
+                        btn.textContent = original;
+                        await loadAdminEncThreads();
+                    }
+                };
+            }
             get('file-input').onchange = (e) => {
                 const files = Array.from(e.target.files || []);
                 // Clear after copying to avoid losing selections during async uploads.

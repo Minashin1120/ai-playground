@@ -6743,11 +6743,6 @@
                 if (e.target.id === 'python-exec-modal') closePythonExecDetail();
             });
         }
-        if (get('encryption-status-modal')) {
-            get('encryption-status-modal').addEventListener('click', (e) => {
-                if (e.target.id === 'encryption-status-modal') closeEncryptionModal();
-            });
-        }
 
         function selectModel(id, name) {
             if (window._visionPickerActive) {

@@ -7522,6 +7522,10 @@
                             // Keep the fence out of the inline answer body.
                             return '';
                         }
+                        if (l === 'chat_error') {
+                            // Persisted generation errors (saved to DB so reloads still show them).
+                            return buildChatErrorBubbleHtml(c || '');
+                        }
                         const raw = c || '';
                         const lowerLang = (l || '').toLowerCase();
                         let h = '';
@@ -14169,6 +14173,21 @@
             return result;
         }
 
+        function buildChatErrorBubbleHtml(errorText) {
+            const msg = String(errorText == null ? '' : errorText).trim() || 'Unknown error';
+            return `<div class="text-red-400 text-xs mt-2 border border-red-500 p-2 rounded chat-error-box" role="alert"><i class="fas fa-triangle-exclamation mr-1"></i>Error: ${escapeHtml(msg)}</div>`;
+        }
+
+        function buildChatErrorMarkdown(errorText, partialContent = '') {
+            let err = String(errorText == null ? '' : errorText).trim() || 'Unknown error';
+            // Keep the fence well-formed even if the message contains backticks.
+            err = err.replace(/```/g, "'''");
+            if (err.length > 50000) err = err.slice(0, 50000) + '…';
+            const fence = '```chat_error\n' + err + '\n```';
+            const partial = String(partialContent == null ? '' : partialContent).replace(/\s+$/, '');
+            return partial ? (partial + '\n\n' + fence) : fence;
+        }
+
         function extractPythonExecutionsFromContent(rawText) {
             const source = normalizeMarkdownNewlines(rawText);
             const executions = [];
@@ -15363,7 +15382,51 @@
                 if (error.name !== 'AbortError') {
                     showToast(`高速モード: ${error.message}`, 'error', true);
                     if (!get('prompt-input').value) get('prompt-input').value = rawText;
-                    if (adiv) adiv.insertAdjacentHTML('beforeend', `<div class="text-red-300 text-xs mt-2 border border-red-500/50 rounded p-2">未保存: ${escapeHtml(error.message || 'エラー')}</div>`);
+                    const errMsg = error.message || 'エラー';
+                    if (adiv) adiv.insertAdjacentHTML('beforeend', buildChatErrorBubbleHtml(errMsg));
+                    // Persist the error (and any partial answer) so it remains after reload.
+                    try {
+                        let partial = content || '';
+                        if (pyExecPayloads.length) {
+                            partial += pyExecPayloads.map((payload) => `\n\`\`\`pyexec\n${JSON.stringify(payload)}\n\`\`\`\n`).join('');
+                        }
+                        const assistantContent = buildChatErrorMarkdown(errMsg, partial);
+                        // Local images may not be on the server yet; skip attachments on error path.
+                        const refs = localEntries.length ? [] : collectImageUrlsForSend();
+                        const saveResponse = await fetchChatStreamWithUnavailableRetry('/api/browser_fast_mode/save', manualSpinnerRequestOptions({
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                client_request_id: createClientRequestId(),
+                                message: rawText,
+                                assistant_content: assistantContent,
+                                thought_content: thought || '',
+                                model,
+                                image_urls: refs,
+                                temporary_chat: temporaryChatEnabled,
+                                thread_id: currentThreadId || null,
+                                parent_id: bootstrap && bootstrap.parent_id ? bootstrap.parent_id : null,
+                                thought_signatures: thoughtSignatures,
+                                turnstile_token: botTurnstileTokenForRequest(),
+                            }),
+                            signal: abortController && !abortController.signal.aborted ? abortController.signal : undefined,
+                        }), adiv);
+                        const saved = await saveResponse.json().catch(() => ({}));
+                        if (saveResponse.ok && saved.thread_id) {
+                            const createdThread = !currentThreadId;
+                            currentThreadId = String(saved.thread_id);
+                            currentParentId = saved.assistant_message_id || null;
+                            currentLeafId = saved.assistant_message_id || null;
+                            resetUploadState();
+                            browserFastBootstrap = null;
+                            await loadMessages(currentThreadId, { preserveDraft: true, silent: true, skipHistory: !createdThread });
+                            applyBrowserFastModeRestrictions();
+                            loadThreads(false);
+                        }
+                    } catch (persistError) {
+                        // Keep the live error bubble even if persistence fails.
+                        sendClientDebugLog('error', `Browser fast error persist failed: ${persistError && persistError.message ? persistError.message : persistError}`);
+                    }
                 }
             } finally {
                 if (finishProgress) finishProgress();
@@ -16078,7 +16141,7 @@
                                 maybeReportFirstEventLatency('content', !!contentDelta);
                             } else if(j.type==='error'){
                                 hadError = true;
-                                adiv.insertAdjacentHTML('beforeend', `<div class="text-red-400 text-xs mt-2 border border-red-500 p-2 rounded">Error: ${escapeHtml(j.content)}</div>`);
+                                adiv.insertAdjacentHTML('beforeend', buildChatErrorBubbleHtml(j.content));
                                 showToast(j.content || "Unknown error", "error", true);
                             }
                         } catch(e){}
@@ -16160,17 +16223,16 @@
                 editingMessageId = null;
                 setEditUi(false);
 
-                if (!hadError && adiv) {
+                if (adiv) {
                     const thoughts = adiv.querySelectorAll('.thought-content');
                     thoughts.forEach(t => t.classList.add('collapsed'));
                 }
-                // Full reload to establish new tree structure (skip on error to keep the error visible)
-                if (!hadError) {
-                    await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
-                    if (codingModeEnabled) {
-                        codingTargetSelection = null;
-                        syncCodingModeUi(true, { persist: false });
-                    }
+                // Full reload to establish new tree structure. Errors are persisted
+                // server-side as assistant messages (```chat_error), so reload keeps them visible.
+                await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
+                if (!hadError && codingModeEnabled) {
+                    codingTargetSelection = null;
+                    syncCodingModeUi(true, { persist: false });
                 }
 
                 // Only auto-scroll if user was already at bottom or auto-scroll is active
@@ -16464,7 +16526,7 @@
                                 contentChanged = true;
                             } else if (j.type === 'error') {
                                 hadError = true;
-                                adiv.insertAdjacentHTML('beforeend', `<div class="text-red-400 text-xs mt-2 border border-red-500 p-2 rounded">Error: ${escapeHtml(j.content)}</div>`);
+                                adiv.insertAdjacentHTML('beforeend', buildChatErrorBubbleHtml(j.content));
                                 showToast(j.content || "Unknown error", "error", true);
                             }
                         } catch (e) {}
@@ -16498,12 +16560,13 @@
                     queueHighlight(adiv, acc);
                 }
 
-                if (!hadError) {
+                // Errors are persisted server-side; always reload so history stays consistent.
+                if (adiv) {
                     const thoughts = adiv.querySelectorAll('.thought-content');
                     thoughts.forEach(t => t.classList.add('collapsed'));
-                    await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
-                    loadThreads(false);
                 }
+                await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
+                loadThreads(false);
             } catch (e) {
                 const manuallyStopped = e.name === 'AbortError' && isManualStopAbortForThread(resumeStartedThreadId);
                 if (e.name === 'AbortError' && !manuallyStopped) {

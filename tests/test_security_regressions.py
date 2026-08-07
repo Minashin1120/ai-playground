@@ -738,7 +738,10 @@ class SecurityRegressionTests(unittest.TestCase):
             template = template_file.read()
         self.assertIn('${escapeHtml(t.title || "No Title")}', script)
         self.assertIn('${escapeHtml(g.name)}', script)
-        self.assertIn('Error: ${escapeHtml(j.content)}', script)
+        # Stream/history errors are rendered via buildChatErrorBubbleHtml (escapeHtml).
+        self.assertIn("function buildChatErrorBubbleHtml(errorText)", script)
+        self.assertIn("Error: ${escapeHtml(msg)}", script)
+        self.assertIn("buildChatErrorBubbleHtml(j.content)", script)
         self.assertIn("FORBID_TAGS: ['iframe', 'object', 'embed']", template)
         self.assertIn("filename='vendor/dompurify-3.4.11.min.js'", template)
         self.assertNotIn("cdnjs.cloudflare.com/ajax/libs/dompurify", template)

@@ -733,8 +733,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-07-007')
-app.config['SYSTEM_VERSION'] = 'V4.8.756'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-07-008')
+app.config['SYSTEM_VERSION'] = 'V4.8.757'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -6746,6 +6746,24 @@ def build_message_token_details(role, content, thought_text, model_key, tokens_i
     }
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), retry=retry_if_exception_type(exc.SQLAlchemyError))
+def format_chat_error_content(error_text, partial_content=""):
+    """Build assistant content that renders as a persistent chat error bubble.
+
+    Uses a fenced ```chat_error block so the client can restyle it on history
+    reload the same way live stream errors are shown.
+    """
+    err_body = str(error_text or "Unknown error").strip() or "Unknown error"
+    if len(err_body) > 50_000:
+        err_body = err_body[:50_000] + "…"
+    # Keep the fence well-formed even if the error text contains backticks.
+    err_body = err_body.replace("```", "'''")
+    fence = f"```chat_error\n{err_body}\n```"
+    partial = str(partial_content or "").rstrip()
+    if partial:
+        return partial + "\n\n" + fence
+    return fence
+
+
 def safe_db_commit():
     try:
         db.session.commit()
@@ -7434,6 +7452,83 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 r.expire(key, 600)
             except Exception:
                 pass
+
+        # Persist stream errors as assistant messages so they remain visible after reload.
+        stream_error_persisted = False
+
+        def _persist_stream_error(error_text):
+            """Save an assistant bubble for stream failures so reloads still show the error."""
+            nonlocal stream_error_persisted
+            if stream_error_persisted:
+                return
+            stream_error_persisted = True
+            try:
+                parent = Message.query.get(message_id)
+                if not parent or parent.thread_id != thread_id:
+                    return
+                if getattr(parent, "thread", None) is not None and parent.thread.user_id != user_id:
+                    return
+
+                partial = ""
+                try:
+                    cached = r.get(f"stream_acc:{job_id}:content")
+                    if cached:
+                        partial = cached.decode("utf-8", "ignore")
+                except Exception:
+                    partial = ""
+                thought_text = ""
+                try:
+                    cached_thought = r.get(f"stream_acc:{job_id}:thought")
+                    if cached_thought:
+                        thought_text = cached_thought.decode("utf-8", "ignore")
+                except Exception:
+                    thought_text = ""
+
+                final_content = format_chat_error_content(error_text, partial)
+                is_enc = bool(user_config.get("enable_e2ee", False))
+                content_to_store = encrypt_val(final_content) if is_enc else final_content
+                thought_data = None
+                if thought_text and str(thought_text).strip():
+                    thought_payload = json.dumps({"text": thought_text}, ensure_ascii=False)
+                    thought_data = encrypt_val(thought_payload) if is_enc else thought_payload
+
+                gem_uuid_val = options.get("gem_uuid")
+                gem_name_val = None
+                if gem_uuid_val:
+                    gem = Gem.query.filter_by(uuid=gem_uuid_val).first()
+                    if gem:
+                        gem_name_val = gem.name
+
+                msg_entry = Message(
+                    thread_id=thread_id,
+                    role="assistant",
+                    content=content_to_store,
+                    model=model_key,
+                    thought_data=thought_data,
+                    tokens_out=0,
+                    tokens=0,
+                    is_encrypted=is_enc,
+                    parent_id=message_id,
+                    gem_uuid=gem_uuid_val,
+                    gem_name=gem_name_val,
+                )
+                db.session.add(msg_entry)
+                th = Thread.query.get(thread_id)
+                if th:
+                    th.updated_at = datetime.utcnow()
+                    th.last_model = model_key
+                    if gem_uuid_val:
+                        th.last_gem_uuid = gem_uuid_val
+                safe_db_commit()
+            except Exception as exc:
+                logger.exception(
+                    "Failed to persist stream error message for job %s: %s", job_id, exc
+                )
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
+
         def pub(dt, d, **metadata):
             if options.get("coding_mode") and dt == "content" and not metadata.get("coding_final"):
                 _consume_coding_stream_chunk(d)
@@ -7446,6 +7541,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 _latency_mark_once(job_id, "provider_first_content_ms")
             elif dt in ("done", "error"):
                 _latency_mark_once(job_id, "worker_done_ms")
+            # Persist before publish so a client reload right after the error event
+            # already finds the saved assistant bubble.
+            if dt == "error":
+                _persist_stream_error(d)
             event_payload = {"type": dt, "content": d}
             event_payload.update(metadata)
             r.publish(channel, json.dumps(event_payload))

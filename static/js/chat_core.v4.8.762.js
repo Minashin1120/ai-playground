@@ -8401,37 +8401,8 @@
                 return messages.some(m => !!m.is_encrypted);
             };
 
-            const updateAdminThreadEncButtons = () => {
-                const buttons = [get('admin-thread-enc-btn'), get('admin-thread-enc-btn-mobile')].filter(Boolean);
-                if (!buttons.length) return;
-                const hasThread = !!(currentThreadId !== null && currentThreadId !== undefined && currentThreadId !== '');
-                buttons.forEach(btn => {
-                    btn.disabled = !hasThread || adminThreadEncBusy;
-                    const icon = btn.querySelector('i');
-                    btn.classList.remove('text-amber-300', 'text-cyan-300', 'text-gray-500', 'opacity-50');
-                    if (!hasThread) {
-                        if (icon) icon.className = 'fas fa-key text-xs';
-                        btn.title = 'チャットを選択してください';
-                        btn.classList.add('text-gray-400', 'opacity-50');
-                    } else if (currentThreadEncrypted === true) {
-                        if (icon) icon.className = 'fas fa-lock text-xs';
-                        btn.title = 'このチャットを復号化';
-                        btn.classList.add('text-amber-300');
-                    } else if (currentThreadEncrypted === false) {
-                        if (icon) icon.className = 'fas fa-lock-open text-xs';
-                        btn.title = 'このチャットを再暗号化';
-                        btn.classList.add('text-cyan-300');
-                    } else {
-                        if (icon) icon.className = 'fas fa-key text-xs';
-                        btn.title = 'このチャットの暗号化を切替';
-                        btn.classList.add('text-gray-400');
-                    }
-                });
-            };
-
             const refreshCurrentThreadEncStateFromMessages = () => {
                 currentThreadEncrypted = computeThreadEncryptedFromMessages(allMessages);
-                updateAdminThreadEncButtons();
             };
 
             const setAdminThreadEncryption = async (threadId, enable, { confirmPrompt = true, reloadCurrent = true } = {}) => {
@@ -8442,7 +8413,6 @@
                 const action = enable ? '再暗号化' : '復号化';
                 if (confirmPrompt && !confirm(`このチャットを${action}しますか？`)) return false;
                 adminThreadEncBusy = true;
-                updateAdminThreadEncButtons();
                 try {
                     const res = await apiFetch(`/api/admin/threads/${encodeURIComponent(threadId)}/encryption`, {
                         method: 'POST',
@@ -8458,8 +8428,6 @@
                     currentThreadEncrypted = !!enable;
                     if (reloadCurrent && currentThreadId && String(currentThreadId) === String(threadId)) {
                         await loadMessages(currentThreadId, { preserveDraft: true, silent: true, skipHistory: true });
-                    } else {
-                        updateAdminThreadEncButtons();
                     }
                     if (adminEncList) await loadAdminEncThreads();
                     return true;
@@ -8468,24 +8436,7 @@
                     return false;
                 } finally {
                     adminThreadEncBusy = false;
-                    updateAdminThreadEncButtons();
                 }
-            };
-
-            const toggleCurrentThreadEncryption = async () => {
-                if (!currentThreadId) {
-                    showToast('チャットを選択してください', 'error', true);
-                    return;
-                }
-                let isEnc = currentThreadEncrypted;
-                if (isEnc === null) {
-                    isEnc = computeThreadEncryptedFromMessages(allMessages);
-                }
-                // No messages yet: default to decrypt if account E2EE is on, else re-encrypt.
-                if (isEnc === null) {
-                    isEnc = !!(CHAT_CONFIG && CHAT_CONFIG.enableE2EE);
-                }
-                await setAdminThreadEncryption(currentThreadId, !isEnc);
             };
 
             const renderAdminEncThreads = (data) => {
@@ -8527,7 +8478,6 @@
                         const cur = data.threads.find(t => String(t.thread_id) === String(currentThreadId));
                         if (cur) {
                             currentThreadEncrypted = !!cur.encrypted;
-                            updateAdminThreadEncButtons();
                         }
                     }
                 } catch (e) {
@@ -8541,14 +8491,6 @@
             window.__loadAdminEncThreads = loadAdminEncThreads;
             window.__refreshAdminThreadEncState = refreshCurrentThreadEncStateFromMessages;
             window.__setAdminThreadEncryption = setAdminThreadEncryption;
-            window.__toggleCurrentThreadEncryption = toggleCurrentThreadEncryption;
-            [get('admin-thread-enc-btn'), get('admin-thread-enc-btn-mobile')].filter(Boolean).forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    if (adminThreadEncBusy) return;
-                    toggleCurrentThreadEncryption();
-                });
-            });
             const encModalAdminToggle = get('encryption-status-admin-toggle');
             if (encModalAdminToggle) {
                 encModalAdminToggle.addEventListener('click', (e) => {
@@ -8558,7 +8500,6 @@
                     }
                 });
             }
-            updateAdminThreadEncButtons();
             if (adminEncList) {
                 adminEncList.onclick = async (e) => {
                     const openBtn = e.target.closest('.admin-enc-open');
@@ -14736,8 +14677,7 @@
                     adminBox.classList.add('hidden');
                 }
             }
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
+            showModal('encryption-status-modal');
         }
 
         async function toggleThreadEncryptionFromModal() {
@@ -14767,10 +14707,7 @@
         }
 
         function closeEncryptionModal() {
-            const modal = get('encryption-status-modal');
-            if (!modal) return;
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
+            hideModal('encryption-status-modal');
         }
 
         function goToEncryptionSettings() {

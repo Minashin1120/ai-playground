@@ -6,10 +6,10 @@
             --panel: #0d1530;
             --panel-2: #0a1028;
             --panel-elevated: rgba(16, 24, 48, 0.88);
-            --panel-chrome: rgba(8, 14, 30, 0.78);
-            --line: #1a2540;
-            --line-soft: rgba(148, 163, 184, 0.12);
-            --line-strong: rgba(148, 163, 184, 0.22);
+            --panel-chrome: rgba(9, 15, 32, 0.82);
+            --line: #1c2744;
+            --line-soft: rgba(148, 163, 184, 0.10);
+            --line-strong: rgba(148, 163, 184, 0.18);
             --text: #e8eaef;
             --muted: #8e9aaf;
             --text-inverse: #031413;
@@ -71,11 +71,11 @@
                 linear-gradient(90deg, transparent 97%, rgba(148,163,184,0.035) 98%);
             background-size: 48px 48px;
             pointer-events: none;
-            opacity: 0.35;
+            opacity: 0.22;
         }
         
         /* Typography & Code Blocks */
-        .prose { font-size: 0.96rem; line-height: 1.75; color: #e5e7eb; max-width: none; white-space: pre-wrap; }
+        .prose { font-size: 0.95rem; line-height: 1.72; color: #e6e9f0; max-width: none; white-space: pre-wrap; letter-spacing: 0.01em; }
         .prose p { margin-bottom: 1rem; }
         .prose ol, .prose ul { padding-left: 1.5rem !important; margin-bottom: 1rem !important; white-space: normal; list-style-position: outside !important; }
         .prose ol { list-style-type: decimal !important; }
@@ -596,7 +596,7 @@
         /* Messages */
         .rounded-2xl { border-radius: 1rem; }
         .rounded-tl-none { border-top-left-radius: 0; }
-        .message-bubble { max-width: 90%; position: relative; word-wrap: break-word; border: 1px solid rgba(148,163,184,0.14); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+        .message-bubble { max-width: 90%; position: relative; word-wrap: break-word; border: 1px solid rgba(148,163,184,0.10); box-shadow: 0 6px 24px rgba(0,0,0,0.22); }
         @media (min-width: 768px) { .message-bubble { max-width: 80%; } }
         
         .msg-controls { opacity: 0; transition: opacity 0.22s var(--ease-standard), transform 0.22s var(--ease-out); transform: translateY(2px); position: absolute; top: -12px; right: 0; display: flex; gap: 6px; }
@@ -930,13 +930,13 @@
             backdrop-filter: blur(var(--blur-panel)) saturate(170%);
             -webkit-backdrop-filter: blur(var(--blur-panel)) saturate(170%);
             border-right: 1px solid var(--line-soft);
-            box-shadow: 8px 0 32px rgba(0, 0, 0, 0.18);
+            box-shadow: 6px 0 24px rgba(0, 0, 0, 0.14);
             transition: transform 0.38s var(--ease-out), opacity 0.3s var(--ease-standard), background-color 0.3s var(--ease-standard), width 0.34s var(--ease-out);
         }
-        #chat-container { background: radial-gradient(900px 500px at 50% 0%, rgba(var(--theme-rgb),0.07), transparent 60%); }
+        #chat-container { background: radial-gradient(820px 420px at 50% 0%, rgba(var(--theme-rgb),0.055), transparent 62%); }
         #settings-modal > div, #model-modal > div, #gem-modal > div { border: 1px solid var(--line-soft); box-shadow: var(--shadow); border-radius: var(--radius-lg); background: var(--panel-elevated); backdrop-filter: blur(var(--blur-modal)) saturate(180%); -webkit-backdrop-filter: blur(var(--blur-modal)) saturate(180%); }
-        #prompt-input { background: rgba(8, 14, 28, 0.65); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--line-strong); border-radius: var(--radius-md); transition: box-shadow 0.2s ease, border-color 0.2s ease, height 0.1s; }
-        #prompt-input:focus { box-shadow: 0 0 0 3px rgba(var(--theme-rgb),0.2); border-color: rgba(var(--theme-rgb),0.55); }
+        #prompt-input { background: transparent; border: none; border-radius: var(--radius-md); transition: height 0.1s; box-shadow: none; }
+        #prompt-input:focus { box-shadow: none; border-color: transparent; outline: none; }
         #send-btn { box-shadow: var(--shadow-glow); border: 1px solid rgba(var(--theme-rgb),0.35); background: linear-gradient(135deg, var(--theme-500), var(--theme-600)); }
         #sts-panel { background: radial-gradient(120% 120% at 50% 0%, rgba(var(--theme-rgb),0.15), rgba(8, 14, 28, 0.7)); border: 1px solid rgba(var(--theme-rgb),0.2); }
         #sts-mic-btn { box-shadow: 0 16px 30px rgba(var(--theme-rgb),0.18); border: 1px solid rgba(var(--theme-rgb),0.3); }
@@ -980,11 +980,11 @@
             box-shadow: 0 14px 30px rgba(249,112,141,0.2);
         }
         #auto-search-off-btn, #sts-cancel-btn { border-radius: 999px; }
-        #send-btn, #upload-btn, #mic-btn { border-radius: 16px; }
+        #send-btn, #upload-btn, #mic-btn, #rich-paste-btn, #mask-btn { border-radius: 12px; }
         #mobile-new-chat-btn { border-radius: 14px; background: rgba(var(--theme-rgb),0.14); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); }
         #edit-bar { border: 1px solid var(--line); background: rgba(10, 16, 30, 0.85); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
-        .message-bubble.bg-blue-600 { background: linear-gradient(165deg, var(--theme-500), var(--theme-600)); color: var(--text-inverse); border-color: rgba(var(--theme-rgb), 0.35); box-shadow: 0 10px 28px rgba(var(--theme-rgb), 0.18); }
-        .message-bubble.bg-gray-700 { background: linear-gradient(180deg, rgba(16, 24, 48, 0.92), rgba(10, 16, 32, 0.92)); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-color: var(--line-soft); }
+        .message-bubble.bg-blue-600 { background: linear-gradient(160deg, var(--theme-500), var(--theme-600)); color: var(--text-inverse); border-color: rgba(var(--theme-rgb), 0.28); box-shadow: 0 8px 22px rgba(var(--theme-rgb), 0.16); }
+        .message-bubble.bg-gray-700 { background: linear-gradient(180deg, rgba(14, 22, 44, 0.88), rgba(10, 16, 32, 0.9)); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-color: rgba(148,163,184,0.08); }
         #sidebar .bg-gray-700 { background: rgba(10, 16, 30, 0.78) !important; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--line-soft); }
         #sidebar button, #sidebar a { transition: transform 0.24s var(--ease-out), background 0.24s var(--ease-standard), color 0.2s var(--ease-standard); }
         #sidebar button:hover, #sidebar a:hover { transform: translateX(2px); }
@@ -1183,7 +1183,7 @@
         .fade-in { animation: messagePop 0.38s var(--ease-out) both; }
         .modal-animate { animation: fadeIn 0.28s var(--ease-out) both; }
         .message-bubble { transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-standard); }
-        .message-bubble:hover { transform: translateY(-1px); box-shadow: 0 12px 36px rgba(0,0,0,0.32); }
+        .message-bubble:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(0,0,0,0.26); }
         #thread-list > div { transition: transform var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard); }
         #gem-list .gem-item { transition: transform var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard); }
         .model-tag-btn { transition: transform var(--dur-fast) var(--ease-out), background var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard); }
@@ -1883,17 +1883,31 @@ body.liquid-glass-mode .liquid-glass-surface.liquid-glass-pressed {
 
 /* ── Input glow pulse on focus ── */
 @keyframes input-glow-pulse {
-    0%, 100% { box-shadow: 0 0 0 3px rgba(var(--theme-rgb), 0.18); }
-    50% { box-shadow: 0 0 0 5px rgba(var(--theme-rgb), 0.1), 0 0 18px rgba(var(--theme-rgb), 0.07); }
+    0%, 100% {
+        box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.04),
+            0 0 0 3px rgba(var(--theme-rgb), 0.16),
+            0 10px 28px rgba(0,0,0,0.2);
+    }
+    50% {
+        box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.04),
+            0 0 0 4px rgba(var(--theme-rgb), 0.1),
+            0 0 16px rgba(var(--theme-rgb), 0.08),
+            0 10px 28px rgba(0,0,0,0.2);
+    }
+}
+.composer-input-shell:focus-within {
+    animation: input-glow-pulse 2.8s var(--ease-in-out) infinite;
 }
 #prompt-input:focus {
-    animation: input-glow-pulse 2.8s var(--ease-in-out) infinite;
+    animation: none;
 }
 
 /* ── Send button idle pulse (when text is typed) ── */
 @keyframes send-pulse {
-    0%, 100% { box-shadow: 0 12px 28px rgba(var(--theme-rgb), 0.22); transform: scale(1); }
-    50% { box-shadow: 0 14px 34px rgba(var(--theme-rgb), 0.32), 0 0 18px rgba(var(--theme-rgb), 0.1); transform: scale(1.02); }
+    0%, 100% { box-shadow: 0 6px 16px rgba(var(--theme-rgb), 0.22); transform: scale(1); }
+    50% { box-shadow: 0 8px 20px rgba(var(--theme-rgb), 0.3), 0 0 12px rgba(var(--theme-rgb), 0.1); transform: scale(1.03); }
 }
 #send-btn.pulse-ready {
     animation: send-pulse 2.4s var(--ease-in-out) infinite;
@@ -2010,7 +2024,8 @@ body.liquid-glass-mode .liquid-glass-surface.liquid-glass-pressed {
         opacity: 0.75 !important;
         background: transparent !important;
     }
-    #prompt-input:focus {
+    #prompt-input:focus,
+    .composer-input-shell:focus-within {
         animation: none !important;
     }
     #send-btn.pulse-ready {
@@ -2049,7 +2064,7 @@ header.bg-gray-800 {
     backdrop-filter: blur(var(--blur-panel)) saturate(170%);
     -webkit-backdrop-filter: blur(var(--blur-panel)) saturate(170%);
     border-top: 1px solid var(--line-soft) !important;
-    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.28);
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.2);
 }
 
 /* Sidebar hierarchy */
@@ -2712,7 +2727,6 @@ body.liquid-glass-mode .code-wrapper {
     backdrop-filter: blur(25px) saturate(180%);
     -webkit-backdrop-filter: blur(25px) saturate(180%);
 }
-body.liquid-glass-mode #prompt-input,
 body.liquid-glass-mode #model-selector-btn,
 body.liquid-glass-mode #sidebar .bg-gray-700,
 body.liquid-glass-mode .btn-glass {
@@ -2889,10 +2903,8 @@ body.liquid-glass-mode #gem-suggestions > div:last-child {
 }
 
 /* Thin fills sit inside glass instead of creating glass-on-glass layers */
-body.liquid-glass-mode #prompt-input,
 body.liquid-glass-mode #model-selector-btn,
 body.liquid-glass-mode #sidebar .bg-gray-700,
-body.liquid-glass-mode .composer-dock button:not(#send-btn),
 body.liquid-glass-mode #sidebar button,
 body.liquid-glass-mode #sidebar a {
     background: var(--glass-control-fill) !important;
@@ -2902,7 +2914,19 @@ body.liquid-glass-mode #sidebar a {
     -webkit-backdrop-filter: none !important;
 }
 body.liquid-glass-mode #prompt-input {
-    border-radius: 19px;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+body.liquid-glass-mode .composer-input-shell {
+    background: var(--glass-control-fill) !important;
+    border-color: rgba(255,255,255,0.13) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.095) !important;
+}
+body.liquid-glass-mode .composer-tool-btn {
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
 }
 body.liquid-glass-mode #model-selector-btn,
 body.liquid-glass-mode #prompt-controls-toggle-btn {
@@ -3273,6 +3297,7 @@ html.performance-blur-disabled body:not(.liquid-glass-mode) .bg-gray-800.border-
         -webkit-backdrop-filter: none !important;
 }
 html.performance-blur-disabled body:not(.liquid-glass-mode) #prompt-input,
+html.performance-blur-disabled body:not(.liquid-glass-mode) .composer-input-shell,
 html.performance-blur-disabled body:not(.liquid-glass-mode) #model-selector-btn,
 html.performance-blur-disabled body:not(.liquid-glass-mode) #mobile-new-chat-btn,
 html.performance-blur-disabled body:not(.liquid-glass-mode) #sidebar .bg-gray-700,
@@ -3282,6 +3307,9 @@ html.performance-blur-disabled body:not(.liquid-glass-mode) #welcome-screen .wel
         -webkit-backdrop-filter: none !important;
 }
 html.performance-blur-disabled body:not(.liquid-glass-mode) #prompt-input {
+        background: transparent !important;
+}
+html.performance-blur-disabled body:not(.liquid-glass-mode) .composer-input-shell {
         background: #080f20;
 }
 html.performance-blur-disabled body:not(.liquid-glass-mode) #model-selector-btn,
@@ -3333,6 +3361,9 @@ html.performance-lite-mode body:not(.liquid-glass-mode) .bg-gray-800.border-t.bo
         background: #0a1226 !important;
 }
 html.performance-lite-mode body:not(.liquid-glass-mode) #prompt-input {
+        background: transparent !important;
+}
+html.performance-lite-mode body:not(.liquid-glass-mode) .composer-input-shell {
         background: #080f20 !important;
 }
 html.performance-lite-mode body:not(.liquid-glass-mode) #model-selector-btn,
@@ -3350,4 +3381,473 @@ html.performance-lite-mode body:not(.liquid-glass-mode) .slide-in-animate,
 html.performance-lite-mode body:not(.liquid-glass-mode) .model-list-animate {
         opacity: 1 !important;
         transform: none !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   V4.8.765 — UI refinement: composer, sidebar, chat stage
+   ═══════════════════════════════════════════════════════════ */
+
+/* --- Composer dock density --- */
+.composer-dock {
+    padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
+    padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
+}
+.composer-shell {
+    max-width: 48rem;
+}
+
+/* Control chips (Canvas / Coding / 高速) */
+.composer-chip {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+    white-space: nowrap;
+    transition: background 0.2s var(--ease-standard), border-color 0.2s var(--ease-standard), box-shadow 0.2s var(--ease-standard), color 0.2s var(--ease-standard);
+}
+.composer-chip:has(input:checked) {
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.04), 0 4px 14px rgba(0,0,0,0.18);
+}
+#canvas-mode-container:has(input:checked) {
+    border-color: rgba(34, 211, 238, 0.55);
+    background: rgba(8, 51, 68, 0.45);
+    color: #a5f3fc;
+}
+#browser-fast-mode-container:has(input:checked) {
+    border-color: rgba(245, 158, 11, 0.6);
+    background: rgba(120, 53, 15, 0.4);
+    color: #fde68a;
+}
+
+/* Detail option chips — denser, uniform */
+.composer-opt {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    background: rgba(10, 16, 30, 0.45);
+    color: #a8b3c7;
+    font-size: 10.5px;
+    line-height: 1.25;
+    white-space: nowrap;
+    transition: background 0.18s var(--ease-standard), border-color 0.18s var(--ease-standard), color 0.18s var(--ease-standard);
+}
+.composer-opt:hover {
+    border-color: rgba(148, 163, 184, 0.22);
+    background: rgba(14, 22, 42, 0.7);
+    color: #d1d9e8;
+}
+.composer-opt:has(input:checked),
+.composer-opt:has(label input:checked) {
+    border-color: rgba(var(--theme-rgb), 0.35);
+    background: rgba(var(--theme-rgb), 0.1);
+    color: var(--theme-200);
+}
+.composer-opt-group {
+    padding-right: 0.4rem;
+}
+.composer-opt select,
+.composer-opt-group select,
+.composer-opt input[type="number"] {
+    background: rgba(8, 14, 28, 0.7) !important;
+    border: 1px solid rgba(148, 163, 184, 0.16) !important;
+    border-radius: 6px !important;
+    font-size: 10px !important;
+    padding: 1px 4px !important;
+    height: 1.4rem;
+    color: #e2e8f0 !important;
+}
+#standard-chat-controls.composer-detail-chips {
+    gap: 0.3rem;
+}
+#prompt-details-controls {
+    width: 100%;
+}
+#prompt-controls-row:not(.compact-collapsed) #prompt-details-controls {
+    flex: 1 1 100%;
+}
+#prompt-controls-row {
+    row-gap: 0.35rem;
+}
+#prompt-controls-row.compact-collapsed {
+    justify-content: flex-start;
+}
+#prompt-controls-row.compact-collapsed #prompt-primary-controls {
+    margin-inline: 0;
+}
+
+/* Model selector pill */
+#model-selector-btn {
+    border-radius: 999px !important;
+    padding: 0.3rem 0.7rem !important;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    background: rgba(12, 20, 40, 0.72) !important;
+    border: 1px solid rgba(148, 163, 184, 0.14) !important;
+    max-height: 1.85rem;
+}
+#model-selector-btn:hover {
+    border-color: rgba(var(--theme-rgb), 0.35) !important;
+    background: rgba(var(--theme-rgb), 0.08) !important;
+}
+#prompt-controls-toggle-btn {
+    border-radius: 999px !important;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    background: rgba(12, 20, 40, 0.55) !important;
+}
+
+/* Unified input shell */
+.composer-input-shell {
+    background: rgba(8, 14, 28, 0.72);
+    border: 1px solid var(--line-strong);
+    border-radius: 16px;
+    padding: 0.28rem 0.32rem 0.28rem 0.28rem;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 8px 24px rgba(0,0,0,0.18);
+    transition: border-color 0.2s var(--ease-standard), box-shadow 0.2s var(--ease-standard);
+}
+.composer-input-shell:focus-within {
+    border-color: rgba(var(--theme-rgb), 0.48);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.04),
+        0 0 0 3px rgba(var(--theme-rgb), 0.14),
+        0 10px 28px rgba(0,0,0,0.2);
+}
+.composer-tool-btn {
+    width: 2.25rem;
+    height: 2.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 !important;
+    border-radius: 11px !important;
+    border: 1px solid transparent;
+    background: transparent !important;
+    color: #94a3b8 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+.composer-tool-btn:hover {
+    background: rgba(148, 163, 184, 0.1) !important;
+    color: #e2e8f0 !important;
+    border-color: rgba(148, 163, 184, 0.12);
+    transform: none;
+}
+#rich-paste-btn.composer-tool-btn {
+    color: #fbbf24 !important;
+}
+#rich-paste-btn.composer-tool-btn:hover {
+    background: rgba(245, 158, 11, 0.14) !important;
+    color: #fde68a !important;
+}
+#send-btn.composer-send-btn,
+#send-btn {
+    width: 2.35rem !important;
+    height: 2.35rem !important;
+    min-width: 2.35rem;
+    padding: 0 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 6px 16px rgba(var(--theme-rgb), 0.22) !important;
+}
+#prompt-input {
+    min-height: 2.35rem !important;
+    padding-top: 0.45rem !important;
+    padding-bottom: 0.45rem !important;
+    line-height: 1.45;
+}
+#prompt-token-estimate {
+    padding-left: 0.35rem;
+    opacity: 0.85;
+}
+
+/* Quote / edit / coding bars — compact pills */
+#quote-bar,
+#coding-target-bar {
+    border-radius: 12px !important;
+    padding: 0.4rem 0.7rem !important;
+    margin-bottom: 0 !important;
+    border: 1px solid var(--line-soft);
+    font-size: 11px;
+}
+#edit-bar {
+    border-radius: 12px !important;
+    padding: 0.4rem 0.7rem !important;
+    font-size: 11px;
+}
+
+/* Image option panels denser */
+#gpt-image-options,
+#gemini-image-options,
+#grok-image-options,
+#grok-video-options,
+#audio-gen-options {
+    border-radius: 12px !important;
+    padding: 0.45rem 0.65rem !important;
+    margin-top: 0.25rem !important;
+    background: rgba(10, 16, 30, 0.55) !important;
+    border-color: var(--line-soft) !important;
+}
+
+/* Compact mode: keep bar slim and elegant */
+#prompt-controls-row.compact-collapsed {
+    margin-bottom: 0.1rem;
+}
+#prompt-controls-row.compact-collapsed #model-selector-btn {
+    max-width: min(240px, 70vw);
+}
+body:has(#prompt-controls-row.compact-collapsed) .composer-dock {
+    /* subtle cue that secondary tools are collapsed */
+}
+
+/* --- Sidebar refinement --- */
+#sidebar {
+    width: 16.5rem; /* slightly roomier for titles */
+}
+.sidebar-header {
+    background: linear-gradient(180deg, rgba(12, 20, 40, 0.35), transparent);
+}
+.sidebar-icon-btn {
+    width: 1.85rem;
+    height: 1.85rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    transition: background 0.18s var(--ease-standard), color 0.18s var(--ease-standard), border-color 0.18s var(--ease-standard), transform 0.18s var(--ease-out) !important;
+}
+.sidebar-icon-btn:hover {
+    background: rgba(148, 163, 184, 0.1);
+    border-color: rgba(148, 163, 184, 0.12);
+    transform: translateY(-1px) !important;
+}
+#sidebar #new-chat-btn.sidebar-icon-btn {
+    width: 1.95rem;
+    height: 1.95rem;
+    border-radius: 10px;
+    box-shadow: 0 6px 14px rgba(var(--theme-rgb), 0.2);
+}
+#sidebar #new-chat-btn.sidebar-icon-btn:hover {
+    filter: brightness(1.06);
+    transform: translateY(-1px) !important;
+}
+.sidebar-search #search-box {
+    height: 2rem;
+    font-size: 0.8125rem;
+}
+.sidebar-toolbar {
+    gap: 0.15rem !important;
+}
+.sidebar-divider {
+    border-color: var(--line-soft) !important;
+    opacity: 0.85;
+}
+#sidebar-chat-title {
+    letter-spacing: -0.01em;
+}
+#thread-list > div:not(.ptr-pull-indicator):not(#scroll-sentinel) {
+    border-radius: 10px !important;
+    padding: 0.4rem 0.5rem;
+    margin: 0;
+    transition: background 0.18s var(--ease-standard), border-color 0.18s var(--ease-standard), box-shadow 0.18s var(--ease-standard);
+}
+#thread-list > div:not(.ptr-pull-indicator):not(#scroll-sentinel):hover {
+    background: rgba(14, 22, 44, 0.72) !important;
+    border-color: rgba(var(--theme-rgb), 0.22) !important;
+}
+#gem-list .gem-item {
+    border-radius: 10px !important;
+    padding: 0.35rem 0.5rem;
+}
+.sidebar-footer {
+    background: linear-gradient(0deg, rgba(6, 10, 22, 0.35), transparent);
+}
+.sidebar-legal a,
+.sidebar-legal button {
+    color: #7c889e;
+    font-size: 10.5px;
+    transition: color 0.15s ease;
+}
+.sidebar-legal a:hover,
+.sidebar-legal button:hover {
+    color: var(--theme-300);
+}
+.sidebar-logout-btn {
+    border: 1px solid var(--line-soft) !important;
+    background: rgba(12, 18, 34, 0.65) !important;
+    color: #a8b3c7 !important;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+.sidebar-logout-btn:hover {
+    background: rgba(249, 112, 141, 0.1) !important;
+    border-color: rgba(249, 112, 141, 0.3) !important;
+    color: #fecdd3 !important;
+}
+
+/* Compact sidebar: keep icon column clean */
+@media (min-width: 769px) {
+    #sidebar.compact .sidebar-toolbar {
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 0.65rem !important;
+        padding-top: 0.35rem;
+    }
+    #sidebar.compact .sidebar-icon-btn {
+        width: 2.15rem;
+        height: 2.15rem;
+    }
+    #sidebar.compact .sidebar-header {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        align-items: center;
+    }
+}
+
+/* --- Chat stage --- */
+#chat-container {
+    scroll-padding-bottom: 1rem;
+}
+#chat-container > .message-group,
+#chat-container > div.message-group {
+    max-width: 52rem;
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+}
+.message-bubble {
+    border-radius: 16px !important;
+}
+.message-bubble.bg-blue-600 {
+    border-bottom-right-radius: 6px !important;
+}
+.message-bubble.bg-gray-700 {
+    border-bottom-left-radius: 6px !important;
+}
+.msg-controls {
+    gap: 4px;
+}
+.ctrl-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: rgba(10, 16, 32, 0.88);
+    border-color: rgba(148, 163, 184, 0.14);
+}
+
+/* Welcome */
+#welcome-screen {
+    padding: 1.5rem 0.5rem;
+}
+#welcome-screen .welcome-subtitle {
+    color: rgba(148, 163, 184, 0.85);
+    font-weight: 500;
+}
+#welcome-screen .welcome-grid {
+    gap: 0.5rem;
+}
+#welcome-screen .welcome-btn {
+    padding: 0.7rem 0.9rem !important;
+    border-radius: 12px !important;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    background: rgba(12, 20, 42, 0.65) !important;
+    border: 1px solid rgba(148, 163, 184, 0.1) !important;
+}
+#welcome-screen .welcome-btn:hover {
+    background: rgba(var(--theme-rgb), 0.09) !important;
+    border-color: rgba(var(--theme-rgb), 0.32) !important;
+}
+#welcome-screen h2 {
+    font-size: 1.45rem;
+    letter-spacing: -0.02em;
+}
+
+/* Token bar quieter */
+#total-token-bar {
+    background: rgba(8, 14, 28, 0.55) !important;
+    backdrop-filter: blur(12px);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Mobile header */
+.main-chrome-header {
+    backdrop-filter: blur(var(--blur-panel)) saturate(160%);
+    -webkit-backdrop-filter: blur(var(--blur-panel)) saturate(160%);
+}
+
+/* Fixed prompts chips */
+#fixed-prompts-bar button,
+#fixed-prompts-bar .fixed-prompt-chip {
+    border-radius: 999px !important;
+    font-size: 11px;
+    padding: 0.28rem 0.7rem;
+}
+
+/* Soften oversized shadows on primary chrome buttons inside composer */
+.composer-dock #upload-btn,
+.composer-dock #mic-btn,
+.composer-dock #mask-btn {
+    box-shadow: none !important;
+}
+
+/* Mobile density */
+@media (max-width: 640px) {
+    .composer-dock {
+        padding-top: 0.4rem !important;
+        padding-left: 0.55rem !important;
+        padding-right: 0.55rem !important;
+    }
+    .composer-chip span,
+    .composer-opt {
+        font-size: 10px;
+    }
+    #model-selector-btn {
+        max-width: min(150px, 46vw) !important;
+    }
+    .composer-input-shell {
+        border-radius: 14px;
+        padding: 0.2rem;
+    }
+    .composer-tool-btn {
+        width: 2.05rem;
+        height: 2.05rem;
+    }
+    #send-btn.composer-send-btn,
+    #send-btn {
+        width: 2.15rem !important;
+        height: 2.15rem !important;
+    }
+    #welcome-screen .welcome-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Reduce motion: keep layout, skip transform flourishes */
+@media (prefers-reduced-motion: reduce) {
+    .sidebar-icon-btn:hover,
+    #sidebar #new-chat-btn.sidebar-icon-btn:hover,
+    #welcome-screen .welcome-btn:hover {
+        transform: none !important;
+    }
+}
+
+/* Liquid glass compatibility for new shells */
+body.liquid-glass-mode .composer-input-shell {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+body.liquid-glass-mode .composer-opt {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+body.liquid-glass-mode .composer-tool-btn:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
 }

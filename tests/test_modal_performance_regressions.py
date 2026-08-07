@@ -118,7 +118,10 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("backdrop-filter: blur(var(--blur-panel)) saturate(170%)", original_sidebar)
         original_composer = source[source.index(".composer-dock,") : source.index("/* Sidebar hierarchy */")]
         self.assertIn("backdrop-filter: blur(var(--blur-panel)) saturate(170%)", original_composer)
-        self.assertIn("#prompt-input { background: rgba(8, 14, 28, 0.65); backdrop-filter: blur(12px)", source)
+        # Input shell owns the glass fill; textarea itself stays transparent.
+        self.assertIn(".composer-input-shell {", source)
+        self.assertIn("backdrop-filter: blur(14px)", source)
+        self.assertIn("#prompt-input { background: transparent;", source)
 
         cookie_bootstrap = template[template.index("const detectedCookieName = 'adaptive_blur_disabled'") :]
         cookie_bootstrap = cookie_bootstrap[: cookie_bootstrap.index("</script>")]

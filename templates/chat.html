@@ -153,34 +153,34 @@
     
     <!-- Sidebar -->
     <div id="sidebar" class="sidebar w-64 bg-gray-800 border-r border-gray-700 flex flex-col shrink-0">
-        <div class="p-3 border-b border-gray-700 flex flex-col gap-2">
+        <div class="sidebar-header p-3 border-b border-gray-700 flex flex-col gap-2.5">
             <div class="min-w-0 hide-compact">
                 <div id="sidebar-chat-temporary-label" class="hidden text-[10px] text-amber-200/50 leading-none mb-0.5 tracking-wide">一時チャット</div>
                 <div class="flex items-center gap-2 min-w-0">
-                    <h2 id="sidebar-chat-title" class="font-bold text-base text-gray-200 truncate">AI Chat</h2>
-                    <span id="sidebar-chat-ttl" class="hidden shrink-0 text-[10px] text-amber-200 border border-amber-500/40 rounded px-1.5 py-0.5 leading-none"></span>
+                    <h2 id="sidebar-chat-title" class="font-bold text-base text-gray-200 truncate tracking-tight">AI Chat</h2>
+                    <span id="sidebar-chat-ttl" class="hidden shrink-0 text-[10px] text-amber-200 border border-amber-500/40 rounded-full px-1.5 py-0.5 leading-none"></span>
                 </div>
             </div>
-            <div class="flex items-center justify-start gap-1 flex-wrap">
-                    <a href="https://github.com/Minashin1120/ai-playground" target="_blank" class="text-gray-400 hover:text-white p-1.5 btn-hover hide-compact" title="GitHub"><i class="fab fa-github"></i></a>
+            <div class="sidebar-toolbar flex items-center justify-start gap-0.5 flex-wrap">
+                    <a href="https://github.com/Minashin1120/ai-playground" target="_blank" class="sidebar-icon-btn text-gray-400 hover:text-white p-1.5 btn-hover hide-compact" title="GitHub"><i class="fab fa-github"></i></a>
                     {% if is_admin %}
-                    <button onclick="toggleDebug()" class="text-gray-400 hover:text-yellow-400 p-1.5 rounded btn-hover hide-compact" title="Debug"><i class="fas fa-wrench text-xs"></i></button>
+                    <button onclick="toggleDebug()" class="sidebar-icon-btn text-gray-400 hover:text-yellow-400 p-1.5 rounded btn-hover hide-compact" title="Debug"><i class="fas fa-wrench text-xs"></i></button>
                     {% endif %}
-                    <button onclick="location.href='{{ url_for('changelog') }}'" class="text-gray-400 hover:text-white p-1.5 rounded btn-hover hide-compact" title="更新履歴"><i class="fas fa-history text-xs"></i></button>
-                    <button onclick="location.href='{{ url_for('help_page') }}'" class="text-gray-400 hover:text-white p-1.5 rounded btn-hover hide-compact" title="ヘルプ"><i class="fas fa-circle-question text-xs"></i></button>
-                    <button id="history-modal-btn" data-progress-no-spinner="true" class="text-gray-400 hover:text-white p-1.5 rounded btn-hover" title="チャット履歴"><i class="fas fa-clock-rotate-left text-xs"></i></button>
-                    <button id="low-bandwidth-toggle-btn" data-progress-no-spinner="true" class="text-gray-400 hover:text-amber-300 p-1.5 rounded btn-hover hide-compact" title="低速回線モード（自動）"><i class="fas fa-tachometer-alt text-xs"></i></button>
-                    <button id="settings-btn" data-progress-no-spinner="true" class="text-gray-400 hover:text-green-400 p-1.5 rounded btn-hover hide-compact" title="設定"><i class="fas fa-cog text-xs"></i></button>
-                    <button id="lib-btn" data-progress-no-spinner="true" class="text-gray-400 hover:text-blue-400 p-1.5 rounded btn-hover" title="ライブラリ"><i class="fas fa-folder text-xs"></i></button>
-                    <button id="new-chat-btn" data-bot-ignore-click="true" data-progress-no-spinner="true" class="text-gray-400 hover:text-white p-1.5 rounded bg-blue-600 hover:bg-blue-500 btn-hover" title="新規チャット"><i class="fas fa-plus text-xs"></i></button>
-                    <button id="branch-manage-btn" data-progress-no-spinner="true" class="text-gray-400 hover:text-purple-400 p-1.5 rounded btn-hover" title="ブランチ管理"><i class="fas fa-sitemap text-xs"></i></button>
-                    <button onclick="exportCurrentThreadPdf()" class="text-gray-400 hover:text-red-300 p-1.5 rounded btn-hover" title="PDF出力"><i class="fas fa-file-pdf text-xs"></i></button>            </div>
-            <div class="relative hide-compact"><input type="text" id="search-box" placeholder="検索..." class="w-full bg-gray-700 rounded px-3 py-1 text-sm focus:ring-1 focus:ring-blue-500 outline-none transition"><i class="fas fa-search absolute right-3 top-1.5 text-gray-500 text-xs"></i></div>
-            <div id="low-bandwidth-status-pill" class="hidden text-[10px] text-amber-200 bg-amber-900/20 border border-amber-600/40 rounded px-2 py-1 hide-compact">
+                    <button onclick="location.href='{{ url_for('changelog') }}'" class="sidebar-icon-btn text-gray-400 hover:text-white p-1.5 rounded btn-hover hide-compact" title="更新履歴"><i class="fas fa-history text-xs"></i></button>
+                    <button onclick="location.href='{{ url_for('help_page') }}'" class="sidebar-icon-btn text-gray-400 hover:text-white p-1.5 rounded btn-hover hide-compact" title="ヘルプ"><i class="fas fa-circle-question text-xs"></i></button>
+                    <button id="history-modal-btn" data-progress-no-spinner="true" class="sidebar-icon-btn text-gray-400 hover:text-white p-1.5 rounded btn-hover" title="チャット履歴"><i class="fas fa-clock-rotate-left text-xs"></i></button>
+                    <button id="low-bandwidth-toggle-btn" data-progress-no-spinner="true" class="sidebar-icon-btn text-gray-400 hover:text-amber-300 p-1.5 rounded btn-hover hide-compact" title="低速回線モード（自動）"><i class="fas fa-tachometer-alt text-xs"></i></button>
+                    <button id="settings-btn" data-progress-no-spinner="true" class="sidebar-icon-btn text-gray-400 hover:text-green-400 p-1.5 rounded btn-hover hide-compact" title="設定"><i class="fas fa-cog text-xs"></i></button>
+                    <button id="lib-btn" data-progress-no-spinner="true" class="sidebar-icon-btn text-gray-400 hover:text-blue-400 p-1.5 rounded btn-hover" title="ライブラリ"><i class="fas fa-folder text-xs"></i></button>
+                    <button id="new-chat-btn" data-bot-ignore-click="true" data-progress-no-spinner="true" class="sidebar-icon-btn text-gray-400 hover:text-white p-1.5 rounded bg-blue-600 hover:bg-blue-500 btn-hover" title="新規チャット"><i class="fas fa-plus text-xs"></i></button>
+                    <button id="branch-manage-btn" data-progress-no-spinner="true" class="sidebar-icon-btn text-gray-400 hover:text-purple-400 p-1.5 rounded btn-hover" title="ブランチ管理"><i class="fas fa-sitemap text-xs"></i></button>
+                    <button onclick="exportCurrentThreadPdf()" class="sidebar-icon-btn text-gray-400 hover:text-red-300 p-1.5 rounded btn-hover" title="PDF出力"><i class="fas fa-file-pdf text-xs"></i></button>            </div>
+            <div class="relative hide-compact sidebar-search"><input type="text" id="search-box" placeholder="チャットを検索..." class="w-full bg-gray-700 rounded-lg px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none transition"><i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs pointer-events-none"></i></div>
+            <div id="low-bandwidth-status-pill" class="hidden text-[10px] text-amber-200 bg-amber-900/20 border border-amber-600/40 rounded-full px-2.5 py-1 hide-compact">
                 <i class="fas fa-wifi mr-1"></i>低速回線モード
             </div>
         </div>
-        <div class="px-2 py-2 hide-compact"><div class="flex justify-between items-center px-2 mb-1"><span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Gems</span><button id="add-gem-btn" data-progress-no-spinner="true" class="text-xs text-blue-400 hover:text-blue-300 btn-hover"><i class="fas fa-plus"></i> New</button></div><div id="gem-list" class="space-y-1 overflow-y-auto max-h-40">
+        <div class="sidebar-gems px-2.5 py-2 hide-compact"><div class="flex justify-between items-center px-1.5 mb-1.5"><span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Gems</span><button id="add-gem-btn" data-progress-no-spinner="true" class="text-xs text-blue-400 hover:text-blue-300 btn-hover"><i class="fas fa-plus"></i> New</button></div><div id="gem-list" class="space-y-1 overflow-y-auto max-h-40">
             <!-- Pull-to-refresh indicator -->
             <div id="gem-pull-indicator" class="ptr-pull-indicator" aria-hidden="true">
                 <i class="fas fa-arrow-down ptr-pull-icon"></i>
@@ -188,8 +188,8 @@
                 <span class="ptr-pull-label"></span>
             </div>
         </div></div>
-        <div class="border-t border-gray-700 my-1 hide-compact"></div>
-        <div class="flex-1 overflow-y-auto p-2 space-y-1 hide-compact" id="thread-list">
+        <div class="sidebar-divider border-t border-gray-700 mx-2 my-0.5 hide-compact"></div>
+        <div class="flex-1 overflow-y-auto p-2 space-y-0.5 hide-compact" id="thread-list">
             <!-- Pull-to-refresh indicator -->
             <div id="thread-pull-indicator" class="ptr-pull-indicator" aria-hidden="true">
                 <i class="fas fa-arrow-down ptr-pull-icon"></i>
@@ -199,12 +199,12 @@
             <!-- Threads loaded dynamically -->
             <div id="scroll-sentinel"></div>
         </div>
-        <div class="p-3 safe-pb border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500 relative">
+        <div class="sidebar-footer p-3 safe-pb border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500 relative">
             <div id="version-display" class="cursor-pointer hover:text-green-400 transition hide-compact" onclick="showAlphaInfo()">{{ system_version }} <span class="text-green-500 font-bold">Stable</span></div>
-            <div class="flex justify-center gap-3 hide-compact"><a href="{{ url_for('help_page') }}" class="hover:text-blue-400">ヘルプ</a><span class="text-gray-700">|</span><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div>
+            <div class="sidebar-legal flex justify-center gap-2.5 hide-compact"><a href="{{ url_for('help_page') }}" class="hover:text-blue-400">ヘルプ</a><span class="text-gray-700">·</span><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">·</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div>
             <form method="POST" action="{{ url_for('logout') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="w-full block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover hide-compact">ログアウト</button>
+                <button type="submit" class="w-full block bg-gray-700 hover:bg-gray-600 py-2 rounded-lg btn-hover hide-compact sidebar-logout-btn">ログアウト</button>
             </form>
             <button id="sidebar-toggle-btn" class="absolute bottom-2 right-2 text-gray-500 hover:text-white transition-all toggle-compact-btn" title="サイドバー切替">
                 <i class="fas fa-chevron-left" id="sidebar-toggle-icon"></i>
@@ -215,7 +215,7 @@
 
     <!-- Main Content -->
     <div class="flex-1 flex flex-col w-full relative min-w-0">
-        <header class="bg-gray-800 border-b border-gray-700 p-3 shadow-md flex justify-between items-center gap-2 shrink-0 md:hidden"><button id="menu-btn" class="text-gray-300 p-2 shrink-0"><i class="fas fa-bars text-xl"></i></button><div class="min-w-0 flex-1"><div id="mobile-chat-temporary-label" class="hidden text-[9px] text-amber-200/50 leading-none mb-0.5">一時チャット</div><div class="flex items-center gap-1.5 min-w-0"><span id="mobile-chat-title" class="font-bold text-sm truncate">AI Playground</span><span id="mobile-chat-ttl" class="hidden shrink-0 text-[9px] text-amber-200 border border-amber-500/40 rounded px-1 py-0.5 leading-none"></span></div></div><div class="flex items-center shrink-0"><button id="mobile-new-chat-btn" data-bot-ignore-click="true" class="text-blue-400 font-bold text-xl p-2">+</button><button onclick="exportCurrentThreadPdf()" class="text-gray-400 hover:text-red-300 p-2 rounded btn-hover" title="PDF出力"><i class="fas fa-file-pdf text-xs"></i></button></div></header>
+        <header class="main-chrome-header bg-gray-800 border-b border-gray-700 px-3 py-2.5 shadow-md flex justify-between items-center gap-2 shrink-0 md:hidden"><button id="menu-btn" class="text-gray-300 p-2 shrink-0"><i class="fas fa-bars text-xl"></i></button><div class="min-w-0 flex-1"><div id="mobile-chat-temporary-label" class="hidden text-[9px] text-amber-200/50 leading-none mb-0.5">一時チャット</div><div class="flex items-center gap-1.5 min-w-0"><span id="mobile-chat-title" class="font-bold text-sm truncate">AI Playground</span><span id="mobile-chat-ttl" class="hidden shrink-0 text-[9px] text-amber-200 border border-amber-500/40 rounded px-1 py-0.5 leading-none"></span></div></div><div class="flex items-center shrink-0"><button id="mobile-new-chat-btn" data-bot-ignore-click="true" class="text-blue-400 font-bold text-xl p-2">+</button><button onclick="exportCurrentThreadPdf()" class="text-gray-400 hover:text-red-300 p-2 rounded btn-hover" title="PDF出力"><i class="fas fa-file-pdf text-xs"></i></button></div></header>
         {% if easy_login_used %}
         <div class="bg-red-900/30 border-b border-red-700 text-red-200 text-xs px-4 py-2 flex items-center gap-2">
             <i class="fas fa-exclamation-triangle"></i>
@@ -232,11 +232,12 @@
         <div class="flex-1 overflow-hidden relative">
             <div id="conversation-stage" class="h-full w-full flex min-w-0">
                 <div id="chat-stage" class="relative flex-1 min-w-0 overflow-hidden">
-                    <div id="chat-container" class="absolute inset-0 overflow-y-auto p-4 space-y-6"></div>
-                    <div id="welcome-screen" class="absolute inset-0 flex flex-col items-center justify-center text-gray-500 space-y-4 z-10 fade-in">
-                        <div id="welcome-default-content" class="flex flex-col items-center justify-center space-y-4 w-full">
-                            <h2 class="text-2xl font-bold flex items-center gap-2 slide-in-animate opacity-0" style="animation-delay: 0.05s"><i class="fas fa-gem"></i> AI Gems & Chat</h2>
-                            <div class="grid grid-cols-1 gap-2 w-full max-w-md px-4">
+                    <div id="chat-container" class="absolute inset-0 overflow-y-auto px-4 py-5 sm:px-6 space-y-5"></div>
+                    <div id="welcome-screen" class="absolute inset-0 flex flex-col items-center justify-center text-gray-500 space-y-5 z-10 fade-in">
+                        <div id="welcome-default-content" class="flex flex-col items-center justify-center space-y-5 w-full">
+                            <h2 class="text-2xl font-bold flex items-center gap-2.5 slide-in-animate opacity-0 tracking-tight" style="animation-delay: 0.05s"><i class="fas fa-gem"></i> AI Gems & Chat</h2>
+                            <p class="welcome-subtitle text-sm text-gray-400/90 slide-in-animate opacity-0 -mt-2" style="animation-delay: 0.07s">モデルを選んで会話を始めましょう</p>
+                            <div class="welcome-grid grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl px-4">
                                 <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.1s" onclick="quickStart('gemini-3.6-flash')">⚡ Gemini 3.6 Flash</button>
                                 <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.11s" onclick="quickStart('gemini-3.5-flash-lite')">🚀 Gemini 3.5 Flash-Lite</button>
                                 <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.12s" onclick="quickStart('gemini-3.1-flash-lite')">💨 Gemini 3.1 Flash-Lite</button>
@@ -317,8 +318,8 @@
             </div>
         </div>
 
-        <div class="composer-dock bg-gray-800 border-t border-gray-700 p-3 safe-pb shrink-0 z-10">
-            <div class="max-w-3xl mx-auto space-y-2 relative">
+        <div class="composer-dock bg-gray-800 border-t border-gray-700 px-3 pt-2 pb-2.5 safe-pb shrink-0 z-10">
+            <div class="composer-shell max-w-3xl mx-auto space-y-1.5 relative">
                 <!-- Quote Bar -->
                 <div id="quote-bar" class="pointer-events-auto">
                     <div class="flex items-center gap-2 overflow-hidden flex-1">
@@ -347,40 +348,40 @@
                     <button id="cancel-edit-btn" class="text-gray-400 hover:text-white">キャンセル</button>
                 </div>
 
-                <div id="prompt-controls-row" class="flex flex-wrap justify-between items-center text-xs text-gray-400 gap-2">
-                    <div id="prompt-primary-controls" class="flex items-center gap-2 min-w-0">
+                <div id="prompt-controls-row" class="composer-controls flex flex-wrap items-center text-xs text-gray-400 gap-1.5">
+                    <div id="prompt-primary-controls" class="flex items-center gap-1.5 min-w-0 flex-wrap">
                         <input type="hidden" id="model-select" value="gemini-3.6-flash">
-                        <button id="model-selector-btn" onclick="openModelModal()" class="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-white text-xs hover:bg-gray-600 transition flex items-center gap-2 max-w-[200px] truncate">
+                        <button id="model-selector-btn" onclick="openModelModal()" class="bg-gray-700 border border-gray-600 rounded-full px-2.5 py-1 text-white text-xs hover:bg-gray-600 transition flex items-center gap-1.5 max-w-[180px] truncate">
                             <i class="fas fa-robot text-blue-400"></i>
                             <span id="model-selector-text">Gemini 3.6 Flash</span>
                             <i class="fas fa-chevron-down text-[10px] text-gray-400 ml-auto"></i>
                         </button>
-                        <label id="canvas-mode-container" class="flex items-center gap-1 cursor-pointer select-none px-2 py-1 rounded border border-cyan-500/30 bg-cyan-900/15 text-cyan-200" title="コードブロックを右側のCanvasでプレビューします">
+                        <label id="canvas-mode-container" class="composer-chip flex items-center gap-1 cursor-pointer select-none px-2 py-0.5 rounded-full border border-cyan-500/30 bg-cyan-900/15 text-cyan-200" title="コードブロックを右側のCanvasでプレビューします">
                             <input type="checkbox" id="enable-canvas-mode" class="accent-cyan-400 w-3 h-3">
                             <span>Canvas</span>
                         </label>
-                        <label id="coding-mode-container" class="flex items-center gap-1 cursor-pointer select-none px-2 py-1 rounded border border-emerald-500/30 bg-emerald-900/15 text-emerald-200" title="既存コードの変更行だけをモデルに生成させ、完成コードへ安全に反映します">
+                        <label id="coding-mode-container" class="composer-chip flex items-center gap-1 cursor-pointer select-none px-2 py-0.5 rounded-full border border-emerald-500/30 bg-emerald-900/15 text-emerald-200" title="既存コードの変更行だけをモデルに生成させ、完成コードへ安全に反映します">
                             <input type="checkbox" id="enable-coding-mode" class="accent-emerald-400 w-3 h-3">
                             <span>Coding</span>
                         </label>
-                        <label id="browser-fast-mode-container" class="flex items-center gap-1 cursor-pointer select-none px-2 py-1 rounded border border-amber-500/40 bg-amber-900/20 text-amber-200" title="新規Geminiチャットをブラウザから直接送信します">
+                        <label id="browser-fast-mode-container" class="composer-chip flex items-center gap-1 cursor-pointer select-none px-2 py-0.5 rounded-full border border-amber-500/40 bg-amber-900/20 text-amber-200" title="新規Geminiチャットをブラウザから直接送信します">
                             <input type="checkbox" id="enable-browser-fast-mode" class="accent-amber-400 w-3 h-3">
                             <span>高速</span>
                         </label>
-                        <button id="prompt-controls-toggle-btn" type="button" aria-expanded="false" class="hidden bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-gray-200 hover:bg-gray-600 transition items-center gap-1 btn-hover" title="詳細設定を表示/非表示">
+                        <button id="prompt-controls-toggle-btn" type="button" aria-expanded="false" class="hidden bg-gray-700 border border-gray-600 rounded-full px-2 py-0.5 text-[10px] text-gray-200 hover:bg-gray-600 transition items-center gap-1 btn-hover" title="詳細設定を表示/非表示">
                             <span id="prompt-controls-toggle-text">詳細</span>
                             <i id="prompt-controls-toggle-icon" class="fas fa-chevron-down text-[10px]"></i>
                         </button>
                     </div>
                     <div id="prompt-details-controls">
-                        <div class="prompt-details-inner flex items-center gap-2 flex-wrap min-w-0">
-                        <div id="standard-chat-controls" class="flex gap-3 items-center flex-wrap">
-                        <label id="search-container" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label>
-                        <label id="url-context-container" class="flex items-center space-x-1 cursor-pointer select-none hidden"><input type="checkbox" id="enable-url-context" class="accent-indigo-500 w-3 h-3"><span>URLs</span></label>
-                        <label id="maps-grounding-container" class="flex items-center space-x-1 cursor-pointer select-none hidden" title="Gemini 3系で利用可能"><input type="checkbox" id="enable-maps" class="accent-emerald-500 w-3 h-3"><span>Maps</span></label>
-                        <label id="python-container" class="flex items-center space-x-1 cursor-pointer select-none"><input type="checkbox" id="enable-python" class="accent-yellow-500 w-3 h-3" checked><span class="text-yellow-200">Python</span></label>
-                        <div id="sys-prompt-option" class="flex items-center gap-0.5 select-none">
-                            <label class="flex items-center space-x-1 cursor-pointer">
+                        <div class="prompt-details-inner flex items-center gap-1 flex-wrap min-w-0">
+                        <div id="standard-chat-controls" class="composer-detail-chips flex gap-1 items-center flex-wrap">
+                        <label id="search-container" class="composer-opt flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="enable-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label>
+                        <label id="url-context-container" class="composer-opt flex items-center gap-1 cursor-pointer select-none hidden"><input type="checkbox" id="enable-url-context" class="accent-indigo-500 w-3 h-3"><span>URLs</span></label>
+                        <label id="maps-grounding-container" class="composer-opt flex items-center gap-1 cursor-pointer select-none hidden" title="Gemini 3系で利用可能"><input type="checkbox" id="enable-maps" class="accent-emerald-500 w-3 h-3"><span>Maps</span></label>
+                        <label id="python-container" class="composer-opt flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="enable-python" class="accent-yellow-500 w-3 h-3" checked><span class="text-yellow-200">Python</span></label>
+                        <div id="sys-prompt-option" class="composer-opt flex items-center gap-0.5 select-none">
+                            <label class="flex items-center gap-1 cursor-pointer">
                                 <input type="checkbox" id="enable-sys-prompt" class="accent-green-500 w-3 h-3">
                                 <span class="text-green-300">SysPrompt</span>
                             </label>
@@ -388,8 +389,8 @@
                                 <i class="fas fa-cog text-[10px]"></i>
                             </button>
                         </div>
-                        <div id="thinking-options" class="flex items-center gap-2 hidden">
-                            <label class="flex items-center space-x-1 cursor-pointer select-none">
+                        <div id="thinking-options" class="composer-opt composer-opt-group flex items-center gap-1.5 hidden">
+                            <label class="flex items-center gap-1 cursor-pointer select-none">
                                 <input type="checkbox" id="enable-thinking" class="accent-purple-500 w-3 h-3">
                                 <span class="text-purple-300">Thinking</span>
                             </label>
@@ -402,15 +403,15 @@
                             <label class="text-[10px] text-purple-300/80">Budget</label>
                             <input id="thinking-budget" type="number" min="0" max="32768" step="256" value="4096" class="w-20 bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-[10px] text-white outline-none" title="Gemini 2.5のみ有効（tokens）">
                         </div>
-                        <div id="reasoning-effort-container" class="hidden flex items-center gap-1"><span class="text-gray-400">Effort:</span><select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="none">None</option><option value="low">Low</option><option value="medium" selected>Med</option><option value="high">High</option><option value="xhigh">XHigh</option><option value="max">Max</option></select></div>
-                        <div class="flex items-center gap-1 border-l border-gray-600 pl-2 ml-2"><span class="text-gray-400">Safety:</span><select id="safety-setting" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="default">Default</option><option value="none" class="text-red-300">None</option></select></div>
-                        <div id="prompt-cache-container" class="flex items-center gap-0.5 select-none ml-2">
+                        <div id="reasoning-effort-container" class="composer-opt composer-opt-group hidden flex items-center gap-1"><span class="text-gray-400">Effort:</span><select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="none">None</option><option value="low">Low</option><option value="medium" selected>Med</option><option value="high">High</option><option value="xhigh">XHigh</option><option value="max">Max</option></select></div>
+                        <div class="composer-opt composer-opt-group flex items-center gap-1"><span class="text-gray-400">Safety:</span><select id="safety-setting" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="default">Default</option><option value="none" class="text-red-300">None</option></select></div>
+                        <div id="prompt-cache-container" class="composer-opt flex items-center gap-0.5 select-none">
                             <label class="flex items-center gap-1 cursor-pointer" title="プロンプトキャッシュを有効化（同一APIプロバイダ内のモデルのみ切替可）">
                                 <input type="checkbox" id="enable-prompt-cache" class="accent-teal-500 w-3 h-3">
                                 <span class="text-teal-300 text-[10px]">PromptCache</span>
                             </label>
                         </div>
-                        <div class="flex items-center gap-0.5 select-none ml-2">
+                        <div class="composer-opt flex items-center gap-0.5 select-none">
                             <label class="flex items-center gap-1 cursor-pointer" title="Client-side Compression">
                                 <input type="checkbox" id="enable-compression" class="accent-blue-500 w-3 h-3" checked>
                                 <span class="text-gray-400 text-[10px]">Compress</span>
@@ -420,8 +421,8 @@
                             </button>
                         </div>
                         </div>
-                        <div id="temporary-chat-controls" class="flex items-center gap-2 ml-1">
-                            <label id="temporary-chat-container" class="flex items-center gap-1 cursor-pointer select-none" title="切断後にこのチャットとアップロード添付を自動削除"><input type="checkbox" id="enable-temporary-chat" class="accent-amber-500 w-3 h-3"><span class="text-amber-300 text-[10px]">一時チャット</span></label>
+                        <div id="temporary-chat-controls" class="flex items-center gap-1">
+                            <label id="temporary-chat-container" class="composer-opt flex items-center gap-1 cursor-pointer select-none" title="切断後にこのチャットとアップロード添付を自動削除"><input type="checkbox" id="enable-temporary-chat" class="accent-amber-500 w-3 h-3"><span class="text-amber-300 text-[10px]">一時チャット</span></label>
                             <button type="button" onclick="openTemporaryChatSettings()" class="text-[10px] text-amber-300 hover:text-amber-200 border border-amber-500/40 rounded px-1.5 py-0.5 transition btn-hover" title="一時チャット設定を開く">
                                 設定
                             </button>
@@ -653,7 +654,7 @@
                     <button id="slash-command-cancel-btn" class="ml-auto hover:text-white px-2 text-purple-300" title="キャンセル (Esc)">×</button>
                 </div>
                 <div id="chat-upload-status" class="hidden mb-2 p-2 bg-gray-800/80 rounded-lg border border-gray-700 backdrop-blur-sm animate-fadeIn"></div>
-                <div id="input-row" class="flex gap-2 items-end"><input type="file" id="file-input" class="hidden" multiple><input type="file" id="photo-input" class="hidden" accept="image/*,video/*" multiple><input type="file" id="mask-input" class="hidden" accept="image/*"><button id="upload-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="rich-paste-btn" data-progress-no-spinner="true" class="bg-amber-600 hover:bg-amber-500 p-3 rounded-lg text-white transition shrink-0 btn-hover" title="リッチ貼り付け → PDF化"><i class="fas fa-paste"></i></button><button id="mask-btn" data-progress-no-spinner="true" class="hidden bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Mask (GPT-Image)"><i class="fas fa-mask"></i></button><button id="mic-btn" data-progress-no-spinner="true" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-gray-700 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 46px; max-height: 150px;"></textarea><button id="send-btn" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg text-white font-bold disabled:opacity-50 transition shadow-lg w-12 flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div>
+                <div id="input-row" class="composer-input-row flex gap-1.5 items-end"><input type="file" id="file-input" class="hidden" multiple><input type="file" id="photo-input" class="hidden" accept="image/*,video/*" multiple><input type="file" id="mask-input" class="hidden" accept="image/*"><div class="composer-input-shell flex flex-1 items-end gap-1 min-w-0"><button id="upload-btn" data-progress-no-spinner="true" class="composer-tool-btn bg-gray-700 hover:bg-gray-600 p-2.5 rounded-xl text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="rich-paste-btn" data-progress-no-spinner="true" class="composer-tool-btn bg-amber-600 hover:bg-amber-500 p-2.5 rounded-xl text-white transition shrink-0 btn-hover" title="リッチ貼り付け → PDF化"><i class="fas fa-paste"></i></button><button id="mask-btn" data-progress-no-spinner="true" class="composer-tool-btn hidden bg-gray-700 hover:bg-gray-600 p-2.5 rounded-xl text-gray-300 transition shrink-0 btn-hover" title="Mask (GPT-Image)"><i class="fas fa-mask"></i></button><button id="mic-btn" data-progress-no-spinner="true" class="composer-tool-btn bg-gray-700 hover:bg-gray-600 p-2.5 rounded-xl text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-transparent border-none rounded-xl px-2.5 py-2.5 focus:ring-0 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 42px; max-height: 150px;"></textarea><button id="send-btn" class="composer-send-btn bg-blue-600 hover:bg-blue-500 p-2.5 rounded-xl text-white font-bold disabled:opacity-50 transition shadow-lg w-11 h-[42px] flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div></div>
                 <div id="mic-recording-indicator" class="hidden mt-1 px-1 flex items-center gap-2 text-[11px] text-red-300">
                     <span id="mic-recording-text" class="shrink-0">録音中…</span>
                     <div id="mic-waveform" class="h-4 w-28 sm:w-36 flex items-end rounded border px-1 overflow-hidden" style="gap: 2px; padding-top: 2px; padding-bottom: 2px; background: rgba(69, 10, 10, 0.25); border-color: rgba(185, 28, 28, 0.3);" aria-hidden="true"></div>

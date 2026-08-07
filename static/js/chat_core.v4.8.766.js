@@ -5745,9 +5745,9 @@
                 icon: "fas fa-star text-yellow-400",
                 description: "Google's latest multimodal models",
                 items: [
-                    { id: "gemini-3.6-flash", name: "Gemini 3.6 Flash", desc: "Latest Flash model for agentic, coding, and multimodal tasks.", price: "In $1.50/1M, Out $7.50/1M", agenticView: true },
-                    { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash", desc: "Most intelligent Gemini 3.5 model built for speed.", price: "In $1.50/1M, Out $9.00/1M", agenticView: true },
-                    { id: "gemini-3.5-flash-lite", name: "Gemini 3.5 Flash-Lite", desc: "Fastest, lowest-cost Gemini 3.5 model for high-throughput execution.", price: "In $0.30/1M, Out $2.50/1M", agenticView: true },
+                    { id: "gemini-3.6-flash", implementedAt: "2026-07-30", implementedRank: 6411, quickEmoji: "⚡", name: "Gemini 3.6 Flash", desc: "Latest Flash model for agentic, coding, and multimodal tasks.", price: "In $1.50/1M, Out $7.50/1M", agenticView: true },
+                    { id: "gemini-3.5-flash", implementedAt: "2026-06-13", implementedRank: 5900, quickEmoji: "✨", name: "Gemini 3.5 Flash", desc: "Most intelligent Gemini 3.5 model built for speed.", price: "In $1.50/1M, Out $9.00/1M", agenticView: true },
+                    { id: "gemini-3.5-flash-lite", implementedAt: "2026-07-30", implementedRank: 6410, quickEmoji: "🚀", name: "Gemini 3.5 Flash-Lite", desc: "Fastest, lowest-cost Gemini 3.5 model for high-throughput execution.", price: "In $0.30/1M, Out $2.50/1M", agenticView: true },
                 ]
             },
             {
@@ -5755,11 +5755,11 @@
                 icon: "fas fa-star text-yellow-400",
                 description: "Previous Gemini 3.x generation models",
                 items: [
-                    { id: "gemini-3.1-flash-lite", name: "Gemini 3.1 Flash-Lite", desc: "Stable, cost-efficient model for high-volume lightweight tasks.", price: "In $0.25/1M, Out $1.50/1M", agenticView: true },
-                    { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro", desc: "Next-gen native multimodal model.", price: "In $2.00/1M, Out $12.00/1M (≤200k)" },
-                    { id: "gemini-3.1-flash-lite-preview", name: "Gemini 3.1 Flash-Lite Preview", desc: "Retired preview model retained for chat history compatibility.", price: "In $0.25/1M, Out $1.50/1M", deprecated: true },
-                    { id: "gemini-3-flash-preview", name: "Gemini 3.0 Flash", desc: "Fastest and most cost-efficient.", price: "In $0.50/1M, Out $3.00/1M" },
-                    { id: "gemini-3-pro-preview", name: "Gemini 3.0 Pro", desc: "Best performing model for complex tasks.", price: "In $2.00/1M, Out $12.00/1M (≤200k)" }
+                    { id: "gemini-3.1-flash-lite", implementedAt: "2026-07-30", implementedRank: 6440, quickEmoji: "💨", name: "Gemini 3.1 Flash-Lite", desc: "Stable, cost-efficient model for high-volume lightweight tasks.", price: "In $0.25/1M, Out $1.50/1M", agenticView: true },
+                    { id: "gemini-3.1-pro-preview", implementedAt: "2026-02-20", implementedRank: 2430, name: "Gemini 3.1 Pro", desc: "Next-gen native multimodal model.", price: "In $2.00/1M, Out $12.00/1M (≤200k)" },
+                    { id: "gemini-3.1-flash-lite-preview", implementedAt: "2026-03-04", implementedRank: 3000, name: "Gemini 3.1 Flash-Lite Preview", desc: "Retired preview model retained for chat history compatibility.", price: "In $0.25/1M, Out $1.50/1M", deprecated: true },
+                    { id: "gemini-3-flash-preview", implementedAt: "2026-06-13", implementedRank: 5930, name: "Gemini 3.0 Flash", desc: "Fastest and most cost-efficient.", price: "In $0.50/1M, Out $3.00/1M" },
+                    { id: "gemini-3-pro-preview", implementedAt: "2026-01-15", implementedRank: 100, name: "Gemini 3.0 Pro", desc: "Best performing model for complex tasks.", price: "In $2.00/1M, Out $12.00/1M (≤200k)" }
                 ]
             },
             {
@@ -5767,8 +5767,8 @@
                 icon: "fas fa-history text-gray-400",
                 description: "Gemini 2.5 generation models",
                 items: [
-                    { id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash-Lite", desc: "Fastest and most cost-efficient Gemini 2.5 model.", price: "In $0.10/1M, Out $0.40/1M" },
-                    { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", desc: "Balanced performance.", price: "In $0.30/1M, Out $2.50/1M" }
+                    { id: "gemini-2.5-flash-lite", implementedAt: "2026-02-07", implementedRank: 1530, name: "Gemini 2.5 Flash-Lite", desc: "Fastest and most cost-efficient Gemini 2.5 model.", price: "In $0.10/1M, Out $0.40/1M" },
+                    { id: "gemini-2.5-flash", implementedAt: "2026-02-07", implementedRank: 1531, name: "Gemini 2.5 Flash", desc: "Balanced performance.", price: "In $0.30/1M, Out $2.50/1M" }
                 ]
             },
             {
@@ -5776,10 +5776,10 @@
                 icon: "fas fa-image text-pink-400",
                 description: "Gemini image generation models",
                 items: [
-                    { id: "gemini-2.5-flash-image", name: "Nano Banana", desc: "Fast image generation.", price: "In $0.30/1M, Out $0.039/image" },
-                    { id: "gemini-3.1-flash-image-preview", name: "Nano Banana 2", desc: "Fast image generation with Gemini 3.1 Flash Image.", price: "In $0.50/1M, Out $0.067/1K image ($60/1M img tokens)" },
-                    { id: "gemini-3.1-flash-lite-image", name: "Nano Banana 2 Lite", desc: "Low-latency Gemini image generation and editing with 1K output.", price: "In $0.25/1M; Text/Thinking Out $1.50/1M; Image Out $30/1M ($0.0336/1K image)" },
-                    { id: "gemini-3-pro-image-preview", name: "Nano Banana Pro", desc: "High quality image generation.", price: "In $2.00/1M, Out $0.134 (1K/2K) or $0.24 (4K)" }
+                    { id: "gemini-2.5-flash-image", implementedAt: "2026-01-20", implementedRank: 120, quickEmoji: "🍌", name: "Nano Banana", desc: "Fast image generation.", price: "In $0.30/1M, Out $0.039/image" },
+                    { id: "gemini-3.1-flash-image-preview", implementedAt: "2026-02-26", implementedRank: 2860, quickEmoji: "🍌", name: "Nano Banana 2", desc: "Fast image generation with Gemini 3.1 Flash Image.", price: "In $0.50/1M, Out $0.067/1K image ($60/1M img tokens)" },
+                    { id: "gemini-3.1-flash-lite-image", implementedAt: "2026-07-01", implementedRank: 6020, quickEmoji: "🍌", name: "Nano Banana 2 Lite", desc: "Low-latency Gemini image generation and editing with 1K output.", price: "In $0.25/1M; Text/Thinking Out $1.50/1M; Image Out $30/1M ($0.0336/1K image)" },
+                    { id: "gemini-3-pro-image-preview", implementedAt: "2026-01-25", implementedRank: 130, name: "Nano Banana Pro", desc: "High quality image generation.", price: "In $2.00/1M, Out $0.134 (1K/2K) or $0.24 (4K)" }
                 ]
             },
             {
@@ -5787,10 +5787,10 @@
                 icon: "fas fa-paint-brush text-purple-400",
                 description: "GPT Image models",
                 items: [
-                    { id: "gpt-image-2", name: "GPT Image 2", desc: "State-of-the-art image generation and editing.", price: "Text In $5/1M; Image In $8/1M; Image Out $30/1M" },
-                    { id: "gpt-image-1.5", name: "GPT Image 1.5", desc: "Previous-generation flagship image model.", price: "Text In $5/1M, Text Out $10/1M; Image Out $32/1M" },
-                    { id: "gpt-image-1", name: "GPT Image 1", desc: "Standard quality.", price: "Text In $5/1M; Image Out $40/1M" },
-                    { id: "gpt-image-1-mini", name: "GPT Image 1 Mini", desc: "Faster, lower resolution.", price: "Text In $2/1M; Image In $2.50/1M; Image Out $8/1M" }
+                    { id: "gpt-image-2", implementedAt: "2026-04-30", implementedRank: 4680, name: "GPT Image 2", desc: "State-of-the-art image generation and editing.", price: "Text In $5/1M; Image In $8/1M; Image Out $30/1M" },
+                    { id: "gpt-image-1.5", implementedAt: "2026-03-13", implementedRank: 3410, name: "GPT Image 1.5", desc: "Previous-generation flagship image model.", price: "Text In $5/1M, Text Out $10/1M; Image Out $32/1M" },
+                    { id: "gpt-image-1", implementedAt: "2026-03-13", implementedRank: 3411, name: "GPT Image 1", desc: "Standard quality.", price: "Text In $5/1M; Image Out $40/1M" },
+                    { id: "gpt-image-1-mini", implementedAt: "2026-03-13", implementedRank: 3412, name: "GPT Image 1 Mini", desc: "Faster, lower resolution.", price: "Text In $2/1M; Image In $2.50/1M; Image Out $8/1M" }
                 ]
             },
             {
@@ -5798,23 +5798,23 @@
                 icon: "fas fa-brain text-green-400",
                 description: "OpenAI's flagship models",
                 items: [
-                    { id: "gpt-5.6-sol", name: "GPT-5.6 Sol", desc: "Frontier reasoning model for complex professional work with 1.05M context.", price: "In $5.00/1M, Cached $0.50/1M, Out $30.00/1M (over 272K: In $10.00, Out $45.00)" },
-                    { id: "gpt-5.6-terra", name: "GPT-5.6 Terra", desc: "Balanced intelligence and cost for everyday work with 1.05M context.", price: "In $2.00/1M, Cached $0.20/1M, Out $12.00/1M (over 272K: In $4.00, Out $18.00)" },
-                    { id: "gpt-5.6-luna", name: "GPT-5.6 Luna", desc: "Cost-efficient model for high-volume workloads with 1.05M context.", price: "In $0.20/1M, Cached $0.02/1M, Out $1.20/1M (over 272K: In $0.40, Out $1.80)" },
-                    { id: "gpt-4o", name: "GPT-4o", desc: "Multimodal flagship model.", price: "In $2.50/1M, Out $10.00/1M" },
-                    { id: "gpt-4o-mini", name: "GPT-4o mini", desc: "Fast, low-cost model.", price: "In $0.15/1M, Out $0.60/1M" },
-                    { id: "gpt-5.5", name: "GPT-5.5", desc: "Experimental OpenAI model ID for accounts with access.", price: "In $5.00/1M, Out $30.00/1M" },
-                    { id: "gpt-5.5-mini", name: "GPT-5.5 mini", desc: "Smaller and more cost-efficient GPT-5.5 tier.", price: "Pricing not publicly listed" },
-                    { id: "gpt-5.5-nano", name: "GPT-5.5 nano", desc: "Smallest and fastest GPT-5.5 tier.", price: "Pricing not publicly listed" },
-                    { id: "gpt-5.5-pro", name: "GPT-5.5 Pro", desc: "Higher-capacity GPT-5.5 tier for accounts with access.", price: "In $30.00/1M, Out $180.00/1M" },
-                    { id: "gpt-5.4", name: "GPT-5.4", desc: "Experimental OpenAI model ID for accounts with access.", price: "In $2.50/1M, Out $15.00/1M" },
-                    { id: "gpt-5.4-mini", name: "GPT-5.4 mini", desc: "Smaller and more cost-efficient GPT-5.4 tier.", price: "In $0.75/1M, Out $4.50/1M" },
-                    { id: "gpt-5.4-nano", name: "GPT-5.4 nano", desc: "Smallest and fastest GPT-5.4 tier.", price: "In $0.20/1M, Out $1.25/1M" },
-                    { id: "gpt-5.4-pro", name: "GPT-5.4 Pro", desc: "Higher-capacity GPT-5.4 tier for accounts with access.", price: "In $30.00/1M, Out $180.00/1M" },
-                    { id: "gpt-5.2", name: "GPT-5.2 (Responses API)", desc: "Most capable reasoning model.", price: "In $1.75/1M, Out $14.00/1M" },
-                    { id: "gpt-5-search-api", name: "GPT-5 Search (API)", desc: "Search-optimized model (Chat Completions).", price: "Model rates + Web search $10/1k calls" },
-                    { id: "gpt-5.1", name: "GPT-5.1", desc: "High intelligence.", price: "In $1.25/1M, Out $10.00/1M" },
-                    { id: "gpt-5-mini", name: "GPT-5 mini", desc: "Small and efficient.", price: "In $0.25/1M, Out $2.00/1M" }
+                    { id: "gpt-5.6-sol", implementedAt: "2026-07-31", implementedRank: 6550, quickEmoji: "☀️", name: "GPT-5.6 Sol", desc: "Frontier reasoning model for complex professional work with 1.05M context.", price: "In $5.00/1M, Cached $0.50/1M, Out $30.00/1M (over 272K: In $10.00, Out $45.00)" },
+                    { id: "gpt-5.6-terra", implementedAt: "2026-07-31", implementedRank: 6560, quickEmoji: "🌍", name: "GPT-5.6 Terra", desc: "Balanced intelligence and cost for everyday work with 1.05M context.", price: "In $2.00/1M, Cached $0.20/1M, Out $12.00/1M (over 272K: In $4.00, Out $18.00)" },
+                    { id: "gpt-5.6-luna", implementedAt: "2026-07-31", implementedRank: 6561, quickEmoji: "🌙", name: "GPT-5.6 Luna", desc: "Cost-efficient model for high-volume workloads with 1.05M context.", price: "In $0.20/1M, Cached $0.02/1M, Out $1.20/1M (over 272K: In $0.40, Out $1.80)" },
+                    { id: "gpt-4o", implementedAt: "2026-06-04", implementedRank: 5820, name: "GPT-4o", desc: "Multimodal flagship model.", price: "In $2.50/1M, Out $10.00/1M" },
+                    { id: "gpt-4o-mini", implementedAt: "2026-06-04", implementedRank: 5821, name: "GPT-4o mini", desc: "Fast, low-cost model.", price: "In $0.15/1M, Out $0.60/1M" },
+                    { id: "gpt-5.5", implementedAt: "2026-04-26", implementedRank: 4500, name: "GPT-5.5", desc: "Experimental OpenAI model ID for accounts with access.", price: "In $5.00/1M, Out $30.00/1M" },
+                    { id: "gpt-5.5-mini", implementedAt: "2026-04-26", implementedRank: 4501, name: "GPT-5.5 mini", desc: "Smaller and more cost-efficient GPT-5.5 tier.", price: "Pricing not publicly listed" },
+                    { id: "gpt-5.5-nano", implementedAt: "2026-04-26", implementedRank: 4502, name: "GPT-5.5 nano", desc: "Smallest and fastest GPT-5.5 tier.", price: "Pricing not publicly listed" },
+                    { id: "gpt-5.5-pro", implementedAt: "2026-04-26", implementedRank: 4503, name: "GPT-5.5 Pro", desc: "Higher-capacity GPT-5.5 tier for accounts with access.", price: "In $30.00/1M, Out $180.00/1M" },
+                    { id: "gpt-5.4", implementedAt: "2026-03-08", implementedRank: 3150, name: "GPT-5.4", desc: "Experimental OpenAI model ID for accounts with access.", price: "In $2.50/1M, Out $15.00/1M" },
+                    { id: "gpt-5.4-mini", implementedAt: "2026-03-08", implementedRank: 3151, name: "GPT-5.4 mini", desc: "Smaller and more cost-efficient GPT-5.4 tier.", price: "In $0.75/1M, Out $4.50/1M" },
+                    { id: "gpt-5.4-nano", implementedAt: "2026-03-08", implementedRank: 3152, name: "GPT-5.4 nano", desc: "Smallest and fastest GPT-5.4 tier.", price: "In $0.20/1M, Out $1.25/1M" },
+                    { id: "gpt-5.4-pro", implementedAt: "2026-03-08", implementedRank: 3153, name: "GPT-5.4 Pro", desc: "Higher-capacity GPT-5.4 tier for accounts with access.", price: "In $30.00/1M, Out $180.00/1M" },
+                    { id: "gpt-5.2", implementedAt: "2026-02-15", implementedRank: 200, name: "GPT-5.2 (Responses API)", desc: "Most capable reasoning model.", price: "In $1.75/1M, Out $14.00/1M" },
+                    { id: "gpt-5-search-api", implementedAt: "2026-02-02", implementedRank: 740, name: "GPT-5 Search (API)", desc: "Search-optimized model (Chat Completions).", price: "Model rates + Web search $10/1k calls" },
+                    { id: "gpt-5.1", implementedAt: "2026-02-05", implementedRank: 200, name: "GPT-5.1", desc: "High intelligence.", price: "In $1.25/1M, Out $10.00/1M" },
+                    { id: "gpt-5-mini", implementedAt: "2026-02-02", implementedRank: 770, name: "GPT-5 mini", desc: "Small and efficient.", price: "In $0.25/1M, Out $2.00/1M" }
                 ]
             },
             {
@@ -5822,9 +5822,9 @@
                 icon: "fas fa-bolt text-cyan-400",
                 description: "DeepSeek's OpenAI-compatible text models",
                 items: [
-                    { id: "deepseek-v4-flash-0731", apiId: "deepseek-v4-flash", name: "DeepSeek V4 Flash", desc: "Official V4 Flash release with 1M context, up to 384K output, thinking, tools, and JSON output.", price: "In CN¥0.02/1M (hit), CN¥1/1M (miss), Out CN¥2/1M" },
-                    { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash Preview", desc: "Retired preview key retained for chat history compatibility.", price: "Legacy preview", deprecated: true },
-                    { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro", desc: "Higher-capacity DeepSeek V4 model with 1M context and up to 384K output.", price: "In CN¥0.025/1M (hit), CN¥3/1M (miss), Out CN¥6/1M" }
+                    { id: "deepseek-v4-flash-0731", implementedAt: "2026-07-31", implementedRank: 6610, quickEmoji: "⚡", apiId: "deepseek-v4-flash", name: "DeepSeek V4 Flash", desc: "Official V4 Flash release with 1M context, up to 384K output, thinking, tools, and JSON output.", price: "In CN¥0.02/1M (hit), CN¥1/1M (miss), Out CN¥2/1M" },
+                    { id: "deepseek-v4-flash", implementedAt: "2026-04-26", implementedRank: 4510, name: "DeepSeek V4 Flash Preview", desc: "Retired preview key retained for chat history compatibility.", price: "Legacy preview", deprecated: true },
+                    { id: "deepseek-v4-pro", implementedAt: "2026-04-26", implementedRank: 4511, name: "DeepSeek V4 Pro", desc: "Higher-capacity DeepSeek V4 model with 1M context and up to 384K output.", price: "In CN¥0.025/1M (hit), CN¥3/1M (miss), Out CN¥6/1M" }
                 ]
             },
             {
@@ -5832,7 +5832,7 @@
                 icon: "fas fa-brain text-violet-400",
                 description: "Moonshot AI's flagship 2.8T-parameter model with 1M context and always-on thinking",
                 items: [
-                    { id: "kimi-k3", name: "Kimi K3", desc: "Always-reasoning flagship model with 1M context, vision, tool calling.", price: "In $3.00/1M (miss), $0.30/1M (hit), Out $15.00/1M" }
+                    { id: "kimi-k3", implementedAt: "2026-07-30", implementedRank: 6340, quickEmoji: "🧠", name: "Kimi K3", desc: "Always-reasoning flagship model with 1M context, vision, tool calling.", price: "In $3.00/1M (miss), $0.30/1M (hit), Out $15.00/1M" }
                 ]
             },
             {
@@ -5840,8 +5840,8 @@
                 icon: "fas fa-brain text-orange-400",
                 description: "Anthropic's latest deep reasoning models",
                 items: [
-                    { id: "claude-opus-4-6", name: "Claude Opus 4.6", desc: "Most capable model for deep reasoning and complex tasks.", price: "In $5.00/1M, Out $25.00/1M" },
-                    { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", desc: "Excellent balance of speed and intelligence with adaptive thinking.", price: "In $3.00/1M, Out $15.00/1M" }
+                    { id: "claude-opus-4-6", implementedAt: "2026-05-01", implementedRank: 480, name: "Claude Opus 4.6", desc: "Most capable model for deep reasoning and complex tasks.", price: "In $5.00/1M, Out $25.00/1M" },
+                    { id: "claude-sonnet-4-6", implementedAt: "2026-05-01", implementedRank: 481, name: "Claude Sonnet 4.6", desc: "Excellent balance of speed and intelligence with adaptive thinking.", price: "In $3.00/1M, Out $15.00/1M" }
                 ]
             },
             {
@@ -5849,13 +5849,13 @@
                 icon: "fas fa-microphone text-red-400",
                 description: "Text-to-Speech models",
                 items: [
-                    { id: "gemini-3.1-flash-tts-preview", name: "Gemini 3.1 Flash TTS", desc: "Google TTS (Preview).", price: "Text In $1.00/1M, Audio Out $20.00/1M" },
-                    { id: "gpt-4o-mini-tts", name: "GPT-4o Mini TTS", desc: "OpenAI TTS.", price: "Text In $0.60/1M, Audio Out $12.00/1M" },
-                    { id: "gemini-2.5-flash-preview-tts", name: "Gemini 2.5 Flash TTS", desc: "Google TTS (Preview).", price: "Text In $0.50/1M, Audio Out $10.00/1M" },
-                    { id: "gemini-2.5-pro-preview-tts", name: "Gemini 2.5 Pro TTS", desc: "Google TTS Pro (Preview).", price: "Text In $1.00/1M, Audio Out $20.00/1M" },
-                    { id: "google-tts-studio", name: "Google TTS (Studio)", desc: "High fidelity studio voices.", price: "$160 / 1M chars" },
-                    { id: "google-tts-neural", name: "Google TTS (Neural2)", desc: "Standard neural voices.", price: "$16 / 1M chars" },
-                    { id: "grok-tts", name: "Grok TTS", desc: "xAI Text-to-Speech with expressive voices.", price: "$15.00 / 1M chars" }
+                    { id: "gemini-3.1-flash-tts-preview", implementedAt: "2026-04-17", implementedRank: 4250, name: "Gemini 3.1 Flash TTS", desc: "Google TTS (Preview).", price: "Text In $1.00/1M, Audio Out $20.00/1M" },
+                    { id: "gpt-4o-mini-tts", implementedAt: "2026-03-01", implementedRank: 250, name: "GPT-4o Mini TTS", desc: "OpenAI TTS.", price: "Text In $0.60/1M, Audio Out $12.00/1M" },
+                    { id: "gemini-2.5-flash-preview-tts", implementedAt: "2026-02-10", implementedRank: 160, name: "Gemini 2.5 Flash TTS", desc: "Google TTS (Preview).", price: "Text In $0.50/1M, Audio Out $10.00/1M" },
+                    { id: "gemini-2.5-pro-preview-tts", implementedAt: "2026-02-10", implementedRank: 161, name: "Gemini 2.5 Pro TTS", desc: "Google TTS Pro (Preview).", price: "Text In $1.00/1M, Audio Out $20.00/1M" },
+                    { id: "google-tts-studio", implementedAt: "2026-01-20", implementedRank: 110, name: "Google TTS (Studio)", desc: "High fidelity studio voices.", price: "$160 / 1M chars" },
+                    { id: "google-tts-neural", implementedAt: "2026-01-20", implementedRank: 111, name: "Google TTS (Neural2)", desc: "Standard neural voices.", price: "$16 / 1M chars" },
+                    { id: "grok-tts", implementedAt: "2026-05-27", implementedRank: 5560, quickEmoji: "🔊", name: "Grok TTS", desc: "xAI Text-to-Speech with expressive voices.", price: "$15.00 / 1M chars" }
                 ]
             },
             {
@@ -5863,8 +5863,8 @@
                 icon: "fas fa-closed-captioning text-emerald-400",
                 description: "Speech-to-text models (audio in / text out)",
                 items: [
-                    { id: "gpt-transcribe", name: "GPT Transcribe", desc: "High-accuracy file and committed-turn transcription.", price: "$0.0045 / minute" },
-                    { id: "gpt-live-transcribe", name: "GPT Live Transcribe", desc: "Low-latency realtime transcription.", price: "$0.017 / minute" }
+                    { id: "gpt-transcribe", implementedAt: "2026-07-29", implementedRank: 6330, name: "GPT Transcribe", desc: "High-accuracy file and committed-turn transcription.", price: "$0.0045 / minute" },
+                    { id: "gpt-live-transcribe", implementedAt: "2026-07-29", implementedRank: 6331, name: "GPT Live Transcribe", desc: "Low-latency realtime transcription.", price: "$0.017 / minute" }
                 ]
             },
             {
@@ -5872,18 +5872,18 @@
                 icon: "fas fa-headset text-cyan-400",
                 description: "Realtime voice models (audio in / audio out)",
                 items: [
-                    { id: "gpt-realtime-2", name: "OpenAI Realtime 2", desc: "Most capable speech-to-speech reasoning model.", price: "Audio In $32/1M, Audio Out $64/1M" },
-                    { id: "gpt-realtime-translate", name: "OpenAI Realtime Translate", desc: "Streaming speech-to-speech translation.", price: "$0.034 / minute" },
-                    { id: "gpt-realtime-whisper", name: "OpenAI Realtime Whisper", desc: "Streaming speech-to-text (transcription).", price: "$0.017 / minute" },
-                    { id: "gpt-realtime-1.5", name: "OpenAI Realtime 1.5", desc: "Latest OpenAI speech-to-speech flagship model.", price: "Audio In $32/1M, Audio Out $64/1M" },
-                    { id: "gpt-realtime", name: "OpenAI Realtime", desc: "OpenAI realtime speech-to-speech model.", price: "Audio In $32/1M, Audio Out $64/1M" },
-                    { id: "gpt-realtime-mini", name: "OpenAI Realtime Mini", desc: "Lower-latency, smaller realtime model.", price: "Audio In $10/1M, Audio Out $20/1M" },
-                    { id: "gemini-2.5-flash-native-audio-preview-12-2025", name: "Gemini 2.5 Flash Native Audio (Live)", desc: "Google Live native audio model.", price: "Audio In $3.00/1M, Audio Out $12.00/1M" },
-                    { id: "gemini-3.1-flash-live-preview", name: "Gemini 3.1 Flash Live", desc: "Google Live native audio model.", price: "Audio In $3.00/1M (~$0.005/min), Out $12.00/1M" },
-                    { id: "grok-voice-latest", name: "Grok Voice Latest", desc: "Recommended alias. Always points to the newest flagship voice model.", price: "$0.05 / min ($3.00 / hr)" },
-                    { id: "grok-voice-think-fast-1.0", name: "Grok Voice Think Fast 1.0", desc: "Current flagship voice model with advanced reasoning.", price: "$0.05 / min ($3.00 / hr)" },
-                    { id: "grok-voice-fast-1.0", name: "Grok Voice Fast 1.0", desc: "Legacy xAI realtime voice model (deprecated).", price: "$0.05 / min ($3.00 / hr)" },
-                    { id: "grok-voice-agent", name: "Grok Voice Agent", desc: "xAI realtime voice agent API.", price: "$0.05 / min (Realtime)", deprecated: true }
+                    { id: "gpt-realtime-2", implementedAt: "2026-05-11", implementedRank: 5080, name: "OpenAI Realtime 2", desc: "Most capable speech-to-speech reasoning model.", price: "Audio In $32/1M, Audio Out $64/1M" },
+                    { id: "gpt-realtime-translate", implementedAt: "2026-05-11", implementedRank: 5081, name: "OpenAI Realtime Translate", desc: "Streaming speech-to-speech translation.", price: "$0.034 / minute" },
+                    { id: "gpt-realtime-whisper", implementedAt: "2026-05-11", implementedRank: 5082, name: "OpenAI Realtime Whisper", desc: "Streaming speech-to-text (transcription).", price: "$0.017 / minute" },
+                    { id: "gpt-realtime-1.5", implementedAt: "2026-02-24", implementedRank: 2530, name: "OpenAI Realtime 1.5", desc: "Latest OpenAI speech-to-speech flagship model.", price: "Audio In $32/1M, Audio Out $64/1M" },
+                    { id: "gpt-realtime", implementedAt: "2026-02-24", implementedRank: 2531, name: "OpenAI Realtime", desc: "OpenAI realtime speech-to-speech model.", price: "Audio In $32/1M, Audio Out $64/1M" },
+                    { id: "gpt-realtime-mini", implementedAt: "2026-02-24", implementedRank: 2532, name: "OpenAI Realtime Mini", desc: "Lower-latency, smaller realtime model.", price: "Audio In $10/1M, Audio Out $20/1M" },
+                    { id: "gemini-2.5-flash-native-audio-preview-12-2025", implementedAt: "2026-01-15", implementedRank: 90, name: "Gemini 2.5 Flash Native Audio (Live)", desc: "Google Live native audio model.", price: "Audio In $3.00/1M, Audio Out $12.00/1M" },
+                    { id: "gemini-3.1-flash-live-preview", implementedAt: "2026-03-29", implementedRank: 3870, name: "Gemini 3.1 Flash Live", desc: "Google Live native audio model.", price: "Audio In $3.00/1M (~$0.005/min), Out $12.00/1M" },
+                    { id: "grok-voice-latest", implementedAt: "2026-05-27", implementedRank: 5550, quickEmoji: "🎤", name: "Grok Voice Latest", desc: "Recommended alias. Always points to the newest flagship voice model.", price: "$0.05 / min ($3.00 / hr)" },
+                    { id: "grok-voice-think-fast-1.0", implementedAt: "2026-05-11", implementedRank: 5140, name: "Grok Voice Think Fast 1.0", desc: "Current flagship voice model with advanced reasoning.", price: "$0.05 / min ($3.00 / hr)" },
+                    { id: "grok-voice-fast-1.0", implementedAt: "2026-05-01", implementedRank: 500, name: "Grok Voice Fast 1.0", desc: "Legacy xAI realtime voice model (deprecated).", price: "$0.05 / min ($3.00 / hr)" },
+                    { id: "grok-voice-agent", implementedAt: "2026-04-01", implementedRank: 380, name: "Grok Voice Agent", desc: "xAI realtime voice agent API.", price: "$0.05 / min (Realtime)", deprecated: true }
                 ]
             },
             {
@@ -5891,10 +5891,10 @@
                 icon: "fas fa-magic text-blue-400",
                 description: "Grok generation models",
                 items: [
-                    { id: "grok-imagine-image-quality", name: "Grok Imagine Image Quality", desc: "Next-gen Grok image generation with 1K/2K support.", price: "$0.05 / image" },
-                    { id: "grok-imagine-image", name: "Grok Imagine Image", desc: "Latest Grok image generation.", price: "$0.02 / image" },
-                    { id: "grok-imagine-image-pro", name: "Grok Imagine Image Pro", desc: "Discontinued by xAI. Retained for chat history compatibility.", price: "$0.07 / image", deprecated: true },
-                    { id: "grok-imagine-video", name: "Grok Imagine Video", desc: "Latest Grok video generation.", price: "$0.05 / second" }
+                    { id: "grok-imagine-image-quality", implementedAt: "2026-05-09", implementedRank: 5020, name: "Grok Imagine Image Quality", desc: "Next-gen Grok image generation with 1K/2K support.", price: "$0.05 / image" },
+                    { id: "grok-imagine-image", implementedAt: "2026-01-30", implementedRank: 520, name: "Grok Imagine Image", desc: "Latest Grok image generation.", price: "$0.02 / image" },
+                    { id: "grok-imagine-image-pro", implementedAt: "2026-02-01", implementedRank: 530, name: "Grok Imagine Image Pro", desc: "Discontinued by xAI. Retained for chat history compatibility.", price: "$0.07 / image", deprecated: true },
+                    { id: "grok-imagine-video", implementedAt: "2026-01-30", implementedRank: 530, name: "Grok Imagine Video", desc: "Latest Grok video generation.", price: "$0.05 / second" }
                 ]
             },
             {
@@ -5902,18 +5902,70 @@
                 icon: "fas fa-rocket text-white",
                 description: "Models by xAI",
                 items: [
-                    { id: "grok-4.3", name: "Grok 4.3", desc: "Most intelligent and fastest flagship model.", price: "In $1.25/1M, Out $2.50/1M" },
-                    { id: "grok-build-0.1", name: "Grok Build 0.1 (Coding)", desc: "Fast agentic coding model with vision and reasoning support.", price: "In $1.00/1M, Out $2.00/1M" },
-                    { id: "grok-4.20-reasoning", name: "Grok 4.20 (Reasoning)", desc: "Flagship reasoning model.", price: "In $1.25/1M, Out $2.50/1M" },
-                    { id: "grok-4.20-non-reasoning", name: "Grok 4.20 (Non-Reasoning)", desc: "Flagship standard model.", price: "In $1.25/1M, Out $2.50/1M" },
-                    { id: "grok-4.20-multi-agent", name: "Grok 4.20 Multi-Agent", desc: "Agentic flagship model.", price: "In $1.25/1M, Out $2.50/1M" },
-                    { id: "grok-4-1-fast-reasoning", name: "Grok 4.1 Fast (Reasoning)", desc: "Fast with reasoning capabilities.", price: "In $0.20/1M, Out $0.50/1M", deprecated: true },
-                    { id: "grok-4-1-fast-non-reasoning", name: "Grok 4.1 Fast (Non-Reasoning)", desc: "Fast standard model.", price: "In $0.20/1M, Out $0.50/1M", deprecated: true },
-                    { id: "grok-4-fast-reasoning", name: "Grok 4 Fast (Reasoning)", desc: "Previous gen reasoning.", price: "In $0.20/1M, Out $0.50/1M", deprecated: true },
-                    { id: "grok-4-fast-non-reasoning", name: "Grok 4 Fast (Non-Reasoning)", desc: "Previous gen standard.", price: "In $0.20/1M, Out $0.50/1M", deprecated: true }
+                    { id: "grok-4.3", implementedAt: "2026-05-27", implementedRank: 5530, name: "Grok 4.3", desc: "Most intelligent and fastest flagship model.", price: "In $1.25/1M, Out $2.50/1M" },
+                    { id: "grok-build-0.1", implementedAt: "2026-05-27", implementedRank: 5520, quickEmoji: "🛠️", name: "Grok Build 0.1 (Coding)", desc: "Fast agentic coding model with vision and reasoning support.", price: "In $1.00/1M, Out $2.00/1M" },
+                    { id: "grok-4.20-reasoning", implementedAt: "2026-04-09", implementedRank: 4000, name: "Grok 4.20 (Reasoning)", desc: "Flagship reasoning model.", price: "In $1.25/1M, Out $2.50/1M" },
+                    { id: "grok-4.20-non-reasoning", implementedAt: "2026-04-09", implementedRank: 4001, name: "Grok 4.20 (Non-Reasoning)", desc: "Flagship standard model.", price: "In $1.25/1M, Out $2.50/1M" },
+                    { id: "grok-4.20-multi-agent", implementedAt: "2026-04-09", implementedRank: 4002, name: "Grok 4.20 Multi-Agent", desc: "Agentic flagship model.", price: "In $1.25/1M, Out $2.50/1M" },
+                    { id: "grok-4-1-fast-reasoning", implementedAt: "2026-03-01", implementedRank: 280, name: "Grok 4.1 Fast (Reasoning)", desc: "Fast with reasoning capabilities.", price: "In $0.20/1M, Out $0.50/1M", deprecated: true },
+                    { id: "grok-4-1-fast-non-reasoning", implementedAt: "2026-03-01", implementedRank: 281, name: "Grok 4.1 Fast (Non-Reasoning)", desc: "Fast standard model.", price: "In $0.20/1M, Out $0.50/1M", deprecated: true },
+                    { id: "grok-4-fast-reasoning", implementedAt: "2026-02-01", implementedRank: 150, name: "Grok 4 Fast (Reasoning)", desc: "Previous gen reasoning.", price: "In $0.20/1M, Out $0.50/1M", deprecated: true },
+                    { id: "grok-4-fast-non-reasoning", implementedAt: "2026-02-01", implementedRank: 151, name: "Grok 4 Fast (Non-Reasoning)", desc: "Previous gen standard.", price: "In $0.20/1M, Out $0.50/1M", deprecated: true }
                 ]
             }
         ];
+
+
+        const WELCOME_QUICK_START_LIMIT = 5;
+        const listModelsFlat = () => {
+            const out = [];
+            MODELS.forEach((group) => {
+                (group.items || []).forEach((item) => {
+                    if (item && item.id) out.push(item);
+                });
+            });
+            return out;
+        };
+        const compareModelsByImplementedAt = (a, b) => {
+            const da = String(a && a.implementedAt || '');
+            const db = String(b && b.implementedAt || '');
+            if (da !== db) return db.localeCompare(da);
+            const ra = Number(a && a.implementedRank || 0);
+            const rb = Number(b && b.implementedRank || 0);
+            if (ra !== rb) return rb - ra;
+            return String(a && a.id || '').localeCompare(String(b && b.id || ''));
+        };
+        const getRecentModelsForQuickStart = (limit = WELCOME_QUICK_START_LIMIT) => {
+            return listModelsFlat()
+                .filter((m) => m && m.id && !m.deprecated && m.implementedAt)
+                .sort(compareModelsByImplementedAt)
+                .slice(0, Math.max(0, Number(limit) || 0));
+        };
+        const renderWelcomeQuickStart = () => {
+            const grid = get('welcome-quick-start');
+            if (!grid) return;
+            const models = getRecentModelsForQuickStart(WELCOME_QUICK_START_LIMIT);
+            if (!models.length) {
+                grid.innerHTML = '';
+                return;
+            }
+            grid.innerHTML = models.map((m, idx) => {
+                const delay = (0.1 + idx * 0.02).toFixed(2);
+                const emoji = m.quickEmoji ? `${escapeHtml(String(m.quickEmoji))} ` : '';
+                const name = escapeHtml(String(m.name || m.id));
+                const id = String(m.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                return `<button type="button" class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: ${delay}s" onclick="quickStart('${id}')">${emoji}${name}</button>`;
+            }).join('');
+        };
+
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                try { renderWelcomeQuickStart(); } catch (e) {}
+            }, { once: true });
+        } else {
+            try { renderWelcomeQuickStart(); } catch (e) {}
+        }
 
         const normalizeModelApiKeyMap = (raw) => {
             if (!raw || typeof raw !== 'object') return {};
@@ -7438,6 +7490,7 @@
             bindPromptCacheControls();
             toggleOptions();
             setCompactPromptMode(compactPromptMode, true);
+            renderWelcomeQuickStart();
             const canvasModeCheckbox = get('enable-canvas-mode');
             if (canvasModeCheckbox) {
                 canvasModeCheckbox.checked = canvasModeEnabled;

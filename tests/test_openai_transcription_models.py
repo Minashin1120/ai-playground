@@ -23,8 +23,8 @@ class OpenAITranscriptionModelRegressionTests(unittest.TestCase):
         self.assertEqual(len(assets), 1)
         source = assets[0].read_text(encoding="utf-8")
 
-        self.assertIn('{ id: "gpt-transcribe", name: "GPT Transcribe"', source)
-        self.assertIn('{ id: "gpt-live-transcribe", name: "GPT Live Transcribe"', source)
+        self.assertRegex(source, r'id:\s*"gpt-transcribe"[^}]*name:\s*"GPT Transcribe"')
+        self.assertRegex(source, r'id:\s*"gpt-live-transcribe"[^}]*name:\s*"GPT Live Transcribe"')
         self.assertIn("stsData.audio_url || stsData.transcription_only", source)
 
         template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")

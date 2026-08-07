@@ -21,14 +21,16 @@ class DeepSeekV4Flash0731Tests(unittest.TestCase):
         cls.app_version = m2.group(1) if m2 else ""
 
     def test_new_release_is_visible_and_preview_is_deprecated(self):
-        self.assertIn(
-            'id: "deepseek-v4-flash-0731", apiId: "deepseek-v4-flash", name: "DeepSeek V4 Flash"',
+        self.assertRegex(
             self.js_source,
+            re.compile(
+                r'id:\s*"deepseek-v4-flash-0731"[^}]*apiId:\s*"deepseek-v4-flash"[^}]*name:\s*"DeepSeek V4 Flash"'
+            ),
         )
         self.assertRegex(
             self.js_source,
             re.compile(
-                r'id: "deepseek-v4-flash", name: "DeepSeek V4 Flash Preview"[^\n]+deprecated: true'
+                r'id:\s*"deepseek-v4-flash"[^}]*name:\s*"DeepSeek V4 Flash Preview"[^}]*deprecated:\s*true'
             ),
         )
         self.assertIn(

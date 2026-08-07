@@ -15,8 +15,12 @@ class NanoBanana2LiteRegressionTests(unittest.TestCase):
     MODEL_ID = "gemini-3.1-flash-lite-image"
 
     def test_model_is_registered_across_ui_and_backend(self):
-        for source in (APP_SOURCE, CHAT_JS, CHAT_HTML, SETUP_HTML):
+        for source in (APP_SOURCE, CHAT_JS, SETUP_HTML):
             self.assertIn(self.MODEL_ID, source)
+        # Welcome quick-start is dynamic (MODELS.implementedAt); model stays in JS definitions.
+        self.assertIn('id="welcome-quick-start"', CHAT_HTML)
+        self.assertIn(f'id: "{self.MODEL_ID}"', CHAT_JS)
+        self.assertIn("implementedAt:", CHAT_JS[CHAT_JS.index(f'id: "{self.MODEL_ID}"'): CHAT_JS.index(f'id: "{self.MODEL_ID}"') + 120])
 
     def test_lite_routes_to_the_stable_model_id(self):
         route = APP_SOURCE[APP_SOURCE.index(

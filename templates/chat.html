@@ -237,19 +237,7 @@
                         <div id="welcome-default-content" class="flex flex-col items-center justify-center space-y-5 w-full">
                             <h2 class="text-2xl font-bold flex items-center gap-2.5 slide-in-animate opacity-0 tracking-tight" style="animation-delay: 0.05s"><i class="fas fa-gem"></i> AI Gems & Chat</h2>
                             <p class="welcome-subtitle text-sm text-gray-400/90 slide-in-animate opacity-0 -mt-2" style="animation-delay: 0.07s">モデルを選んで会話を始めましょう</p>
-                            <div class="welcome-grid grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl px-4">
-                                <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.1s" onclick="quickStart('gemini-3.6-flash')">⚡ Gemini 3.6 Flash</button>
-                                <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.11s" onclick="quickStart('gemini-3.5-flash-lite')">🚀 Gemini 3.5 Flash-Lite</button>
-                                <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.12s" onclick="quickStart('gemini-3.1-flash-lite')">💨 Gemini 3.1 Flash-Lite</button>
-                                <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.13s" onclick="quickStart('gpt-5.6-sol')">☀️ GPT-5.6 Sol</button>
-                                <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.14s" onclick="quickStart('gpt-5.6-terra')">🌍 GPT-5.6 Terra</button>
-                                <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.15s" onclick="quickStart('gpt-5.6-luna')">🌙 GPT-5.6 Luna</button>
-                                <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.13s" onclick="quickStart('grok-build-0.1')">🛠️ Grok Build 0.1 (Coding)</button>
-                                <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.14s" onclick="quickStart('grok-voice-latest')">🎤 Grok Voice</button>
-                                <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.16s" onclick="quickStart('grok-tts')">🔊 Grok TTS</button>
-                                <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.18s" onclick="quickStart('kimi-k3')">🧠 Kimi K3 (1M Context)</button>
-                                <button class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: 0.20s" onclick="quickStart('gemini-3.1-flash-lite-image')">🍌 Nano Banana 2 Lite</button>
-                            </div>
+                            <div id="welcome-quick-start" class="welcome-grid grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl px-4" aria-label="最近実装したモデルへのクイックアクセス"></div>
                         </div>
                         <div id="welcome-temporary-content" class="hidden max-w-md px-4">
                             <div class="rounded-xl border border-amber-500/50 bg-amber-900/20 p-4 text-left">

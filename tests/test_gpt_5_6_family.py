@@ -15,15 +15,24 @@ class Gpt56FamilyRegressionTests(unittest.TestCase):
         self.assertEqual(len(js_assets), 1)
         js_source = js_assets[0].read_text(encoding="utf-8")
 
+        self.assertIn('id="welcome-quick-start"', chat_source)
+        self.assertIn("getRecentModelsForQuickStart", js_source)
+        self.assertIn("renderWelcomeQuickStart", js_source)
+        self.assertIn("implementedAt:", js_source)
         for model_id, display_name in (
             ("gpt-5.6-sol", "GPT-5.6 Sol"),
             ("gpt-5.6-terra", "GPT-5.6 Terra"),
             ("gpt-5.6-luna", "GPT-5.6 Luna"),
         ):
             self.assertIn(f'"{model_id}"', app_source)
-            self.assertIn(f"quickStart('{model_id}')", chat_source)
             self.assertIn(f'<option value="{model_id}">{display_name}</option>', setup_source)
-            self.assertIn(f'{{ id: "{model_id}", name: "{display_name}"', js_source)
+            self.assertIn(f'id: "{model_id}"', js_source)
+            self.assertIn(f'name: "{display_name}"', js_source)
+            # Welcome quick-start is rendered from MODELS by implementedAt order (not hard-coded in HTML).
+            self.assertRegex(
+                js_source,
+                rf'id:\s*"{re.escape(model_id)}"[^}}]*implementedAt:\s*"\d{{4}}-\d{{2}}-\d{{2}}"',
+            )
 
     def test_all_official_reasoning_efforts_are_available(self):
         app_source = (ROOT / "app.py").read_text(encoding="utf-8")

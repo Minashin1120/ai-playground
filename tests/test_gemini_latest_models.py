@@ -13,6 +13,7 @@ SETUP_HTML = (APP_ROOT / "templates/setup.html").read_text(encoding="utf-8")
 
 class GeminiLatestModelsRegressionTests(unittest.TestCase):
     def test_latest_gemini_models_are_registered_across_ui_and_backend(self):
+        self.assertIn('id="welcome-quick-start"', CHAT_HTML)
         for model_id in (
             "gemini-3.6-flash",
             "gemini-3.5-flash-lite",
@@ -20,8 +21,8 @@ class GeminiLatestModelsRegressionTests(unittest.TestCase):
         ):
             self.assertIn(model_id, APP_SOURCE)
             self.assertIn(model_id, CHAT_JS)
-            self.assertIn(model_id, CHAT_HTML)
             self.assertIn(model_id, SETUP_HTML)
+            self.assertIn(f'implementedAt:', CHAT_JS[CHAT_JS.index(f'id: "{model_id}"'): CHAT_JS.index(f'id: "{model_id}"') + 120])
 
     def test_latest_gemini_routing_precedes_flash_substring_match(self):
         route = APP_SOURCE[APP_SOURCE.index('if "gemini-3.6-flash" in model_key'):]
@@ -58,20 +59,17 @@ class GeminiLatestModelsRegressionTests(unittest.TestCase):
         self.assertIn("model === 'gemini-3.5-flash-lite'", CHAT_JS)
 
     def test_stable_flash_lite_is_active_and_preview_is_kept_but_hidden(self):
-        stable_definition = (
-            '{ id: "gemini-3.1-flash-lite", '
-            'name: "Gemini 3.1 Flash-Lite"'
-        )
-        stable_at = CHAT_JS.index(stable_definition)
+        stable_at = CHAT_JS.index('{ id: "gemini-3.1-flash-lite"')
+        self.assertIn('name: "Gemini 3.1 Flash-Lite"', CHAT_JS[stable_at:stable_at + 220])
         self.assertNotIn(
             "deprecated: true",
             CHAT_JS[stable_at:stable_at + 400],
         )
-        model_definition = (
-            '{ id: "gemini-3.1-flash-lite-preview", '
-            'name: "Gemini 3.1 Flash-Lite Preview"'
+        definition_at = CHAT_JS.index('{ id: "gemini-3.1-flash-lite-preview"')
+        self.assertIn(
+            'name: "Gemini 3.1 Flash-Lite Preview"',
+            CHAT_JS[definition_at:definition_at + 220],
         )
-        definition_at = CHAT_JS.index(model_definition)
         self.assertIn(
             "deprecated: true",
             CHAT_JS[definition_at:definition_at + 400],

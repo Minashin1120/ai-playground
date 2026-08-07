@@ -5893,7 +5893,7 @@
                 items: [
                     { id: "grok-imagine-image-quality", name: "Grok Imagine Image Quality", desc: "Next-gen Grok image generation with 1K/2K support.", price: "$0.05 / image" },
                     { id: "grok-imagine-image", name: "Grok Imagine Image", desc: "Latest Grok image generation.", price: "$0.02 / image" },
-                    { id: "grok-imagine-image-pro", name: "Grok Imagine Image Pro", desc: "High quality Grok image generation.", price: "$0.07 / image" },
+                    { id: "grok-imagine-image-pro", name: "Grok Imagine Image Pro", desc: "Discontinued by xAI. Retained for chat history compatibility.", price: "$0.07 / image", deprecated: true },
                     { id: "grok-imagine-video", name: "Grok Imagine Video", desc: "Latest Grok video generation.", price: "$0.05 / second" }
                 ]
             },

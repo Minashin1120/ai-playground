@@ -93,10 +93,13 @@ class ChatErrorPersistRegressionTests(unittest.TestCase):
     def test_version_assets_include_chat_error_support(self):
         assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(assets), 1)
-        self.assertTrue(assets[0].name.endswith(".759.js"))
         app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
-        self.assertIn("SYSTEM_VERSION'] = 'V4.8.759'", app_source)
-        self.assertIn("2026-08-07-010", app_source)
+        ver_m = re.search(r"SYSTEM_VERSION'\] = '(V4\.8\.\d+)'", app_source)
+        self.assertIsNotNone(ver_m)
+        system_version = ver_m.group(1)
+        short = system_version.lower()  # e.g. v4.8.760
+        self.assertTrue(assets[0].name.endswith(f".{short.split('v', 1)[-1]}.js") or short in assets[0].name)
+        self.assertIn(f"SYSTEM_VERSION'] = '{system_version}'", app_source)
         # Ensure only one versioned triad remains (JS + custom CSS + tailwind CSS).
         js = list((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
         css = list((APP_ROOT / "static" / "css").glob("chat.custom.v4.8.*.css"))
@@ -104,9 +107,10 @@ class ChatErrorPersistRegressionTests(unittest.TestCase):
         self.assertEqual(len(js), 1)
         self.assertEqual(len(css), 1)
         self.assertEqual(len(tw), 1)
-        self.assertTrue(re.search(r"v4\.8\.759", js[0].name))
-        self.assertTrue(re.search(r"v4\.8\.759", css[0].name))
-        self.assertTrue(re.search(r"v4\.8\.759", tw[0].name))
+        ver_num = re.search(r"v4\.8\.(\d+)", short).group(0)
+        self.assertTrue(re.search(re.escape(ver_num), js[0].name))
+        self.assertTrue(re.search(re.escape(ver_num), css[0].name))
+        self.assertTrue(re.search(re.escape(ver_num), tw[0].name))
 
 
 if __name__ == "__main__":

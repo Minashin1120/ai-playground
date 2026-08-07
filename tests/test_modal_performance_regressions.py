@@ -209,7 +209,8 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         toast_jump = script[script.index("const openAdaptiveBlurSettingsFromToast = () => {") :]
         toast_jump = toast_jump[: toast_jump.index("const applyAdaptiveBlurPreference")]
         self.assertIn("window.openSettingsModal()", toast_jump)
-        self.assertIn("jumpToSetting('general', child)", toast_jump)
+        self.assertIn("tab-display", toast_jump)
+        self.assertIn("jumpToSetting", toast_jump)
         self.assertIn("child.contains(select)", toast_jump)
         # showToast gained an optional onClick that marks the toast clickable.
         show_toast = script[script.index("function showToast(msg, type = \"error\", sticky = false, onClick = null) {") :]

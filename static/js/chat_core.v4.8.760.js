@@ -69,11 +69,11 @@
                 window.openSettingsModal();
             }
             const select = get('set-background-blur-mode');
-            const tab = get('tab-general');
+            const tab = get('tab-display') || get('tab-general');
             if (!select || !tab) return;
             for (const child of tab.children) {
                 if (child.contains(select)) {
-                    jumpToSetting('general', child);
+                    jumpToSetting(tab.id === 'tab-display' ? 'display' : 'general', child);
                     return;
                 }
             }
@@ -5287,8 +5287,18 @@
             };
         }
         let activeSettingsTab = 'general';
-        const TAB_LABELS = { general: '一般', security: 'セキュリティ', '2fa': '2要素認証', feedback: 'フィードバック' };
-        const ALL_TABS = ['general', 'security', '2fa', 'feedback'];
+        const TAB_LABELS = {
+            general: '一般',
+            api: 'APIキー',
+            prompt: 'プロンプト',
+            display: '表示',
+            data: 'データ',
+            account: 'アカウント',
+            security: 'セキュリティ',
+            '2fa': '2要素認証',
+            feedback: 'フィードバック'
+        };
+        const ALL_TABS = ['general', 'api', 'prompt', 'display', 'data', 'account', 'security', '2fa', 'feedback'];
         function getSectionHeading(el) {
             const h3 = el.querySelector('h3');
             if (h3) return h3.textContent.trim();
@@ -5440,6 +5450,7 @@
         }
         function switchTab(t) {
             if (t === activeSettingsTab) return;
+            if (!ALL_TABS.includes(t)) return;
             const prev = get('tab-' + activeSettingsTab);
             if (prev) {
                 prev.classList.remove('tab-enter');
@@ -5451,16 +5462,20 @@
             }
             ALL_TABS.forEach(x => {
                 const btn = get('btn-tab-'+x);
+                const panel = get('tab-'+x);
                 if(x === t) {
-                    const panel = get('tab-'+x);
-                    panel.classList.remove('hidden');
-                    panel.classList.remove('tab-exit');
-                    panel.classList.remove('tab-enter');
-                    void panel.offsetWidth;
-                    panel.classList.add('tab-enter');
-                    btn.classList.add('text-blue-400','border-blue-400','font-bold');
-                    btn.classList.remove('text-gray-400','hover:text-white','border-transparent');
-                } else {
+                    if (panel) {
+                        panel.classList.remove('hidden');
+                        panel.classList.remove('tab-exit');
+                        panel.classList.remove('tab-enter');
+                        void panel.offsetWidth;
+                        panel.classList.add('tab-enter');
+                    }
+                    if (btn) {
+                        btn.classList.add('text-blue-400','border-blue-400','font-bold');
+                        btn.classList.remove('text-gray-400','hover:text-white','border-transparent');
+                    }
+                } else if (btn) {
                     btn.classList.remove('text-blue-400','border-blue-400','font-bold');
                     btn.classList.add('text-gray-400','hover:text-white','border-transparent');
                 }

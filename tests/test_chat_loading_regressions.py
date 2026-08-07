@@ -85,7 +85,7 @@ class ChatLoadingRegressionTests(unittest.TestCase):
         self.assertIn("loadSequence !== threadLoadSequence", loader)
 
     def test_pending_stream_bubble_renders_into_a_document_fragment_on_reload(self):
-        # V4.8.749: reloading during streaming renders the pending-job skeleton
+        # V4.8.750: reloading during streaming renders the pending-job skeleton
         # inside renderThreadTree's DocumentFragment. DocumentFragment has no
         # insertAdjacentHTML, so calling it directly threw a TypeError and turned
         # the whole thread load into "チャットを読み込めませんでした". renderPendingMessage

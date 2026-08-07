@@ -27,9 +27,6 @@
         })();
     </script>
     {% include 'pwa_meta.html' %}
-    {% if initial_theme_css %}
-    <style id="initial-theme-vars">{{ initial_theme_css|safe }}</style>
-    {% endif %}
     <title>AI Playground ({{ system_version }})</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.' ~ (system_version | lower) ~ '.css') }}?v={{ app_version }}">
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
@@ -59,6 +56,9 @@
     {% endif %}
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.custom.' ~ (system_version | lower) ~ '.css') }}?v={{ app_version }}">
+    {% if initial_theme_css %}
+    <style id="initial-theme-vars">{{ initial_theme_css|safe }}</style>
+    {% endif %}
     <style>
         #rich-paste-capture {
             position: fixed;

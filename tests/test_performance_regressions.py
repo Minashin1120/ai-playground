@@ -287,3 +287,20 @@ class PerformanceRegressionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_theme_vars_style_is_loaded_after_custom_css(self):
+        """Custom theme vars must come after chat.custom.*.css so they win the CSS
+        cascade by source order. If the inline theme <style> appears first, the
+        main stylesheet's :root default overrides it and JS has to re-apply the
+        theme during script load, forcing a full-page style/layout recalc."""
+        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        theme_style_pos = template.index('id="initial-theme-vars"')
+        custom_css_pos = template.index("chat.custom.")
+        self.assertGreater(
+            theme_style_pos,
+            custom_css_pos,
+            "theme vars <style> must be placed after chat.custom.*.css link",
+        )
+        # sanity: the main stylesheet link and the theme style both exist
+        self.assertIn("chat.custom.", template)
+        self.assertIn("initial_theme_css", template)

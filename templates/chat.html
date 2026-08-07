@@ -201,7 +201,7 @@
         </div>
         <div class="p-3 safe-pb border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500 relative">
             <div id="version-display" class="cursor-pointer hover:text-green-400 transition hide-compact" onclick="showAlphaInfo()">{{ system_version }} <span class="text-green-500 font-bold">Stable</span></div>
-            <div class="flex justify-center gap-3 hide-compact"><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div>
+            <div class="flex justify-center gap-3 hide-compact"><a href="{{ url_for('help_page') }}" class="hover:text-blue-400">ヘルプ</a><span class="text-gray-700">|</span><button onclick="showLegal('terms')" class="hover:text-blue-400">利用規約</button><span class="text-gray-700">|</span><button onclick="showLegal('privacy')" class="hover:text-blue-400">プライバシー</button></div>
             <form method="POST" action="{{ url_for('logout') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <button type="submit" class="w-full block bg-gray-700 hover:bg-gray-600 py-2 rounded btn-hover hide-compact">ログアウト</button>

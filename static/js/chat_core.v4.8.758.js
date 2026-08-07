@@ -8378,6 +8378,101 @@
             const encScanThreadBtn = get('enc-scan-thread');
             if (encScanThreadBtn) encScanThreadBtn.onclick = () => currentThreadId ? runEncScan(currentThreadId) : showToast('スレッドがありません', 'error', true);
             const adminEncList = get('admin-enc-list');
+            let currentThreadEncrypted = null;
+            let adminThreadEncBusy = false;
+
+            const computeThreadEncryptedFromMessages = (messages) => {
+                if (!messages || !messages.length) return null;
+                return messages.some(m => !!m.is_encrypted);
+            };
+
+            const updateAdminThreadEncButtons = () => {
+                const buttons = [get('admin-thread-enc-btn'), get('admin-thread-enc-btn-mobile')].filter(Boolean);
+                if (!buttons.length) return;
+                const hasThread = !!(currentThreadId !== null && currentThreadId !== undefined && currentThreadId !== '');
+                buttons.forEach(btn => {
+                    btn.disabled = !hasThread || adminThreadEncBusy;
+                    const icon = btn.querySelector('i');
+                    btn.classList.remove('text-amber-300', 'text-cyan-300', 'text-gray-500', 'opacity-50');
+                    if (!hasThread) {
+                        if (icon) icon.className = 'fas fa-key text-xs';
+                        btn.title = 'チャットを選択してください';
+                        btn.classList.add('text-gray-400', 'opacity-50');
+                    } else if (currentThreadEncrypted === true) {
+                        if (icon) icon.className = 'fas fa-lock text-xs';
+                        btn.title = 'このチャットを復号化';
+                        btn.classList.add('text-amber-300');
+                    } else if (currentThreadEncrypted === false) {
+                        if (icon) icon.className = 'fas fa-lock-open text-xs';
+                        btn.title = 'このチャットを再暗号化';
+                        btn.classList.add('text-cyan-300');
+                    } else {
+                        if (icon) icon.className = 'fas fa-key text-xs';
+                        btn.title = 'このチャットの暗号化を切替';
+                        btn.classList.add('text-gray-400');
+                    }
+                });
+            };
+
+            const refreshCurrentThreadEncStateFromMessages = () => {
+                currentThreadEncrypted = computeThreadEncryptedFromMessages(allMessages);
+                updateAdminThreadEncButtons();
+            };
+
+            const setAdminThreadEncryption = async (threadId, enable, { confirmPrompt = true, reloadCurrent = true } = {}) => {
+                if (!threadId) {
+                    showToast('チャットがありません', 'error', true);
+                    return false;
+                }
+                const action = enable ? '再暗号化' : '復号化';
+                if (confirmPrompt && !confirm(`このチャットを${action}しますか？`)) return false;
+                adminThreadEncBusy = true;
+                updateAdminThreadEncButtons();
+                try {
+                    const res = await apiFetch(`/api/admin/threads/${encodeURIComponent(threadId)}/encryption`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ enable })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                        showToast(data.error || `${action}に失敗しました`, 'error', true);
+                        return false;
+                    }
+                    showToast(`${action}しました（${data.changed || 0}件を変換）`, 'success');
+                    currentThreadEncrypted = !!enable;
+                    if (reloadCurrent && currentThreadId && String(currentThreadId) === String(threadId)) {
+                        await loadMessages(currentThreadId, { preserveDraft: true, silent: true, skipHistory: true });
+                    } else {
+                        updateAdminThreadEncButtons();
+                    }
+                    if (adminEncList) await loadAdminEncThreads();
+                    return true;
+                } catch (err) {
+                    showToast(`${action}に失敗しました`, 'error', true);
+                    return false;
+                } finally {
+                    adminThreadEncBusy = false;
+                    updateAdminThreadEncButtons();
+                }
+            };
+
+            const toggleCurrentThreadEncryption = async () => {
+                if (!currentThreadId) {
+                    showToast('チャットを選択してください', 'error', true);
+                    return;
+                }
+                let isEnc = currentThreadEncrypted;
+                if (isEnc === null) {
+                    isEnc = computeThreadEncryptedFromMessages(allMessages);
+                }
+                // No messages yet: default to decrypt if account E2EE is on, else re-encrypt.
+                if (isEnc === null) {
+                    isEnc = !!(CHAT_CONFIG && CHAT_CONFIG.enableE2EE);
+                }
+                await setAdminThreadEncryption(currentThreadId, !isEnc);
+            };
+
             const renderAdminEncThreads = (data) => {
                 if (!adminEncList) return;
                 const threads = data.threads || [];
@@ -8395,23 +8490,28 @@
                             <div class="font-bold text-gray-200 truncate" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</div>
                             <div class="text-[10px] text-gray-500">${updated} / メッセージ: ${t.message_count} / 暗号化: ${t.encrypted_count}</div>
                         </div>
-                        <button class="admin-enc-toggle ${btnColor} text-white px-2 py-1 rounded" data-id="${escapeHtml(t.thread_id)}" data-enable="${encState === 'enc' ? '0' : '1'}" data-progress-expected-slow="true">${btnLabel}</button>
+                        <button class="admin-enc-toggle ${btnColor} text-white px-2 py-1 rounded" data-id="${escapeHtml(String(t.thread_id))}" data-enable="${encState === 'enc' ? '0' : '1'}" data-progress-expected-slow="true">${btnLabel}</button>
                     </div>`;
                 }).join('');
             };
             const loadAdminEncThreads = async () => {
                 if (!adminEncList) return;
-                const username = get('admin-enc-username') ? get('admin-enc-username').value.trim() : '';
-                if (!username) { showToast('ユーザー名を入力してください', 'error', true); return; }
                 adminEncList.innerHTML = '<div class="text-[11px] text-gray-400"><i class="fas fa-spinner fa-spin mr-1"></i>読み込み中...</div>';
                 try {
-                    const res = await apiFetch(`/api/admin/threads?username=${encodeURIComponent(username)}`, { cache: 'no-store' });
-                    const data = await res.json();
+                    const res = await apiFetch('/api/admin/threads', { cache: 'no-store' });
+                    const data = await res.json().catch(() => ({}));
                     if (!res.ok) {
                         adminEncList.innerHTML = `<div class="text-[11px] text-red-400">${escapeHtml(data.error || '読み込みに失敗しました')}</div>`;
                         return;
                     }
                     renderAdminEncThreads(data);
+                    if (currentThreadId && Array.isArray(data.threads)) {
+                        const cur = data.threads.find(t => String(t.thread_id) === String(currentThreadId));
+                        if (cur) {
+                            currentThreadEncrypted = !!cur.encrypted;
+                            updateAdminThreadEncButtons();
+                        }
+                    }
                 } catch (e) {
                     adminEncList.innerHTML = '<div class="text-[11px] text-red-400">読み込みに失敗しました</div>';
                 }
@@ -8419,14 +8519,21 @@
             if (get('admin-enc-load')) {
                 get('admin-enc-load').onclick = () => loadAdminEncThreads();
             }
-            const adminEncUserInput = get('admin-enc-username');
-            if (adminEncUserInput) {
-                adminEncUserInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadAdminEncThreads(); });
-            }
+            // Expose for loadMessages / openSettingsModal (defined outside this block's call sites).
+            window.__loadAdminEncThreads = loadAdminEncThreads;
+            window.__refreshAdminThreadEncState = refreshCurrentThreadEncStateFromMessages;
+            [get('admin-thread-enc-btn'), get('admin-thread-enc-btn-mobile')].filter(Boolean).forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (adminThreadEncBusy) return;
+                    toggleCurrentThreadEncryption();
+                });
+            });
+            updateAdminThreadEncButtons();
             if (adminEncList) {
                 adminEncList.onclick = async (e) => {
                     const btn = e.target.closest('.admin-enc-toggle');
-                    if (!btn) return;
+                    if (!btn || adminThreadEncBusy) return;
                     const threadId = btn.getAttribute('data-id');
                     const enable = btn.getAttribute('data-enable') === '1';
                     const action = enable ? '再暗号化' : '復号化';
@@ -8435,15 +8542,7 @@
                     const original = btn.textContent;
                     btn.textContent = '処理中...';
                     try {
-                        const res = await apiFetch(`/api/admin/threads/${encodeURIComponent(threadId)}/encryption`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enable }) });
-                        const data = await res.json();
-                        if (!res.ok) {
-                            showToast(data.error || `${action}に失敗しました`, 'error', true);
-                        } else {
-                            showToast(`${action}しました（${data.changed || 0}件を変換）`, 'success');
-                        }
-                    } catch (err) {
-                        showToast(`${action}に失敗しました`, 'error', true);
+                        await setAdminThreadEncryption(threadId, enable, { confirmPrompt: false, reloadCurrent: true });
                     } finally {
                         btn.disabled = false;
                         btn.textContent = original;
@@ -8761,6 +8860,9 @@
                 loadSiteCacheUsage();
                 refreshLatestAccountExport();
                 ensureLlmTranscribePromptSettingsUi();
+                if (typeof window.__loadAdminEncThreads === 'function') {
+                    try { window.__loadAdminEncThreads(); } catch (_) {}
+                }
                 if (location.pathname !== '/settings') {
                     history.pushState({ modal: 'settings', from: location.pathname }, '', '/settings');
                 }
@@ -16911,6 +17013,9 @@
             }
             if (!preserveDraft) schedulePromptTokenEstimate(true);
             if(window.innerWidth < 768) get('overlay').click();
+            if (typeof window.__refreshAdminThreadEncState === 'function') {
+                try { window.__refreshAdminThreadEncState(); } catch (_) {}
+            }
             return true;
             } catch (err) {
                 if (loadSequence !== threadLoadSequence) return false;
@@ -17457,6 +17562,9 @@
             currentParentId = null;
             currentThreadPending = null;
             updateTotalTokenBar(0);
+            if (typeof window.__refreshAdminThreadEncState === 'function') {
+                try { window.__refreshAdminThreadEncState(); } catch (_) {}
+            }
             if (!opts.skipHistory) history.pushState({}, '', '/');
             get('chat-container').innerHTML = '';
             get('welcome-screen').classList.remove('hidden');

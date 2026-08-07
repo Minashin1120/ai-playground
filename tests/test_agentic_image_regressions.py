@@ -64,6 +64,73 @@ class AgenticImageRegressionTests(unittest.TestCase):
         self.assertEqual(extension, "jpg")
         self.assertEqual(image_bytes, buffer.getvalue())
 
+    def test_sandbox_image_ref_streamed_with_saved_url(self):
+        buffer_state = [""]
+        saved_urls = ["/files/1/agentic_abc.png"]
+        consumed = []
+        out = target._rewrite_streamed_sandbox_refs(
+            "![cropped](sandbox:/mnt/data/cropped_image.jpeg)",
+            buffer_state,
+            saved_urls,
+            consumed,
+        )
+        self.assertEqual(out, "![cropped](/files/1/agentic_abc.png)")
+        self.assertEqual(saved_urls, [])
+        self.assertEqual(consumed, ["/files/1/agentic_abc.png"])
+        self.assertEqual(buffer_state, [""])
+
+    def test_sandbox_image_ref_streamed_without_saved_url_kept_for_final_pass(self):
+        buffer_state = [""]
+        saved_urls = []
+        consumed = []
+        out = target._rewrite_streamed_sandbox_refs(
+            "![cropped](sandbox:/mnt/data/cropped_image.jpeg)",
+            buffer_state,
+            saved_urls,
+            consumed,
+        )
+        self.assertEqual(out, "![cropped](sandbox:/mnt/data/cropped_image.jpeg)")
+        self.assertEqual(saved_urls, [])
+        self.assertEqual(consumed, [])
+        self.assertEqual(buffer_state, [""])
+
+    def test_sandbox_image_ref_split_across_chunks(self):
+        buffer_state = [""]
+        saved_urls = ["/files/1/agentic_xyz.png"]
+        consumed = []
+        first = target._rewrite_streamed_sandbox_refs(
+            "![cro", buffer_state, saved_urls, consumed
+        )
+        self.assertEqual(first, "")
+        self.assertEqual(buffer_state, ["![cro"])
+        second = target._rewrite_streamed_sandbox_refs(
+            "pped](sandbox:/mnt/data/cropped_image.jpeg)",
+            buffer_state,
+            saved_urls,
+            consumed,
+        )
+        self.assertEqual(second, "![cropped](/files/1/agentic_xyz.png)")
+        self.assertEqual(buffer_state, [""])
+
+    def test_sandbox_image_ref_final_pass_replaces_unresolved_with_note(self):
+        saved_urls = []
+        consumed = []
+        out = target._rewrite_sandbox_image_refs(
+            "text ![a](sandbox:/mnt/data/x.png) tail", saved_urls, consumed
+        )
+        self.assertNotIn("sandbox:", out)
+        self.assertIn("画像データを取得できませんでした", out)
+
+    def test_non_sandbox_text_is_untouched(self):
+        buffer_state = [""]
+        saved_urls = []
+        consumed = []
+        out = target._rewrite_streamed_sandbox_refs(
+            "hello ![img](https://example.com/a.png)", buffer_state, saved_urls, consumed
+        )
+        self.assertEqual(out, "hello ![img](https://example.com/a.png)")
+        self.assertEqual(buffer_state, [""])
+
 
 if __name__ == "__main__":
     unittest.main()

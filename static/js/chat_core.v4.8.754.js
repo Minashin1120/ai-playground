@@ -7560,7 +7560,7 @@
                         return `<div class="code-wrapper collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${langLabel}</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button>${codingBtn}${previewBtn}${downloadBtn}<button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`;
                     },
                     link(h, t, x) { return `<a href="${h}" title="${t || ''}" target="_blank">${x}</a>`; },
-                    image(h, t, x) { const alt = escapeHtml(x || ''); const title = t ? ` title="${escapeHtml(t)}"` : ''; const viewerSrc = escapeHtml(h || ''); return `<img src="${h}" data-viewer-src="${viewerSrc}" alt="${alt}"${title} class="chat-image" loading="lazy" width="320" height="320">`; }
+                    image(h, t, x) { const alt = escapeHtml(x || ''); const title = t ? ` title="${escapeHtml(t)}"` : ''; if (String(h || '').startsWith('sandbox:')) { return `<span class="text-xs text-gray-500" title="${escapeHtml(h)}">${alt || '（画像データは取得できませんでした）'}</span>`; } const viewerSrc = escapeHtml(h || ''); return `<img src="${h}" data-viewer-src="${viewerSrc}" alt="${alt}"${title} class="chat-image" loading="lazy" width="320" height="320">`; }
                 },
                 breaks: true,
                 gfm: true

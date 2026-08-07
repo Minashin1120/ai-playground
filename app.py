@@ -733,8 +733,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-07-004')
-app.config['SYSTEM_VERSION'] = 'V4.8.753'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-07-005')
+app.config['SYSTEM_VERSION'] = 'V4.8.754'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2191,6 +2191,71 @@ def _prepare_agentic_image_bytes(data, declared_mime=None):
     if not extension:
         raise ValueError(f"Unsupported generated image format: {image_format or 'unknown'}")
     return data, extension
+
+
+_SANDBOX_IMG_REF_RE = re.compile(r"!\[([^\]]*)\]\(\s*sandbox:/mnt/data/[^)\s]*\)")
+
+
+def _rewrite_sandbox_image_refs(text, saved_urls, consumed_urls):
+    """
+    Rewrite Gemini code-execution sandbox image references (e.g.
+    ![alt](sandbox:/mnt/data/name.png)) to locally saved /files/... URLs.
+
+    saved_urls is the live queue of agentic image URLs captured from
+    inline_data during this request; references consume them in order.
+    References with no captured file are replaced with a short note so the
+    browser never renders an unloadable sandbox: URL.
+    """
+    if not text or "sandbox:" not in text:
+        return text
+
+    def _repl(match):
+        alt = match.group(1) or ""
+        if saved_urls:
+            url = saved_urls.pop(0)
+            consumed_urls.append(url)
+            return f"![{alt}]({url})"
+        return f"（※画像データを取得できませんでした: {alt}）"
+
+    return _SANDBOX_IMG_REF_RE.sub(_repl, text)
+
+
+def _rewrite_streamed_sandbox_refs(delta, buffer_state, saved_urls, consumed_urls):
+    """
+    Process a streamed text delta, rewriting Gemini code-execution sandbox image
+    references (e.g. ![alt](sandbox:/mnt/data/name.png)) to saved /files/... URLs.
+
+    buffer_state is a single-element list holding a pending tail so a reference
+    split across multiple streamed parts is still rewritten once completed.
+    When no saved URL is available yet (the image bytes may still arrive later
+    in the stream), the reference is left untouched so the final full_res pass
+    can resolve it after the whole response has been received.
+    Returns the text to publish (already appended to the caller's full_res).
+    """
+    pending = buffer_state[0] + delta
+    out = []
+    while True:
+        match = _SANDBOX_IMG_REF_RE.search(pending)
+        if not match:
+            break
+        out.append(pending[:match.start()])
+        if saved_urls:
+            alt = match.group(1) or ""
+            url = saved_urls.pop(0)
+            consumed_urls.append(url)
+            out.append(f"![{alt}]({url})")
+        else:
+            out.append(match.group(0))
+        pending = pending[match.end():]
+    idx = pending.rfind("![")
+    if idx >= 0 and ")" not in pending[idx:]:
+        out.append(pending[:idx])
+        buffer_state[0] = pending[idx:]
+        return "".join(out)
+    buffer_state[0] = ""
+    out.append(pending)
+    return "".join(out)
+
 
 def _save_user_audio(user_id, data, suffix, encrypt):
     fname = f"audio_{int(time.time())}_{os.urandom(4).hex()}{suffix}"
@@ -8252,6 +8317,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             full_res, thought_accumulated, generated_images = "", "", []
             deepseek_tool_context = []
             agentic_image_digests = set()
+            agentic_saved_urls = []
+            agentic_consumed_urls = []
+            sandbox_text_buffer = [""]
             signature_parts = []
 
             original_quote_text = quote_text
@@ -9482,18 +9550,41 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             img_md = f"\n![Agentic View](/files/{user_id}/{fn2})\n"
                                             full_res += img_md
                                             pub("content", img_md)
+                                            agentic_saved_urls.append(f"/files/{user_id}/{fn2}")
                                         except Exception as e:
                                             log_force(f"Agentic Vision Image Error: {e}")
                                         continue
 
                                     if hasattr(part, 'text') and part.text:
                                         t_delta = part.text
-                                        for char in t_delta:
-                                            full_res += char
-                                            pub("content", char)
+                                        rewritten = _rewrite_streamed_sandbox_refs(
+                                            t_delta,
+                                            sandbox_text_buffer,
+                                            agentic_saved_urls,
+                                            agentic_consumed_urls,
+                                        )
+                                        if rewritten:
+                                            full_res += rewritten
+                                            pub("content", rewritten)
                         
                         # Fallback to chunk.text if parts didn't cover it (unlikely but safe)
                         # but be careful not to double-publish.
+
+                    if sandbox_text_buffer[0]:
+                        _tail = sandbox_text_buffer[0]
+                        sandbox_text_buffer[0] = ""
+                        if _tail:
+                            full_res += _tail
+                            pub("content", _tail)
+
+                    if agentic_saved_urls or agentic_consumed_urls or "sandbox:" in full_res:
+                        full_res = _rewrite_sandbox_image_refs(
+                            full_res, agentic_saved_urls, agentic_consumed_urls
+                        )
+                        for _consumed_url in list(agentic_consumed_urls):
+                            full_res = full_res.replace(
+                                f"![Agentic View]({_consumed_url})", ""
+                            )
 
                     if grounding_chunks and (options.get('enable_search') or options.get('enable_maps')):
                         if grounding_supports:

@@ -3519,8 +3519,10 @@
                 btn.classList.toggle('coding-target-active', active);
                 btn.setAttribute('aria-pressed', active ? 'true' : 'false');
                 btn.innerHTML = active
-                    ? '<i class="fas fa-thumbtack"></i> 編集対象'
-                    : '<i class="fas fa-quote-right"></i> 編集対象';
+                    ? '<i class="fas fa-thumbtack"></i>'
+                    : '<i class="fas fa-quote-right"></i>';
+                btn.title = active ? '編集対象に設定済み' : 'Coding Modeの編集対象に指定';
+                btn.setAttribute('aria-label', active ? '編集対象に設定済み' : '編集対象に指定');
             });
         }
         function syncCodingModeUi(enabled = codingModeEnabled, options = {}) {
@@ -3661,8 +3663,10 @@
                 if (btn) {
                     btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
                     btn.innerHTML = collapsed
-                        ? '<i class="fas fa-chevron-down"></i> Expand'
-                        : '<i class="fas fa-chevron-up"></i> Collapse';
+                        ? '<i class="fas fa-chevron-down"></i>'
+                        : '<i class="fas fa-chevron-up"></i>';
+                    btn.title = collapsed ? '展開' : '折りたたむ';
+                    btn.setAttribute('aria-label', collapsed ? '展開' : '折りたたむ');
                 }
             });
         }
@@ -3693,8 +3697,10 @@
                     if (btn) {
                         btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
                         btn.innerHTML = collapsed
-                            ? '<i class="fas fa-chevron-down"></i> Expand'
-                            : '<i class="fas fa-chevron-up"></i> Collapse';
+                            ? '<i class="fas fa-chevron-down"></i>'
+                            : '<i class="fas fa-chevron-up"></i>';
+                        btn.title = collapsed ? '展開' : '折りたたむ';
+                        btn.setAttribute('aria-label', collapsed ? '展開' : '折りたたむ');
                     }
                 });
             });
@@ -7521,9 +7527,9 @@
                                 const encCode = encodeURIComponent(codeRaw).replace(/'/g, "%27");
                                 const encOut = encodeURIComponent(outputRaw).replace(/'/g, "%27");
                                 const codeKey = hashString(`pyexec\n${codeRaw}\n${outputRaw}`);
-                                const downloadBtn = `<button class="download-btn" data-code="${encCode}" data-lang="python"><i class="fas fa-download"></i> DL Code</button>`;
-                                const codingBtn = `<button class="coding-target-btn" data-code="${encCode}" data-code-key="${codeKey}" data-coding-lang="python" aria-pressed="false" title="Coding Modeの編集対象に指定"><i class="fas fa-quote-right"></i> 編集対象</button>`;
-                                return `<div class="code-wrapper python-box collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button>${codingBtn}${downloadBtn}<button class="copy-btn" data-copy="code" data-code="${encCode}"><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code="${encOut}"><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code">${codeHtml}</code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output">${outputHtml}</code></pre></div></div></div>`;
+                                const downloadBtn = `<button class="download-btn" data-code="${encCode}" data-lang="python" title="コードをダウンロード" aria-label="コードをダウンロード"><i class="fas fa-download"></i></button>`;
+                                const codingBtn = `<button class="coding-target-btn" data-code="${encCode}" data-code-key="${codeKey}" data-coding-lang="python" aria-pressed="false" title="Coding Modeの編集対象に指定" aria-label="編集対象に指定"><i class="fas fa-quote-right"></i></button>`;
+                                return `<div class="code-wrapper python-box collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false" title="展開" aria-label="展開"><i class="fas fa-chevron-down"></i></button>${codingBtn}${downloadBtn}<button class="copy-btn" data-copy="code" data-code="${encCode}" title="コードをコピー" aria-label="コードをコピー"><i class="fas fa-copy"></i></button><button class="copy-btn" data-copy="output" data-code="${encOut}" title="出力をコピー" aria-label="出力をコピー"><i class="fas fa-align-left"></i></button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code">${codeHtml}</code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output">${outputHtml}</code></pre></div></div></div>`;
                             } catch (e2) {}
                         }
                         const raw = c || '';
@@ -7546,18 +7552,19 @@
                         let previewBtn = '';
                         if (canvasModeEnabled) {
                             const isActiveCanvasBlock = String(canvasPreviewState.selectedKey || '') === codeKey;
-                            previewBtn = `<button class="canvas-preview-btn${isActiveCanvasBlock ? ' canvas-active' : ''}" data-code="${enc}" data-code-key="${codeKey}" data-canvas-lang="${escapeHtml(l || 'txt')}" title="${isActiveCanvasBlock ? 'Canvasで表示中' : 'Canvasでプレビューする'}" aria-pressed="${isActiveCanvasBlock ? 'true' : 'false'}"><i class="fas ${isActiveCanvasBlock ? 'fa-layer-group' : 'fa-window-restore'}"></i> ${isActiveCanvasBlock ? 'Canvasで表示中' : 'Canvasに表示'}</button>`;
+                            const canvasTitle = isActiveCanvasBlock ? 'Canvasで表示中' : 'Canvasでプレビューする';
+                            previewBtn = `<button class="canvas-preview-btn${isActiveCanvasBlock ? ' canvas-active' : ''}" data-code="${enc}" data-code-key="${codeKey}" data-canvas-lang="${escapeHtml(l || 'txt')}" title="${canvasTitle}" aria-label="${canvasTitle}" aria-pressed="${isActiveCanvasBlock ? 'true' : 'false'}"><i class="fas ${isActiveCanvasBlock ? 'fa-layer-group' : 'fa-window-restore'}"></i></button>`;
                         } else if (isHtmlPreviewCandidate(lowerLang, raw)) {
-                            const label = isSuspicious ? 'Safe Preview' : 'Preview';
+                            const label = isSuspicious ? 'セーフプレビュー' : 'プレビュー';
                             const icon = isSuspicious ? 'fa-shield-halved' : 'fa-up-right-from-square';
-                            previewBtn = `<button class="html-preview-btn" data-code="${enc}" ${isSuspicious ? 'data-suspicious="1"' : ''}><i class="fas ${icon}"></i> ${label}</button>`;
+                            previewBtn = `<button class="html-preview-btn" data-code="${enc}" ${isSuspicious ? 'data-suspicious="1"' : ''} title="${label}" aria-label="${label}"><i class="fas ${icon}"></i></button>`;
                         }
-                        const downloadBtn = `<button class="download-btn" data-code="${enc}" data-lang="${l || 'txt'}"><i class="fas fa-download"></i> Download</button>`;
+                        const downloadBtn = `<button class="download-btn" data-code="${enc}" data-lang="${l || 'txt'}" title="ダウンロード" aria-label="ダウンロード"><i class="fas fa-download"></i></button>`;
                         const codingBtn = lowerLang === 'diff'
                             ? ''
-                            : `<button class="coding-target-btn" data-code="${enc}" data-code-key="${codeKey}" data-coding-lang="${escapeHtml(l || 'text')}" aria-pressed="false" title="Coding Modeの編集対象に指定"><i class="fas fa-quote-right"></i> 編集対象</button>`;
+                            : `<button class="coding-target-btn" data-code="${enc}" data-code-key="${codeKey}" data-coding-lang="${escapeHtml(l || 'text')}" aria-pressed="false" title="Coding Modeの編集対象に指定" aria-label="編集対象に指定"><i class="fas fa-quote-right"></i></button>`;
                         const langLabel = (l || 'TEXT') + (isSuspicious ? ' <span class="suspicious-badge" title="polyfill.io などの危険スクリプトURLを検出しました">⚠</span>' : '');
-                        return `<div class="code-wrapper collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${langLabel}</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button>${codingBtn}${previewBtn}${downloadBtn}<button class="copy-btn" data-code="${enc}"><i class="fas fa-copy"></i> Copy</button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`;
+                        return `<div class="code-wrapper collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${langLabel}</span><div class="code-actions"><button class="code-toggle" aria-expanded="false" title="展開" aria-label="展開"><i class="fas fa-chevron-down"></i></button>${codingBtn}${previewBtn}${downloadBtn}<button class="copy-btn" data-code="${enc}" title="コピー" aria-label="コピー"><i class="fas fa-copy"></i></button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`;
                     },
                     link(h, t, x) { return `<a href="${h}" title="${t || ''}" target="_blank">${x}</a>`; },
                     image(h, t, x) { const alt = escapeHtml(x || ''); const title = t ? ` title="${escapeHtml(t)}"` : ''; if (String(h || '').startsWith('sandbox:')) { return `<span class="text-xs text-gray-500" title="${escapeHtml(h)}">${alt || '（画像データは取得できませんでした）'}</span>`; } const viewerSrc = escapeHtml(h || ''); return `<img src="${h}" data-viewer-src="${viewerSrc}" alt="${alt}"${title} class="chat-image" loading="lazy" width="320" height="320">`; }
@@ -10981,8 +10988,10 @@
                     wrapper.setAttribute('data-collapsed', isCollapsed ? 'true' : 'false');
                     btn.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
                     btn.innerHTML = isCollapsed
-                        ? '<i class="fas fa-chevron-down"></i> Expand'
-                        : '<i class="fas fa-chevron-up"></i> Collapse';
+                        ? '<i class="fas fa-chevron-down"></i>'
+                        : '<i class="fas fa-chevron-up"></i>';
+                    btn.title = isCollapsed ? '展開' : '折りたたむ';
+                    btn.setAttribute('aria-label', isCollapsed ? '展開' : '折りたたむ');
                 }
                 if (e.target.closest('.download-btn')) {
                     const btn = e.target.closest('.download-btn');
@@ -13616,9 +13625,10 @@
                 btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
                 btn.setAttribute('data-canvas-active', isActive ? '1' : '0');
                 btn.innerHTML = isActive
-                    ? '<i class="fas fa-layer-group"></i> Canvasで表示中'
-                    : '<i class="fas fa-window-restore"></i> Canvasに表示';
+                    ? '<i class="fas fa-layer-group"></i>'
+                    : '<i class="fas fa-window-restore"></i>';
                 btn.title = isActive ? 'Canvasで表示中' : 'Canvasでプレビューする';
+                btn.setAttribute('aria-label', isActive ? 'Canvasで表示中' : 'Canvasでプレビューする');
             });
         }
         function isCanvasMobileLayout() {
@@ -14989,7 +14999,7 @@
         }
 
         function browserFastPythonBoxHtml(pyId) {
-            return `<div class="code-wrapper python-box collapsed" data-py-id="${pyId}" data-collapsed="true" data-code-key="${pyId}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button><button class="copy-btn" data-copy="code" data-code=""><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code=""><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output"></code></pre></div></div></div>`;
+            return `<div class="code-wrapper python-box collapsed" data-py-id="${pyId}" data-collapsed="true" data-code-key="${pyId}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false" title="展開" aria-label="展開"><i class="fas fa-chevron-down"></i></button><button class="copy-btn" data-copy="code" data-code="" title="コードをコピー" aria-label="コードをコピー"><i class="fas fa-copy"></i></button><button class="copy-btn" data-copy="output" data-code="" title="出力をコピー" aria-label="出力をコピー"><i class="fas fa-align-left"></i></button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output"></code></pre></div></div></div>`;
         }
 
         function updateBrowserFastPythonBox(box, field, value) {
@@ -15885,7 +15895,7 @@
                                 const py = j.content || {};
                                 const pyId = py.id || `py_${Date.now()}`;
                                 if(!pyBoxes[pyId]){
-                                    const boxHtml = `<div class="code-wrapper python-box collapsed" data-py-id="${pyId}" data-collapsed="true" data-code-key="${pyId}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button><button class="copy-btn" data-copy="code" data-code=""><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code=""><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output"></code></pre></div></div></div>`;
+                                    const boxHtml = `<div class="code-wrapper python-box collapsed" data-py-id="${pyId}" data-collapsed="true" data-code-key="${pyId}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false" title="展開" aria-label="展開"><i class="fas fa-chevron-down"></i></button><button class="copy-btn" data-copy="code" data-code="" title="コードをコピー" aria-label="コードをコピー"><i class="fas fa-copy"></i></button><button class="copy-btn" data-copy="output" data-code="" title="出力をコピー" aria-label="出力をコピー"><i class="fas fa-align-left"></i></button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output"></code></pre></div></div></div>`;
                                     if(searchBox) searchBox.insertAdjacentHTML('afterend', boxHtml);
                                     else adiv.insertAdjacentHTML('afterbegin', boxHtml);
                                     pyBoxes[pyId] = adiv.querySelector(`[data-py-id="${pyId}"]`);
@@ -16272,7 +16282,7 @@
                                 const py = j.content || {};
                                 const pyId = py.id || `py_${Date.now()}`;
                                 if (!pyBoxes[pyId]) {
-                                    const boxHtml = `<div class="code-wrapper python-box collapsed" data-py-id="${pyId}" data-collapsed="true" data-code-key="${pyId}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false"><i class="fas fa-chevron-down"></i> Expand</button><button class="copy-btn" data-copy="code" data-code=""><i class="fas fa-copy"></i> Copy Code</button><button class="copy-btn" data-copy="output" data-code=""><i class="fas fa-copy"></i> Copy Output</button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output"></code></pre></div></div></div>`;
+                                    const boxHtml = `<div class="code-wrapper python-box collapsed" data-py-id="${pyId}" data-collapsed="true" data-code-key="${pyId}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false" title="展開" aria-label="展開"><i class="fas fa-chevron-down"></i></button><button class="copy-btn" data-copy="code" data-code="" title="コードをコピー" aria-label="コードをコピー"><i class="fas fa-copy"></i></button><button class="copy-btn" data-copy="output" data-code="" title="出力をコピー" aria-label="出力をコピー"><i class="fas fa-align-left"></i></button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output"></code></pre></div></div></div>`;
                                     if (searchBox) searchBox.insertAdjacentHTML('afterend', boxHtml);
                                     else adiv.insertAdjacentHTML('afterbegin', boxHtml);
                                     pyBoxes[pyId] = adiv.querySelector(`[data-py-id="${pyId}"]`);
@@ -18156,9 +18166,15 @@
         };
         window.copyCode = (btn, code) => {
             const text = decodeURIComponent(code);
+            const restoreIcon = () => {
+                const kind = btn.getAttribute('data-copy') || '';
+                btn.innerHTML = kind === 'output'
+                    ? '<i class="fas fa-align-left"></i>'
+                    : '<i class="fas fa-copy"></i>';
+            };
             copyToClipboard(text,
-                () => { btn.innerHTML = '<i class="fas fa-check"></i> Copied'; setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i> Copy', 2000); },
-                (err) => { console.error(err); btn.innerHTML = '<i class="fas fa-times"></i>'; setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i> Copy', 2000); }
+                () => { btn.innerHTML = '<i class="fas fa-check"></i>'; setTimeout(restoreIcon, 2000); },
+                (err) => { console.error(err); btn.innerHTML = '<i class="fas fa-times"></i>'; setTimeout(restoreIcon, 2000); }
             );
         };
         window.copyMessage = (id, btn) => {

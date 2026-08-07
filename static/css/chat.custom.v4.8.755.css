@@ -126,19 +126,43 @@
             margin: 0 auto;
         }
         
-        /* Code Wrapper & Copy Button */
-        .code-wrapper { margin: 1em 0; border-radius: 0.85rem; border: 1px solid rgba(148,163,184,0.16); background: rgba(10, 16, 40, 0.7); box-shadow: var(--shadow); position: relative; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
-        .code-header { display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); padding: 0.4rem 0.9rem; font-size: 0.75rem; color: #9aa3b2; border-bottom: 1px solid rgba(148,163,184,0.12); position: sticky; top: 6px; z-index: 2; }
-        .code-actions { display: flex; align-items: center; gap: 0.6rem; }
-        .copy-btn, .code-toggle, .html-preview-btn, .canvas-preview-btn, .coding-target-btn, .download-btn { background: transparent; border: none; color: #9aa3b2; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: color 0.2s, background 0.2s; }
-        .copy-btn:hover, .code-toggle:hover, .html-preview-btn:hover, .canvas-preview-btn:hover, .coding-target-btn:hover, .download-btn:hover { color: #e2e8f0; }
-        .canvas-preview-btn.canvas-active { color: #ccfbf1; }
-        .coding-target-btn.coding-target-active { color: #a7f3d0; background: rgba(16,185,129,0.14); border-radius: 6px; padding: 2px 5px; }
-        .code-body { border-bottom-left-radius: 0.85rem; border-bottom-right-radius: 0.85rem; overflow: hidden; transition: max-height 0.34s var(--ease-out), opacity 0.26s var(--ease-standard), padding 0.26s var(--ease-standard); }
+        /* Code Wrapper & Compact Icon Actions */
+        .code-wrapper { margin: 0.75em 0; border-radius: 0.65rem; border: 1px solid rgba(148,163,184,0.16); background: rgba(10, 16, 40, 0.7); box-shadow: var(--shadow); position: relative; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); overflow: hidden; }
+        .code-header { display: flex; justify-content: space-between; align-items: center; gap: 0.4rem; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); padding: 0.2rem 0.4rem 0.2rem 0.65rem; font-size: 0.68rem; color: #9aa3b2; border-bottom: 1px solid rgba(148,163,184,0.12); position: sticky; top: 6px; z-index: 2; min-height: 1.75rem; }
+        .code-lang { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; letter-spacing: 0.01em; line-height: 1.2; }
+        .code-actions { display: flex; align-items: center; gap: 0.1rem; flex-shrink: 0; }
+        .copy-btn, .code-toggle, .html-preview-btn, .canvas-preview-btn, .coding-target-btn, .download-btn {
+            background: transparent;
+            border: none;
+            color: #9aa3b2;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.55rem;
+            height: 1.55rem;
+            padding: 0;
+            border-radius: 0.35rem;
+            font-size: 0.7rem;
+            line-height: 1;
+            flex-shrink: 0;
+            transition: color 0.15s, background 0.15s;
+        }
+        .copy-btn:hover, .code-toggle:hover, .html-preview-btn:hover, .canvas-preview-btn:hover, .coding-target-btn:hover, .download-btn:hover {
+            color: #e2e8f0;
+            background: rgba(148,163,184,0.14);
+        }
+        .copy-btn:focus-visible, .code-toggle:focus-visible, .html-preview-btn:focus-visible, .canvas-preview-btn:focus-visible, .coding-target-btn:focus-visible, .download-btn:focus-visible {
+            outline: 1px solid rgba(148,163,184,0.45);
+            outline-offset: 1px;
+        }
+        .canvas-preview-btn.canvas-active { color: #99f6e4; background: rgba(45,212,191,0.12); }
+        .coding-target-btn.coding-target-active { color: #a7f3d0; background: rgba(16,185,129,0.16); }
+        .code-body { border-bottom-left-radius: 0.65rem; border-bottom-right-radius: 0.65rem; overflow: hidden; transition: max-height 0.34s var(--ease-out), opacity 0.26s var(--ease-standard), padding 0.26s var(--ease-standard); }
         .code-body pre { margin: 0; }
         .code-wrapper.collapsed .code-body { max-height: 0; opacity: 0; padding: 0; overflow: hidden; }
         .code-wrapper.collapsed .code-header { border-bottom-color: transparent; }
-        .code-wrapper.collapsed .code-lang { opacity: 0.7; }
+        .code-wrapper.collapsed .code-lang { opacity: 0.75; }
         #canvas-mode-container {
             border: 1px solid rgba(var(--theme-rgb), 0.35);
             background: rgba(var(--theme-rgb), 0.12);
@@ -423,18 +447,20 @@
         /* Python Execution UI */
         .python-box { margin: 0.6rem 0 1rem; }
         .python-box .code-header { background: rgba(245,158,11,0.12); color: #fde68a; }
-        .python-box .code-lang { color: #fde68a; font-weight: 600; display: inline-flex; align-items: center; gap: 0.4rem; }
+        .python-box .code-lang { color: #fde68a; font-weight: 600; display: inline-flex; align-items: center; gap: 0.35rem; }
         .python-box .code-actions .copy-btn,
         .python-box .code-actions .code-toggle,
         .python-box .code-actions .html-preview-btn,
         .python-box .code-actions .canvas-preview-btn,
-        .python-box .code-actions .coding-target-btn { color: #cbd5f5; }
+        .python-box .code-actions .coding-target-btn,
+        .python-box .code-actions .download-btn { color: #cbd5f5; }
         .python-box .code-actions .copy-btn:hover,
         .python-box .code-actions .code-toggle:hover,
         .python-box .code-actions .html-preview-btn:hover,
         .python-box .code-actions .canvas-preview-btn:hover,
-        .python-box .code-actions .coding-target-btn:hover { color: #fff7ed; }
-        .python-box .code-body { padding: 0.7rem 0.85rem; display: grid; gap: 0.6rem; }
+        .python-box .code-actions .coding-target-btn:hover,
+        .python-box .code-actions .download-btn:hover { color: #fff7ed; background: rgba(251,191,36,0.14); }
+        .python-box .code-body { padding: 0.55rem 0.7rem; display: grid; gap: 0.5rem; }
         .python-box .python-section { display: grid; gap: 0.35rem; }
         .python-box .python-label { font-size: 0.7rem; color: #a3b3c5; text-transform: uppercase; letter-spacing: 0.04em; }
         .python-box pre { margin: 0; background: #060d1d; border: 1px solid rgba(148,163,184,0.2); border-radius: 0.5rem; overflow-x: auto; }

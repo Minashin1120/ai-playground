@@ -6723,6 +6723,11 @@
                 if (e.target.id === 'token-detail-modal') closeTokenDetail();
             });
         }
+        if (get('python-exec-modal')) {
+            get('python-exec-modal').addEventListener('click', (e) => {
+                if (e.target.id === 'python-exec-modal') closePythonExecDetail();
+            });
+        }
         if (get('encryption-status-modal')) {
             get('encryption-status-modal').addEventListener('click', (e) => {
                 if (e.target.id === 'encryption-status-modal') closeEncryptionModal();
@@ -7513,24 +7518,9 @@
                     code(c, i, e) {
                         const l = (i || '').match(/\S*/)[0];
                         if (l === 'pyexec') {
-                            try {
-                                const obj = JSON.parse(c);
-                                const codeRaw = obj.code == null ? '' : String(obj.code);
-                                const outputRaw = obj.output == null ? '' : String(obj.output);
-                                let codeHtml = '';
-                                try {
-                                    codeHtml = hljs.highlight(codeRaw, { language: 'python' }).value;
-                                } catch (e3) {
-                                    codeHtml = escapeHtml(codeRaw);
-                                }
-                                const outputHtml = escapeHtml(outputRaw);
-                                const encCode = encodeURIComponent(codeRaw).replace(/'/g, "%27");
-                                const encOut = encodeURIComponent(outputRaw).replace(/'/g, "%27");
-                                const codeKey = hashString(`pyexec\n${codeRaw}\n${outputRaw}`);
-                                const downloadBtn = `<button class="download-btn" data-code="${encCode}" data-lang="python" title="コードをダウンロード" aria-label="コードをダウンロード"><i class="fas fa-download"></i></button>`;
-                                const codingBtn = `<button class="coding-target-btn" data-code="${encCode}" data-code-key="${codeKey}" data-coding-lang="python" aria-pressed="false" title="Coding Modeの編集対象に指定" aria-label="編集対象に指定"><i class="fas fa-quote-right"></i></button>`;
-                                return `<div class="code-wrapper python-box collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false" title="展開" aria-label="展開"><i class="fas fa-chevron-down"></i></button>${codingBtn}${downloadBtn}<button class="copy-btn" data-copy="code" data-code="${encCode}" title="コードをコピー" aria-label="コードをコピー"><i class="fas fa-copy"></i></button><button class="copy-btn" data-copy="output" data-code="${encOut}" title="出力をコピー" aria-label="出力をコピー"><i class="fas fa-align-left"></i></button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code">${codeHtml}</code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output">${outputHtml}</code></pre></div></div></div>`;
-                            } catch (e2) {}
+                            // Completed answers surface Python runs via the bubble footer button.
+                            // Keep the fence out of the inline answer body.
+                            return '';
                         }
                         const raw = c || '';
                         const lowerLang = (l || '').toLowerCase();
@@ -14129,6 +14119,152 @@
                 refreshCanvasPreviewPanel();
             }
         }
+
+        function normalizeMarkdownNewlines(text) {
+            return String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        }
+
+        function stripExactFencedBlock(text, language, body) {
+            let result = normalizeMarkdownNewlines(text);
+            const bodyStr = normalizeMarkdownNewlines(body);
+            if (!bodyStr && bodyStr !== '') return result;
+            const langs = language ? [String(language), ''] : [''];
+            for (const fenceChar of ['`', '~']) {
+                for (let n = 3; n <= 10; n++) {
+                    const fence = fenceChar.repeat(n);
+                    for (const lang of langs) {
+                        const open = `${fence}${lang}\n`;
+                        const close = `\n${fence}`;
+                        const candidate = open + bodyStr + close;
+                        if (!result.includes(candidate)) continue;
+                        result = result.split(candidate).join('');
+                    }
+                }
+            }
+            return result;
+        }
+
+        function stripVisiblePythonOutputBlock(text, output) {
+            let result = normalizeMarkdownNewlines(text);
+            const outStr = normalizeMarkdownNewlines(output == null ? '' : String(output));
+            const prefixes = ['**Output:**\n', '**Output:** \n', '**Output:**'];
+            for (const prefix of prefixes) {
+                for (const fenceChar of ['`', '~']) {
+                    for (let n = 3; n <= 10; n++) {
+                        const fence = fenceChar.repeat(n);
+                        const candidates = [
+                            `${prefix}${fence}\n${outStr}\n${fence}`,
+                            `${prefix}\n${fence}\n${outStr}\n${fence}`,
+                            `\n${prefix}${fence}\n${outStr}\n${fence}`,
+                            `\n${prefix}\n${fence}\n${outStr}\n${fence}`,
+                        ];
+                        candidates.forEach((candidate) => {
+                            if (result.includes(candidate)) {
+                                result = result.split(candidate).join('\n');
+                            }
+                        });
+                    }
+                }
+            }
+            return result;
+        }
+
+        function extractPythonExecutionsFromContent(rawText) {
+            const source = normalizeMarkdownNewlines(rawText);
+            const executions = [];
+            if (!source) return { text: '', executions };
+
+            // ```pyexec ... ``` (fences of length >= 3)
+            const pyexecRe = /(?:^|\n)(`{3,}|~{3,})pyexec[ \t]*\n([\s\S]*?)\n\1[ \t]*(?=\n|$)/g;
+            let cleaned = source.replace(pyexecRe, (match, fence, body) => {
+                const raw = String(body || '').trim();
+                try {
+                    const obj = JSON.parse(raw);
+                    executions.push({
+                        code: obj && obj.code != null ? String(obj.code) : '',
+                        output: obj && obj.output != null ? String(obj.output) : ''
+                    });
+                } catch (e) {
+                    executions.push({ code: raw, output: '' });
+                }
+                return '\n';
+            });
+
+            executions.forEach((ex) => {
+                if (ex.code) {
+                    cleaned = stripExactFencedBlock(cleaned, 'python', ex.code);
+                    cleaned = stripExactFencedBlock(cleaned, 'py', ex.code);
+                }
+                cleaned = stripVisiblePythonOutputBlock(cleaned, ex.output);
+            });
+
+            cleaned = cleaned
+                .replace(/[ \t]+\n/g, '\n')
+                .replace(/\n{3,}/g, '\n\n')
+                .replace(/^\n+/, '')
+                .replace(/\n+$/, '');
+
+            return { text: cleaned, executions };
+        }
+
+        function buildPythonExecDetailBoxHtml(ex, index, total) {
+            const codeRaw = ex && ex.code != null ? String(ex.code) : '';
+            const outputRaw = ex && ex.output != null ? String(ex.output) : '';
+            let codeHtml = '';
+            try {
+                if (window.hljs && typeof window.hljs.highlight === 'function') {
+                    codeHtml = window.hljs.highlight(codeRaw, { language: 'python' }).value;
+                } else {
+                    codeHtml = escapeHtml(codeRaw);
+                }
+            } catch (e) {
+                codeHtml = escapeHtml(codeRaw);
+            }
+            const outputHtml = escapeHtml(outputRaw);
+            const encCode = encodeURIComponent(codeRaw).replace(/'/g, '%27');
+            const encOut = encodeURIComponent(outputRaw).replace(/'/g, '%27');
+            const codeKey = hashString(`pyexec-detail\n${codeRaw}\n${outputRaw}\n${index}`);
+            const label = total > 1 ? `Python Execution ${index + 1}/${total}` : 'Python Execution';
+            const downloadBtn = `<button class="download-btn" data-code="${encCode}" data-lang="python" title="コードをダウンロード" aria-label="コードをダウンロード"><i class="fas fa-download"></i></button>`;
+            const codingBtn = `<button class="coding-target-btn" data-code="${encCode}" data-code-key="${codeKey}" data-coding-lang="python" aria-pressed="false" title="Coding Modeの編集対象に指定" aria-label="編集対象に指定"><i class="fas fa-quote-right"></i></button>`;
+            return `<div class="code-wrapper python-box" data-collapsed="false" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> ${escapeHtml(label)}</span><div class="code-actions">${codingBtn}${downloadBtn}<button class="copy-btn" data-copy="code" data-code="${encCode}" title="コードをコピー" aria-label="コードをコピー"><i class="fas fa-copy"></i></button><button class="copy-btn" data-copy="output" data-code="${encOut}" title="出力をコピー" aria-label="出力をコピー"><i class="fas fa-align-left"></i></button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code">${codeHtml}</code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output">${outputHtml}</code></pre></div></div></div>`;
+        }
+
+        function openPythonExecDetail(id) {
+            const meta = messageMeta[id];
+            const modal = get('python-exec-modal');
+            const body = get('python-exec-modal-body');
+            const title = get('python-exec-modal-title');
+            if (!modal || !body) return;
+            const executions = (meta && Array.isArray(meta.python_executions)) ? meta.python_executions : [];
+            if (!executions.length) {
+                showToast('Python実行結果がありません', 'info', false);
+                return;
+            }
+            if (title) {
+                const countLabel = executions.length > 1 ? `（${executions.length}件）` : '';
+                title.textContent = `Python 実行結果${countLabel}`;
+            }
+            body.innerHTML = executions.map((ex, i) => buildPythonExecDetailBoxHtml(ex, i, executions.length)).join('');
+            if (codingModeEnabled) {
+                syncCodingTargetButtons(body);
+                syncCodingModeUi(true, { persist: false });
+            }
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+        window.openPythonExecDetail = openPythonExecDetail;
+
+        function closePythonExecDetail() {
+            const modal = get('python-exec-modal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            const body = get('python-exec-modal-body');
+            if (body) body.innerHTML = '';
+        }
+        window.closePythonExecDetail = closePythonExecDetail;
+
         function buildAiMarkdownHtml(text) {
             const canvasData = canvasModeEnabled ? parseCanvasMarkdown(text) : { renderText: text || '', blocks: [], primaryBlock: null, rawText: String(text || '') };
             if (canvasModeEnabled) {
@@ -14193,6 +14329,8 @@
             const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
             const align = isUser ? 'justify-end' : 'justify-start';
             messageStore[id] = text;
+            const pythonExtract = (!isUser && text) ? extractPythonExecutionsFromContent(text) : { text: text || '', executions: [] };
+            const displayText = isUser ? text : pythonExtract.text;
             let totalTokens = tokenCount;
             if (totalTokens === null || totalTokens === undefined) {
                 const inVal = (tokenIn !== null && tokenIn !== undefined) ? Number(tokenIn) : 0;
@@ -14213,7 +14351,8 @@
                 parent_id: parentId,
                 quote_text: quoteText,
                 image_url: imgUrl,
-                gem_name: gemName
+                gem_name: gemName,
+                python_executions: isUser ? [] : (pythonExtract.executions || [])
             };
 
             let qh = '';
@@ -14298,15 +14437,20 @@
                 const lockTitle = isEncrypted ? 'Encrypted' : 'Plain';
                 footerParts.push(`<button class="text-slate-300/80 hover:text-white" title="${lockTitle}" onclick="openEncryptionSettings('${id}')"><i class="fas ${lockIcon}"></i></button>`);
             }
-            const mHtml = footerParts.length ? `<div class="text-[10px] text-slate-300/90 mt-2 text-right font-mono">${footerParts.join(' • ')}</div>` : '';
+            if (!isUser && pythonExtract.executions && pythonExtract.executions.length) {
+                const pyCount = pythonExtract.executions.length;
+                const pyLabel = pyCount > 1 ? `Python ×${pyCount}` : 'Python';
+                footerParts.push(`<button type="button" class="python-exec-btn" onclick="openPythonExecDetail('${id}')" title="Python実行結果を表示" aria-label="Python実行結果を表示"><i class="fas fa-terminal"></i><span>${pyLabel}</span></button>`);
+            }
+            const mHtml = footerParts.length ? `<div class="text-[10px] text-slate-300/90 mt-2 text-right font-mono message-footer-meta">${footerParts.join(' • ')}</div>` : '';
 
             let contentHtml;
             if (isUser) {
                 // User message: RAW TEXT DISPLAY (Preserve whitespace, no markdown)
                 contentHtml = `<div class="content-area whitespace-pre-wrap font-sans text-sm break-words">${escapeHtml(text||'')}</div>`;
             } else {
-                // AI message: Markdown Rendered
-                contentHtml = buildAiMarkdownHtml(text);
+                // AI message: Markdown Rendered (Python tool runs stripped; open via footer button)
+                contentHtml = buildAiMarkdownHtml(displayText);
                 // Ensure content-area class is present if not already in buildAiMarkdownHtml
                 if (!contentHtml.includes('content-area')) {
                     contentHtml = contentHtml.replace('prose ', 'content-area prose ');
@@ -14338,7 +14482,7 @@
                 container.appendChild(msgEl);
                 if (doScroll) scrollToBottom();
                 if (!isUser) {
-                    queueMessageDecorations(msgEl, text);
+                    queueMessageDecorations(msgEl, displayText);
                     syncCodingTargetButtons(msgEl);
                     syncCodingModeUi(codingModeEnabled, { persist: false });
                 }

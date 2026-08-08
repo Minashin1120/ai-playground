@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 
 os.environ.setdefault("FLASK_SECRET_KEY", "deepseek-python-tool-test-secret")
@@ -68,6 +69,15 @@ class DeepSeekPythonToolTests(unittest.TestCase):
 
         self.assertEqual(state[0]["id"], "first")
         self.assertEqual(state[1]["id"], "second")
+
+    def test_python_sandbox_uses_interpreter_visible_inside_namespace(self):
+        with patch("subprocess.run") as run:
+            result = target.safe_execute_python("print(3 - 1)")
+
+        self.assertEqual(result, "Success (No output)")
+        command = run.call_args.args[0]
+        self.assertIn("/usr/bin/python3", command)
+        self.assertNotIn("/home/ai-chat-minashin1120/app/venv/bin/python3", command)
 
     def test_deepseek_ui_and_backend_enable_the_python_tool(self):
         js_assets = list((APP_ROOT / "static/js").glob("chat_core.v4.8.*.js"))

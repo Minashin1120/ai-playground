@@ -733,8 +733,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-08-012')
-app.config['SYSTEM_VERSION'] = 'V4.8.773'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-08-013')
+app.config['SYSTEM_VERSION'] = 'V4.8.774'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -6930,7 +6930,20 @@ def safe_execute_python(code):
     import os
     import shutil
 
-    py_path = shutil.which("python3")
+    # The sandbox only exposes the system filesystem below.  ``shutil.which``
+    # normally resolves to the application's venv, but that host path is not
+    # mounted into bubblewrap and therefore cannot be executed there.
+    py_path = None
+    for candidate in ("/usr/bin/python3", "/bin/python3"):
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            py_path = candidate
+            break
+    if not py_path:
+        candidate = shutil.which("python3")
+        if candidate:
+            resolved = os.path.realpath(candidate)
+            if resolved.startswith(("/usr/", "/bin/")) and os.path.isfile(resolved) and os.access(resolved, os.X_OK):
+                py_path = resolved
     if not py_path:
         return "Error: python3 not found."
 

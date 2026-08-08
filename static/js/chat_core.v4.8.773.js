@@ -15377,8 +15377,10 @@
         async function runAiSettingsCommand(instruction, modelId) {
             // Keep the command context active so the next prompt is a follow-up
             // instruction instead of falling back to a normal chat request.
-            pendingSlashCommand = 'settings';
-            showPendingSlashCommandIndicator('settings');
+            if (pendingSlashCommand !== 'settings') {
+                pendingSlashCommand = 'settings';
+                showPendingSlashCommandIndicator('settings');
+            }
             appendAiSettingsConversation('user', instruction);
             const timestamp = Date.now();
             const userEl = renderMessage(`settings-user-${timestamp}`, 'user', `/settings ${instruction}`, null, null, null, null, true, null, null, null, null, null, null, null, null, true);

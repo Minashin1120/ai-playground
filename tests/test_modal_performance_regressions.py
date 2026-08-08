@@ -30,6 +30,18 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("reasonOpts.classList.add('hidden')", script)
         self.assertIn("pyCont.classList.add('hidden')", script)
 
+    def test_reasoning_effort_excludes_non_llm_models(self):
+        source = _current_asset("js", "chat_core.v4.8.*.js")
+
+        self.assertIn(
+            "const supportsReasoningEffort = isLlmModel() && (",
+            source,
+        )
+        self.assertIn(
+            "if (supportsReasoningEffort) {\n                    reasonOpts.classList.remove('hidden');",
+            source,
+        )
+
     def test_browser_fast_mode_modal_is_fixed_above_home_content(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")
         template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")

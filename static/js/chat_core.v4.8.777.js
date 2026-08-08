@@ -7443,7 +7443,8 @@
                         thinkBudget.classList.add('opacity-50');
                     }
                 }
-                else if((modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3') || modelLower.includes('grok-4.3') || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || (modelLower.includes('gpt') && !modelLower.includes('tts')))) {
+                const supportsReasoningEffort = isLlmModel() && (modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3') || modelLower.includes('grok-4.3') || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || (modelLower.includes('gpt') && !modelLower.includes('tts')));
+                if (supportsReasoningEffort) {
                     reasonOpts.classList.remove('hidden');
                     if(searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none');
                 } else if (isDeepSeek) {

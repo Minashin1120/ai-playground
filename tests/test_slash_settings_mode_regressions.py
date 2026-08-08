@@ -12,6 +12,55 @@ def _chat_core_source():
 
 
 class SlashSettingsModeRegressionTests(unittest.TestCase):
+    def test_settings_command_uses_normal_chat_bubble_flow(self):
+        source = _chat_core_source()
+        runner = source[source.index("async function runAiSettingsCommand") :]
+        runner = runner[: runner.index("// === Gem suggestion helpers")]
+
+        self.assertIn("renderMessage(`settings-user-${timestamp}`, 'user'", runner)
+        self.assertIn("buildPendingSkeletonHtml(modelId", runner)
+        self.assertIn("renderAiSettingsResultBubble(data.applied, modelId)", runner)
+        self.assertIn("welcome.classList.add('hidden')", runner)
+        self.assertEqual(source.count("apiFetch('/api/settings/apply-ai-prompt'"), 1)
+        self.assertEqual(source.count("await runAiSettingsCommand(instruction,"), 2)
+
+    def test_result_bubble_lists_every_change_as_a_jump_button(self):
+        source = _chat_core_source()
+        renderer = source[source.index("function renderAiSettingsResultBubble") :]
+        renderer = renderer[: renderer.index("async function runAiSettingsCommand")]
+
+        self.assertIn("Object.entries(applied || {})", renderer)
+        self.assertNotIn(".slice(", renderer)
+        self.assertIn("button.addEventListener('click', () => openAiSettingJumpTarget(key))", renderer)
+        self.assertIn("formatAiSettingValue(value)", renderer)
+        self.assertIn("ai-settings-result-item", renderer)
+
+    def test_safe_ai_settings_have_named_jump_targets(self):
+        source = _chat_core_source()
+        mapping = source[source.index("const AI_SETTING_JUMP_TARGETS = {") :]
+        mapping = mapping[: mapping.index("function formatAiSettingValue")]
+        expected = {
+            "default_model", "default_enable_search", "default_enable_url_context", "default_enable_maps",
+            "default_enable_python", "default_enable_thinking", "default_thinking_level",
+            "default_thinking_budget", "default_reasoning_effort", "default_enable_system_prompt",
+            "default_safety_setting", "default_vision_model", "system_prompt", "system_prompt_enabled",
+            "apply_global_system_prompt", "apply_auto_system_prompt_notices",
+            "auto_system_prompt_notices_config", "mic_transcribe_mode", "stt_model",
+            "llm_transcribe_prompt", "enter_to_send", "use_sw_cache", "compact_prompt_mode",
+            "auto_search_on_links", "use_last_chat_settings", "temp_chat_timeout_seconds",
+            "theme_color", "liquid_glass_enabled", "rich_paste_prompt_default",
+            "rich_paste_prompt_use_custom_default", "enable_latency_metrics",
+            "enable_client_debug_log", "bot_detection_enabled", "skip_2fa_on_google_login",
+            "default_2fa_method",
+        }
+        for key in expected:
+            self.assertIn(f"{key}:", mapping)
+
+        jump = source[source.index("function openAiSettingJumpTarget") :]
+        jump = jump[: jump.index("function renderAiSettingsResultBubble")]
+        self.assertIn("jumpToSetting(target.tab, element)", jump)
+        self.assertIn("openRichPasteModal()", jump)
+
     def test_tapping_palette_item_selects_before_blur_hides_it(self):
         source = _chat_core_source()
         palette = source[source.index("function showSlashCommandSuggestions") :]

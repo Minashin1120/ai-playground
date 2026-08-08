@@ -3851,3 +3851,24 @@ body.liquid-glass-mode .composer-opt {
 body.liquid-glass-mode .composer-tool-btn:hover {
     background: rgba(255, 255, 255, 0.08) !important;
 }
+
+/* AI settings command result: actionable changed-setting rows */
+.ai-settings-result-list {
+    min-width: min(28rem, 68vw);
+}
+.ai-settings-result-item {
+    background: rgba(3, 7, 18, 0.28) !important;
+    border-color: rgba(148, 163, 184, 0.16) !important;
+}
+.ai-settings-result-item:hover,
+.ai-settings-result-item:focus-visible {
+    background: rgba(var(--theme-rgb), 0.1) !important;
+    border-color: rgba(var(--theme-rgb), 0.42) !important;
+    outline: none;
+}
+@media (max-width: 640px) {
+    .ai-settings-result-list {
+        min-width: 0;
+        width: 100%;
+    }
+}

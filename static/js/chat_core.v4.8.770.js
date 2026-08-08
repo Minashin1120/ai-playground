@@ -15191,6 +15191,180 @@
             return true;
         }
 
+        const AI_SETTING_JUMP_TARGETS = {
+            default_model: { label: '既定のモデル', tab: 'general', control: 'set-default-model' },
+            default_vision_model: { label: 'Vision Model', tab: 'general', control: 'set-default-vision-model' },
+            use_last_chat_settings: { label: '前回の設定を継続', tab: 'general', control: 'set-use-last-settings' },
+            default_enable_search: { label: '既定のSearch', tab: 'general', control: 'set-default-search' },
+            default_enable_url_context: { label: '既定のURLs', tab: 'general', control: 'set-default-url-context' },
+            default_enable_maps: { label: '既定のMaps', tab: 'general', control: 'set-default-maps' },
+            default_enable_python: { label: '既定のPython', tab: 'general', control: 'set-default-python' },
+            default_enable_thinking: { label: '既定のThinking', tab: 'general', control: 'set-default-thinking' },
+            default_thinking_level: { label: 'Thinking Level', tab: 'general', control: 'set-default-thinking-level' },
+            default_thinking_budget: { label: 'Thinking Budget', tab: 'general', control: 'set-default-thinking-budget' },
+            default_reasoning_effort: { label: 'Reasoning Effort', tab: 'general', control: 'set-default-reasoning-effort' },
+            default_enable_system_prompt: { label: '既定のSysPrompt', tab: 'general', control: 'set-default-sys-prompt' },
+            default_safety_setting: { label: '既定のSafety', tab: 'general', control: 'set-default-safety' },
+            auto_search_on_links: { label: 'Xリンクの自動検索', tab: 'general', control: 'set-auto-search-links' },
+            mic_transcribe_mode: { label: 'マイク文字起こし方式', tab: 'general', control: 'set-mic-transcribe-mode' },
+            stt_model: { label: 'STTモデル', tab: 'general', control: 'set-stt-model' },
+            llm_transcribe_prompt: { label: 'LLM文字起こしプロンプト', tab: 'general', control: 'set-llm-transcribe-prompt' },
+            enter_to_send: { label: 'Enterで送信', tab: 'general', control: 'set-enter-to-send' },
+            compact_prompt_mode: { label: 'プロンプトバー表示', tab: 'general', control: 'set-compact-prompt-mode' },
+            temp_chat_timeout_seconds: { label: '一時チャット保持時間', tab: 'general', control: 'set-temp-chat-timeout-seconds' },
+            system_prompt: { label: 'ユーザーシステムプロンプト', tab: 'prompt', control: 'sys-prompt-text' },
+            system_prompt_enabled: { label: 'システムプロンプト', tab: 'prompt', control: 'set-global-sys-prompt-enabled' },
+            apply_global_system_prompt: { label: 'ユーザープロンプトの適用', tab: 'prompt', control: 'set-apply-global-sys-prompt' },
+            apply_auto_system_prompt_notices: { label: '自動注入プロンプト', tab: 'prompt', control: 'set-apply-auto-sys-prompt-notices' },
+            auto_system_prompt_notices_config: { label: '自動注入プロンプト設定', tab: 'prompt', control: 'auto-sys-prompt-settings' },
+            theme_color: { label: 'テーマカラー', tab: 'display', control: 'set-theme-color' },
+            liquid_glass_enabled: { label: 'Liquid Glass', tab: 'display', control: 'set-liquid-glass' },
+            use_sw_cache: { label: '高速キャッシュ', tab: 'data', control: 'set-use-sw-cache' },
+            enable_latency_metrics: { label: 'レスポンス速度の計測', tab: 'data', control: 'set-latency-metrics' },
+            enable_client_debug_log: { label: 'デバッグログの拡張送信', tab: 'data', control: 'set-client-debug-log' },
+            bot_detection_enabled: { label: 'Bot Detection', tab: 'security', control: 'set-bot-detect' },
+            skip_2fa_on_google_login: { label: 'Googleログイン時の2FA', tab: '2fa', control: 'set-skip-2fa-google' },
+            default_2fa_method: { label: '既定の2FA方式', tab: '2fa', control: 'set-default-2fa-method' },
+            rich_paste_prompt_default: { label: 'リッチ貼り付けプロンプト', modal: 'rich-paste', control: 'rich-paste-prompt' },
+            rich_paste_prompt_use_custom_default: { label: 'リッチ貼り付けの既定値', modal: 'rich-paste', control: 'rich-paste-use-default' }
+        };
+
+        function formatAiSettingValue(value) {
+            if (value === true) return 'ON';
+            if (value === false) return 'OFF';
+            if (value === '(更新)') return '更新済み';
+            if (value === null || value === undefined || value === '') return '未設定';
+            if (typeof value === 'object') {
+                try { return JSON.stringify(value); } catch (e) { return '更新済み'; }
+            }
+            return String(value);
+        }
+
+        function findSettingsJumpElement(tabId, controlId) {
+            const tab = get(`tab-${tabId}`);
+            let element = get(controlId);
+            if (!tab || !element) return null;
+            while (element.parentElement && element.parentElement !== tab) element = element.parentElement;
+            return element.parentElement === tab ? element : get(controlId);
+        }
+
+        function openAiSettingJumpTarget(key) {
+            const target = AI_SETTING_JUMP_TARGETS[key];
+            if (!target) {
+                if (typeof window.openSettingsModal === 'function') window.openSettingsModal();
+                return;
+            }
+            if (target.modal === 'rich-paste') {
+                openRichPasteModal();
+                setTimeout(() => {
+                    const control = get(target.control);
+                    if (control) {
+                        control.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        control.focus({ preventScroll: true });
+                    }
+                }, 260);
+                return;
+            }
+            if (typeof window.openSettingsModal === 'function') window.openSettingsModal();
+            setTimeout(() => {
+                const element = findSettingsJumpElement(target.tab, target.control);
+                if (element) jumpToSetting(target.tab, element);
+                else switchTab(target.tab || 'general');
+            }, 320);
+        }
+
+        function removeEphemeralMessageControls(messageEl) {
+            if (!messageEl) return;
+            const controls = messageEl.querySelector('.msg-controls');
+            if (controls) controls.remove();
+        }
+
+        function renderAiSettingsResultBubble(applied, modelId) {
+            const entries = Object.entries(applied || {});
+            const id = `settings-result-${Date.now()}`;
+            const message = entries.length
+                ? '設定を更新しました。\n\n変更した項目をタップすると、設定画面の該当箇所へ移動できます。'
+                : '変更された設定項目はありませんでした。';
+            const messageEl = renderMessage(id, 'assistant', message, null, null, modelId, null, true, null, null, null, null, null, null, null, null, true);
+            if (!messageEl) return;
+            removeEphemeralMessageControls(messageEl);
+            const bubble = messageEl.querySelector('.message-bubble');
+            if (!bubble || !entries.length) return;
+
+            const list = document.createElement('div');
+            list.className = 'mt-3 space-y-2 ai-settings-result-list';
+            entries.forEach(([key, value]) => {
+                const target = AI_SETTING_JUMP_TARGETS[key] || { label: key };
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'w-full flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-left hover:bg-black/30 hover:border-blue-400/40 transition ai-settings-result-item';
+                const text = document.createElement('span');
+                text.className = 'min-w-0 flex-1';
+                const label = document.createElement('span');
+                label.className = 'block text-xs font-bold text-blue-200';
+                label.textContent = target.label;
+                const valueEl = document.createElement('span');
+                valueEl.className = 'block mt-0.5 text-[11px] text-gray-300 break-words';
+                valueEl.textContent = formatAiSettingValue(value);
+                const icon = document.createElement('i');
+                icon.className = 'fas fa-arrow-up-right-from-square text-[10px] text-blue-300 shrink-0';
+                text.appendChild(label);
+                text.appendChild(valueEl);
+                button.appendChild(text);
+                button.appendChild(icon);
+                button.addEventListener('click', () => openAiSettingJumpTarget(key));
+                list.appendChild(button);
+            });
+            const footer = bubble.querySelector('.message-footer-meta');
+            if (footer) bubble.insertBefore(list, footer);
+            else bubble.appendChild(list);
+            scrollToBottom();
+        }
+
+        async function runAiSettingsCommand(instruction, modelId) {
+            const timestamp = Date.now();
+            const userEl = renderMessage(`settings-user-${timestamp}`, 'user', `/settings ${instruction}`, null, null, null, null, true, null, null, null, null, null, null, null, null, true);
+            removeEphemeralMessageControls(userEl);
+            const welcome = get('welcome-screen');
+            if (welcome) welcome.classList.add('hidden');
+            const pendingId = `settings-pending-${timestamp}`;
+            const chat = get('chat-container');
+            if (chat) {
+                chat.insertAdjacentHTML('beforeend', `<div id="${pendingId}" class="flex justify-start mb-4 fade-in"><div class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${buildPendingSkeletonHtml(modelId, '設定変更を確認しています...')}</div></div>`);
+                scrollToBottom();
+            }
+            try {
+                const res = await apiFetch('/api/settings/apply-ai-prompt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: instruction, model: modelId })
+                });
+                const data = await res.json().catch(() => ({}));
+                const pending = get(pendingId);
+                if (pending) pending.remove();
+                if (data && data.status === 'ok' && data.applied) {
+                    showToast(`設定を更新しました（${Object.keys(data.applied).length}項目）`, 'success');
+                    try {
+                        const fresh = await apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).then((response) => response.json());
+                        populateAiSafeFormFields(fresh);
+                        cacheUserSettings(fresh);
+                    } catch (e) {}
+                    renderAiSettingsResultBubble(data.applied, modelId);
+                    return;
+                }
+                const msg = data.message || data.error || '設定変更に失敗しました';
+                const errorEl = renderMessage(`settings-error-${Date.now()}`, 'assistant', `設定変更に失敗しました。\n\n${msg}`, null, null, modelId, null, true, null, null, null, null, null, null, null, null, true);
+                removeEphemeralMessageControls(errorEl);
+                showToast(msg, 'error', true);
+            } catch (error) {
+                const pending = get(pendingId);
+                if (pending) pending.remove();
+                const errorEl = renderMessage(`settings-error-${Date.now()}`, 'assistant', '設定変更の通信に失敗しました。時間をおいて再度お試しください。', null, null, modelId, null, true, null, null, null, null, null, null, null, null, true);
+                removeEphemeralMessageControls(errorEl);
+                showToast('設定変更の通信に失敗しました', 'error', true);
+            }
+        }
+
         // === Gem suggestion helpers (triggered by @ in prompt bar) ===
         function hideGemSuggestions() {
             const box = get('gem-suggestions');
@@ -15733,34 +15907,7 @@
                     get('prompt-input').value = '';
                     get('prompt-input').style.height = 'auto';
 
-                    // Call the existing AI settings endpoint (reuses all previous backend logic + fallbacks)
-                    (async () => {
-                        try {
-                            const res = await apiFetch('/api/settings/apply-ai-prompt', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ prompt: instruction, model: modelForCmd })
-                            });
-                            const data = await res.json().catch(() => ({}));
-
-                            if (data && data.status === 'ok' && data.applied) {
-                                showToast(`設定を更新しました（${Object.keys(data.applied).length}項目）`, 'success');
-                                try {
-                                    const fresh = await apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).then(r => r.json());
-                                    if (typeof populateAiSafeFormFields === 'function') populateAiSafeFormFields(fresh);
-                                    if (typeof cacheUserSettings === 'function') cacheUserSettings(fresh);
-                                } catch (e) {}
-                                // Visual feedback in chat
-                                const summary = Object.entries(data.applied).slice(0,3).map(([k,v])=>`${k}→${v}`).join(', ');
-                                renderMessage(Date.now(), 'assistant', `✅ 設定をAIで適用しました\n${summary}${Object.keys(data.applied).length>3?' ...':''}`, null, null, null, null, true, null, null, null, null, null, null, null, null, true);
-                            } else {
-                                const msg = data.message || data.error || '設定変更に失敗しました';
-                                showToast(msg, 'error', true);
-                            }
-                        } catch (err) {
-                            showToast('設定変更の通信に失敗しました', 'error', true);
-                        }
-                    })();
+                    await runAiSettingsCommand(instruction, modelForCmd);
                 }
                 return; // Do not treat as normal message
             }
@@ -15836,43 +15983,7 @@
                 // Optimistic UI: clear input immediately
                 get('prompt-input').value = '';
                 get('prompt-input').style.height = 'auto';
-
-                try {
-                    const res = await apiFetch('/api/settings/apply-ai-prompt', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ prompt: instruction, model: settingsModel })
-                    });
-                    const data = await res.json().catch(() => ({}));
-
-                    if (data && data.status === 'ok' && data.applied) {
-                        showToast(`設定をAIで更新しました (${Object.keys(data.applied).length}項目)`, 'success');
-                        try {
-                            const fresh = await apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).then(r => r.json());
-                            if (typeof populateAiSafeFormFields === 'function') populateAiSafeFormFields(fresh);
-                            if (typeof cacheUserSettings === 'function') cacheUserSettings(fresh);
-                        } catch (e) {}
-                        // Show a nice feedback message in the current chat (non-persisted visual only)
-                        const appliedSummary = Object.entries(data.applied).slice(0, 5).map(([k, v]) => `${k}: ${v}`).join(', ');
-                        renderMessage(Date.now(), 'assistant', `設定を更新しました。\n${appliedSummary}${Object.keys(data.applied).length > 5 ? ' ...' : ''}`, null, null, null, null, true, null, null, null, null, null, null, null, null, true);
-                    } else {
-                        const msg = (data && (data.message || data.error)) || 'AI設定の適用に失敗しました';
-                        showToast(msg, 'error', true);
-                        // Admin debug (temporary)
-                        const adminDbg = get('ai-settings-admin-debug');
-                        if (adminDbg && (data.raw_error || data.message)) {
-                            const dbgContent = get('ai-settings-debug-content');
-                            if (dbgContent) {
-                                dbgContent.textContent = `モデル: ${data.original_model || settingsModel}\nエラー: ${msg}\n${data.raw_error ? '詳細: ' + data.raw_error : ''}`;
-                            }
-                            adminDbg.classList.remove('hidden');
-                            const copyBtn = get('ai-settings-debug-copy');
-                            if (copyBtn) copyBtn.onclick = () => navigator.clipboard.writeText(dbgContent.textContent || '');
-                        }
-                    }
-                } catch (e) {
-                    showToast('AI設定変更の通信に失敗しました', 'error', true);
-                }
+                await runAiSettingsCommand(instruction, settingsModel);
                 return; // Do not proceed to normal chat send
             }
 

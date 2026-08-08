@@ -15091,7 +15091,19 @@
                         <div class="text-[11px] text-gray-400 truncate">${cmd.description}</div>
                     </div>
                 `;
-                item.onclick = () => selectSlashCommand(cmd.id);
+                let selectedByPointer = false;
+                item.addEventListener('pointerdown', (event) => {
+                    if (typeof event.button === 'number' && event.button !== 0) return;
+                    // On touch devices, textarea blur can hide and remove this
+                    // item before the delayed click event is dispatched.
+                    event.preventDefault();
+                    selectedByPointer = true;
+                    selectSlashCommand(cmd.id);
+                });
+                item.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    if (!selectedByPointer) selectSlashCommand(cmd.id);
+                });
                 item.onmouseenter = () => {
                     slashSelectedIndex = idx;
                     showSlashCommandSuggestions(filter); // re-render highlight

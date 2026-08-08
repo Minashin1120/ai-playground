@@ -12,6 +12,20 @@ def _chat_core_source():
 
 
 class SlashSettingsModeRegressionTests(unittest.TestCase):
+    def test_tapping_palette_item_selects_before_blur_hides_it(self):
+        source = _chat_core_source()
+        palette = source[source.index("function showSlashCommandSuggestions") :]
+        palette = palette[: palette.index("function selectSlashCommand")]
+
+        pointerdown = palette.index("item.addEventListener('pointerdown'")
+        click = palette.index("item.addEventListener('click'")
+        append = palette.index("listEl.appendChild(item)")
+        self.assertLess(pointerdown, click)
+        self.assertLess(click, append)
+        self.assertIn("event.preventDefault()", palette[pointerdown:click])
+        self.assertIn("selectSlashCommand(cmd.id)", palette[pointerdown:click])
+        self.assertIn("if (!selectedByPointer)", palette[click:append])
+
     def test_typed_or_pasted_settings_command_enters_visible_mode(self):
         source = _chat_core_source()
         helper = source[source.index("function activateTypedSlashCommand(input)") :]

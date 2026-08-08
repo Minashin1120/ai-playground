@@ -96,6 +96,30 @@ class ProgressSpinnerRegressionTests(unittest.TestCase):
         self.assertIn("const label = requestSpinnerLabel(details.url, details.method)", source)
         self.assertIn("const label = requestSpinnerLabel(this.__progressSpinnerUrl, this.__progressSpinnerMethod)", source)
 
+    def test_stream_error_event_ends_progress_tracking(self):
+        # A streamed error event must end the reader loop immediately so the
+        # manual flow (and its 送信中/受信中 spinner) is finished without waiting
+        # for the server to close the connection (EOF). This applies to both the
+        # main chat stream and the resume stream.
+        assets = list((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(assets), 1)
+        source = assets[0].read_text(encoding="utf-8")
+
+        self.assertEqual(source.count("let streamEndedByError = false;"), 2)
+        self.assertEqual(source.count("while(!streamEndedByError) {"), 2)
+        self.assertEqual(source.count("streamEndedByError = true;"), 2)
+
+        first = source.index("let streamEndedByError = false;")
+        second = source.index("let streamEndedByError = false;", first + 1)
+        chat_flow = source[first:second]
+        resume_flow = source[second:]
+        self.assertIn("hadError = true;", chat_flow)
+        self.assertIn("streamEndedByError = true;", chat_flow)
+        self.assertIn("buildChatErrorBubbleHtml(j.content)", chat_flow)
+        self.assertIn("hadError = true;", resume_flow)
+        self.assertIn("streamEndedByError = true;", resume_flow)
+        self.assertIn("buildChatErrorBubbleHtml(j.content)", resume_flow)
+
     def test_image_generation_progress_does_not_replace_pending_skeleton(self):
         app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
 

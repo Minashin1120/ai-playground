@@ -16182,8 +16182,9 @@
                 let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null, hadError=false;
                 const pyBoxes = {};
                 let lastRenderTime = 0;
+                let streamEndedByError = false;
 
-                while(true) {
+                while(!streamEndedByError) {
                     const {done, value} = await reader.read();
                     if(done) break;
                     if (finishStreamProgress) finishStreamProgress.setPhase('receiving');
@@ -16331,8 +16332,10 @@
                                 maybeReportFirstEventLatency('content', !!contentDelta);
                             } else if(j.type==='error'){
                                 hadError = true;
+                                streamEndedByError = true;
                                 adiv.insertAdjacentHTML('beforeend', buildChatErrorBubbleHtml(j.content));
                                 showToast(j.content || "Unknown error", "error", true);
+                                break;
                             }
                         } catch(e){}
                     }
@@ -16573,6 +16576,7 @@
             let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null, hadError=false;
             const pyBoxes = {};
             let lastRenderTime = 0;
+            let streamEndedByError = false;
             const finishResumeProgress = window.ProgressSpinner
                 ? window.ProgressSpinner.startFlow('chatResume')
                 : null;
@@ -16590,7 +16594,7 @@
                 if (finishResumeProgress) finishResumeProgress.setPhase('waiting');
                 const reader = r.body.getReader();
                 const dec = new TextDecoder();
-                while (true) {
+                while(!streamEndedByError) {
                     const {done, value} = await reader.read();
                     if (done) break;
                     if (finishResumeProgress) finishResumeProgress.setPhase('receiving');
@@ -16716,8 +16720,10 @@
                                 contentChanged = true;
                             } else if (j.type === 'error') {
                                 hadError = true;
+                                streamEndedByError = true;
                                 adiv.insertAdjacentHTML('beforeend', buildChatErrorBubbleHtml(j.content));
                                 showToast(j.content || "Unknown error", "error", true);
+                                break;
                             }
                         } catch (e) {}
                     }

@@ -10121,8 +10121,16 @@
                     }
 
                     // Slash command / gem suggestion triggers
+                    if (activateTypedSlashCommand(this)) {
+                        if (gemSuggestionsVisible) hideGemSuggestions();
+                        schedulePromptTokenEstimate();
+                        return;
+                    }
                     const val = this.value.trim();
-                    if (val.startsWith('@')) {
+                    if (pendingSlashCommand) {
+                        if (gemSuggestionsVisible) hideGemSuggestions();
+                        if (slashSuggestionsVisible) hideSlashCommandSuggestions();
+                    } else if (val.startsWith('@')) {
                         const filter = val.substring(1);
                         showGemSuggestions(filter);
                         if (slashSuggestionsVisible) hideSlashCommandSuggestions();
@@ -15152,6 +15160,25 @@
             input.dispatchEvent(new Event('input', { bubbles: true }));
         }
 
+        function activateTypedSlashCommand(input) {
+            if (!input || pendingSlashCommand) return false;
+
+            // A space after an exact command means the user has committed to it,
+            // even when they typed or pasted it instead of choosing the palette.
+            const match = input.value.match(/^\s*\/([a-z][\w-]*)\s+([\s\S]*)$/i);
+            if (!match) return false;
+            const cmd = SLASH_COMMANDS.find((item) => item.id.toLowerCase() === match[1].toLowerCase());
+            if (!cmd) return false;
+
+            input.value = match[2];
+            hideSlashCommandSuggestions();
+            pendingSlashCommand = cmd.id;
+            showPendingSlashCommandIndicator(cmd.id);
+            input.style.height = 'auto';
+            input.style.height = `${input.scrollHeight}px`;
+            return true;
+        }
+
         // === Gem suggestion helpers (triggered by @ in prompt bar) ===
         function hideGemSuggestions() {
             const box = get('gem-suggestions');
@@ -15676,23 +15703,23 @@
             // Handle pending slash command (e.g. after selecting /settings via the palette)
             if (pendingSlashCommand) {
                 const cmd = pendingSlashCommand;
-                hidePendingSlashCommandIndicator(); // clears state + hides indicator
-
                 const instruction = rawText.trim();
                 const modelForCmd = get('model-select') ? get('model-select').value : null;
-
-                get('prompt-input').value = '';
-                get('prompt-input').style.height = 'auto';
 
                 if (cmd === 'settings') {
                     if (!instruction) {
                         showToast('設定変更の指示を入力してください（例: デフォルトモデルをgemini-2.5-flashに）', 'info');
+                        get('prompt-input').focus();
                         return;
                     }
                     if (!modelForCmd) {
                         showToast('モデルを選択してください', 'error', true);
                         return;
                     }
+
+                    hidePendingSlashCommandIndicator(); // valid command: leave mode before execution
+                    get('prompt-input').value = '';
+                    get('prompt-input').style.height = 'auto';
 
                     // Call the existing AI settings endpoint (reuses all previous backend logic + fallbacks)
                     (async () => {
@@ -15779,11 +15806,14 @@
 
             // === /settings command: natural language settings change via AI (reuses prompt bar model + toggles) ===
             const trimmedRaw = rawText.trim();
-            if (trimmedRaw.toLowerCase().startsWith('/settings')) {
+            if (/^\/settings(?:\s|$)/i.test(trimmedRaw)) {
                 const instruction = trimmedRaw.replace(/^\/settings\s*/i, '').trim();
                 if (!instruction) {
                     showToast('使い方: /settings デフォルトモデルを gemini-2.5-flash に変更して thinking をオンに', 'info');
-                    get('prompt-input').value = '/settings ';
+                    const input = get('prompt-input');
+                    input.value = '/settings ';
+                    activateTypedSlashCommand(input);
+                    input.focus();
                     return;
                 }
                 const settingsModel = get('model-select') ? get('model-select').value : null;

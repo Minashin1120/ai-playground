@@ -733,8 +733,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-09-005')
-app.config['SYSTEM_VERSION'] = 'V4.8.780'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-09-006')
+app.config['SYSTEM_VERSION'] = 'V4.8.781'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -6986,7 +6986,13 @@ def safe_execute_python(code):
             "--cpu=15",
             "--as=536870912",
             "--fsize=8388608",
-            "--nproc=64",
+            # RLIMIT_NPROC is enforced for the whole service UID, not only
+            # processes spawned by this sandbox.  The gunicorn/RQ threads
+            # already consume part of that UID-wide budget, so 64 can make
+            # bwrap fail before Python starts (EAGAIN) in a healthy service.
+            # Keep a bounded sandbox process budget while leaving headroom for
+            # the service's resident threads and the namespace helper.
+            "--nproc=256",
             "--nofile=64",
             "--",
             bwrap,

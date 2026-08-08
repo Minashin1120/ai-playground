@@ -78,6 +78,8 @@ class DeepSeekPythonToolTests(unittest.TestCase):
         command = run.call_args.args[0]
         self.assertIn("/usr/bin/python3", command)
         self.assertNotIn("/home/ai-chat-minashin1120/app/venv/bin/python3", command)
+        self.assertIn("--nproc=256", command)
+        self.assertNotIn("--nproc=64", command)
 
     def test_python_sandbox_redacts_host_paths_from_execution_output(self):
         def emit_host_path_error(*args, **kwargs):

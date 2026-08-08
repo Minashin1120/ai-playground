@@ -12,6 +12,15 @@ def _current_chat_core_source():
 
 
 class ChatLoadingRegressionTests(unittest.TestCase):
+    def test_markdown_horizontal_rule_uses_compact_vertical_spacing(self):
+        css_assets = sorted((APP_ROOT / "static" / "css").glob("chat.custom.v4.8.*.css"))
+        self.assertEqual(len(css_assets), 1, "Only the latest versioned chat CSS asset should remain")
+        css = css_assets[0].read_text(encoding="utf-8")
+        self.assertIn(
+            ".prose hr { border: 0; border-top: 1px solid var(--line); margin: 0.75rem 0; }",
+            css,
+        )
+
     def test_markdown_rendering_survives_a_missing_library_without_unsafe_html(self):
         source = _current_chat_core_source()
         sanitizer = source[source.index("function sanitizeMarkdownHtml(text, opts = {})") :]

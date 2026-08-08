@@ -12,6 +12,24 @@ def _current_asset(folder, pattern):
 
 
 class ModalPerformanceRegressionTests(unittest.TestCase):
+    def test_hidden_conditional_composer_controls_override_component_display(self):
+        source = _current_asset("css", "chat.custom.v4.8.*.css")
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+
+        self.assertIn(
+            ".composer-opt.hidden,\n.composer-tool-btn.hidden {\n    display: none !important;\n}",
+            source,
+        )
+        self.assertRegex(
+            template,
+            r'id="mask-btn"[^>]+class="[^"]*composer-tool-btn hidden[^"]*"',
+        )
+        self.assertIn("maskBtn.classList.add('hidden')", script)
+        self.assertIn("thinkOpts.classList.add('hidden')", script)
+        self.assertIn("reasonOpts.classList.add('hidden')", script)
+        self.assertIn("pyCont.classList.add('hidden')", script)
+
     def test_browser_fast_mode_modal_is_fixed_above_home_content(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")
         template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")

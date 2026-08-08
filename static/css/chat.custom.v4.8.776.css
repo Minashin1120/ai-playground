@@ -3533,6 +3533,10 @@ html.performance-lite-mode body:not(.liquid-glass-mode) .model-list-animate {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
 }
+.composer-opt.hidden,
+.composer-tool-btn.hidden {
+    display: none !important;
+}
 .composer-tool-btn:hover {
     background: rgba(148, 163, 184, 0.1) !important;
     color: #e2e8f0 !important;

@@ -79,6 +79,19 @@ class DeepSeekPythonToolTests(unittest.TestCase):
         self.assertIn("/usr/bin/python3", command)
         self.assertNotIn("/home/ai-chat-minashin1120/app/venv/bin/python3", command)
 
+    def test_python_sandbox_redacts_host_paths_from_execution_output(self):
+        def emit_host_path_error(*args, **kwargs):
+            kwargs["stdout"].write(
+                b"bwrap: execvp /home/ai-chat-minashin1120/app/venv/bin/python3: No such file or directory\n"
+            )
+
+        with patch("subprocess.run", side_effect=emit_host_path_error):
+            result = target.safe_execute_python("print(3 - 1)")
+
+        self.assertIn("[host path redacted]", result)
+        self.assertNotIn("/home/ai-chat-minashin1120", result)
+        self.assertNotIn("venv/bin/python3", result)
+
     def test_deepseek_ui_and_backend_enable_the_python_tool(self):
         js_assets = list((APP_ROOT / "static/js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(js_assets), 1)

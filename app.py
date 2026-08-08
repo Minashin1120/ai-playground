@@ -733,8 +733,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-08-013')
-app.config['SYSTEM_VERSION'] = 'V4.8.774'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-08-014')
+app.config['SYSTEM_VERSION'] = 'V4.8.775'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -6923,6 +6923,19 @@ def migrate_e2ee_task(user_id, target_enable):
             r.set(f"migration_status:{user_id}", "error")
             r.set(f"migration_progress:{user_id}", "error")
 
+def _sanitize_python_sandbox_output(value):
+    """Remove host filesystem paths before Python output reaches the client."""
+    text = str(value or "")
+    text = re.sub(
+        r"(?<![A-Za-z0-9_.-])/(?:home|root)/[^\s'\"`<>]+",
+        "[host path redacted]",
+        text,
+    )
+    app_root = os.path.abspath(os.path.dirname(__file__))
+    text = text.replace(app_root, "[app path redacted]")
+    return text
+
+
 def safe_execute_python(code):
     """Executes Python code in a restricted environment using bubblewrap."""
     import subprocess
@@ -7001,11 +7014,12 @@ def safe_execute_python(code):
             out = raw[:2 * 1024 * 1024].decode("utf-8", errors="replace")
             if truncated:
                 out += "\n[Output truncated at 2MB]"
+            out = _sanitize_python_sandbox_output(out)
             return out if out.strip() else "Success (No output)"
         except subprocess.TimeoutExpired:
             return "Error: Execution timed out (30s limit)"
         except Exception as e:
-            return f"Error: {str(e)}"
+            return _sanitize_python_sandbox_output(f"Error: {e}")
 
 
 def accumulate_deepseek_tool_call_deltas(tool_call_state, delta_tool_calls):

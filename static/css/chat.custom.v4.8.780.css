@@ -88,7 +88,7 @@
         .prose th { background: rgba(var(--theme-rgb), 0.12); color: var(--theme-200); font-weight: 600; }
         .prose tr:nth-child(even) { background: rgba(255,255,255,0.02); }
         .prose blockquote { border-left: 4px solid var(--theme-500); padding-left: 1rem; margin: 1rem 0; color: var(--muted); font-style: italic; }
-        .prose hr { border: 0; border-top: 1px solid rgba(var(--theme-rgb), 0.55); margin: 0.75rem 0; }
+        .prose hr { border: 0; border-top: 2px solid rgba(var(--theme-rgb), 0.55); margin: 0.75rem 0; }
         .prose pre { background: #060d1d !important; padding: 0 !important; overflow-x: auto; border: none !important; border-radius: 0 !important; margin: 0.6em 0; white-space: pre; }
         .prose code {
             font-family: "JetBrains Mono", "Noto Sans Mono CJK JP", "Noto Sans Mono", "Noto Sans JP",

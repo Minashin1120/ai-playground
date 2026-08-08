@@ -15279,12 +15279,15 @@
             if (controls) controls.remove();
         }
 
-        function renderAiSettingsResultBubble(applied, modelId) {
-            const entries = Object.entries(applied || {});
+        function renderAiSettingsResultBubble(values, modelId, mode = 'update') {
+            const entries = Object.entries(values || {});
             const id = `settings-result-${Date.now()}`;
+            const inspecting = mode === 'inspect';
             const message = entries.length
-                ? '設定を更新しました。\n\n変更した項目をタップすると、設定画面の該当箇所へ移動できます。'
-                : '変更された設定項目はありませんでした。';
+                ? (inspecting
+                    ? '現在の設定を確認しました。\n\n確認した項目をタップすると、設定画面の該当箇所へ移動できます。'
+                    : '設定を更新しました。\n\n変更した項目をタップすると、設定画面の該当箇所へ移動できます。')
+                : (inspecting ? '確認できる設定項目がありませんでした。' : '変更された設定項目はありませんでした。');
             const messageEl = renderMessage(id, 'assistant', message, null, null, modelId, null, true, null, null, null, null, null, null, null, null, true);
             if (!messageEl) return;
             removeEphemeralMessageControls(messageEl);
@@ -15330,7 +15333,7 @@
             const pendingId = `settings-pending-${timestamp}`;
             const chat = get('chat-container');
             if (chat) {
-                chat.insertAdjacentHTML('beforeend', `<div id="${pendingId}" class="flex justify-start mb-4 fade-in"><div class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${buildPendingSkeletonHtml(modelId, '設定変更を確認しています...')}</div></div>`);
+                chat.insertAdjacentHTML('beforeend', `<div id="${pendingId}" class="flex justify-start mb-4 fade-in"><div class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${buildPendingSkeletonHtml(modelId, '設定リクエストを確認しています...')}</div></div>`);
                 scrollToBottom();
             }
             try {
@@ -15342,6 +15345,11 @@
                 const data = await res.json().catch(() => ({}));
                 const pending = get(pendingId);
                 if (pending) pending.remove();
+                if (data && data.status === 'ok' && data.mode === 'inspect' && data.current) {
+                    showToast(`現在の設定を確認しました（${Object.keys(data.current).length}項目）`, 'success');
+                    renderAiSettingsResultBubble(data.current, modelId, 'inspect');
+                    return;
+                }
                 if (data && data.status === 'ok' && data.applied) {
                     showToast(`設定を更新しました（${Object.keys(data.applied).length}項目）`, 'success');
                     try {

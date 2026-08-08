@@ -29,11 +29,25 @@ class SlashSettingsModeRegressionTests(unittest.TestCase):
         renderer = source[source.index("function renderAiSettingsResultBubble") :]
         renderer = renderer[: renderer.index("async function runAiSettingsCommand")]
 
-        self.assertIn("Object.entries(applied || {})", renderer)
+        self.assertIn("Object.entries(values || {})", renderer)
         self.assertNotIn(".slice(", renderer)
         self.assertIn("button.addEventListener('click', () => openAiSettingJumpTarget(key))", renderer)
         self.assertIn("formatAiSettingValue(value)", renderer)
         self.assertIn("ai-settings-result-item", renderer)
+
+    def test_inspection_result_uses_same_actionable_answer_bubble_without_refreshing_settings(self):
+        source = _chat_core_source()
+        runner = source[source.index("async function runAiSettingsCommand") :]
+        runner = runner[: runner.index("// === Gem suggestion helpers")]
+        inspect_branch = runner[runner.index("data.mode === 'inspect'") : runner.index("data.applied")]
+
+        self.assertIn("data.current", inspect_branch)
+        self.assertIn("renderAiSettingsResultBubble(data.current, modelId, 'inspect')", inspect_branch)
+        self.assertNotIn("populateAiSafeFormFields", inspect_branch)
+        renderer = source[source.index("function renderAiSettingsResultBubble") :]
+        renderer = renderer[: renderer.index("async function runAiSettingsCommand")]
+        self.assertIn("mode === 'inspect'", renderer)
+        self.assertIn("現在の設定を確認しました", renderer)
 
     def test_safe_ai_settings_have_named_jump_targets(self):
         source = _chat_core_source()

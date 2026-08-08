@@ -733,8 +733,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-08-009')
-app.config['SYSTEM_VERSION'] = 'V4.8.770'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-08-010')
+app.config['SYSTEM_VERSION'] = 'V4.8.771'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2333,6 +2333,52 @@ AI_NEVER_EDITABLE_FIELDS = {
     # Admin-only (global)
     'admin_api_key_mode', 'bot_detection_global_enabled',
 }
+
+
+def _get_ai_safe_settings_snapshot(user):
+    """Return current values for AI-readable settings only; never include credentials or admin settings."""
+    values = {field: getattr(user, field, None) for field in AI_SAFE_EDITABLE_FIELDS}
+    system_prompt = getattr(user, 'system_prompt', None) or ''
+    if getattr(user, 'enable_e2ee', False) and system_prompt:
+        system_prompt = decrypt_val(system_prompt)
+    values.update({
+        'system_prompt': system_prompt,
+        'system_prompt_enabled': user.system_prompt_enabled if user.system_prompt_enabled is not None else True,
+        'apply_global_system_prompt': user.apply_global_system_prompt if user.apply_global_system_prompt is not None else True,
+        'apply_auto_system_prompt_notices': get_user_auto_system_prompt_notices_enabled(user),
+        'auto_system_prompt_notices_config': get_user_auto_system_prompt_notices_config(user),
+        'mic_transcribe_mode': _normalize_mic_transcribe_mode(getattr(user, 'mic_transcribe_mode', None)),
+        'stt_model': getattr(user, 'stt_model', None) or 'gpt-4o-mini-transcribe',
+        'llm_transcribe_prompt': _normalize_llm_transcribe_prompt(getattr(user, 'llm_transcribe_prompt', None)) or '',
+        'temp_chat_timeout_seconds': _get_user_temp_chat_timeout_seconds(user),
+        'default_model': getattr(user, 'default_model', None) or 'gemini-3.6-flash',
+        'default_vision_model': getattr(user, 'default_vision_model', None) or 'gemini-3-flash-preview',
+        'default_thinking_level': getattr(user, 'default_thinking_level', None) or 'high',
+        'default_thinking_budget': user.default_thinking_budget if user.default_thinking_budget is not None else 4096,
+        'default_reasoning_effort': getattr(user, 'default_reasoning_effort', None) or 'medium',
+        'default_safety_setting': getattr(user, 'default_safety_setting', None) or 'default',
+        'rich_paste_prompt_default': getattr(user, 'rich_paste_prompt_default', None) or '',
+        'rich_paste_prompt_use_custom_default': bool(getattr(user, 'rich_paste_prompt_use_custom_default', False)),
+        'theme_color': getattr(user, 'theme_color', None) or '',
+        'liquid_glass_enabled': bool(getattr(user, 'liquid_glass_enabled', False)),
+        'compact_prompt_mode': bool(getattr(user, 'compact_prompt_mode', False)),
+        'enable_latency_metrics': bool(getattr(user, 'enable_latency_metrics', False)),
+        'enable_client_debug_log': bool(getattr(user, 'enable_client_debug_log', False)),
+        'bot_detection_enabled': user.bot_detection_enabled if user.bot_detection_enabled is not None else True,
+        'skip_2fa_on_google_login': bool(getattr(user, 'skip_2fa_on_google_login', False)),
+        'default_2fa_method': getattr(user, 'default_2fa_method', None) or 'totp',
+    })
+    return {field: values.get(field) for field in sorted(AI_SAFE_EDITABLE_FIELDS)}
+
+
+def _summarize_ai_settings_for_model(values):
+    """Keep private/long prompt bodies out of the intent-classification context."""
+    summarized = dict(values or {})
+    for field in ('system_prompt', 'llm_transcribe_prompt', 'rich_paste_prompt_default'):
+        summarized[field] = '設定済み' if summarized.get(field) else '未設定'
+    if summarized.get('auto_system_prompt_notices_config'):
+        summarized['auto_system_prompt_notices_config'] = '設定済み'
+    return summarized
 
 def _apply_ai_settings_update(current_user, delta):
     """
@@ -18247,7 +18293,7 @@ def receive_client_log():
 # --- AI Settings Prompt (tool use in settings modal) ---
 
 def _build_ai_settings_tool_schema():
-    """Return (openai_tools_list, gemini_tool) for the update_settings tool."""
+    """Return tool schemas for updating settings or inspecting current values."""
     # Common property descriptions (Japanese for better JP prompt understanding)
     props = {
         "default_model": {"type": "string", "description": "既定モデルID", "enum": sorted(ALL_VALID_MODEL_IDS)},
@@ -18298,11 +18344,35 @@ def _build_ai_settings_tool_schema():
             },
         },
     }
+    inspect_description = (
+        "設定を一切変更せず、ユーザーが確認・表示・質問した現在の設定項目を返します。"
+        "特定項目の質問ではfieldsに該当項目だけを指定し、設定全体の確認ではallをtrueにしてください。"
+    )
+    openai_inspect_tool = {
+        "type": "function",
+        "function": {
+            "name": "inspect_settings",
+            "description": inspect_description,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fields": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": sorted(AI_SAFE_EDITABLE_FIELDS)},
+                        "description": "確認する設定フィールド名",
+                    },
+                    "all": {"type": "boolean", "description": "安全な設定項目をすべて確認する場合はtrue"},
+                },
+                "additionalProperties": False,
+            },
+        },
+    }
     # Gemini format (uses google.genai.types)
     # NOTE: We must NOT include additional_properties / additionalProperties here.
     # Google Gemini API rejects unknown fields like "additional_properties" in tool schemas (400 INVALID_ARGUMENT).
     # OpenAI side keeps additionalProperties: false (valid for OpenAI).
     gemini_func_decl = None
+    gemini_inspect_decl = None
     try:
         from google.genai import types as gtypes
         gemini_properties = {}
@@ -18330,16 +18400,32 @@ def _build_ai_settings_tool_schema():
                 # deliberately omit additional_properties
             ),
         )
+        gemini_inspect_decl = gtypes.FunctionDeclaration(
+            name="inspect_settings",
+            description=inspect_description,
+            parameters=gtypes.Schema(
+                type="OBJECT",
+                properties={
+                    "fields": gtypes.Schema(
+                        type="ARRAY",
+                        description="確認する設定フィールド名",
+                        items=gtypes.Schema(type="STRING", enum=sorted(AI_SAFE_EDITABLE_FIELDS)),
+                    ),
+                    "all": gtypes.Schema(type="BOOLEAN", description="安全な設定項目をすべて確認する場合はtrue"),
+                },
+            ),
+        )
     except Exception as e:
         log_force(f"AI-SETTINGS-GEMINI-SCHEMA-BUILD-ERR: {e}")
         gemini_func_decl = None
-    return [openai_tool], gemini_func_decl
+        gemini_inspect_decl = None
+    return [openai_tool, openai_inspect_tool], [decl for decl in (gemini_func_decl, gemini_inspect_decl) if decl]
 
 
 def _call_llm_for_settings_ai(model_id, instruction, current_settings_snapshot, user):
     """
     Perform a one-shot tool call to interpret the natural language instruction and return
-    a delta dict for _apply_ai_settings_update. Returns (delta_dict or None, error_msg or None).
+    an action dict with the selected tool name and arguments. Returns (action or None, error_msg or None).
     Uses the user's API key resolution (same as chat) for the chosen model.
     Supports Gemini and OpenAI-compatible families (GPT, DeepSeek, Grok via compat).
     """
@@ -18358,14 +18444,15 @@ def _call_llm_for_settings_ai(model_id, instruction, current_settings_snapshot, 
     # Build messages for LLM
     sys_prompt = (
         "あなたはチャットアプリの『設定アシスタント』です。ユーザーが日本語または英語で自然言語の指示を出し、"
-        "設定モーダル内の安全な項目（APIキー・管理者専用・パスワードなどを除く）を変更したいと伝えています。"
-        "現在の設定スナップショットが与えられるので、それを参考に指示を正確に解釈し、update_settings ツールを1回だけ呼び出して変更を提案してください。"
-        "不要な項目は含めず、指示に合致するものだけを指定。曖昧さがある場合は最も妥当な1解釈を選んでください。"
+        "設定モーダル内の安全な項目（APIキー・管理者専用・パスワードなどを除く）について操作します。"
+        "変更・有効化・無効化を求める指示ではupdate_settingsを、現在値の確認・表示・質問ではinspect_settingsを、必ずどちらか1回だけ呼び出してください。"
+        "inspect_settingsは設定を変更しません。特定項目の確認ではfieldsに必要な項目だけを、設定全体の確認ではall=trueを指定してください。"
+        "update_settingsには不要な項目を含めず、変更指示に合致するものだけを指定してください。曖昧さがある場合は最も妥当な1解釈を選んでください。"
         "ツール呼び出し以外の応答は一切返さず、必ずツールを使用してください。"
     )
     user_content = f"指示: {instruction}\n\n現在の設定 (参考):\n{json.dumps(current_settings_snapshot or {}, ensure_ascii=False, indent=2)}"
 
-    openai_tools, gemini_decl = _build_ai_settings_tool_schema()
+    openai_tools, gemini_decls = _build_ai_settings_tool_schema()
 
     try:
         if is_gemini:
@@ -18380,10 +18467,10 @@ def _call_llm_for_settings_ai(model_id, instruction, current_settings_snapshot, 
             contents = [types.Part(text=user_content)]
             tools_arg = None
             cfg = None
-            if gemini_decl:
+            if gemini_decls:
                 try:
                     from google.genai import types as gtypes
-                    tools_arg = [gtypes.Tool(function_declarations=[gemini_decl])]
+                    tools_arg = [gtypes.Tool(function_declarations=gemini_decls)]
                     cfg = gtypes.GenerateContentConfig(
                         tools=tools_arg,
                         system_instruction=sys_prompt,
@@ -18440,7 +18527,7 @@ def _call_llm_for_settings_ai(model_id, instruction, current_settings_snapshot, 
                 if hasattr(part, "function_call") and part.function_call:
                     fc = part.function_call
                     args = dict(fc.args) if hasattr(fc, "args") else {}
-                    return args, None
+                    return {"action": getattr(fc, "name", "update_settings"), "arguments": args}, None
             except Exception as parse_e:
                 log_force(f"AI-SETTINGS-GEMINI-PARSE-ERR: {parse_e} resp={getattr(resp,'text',None)}")
                 return None, "Geminiからのツール呼び出し解析に失敗しました。"
@@ -18482,7 +18569,7 @@ def _call_llm_for_settings_ai(model_id, instruction, current_settings_snapshot, 
                 tc = msg.tool_calls[0]
                 try:
                     args = json.loads(tc.function.arguments or "{}")
-                    return args, None
+                    return {"action": tc.function.name or "update_settings", "arguments": args}, None
                 except Exception as je:
                     log_force(f"AI-SETTINGS-OPENAI-JSON-ERR: {je}")
                     return None, "ツール引数のJSON解析に失敗しました。"
@@ -18495,7 +18582,7 @@ def _call_llm_for_settings_ai(model_id, instruction, current_settings_snapshot, 
 @app.route('/api/settings/apply-ai-prompt', methods=['POST'])
 @login_required
 def apply_ai_settings_prompt():
-    """Interpret natural language prompt using chosen model's tool calling, apply safe settings only."""
+    """Interpret a natural-language settings request, then inspect or safely update allowlisted fields."""
     try:
         d = request.get_json(silent=True) or {}
         instruction = (d.get('prompt') or '').strip()
@@ -18507,27 +18594,10 @@ def apply_ai_settings_prompt():
         if not model_id:
             return jsonify({'error': 'model_required'}), 400
 
-        # Build safe current snapshot (no secrets)
-        snap = {
-            'default_model': current_user.default_model,
-            'default_enable_search': current_user.default_enable_search,
-            'default_enable_url_context': current_user.default_enable_url_context,
-            'default_enable_maps': current_user.default_enable_maps,
-            'default_enable_python': current_user.default_enable_python,
-            'default_enable_thinking': current_user.default_enable_thinking,
-            'default_thinking_level': current_user.default_thinking_level,
-            'default_enable_system_prompt': current_user.default_enable_system_prompt,
-            'system_prompt_enabled': current_user.system_prompt_enabled,
-            'apply_global_system_prompt': current_user.apply_global_system_prompt,
-            'apply_auto_system_prompt_notices': current_user.apply_auto_system_prompt_notices,
-            'compact_prompt_mode': current_user.compact_prompt_mode,
-            'auto_search_on_links': current_user.auto_search_on_links,
-            'use_last_chat_settings': current_user.use_last_chat_settings,
-            'enter_to_send': current_user.enter_to_send,
-            'bot_detection_enabled': current_user.bot_detection_enabled,
-        }
-
-        delta, err = _call_llm_for_settings_ai(model_id, instruction, snap, current_user)
+        db.session.refresh(current_user)
+        current_values = _get_ai_safe_settings_snapshot(current_user)
+        model_snapshot = _summarize_ai_settings_for_model(current_values)
+        decision, err = _call_llm_for_settings_ai(model_id, instruction, model_snapshot, current_user)
         if err:
             # For admin accounts, return the raw detailed error so they can debug model availability etc.
             is_admin = bool(getattr(current_user, 'is_admin', False))
@@ -18541,6 +18611,35 @@ def apply_ai_settings_prompt():
                 payload['admin_note'] = "This detailed error is only shown to administrators."
             return jsonify(payload), 200  # 200 so client can show nicely
 
+        if not decision or not isinstance(decision, dict):
+            return jsonify({'error': 'no_action', 'message': 'モデルが有効な設定操作を選択しませんでした。指示をより具体的にしてみてください。'}), 200
+
+        action = str(decision.get('action') or '').strip()
+        arguments = decision.get('arguments') if isinstance(decision.get('arguments'), dict) else {}
+        if action == 'inspect_settings':
+            requested = arguments.get('fields')
+            if arguments.get('all') is True or not isinstance(requested, list) or not requested:
+                selected_fields = sorted(AI_SAFE_EDITABLE_FIELDS)
+            else:
+                selected_fields = []
+                for field in requested:
+                    field = str(field or '').strip()
+                    if field in AI_SAFE_EDITABLE_FIELDS and field not in selected_fields:
+                        selected_fields.append(field)
+            inspected = {field: current_values.get(field) for field in selected_fields}
+            log_force(f"AI-SETTINGS-INSPECTED user={current_user.id} model={model_id} keys={selected_fields}")
+            return jsonify({
+                'status': 'ok',
+                'mode': 'inspect',
+                'current': inspected,
+                'message': '現在の設定を確認しました。',
+                'checked_count': len(inspected),
+            })
+
+        if action != 'update_settings':
+            return jsonify({'error': 'invalid_action', 'message': 'モデルが未対応の設定操作を選択しました。'}), 200
+
+        delta = arguments
         if not delta:
             return jsonify({'error': 'no_changes', 'message': 'モデルが有効な設定変更を提案しませんでした。指示をより具体的にしてみてください。'}), 200
 
@@ -18555,6 +18654,7 @@ def apply_ai_settings_prompt():
         # Re-fetch fresh snapshot for UI refresh (reuse part of GET logic is overkill, return applied + success)
         return jsonify({
             'status': 'ok',
+            'mode': 'update',
             'applied': applied,
             'message': 'AIが設定を更新しました。',
             'changed_count': len(applied),

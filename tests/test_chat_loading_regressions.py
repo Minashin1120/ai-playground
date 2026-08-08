@@ -17,7 +17,7 @@ class ChatLoadingRegressionTests(unittest.TestCase):
         self.assertEqual(len(css_assets), 1, "Only the latest versioned chat CSS asset should remain")
         css = css_assets[0].read_text(encoding="utf-8")
         self.assertIn(
-            ".prose hr { border: 0; border-top: 1px solid var(--line); margin: 0.75rem 0; }",
+            ".prose hr { border: 0; border-top: 1px solid rgba(var(--theme-rgb), 0.55); margin: 0.75rem 0; }",
             css,
         )
 

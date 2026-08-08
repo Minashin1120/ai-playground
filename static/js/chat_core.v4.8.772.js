@@ -6154,6 +6154,51 @@
         let slashSuggestionsVisible = false;
         let slashSelectedIndex = 0;
         let pendingSlashCommand = null; // 'settings' など。コマンド選択後に残る引数テキストで発動
+        const AI_SETTINGS_CONVERSATION_KEY = `ai-settings-conversation:${(typeof CHAT_CONFIG !== 'undefined' && CHAT_CONFIG.currentUsername) || 'anonymous'}`;
+        let aiSettingsConversation = [];
+
+        function loadAiSettingsConversation() {
+            try {
+                const raw = sessionStorage.getItem(AI_SETTINGS_CONVERSATION_KEY);
+                const parsed = raw ? JSON.parse(raw) : [];
+                if (!Array.isArray(parsed)) return [];
+                return parsed.filter((item) => item && (item.role === 'user' || item.role === 'assistant') && typeof item.content === 'string')
+                    .slice(-10)
+                    .map((item) => ({ role: item.role, content: item.content.slice(0, 1600) }));
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function persistAiSettingsConversation() {
+            try {
+                sessionStorage.setItem(AI_SETTINGS_CONVERSATION_KEY, JSON.stringify(aiSettingsConversation.slice(-10)));
+            } catch (e) {
+                // Private browsing or storage limits must not block settings use.
+            }
+        }
+
+        function clearAiSettingsConversation() {
+            aiSettingsConversation = [];
+            try { sessionStorage.removeItem(AI_SETTINGS_CONVERSATION_KEY); } catch (e) {}
+        }
+
+        function appendAiSettingsConversation(role, content) {
+            const text = String(content || '').trim();
+            if (!text) return;
+            aiSettingsConversation.push({ role, content: text.slice(0, 1600) });
+            aiSettingsConversation = aiSettingsConversation.slice(-10);
+            persistAiSettingsConversation();
+        }
+
+        aiSettingsConversation = loadAiSettingsConversation();
+
+        function summarizeAiSettingsConversationValues(values, mode) {
+            const entries = Object.entries(values || {});
+            const prefix = mode === 'inspect' ? '現在の設定を確認しました。' : '設定を更新しました。';
+            const details = entries.map(([key, value]) => `${key}: ${formatAiSettingValue(value).slice(0, 180)}`).join('\n');
+            return `${prefix}${details ? `\n${details}` : ''}`.slice(0, 1600);
+        }
 
         // Gem suggestion system (triggered by @ in prompt bar)
         let gemSuggestionsVisible = false;
@@ -10154,6 +10199,10 @@
             }
             if (get('cancel-edit-btn')) get('cancel-edit-btn').onclick = cancelEdit;
             updatePromptPlaceholder();
+            if (aiSettingsConversation.length > 0) {
+                pendingSlashCommand = 'settings';
+                showPendingSlashCommandIndicator('settings');
+            }
             if (get('search-box')) {
                 get('search-box').addEventListener('input', () => {
                     clearTimeout(searchTimeout);
@@ -15062,6 +15111,7 @@
             }
 
             pendingSlashCommand = null;
+            clearAiSettingsConversation();
         }
 
         function showSlashCommandSuggestions(filter = '') {
@@ -15325,6 +15375,11 @@
         }
 
         async function runAiSettingsCommand(instruction, modelId) {
+            // Keep the command context active so the next prompt is a follow-up
+            // instruction instead of falling back to a normal chat request.
+            pendingSlashCommand = 'settings';
+            showPendingSlashCommandIndicator('settings');
+            appendAiSettingsConversation('user', instruction);
             const timestamp = Date.now();
             const userEl = renderMessage(`settings-user-${timestamp}`, 'user', `/settings ${instruction}`, null, null, null, null, true, null, null, null, null, null, null, null, null, true);
             removeEphemeralMessageControls(userEl);
@@ -15340,17 +15395,23 @@
                 const res = await apiFetch('/api/settings/apply-ai-prompt', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt: instruction, model: modelId })
+                    body: JSON.stringify({
+                        prompt: instruction,
+                        model: modelId,
+                        conversation: aiSettingsConversation,
+                    })
                 });
                 const data = await res.json().catch(() => ({}));
                 const pending = get(pendingId);
                 if (pending) pending.remove();
                 if (data && data.status === 'ok' && data.mode === 'inspect' && data.current) {
+                    appendAiSettingsConversation('assistant', summarizeAiSettingsConversationValues(data.current, 'inspect'));
                     showToast(`現在の設定を確認しました（${Object.keys(data.current).length}項目）`, 'success');
                     renderAiSettingsResultBubble(data.current, modelId, 'inspect');
                     return;
                 }
                 if (data && data.status === 'ok' && data.applied) {
+                    appendAiSettingsConversation('assistant', summarizeAiSettingsConversationValues(data.applied, 'update'));
                     showToast(`設定を更新しました（${Object.keys(data.applied).length}項目）`, 'success');
                     try {
                         const fresh = await apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).then((response) => response.json());
@@ -15361,10 +15422,12 @@
                     return;
                 }
                 const msg = data.message || data.error || '設定変更に失敗しました';
+                appendAiSettingsConversation('assistant', `設定操作に失敗しました: ${msg}`);
                 const errorEl = renderMessage(`settings-error-${Date.now()}`, 'assistant', `設定変更に失敗しました。\n\n${msg}`, null, null, modelId, null, true, null, null, null, null, null, null, null, null, true);
                 removeEphemeralMessageControls(errorEl);
                 showToast(msg, 'error', true);
             } catch (error) {
+                appendAiSettingsConversation('assistant', '設定操作の通信に失敗しました。');
                 const pending = get(pendingId);
                 if (pending) pending.remove();
                 const errorEl = renderMessage(`settings-error-${Date.now()}`, 'assistant', '設定変更の通信に失敗しました。時間をおいて再度お試しください。', null, null, modelId, null, true, null, null, null, null, null, null, null, null, true);
@@ -15911,7 +15974,6 @@
                         return;
                     }
 
-                    hidePendingSlashCommandIndicator(); // valid command: leave mode before execution
                     get('prompt-input').value = '';
                     get('prompt-input').style.height = 'auto';
 

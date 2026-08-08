@@ -21,6 +21,8 @@ class SlashSettingsModeRegressionTests(unittest.TestCase):
         self.assertIn("buildPendingSkeletonHtml(modelId", runner)
         self.assertIn("renderAiSettingsResultBubble(data.applied, modelId)", runner)
         self.assertIn("welcome.classList.add('hidden')", runner)
+        self.assertIn("conversation: aiSettingsConversation", runner)
+        self.assertIn("appendAiSettingsConversation('user', instruction)", runner)
         self.assertEqual(source.count("apiFetch('/api/settings/apply-ai-prompt'"), 1)
         self.assertEqual(source.count("await runAiSettingsCommand(instruction,"), 2)
 
@@ -110,9 +112,16 @@ class SlashSettingsModeRegressionTests(unittest.TestCase):
         pending = pending[: pending.index("if (browserFastModeEnabled)")]
 
         empty_check = pending.index("if (!instruction)")
-        leave_mode = pending.index("hidePendingSlashCommandIndicator(); // valid command")
-        self.assertLess(empty_check, leave_mode)
-        self.assertIn("get('prompt-input').focus();", pending[empty_check:leave_mode])
+        self.assertIn("get('prompt-input').focus();", pending[empty_check:])
+        self.assertIn("pendingSlashCommand", pending)
+        self.assertNotIn("hidePendingSlashCommandIndicator(); // valid command", pending)
+
+    def test_settings_history_is_restored_and_persisted_for_followups(self):
+        source = _chat_core_source()
+        self.assertIn("sessionStorage.getItem(AI_SETTINGS_CONVERSATION_KEY)", source)
+        self.assertIn("sessionStorage.setItem(AI_SETTINGS_CONVERSATION_KEY", source)
+        self.assertIn("pendingSlashCommand = 'settings';", source)
+        self.assertIn("aiSettingsConversation.length > 0", source)
 
     def test_direct_command_detection_requires_token_boundary(self):
         source = _chat_core_source()

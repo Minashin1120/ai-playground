@@ -733,8 +733,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-08-010')
-app.config['SYSTEM_VERSION'] = 'V4.8.771'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-08-011')
+app.config['SYSTEM_VERSION'] = 'V4.8.772'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -18422,7 +18422,7 @@ def _build_ai_settings_tool_schema():
     return [openai_tool, openai_inspect_tool], [decl for decl in (gemini_func_decl, gemini_inspect_decl) if decl]
 
 
-def _call_llm_for_settings_ai(model_id, instruction, current_settings_snapshot, user):
+def _call_llm_for_settings_ai(model_id, instruction, current_settings_snapshot, user, conversation_history=None):
     """
     Perform a one-shot tool call to interpret the natural language instruction and return
     an action dict with the selected tool name and arguments. Returns (action or None, error_msg or None).
@@ -18450,7 +18450,21 @@ def _call_llm_for_settings_ai(model_id, instruction, current_settings_snapshot, 
         "update_settingsには不要な項目を含めず、変更指示に合致するものだけを指定してください。曖昧さがある場合は最も妥当な1解釈を選んでください。"
         "ツール呼び出し以外の応答は一切返さず、必ずツールを使用してください。"
     )
-    user_content = f"指示: {instruction}\n\n現在の設定 (参考):\n{json.dumps(current_settings_snapshot or {}, ensure_ascii=False, indent=2)}"
+    history_lines = []
+    if isinstance(conversation_history, list):
+        for item in conversation_history[-10:]:
+            if not isinstance(item, dict):
+                continue
+            role = 'ユーザー' if item.get('role') == 'user' else '設定アシスタント'
+            content = str(item.get('content') or '').strip()
+            if content:
+                history_lines.append(f"{role}: {content[:1200]}")
+    history_context = '\n'.join(history_lines) if history_lines else '（なし）'
+    user_content = (
+        f"過去の設定会話（参考。今回の指示を最優先）:\n{history_context}\n\n"
+        f"今回の指示: {instruction}\n\n"
+        f"現在の設定 (参考・この値が最新):\n{json.dumps(current_settings_snapshot or {}, ensure_ascii=False, indent=2)}"
+    )
 
     openai_tools, gemini_decls = _build_ai_settings_tool_schema()
 
@@ -18594,10 +18608,36 @@ def apply_ai_settings_prompt():
         if not model_id:
             return jsonify({'error': 'model_required'}), 400
 
+        # The browser keeps a short, session-scoped conversation so follow-up
+        # settings instructions can refer to the previous result. Treat it as
+        # untrusted context and bound both its shape and size before sending it
+        # to a model.
+        raw_history = d.get('conversation')
+        conversation_history = []
+        if isinstance(raw_history, list):
+            total_chars = 0
+            for item in raw_history[-10:]:
+                if not isinstance(item, dict):
+                    continue
+                role = item.get('role')
+                if role not in ('user', 'assistant'):
+                    continue
+                content = str(item.get('content') or '').strip()
+                if not content:
+                    continue
+                content = content[:1200]
+                if total_chars + len(content) > 10000:
+                    break
+                conversation_history.append({'role': role, 'content': content})
+                total_chars += len(content)
+
         db.session.refresh(current_user)
         current_values = _get_ai_safe_settings_snapshot(current_user)
         model_snapshot = _summarize_ai_settings_for_model(current_values)
-        decision, err = _call_llm_for_settings_ai(model_id, instruction, model_snapshot, current_user)
+        decision, err = _call_llm_for_settings_ai(
+            model_id, instruction, model_snapshot, current_user,
+            conversation_history=conversation_history,
+        )
         if err:
             # For admin accounts, return the raw detailed error so they can debug model availability etc.
             is_admin = bool(getattr(current_user, 'is_admin', False))

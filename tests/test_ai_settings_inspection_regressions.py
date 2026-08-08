@@ -45,6 +45,16 @@ class AiSettingsInspectionRegressionTests(unittest.TestCase):
         self.assertNotIn("openai_api_key", snapshot)
         self.assertNotIn("gemini_api_key", snapshot)
 
+    def test_followup_conversation_is_bounded_and_passed_as_context(self):
+        route = APP_SOURCE[APP_SOURCE.index("def apply_ai_settings_prompt") :]
+        route = route[: route.index("# --- Session Management ---")]
+        caller = APP_SOURCE[APP_SOURCE.index("def _call_llm_for_settings_ai") :]
+        caller = caller[: caller.index("@app.route('/api/settings/apply-ai-prompt'")]
+        self.assertIn("raw_history = d.get('conversation')", route)
+        self.assertIn("conversation_history=conversation_history", route)
+        self.assertIn("過去の設定会話（参考。今回の指示を最優先）", caller)
+        self.assertIn("conversation_history[-10:]", caller)
+
 
 if __name__ == "__main__":
     unittest.main()

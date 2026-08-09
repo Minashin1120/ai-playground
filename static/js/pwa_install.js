@@ -1,11 +1,30 @@
 (() => {
   const BUTTON_SELECTOR = '[data-pwa-install-button]';
+  const standaloneMedia = window.matchMedia
+    ? window.matchMedia('(display-mode: standalone)')
+    : null;
   const isStandalone = () => (
-    window.matchMedia && window.matchMedia('(display-mode: standalone)').matches
+    standaloneMedia && standaloneMedia.matches
   ) || window.navigator.standalone === true;
 
   let deferredPrompt = null;
   let buttons = [];
+  let orientationLockPending = false;
+
+  const lockPwaOrientation = async () => {
+    if (!isStandalone() || document.visibilityState === 'hidden' || orientationLockPending) return;
+    const orientation = window.screen && window.screen.orientation;
+    if (!orientation || typeof orientation.lock !== 'function') return;
+
+    orientationLockPending = true;
+    try {
+      await orientation.lock('portrait-primary');
+    } catch (_) {
+      // Unsupported platforms (including iOS) fall back to the manifest setting.
+    } finally {
+      orientationLockPending = false;
+    }
+  };
 
   const hideButtons = () => {
     buttons.forEach((button) => button.classList.add('hidden'));
@@ -63,7 +82,18 @@
     });
     refreshButtons();
     registerServiceWorker();
+    lockPwaOrientation();
   });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') lockPwaOrientation();
+  });
+
+  window.addEventListener('pageshow', lockPwaOrientation);
+
+  if (standaloneMedia && typeof standaloneMedia.addEventListener === 'function') {
+    standaloneMedia.addEventListener('change', lockPwaOrientation);
+  }
 
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault();
@@ -74,5 +104,6 @@
   window.addEventListener('appinstalled', () => {
     deferredPrompt = null;
     hideButtons();
+    lockPwaOrientation();
   });
 })();

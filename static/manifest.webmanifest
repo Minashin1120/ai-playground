@@ -12,7 +12,7 @@
   ],
   "background_color": "#0f1720",
   "theme_color": "#0f1720",
-  "orientation": "portrait",
+  "orientation": "portrait-primary",
   "categories": [
     "productivity",
     "utilities"

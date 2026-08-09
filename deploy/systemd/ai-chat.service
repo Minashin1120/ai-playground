@@ -1,0 +1,21 @@
+[Unit]
+Description=Gunicorn service for AI Chat Playground
+After=network-online.target mariadb.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ai-playground
+Group=ai-playground
+WorkingDirectory=/opt/ai-playground
+EnvironmentFile=/opt/ai-playground/.env
+Environment="PATH=/opt/ai-playground/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/opt/ai-playground/venv/bin/gunicorn --timeout 600 --graceful-timeout 10 --workers 3 --worker-class gthread --threads 8 --bind 127.0.0.1:3111 app:app --access-logfile - --error-logfile -
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

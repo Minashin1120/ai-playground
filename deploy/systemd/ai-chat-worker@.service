@@ -1,0 +1,25 @@
+[Unit]
+Description=AI Chat Playground RQ worker %i
+After=network-online.target mariadb.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ai-playground
+Group=ai-playground
+WorkingDirectory=/opt/ai-playground
+EnvironmentFile=/opt/ai-playground/.env
+Environment="PATH=/opt/ai-playground/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+Environment="WORKER_INSTANCE=%i"
+ExecStart=/opt/ai-playground/venv/bin/python worker.py
+Restart=always
+RestartSec=5
+TimeoutStopSec=660
+KillSignal=SIGTERM
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ai-chat-worker-%i
+
+[Install]
+WantedBy=multi-user.target

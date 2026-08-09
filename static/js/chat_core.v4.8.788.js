@@ -5490,6 +5490,7 @@
         let chatTouchY = null;
         let chatScrollbarDragging = false;
         let chatManualScrollPaused = false;
+        let chatManualResumeArmed = false;
         let chatLastScrollTop = chatContainer ? chatContainer.scrollTop : 0;
 
         function isChatNearBottom() {
@@ -5505,9 +5506,23 @@
 
         function pauseChatAutoScroll() {
             if (!chatContainer) return;
+            if (chatAutoScrollFrame) {
+                cancelAnimationFrame(chatAutoScrollFrame);
+                chatAutoScrollFrame = 0;
+            }
             chatManualScrollPaused = true;
+            chatManualResumeArmed = false;
             userAutoScroll = false;
             syncScrollToBottomButton();
+        }
+
+        function resumeChatAutoScroll(options = {}) {
+            chatManualScrollPaused = false;
+            chatManualResumeArmed = false;
+            userAutoScroll = true;
+            if (chatContainer) chatLastScrollTop = chatContainer.scrollTop;
+            if (options.scroll === false) syncScrollToBottomButton();
+            else scrollToBottom();
         }
 
         function performChatAutoScroll() {
@@ -5521,6 +5536,7 @@
             if (!chatContainer) return;
             if (force) {
                 chatManualScrollPaused = false;
+                chatManualResumeArmed = false;
                 userAutoScroll = true;
             }
             if (!userAutoScroll) {
@@ -5534,17 +5550,19 @@
         if (chatContainer) {
             chatContainer.addEventListener('scroll', () => {
                 const currentScrollTop = chatContainer.scrollTop;
-                const movedTowardBottom = currentScrollTop > chatLastScrollTop + 0.5;
+                if (chatScrollbarDragging && currentScrollTop < chatLastScrollTop - 0.5) {
+                    pauseChatAutoScroll();
+                } else if (chatScrollbarDragging && chatManualScrollPaused && currentScrollTop > chatLastScrollTop + 0.5) {
+                    chatManualResumeArmed = true;
+                }
                 if (chatManualScrollPaused) {
-                    if (isChatNearBottom() && movedTowardBottom) {
+                    if (chatManualResumeArmed && isChatNearBottom()) {
                         chatManualScrollPaused = false;
+                        chatManualResumeArmed = false;
                         userAutoScroll = true;
                     } else {
                         userAutoScroll = false;
                     }
-                } else if (chatScrollbarDragging && !isChatNearBottom()) {
-                    chatManualScrollPaused = true;
-                    userAutoScroll = false;
                 } else if (isChatNearBottom()) {
                     userAutoScroll = true;
                 }
@@ -5553,6 +5571,7 @@
             }, { passive: true });
             chatContainer.addEventListener('wheel', (event) => {
                 if (event.deltaY < 0) pauseChatAutoScroll();
+                else if (event.deltaY > 0 && chatManualScrollPaused) chatManualResumeArmed = true;
             }, { passive: true });
             chatContainer.addEventListener('touchstart', (event) => {
                 chatTouchY = event.touches.length ? event.touches[0].clientY : null;
@@ -5561,6 +5580,7 @@
                 if (!event.touches.length) return;
                 const nextY = event.touches[0].clientY;
                 if (chatTouchY !== null && nextY > chatTouchY + 2) pauseChatAutoScroll();
+                else if (chatTouchY !== null && nextY < chatTouchY - 2 && chatManualScrollPaused) chatManualResumeArmed = true;
                 chatTouchY = nextY;
             }, { passive: true });
             chatContainer.addEventListener('touchend', () => { chatTouchY = null; }, { passive: true });
@@ -5593,6 +5613,7 @@
             const target = event.target;
             const isTyping = target && (target.matches('input, textarea, select') || target.isContentEditable);
             if (!isTyping && ['ArrowUp', 'PageUp', 'Home'].includes(event.key)) pauseChatAutoScroll();
+            else if (!isTyping && chatManualScrollPaused && ['ArrowDown', 'PageDown', 'End'].includes(event.key)) chatManualResumeArmed = true;
         });
 
         // Image Viewer Logic
@@ -15840,8 +15861,7 @@
             const adiv = get(aid);
             activeStreamingBubbleId = aid;
             setSendBtnToStopMode();
-            chatManualScrollPaused = false;
-            userAutoScroll = true;
+            resumeChatAutoScroll({ scroll: false });
             abortController = new AbortController();
             let content = '';
             let thought = '';
@@ -16407,7 +16427,7 @@
                 p.thread_custom_instruction = threadCustomInstructionEl.value || '';
             }
             if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; p.gem_uuid = activeGem.uuid; } else { p.gem_uuid = null; }
-            setSendBtnToStopMode(); chatManualScrollPaused = false; userAutoScroll = true; const aid = 'ai-' + Date.now();
+            setSendBtnToStopMode(); resumeChatAutoScroll({ scroll: false }); const aid = 'ai-' + Date.now();
             const modelLower = String(p.model || '').toLowerCase();
             const effortLower = String(p.reasoning_effort || '').toLowerCase();
             const reasoningRequested = !!p.enable_thinking || (!!effortLower && effortLower !== 'none');
@@ -16903,6 +16923,7 @@
             }
             currentJobId = jobId;
             setSendBtnToStopMode();
+            resumeChatAutoScroll({ scroll: false });
             if (canvasModeEnabled) {
                 resetCanvasPreviewPanel();
             }
@@ -17362,6 +17383,7 @@
             if (window.closeHistoryModal) window.closeHistoryModal();
             const preserveDraft = !!opts.preserveDraft;
             const silent = !!opts.silent;
+            if (!silent) resumeChatAutoScroll({ scroll: false });
             const codeState = silent ? snapshotCodeCollapseByMessage(get('chat-container')) : null;
             let draftText = '';
             let draftHeight = '';

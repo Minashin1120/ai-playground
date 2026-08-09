@@ -733,8 +733,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-09-008')
-app.config['SYSTEM_VERSION'] = 'V4.8.783'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-09-009')
+app.config['SYSTEM_VERSION'] = 'V4.8.784'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -12207,6 +12207,8 @@ def index():
 @app.route('/edit-image')
 @app.route('/chat-settings')
 @app.route('/model')
+@app.route('/token-details')
+@app.route('/encryption-status')
 @app.route('/gem')
 @app.route('/compression')
 @app.route('/admin-bots')

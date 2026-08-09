@@ -12,6 +12,36 @@ def _current_asset(folder, pattern):
 
 
 class ModalPerformanceRegressionTests(unittest.TestCase):
+    def test_message_detail_modals_follow_browser_history(self):
+        source = _current_asset("js", "chat_core.v4.8.*.js")
+        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "'/token-details': { id: 'token-detail-modal', open: () => showTokenDetailModal() }",
+            source,
+        )
+        self.assertIn(
+            "'/encryption-status': { id: 'encryption-status-modal', open: () => showEncryptionStatusModal() }",
+            source,
+        )
+        self.assertIn("if (messageId !== null) state.messageId = messageId", source)
+        self.assertIn("history.pushState(state, '', '/token-details')", source)
+        self.assertIn("history.pushState({ modal: 'encryption-status' }, '', '/encryption-status')", source)
+        self.assertIn("if (!skipHistory && location.pathname === '/token-details')", source)
+        self.assertIn("if (!skipHistory && location.pathname === '/encryption-status')", source)
+        self.assertIn("history.replaceState({ modal: 'settings'", source)
+        self.assertIn("@app.route('/token-details')", app_source)
+        self.assertIn("@app.route('/encryption-status')", app_source)
+
+        token_modal = template[template.index('<div id="token-detail-modal"') :]
+        token_modal = token_modal[: token_modal.index(">") + 1]
+        self.assertIn("modal-overlay", token_modal)
+        self.assertNotIn("onclick=", token_modal)
+        encryption_modal = template[template.index('<div id="encryption-status-modal"') :]
+        encryption_modal = encryption_modal[: encryption_modal.index(">") + 1]
+        self.assertIn("modal-overlay", encryption_modal)
+
     def test_hidden_conditional_composer_controls_override_component_display(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")
         script = _current_asset("js", "chat_core.v4.8.*.js")

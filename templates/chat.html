@@ -1684,8 +1684,8 @@
     <script src="{{ url_for('static', filename='js/chat_core.' ~ (system_version | lower) ~ '.js') }}?v={{ app_version }}" defer></script>
     <script src="{{ url_for('static', filename='js/pwa_install.js') }}?v={{ app_version }}" defer></script>
 
-<div id="token-detail-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm" onclick="if(event.target.id==='token-detail-modal') closeTokenDetail()">
-  <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4 text-white relative">
+<div id="token-detail-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
+  <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4 text-white relative modal-panel">
     <button onclick="closeTokenDetail()" class="absolute right-3 top-3 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
     <div class="text-sm font-bold text-blue-300" id="token-detail-title">Token Details</div>
     <div class="mt-3 text-xs text-gray-300 space-y-2">

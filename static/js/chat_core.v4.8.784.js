@@ -6830,11 +6830,6 @@
             }
         };
 
-        if (get('token-detail-modal')) {
-            get('token-detail-modal').addEventListener('click', (e) => {
-                if (e.target.id === 'token-detail-modal') closeTokenDetail();
-            });
-        }
         if (get('python-exec-modal')) {
             get('python-exec-modal').addEventListener('click', (e) => {
                 if (e.target.id === 'python-exec-modal') closePythonExecDetail();
@@ -9783,6 +9778,8 @@
                 '/edit-image': { id: 'marker-modal', open: () => { /* Marker modal usually needs context */ } },
                 '/chat-settings': { id: 'thread-modal', open: () => window.openThreadModal() },
                 '/model': { id: 'model-modal', open: () => openModelModal() },
+                '/token-details': { id: 'token-detail-modal', open: () => showTokenDetailModal() },
+                '/encryption-status': { id: 'encryption-status-modal', open: () => showEncryptionStatusModal() },
                 '/gem': { id: 'gem-modal', open: () => { editingGemUuid = null; get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem`; showModal('gem-modal'); } },
                 '/compression': { id: 'compression-modal', open: () => window.openCompressionModal() },
                 '/admin-bots': { id: 'bot-admin-modal', open: () => openBotAdminModal() }
@@ -9800,6 +9797,8 @@
                     case 'marker-modal': if (window.closeMarkerModal) window.closeMarkerModal(skipHistory); break;
                     case 'thread-modal': if (window.closeThreadModal) window.closeThreadModal(skipHistory); break;
                     case 'model-modal': if (window.closeModelModal) window.closeModelModal(skipHistory); break;
+                    case 'token-detail-modal': closeTokenDetail(skipHistory); break;
+                    case 'encryption-status-modal': closeEncryptionModal(skipHistory); break;
                     case 'gem-modal': if (window.closeGemModal) window.closeGemModal(skipHistory); break;
                     case 'compression-modal': if (window.closeCompressionModal) window.closeCompressionModal(skipHistory); break;
                     case 'bot-admin-modal': if (window.closeBotAdminModal) window.closeBotAdminModal(skipHistory); break;
@@ -14709,6 +14708,15 @@
             return msgEl;
         }
 
+        function showTokenDetailModal(messageId = null) {
+            if (location.pathname !== '/token-details') {
+                const state = { modal: 'token-details' };
+                if (messageId !== null) state.messageId = messageId;
+                history.pushState(state, '', '/token-details');
+            }
+            showModal('token-detail-modal');
+        }
+
         function openTokenDetail(id) {
             const meta = messageMeta[id];
             if (!meta) return;
@@ -14728,15 +14736,16 @@
             get('token-detail-encrypted').innerText = enc;
             const title = meta.model ? `${meta.model} (${meta.role})` : `${meta.role}`;
             get('token-detail-title').innerText = title;
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
+            showTokenDetailModal(id);
         }
 
-        function closeTokenDetail() {
+        function closeTokenDetail(skipHistory = false) {
             const modal = get('token-detail-modal');
             if (!modal) return;
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
+            hideModal('token-detail-modal');
+            if (!skipHistory && location.pathname === '/token-details') {
+                history.back();
+            }
         }
 
         function openEncryptionSettings(id) {
@@ -14783,6 +14792,13 @@
                     adminBox.classList.add('hidden');
                 }
             }
+            showEncryptionStatusModal();
+        }
+
+        function showEncryptionStatusModal() {
+            if (location.pathname !== '/encryption-status') {
+                history.pushState({ modal: 'encryption-status' }, '', '/encryption-status');
+            }
             showModal('encryption-status-modal');
         }
 
@@ -14812,12 +14828,18 @@
             }
         }
 
-        function closeEncryptionModal() {
+        function closeEncryptionModal(skipHistory = false) {
             hideModal('encryption-status-modal');
+            if (!skipHistory && location.pathname === '/encryption-status') {
+                history.back();
+            }
         }
 
         function goToEncryptionSettings() {
-            closeEncryptionModal();
+            hideModal('encryption-status-modal');
+            if (location.pathname === '/encryption-status') {
+                history.replaceState({ modal: 'settings', from: '/encryption-status' }, '', '/settings');
+            }
             if (typeof openSettingsModal === 'function') {
                 openSettingsModal();
                 switchTab('security');

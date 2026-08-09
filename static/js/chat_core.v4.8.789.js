@@ -5520,7 +5520,10 @@
             chatManualScrollPaused = false;
             chatManualResumeArmed = false;
             userAutoScroll = true;
-            if (chatContainer) chatLastScrollTop = chatContainer.scrollTop;
+            if (chatContainer) {
+                if (options.scroll !== false) chatContainer.scrollTop = chatContainer.scrollHeight;
+                chatLastScrollTop = chatContainer.scrollTop;
+            }
             if (options.scroll === false) syncScrollToBottomButton();
             else scrollToBottom();
         }
@@ -5543,7 +5546,7 @@
                 syncScrollToBottomButton();
                 return;
             }
-            if (chatAutoScrollFrame) cancelAnimationFrame(chatAutoScrollFrame);
+            if (chatAutoScrollFrame) return;
             chatAutoScrollFrame = requestAnimationFrame(performChatAutoScroll);
         }
 
@@ -15861,7 +15864,7 @@
             const adiv = get(aid);
             activeStreamingBubbleId = aid;
             setSendBtnToStopMode();
-            resumeChatAutoScroll({ scroll: false });
+            resumeChatAutoScroll();
             abortController = new AbortController();
             let content = '';
             let thought = '';
@@ -16427,7 +16430,7 @@
                 p.thread_custom_instruction = threadCustomInstructionEl.value || '';
             }
             if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; p.gem_uuid = activeGem.uuid; } else { p.gem_uuid = null; }
-            setSendBtnToStopMode(); resumeChatAutoScroll({ scroll: false }); const aid = 'ai-' + Date.now();
+            setSendBtnToStopMode(); const aid = 'ai-' + Date.now();
             const modelLower = String(p.model || '').toLowerCase();
             const effortLower = String(p.reasoning_effort || '').toLowerCase();
             const reasoningRequested = !!p.enable_thinking || (!!effortLower && effortLower !== 'none');
@@ -16441,7 +16444,7 @@
 
             let initialHtml = buildPendingSkeletonHtml(p.model, 'APIに送信中...');
             get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aid}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${initialHtml}</div></div>`);
-            scrollToBottom();
+            resumeChatAutoScroll();
             const adiv = get(aid);
             activeStreamingBubbleId = aid;
             if (canvasModeEnabled) {
@@ -16923,7 +16926,7 @@
             }
             currentJobId = jobId;
             setSendBtnToStopMode();
-            resumeChatAutoScroll({ scroll: false });
+            resumeChatAutoScroll();
             if (canvasModeEnabled) {
                 resetCanvasPreviewPanel();
             }

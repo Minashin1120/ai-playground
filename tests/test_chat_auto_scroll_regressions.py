@@ -56,7 +56,7 @@ class ChatAutoScrollRegressionTests(unittest.TestCase):
     def test_new_generation_and_thread_load_reset_stale_pause(self):
         source = _chat_core_source()
 
-        self.assertGreaterEqual(source.count("resumeChatAutoScroll({ scroll: false })"), 4)
+        self.assertGreaterEqual(source.count("resumeChatAutoScroll();"), 3)
         loader = source[source.index("async function loadMessages(tid, opts = {})") :]
         loader = loader[: loader.index("async function loadOlderMessages()")]
         self.assertIn("if (!silent) resumeChatAutoScroll({ scroll: false })", loader)
@@ -69,6 +69,19 @@ class ChatAutoScrollRegressionTests(unittest.TestCase):
         self.assertIn("new ResizeObserver(() => scrollToBottom())", controller)
         self.assertIn("new MutationObserver((mutations) =>", controller)
         self.assertIn("requestAnimationFrame(performChatAutoScroll)", controller)
+        scheduler = controller[controller.index("function scrollToBottom(force = false)") :]
+        scheduler = scheduler[: scheduler.index("if (chatContainer) {")]
+        self.assertIn("if (chatAutoScrollFrame) return", scheduler)
+        self.assertNotIn("cancelAnimationFrame(chatAutoScrollFrame)", scheduler)
+
+    def test_generation_start_scrolls_synchronously_before_following(self):
+        source = _chat_core_source()
+        resume = source[source.index("function resumeChatAutoScroll(options = {})") :]
+        resume = resume[: resume.index("function performChatAutoScroll()")]
+
+        self.assertIn("chatContainer.scrollTop = chatContainer.scrollHeight", resume)
+        self.assertIn("else scrollToBottom()", resume)
+        self.assertGreaterEqual(source.count("resumeChatAutoScroll();"), 3)
 
     def test_resume_button_is_wired_and_accessible(self):
         template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")

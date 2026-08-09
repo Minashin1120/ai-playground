@@ -3719,6 +3719,36 @@ body:has(#prompt-controls-row.compact-collapsed) .composer-dock {
 #chat-container {
     scroll-padding-bottom: 1rem;
 }
+.chat-scroll-to-bottom {
+    position: absolute;
+    z-index: 20;
+    left: 50%;
+    bottom: 1rem;
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 2.35rem;
+    padding: 0.55rem 0.9rem;
+    border: 1px solid rgba(var(--theme-rgb), 0.42);
+    border-radius: 999px;
+    background: rgba(10, 16, 32, 0.94);
+    color: #f8fafc;
+    box-shadow: 0 10px 30px rgba(2, 6, 23, 0.42);
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+    backdrop-filter: blur(12px);
+    transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+.chat-scroll-to-bottom:hover {
+    border-color: rgba(var(--theme-rgb), 0.75);
+    background: rgba(18, 27, 48, 0.98);
+    transform: translateX(-50%) translateY(-2px);
+}
+.chat-scroll-to-bottom.hidden {
+    display: none;
+}
 #chat-container > .message-group,
 #chat-container > div.message-group {
     max-width: 52rem;

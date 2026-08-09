@@ -5483,8 +5483,97 @@
             activeSettingsTab = t;
             filterSettings();
         }
-        get('chat-container').addEventListener('scroll', function() { userAutoScroll = (this.scrollHeight - this.scrollTop - this.clientHeight) < 50; }, { passive: true });
-        function scrollToBottom() { if(userAutoScroll) { const c = get('chat-container'); c.scrollTop = c.scrollHeight; } }
+        const chatContainer = get('chat-container');
+        const scrollToBottomBtn = get('scroll-to-bottom-btn');
+        const CHAT_BOTTOM_THRESHOLD = 64;
+        let chatAutoScrollFrame = 0;
+        let chatTouchY = null;
+        let chatScrollbarDragging = false;
+
+        function isChatNearBottom() {
+            if (!chatContainer) return true;
+            return (chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight) <= CHAT_BOTTOM_THRESHOLD;
+        }
+
+        function syncScrollToBottomButton() {
+            if (!scrollToBottomBtn) return;
+            const shouldShow = !userAutoScroll && !isChatNearBottom();
+            scrollToBottomBtn.classList.toggle('hidden', !shouldShow);
+        }
+
+        function pauseChatAutoScroll() {
+            if (!chatContainer) return;
+            userAutoScroll = false;
+            syncScrollToBottomButton();
+        }
+
+        function performChatAutoScroll() {
+            chatAutoScrollFrame = 0;
+            if (!chatContainer || !userAutoScroll) return;
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            syncScrollToBottomButton();
+        }
+
+        function scrollToBottom(force = false) {
+            if (!chatContainer) return;
+            if (force) userAutoScroll = true;
+            if (!userAutoScroll) {
+                syncScrollToBottomButton();
+                return;
+            }
+            if (chatAutoScrollFrame) cancelAnimationFrame(chatAutoScrollFrame);
+            chatAutoScrollFrame = requestAnimationFrame(performChatAutoScroll);
+        }
+
+        if (chatContainer) {
+            chatContainer.addEventListener('scroll', () => {
+                if (isChatNearBottom()) userAutoScroll = true;
+                else if (chatScrollbarDragging) userAutoScroll = false;
+                syncScrollToBottomButton();
+            }, { passive: true });
+            chatContainer.addEventListener('wheel', (event) => {
+                if (event.deltaY < 0) pauseChatAutoScroll();
+            }, { passive: true });
+            chatContainer.addEventListener('touchstart', (event) => {
+                chatTouchY = event.touches.length ? event.touches[0].clientY : null;
+            }, { passive: true });
+            chatContainer.addEventListener('touchmove', (event) => {
+                if (!event.touches.length) return;
+                const nextY = event.touches[0].clientY;
+                if (chatTouchY !== null && nextY > chatTouchY + 2) pauseChatAutoScroll();
+                chatTouchY = nextY;
+            }, { passive: true });
+            chatContainer.addEventListener('touchend', () => { chatTouchY = null; }, { passive: true });
+            chatContainer.addEventListener('pointerdown', (event) => {
+                const scrollbarEdge = chatContainer.getBoundingClientRect().right - 20;
+                if (event.button === 0 && event.clientX >= scrollbarEdge) chatScrollbarDragging = true;
+            }, { passive: true });
+            document.addEventListener('pointerup', () => { chatScrollbarDragging = false; }, { passive: true });
+
+            const resizedMessages = new ResizeObserver(() => scrollToBottom());
+            const observeMessageSizes = () => {
+                Array.from(chatContainer.children).forEach((child) => resizedMessages.observe(child));
+            };
+            observeMessageSizes();
+            new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node.nodeType === Node.ELEMENT_NODE && node.parentElement === chatContainer) {
+                            resizedMessages.observe(node);
+                        }
+                    });
+                });
+                scrollToBottom();
+            }).observe(chatContainer, { childList: true, subtree: true, characterData: true });
+        }
+        if (scrollToBottomBtn) {
+            scrollToBottomBtn.addEventListener('click', () => scrollToBottom(true));
+        }
+        document.addEventListener('keydown', (event) => {
+            const target = event.target;
+            const isTyping = target && (target.matches('input, textarea, select') || target.isContentEditable);
+            if (!isTyping && ['ArrowUp', 'PageUp', 'Home'].includes(event.key)) pauseChatAutoScroll();
+        });
 
         // Image Viewer Logic
         let viewerImages = [];

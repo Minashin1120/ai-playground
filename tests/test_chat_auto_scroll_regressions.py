@@ -18,10 +18,27 @@ class ChatAutoScrollRegressionTests(unittest.TestCase):
         controller = controller[: controller.index("// Image Viewer Logic")]
 
         self.assertNotIn("userAutoScroll = (this.scrollHeight - this.scrollTop", controller)
-        self.assertIn("if (isChatNearBottom()) userAutoScroll = true", controller)
+        self.assertIn("let chatManualScrollPaused = false", controller)
+        self.assertIn("const movedTowardBottom = currentScrollTop > chatLastScrollTop + 0.5", controller)
+        self.assertIn("if (isChatNearBottom() && movedTowardBottom)", controller)
         self.assertIn("event.deltaY < 0", controller)
         self.assertIn("nextY > chatTouchY + 2", controller)
-        self.assertIn("else if (chatScrollbarDragging) userAutoScroll = false", controller)
+        self.assertIn("else if (chatScrollbarDragging && !isChatNearBottom())", controller)
+
+    def test_upward_intent_latches_pause_until_explicit_downward_return(self):
+        source = _chat_core_source()
+        controller = source[source.index("const chatContainer = get('chat-container')") :]
+        controller = controller[: controller.index("// Image Viewer Logic")]
+
+        pause = controller[controller.index("function pauseChatAutoScroll()") :]
+        pause = pause[: pause.index("function performChatAutoScroll()")]
+        self.assertIn("chatManualScrollPaused = true", pause)
+        self.assertIn("userAutoScroll = false", pause)
+
+        force = controller[controller.index("function scrollToBottom(force = false)") :]
+        force = force[: force.index("if (chatContainer) {")]
+        self.assertIn("chatManualScrollPaused = false", force)
+        self.assertIn("userAutoScroll = true", force)
 
     def test_content_resize_keeps_stream_pinned_to_bottom(self):
         source = _chat_core_source()

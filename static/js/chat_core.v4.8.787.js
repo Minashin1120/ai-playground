@@ -5489,6 +5489,8 @@
         let chatAutoScrollFrame = 0;
         let chatTouchY = null;
         let chatScrollbarDragging = false;
+        let chatManualScrollPaused = false;
+        let chatLastScrollTop = chatContainer ? chatContainer.scrollTop : 0;
 
         function isChatNearBottom() {
             if (!chatContainer) return true;
@@ -5503,6 +5505,7 @@
 
         function pauseChatAutoScroll() {
             if (!chatContainer) return;
+            chatManualScrollPaused = true;
             userAutoScroll = false;
             syncScrollToBottomButton();
         }
@@ -5516,7 +5519,10 @@
 
         function scrollToBottom(force = false) {
             if (!chatContainer) return;
-            if (force) userAutoScroll = true;
+            if (force) {
+                chatManualScrollPaused = false;
+                userAutoScroll = true;
+            }
             if (!userAutoScroll) {
                 syncScrollToBottomButton();
                 return;
@@ -5527,8 +5533,22 @@
 
         if (chatContainer) {
             chatContainer.addEventListener('scroll', () => {
-                if (isChatNearBottom()) userAutoScroll = true;
-                else if (chatScrollbarDragging) userAutoScroll = false;
+                const currentScrollTop = chatContainer.scrollTop;
+                const movedTowardBottom = currentScrollTop > chatLastScrollTop + 0.5;
+                if (chatManualScrollPaused) {
+                    if (isChatNearBottom() && movedTowardBottom) {
+                        chatManualScrollPaused = false;
+                        userAutoScroll = true;
+                    } else {
+                        userAutoScroll = false;
+                    }
+                } else if (chatScrollbarDragging && !isChatNearBottom()) {
+                    chatManualScrollPaused = true;
+                    userAutoScroll = false;
+                } else if (isChatNearBottom()) {
+                    userAutoScroll = true;
+                }
+                chatLastScrollTop = currentScrollTop;
                 syncScrollToBottomButton();
             }, { passive: true });
             chatContainer.addEventListener('wheel', (event) => {
@@ -15820,6 +15840,7 @@
             const adiv = get(aid);
             activeStreamingBubbleId = aid;
             setSendBtnToStopMode();
+            chatManualScrollPaused = false;
             userAutoScroll = true;
             abortController = new AbortController();
             let content = '';
@@ -16386,7 +16407,7 @@
                 p.thread_custom_instruction = threadCustomInstructionEl.value || '';
             }
             if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; p.gem_uuid = activeGem.uuid; } else { p.gem_uuid = null; }
-            setSendBtnToStopMode(); userAutoScroll = true; const aid = 'ai-' + Date.now();
+            setSendBtnToStopMode(); chatManualScrollPaused = false; userAutoScroll = true; const aid = 'ai-' + Date.now();
             const modelLower = String(p.model || '').toLowerCase();
             const effortLower = String(p.reasoning_effort || '').toLowerCase();
             const reasoningRequested = !!p.enable_thinking || (!!effortLower && effortLower !== 'none');

@@ -20,6 +20,7 @@ class ChatAutoScrollRegressionTests(unittest.TestCase):
         self.assertNotIn("userAutoScroll = (this.scrollHeight - this.scrollTop", controller)
         self.assertIn("let chatManualScrollPaused = false", controller)
         self.assertIn("let chatManualResumeArmed = false", controller)
+        self.assertIn("let chatManualPauseIntent = false", controller)
         self.assertIn("if (chatManualResumeArmed && isChatNearBottom())", controller)
         self.assertIn("event.deltaY < 0", controller)
         self.assertIn("nextY > chatTouchY + 2", controller)
@@ -52,6 +53,22 @@ class ChatAutoScrollRegressionTests(unittest.TestCase):
         self.assertIn("event.deltaY > 0 && chatManualScrollPaused", controller)
         self.assertIn("nextY < chatTouchY - 2 && chatManualScrollPaused", controller)
         self.assertIn("['ArrowDown', 'PageDown', 'End']", controller)
+
+    def test_non_scrolling_gestures_do_not_pause_auto_follow(self):
+        source = _chat_core_source()
+        controller = source[source.index("const chatContainer = get('chat-container')") :]
+        controller = controller[: controller.index("// Image Viewer Logic")]
+
+        self.assertIn("function armChatAutoScrollPause()", controller)
+        self.assertIn("if (event.deltaY < 0) armChatAutoScrollPause()", controller)
+        self.assertIn("nextY > chatTouchY + 2) armChatAutoScrollPause()", controller)
+        self.assertNotIn("if (event.deltaY < 0) pauseChatAutoScroll()", controller)
+        self.assertIn("chatManualPauseIntent && currentScrollTop < chatLastScrollTop - 0.5", controller)
+        self.assertIn("chatPauseIntentTimer = setTimeout", controller)
+        intent = controller[controller.index("function armChatAutoScrollPause()") :]
+        intent = intent[: intent.index("function pauseChatAutoScroll()")]
+        self.assertNotIn("cancelAnimationFrame", intent)
+        self.assertNotIn("scrollToBottom()", intent)
 
     def test_new_generation_and_thread_load_reset_stale_pause(self):
         source = _chat_core_source()

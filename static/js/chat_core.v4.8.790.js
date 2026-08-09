@@ -5491,6 +5491,8 @@
         let chatScrollbarDragging = false;
         let chatManualScrollPaused = false;
         let chatManualResumeArmed = false;
+        let chatManualPauseIntent = false;
+        let chatPauseIntentTimer = 0;
         let chatLastScrollTop = chatContainer ? chatContainer.scrollTop : 0;
 
         function isChatNearBottom() {
@@ -5504,12 +5506,31 @@
             scrollToBottomBtn.classList.toggle('hidden', !shouldShow);
         }
 
+        function clearChatAutoScrollPauseIntent() {
+            chatManualPauseIntent = false;
+            if (chatPauseIntentTimer) {
+                clearTimeout(chatPauseIntentTimer);
+                chatPauseIntentTimer = 0;
+            }
+        }
+
+        function armChatAutoScrollPause() {
+            if (!chatContainer || chatManualScrollPaused) return;
+            chatManualPauseIntent = true;
+            if (chatPauseIntentTimer) clearTimeout(chatPauseIntentTimer);
+            chatPauseIntentTimer = setTimeout(() => {
+                chatManualPauseIntent = false;
+                chatPauseIntentTimer = 0;
+            }, 500);
+        }
+
         function pauseChatAutoScroll() {
             if (!chatContainer) return;
             if (chatAutoScrollFrame) {
                 cancelAnimationFrame(chatAutoScrollFrame);
                 chatAutoScrollFrame = 0;
             }
+            clearChatAutoScrollPauseIntent();
             chatManualScrollPaused = true;
             chatManualResumeArmed = false;
             userAutoScroll = false;
@@ -5517,6 +5538,7 @@
         }
 
         function resumeChatAutoScroll(options = {}) {
+            clearChatAutoScrollPauseIntent();
             chatManualScrollPaused = false;
             chatManualResumeArmed = false;
             userAutoScroll = true;
@@ -5538,6 +5560,7 @@
         function scrollToBottom(force = false) {
             if (!chatContainer) return;
             if (force) {
+                clearChatAutoScrollPauseIntent();
                 chatManualScrollPaused = false;
                 chatManualResumeArmed = false;
                 userAutoScroll = true;
@@ -5553,7 +5576,9 @@
         if (chatContainer) {
             chatContainer.addEventListener('scroll', () => {
                 const currentScrollTop = chatContainer.scrollTop;
-                if (chatScrollbarDragging && currentScrollTop < chatLastScrollTop - 0.5) {
+                if (chatManualPauseIntent && currentScrollTop < chatLastScrollTop - 0.5) {
+                    pauseChatAutoScroll();
+                } else if (chatScrollbarDragging && currentScrollTop < chatLastScrollTop - 0.5) {
                     pauseChatAutoScroll();
                 } else if (chatScrollbarDragging && chatManualScrollPaused && currentScrollTop > chatLastScrollTop + 0.5) {
                     chatManualResumeArmed = true;
@@ -5573,7 +5598,7 @@
                 syncScrollToBottomButton();
             }, { passive: true });
             chatContainer.addEventListener('wheel', (event) => {
-                if (event.deltaY < 0) pauseChatAutoScroll();
+                if (event.deltaY < 0) armChatAutoScrollPause();
                 else if (event.deltaY > 0 && chatManualScrollPaused) chatManualResumeArmed = true;
             }, { passive: true });
             chatContainer.addEventListener('touchstart', (event) => {
@@ -5582,7 +5607,7 @@
             chatContainer.addEventListener('touchmove', (event) => {
                 if (!event.touches.length) return;
                 const nextY = event.touches[0].clientY;
-                if (chatTouchY !== null && nextY > chatTouchY + 2) pauseChatAutoScroll();
+                if (chatTouchY !== null && nextY > chatTouchY + 2) armChatAutoScrollPause();
                 else if (chatTouchY !== null && nextY < chatTouchY - 2 && chatManualScrollPaused) chatManualResumeArmed = true;
                 chatTouchY = nextY;
             }, { passive: true });
@@ -5615,7 +5640,7 @@
         document.addEventListener('keydown', (event) => {
             const target = event.target;
             const isTyping = target && (target.matches('input, textarea, select') || target.isContentEditable);
-            if (!isTyping && ['ArrowUp', 'PageUp', 'Home'].includes(event.key)) pauseChatAutoScroll();
+            if (!isTyping && ['ArrowUp', 'PageUp', 'Home'].includes(event.key)) armChatAutoScrollPause();
             else if (!isTyping && chatManualScrollPaused && ['ArrowDown', 'PageDown', 'End'].includes(event.key)) chatManualResumeArmed = true;
         });
 

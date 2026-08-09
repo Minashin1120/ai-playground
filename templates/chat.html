@@ -1699,8 +1699,8 @@
   </div>
 </div>
 
-<div id="python-exec-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm p-4" onclick="if(event.target.id==='python-exec-modal') closePythonExecDetail()">
-  <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-2xl p-4 text-white relative shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="python-exec-modal-title">
+<div id="python-exec-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm p-4 modal-overlay">
+  <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-2xl p-4 text-white relative shadow-2xl modal-panel" role="dialog" aria-modal="true" aria-labelledby="python-exec-modal-title">
     <button type="button" onclick="closePythonExecDetail()" class="absolute right-3 top-3 text-gray-400 hover:text-white" title="閉じる" aria-label="閉じる"><i class="fas fa-times"></i></button>
     <div class="text-sm font-bold text-amber-300 pr-8" id="python-exec-modal-title"><i class="fas fa-terminal mr-1.5"></i>Python 実行結果</div>
     <div class="mt-3 text-xs text-gray-300" id="python-exec-modal-body"></div>

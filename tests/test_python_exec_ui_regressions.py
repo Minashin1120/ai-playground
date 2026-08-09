@@ -31,12 +31,17 @@ class PythonExecUiRegressionTests(unittest.TestCase):
         source = _current_chat_core().read_text(encoding="utf-8")
         self.assertIn("function extractPythonExecutionsFromContent(rawText)", source)
         self.assertIn("function openPythonExecDetail(id)", source)
-        self.assertIn("function closePythonExecDetail()", source)
+        self.assertIn("function closePythonExecDetail(skipHistory = false)", source)
         self.assertIn("window.openPythonExecDetail = openPythonExecDetail", source)
         self.assertIn("python_executions:", source)
         self.assertIn('class="python-exec-btn"', source)
         self.assertIn("openPythonExecDetail('${id}')", source)
         self.assertIn("buildAiMarkdownHtml(displayText)", source)
+        self.assertIn("function showPythonExecDetailModal(messageId = null)", source)
+        self.assertIn("history.pushState(state, '', '/python-execution')", source)
+        self.assertIn("if (!skipHistory && location.pathname === '/python-execution')", source)
+        self.assertIn("'/python-execution': { id: 'python-exec-modal'", source)
+        self.assertIn("case 'python-exec-modal': closePythonExecDetail(skipHistory); break;", source)
         # Completed answers must not render pyexec fences inline.
         pyexec_block = source[source.index("if (l === 'pyexec')") : source.index("if (l === 'pyexec')") + 280]
         self.assertIn("return '';", pyexec_block)
@@ -47,6 +52,11 @@ class PythonExecUiRegressionTests(unittest.TestCase):
         self.assertIn('id="python-exec-modal"', template)
         self.assertIn('id="python-exec-modal-body"', template)
         self.assertIn('id="python-exec-modal-title"', template)
+        modal_open = template[template.index('<div id="python-exec-modal"') :]
+        modal_open = modal_open[: modal_open.index(">") + 1]
+        self.assertIn("modal-overlay", modal_open)
+        self.assertNotIn("onclick=", modal_open)
+        self.assertIn("@app.route('/python-execution')", (APP_ROOT / "app.py").read_text(encoding="utf-8"))
         self.assertIn(".python-exec-btn", css)
         self.assertIn("#python-exec-modal-body", css)
 

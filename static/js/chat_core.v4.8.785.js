@@ -6830,12 +6830,6 @@
             }
         };
 
-        if (get('python-exec-modal')) {
-            get('python-exec-modal').addEventListener('click', (e) => {
-                if (e.target.id === 'python-exec-modal') closePythonExecDetail();
-            });
-        }
-
         function selectModel(id, name) {
             if (window._visionPickerActive) {
                 currentVisionModel = id;
@@ -9780,6 +9774,7 @@
                 '/model': { id: 'model-modal', open: () => openModelModal() },
                 '/token-details': { id: 'token-detail-modal', open: () => showTokenDetailModal() },
                 '/encryption-status': { id: 'encryption-status-modal', open: () => showEncryptionStatusModal() },
+                '/python-execution': { id: 'python-exec-modal', open: () => showPythonExecDetailModal() },
                 '/gem': { id: 'gem-modal', open: () => { editingGemUuid = null; get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem`; showModal('gem-modal'); } },
                 '/compression': { id: 'compression-modal', open: () => window.openCompressionModal() },
                 '/admin-bots': { id: 'bot-admin-modal', open: () => openBotAdminModal() }
@@ -9799,6 +9794,7 @@
                     case 'model-modal': if (window.closeModelModal) window.closeModelModal(skipHistory); break;
                     case 'token-detail-modal': closeTokenDetail(skipHistory); break;
                     case 'encryption-status-modal': closeEncryptionModal(skipHistory); break;
+                    case 'python-exec-modal': closePythonExecDetail(skipHistory); break;
                     case 'gem-modal': if (window.closeGemModal) window.closeGemModal(skipHistory); break;
                     case 'compression-modal': if (window.closeCompressionModal) window.closeCompressionModal(skipHistory); break;
                     case 'bot-admin-modal': if (window.closeBotAdminModal) window.closeBotAdminModal(skipHistory); break;
@@ -14443,6 +14439,15 @@
             return `<div class="code-wrapper python-box" data-collapsed="false" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> ${escapeHtml(label)}</span><div class="code-actions">${codingBtn}${downloadBtn}<button class="copy-btn" data-copy="code" data-code="${encCode}" title="コードをコピー" aria-label="コードをコピー"><i class="fas fa-copy"></i></button><button class="copy-btn" data-copy="output" data-code="${encOut}" title="出力をコピー" aria-label="出力をコピー"><i class="fas fa-align-left"></i></button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code">${codeHtml}</code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output">${outputHtml}</code></pre></div></div></div>`;
         }
 
+        function showPythonExecDetailModal(messageId = null) {
+            if (location.pathname !== '/python-execution') {
+                const state = { modal: 'python-execution' };
+                if (messageId !== null) state.messageId = messageId;
+                history.pushState(state, '', '/python-execution');
+            }
+            showModal('python-exec-modal');
+        }
+
         function openPythonExecDetail(id) {
             const meta = messageMeta[id];
             const modal = get('python-exec-modal');
@@ -14463,18 +14468,17 @@
                 syncCodingTargetButtons(body);
                 syncCodingModeUi(true, { persist: false });
             }
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
+            showPythonExecDetailModal(id);
         }
         window.openPythonExecDetail = openPythonExecDetail;
 
-        function closePythonExecDetail() {
+        function closePythonExecDetail(skipHistory = false) {
             const modal = get('python-exec-modal');
             if (!modal) return;
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-            const body = get('python-exec-modal-body');
-            if (body) body.innerHTML = '';
+            hideModal('python-exec-modal');
+            if (!skipHistory && location.pathname === '/python-execution') {
+                history.back();
+            }
         }
         window.closePythonExecDetail = closePythonExecDetail;
 

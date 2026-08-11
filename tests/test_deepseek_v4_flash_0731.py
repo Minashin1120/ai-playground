@@ -48,7 +48,8 @@ class DeepSeekV4Flash0731Tests(unittest.TestCase):
         self.assertIn('"model": _deepseek_api_model_id(model_key)', self.app_source)
         self.assertIn('legacy_value = key_map.get("deepseek-v4-flash")', self.app_source)
         self.assertIn('1M context, up to 384K output', self.js_source)
-        self.assertIn('CN¥0.02/1M (hit), CN¥1/1M (miss), Out CN¥2/1M', self.js_source)
+        self.assertIn('$0.0028/1M (hit), $0.14/1M (miss), Out $0.28/1M', self.js_source)
+        self.assertIn('$0.003625/1M (hit), $0.435/1M (miss), Out $0.87/1M', self.js_source)
 
     def test_flash_effort_and_user_isolation_follow_official_api(self):
         self.assertIn('if raw in ("low", "high", "max"):', self.app_source)
@@ -64,6 +65,13 @@ class DeepSeekV4Flash0731Tests(unittest.TestCase):
         self.assertIn('extra_body"] = {"thinking": {"type": "disabled"}}', self.app_source)
         self.assertIn('const isDeepSeekNonThinking =', self.js_source)
         self.assertIn('enable_thinking: isDeepSeekNonThinking ? false : get(\'enable-thinking\').checked', self.js_source)
+
+    def test_pro_effort_tool_calls_and_multiturn_context_follow_official_api(self):
+        self.assertIn('if raw in ("max", "xhigh"):', self.app_source)
+        self.assertIn('assistant_tool_message["reasoning_content"] = round_reasoning', self.app_source)
+        self.assertIn('and isinstance(saved_tool_context, list):', self.app_source)
+        self.assertIn('for saved_message in saved_tool_context:', self.app_source)
+        self.assertIn('deepseek_kwargs["tools"] = python_tools', self.app_source)
 
     def test_release_assets_and_versions_are_complete(self):
         self.assertTrue(self.app_version)

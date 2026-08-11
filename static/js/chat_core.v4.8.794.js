@@ -5980,9 +5980,9 @@
                 icon: "fas fa-bolt text-cyan-400",
                 description: "DeepSeek's OpenAI-compatible text models",
                 items: [
-                    { id: "deepseek-v4-flash-0731", implementedAt: "2026-07-31", implementedRank: 6610, quickEmoji: "⚡", apiId: "deepseek-v4-flash", name: "DeepSeek V4 Flash", desc: "Official V4 Flash release with 1M context, up to 384K output, thinking, tools, and JSON output.", price: "In CN¥0.02/1M (hit), CN¥1/1M (miss), Out CN¥2/1M" },
+                    { id: "deepseek-v4-flash-0731", implementedAt: "2026-07-31", implementedRank: 6610, quickEmoji: "⚡", apiId: "deepseek-v4-flash", name: "DeepSeek V4 Flash", desc: "Official V4 Flash release with 1M context, up to 384K output, thinking, tools, and JSON output.", price: "In $0.0028/1M (hit), $0.14/1M (miss), Out $0.28/1M" },
                     { id: "deepseek-v4-flash", implementedAt: "2026-04-26", implementedRank: 4510, name: "DeepSeek V4 Flash Preview", desc: "Retired preview key retained for chat history compatibility.", price: "Legacy preview", deprecated: true },
-                    { id: "deepseek-v4-pro", implementedAt: "2026-04-26", implementedRank: 4511, name: "DeepSeek V4 Pro", desc: "Higher-capacity DeepSeek V4 model with 1M context and up to 384K output.", price: "In CN¥0.025/1M (hit), CN¥3/1M (miss), Out CN¥6/1M" }
+                    { id: "deepseek-v4-pro", implementedAt: "2026-04-26", implementedRank: 4511, name: "DeepSeek V4 Pro", desc: "Higher-capacity DeepSeek V4 model with 1M context and up to 384K output.", price: "In $0.003625/1M (hit), $0.435/1M (miss), Out $0.87/1M" }
                 ]
             },
             {

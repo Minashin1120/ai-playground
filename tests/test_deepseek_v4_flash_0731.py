@@ -58,6 +58,13 @@ class DeepSeekV4Flash0731Tests(unittest.TestCase):
         self.assertIn("!isDeepSeekFlash0731 && !isDeepSeekPro", self.js_source)
         self.assertIn("isLlmModel() && !isDeepSeek", self.js_source)
 
+    def test_none_effort_forces_deepseek_non_thinking_mode(self):
+        self.assertIn('if is_deepseek and req_reasoning_effort == "none":', self.app_source)
+        self.assertIn('req_reasoning_effort != "none"', self.app_source)
+        self.assertIn('extra_body"] = {"thinking": {"type": "disabled"}}', self.app_source)
+        self.assertIn('const isDeepSeekNonThinking =', self.js_source)
+        self.assertIn('enable_thinking: isDeepSeekNonThinking ? false : get(\'enable-thinking\').checked', self.js_source)
+
     def test_release_assets_and_versions_are_complete(self):
         self.assertTrue(self.app_version)
         self.assertTrue(self.system_version)

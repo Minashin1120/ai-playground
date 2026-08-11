@@ -16388,6 +16388,8 @@
                 }
             }
 
+            const effortLower = String(get('reasoning-effort').value || '').toLowerCase();
+            const isDeepSeekNonThinking = String(get('model-select').value || '').toLowerCase().includes('deepseek') && effortLower === 'none';
             const p = {
                 client_request_id: createClientRequestId(),
                 thread_id: currentThreadId,
@@ -16401,7 +16403,7 @@
                 enable_url_context: get('enable-url-context') ? get('enable-url-context').checked : false,
                 enable_maps: get('enable-maps') ? get('enable-maps').checked : false,
                 enable_python: get('enable-python').checked,
-                enable_thinking: get('enable-thinking').checked,
+                enable_thinking: isDeepSeekNonThinking ? false : get('enable-thinking').checked,
                 thinking_level: get('thinking-level').value,
                 thinking_budget: get('thinking-budget') ? get('thinking-budget').value : null,
                 reasoning_effort: get('reasoning-effort').value,
@@ -16457,7 +16459,6 @@
             if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; p.gem_uuid = activeGem.uuid; } else { p.gem_uuid = null; }
             setSendBtnToStopMode(); const aid = 'ai-' + Date.now();
             const modelLower = String(p.model || '').toLowerCase();
-            const effortLower = String(p.reasoning_effort || '').toLowerCase();
             const reasoningRequested = !!p.enable_thinking || (!!effortLower && effortLower !== 'none');
             const reasoningCapableModel =
                 modelLower.includes('gemini') ||

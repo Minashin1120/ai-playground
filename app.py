@@ -733,8 +733,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-10-007')
-app.config['SYSTEM_VERSION'] = 'V4.8.792'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-12-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.793'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -8086,6 +8086,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             grok_reasoning_effort_supported = ("grok-4.3" in model_key_l) or ("grok-build" in model_key_l) or ("grok-3-mini" in model_key_l) or ("multi-agent" in model_key_l)
             req_reasoning_effort = (options.get('reasoning_effort') or "").lower().strip()
             reasoning_requested = bool(options.get('enable_thinking')) or (req_reasoning_effort and req_reasoning_effort != "none")
+            if is_deepseek and req_reasoning_effort == "none":
+                reasoning_requested = False
             if reasoning_requested:
                 pub("status", "推論プロセスを準備中です。モデルの初回トークンを待機しています...")
             else:
@@ -10954,7 +10956,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         return
 
                     messages.append({"role": "user", "content": user_text})
-                    enable_reasoning = bool(options.get('enable_thinking')) or (req_reasoning_effort and req_reasoning_effort != "none")
+                    enable_reasoning = (
+                        req_reasoning_effort != "none"
+                        and (bool(options.get('enable_thinking')) or bool(req_reasoning_effort))
+                    )
                     python_tools = []
                     if options.get("enable_python"):
                         python_tools.append({

@@ -1024,6 +1024,58 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn('id="admin-enc-card"', html)
         self.assertNotIn("admin-enc-username", html)
 
+    def test_frontend_escapes_gem_suggestions_and_branch_tree(self):
+        # V4.8.799: Gem候補ドロップダウンとブランチツリー表示は、保存値を
+        # escapeHtml に通してから innerHTML へ埋め込む必要がある。
+        root = os.path.dirname(os.path.dirname(__file__))
+        version = target.app.config["SYSTEM_VERSION"].lower()
+        script_path = os.path.join(root, "static", "js", f"chat_core.{version}.js")
+        with open(script_path, encoding="utf-8") as script_file:
+            script = script_file.read()
+
+        suggestions = script[script.index("function showGemSuggestions"):]
+        self.assertIn("${escapeHtml(gem.name)}", suggestions)
+        self.assertIn("${escapeHtml(gem.description)}", suggestions)
+
+        branch = script[script.index("function renderBranchTreeVisualization"):]
+        self.assertIn("${escapeHtml(name)}", branch)
+        self.assertIn("${escapeHtml(node.model || '-')}", branch)
+
+    def test_google_login_never_links_accounts_by_username(self):
+        # V4.8.799: Googleログイン時のアカウント照合は google_id / google_email のみとし、
+        # ユーザー名で既存アカウントへ紐付けしない。これにより、他ユーザーのメールアドレスを
+        # ユーザー名として先に登録してGoogleログインを乗っ取る経路を遮断する。
+        root = os.path.dirname(os.path.dirname(__file__))
+        with open(os.path.join(root, "app.py"), encoding="utf-8") as src_file:
+            source = src_file.read()
+        self.assertNotIn("User.username == email", source)
+        self.assertIn("def _resolve_or_create_google_user", source)
+        self.assertIn("filter_by(google_email=email)", source)
+        self.assertIn("if '@' in username", source)
+
+    def test_feedback_rejects_oversized_message(self):
+        client = self.authenticated_client()
+        response = client.post(
+            "/api/feedback",
+            json={"title": "t", "message": "x" * 100_001},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"], "Message is too long")
+
+    def test_easy_login_uses_high_entropy_token(self):
+        client = self.authenticated_client()
+        response = client.post(
+            "/api/easy_login",
+            json={"minutes": 5},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        payload = response.get_json()
+        self.assertGreaterEqual(len(payload["temp_password"]), 20)
+
 
 if __name__ == "__main__":
     unittest.main()

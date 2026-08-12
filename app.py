@@ -733,8 +733,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-13-003')
-app.config['SYSTEM_VERSION'] = 'V4.8.798'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-13-004')
+app.config['SYSTEM_VERSION'] = 'V4.8.799'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -12601,6 +12601,47 @@ def login():
                            site_key=os.getenv('TURNSTILE_SITE_KEY'), 
                            google_client_id=g_client_id)
 
+def _resolve_or_create_google_user(google_id, email):
+    """Resolve or create the account for a verified Google identity.
+
+    Accounts are matched strictly by Google identity (``google_id``) and by
+    the verified Google email already recorded on the account
+    (``google_email``).  Usernames are never used for linking, so an account
+    whose username happens to equal another person's Google email cannot
+    absorb that person's Google login (pre-account-takeover defense).  When
+    the email-as-username is already taken by an unrelated registration, a
+    unique username is generated so a legitimate Google signup is never
+    silently routed into that account.
+    """
+    user = User.query.filter_by(google_id=google_id).first()
+    if user:
+        return user
+    user = User.query.filter_by(google_email=email).first()
+    if user:
+        if user.google_id and user.google_id != google_id:
+            raise ValueError("Invalid Google identity")
+        user.google_id = google_id
+        if not user.google_email:
+            user.google_email = email
+        safe_db_commit()
+        return user
+    username = email
+    if User.query.filter_by(username=username).first():
+        local = (email.split('@', 1)[0] or 'user')[:40]
+        while True:
+            username = f"{local}-{secrets.token_hex(4)}"
+            if not User.query.filter_by(username=username).first():
+                break
+    user = User(
+        username=username,
+        google_id=google_id,
+        google_email=email,
+        is_setup_completed=False,
+    )
+    db.session.add(user)
+    safe_db_commit()
+    return user
+
 @app.route('/login/google')
 def login_google():
     if current_user.is_authenticated:
@@ -12641,25 +12682,7 @@ def login_google_callback():
             return redirect(url_for('index'))
 
         # Login/Signup flow
-        user = User.query.filter_by(google_id=google_id).first()
-        if not user:
-            # Try to link by email if user exists but google_id is not set
-            user = User.query.filter(or_(User.google_email == email, User.username == email)).first()
-            if user:
-                user.google_id = google_id
-                if not user.google_email:
-                    user.google_email = email
-                safe_db_commit()
-            else:
-                # Create new user
-                user = User(
-                    username=email,
-                    google_id=google_id,
-                    google_email=email,
-                    is_setup_completed=False
-                )
-                db.session.add(user)
-                safe_db_commit()
+        user = _resolve_or_create_google_user(google_id, email)
 
         if user.is_2fa_enabled and not user.skip_2fa_on_google_login:
             session['pre_2fa_user_id'] = user.id
@@ -12695,23 +12718,7 @@ def login_google_one_tap():
         if not google_id or not email or len(email) > 128:
             return jsonify({'error': 'Invalid Google identity'}), 400
         
-        user = User.query.filter_by(google_id=google_id).first()
-        if not user:
-            user = User.query.filter(or_(User.google_email == email, User.username == email)).first()
-            if user:
-                user.google_id = google_id
-                if not user.google_email:
-                    user.google_email = email
-                safe_db_commit()
-            else:
-                user = User(
-                    username=email,
-                    google_id=google_id,
-                    google_email=email,
-                    is_setup_completed=False
-                )
-                db.session.add(user)
-                safe_db_commit()
+        user = _resolve_or_create_google_user(google_id, email)
 
         if user.is_2fa_enabled and not user.skip_2fa_on_google_login:
             session['pre_2fa_user_id'] = user.id
@@ -12960,6 +12967,8 @@ def signup():
         password = str(request.form.get('password') or '')
         if len(username) < 3 or len(username) > 80 or re.search(r'[\x00-\x1f\x7f]', username):
             return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Username must be 3-80 characters.")
+        if '@' in username:
+            return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Username cannot contain @.")
         if len(password) < 8 or len(password) > 256:
             return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Password must be 8-256 characters.")
         if _is_primary_admin_username(username): return render_template('signup.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Username taken")
@@ -17380,9 +17389,13 @@ def feedback():
     if request.method == 'POST':
         data = request.json or {}
         title = (data.get('title') or "").strip()[:200]
-        message = (data.get('message') or "").strip()
+        message = (data.get('message') or "").replace('\x00', '').strip()
         if not message:
             return jsonify({'error': 'Message is required'}), 400
+        if len(message) > 100_000:
+            return jsonify({'error': 'Message is too long'}), 400
+        if not rate_limit(f"rl:feedback:user:{current_user.id}", 10, 3600):
+            return jsonify({'error': 'rate_limit'}), 429
         fb = Feedback(user_id=current_user.id, title=title, message=message)
         db.session.add(fb)
         safe_db_commit()
@@ -17428,7 +17441,7 @@ def create_easy_login():
         if minutes < 1: minutes = 1
         if minutes > 120: minutes = 120
 
-        temp_pw = secrets.token_urlsafe(6)[:10]
+        temp_pw = secrets.token_urlsafe(16)
         current_user.easy_login_hash = generate_password_hash(temp_pw)
         current_user.easy_login_expires_at = datetime.utcnow() + timedelta(minutes=minutes)
         safe_db_commit()

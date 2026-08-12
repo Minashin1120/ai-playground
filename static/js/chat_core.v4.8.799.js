@@ -15476,8 +15476,8 @@
                 item.innerHTML = `
                     <i class="fas fa-gem w-4 text-blue-400"></i>
                     <div class="flex-1 min-w-0">
-                        <div class="text-blue-300 truncate font-medium">${gem.name}</div>
-                        ${gem.description ? `<div class="text-[11px] text-gray-400 truncate">${gem.description}</div>` : ''}
+                        <div class="text-blue-300 truncate font-medium">${escapeHtml(gem.name)}</div>
+                        ${gem.description ? `<div class="text-[11px] text-gray-400 truncate">${escapeHtml(gem.description)}</div>` : ''}
                     </div>
                 `;
                 item.onclick = () => selectGemSuggestion(gem);
@@ -18952,9 +18952,9 @@
                 } ${isCurrent ? 'bg-blue-900/40 border-blue-500/50' : 'bg-gray-800'}`;
 
                 item.innerHTML = `
-                    <div class="font-bold truncate">${name}</div>
+                    <div class="font-bold truncate">${escapeHtml(name)}</div>
                     <div class="text-[9px] text-gray-500 flex justify-between mt-1 gap-2">
-                        <span class="truncate">${node.model || '-'}</span>
+                        <span class="truncate">${escapeHtml(node.model || '-')}</span>
                         <span class="text-blue-400 font-mono font-bold" title="Cumulative tokens for this path">${pathTokens}</span>
                     </div>
                     ${isFixed ? '<div class="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full border border-gray-900 shadow-sm" title="Fixed Branch"></div>' : ''}

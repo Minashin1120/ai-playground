@@ -733,8 +733,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-12-003')
-app.config['SYSTEM_VERSION'] = 'V4.8.795'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-13-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.796'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -5747,7 +5747,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
 
 AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
     "python": "Python",
-    "gemini_local_python": "Gemini 音声/動画 + Python (ローカル実行時)",
+    "gemini_local_python": "Gemini 音声/動画/PDF/DOCX + Python (ローカル実行時)",
     "grok_search": "Search補助 (Grok)",
     "openai_search": "Search補助 (OpenAI/xAI Responses)",
     "marker": "Marker編集時",
@@ -8480,11 +8480,20 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
             has_audio = any(fi.get('bytes') and str(fi.get('mime', '')).startswith('audio/') for fi in loaded_files)
             has_video = any(fi.get('bytes') and str(fi.get('mime', '')).startswith('video/') for fi in loaded_files)
+            has_code_exec_unsupported_doc = any(
+                fi.get('bytes') and (
+                    fi.get('is_pdf')
+                    or fi.get('is_docx')
+                    or str(fi.get('mime', '')).lower() == 'application/pdf'
+                    or str(fi.get('mime', '')).lower() == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                )
+                for fi in loaded_files
+            )
             gemini_local_python = False
-            if is_gem and (has_audio or has_video) and options.get('enable_python'):
-                # Gemini code_execution does not accept audio/video inputs; fall back to local exec.
+            if is_gem and (has_audio or has_video or has_code_exec_unsupported_doc) and options.get('enable_python'):
+                # Gemini code_execution does not accept audio/video/PDF/DOCX inputs; fall back to local exec.
                 gemini_local_python = True
-                log_force("Gemini: local python mode for audio/video inputs")
+                log_force("Gemini: local python mode for audio/video/document inputs")
                 if _auto_notice_enabled("gemini_local_python"):
                     local_py_notice = _auto_notice_text("gemini_local_python")
                     curr_p = options.get('system_prompt') or ""

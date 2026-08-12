@@ -8921,7 +8921,7 @@
             };
             const AUTO_SYS_PROMPT_ITEMS = [
                 { key: 'python', label: 'Python 実行案内' },
-                { key: 'gemini_local_python', label: 'Gemini 音声/動画 + Python（ローカル実行）' },
+                { key: 'gemini_local_python', label: 'Gemini 音声/動画/PDF/DOCX + Python（ローカル実行）' },
                 { key: 'grok_search', label: 'Search補助（Grok）' },
                 { key: 'openai_search', label: 'Search補助（OpenAI/xAI Responses）' },
                 { key: 'marker', label: 'Marker編集時' },

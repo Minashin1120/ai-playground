@@ -11,9 +11,20 @@ def _connection_script():
     return assets[0].read_text(encoding="utf-8")
 
 
+def _connection_monitor_source():
+    return (APP_ROOT / "static" / "js" / "connection_monitor.js").read_text(encoding="utf-8")
+
+
+def _monitor_probe():
+    source = _connection_monitor_source()
+    probe = source[source.index("async function probeServerConnection()") :]
+    probe = probe[: probe.index("function start()")]
+    return probe
+
+
 class ConnectionStatusRegressionTests(unittest.TestCase):
     def test_monitor_checks_often_and_does_not_hold_a_stale_state(self):
-        source = _connection_script()
+        source = _connection_monitor_source()
 
         self.assertIn("const CONNECTION_CHECK_INTERVAL_MS = 5000", source)
         self.assertIn("const CONNECTION_CHECK_FAST_INTERVAL_MS = 2000", source)
@@ -21,48 +32,82 @@ class ConnectionStatusRegressionTests(unittest.TestCase):
         self.assertNotIn("CONNECTION_UNSTABLE_HOLD_MS", source)
         self.assertNotIn("connectionUnstableUntil", source)
 
+    def test_heartbeat_logic_lives_in_its_own_module_loaded_before_chat_core(self):
+        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        chat_core_line = [line for line in template.splitlines() if "chat_core." in line and "script" in line][0]
+        monitor_line = [line for line in template.splitlines() if "connection_monitor.js" in line and "script" in line][0]
+
+        self.assertIn("window.ConnectionMonitor", _connection_monitor_source())
+        self.assertLess(template.index(monitor_line), template.index(chat_core_line))
+
+        chat = _connection_script()
+        self.assertNotIn("function setConnectionBanner(", chat)
+        self.assertNotIn("async function probeServerConnection()", chat)
+        self.assertNotIn("CONNECTION_CHECK_INTERVAL_MS", chat)
+        self.assertIn("window.ConnectionMonitor.start()", chat)
+
     def test_success_immediately_replaces_offline_or_unstable_state(self):
-        source = _connection_script()
-        probe = source[source.index("async function probeServerConnection()") :]
-        probe = probe[: probe.index("function startConnectionMonitor()")]
+        probe = _monitor_probe()
         success = probe[probe.index("const hbData = await heartbeatRes.json()") : probe.index("} catch (e)")]
 
         self.assertIn("const wasDisconnected = isDisconnectedConnectionStatus()", success)
         self.assertIn("connectionStatus = 'online'", success)
         self.assertIn("showConnectionRecoveredBanner()", success)
         self.assertNotIn("hadFailure", success)
-        self.assertLess(success.index("connectionStatus = 'online'"), success.index("await purgeCaches()"))
 
     def test_failed_heartbeat_is_treated_as_disconnected(self):
-        source = _connection_script()
-        probe = source[source.index("async function probeServerConnection()") :]
-        probe = probe[: probe.index("function startConnectionMonitor()")]
+        probe = _monitor_probe()
         failure = probe[probe.index("} catch (e)") :]
 
-        self.assertIn("setUnavailableConnectionStatus('offline')", failure)
+        self.assertIn("setUnavailable('offline')", failure)
         self.assertNotIn("navigator.onLine ? 'server-down' : 'offline'", failure)
         self.assertNotIn("setConnectionBanner('unstable'", failure)
 
-    def test_active_file_upload_does_not_report_disconnected(self):
-        source = _connection_script()
-        probe = source[source.index("async function probeServerConnection()") :]
-        probe = probe[: probe.index("function startConnectionMonitor()")]
+    def test_active_operation_replaces_heartbeat_with_process_activity(self):
+        module = _connection_monitor_source()
+        probe = _monitor_probe()
 
-        self.assertIn("function hasActiveFileUpload()", source)
-        self.assertIn("uploadProgressState.active", source)
-        self.assertIn("activeAccountTransfer", source)
+        self.assertIn("function operationStarted()", module)
+        self.assertIn("function operationEnded()", module)
+        self.assertIn("function reportActivity()", module)
+        self.assertIn("function isOperationActive()", module)
+        self.assertIn("if (isOperationActive()) return;", probe)
 
         failure = probe[probe.index("} catch (e)") :]
-        offline = failure.index("setUnavailableConnectionStatus('offline')")
-        guard = failure.index("if (hasActiveFileUpload()) {")
-        self.assertLess(guard, offline, "heartbeat failure must skip offline while an upload is active")
+        offline = failure.index("setUnavailable('offline')")
+        guard = failure.index("if (isOperationActive()) return;")
+        self.assertLess(guard, offline, "heartbeat failure must skip offline while an operation is active")
 
-        self.assertIn("const uploading = hasActiveFileUpload()", probe)
-        self.assertIn("if (uploading) {", probe)
-        self.assertIn("connectionConsecutiveSlow = 0", probe)
+        self.assertIn("activeOperationCount = 0", module)
+        self.assertIn("activeOperationCount += 1;", module)
+        self.assertIn("if (activeOperationCount > 0) activeOperationCount -= 1;", module)
+        self.assertIn("if (activeOperationCount === 0) {", module)
+        self.assertIn("operationStarted,", module)
+        self.assertIn("operationEnded,", module)
+        self.assertIn("reportActivity,", module)
+        self.assertIn("operationEnded", module)
+
+    def test_chat_core_reports_uploads_and_streams_as_active_operations(self):
+        chat = _connection_script()
+
+        self.assertIn("window.ConnectionMonitor.operationStarted()", chat)
+        self.assertIn("window.ConnectionMonitor.operationEnded()", chat)
+        self.assertIn("window.ConnectionMonitor.reportActivity()", chat)
+        self.assertIn("streamOpStarted", chat)
+        self.assertIn("resumeOpStarted", chat)
+        self.assertIn("browserFastOpStarted", chat)
+        self.assertIn("uploadOpStarted", chat)
+
+        # The dedicated per-operation flag must release the operation even on
+        # error/cancel paths (finally / error handler).
+        send = chat[chat.index("async function sendMessage()") : chat.index("async function resumePendingStream")]
+        self.assertIn("streamOpStarted = true", send)
+        self.assertIn("if (streamOpStarted && window.ConnectionMonitor) window.ConnectionMonitor.operationEnded();", send)
+        upload = chat[chat.index("function uploadFileWithProgress") : chat.index("function isVideoFile")]
+        self.assertIn("finishUploadOp()", upload)
 
     def test_offline_banner_uses_an_icon_available_in_fontawesome_6(self):
-        source = _connection_script()
+        source = _connection_monitor_source()
         banner = source[source.index("function setConnectionBanner(mode, message = '')") :]
         banner = banner[: banner.index("function isDisconnectedConnectionStatus")]
         offline = banner[banner.index("if (mode === 'offline')") :]
@@ -71,34 +116,32 @@ class ConnectionStatusRegressionTests(unittest.TestCase):
         self.assertNotIn("fa-wifi-slash", offline)
 
     def test_maintenance_and_full_server_down_have_distinct_states(self):
-        source = _connection_script()
+        source = _connection_monitor_source()
 
         self.assertIn("if (heartbeatRes.status === 503)", source)
-        self.assertIn("setUnavailableConnectionStatus('maintenance')", source)
+        self.assertIn("setUnavailable('maintenance')", source)
         self.assertIn("if ([502, 504, 520, 521, 522, 523, 524].includes(heartbeatRes.status))", source)
-        self.assertIn("setUnavailableConnectionStatus('server-down')", source)
+        self.assertIn("setUnavailable('server-down')", source)
         self.assertIn("b.classList.add('maintenance')", source)
         self.assertIn("b.classList.add('server-down')", source)
         self.assertIn("サーバーはメンテナンス中です（自動再接続します）", source)
         self.assertIn("サーバーが停止しているか応答していません（自動再接続します）", source)
 
     def test_slow_response_needs_repeated_samples_and_events_refresh_immediately(self):
-        source = _connection_script()
+        source = _connection_monitor_source()
 
         self.assertIn("const CONNECTION_SLOW_TO_UNSTABLE = 3", source)
         self.assertIn("connectionConsecutiveSlow >= CONNECTION_SLOW_TO_UNSTABLE", source)
-        self.assertIn("function cancelActiveConnectionProbe()", source)
+        self.assertIn("function cancelProbe()", source)
         self.assertIn("if (probeSequence !== connectionProbeSequence) return", source)
-        self.assertIn("window.addEventListener('online', () => {", source)
-        self.assertIn("window.addEventListener('offline', () => {", source)
-        self.assertIn("window.addEventListener('focus', probeServerConnection)", source)
-        self.assertIn("if (!document.hidden) probeServerConnection()", source)
+        self.assertIn("function probeNow()", source)
+        self.assertIn("connectionCheckTimer = window.setInterval(probeServerConnection", source)
 
     def test_prompt_retries_unavailable_responses_with_one_stable_request_id(self):
         source = _connection_script()
 
         self.assertIn("async function fetchChatStreamWithUnavailableRetry", source)
-        self.assertIn("await waitForConnectionRetry(options.signal)", source)
+        self.assertIn("await window.ConnectionMonitor.waitForRetry(options.signal)", source)
         self.assertIn("client_request_id: createClientRequestId()", source)
         self.assertIn("fetchChatStreamWithUnavailableRetry(", source)
         self.assertIn("error.name === 'AbortError'", source)

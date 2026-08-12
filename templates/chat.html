@@ -1684,6 +1684,7 @@
             }
         };
     </script>
+    <script src="{{ url_for('static', filename='js/connection_monitor.js') }}?v={{ app_version }}" defer></script>
     <script src="{{ url_for('static', filename='js/chat_core.' ~ (system_version | lower) ~ '.js') }}?v={{ app_version }}" defer></script>
     <script src="{{ url_for('static', filename='js/pwa_install.js') }}?v={{ app_version }}" defer></script>
 

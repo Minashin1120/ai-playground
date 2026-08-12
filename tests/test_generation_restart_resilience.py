@@ -49,7 +49,7 @@ class GenerationRestartResilienceTests(unittest.TestCase):
         resume = source[source.index("async function resumePendingStream") : source.index("function updateThreadHighlighting")]
 
         self.assertIn("while (!reconnectController.signal.aborted)", reconnect)
-        self.assertIn("await waitForConnectionRetry(reconnectController.signal)", reconnect)
+        self.assertIn("await window.ConnectionMonitor.waitForRetry(reconnectController.signal)", reconnect)
         self.assertIn("await loadMessages(reconnectThreadId", reconnect)
         self.assertIn("resumePendingStream(latestPending)", reconnect)
         self.assertIn("reconnectAfterResumeDisconnect", resume)

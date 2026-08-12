@@ -43,6 +43,24 @@ class ConnectionStatusRegressionTests(unittest.TestCase):
         self.assertNotIn("navigator.onLine ? 'server-down' : 'offline'", failure)
         self.assertNotIn("setConnectionBanner('unstable'", failure)
 
+    def test_active_file_upload_does_not_report_disconnected(self):
+        source = _connection_script()
+        probe = source[source.index("async function probeServerConnection()") :]
+        probe = probe[: probe.index("function startConnectionMonitor()")]
+
+        self.assertIn("function hasActiveFileUpload()", source)
+        self.assertIn("uploadProgressState.active", source)
+        self.assertIn("activeAccountTransfer", source)
+
+        failure = probe[probe.index("} catch (e)") :]
+        offline = failure.index("setUnavailableConnectionStatus('offline')")
+        guard = failure.index("if (hasActiveFileUpload()) {")
+        self.assertLess(guard, offline, "heartbeat failure must skip offline while an upload is active")
+
+        self.assertIn("const uploading = hasActiveFileUpload()", probe)
+        self.assertIn("if (uploading) {", probe)
+        self.assertIn("connectionConsecutiveSlow = 0", probe)
+
     def test_offline_banner_uses_an_icon_available_in_fontawesome_6(self):
         source = _connection_script()
         banner = source[source.index("function setConnectionBanner(mode, message = '')") :]

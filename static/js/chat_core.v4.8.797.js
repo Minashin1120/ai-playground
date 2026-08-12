@@ -4366,6 +4366,9 @@
             }
             connectionCheckInFlight = false;
         }
+        function hasActiveFileUpload() {
+            return Number(uploadProgressState.active) > 0 || activeAccountTransfer !== null;
+        }
         async function probeServerConnection() {
             if (!navigator.onLine) {
                 if (connectionCheckInFlight) cancelActiveConnectionProbe();
@@ -4406,7 +4409,10 @@
                 if (probeSequence !== connectionProbeSequence) return;
                 const latencyMs = Math.round(performance.now() - startedAt);
                 const wasDisconnected = isDisconnectedConnectionStatus();
-                if (latencyMs >= CONNECTION_UNSTABLE_LATENCY_MS) {
+                const uploading = hasActiveFileUpload();
+                if (uploading) {
+                    connectionConsecutiveSlow = 0;
+                } else if (latencyMs >= CONNECTION_UNSTABLE_LATENCY_MS) {
                     connectionConsecutiveSlow += 1;
                 } else {
                     connectionConsecutiveSlow = 0;
@@ -4434,6 +4440,10 @@
                 }
             } catch (e) {
                 if (probeSequence !== connectionProbeSequence) return;
+                if (hasActiveFileUpload()) {
+                    refreshConnectionMonitorTimer();
+                    return;
+                }
                 setUnavailableConnectionStatus('offline');
             } finally {
                 window.clearTimeout(timeoutId);

@@ -15,6 +15,7 @@ class GeminiLatestModelsRegressionTests(unittest.TestCase):
     def test_latest_gemini_models_are_registered_across_ui_and_backend(self):
         self.assertIn('id="welcome-quick-start"', CHAT_HTML)
         for model_id in (
+            "gemini-3.7-flash",
             "gemini-3.6-flash",
             "gemini-3.5-flash-lite",
             "gemini-3.1-flash-lite",
@@ -25,6 +26,7 @@ class GeminiLatestModelsRegressionTests(unittest.TestCase):
             self.assertIn(f'implementedAt:', CHAT_JS[CHAT_JS.index(f'id: "{model_id}"'): CHAT_JS.index(f'id: "{model_id}"') + 120])
 
     def test_latest_gemini_routing_precedes_flash_substring_match(self):
+        self.assertIn('if "gemini-3.7-flash" in model_key', APP_SOURCE)
         route = APP_SOURCE[APP_SOURCE.index('if "gemini-3.6-flash" in model_key'):]
         self.assertLess(
             route.index('if "gemini-3.6-flash" in model_key'),
@@ -41,11 +43,15 @@ class GeminiLatestModelsRegressionTests(unittest.TestCase):
             APP_SOURCE,
         )
         self.assertIn(
-            'rm in ("gemini-3.6-flash", "gemini-3.5-flash-lite")',
+            'rm in ("gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite")',
             APP_SOURCE,
         )
 
     def test_thinking_levels_follow_official_model_constraints(self):
+        self.assertIn(
+            'rm == "gemini-3.7-flash" and lvl not in ("low", "medium", "high")',
+            APP_SOURCE,
+        )
         self.assertIn(
             'rm == "gemini-3.6-flash" and lvl not in ("medium", "high")',
             APP_SOURCE,
@@ -96,6 +102,7 @@ class GeminiLatestModelsRegressionTests(unittest.TestCase):
 
     def test_verified_models_show_agentic_view_badge(self):
         for model_id in (
+            "gemini-3.7-flash",
             "gemini-3.6-flash",
             "gemini-3.5-flash",
             "gemini-3.5-flash-lite",

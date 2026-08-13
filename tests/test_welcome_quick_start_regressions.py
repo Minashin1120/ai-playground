@@ -38,15 +38,15 @@ class WelcomeQuickStartRegressionTests(unittest.TestCase):
         active.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
         top5 = [mid for _, _, mid, _ in active[:5]]
 
-        # Most recently implemented set (from changelogs through V4.8.661).
+        # Most recently implemented set, including the current release.
         self.assertEqual(
             top5,
             [
+                "gemini-3.7-flash",
                 "deepseek-v4-flash-0731",
                 "gpt-5.6-luna",
                 "gpt-5.6-terra",
                 "gpt-5.6-sol",
-                "gemini-3.1-flash-lite",
             ],
         )
 

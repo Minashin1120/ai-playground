@@ -733,8 +733,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-14-009')
-app.config['SYSTEM_VERSION'] = 'V4.8.808'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-14-010')
+app.config['SYSTEM_VERSION'] = 'V4.8.809'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -18988,16 +18988,6 @@ def handle_gem_item(gem_uuid):
         db.session.delete(gem)
         safe_db_commit()
         return jsonify({'status': 'deleted'})
-
-@app.route('/api/debug/log', methods=['GET'])
-@login_required
-def debug_log():
-    if not getattr(current_user, "is_admin", False): return abort(403)
-    def generate():
-        process = subprocess.Popen(['sudo', 'journalctl', '-u', 'ai-chat', '-n', '50', '--no-pager'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        stdout, _ = process.communicate()
-        yield stdout
-    return Response(generate(), mimetype='text/plain')
 
 @app.route('/api/maintenance', methods=['POST'])
 @login_required

@@ -1076,6 +1076,16 @@ class SecurityRegressionTests(unittest.TestCase):
         payload = response.get_json()
         self.assertGreaterEqual(len(payload["temp_password"]), 20)
 
+    def test_in_site_system_logs_endpoint_is_removed(self):
+        client = self.authenticated_client()
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.is_admin = True
+            target.db.session.commit()
+        response = client.get("/api/debug/log", base_url="https://localhost")
+        self.assertEqual(response.status_code, 404)
+        self.assertIsNone(target.app.view_functions.get("debug_log"))
+
 
 if __name__ == "__main__":
     unittest.main()

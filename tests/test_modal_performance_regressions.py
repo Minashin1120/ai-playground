@@ -377,11 +377,14 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("cfg.botConfig && cfg.botConfig.isAdmin", helper)
         self.assertIn("if (!isAdminSidebarDebugEnabled()) return null;", helper)
         self.assertIn("[admin-sidebar]", helper)
+        self.assertIn("console.log.bind(console)", script)
+        self.assertIn("nativeConsoleLog(ADMIN_SIDEBAR_DEBUG_PREFIX", helper)
         self.assertIn("window.__adminSidebarDebugDump", helper)
         self.assertIn("window.copyAdminSidebarDebug", helper)
         self.assertIn("snapshotSidebarHistory('settings-open-before')", script)
         self.assertIn("snapshotSidebarHistory('settings-close-after')", script)
         self.assertIn("installAdminSidebarDebugObserver", script)
+        self.assertIn("if (args && args[0] === ADMIN_SIDEBAR_DEBUG_PREFIX) return;", script)
 
     def test_overlay_notifications_follow_visible_composer_dock(self):
         # V4.8.691: the offline connection banner and the global progress spinner

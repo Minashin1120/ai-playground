@@ -1,4 +1,6 @@
         const get = (id) => document.getElementById(id);
+        const nativeConsoleLog = (typeof console.log === 'function') ? console.log.bind(console) : function () {};
+        const nativeConsoleInfo = (typeof console.info === 'function') ? console.info.bind(console) : nativeConsoleLog;
         const isAdminSidebarDebugEnabled = () => {
             try {
                 const cfg = window.CHAT_CONFIG || {};
@@ -61,7 +63,7 @@
             };
             adminSidebarDebugEntries.push(snap);
             if (adminSidebarDebugEntries.length > 80) adminSidebarDebugEntries.shift();
-            try { console.log(ADMIN_SIDEBAR_DEBUG_PREFIX, reason, snap); } catch (error) {}
+            try { nativeConsoleLog(ADMIN_SIDEBAR_DEBUG_PREFIX, reason, snap); } catch (error) {}
             return snap;
         };
         const installAdminSidebarDebugObserver = () => {
@@ -89,7 +91,7 @@
         window.__adminSidebarDebugDump = () => {
             if (!isAdminSidebarDebugEnabled()) return [];
             const copy = adminSidebarDebugEntries.slice();
-            try { console.log(ADMIN_SIDEBAR_DEBUG_PREFIX, 'dump', copy); } catch (error) {}
+            try { nativeConsoleLog(ADMIN_SIDEBAR_DEBUG_PREFIX, 'dump', copy); } catch (error) {}
             return copy;
         };
         window.copyAdminSidebarDebug = async () => {
@@ -99,10 +101,10 @@
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                     await navigator.clipboard.writeText(text);
                 }
-                console.log(ADMIN_SIDEBAR_DEBUG_PREFIX, 'copied', adminSidebarDebugEntries.length, 'entries');
+                nativeConsoleLog(ADMIN_SIDEBAR_DEBUG_PREFIX, 'copied', adminSidebarDebugEntries.length, 'entries');
                 return true;
             } catch (error) {
-                try { console.log(ADMIN_SIDEBAR_DEBUG_PREFIX, 'copy-failed', text); } catch (logError) {}
+                try { nativeConsoleLog(ADMIN_SIDEBAR_DEBUG_PREFIX, 'copy-failed', text); } catch (logError) {}
                 return false;
             }
         };
@@ -7943,7 +7945,7 @@
             installAdminSidebarDebugObserver();
             if (isAdminSidebarDebugEnabled()) {
                 try {
-                    console.info(ADMIN_SIDEBAR_DEBUG_PREFIX, 'enabled. After reproducing, run copyAdminSidebarDebug() and paste the result.');
+                    nativeConsoleInfo(ADMIN_SIDEBAR_DEBUG_PREFIX, 'enabled. Open the browser DevTools Console (F12). After reproducing, run copyAdminSidebarDebug() and paste the result.');
                 } catch (error) {}
             }
             snapshotSidebarHistory('page-init');
@@ -19325,6 +19327,7 @@
             async function sendToServer(level, args) {
                 if (isSending) return;
                 if (!isClientDebugLogEnabled()) return;
+                if (args && args[0] === ADMIN_SIDEBAR_DEBUG_PREFIX) return;
 
                 isSending = true;
                 const message = args.map(arg => {

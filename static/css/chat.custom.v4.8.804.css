@@ -645,11 +645,12 @@
         @keyframes tabExit { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-6px); } }
         .tab-enter { animation: tabEnter 0.28s var(--ease-out) both; }
         .tab-exit { animation: tabExit 0.18s var(--ease-standard) both; }
-        @keyframes modelListEnter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        .model-list-animate { animation: modelListEnter 0.32s var(--ease-out) both; }
+        /* Keep persistent lists visible if this animation restarts or is disabled. */
+        @keyframes modelListEnter { from { transform: translateY(6px); } to { transform: translateY(0); } }
+        .model-list-animate { animation: modelListEnter 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
         
-        @keyframes slideInLeft { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: translateX(0); } }
-        .slide-in-animate { animation: slideInLeft 0.55s var(--ease-out) both; }
+        @keyframes slideInLeft { from { transform: translateX(-10px); } to { transform: translateX(0); } }
+        .slide-in-animate { animation: slideInLeft 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
         
         .modal-overlay { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.32s var(--ease-standard), visibility 0.32s var(--ease-standard); }
         .modal-overlay .modal-panel { opacity: 0; transform: translateY(14px) scale(0.975); transition: transform 0.4s var(--ease-out), opacity 0.32s var(--ease-standard); will-change: transform, opacity; }

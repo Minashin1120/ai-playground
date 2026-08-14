@@ -351,6 +351,43 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("model-list-animate", gem_item)
         self.assertNotIn("model-list-animate opacity-0", gem_item)
 
+    def test_opening_settings_does_not_blank_sidebar_history(self):
+        # V4.8.804: opening settings reapplied the same theme CSS variables on
+        # :root. Browsers then restart any animation that uses var(), including
+        # model-list-animate. Combined with fill-mode:both and opacity:0 from
+        # keyframes, the sidebar thread list went invisible.
+        css = _current_asset("css", "chat.custom.v4.8.*.css")
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+
+        model_list = css[css.index("@keyframes modelListEnter") :]
+        model_list = model_list[: model_list.index(".modal-overlay {")]
+        self.assertIn("transform: translateY(6px)", model_list)
+        self.assertNotIn("opacity: 0", model_list)
+        self.assertIn("animation: modelListEnter 0.32s cubic-bezier(0.22, 1, 0.36, 1);", model_list)
+        self.assertNotIn("var(--ease-out) both", model_list)
+
+        apply_theme = script[script.index("const applyThemeColor = (value, persist = false) => {") :]
+        apply_theme = apply_theme[: apply_theme.index("const syncThemeInputs")]
+        self.assertIn("root.style.getPropertyValue(name).trim()", apply_theme)
+        self.assertIn("root.style.setProperty(name, nextValue)", apply_theme)
+
+        measure_after = script[
+            script.index("const measureAdaptiveBlurAfterInteraction = () => {") :
+            script.index("document.addEventListener('click'")
+        ]
+        self.assertIn("requestAnimationFrame", measure_after)
+        self.assertIn("measureInteractionFrames()", measure_after)
+
+        thread_item = script[script.index("async function loadThreads(append=false) {") :]
+        thread_item = thread_item[: thread_item.index("function initPullToRefresh")]
+        self.assertIn("animationend", thread_item)
+        self.assertIn("classList.remove('model-list-animate')", thread_item)
+
+        gem_item = script[script.index("async function loadGems() {") :]
+        gem_item = gem_item[: gem_item.index("async function openEditGemModal")]
+        self.assertIn("animationend", gem_item)
+        self.assertIn("classList.remove('model-list-animate')", gem_item)
+
     def test_overlay_notifications_follow_visible_composer_dock(self):
         # V4.8.691: the offline connection banner and the global progress spinner
         # were fixed at the bottom-right corner and overlapped the prompt bar /

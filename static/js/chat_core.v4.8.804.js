@@ -153,7 +153,13 @@
         };
         const measureAdaptiveBlurAfterInteraction = () => {
             if (document.readyState !== 'complete' || adaptiveBlurLiteEnabled) return;
-            measureInteractionFrames();
+            // Wait one frame so click handlers can open a modal first.
+            // Measuring during the settings overlay animation would otherwise
+            // look like a dropped-frame burst and auto-enable lite mode.
+            requestAnimationFrame(() => {
+                if (adaptiveBlurLiteEnabled) return;
+                measureInteractionFrames();
+            });
         };
         document.addEventListener('click', (event) => {
             const target = event.target instanceof Element ? event.target : null;
@@ -450,12 +456,19 @@
             const hex = normalizeHex(value) || THEME_DEFAULT;
             const theme = deriveTheme(hex);
             const root = document.documentElement;
-            root.style.setProperty('--theme-500', theme.base);
-            root.style.setProperty('--theme-600', theme.dark);
-            root.style.setProperty('--theme-700', theme.darker);
-            root.style.setProperty('--theme-300', theme.light);
-            root.style.setProperty('--theme-200', theme.lighter);
-            root.style.setProperty('--theme-rgb', theme.rgb);
+            const nextVars = [
+                ['--theme-500', theme.base],
+                ['--theme-600', theme.dark],
+                ['--theme-700', theme.darker],
+                ['--theme-300', theme.light],
+                ['--theme-200', theme.lighter],
+                ['--theme-rgb', theme.rgb]
+            ];
+            nextVars.forEach(([name, nextValue]) => {
+                if (root.style.getPropertyValue(name).trim() !== String(nextValue).trim()) {
+                    root.style.setProperty(name, nextValue);
+                }
+            });
             if (persist) localStorage.setItem(THEME_STORAGE_KEY, hex);
         };
         const syncThemeInputs = (value) => {
@@ -17085,6 +17098,11 @@
                             if (e.target.closest('button') || e.target.closest('[data-thread-actions]')) return;
                             loadMessages(tid);
                         };
+                        d.addEventListener('animationend', (ev) => {
+                            if (ev && ev.animationName && ev.animationName !== 'modelListEnter') return;
+                            d.classList.remove('model-list-animate');
+                            d.style.animationDelay = '';
+                        }, { once: true });
                         l.insertBefore(d, sentinel);
                     });
 
@@ -17568,6 +17586,11 @@
                         d.style.animationDelay = `${i * 0.05}s`;
                         d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${escapeHtml(g.name)}</span></div><div class="flex items-center gap-1"><button class="text-gray-400 hover:text-blue-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="openEditGemModal(event,'${g.uuid}')"><i class="fas fa-pencil-alt text-[10px]"></i></button><button class="text-gray-400 hover:text-red-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="deleteGem(event,'${g.uuid}')"><i class="fas fa-trash text-[10px]"></i></button></div>`;
                         d.onclick = (e) => { if(!e.target.closest('button')) activateGem(g); };
+                        d.addEventListener('animationend', (ev) => {
+                            if (ev && ev.animationName && ev.animationName !== 'modelListEnter') return;
+                            d.classList.remove('model-list-animate');
+                            d.style.animationDelay = '';
+                        }, { once: true });
                         l.appendChild(d);
                     });
                 }

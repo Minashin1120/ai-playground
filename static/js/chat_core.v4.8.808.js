@@ -50,6 +50,7 @@
                 listVisibility: listCs ? listCs.visibility : null,
                 listHeight: listCs ? listCs.height : null,
                 hideCompact: !!(list && list.classList.contains('hide-compact')),
+                searchLen: (() => { const el = get('search-box'); return el ? String(el.value || '').length : 0; })(),
                 firstItemText: first && first.textContent ? first.textContent.trim().slice(0, 40) : null,
                 firstItemOpacity: firstCs ? firstCs.opacity : null,
                 firstItemDisplay: firstCs ? firstCs.display : null,
@@ -209,6 +210,21 @@
             revealPersistentSidebarLists();
             snapshotSidebarHistory('blur-preference-applied:' + normalizedMode);
             syncAdaptiveBlurSettingsUi();
+        };
+        const isSettingsModalOpen = () => {
+            const el = get('settings-modal');
+            if (!el) return false;
+            if (el.classList.contains('modal-open') || el.classList.contains('modal-prep')) return true;
+            if (el.classList.contains('hidden')) return false;
+            return el.style.display && el.style.display !== 'none';
+        };
+        const restoreThreadSearchValue = (value, reason) => {
+            const el = get('search-box');
+            if (!el) return;
+            if (el.value === value) return;
+            el.value = value;
+            clearTimeout(searchTimeout);
+            snapshotSidebarHistory(reason || 'restored-search-box');
         };
         const revealPersistentSidebarLists = () => {
             document.querySelectorAll('#thread-list > [data-thread-id], #gem-list > .gem-item').forEach((el) => {
@@ -9014,16 +9030,23 @@
 
             window.openSettingsModal = () => {
                 snapshotSidebarHistory('settings-open-before');
+                const searchEl = get('search-box');
+                const preservedThreadSearch = searchEl ? searchEl.value : '';
+                clearTimeout(searchTimeout);
                 const ss = get('settings-search');
                 if (ss) { ss.value = ''; }
                 filterSettings();
                 populateDefaultModelOptions();
                 populateDefaultVisionModelOptions();
                 showModal('settings-modal');
+                restoreThreadSearchValue(preservedThreadSearch, 'restored-search-box-open');
                 revealPersistentSidebarLists();
                 snapshotSidebarHistory('settings-open-after');
-                [50, 300, 800].forEach((ms) => {
-                    setTimeout(() => snapshotSidebarHistory('settings-open-later-' + ms + 'ms'), ms);
+                [50, 200, 400, 800].forEach((ms) => {
+                    setTimeout(() => {
+                        restoreThreadSearchValue(preservedThreadSearch, 'restored-search-box-' + ms + 'ms');
+                        snapshotSidebarHistory('settings-open-later-' + ms + 'ms');
+                    }, ms);
                 });
                 syncAdaptiveBlurSettingsUi();
                 loadStorageUsage();
@@ -10306,8 +10329,12 @@
             }
             if (get('search-box')) {
                 get('search-box').addEventListener('input', () => {
+                    if (isSettingsModalOpen()) {
+                        snapshotSidebarHistory('ignore-search-input-settings-open');
+                        return;
+                    }
                     clearTimeout(searchTimeout);
-                    searchTimeout = setTimeout(() => { threadPage=1; get('thread-list').innerHTML='<div id="thread-pull-indicator" class="ptr-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div><div id="scroll-sentinel"></div>'; loadThreads(); }, 300);
+                    searchTimeout = setTimeout(() => { loadThreads(false); }, 300);
                 });
             }
             if (get('mobile-new-chat-btn')) get('mobile-new-chat-btn').onclick = () => startNewChat();
@@ -17222,12 +17249,26 @@
                 }
                 const searchEl = get('search-box');
                 const q = searchEl ? searchEl.value : '';
+                if (!append && isSettingsModalOpen()) {
+                    snapshotSidebarHistory('loadThreads-skipped-settings-open');
+                    return;
+                }
                 const r = await apiFetch(`${CHAT_CONFIG.urls.handleThreads}?q=${encodeURIComponent(q)}&page=${threadPage}`);
                 const d = await r.json();
                 const l = get('thread-list');
                 if (!l) return;
 
                 if(!append) {
+                    if (isSettingsModalOpen()) {
+                        snapshotSidebarHistory('loadThreads-skip-replace-settings-open');
+                        return;
+                    }
+                    const incomingCount = (d && Array.isArray(d.threads)) ? d.threads.length : -1;
+                    const existingCount = l.querySelectorAll('[data-thread-id]').length;
+                    if (incomingCount === 0 && existingCount > 0 && String(q || '').trim()) {
+                        snapshotSidebarHistory('loadThreads-keep-existing-empty-search');
+                        return;
+                    }
                     l.innerHTML = '<div id="thread-pull-indicator" class="ptr-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div><div id="scroll-sentinel"></div>';
                     if (threadObserver) {
                         threadObserver.disconnect();

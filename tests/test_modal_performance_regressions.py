@@ -358,7 +358,9 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("html.performance-lite-mode #thread-list > [data-thread-id]", css)
         self.assertIn("html.performance-lite-mode #gem-list > .gem-item", css)
         self.assertIn("revealPersistentSidebarLists", script)
-        self.assertIn("showModal('settings-modal');\n                revealPersistentSidebarLists();", script)
+        self.assertIn("showModal('settings-modal');", script)
+        self.assertIn("restoreThreadSearchValue(preservedThreadSearch", script)
+        self.assertIn("revealPersistentSidebarLists();", script)
         self.assertIn("hideModal('settings-modal');\n                revealPersistentSidebarLists();", script)
 
         thread_item = script[script.index("async function loadThreads(append=false) {") :]
@@ -385,6 +387,20 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("snapshotSidebarHistory('settings-close-after')", script)
         self.assertIn("installAdminSidebarDebugObserver", script)
         self.assertIn("if (args && args[0] === ADMIN_SIDEBAR_DEBUG_PREFIX) return;", script)
+
+    def test_settings_open_does_not_reload_or_clear_thread_search(self):
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        search_handler = script[script.index("get('search-box').addEventListener('input'"):]
+        search_handler = search_handler[: search_handler.index("if (get('mobile-new-chat-btn')")]
+        self.assertIn("isSettingsModalOpen()", search_handler)
+        self.assertNotIn("get('thread-list').innerHTML=", search_handler)
+        self.assertIn("loadThreads-skipped-settings-open", script)
+        self.assertIn("loadThreads-keep-existing-empty-search", script)
+        self.assertIn("restoreThreadSearchValue", script)
+        self.assertIn('id="search-box"', template)
+        search_input = template[template.index('id="search-box"'):template.index('id="search-box"') + 280]
+        self.assertIn('autocomplete="off"', search_input)
 
     def test_overlay_notifications_follow_visible_composer_dock(self):
         # V4.8.691: the offline connection banner and the global progress spinner

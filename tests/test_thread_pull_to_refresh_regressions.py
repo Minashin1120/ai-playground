@@ -61,9 +61,9 @@ class PullToRefreshRegressionTests(unittest.TestCase):
         source = _current_asset("js", "chat_core.v4.8.*.js")
 
         reset_html = '<div id="thread-pull-indicator" class="ptr-pull-indicator"'
-        self.assertGreaterEqual(source.count(reset_html), 2)
+        self.assertGreaterEqual(source.count(reset_html), 1)
         sentinel_count = source.count('<div id="scroll-sentinel"></div>')
-        self.assertGreaterEqual(sentinel_count, 2)
+        self.assertGreaterEqual(sentinel_count, 1)
         # Every list reset that creates a fresh scroll-sentinel must also recreate the indicator.
         for block in source.split(reset_html)[1:]:
             self.assertIn('<div id="scroll-sentinel"></div>', block[:300])

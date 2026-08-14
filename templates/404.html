@@ -14,16 +14,15 @@
             font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
             background: radial-gradient(800px 520px at 20% -10%, rgba(13,212,191,0.16), transparent 55%),
                         radial-gradient(700px 520px at 85% 0%, rgba(245,158,11,0.12), transparent 60%),
-                        linear-gradient(180deg, #060b18, #0a1128);
+                        linear-gradient(180deg, #05070f, #080c18);
             color: var(--text, #e8eaef);
         }
         body::before {
             content: "";
             position: fixed;
             inset: 0;
-            background-image: linear-gradient(transparent 97%, rgba(148,163,184,0.035) 98%),
-                              linear-gradient(90deg, transparent 97%, rgba(148,163,184,0.035) 98%);
-            background-size: 48px 48px;
+            background-image: radial-gradient(rgba(226, 232, 240, 0.04) 1px, transparent 1px);
+            background-size: 22px 22px;
             pointer-events: none;
             opacity: 0.35;
         }

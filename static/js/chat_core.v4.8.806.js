@@ -1,4 +1,111 @@
         const get = (id) => document.getElementById(id);
+        const isAdminSidebarDebugEnabled = () => {
+            try {
+                const cfg = window.CHAT_CONFIG || {};
+                return !!(cfg.botConfig && cfg.botConfig.isAdmin);
+            } catch (error) {
+                return false;
+            }
+        };
+        const ADMIN_SIDEBAR_DEBUG_PREFIX = '[admin-sidebar]';
+        const adminSidebarDebugEntries = [];
+        const snapshotSidebarHistory = (reason) => {
+            if (!isAdminSidebarDebugEnabled()) return null;
+            const list = get('thread-list');
+            const sidebar = get('sidebar');
+            const settings = get('settings-modal');
+            const historyModal = get('history-modal');
+            const listCs = list ? window.getComputedStyle(list) : null;
+            const sidebarCs = sidebar ? window.getComputedStyle(sidebar) : null;
+            const items = list ? Array.from(list.querySelectorAll('[data-thread-id]')) : [];
+            const first = items[0] || null;
+            const firstCs = first ? window.getComputedStyle(first) : null;
+            let threadLoadingState = null;
+            try { threadLoadingState = typeof threadLoading === 'boolean' ? threadLoading : null; } catch (error) { threadLoadingState = null; }
+            const snap = {
+                t: Date.now(),
+                reason: String(reason || ''),
+                path: location.pathname,
+                vw: window.innerWidth,
+                liteHtml: document.documentElement.classList.contains('performance-lite-mode'),
+                blurHtml: document.documentElement.classList.contains('performance-blur-disabled'),
+                liquidBody: !!(document.body && document.body.classList.contains('liquid-glass-mode')),
+                blurMode: adaptiveBlurPreferenceMode,
+                liteEnabled: adaptiveBlurLiteEnabled,
+                sidebarClass: sidebar ? sidebar.className : null,
+                sidebarDisplay: sidebarCs ? sidebarCs.display : null,
+                sidebarOpacity: sidebarCs ? sidebarCs.opacity : null,
+                sidebarVisibility: sidebarCs ? sidebarCs.visibility : null,
+                compact: !!(sidebar && sidebar.classList.contains('compact')),
+                sidebarOpen: !!(sidebar && sidebar.classList.contains('open')),
+                listExists: !!list,
+                listParent: list && list.parentElement ? (list.parentElement.id || list.parentElement.className) : null,
+                listClass: list ? list.className : null,
+                listChildCount: list ? list.children.length : 0,
+                listItemCount: items.length,
+                listDisplay: listCs ? listCs.display : null,
+                listOpacity: listCs ? listCs.opacity : null,
+                listVisibility: listCs ? listCs.visibility : null,
+                listHeight: listCs ? listCs.height : null,
+                hideCompact: !!(list && list.classList.contains('hide-compact')),
+                firstItemText: first && first.textContent ? first.textContent.trim().slice(0, 40) : null,
+                firstItemOpacity: firstCs ? firstCs.opacity : null,
+                firstItemDisplay: firstCs ? firstCs.display : null,
+                firstItemVisibility: firstCs ? firstCs.visibility : null,
+                firstItemClass: first ? first.className : null,
+                settingsHidden: settings ? settings.classList.contains('hidden') : null,
+                settingsOpen: settings ? settings.classList.contains('modal-open') : null,
+                settingsDisplay: settings ? (settings.style.display || null) : null,
+                historyHidden: historyModal ? historyModal.classList.contains('hidden') : null,
+                threadLoading: threadLoadingState
+            };
+            adminSidebarDebugEntries.push(snap);
+            if (adminSidebarDebugEntries.length > 80) adminSidebarDebugEntries.shift();
+            try { console.log(ADMIN_SIDEBAR_DEBUG_PREFIX, reason, snap); } catch (error) {}
+            return snap;
+        };
+        const installAdminSidebarDebugObserver = () => {
+            if (!isAdminSidebarDebugEnabled()) return;
+            const list = get('thread-list');
+            if (!list || list.dataset.adminSidebarDebugObserved === '1') return;
+            list.dataset.adminSidebarDebugObserved = '1';
+            try {
+                const observer = new MutationObserver((mutations) => {
+                    const removedItems = mutations.reduce((sum, mutation) => {
+                        return sum + Array.from(mutation.removedNodes || []).filter((node) => {
+                            return node && node.nodeType === 1 && node.getAttribute && node.getAttribute('data-thread-id');
+                        }).length;
+                    }, 0);
+                    const addedItems = mutations.reduce((sum, mutation) => {
+                        return sum + Array.from(mutation.addedNodes || []).filter((node) => {
+                            return node && node.nodeType === 1 && node.getAttribute && node.getAttribute('data-thread-id');
+                        }).length;
+                    }, 0);
+                    snapshotSidebarHistory(`thread-list-mutated added=${addedItems} removed=${removedItems}`);
+                });
+                observer.observe(list, { childList: true, attributes: true, attributeFilter: ['class', 'style'] });
+            } catch (error) {}
+        };
+        window.__adminSidebarDebugDump = () => {
+            if (!isAdminSidebarDebugEnabled()) return [];
+            const copy = adminSidebarDebugEntries.slice();
+            try { console.log(ADMIN_SIDEBAR_DEBUG_PREFIX, 'dump', copy); } catch (error) {}
+            return copy;
+        };
+        window.copyAdminSidebarDebug = async () => {
+            if (!isAdminSidebarDebugEnabled()) return false;
+            const text = JSON.stringify(adminSidebarDebugEntries, null, 2);
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(text);
+                }
+                console.log(ADMIN_SIDEBAR_DEBUG_PREFIX, 'copied', adminSidebarDebugEntries.length, 'entries');
+                return true;
+            } catch (error) {
+                try { console.log(ADMIN_SIDEBAR_DEBUG_PREFIX, 'copy-failed', text); } catch (logError) {}
+                return false;
+            }
+        };
         const ADAPTIVE_BLUR_COOKIE = 'adaptive_blur_disabled';
         const ADAPTIVE_LITE_COOKIE = 'adaptive_lite_mode';
         const ADAPTIVE_BLUR_MODE_COOKIE = 'adaptive_blur_mode';
@@ -61,6 +168,7 @@
             }
             document.documentElement.classList.add('performance-lite-mode');
             revealPersistentSidebarLists();
+            snapshotSidebarHistory('lite-auto-enabled');
             syncAdaptiveBlurSettingsUi();
             showToast('描画負荷が高いため、軽量表示（最小負荷）を自動適用しました。タップで設定を開く', 'info', false, openAdaptiveBlurSettingsFromToast);
             writeAdaptiveBlurCookie(ADAPTIVE_LITE_COOKIE, '1');
@@ -97,6 +205,7 @@
             document.documentElement.classList.toggle('performance-blur-disabled', adaptiveBlurFallbackEnabled);
             document.documentElement.classList.toggle('performance-lite-mode', adaptiveBlurLiteEnabled);
             revealPersistentSidebarLists();
+            snapshotSidebarHistory('blur-preference-applied:' + normalizedMode);
             syncAdaptiveBlurSettingsUi();
         };
         const revealPersistentSidebarLists = () => {
@@ -114,6 +223,7 @@
                 list.style.removeProperty('opacity');
                 list.style.removeProperty('visibility');
             });
+            snapshotSidebarHistory('reveal-sidebar-lists');
         };
         const adaptiveBlurIsBusy = () => {
             if (activeStreamingBubbleId) return true;
@@ -7830,6 +7940,13 @@
                     toggleOptions();
                 }
             }).catch(() => {});
+            installAdminSidebarDebugObserver();
+            if (isAdminSidebarDebugEnabled()) {
+                try {
+                    console.info(ADMIN_SIDEBAR_DEBUG_PREFIX, 'enabled. After reproducing, run copyAdminSidebarDebug() and paste the result.');
+                } catch (error) {}
+            }
+            snapshotSidebarHistory('page-init');
             loadThreads(); loadGems();
 
             get('send-btn').onclick = () => { if (isStopMode) stopGeneration(); else sendMessage(); };
@@ -8894,6 +9011,7 @@
             };
 
             window.openSettingsModal = () => {
+                snapshotSidebarHistory('settings-open-before');
                 const ss = get('settings-search');
                 if (ss) { ss.value = ''; }
                 filterSettings();
@@ -8901,6 +9019,10 @@
                 populateDefaultVisionModelOptions();
                 showModal('settings-modal');
                 revealPersistentSidebarLists();
+                snapshotSidebarHistory('settings-open-after');
+                [50, 300, 800].forEach((ms) => {
+                    setTimeout(() => snapshotSidebarHistory('settings-open-later-' + ms + 'ms'), ms);
+                });
                 syncAdaptiveBlurSettingsUi();
                 loadStorageUsage();
                 loadSiteCacheUsage();
@@ -9007,6 +9129,7 @@
                     } else {
                         syncThemeInputs(localStorage.getItem(THEME_STORAGE_KEY) || INITIAL_THEME_COLOR || THEME_DEFAULT);
                     }
+                    snapshotSidebarHistory('settings-theme-synced');
                     syncGeminiLocalPyDialogSetting();
                     syncCompressionSettingsUi();
                     if(get('set-username')) get('set-username').value = d.username;
@@ -9067,8 +9190,11 @@
                 loadSessions();
             };
             const closeSettingsModal = (skipHistory = false) => {
+                snapshotSidebarHistory('settings-close-before');
                 hideModal('settings-modal');
                 revealPersistentSidebarLists();
+                snapshotSidebarHistory('settings-close-after');
+                setTimeout(() => snapshotSidebarHistory('settings-close-later-300ms'), 300);
                 if (!skipHistory && location.pathname === '/settings') {
                     history.back();
                 }
@@ -17081,8 +17207,12 @@
         }
 
         async function loadThreads(append=false) {
-            if(threadLoading) return;
+            if(threadLoading) {
+                snapshotSidebarHistory('loadThreads-skipped-busy append=' + !!append);
+                return;
+            }
             threadLoading = true;
+            snapshotSidebarHistory('loadThreads-start append=' + !!append);
             try {
                 if(!append) {
                     threadPage = 1;
@@ -17130,12 +17260,17 @@
 
                     hasMoreThreads = !!d.has_next;
                     if(hasMoreThreads) threadPage++;
+                    snapshotSidebarHistory('loadThreads-rendered count=' + d.threads.length + ' append=' + !!append);
+                } else {
+                    snapshotSidebarHistory('loadThreads-empty-or-invalid');
                 }
             } catch (err) {
                 console.error('Failed to load threads:', err);
+                snapshotSidebarHistory('loadThreads-error');
             } finally {
                 threadLoading = false;
                 updateThreadHighlighting();
+                snapshotSidebarHistory('loadThreads-finally');
             }
         }
 

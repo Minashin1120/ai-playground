@@ -370,6 +370,19 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         gem_item = gem_item[: gem_item.index("async function openEditGemModal")]
         self.assertNotIn("model-list-animate", gem_item)
 
+    def test_admin_sidebar_debug_logs_are_admin_only(self):
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        helper = script[script.index("const isAdminSidebarDebugEnabled = () => {") :]
+        helper = helper[: helper.index("const ADAPTIVE_BLUR_COOKIE")]
+        self.assertIn("cfg.botConfig && cfg.botConfig.isAdmin", helper)
+        self.assertIn("if (!isAdminSidebarDebugEnabled()) return null;", helper)
+        self.assertIn("[admin-sidebar]", helper)
+        self.assertIn("window.__adminSidebarDebugDump", helper)
+        self.assertIn("window.copyAdminSidebarDebug", helper)
+        self.assertIn("snapshotSidebarHistory('settings-open-before')", script)
+        self.assertIn("snapshotSidebarHistory('settings-close-after')", script)
+        self.assertIn("installAdminSidebarDebugObserver", script)
+
     def test_overlay_notifications_follow_visible_composer_dock(self):
         # V4.8.691: the offline connection banner and the global progress spinner
         # were fixed at the bottom-right corner and overlapped the prompt bar /

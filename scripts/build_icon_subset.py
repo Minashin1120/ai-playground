@@ -82,6 +82,14 @@ def download(url: str, dest: Path) -> None:
         shutil.copyfileobj(response, handle)
 
 
+def css_escape_to_unicode(code: str) -> str:
+    """Convert a CSS content escape like \\f00d or \\2b into a U+XXXX token."""
+    hexpart = code[1:] if code.startswith("\\") else code
+    if not re.fullmatch(r"[0-9a-fA-F]+", hexpart):
+        raise ValueError(f"Invalid CSS unicode escape: {code!r}")
+    return f"U+{hexpart.upper()}"
+
+
 def parse_icon_codepoints(css_text: str) -> dict[str, str]:
     mapping: dict[str, str] = {}
     for selectors, code in CONTENT_RULE_RE.findall(css_text):
@@ -179,7 +187,9 @@ def main() -> int:
         raise SystemExit(f"Unknown Font Awesome icon names: {', '.join(missing)}")
 
     used_map = {name: mapping[name] for name in sorted(used_icons)}
-    unicodes = sorted({f"U+{code[2:].upper()}" for code in used_map.values()})
+    unicodes = sorted({css_escape_to_unicode(code) for code in used_map.values()})
+    if "U+F00D" not in unicodes:
+        raise SystemExit(f"Icon unicode conversion failed; sample={unicodes[:8]}")
 
     uses_brands = bool({"fab", "fa-brands"} & prefixes) or bool(used_icons & BRAND_HINTS)
     uses_regular = bool({"far", "fa-regular"} & prefixes)

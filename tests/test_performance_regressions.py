@@ -319,7 +319,7 @@ class PerformanceRegressionTests(unittest.TestCase):
         self.assertTrue(source_css.is_file())
         self.assertTrue(min_css.is_file())
         self.assertLess(min_js.stat().st_size, source_js.stat().st_size)
-        self.assertLess(min_css.stat().st_size, source_css.stat().st_size)
+        self.assertEqual(min_css.read_bytes(), source_css.read_bytes())
         self.assertLess(min_js.stat().st_size, 700_000)
         self.assertIn("chat_core.min.", template)
         self.assertNotIn("filename='js/chat_core.'", template)
@@ -344,7 +344,17 @@ class PerformanceRegressionTests(unittest.TestCase):
         self.assertIn("font-display:swap", icon_css)
         self.assertIn(".fa-paper-plane:before", icon_css)
         self.assertLess((APP_ROOT / "static/vendor/icons/fa-subset.css").stat().st_size, 12_000)
-        self.assertLess((APP_ROOT / "static/vendor/icons/fa-solid-subset.woff2").stat().st_size, 20_000)
+        solid_font = (APP_ROOT / "static/vendor/icons/fa-solid-subset.woff2")
+        self.assertGreater(solid_font.stat().st_size, 8_000)
+        self.assertLess(solid_font.stat().st_size, 80_000)
+        from fontTools.ttLib import TTFont
+        cmap = TTFont(solid_font).getBestCmap() or {}
+        self.assertIn(0xF00D, cmap)
+        self.assertIn(0xF0C9, cmap)
+        tailwind = next((APP_ROOT / "static/css").glob("chat.tailwind.v4.8.*.css"))
+        tailwind_css = tailwind.read_text(encoding="utf-8")
+        self.assertIn("\\2c", tailwind_css)
+        self.assertIn(".grid{display:grid}", tailwind_css)
 
 
 if __name__ == "__main__":

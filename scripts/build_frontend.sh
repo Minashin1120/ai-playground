@@ -31,15 +31,6 @@ minify_js() {
     --outfile="$dest"
 }
 
-minify_css() {
-  local src="$1"
-  local dest="$2"
-  "${ESBUILD[@]}" "$src" \
-    --minify \
-    --legal-comments=none \
-    --outfile="$dest"
-}
-
 JS_SRC="static/js/chat_core.${VERSION}.js"
 JS_MIN="static/js/chat_core.min.${VERSION}.js"
 CSS_SRC="static/css/chat.custom.${VERSION}.css"
@@ -54,12 +45,9 @@ for required in "$JS_SRC" "$CSS_SRC" "$TW_SRC"; do
 done
 
 minify_js "$JS_SRC" "$JS_MIN"
-minify_css "$CSS_SRC" "$CSS_MIN"
-# Tailwind is generated, not hand-edited. Minify in place so templates keep
-# the existing versioned filename.
-TW_TMP="$(mktemp --suffix=.css)"
-minify_css "$TW_SRC" "$TW_TMP"
-mv "$TW_TMP" "$TW_SRC"
+# Do not parse-minify CSS. esbuild rewrites Tailwind/arbitrary selectors
+# (especially comma escapes) and drops layout utilities.
+cp "$CSS_SRC" "$CSS_MIN"
 
 if [[ -f static/js/progress_spinner.js ]]; then
   minify_js static/js/progress_spinner.js static/js/progress_spinner.min.js

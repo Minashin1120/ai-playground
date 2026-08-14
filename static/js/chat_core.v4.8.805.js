@@ -60,6 +60,7 @@
                 writeAdaptiveBlurCookie(ADAPTIVE_BLUR_COOKIE, '1');
             }
             document.documentElement.classList.add('performance-lite-mode');
+            revealPersistentSidebarLists();
             syncAdaptiveBlurSettingsUi();
             showToast('描画負荷が高いため、軽量表示（最小負荷）を自動適用しました。タップで設定を開く', 'info', false, openAdaptiveBlurSettingsFromToast);
             writeAdaptiveBlurCookie(ADAPTIVE_LITE_COOKIE, '1');
@@ -95,7 +96,24 @@
             adaptiveBlurLiteEnabled = normalizedMode === 'lite';
             document.documentElement.classList.toggle('performance-blur-disabled', adaptiveBlurFallbackEnabled);
             document.documentElement.classList.toggle('performance-lite-mode', adaptiveBlurLiteEnabled);
+            revealPersistentSidebarLists();
             syncAdaptiveBlurSettingsUi();
+        };
+        const revealPersistentSidebarLists = () => {
+            document.querySelectorAll('#thread-list > [data-thread-id], #gem-list > .gem-item').forEach((el) => {
+                el.classList.remove('model-list-animate', 'slide-in-animate', 'fade-in', 'opacity-0');
+                el.style.removeProperty('opacity');
+                el.style.removeProperty('transform');
+                el.style.removeProperty('animation');
+                el.style.removeProperty('animation-delay');
+                el.style.removeProperty('visibility');
+            });
+            ['thread-list', 'gem-list'].forEach((id) => {
+                const list = get(id);
+                if (!list) return;
+                list.style.removeProperty('opacity');
+                list.style.removeProperty('visibility');
+            });
         };
         const adaptiveBlurIsBusy = () => {
             if (activeStreamingBubbleId) return true;
@@ -8882,6 +8900,7 @@
                 populateDefaultModelOptions();
                 populateDefaultVisionModelOptions();
                 showModal('settings-modal');
+                revealPersistentSidebarLists();
                 syncAdaptiveBlurSettingsUi();
                 loadStorageUsage();
                 loadSiteCacheUsage();
@@ -9049,6 +9068,7 @@
             };
             const closeSettingsModal = (skipHistory = false) => {
                 hideModal('settings-modal');
+                revealPersistentSidebarLists();
                 if (!skipHistory && location.pathname === '/settings') {
                     history.back();
                 }
@@ -17067,22 +17087,29 @@
                 if(!append) {
                     threadPage = 1;
                     hasMoreThreads = true;
-                    get('thread-list').innerHTML = '<div id="thread-pull-indicator" class="ptr-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div><div id="scroll-sentinel"></div>';
+                }
+                const searchEl = get('search-box');
+                const q = searchEl ? searchEl.value : '';
+                const r = await apiFetch(`${CHAT_CONFIG.urls.handleThreads}?q=${encodeURIComponent(q)}&page=${threadPage}`);
+                const d = await r.json();
+                const l = get('thread-list');
+                if (!l) return;
+
+                if(!append) {
+                    l.innerHTML = '<div id="thread-pull-indicator" class="ptr-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div><div id="scroll-sentinel"></div>';
                     if (threadObserver) {
                         threadObserver.disconnect();
-                        threadObserver.observe(get('scroll-sentinel'));
+                        const nextSentinel = get('scroll-sentinel');
+                        if (nextSentinel) threadObserver.observe(nextSentinel);
                     }
                 }
 
-                const r = await apiFetch(`${CHAT_CONFIG.urls.handleThreads}?q=${encodeURIComponent(get('search-box').value)}&page=${threadPage}`);
-                const d = await r.json();
-                const l = get('thread-list');
                 const sentinel = get('scroll-sentinel');
 
                 if (d && Array.isArray(d.threads)) {
-                    d.threads.forEach((t, i) => {
+                    d.threads.forEach((t) => {
                         const tid = String(t.id);
-                        const d = document.createElement('div');
+                        const row = document.createElement('div');
                         const star = t.is_bookmarked ? 'text-yellow-400' : 'text-gray-500';
                         const tempBadge = t.is_temporary ? '<span class="text-[9px] text-amber-300 border border-amber-500/50 rounded px-1 py-0">一時</span>' : '';
 
@@ -17090,20 +17117,15 @@
                         const isActive = (tid === String(currentThreadId));
                         const activeClass = isActive ? 'bg-gray-700/60 border-l-2 border-blue-500' : '';
 
-                        d.className = `p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 truncate flex justify-between items-center group model-list-animate ${activeClass}`;
-                        d.dataset.threadId = tid;
-                        d.style.animationDelay = `${i * 0.035}s`;
-                        d.innerHTML = `<div class="flex items-center gap-1 truncate flex-1"><button class="${star} hover:text-yellow-400 px-1" onclick="toggleBookmark(event, '${tid}')"><i class="fas fa-star text-[10px]"></i></button><span class="truncate">${escapeHtml(t.title || "No Title")}</span>${tempBadge}</div><div class="flex gap-1 opacity-0 group-hover:opacity-100" data-thread-actions="1"><button class="text-gray-500 hover:text-white px-1" onclick="renameThread(event, '${tid}')"><i class="fas fa-pen text-xs"></i></button><button class="text-gray-500 hover:text-red-400 px-1" onclick="deleteThread(event, '${tid}')"><i class="fas fa-trash text-xs"></i></button></div>`;
-                        d.onclick = (e) => {
+                        row.className = `p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 truncate flex justify-between items-center group ${activeClass}`;
+                        row.dataset.threadId = tid;
+                        row.innerHTML = `<div class="flex items-center gap-1 truncate flex-1"><button class="${star} hover:text-yellow-400 px-1" onclick="toggleBookmark(event, '${tid}')"><i class="fas fa-star text-[10px]"></i></button><span class="truncate">${escapeHtml(t.title || "No Title")}</span>${tempBadge}</div><div class="flex gap-1 opacity-0 group-hover:opacity-100" data-thread-actions="1"><button class="text-gray-500 hover:text-white px-1" onclick="renameThread(event, '${tid}')"><i class="fas fa-pen text-xs"></i></button><button class="text-gray-500 hover:text-red-400 px-1" onclick="deleteThread(event, '${tid}')"><i class="fas fa-trash text-xs"></i></button></div>`;
+                        row.onclick = (e) => {
                             if (e.target.closest('button') || e.target.closest('[data-thread-actions]')) return;
                             loadMessages(tid);
                         };
-                        d.addEventListener('animationend', (ev) => {
-                            if (ev && ev.animationName && ev.animationName !== 'modelListEnter') return;
-                            d.classList.remove('model-list-animate');
-                            d.style.animationDelay = '';
-                        }, { once: true });
-                        l.insertBefore(d, sentinel);
+                        if (sentinel) l.insertBefore(row, sentinel);
+                        else l.appendChild(row);
                     });
 
                     hasMoreThreads = !!d.has_next;
@@ -17580,17 +17602,11 @@
                 if (!l) return;
                 l.innerHTML = '<div id="gem-pull-indicator" class="ptr-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div>';
                 if (Array.isArray(gs)) {
-                    gs.forEach((g, i) => {
+                    gs.forEach((g) => {
                         const d = document.createElement('div');
-                        d.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group model-list-animate';
-                        d.style.animationDelay = `${i * 0.05}s`;
+                        d.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group';
                         d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${escapeHtml(g.name)}</span></div><div class="flex items-center gap-1"><button class="text-gray-400 hover:text-blue-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="openEditGemModal(event,'${g.uuid}')"><i class="fas fa-pencil-alt text-[10px]"></i></button><button class="text-gray-400 hover:text-red-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="deleteGem(event,'${g.uuid}')"><i class="fas fa-trash text-[10px]"></i></button></div>`;
                         d.onclick = (e) => { if(!e.target.closest('button')) activateGem(g); };
-                        d.addEventListener('animationend', (ev) => {
-                            if (ev && ev.animationName && ev.animationName !== 'modelListEnter') return;
-                            d.classList.remove('model-list-animate');
-                            d.style.animationDelay = '';
-                        }, { once: true });
                         l.appendChild(d);
                     });
                 }

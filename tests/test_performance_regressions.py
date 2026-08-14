@@ -281,15 +281,12 @@ class PerformanceRegressionTests(unittest.TestCase):
         self.assertEqual(len(custom_css_files), 1)
         custom_css = custom_css_files[0].read_text(encoding="utf-8")
 
-        # loadThreads must not add opacity-0 to thread elements
+        # Persistent sidebar lists must not use entrance animations.
         load_threads_src = source[source.index("async function loadThreads"):source.index("function initPullToRefresh")]
-        self.assertNotIn("model-list-animate opacity-0", load_threads_src)
-        self.assertIn("model-list-animate", load_threads_src)
+        self.assertNotIn("model-list-animate", load_threads_src)
 
-        # loadGems must not add opacity-0 to gem elements
         load_gems_src = source[source.index("async function loadGems"):source.index("async function openEditGemModal")]
-        self.assertNotIn("model-list-animate opacity-0", load_gems_src)
-        self.assertIn("model-list-animate", load_gems_src)
+        self.assertNotIn("model-list-animate", load_gems_src)
 
         # renderWelcomeQuickStart must not add opacity-0 to quick buttons
         quick_start_src = source[source.index("const renderWelcomeQuickStart ="):source.index("const normalizeModelApiKeyMap")]

@@ -3394,9 +3394,25 @@ html.performance-lite-mode .slide-in-animate.opacity-0,
 html.performance-lite-mode .model-list-animate.opacity-0,
 html.performance-lite-mode body:not(.liquid-glass-mode) .fade-in,
 html.performance-lite-mode body:not(.liquid-glass-mode) .slide-in-animate,
-html.performance-lite-mode body:not(.liquid-glass-mode) .model-list-animate {
+html.performance-lite-mode body:not(.liquid-glass-mode) .model-list-animate,
+html.performance-lite-mode #thread-list > [data-thread-id],
+html.performance-lite-mode #gem-list > .gem-item,
+html.performance-lite-mode #sidebar:not(.compact) #thread-list,
+html.performance-lite-mode #sidebar:not(.compact) #gem-list,
+html.performance-lite-mode #sidebar:not(.compact) .sidebar-gems {
         opacity: 1 !important;
         transform: none !important;
+        visibility: visible !important;
+        animation: none !important;
+}
+@media (max-width: 768px) {
+    html.performance-lite-mode #sidebar #thread-list,
+    html.performance-lite-mode #sidebar #gem-list,
+    html.performance-lite-mode #sidebar .sidebar-gems {
+        opacity: 1 !important;
+        visibility: visible !important;
+        animation: none !important;
+    }
 }
 
 

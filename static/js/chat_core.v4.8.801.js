@@ -5885,18 +5885,9 @@
                 const emoji = m.quickEmoji ? `${escapeHtml(String(m.quickEmoji))} ` : '';
                 const name = escapeHtml(String(m.name || m.id));
                 const id = String(m.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-                return `<button type="button" class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate opacity-0" style="animation-delay: ${delay}s" onclick="quickStart('${id}')">${emoji}${name}</button>`;
+                return `<button type="button" class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate" style="animation-delay: ${delay}s" onclick="quickStart('${id}')">${emoji}${name}</button>`;
             }).join('');
         };
-
-
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                try { renderWelcomeQuickStart(); } catch (e) {}
-            }, { once: true });
-        } else {
-            try { renderWelcomeQuickStart(); } catch (e) {}
-        }
 
         const normalizeModelApiKeyMap = (raw) => {
             if (!raw || typeof raw !== 'object') return {};
@@ -17059,46 +17050,53 @@
         async function loadThreads(append=false) {
             if(threadLoading) return;
             threadLoading = true;
-            if(!append) {
-                threadPage = 1;
-                hasMoreThreads = true;
-                get('thread-list').innerHTML = '<div id="thread-pull-indicator" class="ptr-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div><div id="scroll-sentinel"></div>';
-                if (threadObserver) {
-                    threadObserver.disconnect();
-                    threadObserver.observe(get('scroll-sentinel'));
+            try {
+                if(!append) {
+                    threadPage = 1;
+                    hasMoreThreads = true;
+                    get('thread-list').innerHTML = '<div id="thread-pull-indicator" class="ptr-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div><div id="scroll-sentinel"></div>';
+                    if (threadObserver) {
+                        threadObserver.disconnect();
+                        threadObserver.observe(get('scroll-sentinel'));
+                    }
                 }
+
+                const r = await apiFetch(`${CHAT_CONFIG.urls.handleThreads}?q=${encodeURIComponent(get('search-box').value)}&page=${threadPage}`);
+                const d = await r.json();
+                const l = get('thread-list');
+                const sentinel = get('scroll-sentinel');
+
+                if (d && Array.isArray(d.threads)) {
+                    d.threads.forEach((t, i) => {
+                        const tid = String(t.id);
+                        const d = document.createElement('div');
+                        const star = t.is_bookmarked ? 'text-yellow-400' : 'text-gray-500';
+                        const tempBadge = t.is_temporary ? '<span class="text-[9px] text-amber-300 border border-amber-500/50 rounded px-1 py-0">一時</span>' : '';
+
+                        // Active highlighting
+                        const isActive = (tid === String(currentThreadId));
+                        const activeClass = isActive ? 'bg-gray-700/60 border-l-2 border-blue-500' : '';
+
+                        d.className = `p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 truncate flex justify-between items-center group model-list-animate ${activeClass}`;
+                        d.dataset.threadId = tid;
+                        d.style.animationDelay = `${i * 0.035}s`;
+                        d.innerHTML = `<div class="flex items-center gap-1 truncate flex-1"><button class="${star} hover:text-yellow-400 px-1" onclick="toggleBookmark(event, '${tid}')"><i class="fas fa-star text-[10px]"></i></button><span class="truncate">${escapeHtml(t.title || "No Title")}</span>${tempBadge}</div><div class="flex gap-1 opacity-0 group-hover:opacity-100" data-thread-actions="1"><button class="text-gray-500 hover:text-white px-1" onclick="renameThread(event, '${tid}')"><i class="fas fa-pen text-xs"></i></button><button class="text-gray-500 hover:text-red-400 px-1" onclick="deleteThread(event, '${tid}')"><i class="fas fa-trash text-xs"></i></button></div>`;
+                        d.onclick = (e) => {
+                            if (e.target.closest('button') || e.target.closest('[data-thread-actions]')) return;
+                            loadMessages(tid);
+                        };
+                        l.insertBefore(d, sentinel);
+                    });
+
+                    hasMoreThreads = !!d.has_next;
+                    if(hasMoreThreads) threadPage++;
+                }
+            } catch (err) {
+                console.error('Failed to load threads:', err);
+            } finally {
+                threadLoading = false;
+                updateThreadHighlighting();
             }
-
-            const r = await apiFetch(`${CHAT_CONFIG.urls.handleThreads}?q=${encodeURIComponent(get('search-box').value)}&page=${threadPage}`);
-            const d = await r.json();
-            const l = get('thread-list');
-            const sentinel = get('scroll-sentinel');
-
-            d.threads.forEach((t, i) => {
-                const tid = String(t.id);
-                const d = document.createElement('div');
-                const star = t.is_bookmarked ? 'text-yellow-400' : 'text-gray-500';
-                const tempBadge = t.is_temporary ? '<span class="text-[9px] text-amber-300 border border-amber-500/50 rounded px-1 py-0">一時</span>' : '';
-
-                // Active highlighting
-                const isActive = (tid === String(currentThreadId));
-                const activeClass = isActive ? 'bg-gray-700/60 border-l-2 border-blue-500' : '';
-
-                d.className = `p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 truncate flex justify-between items-center group model-list-animate opacity-0 ${activeClass}`;
-                d.dataset.threadId = tid;
-                d.style.animationDelay = `${i * 0.035}s`;
-                d.innerHTML = `<div class="flex items-center gap-1 truncate flex-1"><button class="${star} hover:text-yellow-400 px-1" onclick="toggleBookmark(event, '${tid}')"><i class="fas fa-star text-[10px]"></i></button><span class="truncate">${escapeHtml(t.title || "No Title")}</span>${tempBadge}</div><div class="flex gap-1 opacity-0 group-hover:opacity-100" data-thread-actions="1"><button class="text-gray-500 hover:text-white px-1" onclick="renameThread(event, '${tid}')"><i class="fas fa-pen text-xs"></i></button><button class="text-gray-500 hover:text-red-400 px-1" onclick="deleteThread(event, '${tid}')"><i class="fas fa-trash text-xs"></i></button></div>`;
-                d.onclick = (e) => {
-                    if (e.target.closest('button') || e.target.closest('[data-thread-actions]')) return;
-                    loadMessages(tid);
-                };
-                l.insertBefore(d, sentinel);
-            });
-
-            hasMoreThreads = d.has_next;
-            if(hasMoreThreads) threadPage++;
-            threadLoading = false;
-            updateThreadHighlighting();
         }
 
         // Generic pull-to-refresh for a scrollable list.
@@ -17556,19 +17554,26 @@
             renderThreadTree({ animate: true });
         }
         async function loadGems() {
-            const r = await apiFetch(CHAT_CONFIG.urls.handleGems);
-            const gs = await r.json();
-            loadedGems = gs;
-            const l = get('gem-list');
-            l.innerHTML = '<div id="gem-pull-indicator" class="ptr-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div>';
-            gs.forEach((g, i) => {
-                const d = document.createElement('div');
-                d.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group model-list-animate opacity-0';
-                d.style.animationDelay = `${i * 0.05}s`;
-                d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${escapeHtml(g.name)}</span></div><div class="flex items-center gap-1"><button class="text-gray-400 hover:text-blue-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="openEditGemModal(event,'${g.uuid}')"><i class="fas fa-pencil-alt text-[10px]"></i></button><button class="text-gray-400 hover:text-red-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="deleteGem(event,'${g.uuid}')"><i class="fas fa-trash text-[10px]"></i></button></div>`;
-                d.onclick = (e) => { if(!e.target.closest('button')) activateGem(g); };
-                l.appendChild(d);
-            });
+            try {
+                const r = await apiFetch(CHAT_CONFIG.urls.handleGems);
+                const gs = await r.json();
+                loadedGems = gs;
+                const l = get('gem-list');
+                if (!l) return;
+                l.innerHTML = '<div id="gem-pull-indicator" class="ptr-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div>';
+                if (Array.isArray(gs)) {
+                    gs.forEach((g, i) => {
+                        const d = document.createElement('div');
+                        d.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group model-list-animate';
+                        d.style.animationDelay = `${i * 0.05}s`;
+                        d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${escapeHtml(g.name)}</span></div><div class="flex items-center gap-1"><button class="text-gray-400 hover:text-blue-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="openEditGemModal(event,'${g.uuid}')"><i class="fas fa-pencil-alt text-[10px]"></i></button><button class="text-gray-400 hover:text-red-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="deleteGem(event,'${g.uuid}')"><i class="fas fa-trash text-[10px]"></i></button></div>`;
+                        d.onclick = (e) => { if(!e.target.closest('button')) activateGem(g); };
+                        l.appendChild(d);
+                    });
+                }
+            } catch (err) {
+                console.error('Failed to load gems:', err);
+            }
         }
         async function openEditGemModal(e, id) {
             e.stopPropagation();

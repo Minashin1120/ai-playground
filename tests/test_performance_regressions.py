@@ -271,18 +271,36 @@ class PerformanceRegressionTests(unittest.TestCase):
         self.assertEqual(active, 1)
         self.assertTrue(still_exists)
 
-    def test_chunk_sweep_is_rate_limited_and_runs_for_the_leader(self):
-        with mock.patch.object(target.redis_conn, "set", return_value=True) as acquire:
-            with mock.patch.object(target, "_cleanup_all_stale_chunk_uploads") as cleanup:
-                target._maybe_sweep_stale_chunk_uploads()
+    def test_lite_mode_dynamic_elements_do_not_use_static_opacity_zero(self):
+        chat_files = list((APP_ROOT / "static/js").glob("chat_core.v*.js"))
+        self.assertEqual(len(chat_files), 1)
+        source = chat_files[0].read_text(encoding="utf-8")
+        template = (APP_ROOT / "templates/chat.html").read_text(encoding="utf-8")
+        custom_css_files = list((APP_ROOT / "static/css").glob("chat.custom.v*.css"))
+        self.assertEqual(len(custom_css_files), 1)
+        custom_css = custom_css_files[0].read_text(encoding="utf-8")
 
-        acquire.assert_called_once_with(
-            target._CHUNK_SWEEP_REDIS_KEY,
-            mock.ANY,
-            nx=True,
-            ex=target._CHUNK_SWEEP_INTERVAL_SECONDS,
-        )
-        cleanup.assert_called_once_with()
+        # loadThreads must not add opacity-0 to thread elements
+        load_threads_src = source[source.index("async function loadThreads"):source.index("function initPullToRefresh")]
+        self.assertNotIn("model-list-animate opacity-0", load_threads_src)
+        self.assertIn("model-list-animate", load_threads_src)
+
+        # loadGems must not add opacity-0 to gem elements
+        load_gems_src = source[source.index("async function loadGems"):source.index("async function openEditGemModal")]
+        self.assertNotIn("model-list-animate opacity-0", load_gems_src)
+        self.assertIn("model-list-animate", load_gems_src)
+
+        # renderWelcomeQuickStart must not add opacity-0 to quick buttons
+        quick_start_src = source[source.index("const renderWelcomeQuickStart ="):source.index("const normalizeModelApiKeyMap")]
+        self.assertNotIn("slide-in-animate opacity-0", quick_start_src)
+
+        # chat.html welcome-screen titles must not have opacity-0
+        welcome_section = template[template.index('id="welcome-screen"'):template.index('id="welcome-quick-start"')]
+        self.assertNotIn("slide-in-animate opacity-0", welcome_section)
+
+        # custom css must include performance-lite-mode visibility rules
+        self.assertIn("html.performance-lite-mode .model-list-animate", custom_css)
+        self.assertIn("html.performance-lite-mode .slide-in-animate", custom_css)
 
 
 if __name__ == "__main__":

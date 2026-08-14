@@ -7,6 +7,6 @@ Flaskの `/static/` から配信するCSS、JavaScript、PWA資産、公開変�
 - `pwa/`：PWAアイコン
 - `changelogs/`：アプリ内で公開する更新履歴
 - `legal/`：利用規約とプライバシーポリシー
-- `vendor/`：リポジトリへ同梱する第三者JavaScript
+- `vendor/`：リポジトリへ同梱する第三者JavaScriptとアイコンサブセット
 
 チャット用のJavaScriptとCSSには、ブラウザーキャッシュを安全に更新するためのバージョン番号がファイル名に含まれます。テンプレートからの参照はアプリの表示バージョンに応じて生成されます。

@@ -1,0 +1,133 @@
+/* Font Awesome Free 6.5.2 subset for AI Chat Playground.
+ * Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT.
+ * https://fontawesome.com/license/free
+ */
+:root{--fa-style-family:"Font Awesome 6 Free";--fa-style:900}
+.fa,.fas,.far,.fab,.fa-solid,.fa-regular,.fa-brands{-moz-osx-font-smoothing:grayscale;-webkit-font-smoothing:antialiased;display:inline-block;font-style:normal;font-variant:normal;line-height:1;text-rendering:auto}
+.fa,.fas,.fa-solid{font-family:"Font Awesome 6 Free";font-weight:900}
+.far,.fa-regular{font-family:"Font Awesome 6 Free";font-weight:400}
+.fab,.fa-brands{font-family:"Font Awesome 6 Brands";font-weight:400}
+@keyframes fa-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.fa-spin{animation:fa-spin 2s linear infinite}
+.fa-fw{text-align:center;width:1.25em}
+.fa-xs{font-size:.75em}
+.fa-sm{font-size:.875em}
+.fa-lg{font-size:1.25em;line-height:.05em;vertical-align:-.075em}
+@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:900;font-display:swap;src:url(fa-solid-subset.woff2) format("woff2")}
+@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:400;font-display:swap;src:url(fa-regular-subset.woff2) format("woff2")}
+@font-face{font-family:"Font Awesome 6 Brands";font-style:normal;font-weight:400;font-display:swap;src:url(fa-brands-subset.woff2) format("woff2")}
+.fa-align-left:before{content:"\f036"}
+.fa-arrow-down:before{content:"\f063"}
+.fa-arrow-right:before{content:"\f061"}
+.fa-arrow-up:before{content:"\f062"}
+.fa-arrow-up-from-bracket:before{content:"\e09a"}
+.fa-arrow-up-right-from-square:before{content:"\f08e"}
+.fa-arrows-alt-h:before{content:"\f337"}
+.fa-arrows-rotate:before{content:"\f021"}
+.fa-bars:before{content:"\f0c9"}
+.fa-bolt:before{content:"\f0e7"}
+.fa-brain:before{content:"\f5dc"}
+.fa-bug:before{content:"\f188"}
+.fa-camera:before{content:"\f030"}
+.fa-check:before{content:"\f00c"}
+.fa-check-circle:before{content:"\f058"}
+.fa-chevron-down:before{content:"\f078"}
+.fa-chevron-left:before{content:"\f053"}
+.fa-chevron-right:before{content:"\f054"}
+.fa-chevron-up:before{content:"\f077"}
+.fa-circle-info:before{content:"\f05a"}
+.fa-circle-question:before{content:"\f059"}
+.fa-clock-rotate-left:before{content:"\f1da"}
+.fa-closed-captioning:before{content:"\f20a"}
+.fa-cloud-upload-alt:before{content:"\f0ee"}
+.fa-code:before{content:"\f121"}
+.fa-code-branch:before{content:"\f126"}
+.fa-cog:before{content:"\f013"}
+.fa-coins:before{content:"\f51e"}
+.fa-comment-dots:before{content:"\f4ad"}
+.fa-compress-alt:before{content:"\f422"}
+.fa-copy:before{content:"\f0c5"}
+.fa-database:before{content:"\f1c0"}
+.fa-download:before{content:"\f019"}
+.fa-droplet:before{content:"\f043"}
+.fa-exchange-alt:before{content:"\f362"}
+.fa-exclamation-triangle:before{content:"\f071"}
+.fa-external-link-alt:before{content:"\f35d"}
+.fa-eye:before{content:"\f06e"}
+.fa-file:before{content:"\f15b"}
+.fa-file-export:before{content:"\f56e"}
+.fa-file-import:before{content:"\f56f"}
+.fa-file-pdf:before{content:"\f1c1"}
+.fa-file-upload:before{content:"\f574"}
+.fa-fingerprint:before{content:"\f577"}
+.fa-fire:before{content:"\f06d"}
+.fa-folder:before{content:"\f07b"}
+.fa-gem:before{content:"\f3a5"}
+.fa-github:before{content:"\f09b"}
+.fa-globe:before{content:"\f0ac"}
+.fa-google:before{content:"\f1a0"}
+.fa-headset:before{content:"\f590"}
+.fa-highlighter:before{content:"\f591"}
+.fa-history:before{content:"\f1da"}
+.fa-hourglass-half:before{content:"\f252"}
+.fa-image:before{content:"\f03e"}
+.fa-key:before{content:"\f084"}
+.fa-keyboard:before{content:"\f11c"}
+.fa-layer-group:before{content:"\f5fd"}
+.fa-lightbulb:before{content:"\f0eb"}
+.fa-link:before{content:"\f0c1"}
+.fa-list:before{content:"\f03a"}
+.fa-lock:before{content:"\f023"}
+.fa-lock-open:before{content:"\f3c1"}
+.fa-magic:before{content:"\f0d0"}
+.fa-map-location-dot:before{content:"\f5a0"}
+.fa-mask:before{content:"\f6fa"}
+.fa-microphone:before{content:"\f130"}
+.fa-mobile-alt:before{content:"\f3cd"}
+.fa-mobile-screen:before{content:"\f3cf"}
+.fa-mouse-pointer:before{content:"\f245"}
+.fa-paint-brush:before{content:"\f1fc"}
+.fa-palette:before{content:"\f53f"}
+.fa-paper-plane:before{content:"\f1d8"}
+.fa-paperclip:before{content:"\f0c6"}
+.fa-paste:before{content:"\f0ea"}
+.fa-pen:before{content:"\f304"}
+.fa-pencil-alt:before{content:"\f303"}
+.fa-play:before{content:"\f04b"}
+.fa-plus:before{content:"\2b"}
+.fa-quote-left:before{content:"\f10d"}
+.fa-quote-right:before{content:"\f10e"}
+.fa-reply:before{content:"\f3e5"}
+.fa-robot:before{content:"\f544"}
+.fa-rocket:before{content:"\f135"}
+.fa-rotate-right:before{content:"\f2f9"}
+.fa-route:before{content:"\f4d7"}
+.fa-save:before{content:"\f0c7"}
+.fa-screwdriver-wrench:before{content:"\f7d9"}
+.fa-search:before{content:"\f002"}
+.fa-server:before{content:"\f233"}
+.fa-share-nodes:before{content:"\f1e0"}
+.fa-shield-alt:before{content:"\f3ed"}
+.fa-shield-halved:before{content:"\f3ed"}
+.fa-sitemap:before{content:"\f0e8"}
+.fa-sliders-h:before{content:"\f1de"}
+.fa-spinner:before{content:"\f110"}
+.fa-star:before{content:"\f005"}
+.fa-sync:before{content:"\f021"}
+.fa-tachometer-alt:before{content:"\f625"}
+.fa-tag:before{content:"\f02b"}
+.fa-terminal:before{content:"\f120"}
+.fa-thumbtack:before{content:"\f08d"}
+.fa-times:before{content:"\f00d"}
+.fa-tools:before{content:"\f7d9"}
+.fa-trash:before{content:"\f1f8"}
+.fa-triangle-exclamation:before{content:"\f071"}
+.fa-unlink:before{content:"\f127"}
+.fa-up-right-from-square:before{content:"\f35d"}
+.fa-user-secret:before{content:"\f21b"}
+.fa-user-shield:before{content:"\f505"}
+.fa-volume-up:before{content:"\f028"}
+.fa-wand-magic-sparkles:before{content:"\e2ca"}
+.fa-wifi:before{content:"\f1eb"}
+.fa-window-restore:before{content:"\f2d2"}
+.fa-wrench:before{content:"\f0ad"}

@@ -19,4 +19,5 @@ static/uploads/*
 !static/uploads/changelogs/
 !static/github_promo.png
 venv/
+node_modules/
 引き継ぎ資料.txt

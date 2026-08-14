@@ -1,6 +1,6 @@
 # AI Chat Playground
 
-[![Version](https://img.shields.io/badge/version-V4.8.801-2563eb)](static/changelogs/20260814_v4.8.801.md)
+[![Version](https://img.shields.io/badge/version-V4.8.802-2563eb)](static/changelogs/20260814_v4.8.802.md)
 [![Python](https://img.shields.io/badge/Python-3.11-3776ab)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-f59e0b)](LICENSE)
 
@@ -196,7 +196,7 @@ curl -H 'Host: chat.example.com' http://127.0.0.1:3111/api/version
 先にDNSのA／AAAAレコードをサーバーへ向け、80／443番をファイアウォールで許可します。必要なモジュールを有効にし、Apacheの既定Webルートを使って証明書を取得します。
 
 ```bash
-sudo a2enmod proxy proxy_http headers rewrite ssl reqtimeout env
+sudo a2enmod proxy proxy_http headers rewrite ssl reqtimeout env alias deflate
 sudo certbot certonly --webroot -w /var/www/html -d 実際のドメイン
 sudo cp /opt/ai-playground/deploy/apache/ai-playground.conf /etc/apache2/sites-available/chat.example.com.conf
 sudo sed -i 's/chat\.example\.com/実際のドメイン/g' /etc/apache2/sites-available/chat.example.com.conf
@@ -309,6 +309,14 @@ venv/bin/python -m pytest -q
 node --check static/js/progress_spinner.js
 node --check static/js/chat_core.v*.js
 ```
+
+画面のJavaScriptとCSSは、読みやすいソースと圧縮済みファイルの両方をリポジトリに含めています。通常の導入や更新では追加のビルドは不要です。ソースを編集したあとに圧縮ファイルを作り直す場合だけ、Node.js 20以降を用意して次を実行します。
+
+```bash
+./scripts/build_frontend.sh
+```
+
+アイコンサブセットを作り直す場合は `venv/bin/python scripts/build_icon_subset.py` を使います。
 
 テスト構成は [tests/README.md](tests/README.md)、各ディレクトリの役割はそれぞれのREADMEを参照してください。
 

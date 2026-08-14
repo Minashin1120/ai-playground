@@ -1,0 +1,16 @@
+<script>
+    (function () {
+        try {
+            if (document.documentElement.classList.contains('performance-lite-mode')) return;
+        } catch (error) {}
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=JetBrains+Mono:wght@400&display=swap';
+        link.media = 'print';
+        link.onload = function () { link.media = 'all'; };
+        document.head.appendChild(link);
+    })();
+</script>
+<noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+</noscript>

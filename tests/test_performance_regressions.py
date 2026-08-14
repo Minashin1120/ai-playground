@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import tempfile
 import time
 import unittest
@@ -301,6 +302,49 @@ class PerformanceRegressionTests(unittest.TestCase):
         # custom css must include performance-lite-mode visibility rules
         self.assertIn("html.performance-lite-mode .model-list-animate", custom_css)
         self.assertIn("html.performance-lite-mode .slide-in-animate", custom_css)
+
+    def test_chat_page_serves_minified_core_assets_and_keeps_readable_sources(self):
+        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        match = re.search(r"SYSTEM_VERSION'\]\s*=\s*'V(\d+\.\d+\.\d+)'", app_source)
+        self.assertIsNotNone(match)
+        version = f"v{match.group(1)}"
+        source_js = APP_ROOT / f"static/js/chat_core.{version}.js"
+        min_js = APP_ROOT / f"static/js/chat_core.min.{version}.js"
+        source_css = APP_ROOT / f"static/css/chat.custom.{version}.css"
+        min_css = APP_ROOT / f"static/css/chat.custom.min.{version}.css"
+        template = (APP_ROOT / "templates/chat.html").read_text(encoding="utf-8")
+
+        self.assertTrue(source_js.is_file())
+        self.assertTrue(min_js.is_file())
+        self.assertTrue(source_css.is_file())
+        self.assertTrue(min_css.is_file())
+        self.assertLess(min_js.stat().st_size, source_js.stat().st_size)
+        self.assertLess(min_css.stat().st_size, source_css.stat().st_size)
+        self.assertLess(min_js.stat().st_size, 700_000)
+        self.assertIn("chat_core.min.", template)
+        self.assertNotIn("filename='js/chat_core.'", template)
+        self.assertIn("chat.custom.min.", template)
+        self.assertIn("content-visibility: auto", source_css.read_text(encoding="utf-8"))
+
+    def test_templates_do_not_block_render_on_full_icon_or_font_cdns(self):
+        templates = list((APP_ROOT / "templates").glob("*.html"))
+        self.assertGreater(len(templates), 5)
+        for template_path in templates:
+            source = template_path.read_text(encoding="utf-8")
+            with self.subTest(template=template_path.name):
+                self.assertNotIn("cdnjs.cloudflare.com/ajax/libs/font-awesome", source)
+                self.assertNotIn("all.min.css", source)
+                self.assertNotIn("family=Noto+Sans+JP:wght@300;400;500;600;700", source)
+        chat = (APP_ROOT / "templates/chat.html").read_text(encoding="utf-8")
+        self.assertIn("icon_css.html", chat)
+        self.assertIn("web_fonts.html", chat)
+        icon_include = (APP_ROOT / "templates/icon_css.html").read_text(encoding="utf-8")
+        self.assertIn("vendor/icons/fa-subset.css", icon_include)
+        icon_css = (APP_ROOT / "static/vendor/icons/fa-subset.css").read_text(encoding="utf-8")
+        self.assertIn("font-display:swap", icon_css)
+        self.assertIn(".fa-paper-plane:before", icon_css)
+        self.assertLess((APP_ROOT / "static/vendor/icons/fa-subset.css").stat().st_size, 12_000)
+        self.assertLess((APP_ROOT / "static/vendor/icons/fa-solid-subset.woff2").stat().st_size, 20_000)
 
 
 if __name__ == "__main__":

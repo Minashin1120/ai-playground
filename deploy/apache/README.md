@@ -3,7 +3,7 @@
 `ai-playground.conf` はHTTPからHTTPSへの転送と、HTTPSからGunicornへのリバースプロキシ例です。`chat.example.com`、証明書パス、アップロード上限を環境へ合わせて変更します。
 
 ```bash
-sudo a2enmod proxy proxy_http headers rewrite ssl reqtimeout env
+sudo a2enmod proxy proxy_http headers rewrite ssl reqtimeout env alias deflate
 sudo cp ai-playground.conf /etc/apache2/sites-available/chat.example.com.conf
 sudo apache2ctl configtest
 sudo a2ensite chat.example.com.conf

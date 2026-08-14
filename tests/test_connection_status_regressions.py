@@ -34,8 +34,8 @@ class ConnectionStatusRegressionTests(unittest.TestCase):
 
     def test_heartbeat_logic_lives_in_its_own_module_loaded_before_chat_core(self):
         template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
-        chat_core_line = [line for line in template.splitlines() if "chat_core." in line and "script" in line][0]
-        monitor_line = [line for line in template.splitlines() if "connection_monitor.js" in line and "script" in line][0]
+        chat_core_line = [line for line in template.splitlines() if "chat_core.min." in line and "script src" in line][0]
+        monitor_line = [line for line in template.splitlines() if "connection_monitor.min.js" in line and "script src" in line][0]
 
         self.assertIn("window.ConnectionMonitor", _connection_monitor_source())
         self.assertLess(template.index(monitor_line), template.index(chat_core_line))

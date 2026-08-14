@@ -8,13 +8,13 @@
     {% include 'pwa_meta.html' %}
     <title>AI Chat Playground - 複数のAIモデルを、ひとつの場所で</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.' ~ (system_version | lower) ~ '.css') }}?v={{ app_version }}">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    {% include 'icon_css.html' %}
+    {% include 'web_fonts.html' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app-design.css') }}?v={{ app_version }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}?v={{ app_version }}">
     <script src="{{ url_for('static', filename='vendor/marked-4.3.0.min.js') }}?v={{ app_version }}" integrity="sha384-QsSpx6a0USazT7nK7w8qXDgpSAPhFsb2XtpoLFQ5+X2yFN6hvCKnwEzN8M5FWaJb"></script>
     <script src="{{ url_for('static', filename='vendor/dompurify-3.4.11.min.js') }}?v={{ app_version }}" integrity="sha384-o44XUELLEnv/iSlA1NWxBweqbD4TSR0qgq2VzVsxtkHS989JJjGKSE9vkfo5MN4K"></script>
-    <script src="{{ url_for('static', filename='js/progress_spinner.js', v='4.8.734') }}"></script>
+    <script src="{{ url_for('static', filename='js/progress_spinner.min.js', v='4.8.734') }}"></script>
     <script>window.LANDING_SYSTEM_VERSION = "{{ system_version }}";</script>
     <style>
         body {
@@ -389,7 +389,7 @@
             if (e.target.id === 'legal-modal') hideLegal();
         };
     </script>
-    <script src="{{ url_for('static', filename='js/landing_demo.js') }}?v={{ app_version }}" defer></script>
-    <script src="{{ url_for('static', filename='js/pwa_install.js') }}?v={{ app_version }}" defer></script>
+    <script src="{{ url_for('static', filename='js/landing_demo.min.js') }}?v={{ app_version }}" defer></script>
+    <script src="{{ url_for('static', filename='js/pwa_install.min.js') }}?v={{ app_version }}" defer></script>
 </body>
 </html>

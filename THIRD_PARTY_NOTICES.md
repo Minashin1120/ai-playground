@@ -10,6 +10,7 @@ AI Chat Playground本体のMIT Licenseは、第三者のコード、フォント
 | html2canvas-pro | 2.3.2 | `static/vendor/html2canvas-pro-2.3.2.min.js` | MIT | <https://github.com/yorickshan/html2canvas-pro> |
 | jsPDF | 2.5.1 | `static/vendor/jspdf-2.5.1.umd.min.js` | MIT | <https://github.com/parallax/jsPDF> |
 | Marked | 4.3.0 | `static/vendor/marked-4.3.0.min.js` | MIT | <https://github.com/markedjs/marked> |
+| Font Awesome Free（使用アイコンのサブセット） | 6.5.2 | `static/vendor/icons/` | Icons: CC-BY-4.0、Fonts: OFL-1.1、Code: MIT | <https://fontawesome.com/license/free> |
 
 各ファイル先頭の著作権・ライセンスコメントを削除しないでください。ライセンス本文は `LICENSES/` に収録しています。jsPDFの配布ファイル内に含まれる依存コンポーネントのライセンスコメントも保持してください。
 
@@ -23,9 +24,8 @@ AI Chat Playground本体のMIT Licenseは、第三者のコード、フォント
 | @github/webauthn-json | 2.1.1 | MIT | <https://github.com/github/webauthn-json> |
 | MathJax | 3.x | Apache-2.0 | <https://github.com/mathjax/MathJax> |
 | highlight.js | 11.9.0 | BSD-3-Clause | <https://github.com/highlightjs/highlight.js> |
-| Font Awesome Free | 6.0.0 | Icons: CC-BY-4.0、Fonts: OFL-1.1、Code: MIT | <https://fontawesome.com/license/free> |
-| Noto Sans JP／Noto Sans Mono | Google Fonts配信版 | OFL-1.1 | <https://fonts.google.com/noto> |
-| JetBrains Mono | Google Fonts配信版 | OFL-1.1 | <https://github.com/JetBrains/JetBrainsMono> |
+| Noto Sans JP | Google Fonts配信版（400／700、非同期読み込み） | OFL-1.1 | <https://fonts.google.com/noto> |
+| JetBrains Mono | Google Fonts配信版（400、非同期読み込み） | OFL-1.1 | <https://github.com/JetBrains/JetBrainsMono> |
 
 CDNから取得するだけでリポジトリへバイナリを同梱していない資産も、ブラウザー上では第三者コードとして実行されます。自己ホストへ切り替える場合は、対象バージョンのライセンス本文、著作権表示、NOTICE、フォント名の予約条件等を確認し、配布物へ同梱してください。
 

@@ -1239,7 +1239,7 @@
             #settings-modal label, #settings-modal span { font-size: 12px; }
             #settings-modal input, #settings-modal select, #settings-modal textarea { font-size: 13px; padding: 9px 10px; }
             #settings-modal textarea { min-height: 120px; }
-            #settings-modal .text-[10px] { font-size: 11px !important; }
+            #settings-modal .text-\[10px\] { font-size: 11px !important; }
             #settings-modal .space-y-3 > * + * { margin-top: 10px; }
             #settings-modal .space-y-4 > * + * { margin-top: 12px; }
             #settings-modal .bg-gray-900 { background: rgba(8, 12, 24, 0.95); }
@@ -3376,6 +3376,16 @@ html.performance-lite-mode body:not(.liquid-glass-mode) #welcome-screen .welcome
 html.performance-lite-mode body:not(.liquid-glass-mode) .overlay {
         background: rgba(0, 0, 0, 0.62);
 }
+html.performance-lite-mode body {
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+html.performance-lite-mode code,
+html.performance-lite-mode pre,
+html.performance-lite-mode kbd,
+html.performance-lite-mode samp,
+html.performance-lite-mode .font-mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
 html.performance-lite-mode .fade-in,
 html.performance-lite-mode .slide-in-animate,
 html.performance-lite-mode .model-list-animate,
@@ -3760,6 +3770,10 @@ body:has(#prompt-controls-row.compact-collapsed) .composer-dock {
     margin-left: auto;
     margin-right: auto;
     width: 100%;
+}
+#chat-container > .message-group:not(:has(.ai-pending-bubble)):not(:has(.ai-stream-transition)):not(:has(.skeleton-pending)) {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 140px;
 }
 .message-bubble {
     border-radius: 16px !important;

@@ -50,7 +50,9 @@ class DocumentationRegressionTests(unittest.TestCase):
         self.assertIn(f"V{version}", (ROOT / "README.md").read_text(encoding="utf-8"))
         self.assertIn(f"V{version}", (ROOT / "MODELS.md").read_text(encoding="utf-8"))
         self.assertTrue((ROOT / f"static/js/chat_core.{version_lower}.js").is_file())
+        self.assertTrue((ROOT / f"static/js/chat_core.min.{version_lower}.js").is_file())
         self.assertTrue((ROOT / f"static/css/chat.custom.{version_lower}.css").is_file())
+        self.assertTrue((ROOT / f"static/css/chat.custom.min.{version_lower}.css").is_file())
         self.assertTrue((ROOT / f"static/css/chat.tailwind.{version_lower}.css").is_file())
 
     def test_deployment_examples_cover_required_runtime_components(self):
@@ -66,6 +68,9 @@ class DocumentationRegressionTests(unittest.TestCase):
         self.assertIn('X-Forwarded-Proto "https"', apache)
         self.assertIn("RequestReadTimeout", apache)
         self.assertIn("ProxyTimeout 660", apache)
+        self.assertIn("Alias /static", apache)
+        self.assertIn("ProxyPass /static !", apache)
+        self.assertIn("mod_deflate", apache)
 
     def test_third_party_notices_cover_vendored_libraries(self):
         notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")

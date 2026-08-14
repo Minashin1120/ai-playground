@@ -24,6 +24,14 @@ node --check static/js/progress_spinner.js
 node --check static/js/chat_core.v*.js
 ```
 
+`static/js/chat_core.v*.js` や `static/css/chat.custom.v*.css` を編集した場合は、配信用の圧縮ファイルを更新します。
+
+```bash
+./scripts/build_frontend.sh
+```
+
+アイコンを追加・削除した場合は `venv/bin/python scripts/build_icon_subset.py` も実行します。
+
 変更範囲に対応する回帰テストを追加してください。テスト構成は [tests/README.md](tests/README.md) を参照してください。
 
 ## Pull Request

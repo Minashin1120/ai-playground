@@ -453,7 +453,7 @@
                 <section class="help-section" id="models">
                     <h2><span class="h2-ico bg-teal-500/15 text-teal-300"><i class="fas fa-share-nodes"></i></span>マルチモデル対応</h2>
                     <p>
-                        1 つの画面から <strong>Google（Gemini）・OpenAI（GPT）・xAI（Grok）・Anthropic（Claude）・DeepSeek・Moonshot（Kimi）</strong>
+                        1 つの画面から <strong>Google（Gemini）・OpenAI（GPT）・xAI（Grok）・Anthropic（Claude）・DeepSeek・Moonshot（Kimi）・Mistral OCR</strong>
                         などの最新モデルを、モデル選択からワンクリックで切り替えて利用できます。40 以上のモデル・プロバイダに対応し、
                         最大 1M トークン級の長いコンテキストも 1 つの文脈として扱えます。
                     </p>
@@ -484,9 +484,14 @@
                             <p>DeepSeek V4、Kimi K3。コスト性能バランスに優れた選択肢です。</p>
                         </div>
                         <div class="help-card">
+                            <span class="card-ico bg-orange-400/15 text-orange-200"><i class="fas fa-file"></i></span>
+                            <h4>Mistral OCR 4</h4>
+                            <p>PDF・画像・DOCX・PPTXからテキストを抽出します。チャット補完ではなく、会話履歴は送信しません。</p>
+                        </div>
+                        <div class="help-card">
                             <span class="card-ico bg-blue-500/15 text-blue-300"><i class="fas fa-exchange-alt"></i></span>
                             <h4>会話中の切り替え</h4>
-                            <p>回答の内容に合わせてモデルを途中で変更しても、会話の文脈は引き継がれます。</p>
+                            <p>チャットモデル同士なら途中で切り替えても文脈を引き継ぎます。OCR は文書専用で、履歴は送りません。</p>
                         </div>
                     </div>
                 </section>

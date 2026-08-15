@@ -483,6 +483,9 @@ def _resolve_chat_model_auth(user, model_key):
     elif "grok" in mk_l and "gpt" not in mk_l:
         provider = "xai"
         api_key = model_key_override or user_or_admin_env("xai_api_key", "XAI_API_KEY")
+    elif is_mistral_ocr_model_key(mk_l) or mk_l.startswith("mistral"):
+        provider = "mistral"
+        api_key = model_key_override or user_or_admin_env("mistral_api_key", "MISTRAL_API_KEY")
     else:
         api_key = model_key_override or user_or_admin_env("openai_api_key", "OPENAI_API_KEY")
 
@@ -500,6 +503,7 @@ def _resolve_chat_model_auth(user, model_key):
             "kimi": "Kimi",
             "xai": "xAI",
             "google": "Google",
+            "mistral": "Mistral",
         }
         error_message = f"{provider_labels.get(provider, provider)} APIキーが設定されていません。"
 
@@ -733,8 +737,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-15-003')
-app.config['SYSTEM_VERSION'] = 'V4.8.812'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-15-004')
+app.config['SYSTEM_VERSION'] = 'V4.8.813'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1082,6 +1086,8 @@ def _normalize_media_mime(filename, mime_guess):
         return "application/pdf"
     if ext == ".docx":
         return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    if ext == ".pptx":
+        return "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     if ext == ".txt":
         return "text/plain"
     return mime_guess or "application/octet-stream"
@@ -1930,6 +1936,8 @@ ALL_VALID_MODEL_IDS = {
     "grok-4-fast-reasoning", "grok-4-fast-non-reasoning",
     # Kimi K3
     "kimi-k3",
+    # Mistral Document OCR
+    "mistral-ocr-4-0",
 }
 
 def is_sts_model(model_key):
@@ -1946,6 +1954,14 @@ def is_gemini_model_key(model_key):
 def is_anthropic_model_key(model_key):
     mk = str(model_key or "").lower()
     return "claude" in mk
+
+def is_mistral_ocr_model_key(model_key):
+    mk = str(model_key or "").lower().strip()
+    if not mk:
+        return False
+    if mk in ("mistral-ocr-4-0", "mistral-ocr-latest"):
+        return True
+    return mk.startswith("mistral-ocr")
 
 def get_model_api_provider(model_key):
     """Return the API provider id for a model (used by prompt-cache lock)."""
@@ -1964,6 +1980,8 @@ def get_model_api_provider(model_key):
         return "gemini"
     if "kimi" in mk:
         return "kimi"
+    if is_mistral_ocr_model_key(mk) or mk.startswith("mistral"):
+        return "mistral"
     return "openai"
 
 _PROVIDER_LABELS = {
@@ -1974,7 +1992,246 @@ _PROVIDER_LABELS = {
     "deepseek": "DeepSeek",
     "kimi": "Kimi (Moonshot)",
     "google": "Google Cloud",
+    "mistral": "Mistral",
 }
+
+MISTRAL_API_BASE = "https://api.mistral.ai/v1"
+MISTRAL_OCR_MODEL_ID = "mistral-ocr-4-0"
+MISTRAL_OCR_MAX_FILE_BYTES = 512 * 1024 * 1024
+MISTRAL_OCR_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".gif", ".webp", ".avif"}
+MISTRAL_OCR_DOC_EXTS = {".pdf", ".docx", ".pptx"}
+MISTRAL_OCR_PUBLIC_URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
+
+def _mistral_auth_headers(api_key, json_body=False):
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "application/json",
+    }
+    if json_body:
+        headers["Content-Type"] = "application/json"
+    return headers
+
+def _mistral_error_message(resp):
+    try:
+        payload = resp.json()
+    except Exception:
+        payload = None
+    if isinstance(payload, dict):
+        err = payload.get("message") or payload.get("detail") or payload.get("error")
+        if isinstance(err, dict):
+            err = err.get("message") or err.get("detail") or err.get("type")
+        if err:
+            return str(err)
+    text = (resp.text or "").strip()
+    if text:
+        return text[:400]
+    return f"HTTP {resp.status_code}"
+
+def _mistral_raise_for_status(resp, action="Mistral API"):
+    if resp.status_code == 401:
+        raise RuntimeError("Mistral APIキーが無効です。")
+    if resp.status_code == 402:
+        raise RuntimeError("Mistral の利用上限または支払いに問題があります。")
+    if resp.status_code == 429:
+        raise RuntimeError("Mistral OCR のレート制限に達しました。しばらく待って再試行してください。")
+    if resp.status_code >= 400:
+        raise RuntimeError(f"{action}に失敗しました: {_mistral_error_message(resp)}")
+
+def _mistral_upload_ocr_file(api_key, filename, data, mime):
+    if not data or len(data) > MISTRAL_OCR_MAX_FILE_BYTES:
+        raise RuntimeError("Mistral OCR のファイルサイズ上限（512MB）を超えています。")
+    safe_name = os.path.basename(str(filename or "document")) or "document"
+    files = {
+        "file": (safe_name, data, mime or "application/octet-stream"),
+    }
+    with httpx.Client(timeout=120.0) as client:
+        resp = client.post(
+            f"{MISTRAL_API_BASE}/files",
+            headers=_mistral_auth_headers(api_key),
+            files=files,
+            data={"purpose": "ocr"},
+        )
+    _mistral_raise_for_status(resp, "Mistral Files API へのアップロード")
+    payload = resp.json() if resp.content else {}
+    file_id = payload.get("id") if isinstance(payload, dict) else None
+    if not file_id:
+        raise RuntimeError("Mistral Files API が file_id を返しませんでした。")
+    return str(file_id)
+
+def _mistral_delete_file(api_key, file_id):
+    if not file_id:
+        return
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            client.delete(
+                f"{MISTRAL_API_BASE}/files/{file_id}",
+                headers=_mistral_auth_headers(api_key),
+            )
+    except Exception:
+        logger.warning("Failed to delete Mistral OCR upload %s", file_id)
+
+def _mistral_signed_file_url(api_key, file_id):
+    with httpx.Client(timeout=30.0) as client:
+        resp = client.get(
+            f"{MISTRAL_API_BASE}/files/{file_id}/url",
+            headers=_mistral_auth_headers(api_key),
+            params={"expiry": 60},
+        )
+    _mistral_raise_for_status(resp, "Mistral 署名付きURLの取得")
+    payload = resp.json() if resp.content else {}
+    url = None
+    if isinstance(payload, dict):
+        url = payload.get("url") or payload.get("signed_url")
+    if not url:
+        raise RuntimeError("Mistral 署名付きURLを取得できませんでした。")
+    return str(url)
+
+def _mistral_ocr_request(api_key, document, extra):
+    payload = {"model": MISTRAL_OCR_MODEL_ID, "document": document}
+    if extra:
+        payload.update(extra)
+    with httpx.Client(timeout=httpx.Timeout(480.0, connect=30.0)) as client:
+        resp = client.post(
+            f"{MISTRAL_API_BASE}/ocr",
+            headers=_mistral_auth_headers(api_key, json_body=True),
+            json=payload,
+        )
+    _mistral_raise_for_status(resp, "Mistral OCR")
+    return resp.json() if resp.content else {}
+
+def _mistral_ocr_process_document(api_key, document, extra):
+    try:
+        return _mistral_ocr_request(api_key, document, extra)
+    except RuntimeError as exc:
+        # Some accounts accept file_id, others need a signed document URL.
+        if (
+            isinstance(document, dict)
+            and document.get("type") == "file"
+            and document.get("file_id")
+            and "file" in str(exc).lower()
+        ):
+            signed = _mistral_signed_file_url(api_key, document.get("file_id"))
+            return _mistral_ocr_request(
+                api_key,
+                {"type": "document_url", "document_url": signed},
+                extra,
+            )
+        raise
+
+def _mistral_data_uri(mime, data):
+    encoded = base64.b64encode(data).decode("ascii")
+    return f"data:{mime or 'application/octet-stream'};base64,{encoded}"
+
+def _mistral_guess_url_kind(url):
+    path = urlparse(url).path.lower()
+    ext = os.path.splitext(path)[1]
+    if ext in MISTRAL_OCR_IMAGE_EXTS:
+        return "image"
+    return "document"
+
+def _extract_mistral_ocr_urls(text):
+    urls = []
+    seen = set()
+    for match in MISTRAL_OCR_PUBLIC_URL_RE.findall(str(text or "")):
+        cleaned = match.rstrip(").,];'\"")
+        if cleaned in seen:
+            continue
+        seen.add(cleaned)
+        urls.append(cleaned)
+    return urls
+
+def _decode_mistral_image_base64(raw):
+    if not raw:
+        return None, None
+    value = str(raw).strip()
+    mime = "image/jpeg"
+    if value.startswith("data:"):
+        header, _, encoded = value.partition(",")
+        if ";base64" not in header:
+            return None, None
+        mime_part = header[5:].split(";", 1)[0].strip()
+        if mime_part:
+            mime = mime_part
+        value = encoded
+    try:
+        data = _decode_base64_limited(value, 20 * 1024 * 1024)
+    except Exception:
+        return None, None
+    return data, mime
+
+def _mistral_ext_from_mime(mime, fallback="jpg"):
+    mapping = {
+        "image/png": "png",
+        "image/jpeg": "jpg",
+        "image/jpg": "jpg",
+        "image/webp": "webp",
+        "image/gif": "gif",
+        "image/bmp": "bmp",
+        "image/tiff": "tiff",
+        "image/avif": "avif",
+    }
+    return mapping.get((mime or "").lower(), fallback)
+
+def _build_mistral_ocr_markdown(ocr_json, image_url_by_id, include_blocks=False):
+    pages = (ocr_json or {}).get("pages") or []
+    sections = []
+    for page in pages:
+        if not isinstance(page, dict):
+            continue
+        try:
+            page_no = int(page.get("index", 0)) + 1
+        except Exception:
+            page_no = 1
+        markdown = str(page.get("markdown") or "")
+        for img in page.get("images") or []:
+            if not isinstance(img, dict):
+                continue
+            img_id = str(img.get("id") or img.get("image_id") or "").strip()
+            local_url = image_url_by_id.get(img_id) if img_id else None
+            if img_id and local_url:
+                markdown = markdown.replace(f"]({img_id})", f"]({local_url})")
+        for table in page.get("tables") or []:
+            if not isinstance(table, dict):
+                continue
+            table_id = str(table.get("id") or table.get("table_id") or "").strip()
+            table_body = table.get("html") or table.get("markdown") or table.get("content")
+            if table_id and table_body:
+                placeholder = f"[tbl-{table_id}]({table_id})"
+                if placeholder in markdown:
+                    markdown = markdown.replace(placeholder, str(table_body))
+                else:
+                    markdown += f"\n\n{table_body}"
+        header = page.get("header")
+        footer = page.get("footer")
+        block_lines = [f"### ページ {page_no}"]
+        if header:
+            block_lines.append(f"*ヘッダー:* {header}")
+        if markdown.strip():
+            block_lines.append(markdown.strip())
+        if footer:
+            block_lines.append(f"*フッター:* {footer}")
+        scores = page.get("confidence_scores")
+        if isinstance(scores, dict):
+            avg = scores.get("average_content_confidence_score")
+            if avg is not None:
+                block_lines.append(f"*ページ信頼度:* {avg}")
+        if include_blocks and page.get("blocks"):
+            try:
+                blocks_json = json.dumps(page.get("blocks"), ensure_ascii=False, indent=2)
+            except Exception:
+                blocks_json = str(page.get("blocks"))
+            if len(blocks_json) > 60000:
+                blocks_json = blocks_json[:60000] + "\n..."
+            block_lines.append("```json\n" + blocks_json + "\n```")
+        sections.append("\n\n".join(block_lines))
+    usage = (ocr_json or {}).get("usage_info") or {}
+    pages_processed = usage.get("pages_processed")
+    footer_bits = []
+    if pages_processed is not None:
+        footer_bits.append(f"処理ページ数: {pages_processed}")
+    if footer_bits:
+        sections.append("—" + " / ".join(footer_bits))
+    return "\n\n".join(sections).strip() or "（抽出テキストはありません）"
 
 def is_deepseek_model_key(model_key):
     return _is_deepseek_model_key(model_key)
@@ -2324,7 +2581,8 @@ AI_SAFE_EDITABLE_FIELDS = {
 # Fields that must NEVER be settable via AI prompt (secrets, high-impact, admin-only, or runtime)
 AI_NEVER_EDITABLE_FIELDS = {
     # Secrets / credentials
-    'openai_key', 'gemini_key', 'anthropic_key', 'deepseek_key', 'xai_key', 'google_key',
+    'openai_key', 'gemini_key', 'anthropic_key', 'deepseek_key', 'xai_key', 'kimi_key',
+    'mistral_key', 'google_key',
     'google_project', 'gemini_vertex_project', 'gemini_vertex_location',
     'gemini_vertex_credentials_json', 'model_api_keys',
     # High impact / special handling
@@ -3040,6 +3298,7 @@ class User(UserMixin, db.Model):
     anthropic_api_key = db.Column(db.Text, nullable=True)
     deepseek_api_key = db.Column(db.Text, nullable=True)
     kimi_api_key = db.Column(db.Text, nullable=True)
+    mistral_api_key = db.Column(db.Text, nullable=True)
     model_api_keys = db.Column(db.Text, nullable=True)
     gemini_backend = db.Column(db.String(24), default="gemini_api")
     gemini_vertex_project = db.Column(db.Text, nullable=True)
@@ -3343,7 +3602,7 @@ ACCOUNT_SETTING_FIELDS = (
 )
 ACCOUNT_SECRET_FIELDS = (
     "openai_api_key", "gemini_api_key", "anthropic_api_key", "deepseek_api_key",
-    "kimi_api_key", "model_api_keys", "gemini_vertex_project",
+    "kimi_api_key", "mistral_api_key", "model_api_keys", "gemini_vertex_project",
     "gemini_vertex_credentials_json", "xai_api_key", "google_api_key", "google_cloud_project",
 )
 ACCOUNT_BOOL_SETTING_FIELDS = frozenset({
@@ -5013,6 +5272,21 @@ def ensure_user_kimi_api_key_column():
             if not res:
                 conn.execute(text("SET SESSION lock_wait_timeout=1"))
                 conn.execute(text("ALTER TABLE user ADD COLUMN kimi_api_key TEXT"))
+    except Exception:
+        pass
+
+def ensure_user_mistral_api_key_column():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='user' "
+                "AND COLUMN_NAME='mistral_api_key'"
+            )).scalar()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN mistral_api_key TEXT"))
     except Exception:
         pass
 
@@ -8065,11 +8339,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             is_deepseek = is_deepseek_model_key(model_key_l)
             is_kimi = 'kimi' in model_key_l
             is_grok = 'grok' in model_key_l and 'gpt' not in model_key_l
+            is_mistral_ocr = is_mistral_ocr_model_key(model_key_l)
             gemini_backend_mode = "gemini_api"
             def _is_non_llm_model(m):
                 mk = str(m or "").lower().strip()
                 if not mk:
                     return False
+                if is_mistral_ocr_model_key(mk):
+                    return True
                 if "gpt-image" in mk:
                     return True
                 if mk in ("grok-imagine-image", "grok-imagine-image-pro", "grok-imagine-video"):
@@ -8250,7 +8527,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 'anthropic': get_k(user.anthropic_api_key, 'ANTHROPIC_API_KEY'),
                 'xai': get_k(user.xai_api_key, 'XAI_API_KEY'),
                 'deepseek': get_k(user.deepseek_api_key, 'DEEPSEEK_API_KEY'),
-                'kimi': get_k(user.kimi_api_key, 'MOONSHOT_API_KEY')
+                'kimi': get_k(user.kimi_api_key, 'MOONSHOT_API_KEY'),
+                'mistral': get_k(user.mistral_api_key, 'MISTRAL_API_KEY'),
             }
 
             key = resolved_auth.get("api_key")
@@ -8296,6 +8574,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 o_client = _get_openai_client(key, base_url="https://api.deepseek.com")
             elif is_kimi:
                 o_client = _get_openai_client(key, base_url="https://api.moonshot.ai/v1")
+            elif is_mistral_ocr:
+                o_client = None
             else: o_client = _get_openai_client(key, base_url=None)
 
             loaded_files = []
@@ -8374,6 +8654,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                     is_pdf = clean_fn.lower().endswith('.pdf')
                     is_docx = clean_fn.lower().endswith('.docx')
+                    is_pptx = clean_fn.lower().endswith('.pptx')
                     mime_guess = mimetypes.guess_type(clean_fn)[0]
                     mime = _normalize_media_mime(clean_fn, mime_guess)
                     is_text = (mime or '').startswith('text/') or clean_fn.lower().endswith('.txt')
@@ -8381,12 +8662,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         mime = 'application/pdf'
                     elif is_docx:
                         mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    elif is_pptx:
+                        mime = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
                     elif is_text:
                         mime = 'text/plain'
                     send_name = _resolve_send_name(clean_fn, mime) if is_llm_model else None
 
                     if is_pdf:
-                        extracted = _extract_text_from_pdf(data)
+                        extracted = None if is_mistral_ocr else _extract_text_from_pdf(data)
                         loaded_files.append({
                             'name': clean_fn,
                             'path': clean_fn,
@@ -8395,13 +8678,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             'mime': mime,
                             'is_pdf': True,
                             'is_docx': False,
+                            'is_pptx': False,
                             'is_text': False,
                             'send_name': send_name,
                             'size': len(data),
                             'mtime': info.get("mtime")
                         })
                     elif is_docx:
-                        extracted = _extract_text_from_docx(data)
+                        extracted = None if is_mistral_ocr else _extract_text_from_docx(data)
                         loaded_files.append({
                             'name': clean_fn,
                             'path': clean_fn,
@@ -8410,6 +8694,22 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             'mime': mime,
                             'is_pdf': False,
                             'is_docx': True,
+                            'is_pptx': False,
+                            'is_text': False,
+                            'send_name': send_name,
+                            'size': len(data),
+                            'mtime': info.get("mtime")
+                        })
+                    elif is_pptx:
+                        loaded_files.append({
+                            'name': clean_fn,
+                            'path': clean_fn,
+                            'text': None,
+                            'bytes': data,
+                            'mime': mime,
+                            'is_pdf': False,
+                            'is_docx': False,
+                            'is_pptx': True,
                             'is_text': False,
                             'send_name': send_name,
                             'size': len(data),
@@ -8564,7 +8864,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             except Exception:
                 user_auto_search = True
             disable_auto = bool(options.get('disable_auto_search'))
-            if is_grok and not grok_enable_search and user_auto_search and not disable_auto:
+            if is_mistral_ocr:
+                grok_enable_search = False
+                auto_enable_search = False
+                auto_enable_url_context = False
+                auto_enable_maps = False
+            if is_grok and not is_mistral_ocr and not grok_enable_search and user_auto_search and not disable_auto:
                 try:
                     import re
                     check_text = f"{message_text} {original_quote_text or ''}"
@@ -8574,7 +8879,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         log_force("Auto-enabled Grok search for URL/X post access")
                 except Exception:
                     pass
-            if not is_grok and not auto_enable_search and user_auto_search and not disable_auto:
+            if not is_mistral_ocr and not is_grok and not auto_enable_search and user_auto_search and not disable_auto:
                 try:
                     import re
                     check_text = f"{message_text} {original_quote_text or ''}"
@@ -8583,7 +8888,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         log_force("Auto-enabled Web search for URL/X post access")
                 except Exception:
                     pass
-            if is_gem and not auto_enable_url_context and user_auto_search and not disable_auto:
+            if is_gem and not is_mistral_ocr and not auto_enable_url_context and user_auto_search and not disable_auto:
                 try:
                     import re
                     check_text = f"{message_text} {original_quote_text or ''}"
@@ -8593,8 +8898,142 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 except Exception:
                     pass
 
+            # --- 0. Mistral OCR 4 (document-only, no chat history) ---
+            if is_mistral_ocr:
+                log_force("Routing: Mistral OCR Branch")
+                uploaded_file_ids = []
+                try:
+                    pub("status", "OCR対象の文書を準備中...")
+                    table_format = str(options.get("ocr_table_format") or "").strip().lower()
+                    if table_format not in ("markdown", "html"):
+                        table_format = None
+                    extract_header = bool(options.get("ocr_extract_header"))
+                    extract_footer = bool(options.get("ocr_extract_footer"))
+                    include_blocks = bool(options.get("ocr_include_blocks"))
+                    include_image_base64 = options.get("ocr_include_image_base64")
+                    if include_image_base64 is None:
+                        include_image_base64 = True
+                    else:
+                        include_image_base64 = bool(include_image_base64)
+                    pages_opt = str(options.get("ocr_pages") or "").strip() or None
+                    extra = {
+                        "include_image_base64": include_image_base64,
+                        "include_blocks": include_blocks,
+                    }
+                    if table_format:
+                        extra["table_format"] = table_format
+                    if extract_header:
+                        extra["extract_header"] = True
+                    if extract_footer:
+                        extra["extract_footer"] = True
+                    if pages_opt:
+                        extra["pages"] = pages_opt
+
+                    jobs = []
+                    for fi in loaded_files:
+                        data = fi.get("bytes")
+                        if not data:
+                            continue
+                        path = str(fi.get("path") or fi.get("name") or "")
+                        ext = os.path.splitext(path)[1].lower()
+                        mime = str(fi.get("mime") or "")
+                        label = fi.get("send_name") or os.path.basename(path) or "document"
+                        if ext in MISTRAL_OCR_IMAGE_EXTS or mime.startswith("image/"):
+                            jobs.append({
+                                "label": label,
+                                "document": {
+                                    "type": "image_url",
+                                    "image_url": _mistral_data_uri(mime or "image/jpeg", data),
+                                },
+                            })
+                        elif (
+                            ext in MISTRAL_OCR_DOC_EXTS
+                            or fi.get("is_pdf")
+                            or fi.get("is_docx")
+                            or fi.get("is_pptx")
+                        ):
+                            file_id = _mistral_upload_ocr_file(key, label, data, mime)
+                            uploaded_file_ids.append(file_id)
+                            jobs.append({
+                                "label": label,
+                                "document": {"type": "file", "file_id": file_id},
+                            })
+                        else:
+                            pub("error", f"Mistral OCR は {label} の形式に対応していません。PDF / 画像 / DOCX / PPTX を添付してください。")
+                            return
+
+                    for url in _extract_mistral_ocr_urls(final_message_text):
+                        kind = _mistral_guess_url_kind(url)
+                        if kind == "image":
+                            jobs.append({
+                                "label": url,
+                                "document": {"type": "image_url", "image_url": url},
+                            })
+                        else:
+                            jobs.append({
+                                "label": url,
+                                "document": {"type": "document_url", "document_url": url},
+                            })
+
+                    if not jobs:
+                        pub("error", "Mistral OCR は文書専用です。PDF・画像・DOCX・PPTX を添付するか、公開URLを入力してください。会話履歴は送信されません。")
+                        return
+
+                    assembled = []
+                    pages_total = 0
+                    for idx, job in enumerate(jobs, start=1):
+                        pub("status", f"OCR処理中です（{idx}/{len(jobs)}）...")
+                        _mark_provider_request_started()
+                        ocr_json = _mistral_ocr_process_document(key, job["document"], extra)
+                        usage = (ocr_json or {}).get("usage_info") or {}
+                        try:
+                            pages_total += int(usage.get("pages_processed") or 0)
+                        except Exception:
+                            pass
+                        image_url_by_id = {}
+                        if include_image_base64:
+                            for page in (ocr_json or {}).get("pages") or []:
+                                for img in (page or {}).get("images") or []:
+                                    if not isinstance(img, dict):
+                                        continue
+                                    img_id = str(img.get("id") or img.get("image_id") or "").strip()
+                                    raw_b64 = img.get("image_base64") or img.get("imageBase64")
+                                    img_bytes, img_mime = _decode_mistral_image_base64(raw_b64)
+                                    if not img_bytes:
+                                        continue
+                                    ext = _mistral_ext_from_mime(img_mime, "jpg")
+                                    fn2 = f"ocr_{int(time.time())}_{os.urandom(3).hex()}.{ext}"
+                                    _save_user_generated_bytes(
+                                        user_id, img_bytes, fn2, user_config.get("enable_e2ee")
+                                    )
+                                    rel = f"{user_id}/{fn2}"
+                                    generated_images.append(rel)
+                                    local_url = f"/files/{rel}"
+                                    if img_id:
+                                        image_url_by_id[img_id] = local_url
+                        body = _build_mistral_ocr_markdown(
+                            ocr_json, image_url_by_id, include_blocks=include_blocks
+                        )
+                        heading = f"## {job['label']}" if len(jobs) > 1 else ""
+                        chunk = f"{heading}\n\n{body}".strip()
+                        assembled.append(chunk)
+                        pub("content", (chunk if not full_res else "\n\n" + chunk))
+                        full_res += (("\n\n" if full_res else "") + chunk)
+
+                    if pages_total:
+                        footer = f"\n\n— 合計処理ページ数: {pages_total}"
+                        full_res += footer
+                        pub("content", footer)
+                except Exception as e:
+                    logger.exception("Mistral OCR Error")
+                    pub("error", f"Mistral OCR Error: {str(e)}")
+                    return
+                finally:
+                    for file_id in uploaded_file_ids:
+                        _mistral_delete_file(key, file_id)
+
             # --- 1. GEMINI & GEMINI IMAGE ---
-            if is_gem:
+            elif is_gem:
                 log_force("Routing: Gemini Branch")
                 gemini_files_api_enabled = (gemini_backend_mode != "vertex_ai")
                 
@@ -13036,6 +13475,7 @@ def setup():
             ('gemini_api_key', request.form.get('gemini_key')),
             ('deepseek_api_key', request.form.get('deepseek_key')),
             ('kimi_api_key', request.form.get('kimi_key')),
+            ('mistral_api_key', request.form.get('mistral_key')),
             ('xai_api_key', request.form.get('xai_key')),
             ('google_api_key', request.form.get('google_key')),
             ('google_cloud_project', request.form.get('google_project')),
@@ -13715,6 +14155,12 @@ def chat_stream():
         'grok_video_duration': data.get('grok_video_duration'),
             'grok_video_aspect': data.get('grok_video_aspect'),
             'grok_video_resolution': data.get('grok_video_resolution'),
+            'ocr_table_format': data.get('ocr_table_format'),
+            'ocr_extract_header': data.get('ocr_extract_header'),
+            'ocr_extract_footer': data.get('ocr_extract_footer'),
+            'ocr_include_blocks': data.get('ocr_include_blocks'),
+            'ocr_include_image_base64': data.get('ocr_include_image_base64'),
+            'ocr_pages': data.get('ocr_pages'),
             'attachment_name_map': attachment_name_map,
             'image_vision_model': data.get('image_vision_model'),
             'gem_uuid': data.get('gem_uuid'),
@@ -14143,7 +14589,9 @@ def generate_title_api():
         primary_provider = None
         if requested_model:
             rml = requested_model.lower()
-            if "gemini" in rml: primary_provider = "gemini"
+            if is_mistral_ocr_model_key(rml):
+                primary_provider = None
+            elif "gemini" in rml: primary_provider = "gemini"
             elif "grok" in rml: primary_provider = "xai"
             elif "deepseek" in rml: primary_provider = "deepseek"
             else: primary_provider = "openai"
@@ -18107,6 +18555,7 @@ def handle_settings():
             'anthropic_key': _masked_secret(current_user.anthropic_api_key),
             'deepseek_key': _masked_secret(current_user.deepseek_api_key),
             'kimi_key': _masked_secret(current_user.kimi_api_key),
+            'mistral_key': _masked_secret(current_user.mistral_api_key),
             'model_api_keys': {
                 model_key: _SECRET_MASK for model_key in _load_user_model_api_key_map(current_user)
             },
@@ -18186,7 +18635,7 @@ def handle_settings():
         return jsonify({'error': 'payload_too_large'}), 413
     for secret_key in (
         'openai_key', 'gemini_key', 'anthropic_key', 'deepseek_key', 'xai_key',
-        'google_key', 'google_project', 'gemini_vertex_project'
+        'kimi_key', 'mistral_key', 'google_key', 'google_project', 'gemini_vertex_project'
     ):
         if secret_key in d and len(str(d.get(secret_key) or '')) > 4096:
             return jsonify({'error': f'{secret_key}_too_large'}), 400
@@ -18218,6 +18667,7 @@ def handle_settings():
     if 'anthropic_key' in d and d['anthropic_key'] != _SECRET_MASK: current_user.anthropic_api_key = encrypt_val(d['anthropic_key'])
     if 'deepseek_key' in d and d['deepseek_key'] != _SECRET_MASK: current_user.deepseek_api_key = encrypt_val(d['deepseek_key'])
     if 'kimi_key' in d and d['kimi_key'] != _SECRET_MASK: current_user.kimi_api_key = encrypt_val(d['kimi_key'])
+    if 'mistral_key' in d and d['mistral_key'] != _SECRET_MASK: current_user.mistral_api_key = encrypt_val(d['mistral_key'])
     if 'model_api_keys' in d: _merge_masked_model_api_key_map(current_user, d.get('model_api_keys'))
     if 'gemini_backend' in d: current_user.gemini_backend = _normalize_gemini_backend(d['gemini_backend'])
     if 'gemini_vertex_project' in d: current_user.gemini_vertex_project = encrypt_val(d['gemini_vertex_project'])
@@ -19998,6 +20448,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_user_mistral_api_key_column()
+    except Exception:
+        pass
+    try:
         ensure_user_anthropic_api_key_column()
     except Exception:
         pass
@@ -20134,6 +20588,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN kimi_api_key TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN mistral_api_key TEXT")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN admin_api_key_mode VARCHAR(24) DEFAULT 'env_fallback'")

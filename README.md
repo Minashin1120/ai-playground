@@ -1,10 +1,10 @@
 # AI Chat Playground
 
-[![Version](https://img.shields.io/badge/version-V4.8.812-2563eb)](static/changelogs/20260815_v4.8.812.md)
+[![Version](https://img.shields.io/badge/version-V4.8.813-2563eb)](static/changelogs/20260815_v4.8.813.md)
 [![Python](https://img.shields.io/badge/Python-3.11-3776ab)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-f59e0b)](LICENSE)
 
-AI Chat Playground は、複数の生成AIを1つの画面から利用するためのセルフホスト型Webアプリケーションです。OpenAI、Google Gemini／Vertex AI、Anthropic、DeepSeek、Kimi（Moonshot）、xAIに対応し、BYOK、チャット履歴、ファイル、画像・音声・動画、Passkey／TOTP、PWA、アカウントデータ移行などを提供します。
+AI Chat Playground は、複数の生成AIを1つの画面から利用するためのセルフホスト型Webアプリケーションです。OpenAI、Google Gemini／Vertex AI、Anthropic、DeepSeek、Kimi（Moonshot）、xAI、Mistral OCRに対応し、BYOK、チャット履歴、ファイル、画像・音声・動画、Passkey／TOTP、PWA、アカウントデータ移行などを提供します。
 
 > [!WARNING]
 > V4.8.615以前には既知のセキュリティ上の問題があります。新規導入・本番運用には使用しないでください。

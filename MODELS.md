@@ -1,17 +1,17 @@
-# 対応モデル (V4.8.812)
+# 対応モデル (V4.8.813)
 
-全対応モデルの一覧です。モデル定義の一次ソースは `static/js/chat_core.v4.8.812.js` の `MODELS` 配列です。
+全対応モデルの一覧です。モデル定義の一次ソースは `static/js/chat_core.v4.8.813.js` の `MODELS` 配列です。
 モデル選択モーダルには各モデルの公式 API 価格（`price` フィールド）が表示されます。
 
-**価格最終確認:** 2026-07-31
-**出典:** OpenAI / Google Gemini / Anthropic / DeepSeek / xAI 公式 pricing ページ
+**価格最終確認:** 2026-08-15
+**出典:** OpenAI / Google Gemini / Anthropic / DeepSeek / xAI / Mistral 公式 pricing ページ
 
 ---
 
 ## 凡例
 
 - **ID**: APIリクエスト時に使用されるモデル識別子
-- **Provider**: OpenAI / Google Gemini / xAI Grok / Anthropic / DeepSeek
+- **Provider**: OpenAI / Google Gemini / xAI Grok / Anthropic / DeepSeek / Mistral
 - **Status**: Active（現行） / Deprecated（非推奨・UI非表示だが過去スレッド互換性維持）
 - **料金**: モーダル表示用の要約（1M = 100万トークン）。キャッシュ価格は省略する場合あり
 - **Agentic View**: 対応バッジがあるモデルは、コード実行による画像クロップを再観察しながら推論を継続可能
@@ -57,10 +57,11 @@
 | xAI Imagine | grok-imagine-image | $0.02 / image |
 | xAI Imagine | grok-imagine-image-quality | $0.05 / image |
 | xAI Imagine | grok-imagine-video | $0.05 / second |
+| Mistral OCR | mistral-ocr-4-0 | $4 / 1,000 pages（注釈付き $5 / 1,000 pages） |
 
 ※ 画像・音声・Realtime モデルの詳細は `MODELS` 配列の `price` を参照。
 
 ---
 
-*最終更新: 2026-08-15 (V4.8.812)*
-*ソース: `static/js/chat_core.v4.8.812.js` MODELS配列*
+*最終更新: 2026-08-15 (V4.8.813)*
+*ソース: `static/js/chat_core.v4.8.813.js` MODELS配列*

@@ -42,11 +42,11 @@ class WelcomeQuickStartRegressionTests(unittest.TestCase):
         self.assertEqual(
             top5,
             [
+                "mistral-ocr-4-0",
                 "gemini-3.7-flash",
                 "deepseek-v4-flash-0731",
                 "gpt-5.6-luna",
                 "gpt-5.6-terra",
-                "gpt-5.6-sol",
             ],
         )
 

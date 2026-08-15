@@ -450,6 +450,15 @@
             sync('gemini-image-size', 'modal-gemini-image-size');
             sync('grok-image-aspect', 'modal-grok-image-aspect');
             sync('grok-image-resolution', 'modal-grok-image-resolution');
+            sync('ocr-table-format', 'modal-ocr-table-format');
+            sync('ocr-pages', 'modal-ocr-pages');
+            const syncChk = (srcId, destId) => {
+                if (get(srcId) && get(destId)) get(destId).checked = get(srcId).checked;
+            };
+            syncChk('ocr-extract-header', 'modal-ocr-extract-header');
+            syncChk('ocr-extract-footer', 'modal-ocr-extract-footer');
+            syncChk('ocr-include-blocks', 'modal-ocr-include-blocks');
+            syncChk('ocr-include-images', 'modal-ocr-include-images');
 
             // Hide/Show sections based on current model support
             const model = get('model-select').value;
@@ -459,6 +468,7 @@
             if(get('modal-gpt-image-options')) get('modal-gpt-image-options').classList.toggle('hidden', !isGpt);
             if(get('modal-gemini-image-options')) get('modal-gemini-image-options').classList.toggle('hidden', !isGemini);
             if(get('modal-grok-image-options')) get('modal-grok-image-options').classList.toggle('hidden', !isGrok);
+            if(get('modal-mistral-ocr-options')) get('modal-mistral-ocr-options').classList.toggle('hidden', !isMistralOcrModel(model));
         };
         const isGeminiLocalPyDialogEnabled = () => {
             const v = localStorage.getItem(GEMINI_LOCAL_PY_DIALOG_KEY);
@@ -3438,6 +3448,7 @@
                 (m.includes('image') && !m.includes('vision')) ||
                 (m.includes('gemini') && (m.includes('image') || m.includes('nano')))
             ) return 'image';
+            if (m.includes('ocr') || m.includes('mistral-ocr')) return 'text';
             if (m.includes('build') || m.includes('code-fast') || m.includes('coding')) return 'code';
             return 'text';
         }
@@ -6069,6 +6080,14 @@
                 ]
             },
             {
+                category: "Mistral Document OCR",
+                icon: "fas fa-file text-orange-300",
+                description: "Document OCR (PDF / image / DOCX / PPTX). Not a chat completion model.",
+                items: [
+                    { id: "mistral-ocr-4-0", implementedAt: "2026-08-15", implementedRank: 8130, quickEmoji: "📄", name: "Mistral OCR 4", desc: "Document AI OCR with markdown, tables, headers/footers, and paragraph bounding boxes. Chat history is not sent.", price: "$4 / 1,000 pages ($5 / 1,000 annotated pages)" }
+                ]
+            },
+            {
                 category: "Anthropic Claude",
                 icon: "fas fa-brain text-orange-400",
                 description: "Anthropic's latest deep reasoning models",
@@ -6231,6 +6250,7 @@
             if (id.startsWith('gpt') || id.startsWith('o1') || id.startsWith('o3')) return { provider: 'openai', keyField: 'openai_key', inputId: 'set-openai', label: 'OpenAI API Key' };
             if (id.startsWith('deepseek')) return { provider: 'deepseek', keyField: 'deepseek_key', inputId: 'set-deepseek', label: 'DeepSeek API Key' };
             if (id.startsWith('kimi')) return { provider: 'kimi', keyField: 'kimi_key', inputId: 'set-kimi', label: 'Kimi (Moonshot) API Key' };
+            if (id.startsWith('mistral')) return { provider: 'mistral', keyField: 'mistral_key', inputId: 'set-mistral', label: 'Mistral API Key' };
             if (id.startsWith('claude')) return { provider: 'anthropic', keyField: 'anthropic_key', inputId: 'set-anthropic', label: 'Anthropic API Key' };
             if (id.startsWith('grok')) return { provider: 'xai', keyField: 'xai_key', inputId: 'set-xai', label: 'xAI (Grok) API Key' };
             if (id.startsWith('google')) return { provider: 'google', keyField: 'google_key', inputId: 'set-google-key', label: 'Google API Key (TTS)' };
@@ -6581,8 +6601,13 @@
         const isTtsModel = () => get('model-select').value.includes('tts');
         const isGptImageModel = () => (get('model-select').value || '').includes('gpt-image');
         const isGeminiImageModel = () => isGeminiImageModelKey(get('model-select').value);
+        const isMistralOcrModel = (model) => {
+            const m = String(model != null ? model : ((get('model-select') && get('model-select').value) || '')).toLowerCase();
+            return m === 'mistral-ocr-4-0' || m === 'mistral-ocr-latest' || m.startsWith('mistral-ocr');
+        };
         const isLlmModel = () => {
             const m = (get('model-select').value || '').toLowerCase();
+            if (isMistralOcrModel(m)) return false;
             if (
                 m.includes('tts') ||
                 m.includes('transcribe') ||
@@ -6849,6 +6874,14 @@
                 name.includes('deepseek') ||
                 desc.includes('deepseek')
             ) tags.push('deepseek');
+            if (
+                cat.includes('mistral') ||
+                id.includes('mistral') ||
+                name.includes('mistral') ||
+                desc.includes('mistral') ||
+                id.includes('ocr') ||
+                cat.includes('ocr')
+            ) tags.push('mistral');
             if (
                 cat.includes('gpt') ||
                 cat.includes('openai') ||
@@ -7426,6 +7459,26 @@
                 wrap.classList.add('hidden');
             }
         }
+        function updateMistralOcrUi() {
+            const ocr = isMistralOcrModel();
+            const wrap = get('mistral-ocr-options');
+            if (wrap) wrap.classList.toggle('hidden', !ocr);
+            const modalWrap = get('modal-mistral-ocr-options');
+            if (modalWrap) modalWrap.classList.toggle('hidden', !ocr);
+            ['canvas-mode-container', 'coding-mode-container', 'browser-fast-mode-container'].forEach((id) => {
+                const el = get(id);
+                if (!el) return;
+                el.classList.toggle('opacity-50', ocr);
+                el.classList.toggle('pointer-events-none', ocr);
+            });
+            if (ocr) {
+                if (canvasModeEnabled) syncCanvasModeUi(false, { persist: false });
+                if (codingModeEnabled) syncCodingModeUi(false, { persist: false });
+                if (typeof browserFastModeEnabled !== 'undefined' && browserFastModeEnabled) {
+                    setBrowserFastModeEnabled(false);
+                }
+            }
+        }
         function updateImageInputLimits() {
             const el = get('image-input-limits');
             if (!el) return;
@@ -7469,6 +7522,13 @@
                         '<div>高精度は最大5枚 / 合計14枚まで対応</div>'
                     ].join('');
                 }
+            } else if (isMistralOcrModel(model)) {
+                show = true;
+                html = [
+                    '<div class="font-bold text-gray-300 mb-1">Mistral OCR 4 入力</div>',
+                    '<div>PDF / PNG / JPEG / TIFF / BMP / GIF / WEBP / DOCX / PPTX、または公開URL</div>',
+                    '<div>最大 512MB / 会話履歴は送信しません / チャット補完・Search・Python・Canvas 非対応</div>'
+                ].join('');
             } else if (model.includes('grok')) {
                 show = true;
                 html = [
@@ -7513,6 +7573,7 @@
                 const cacheChk = get('enable-prompt-cache');
                 const isSearchModel = model === 'gpt-5-search-api';
                 const isTts = model.includes('tts');
+                const isOcr = isMistralOcrModel(model);
                 const isNanoBanana2Lite = modelLower.includes('gemini-3.1-flash-lite-image');
                 const isNanoBanana2 = modelLower.includes('gemini-3.1-flash-image') && !isNanoBanana2Lite;
                 const isClaude = isClaudeModelKey(model);
@@ -7567,12 +7628,12 @@
                     thinkBudget.classList.add('opacity-50');
                 }
                 const isGeminiImage = isGeminiImageModelKey(model);
-                if(isTts) {
+                if(isTts || isOcr) {
                     if(searchCont) { get('enable-search').checked = false; searchCont.classList.add('opacity-50', 'pointer-events-none'); }
                     if(urlCont) { get('enable-url-context').checked = false; urlCont.classList.add('opacity-50', 'pointer-events-none'); }
                     if(mapsCont && mapsChk) { mapsChk.checked = false; mapsCont.classList.add('opacity-50', 'pointer-events-none'); }
                     if(pyCont) { pyChk.checked = false; pyCont.classList.add('opacity-50', 'pointer-events-none'); }
-                    sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50');
+                    if (sysChk && sysLbl) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); }
                 } else if (isNanoBanana2 || isNanoBanana2Lite) {
                     if (mapsCont && mapsChk) {
                         mapsChk.checked = false;
@@ -7683,7 +7744,7 @@
                         mapsCont.classList.add('opacity-50', 'pointer-events-none');
                     }
                 }
-                else {
+                else if (!isOcr) {
                     if(searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none');
                     if(mapsCont && mapsChk) {
                         mapsChk.checked = false;
@@ -7701,7 +7762,7 @@
                     }
                 }
 
-                if(((isGeminiImage && !isNanoBanana2) || model.includes('gpt-image') || isGrokImageModel() || isGrokVideoModel())) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); }
+                if(((isGeminiImage && !isNanoBanana2) || model.includes('gpt-image') || isGrokImageModel() || isGrokVideoModel() || isOcr)) { if (sysChk && sysLbl) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); } }
                 if (pyCont) {
                     if (isLlmModel()) {
                         pyCont.classList.remove('hidden');
@@ -7723,7 +7784,7 @@
                         pyChk.disabled = true;
                         pyCont.classList.add('opacity-50', 'pointer-events-none');
                     }
-                } else if (searchChk && !model.includes('tts') && !isDeepSeek && !isNanoBanana2Lite) {
+                } else if (searchChk && !model.includes('tts') && !isOcr && !isDeepSeek && !isNanoBanana2Lite) {
                     searchChk.disabled = false;
                 }
                 const maskBtn = get('mask-btn');
@@ -7743,6 +7804,7 @@
                 updateGeminiImageUi();
                 updateGrokImageUi();
                 updateGrokVideoUi();
+                updateMistralOcrUi();
                 updateImageInputLimits();
                 purgeUnsupportedAttachments(true);
             }
@@ -9236,6 +9298,7 @@
                         if(get('set-gemini')) get('set-gemini').value = d.gemini_key || '';
                         if(get('set-deepseek')) get('set-deepseek').value = d.deepseek_key || '';
                         if(get('set-kimi')) get('set-kimi').value = d.kimi_key || '';
+                        if(get('set-mistral')) get('set-mistral').value = d.mistral_key || '';
                         if(get('set-anthropic')) get('set-anthropic').value = d.anthropic_key || '';
                         if(get('set-gemini-backend')) get('set-gemini-backend').value = normalizeGeminiBackend(d.gemini_backend || 'gemini_api');
                         if(get('set-gemini-vertex-project')) get('set-gemini-vertex-project').value = d.gemini_vertex_project || '';
@@ -9537,6 +9600,7 @@
                 if (get('set-gemini')) b.gemini_key = get('set-gemini').value;
                 if (get('set-deepseek')) b.deepseek_key = get('set-deepseek').value;
                 if (get('set-kimi')) b.kimi_key = get('set-kimi').value;
+                if (get('set-mistral')) b.mistral_key = get('set-mistral').value;
                 if (get('set-anthropic')) b.anthropic_key = get('set-anthropic').value;
                 b.model_api_keys = normalizeModelApiKeyMap(modelApiKeyMap);
                 if (get('set-gemini-backend')) b.gemini_backend = normalizeGeminiBackend(get('set-gemini-backend').value);
@@ -16369,9 +16433,25 @@
                 return;
             }
             if(!rawText.trim() && imageUrlsToSend.length === 0) return; // Check trim only for empty check
+            if (isMistralOcrModel(modelId)) {
+                const hasOcrUrl = /https?:\/\/\S+/i.test(rawText);
+                const unsupported = imageUrlsToSend.filter((fp) => isAudioPath(fp) || isVideoPath(fp));
+                if (unsupported.length) {
+                    showToast('Mistral OCR は音声・動画に対応していません。PDF / 画像 / DOCX / PPTX を添付してください。', 'error', true);
+                    return;
+                }
+                if (!imageUrlsToSend.length && !hasOcrUrl) {
+                    showToast('Mistral OCR は文書専用です。PDF・画像・DOCX・PPTX を添付するか、公開URLを入力してください。', 'error', true);
+                    return;
+                }
+            }
 
             // === /settings command: natural language settings change via AI (reuses prompt bar model + toggles) ===
             const trimmedRaw = rawText.trim();
+            if (/^\/settings(?:\s|$)/i.test(trimmedRaw) && isMistralOcrModel()) {
+                showToast('Mistral OCR は設定変更コマンドに使えません。チャットモデルを選んでください。', 'error', true);
+                return;
+            }
             if (/^\/settings(?:\s|$)/i.test(trimmedRaw)) {
                 const instruction = trimmedRaw.replace(/^\/settings\s*/i, '').trim();
                 if (!instruction) {
@@ -16499,7 +16579,7 @@
                     selectModelById(grokXModel);
                 }
             };
-            if (hasXLink && !get('enable-search').checked) {
+            if (hasXLink && !isMistralOcrModel() && !get('enable-search').checked) {
                 if (autoSearchOnLinks) {
                     applyXLinkAuto();
                 } else {
@@ -16577,6 +16657,12 @@
                 grok_video_duration: isGrokVideoModel() && get('grok-video-duration') ? get('grok-video-duration').value : null,
                 grok_video_aspect: isGrokVideoModel() && get('grok-video-aspect') ? get('grok-video-aspect').value : null,
                 grok_video_resolution: isGrokVideoModel() && get('grok-video-resolution') ? get('grok-video-resolution').value : null,
+                ocr_table_format: isMistralOcrModel() && get('ocr-table-format') ? get('ocr-table-format').value : null,
+                ocr_extract_header: isMistralOcrModel() && get('ocr-extract-header') ? get('ocr-extract-header').checked : false,
+                ocr_extract_footer: isMistralOcrModel() && get('ocr-extract-footer') ? get('ocr-extract-footer').checked : false,
+                ocr_include_blocks: isMistralOcrModel() && get('ocr-include-blocks') ? get('ocr-include-blocks').checked : false,
+                ocr_include_image_base64: isMistralOcrModel() && get('ocr-include-images') ? get('ocr-include-images').checked : true,
+                ocr_pages: isMistralOcrModel() && get('ocr-pages') ? get('ocr-pages').value : null,
                 quote_text: currentQuote,
                 parent_id: capturedParentId,
                 parent_id_explicit: parentIdExplicit,
@@ -18474,6 +18560,15 @@
             syncBack('modal-gemini-image-size', 'gemini-image-size');
             syncBack('modal-grok-image-aspect', 'grok-image-aspect');
             syncBack('modal-grok-image-resolution', 'grok-image-resolution');
+            syncBack('modal-ocr-table-format', 'ocr-table-format');
+            syncBack('modal-ocr-pages', 'ocr-pages');
+            const syncBackChk = (modalId, targetId) => {
+                if (get(modalId) && get(targetId)) get(targetId).checked = get(modalId).checked;
+            };
+            syncBackChk('modal-ocr-extract-header', 'ocr-extract-header');
+            syncBackChk('modal-ocr-extract-footer', 'ocr-extract-footer');
+            syncBackChk('modal-ocr-include-blocks', 'ocr-include-blocks');
+            syncBackChk('modal-ocr-include-images', 'ocr-include-images');
 
             window.closeCompressionModal();
             showToast('設定を保存しました', 'success');

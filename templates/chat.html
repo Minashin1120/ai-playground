@@ -546,6 +546,25 @@
                     </div>
                     <span class="text-gray-500">※ Grok Imagine Video</span>
                 </div>
+                <div id="mistral-ocr-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Table</span>
+                        <select id="ocr-table-format" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="" selected>本文内</option>
+                            <option value="markdown">Markdown</option>
+                            <option value="html">HTML</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Pages</span>
+                        <input id="ocr-pages" type="text" placeholder="0-2 / 0,2-4" class="w-28 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                    </div>
+                    <label class="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="ocr-extract-header" class="accent-orange-400 w-3 h-3"><span>Header</span></label>
+                    <label class="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="ocr-extract-footer" class="accent-orange-400 w-3 h-3"><span>Footer</span></label>
+                    <label class="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="ocr-include-blocks" class="accent-orange-400 w-3 h-3"><span>Blocks</span></label>
+                    <label class="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="ocr-include-images" class="accent-orange-400 w-3 h-3" checked><span>画像抽出</span></label>
+                    <span class="text-gray-500">※ 履歴は送信しません</span>
+                </div>
                 <div id="image-input-limits" class="hidden mt-2 px-3 py-2 bg-gray-900/40 border border-gray-700 rounded-lg text-[10px] text-gray-400"></div>
                 <div id="audio-gen-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-xs text-gray-300 flex flex-wrap items-center gap-3">
                     <div class="flex items-center gap-2">
@@ -1061,6 +1080,31 @@
                         </div>
                     </div>
                 </div>
+
+                <div id="modal-mistral-ocr-options" class="space-y-4 border-t border-gray-700 pt-4 hidden">
+                    <h3 class="text-sm font-bold text-orange-300 border-l-2 border-orange-400 pl-2">Mistral OCR 4 設定</h3>
+                    <p class="text-[11px] text-gray-400">会話履歴・Search・Python・Canvas は使いません。添付した文書または公開URLだけを OCR します。</p>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">Table format</label>
+                            <select id="modal-ocr-table-format" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
+                                <option value="">本文内 Markdown</option>
+                                <option value="markdown">Markdown（別フィールド）</option>
+                                <option value="html">HTML（別フィールド）</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">Pages（0始まり）</label>
+                            <input id="modal-ocr-pages" type="text" placeholder="0-2 または 0,2-4" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-4 text-xs text-gray-300">
+                        <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="modal-ocr-extract-header" class="accent-orange-400"><span>ヘッダー抽出</span></label>
+                        <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="modal-ocr-extract-footer" class="accent-orange-400"><span>フッター抽出</span></label>
+                        <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="modal-ocr-include-blocks" class="accent-orange-400"><span>構造ブロック</span></label>
+                        <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="modal-ocr-include-images" class="accent-orange-400" checked><span>画像抽出</span></label>
+                    </div>
+                </div>
             </div>
             <div class="flex justify-end gap-3 mt-6 shrink-0 pt-4 border-t border-gray-700">
                 <button onclick="closeCompressionModal()" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white transition">閉じる</button>
@@ -1086,6 +1130,7 @@
                     <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">OpenAI</button>
                     <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Gemini</button>
                     <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">DeepSeek</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Mistral</button>
                     <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">xAI</button>
                     <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Image</button>
                     <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Audio</button>
@@ -1200,6 +1245,7 @@
                 <div><label class="text-xs text-gray-500 block">Gemini API Key</label><input type="password" id="set-gemini" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
                 <div><label class="text-xs text-gray-500 block">DeepSeek API Key</label><input type="password" id="set-deepseek" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
                 <div><label class="text-xs text-gray-500 block">Kimi (Moonshot) API Key</label><input type="password" id="set-kimi" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
+                <div><label class="text-xs text-gray-500 block">Mistral API Key</label><input type="password" id="set-mistral" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
                 <div><label class="text-xs text-gray-500 block">Anthropic API Key</label><input type="password" id="set-anthropic" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"></div>
                 <div class="rounded border border-gray-700 bg-gray-950/50 p-3"><label class="text-xs text-gray-400 block mb-2">Gemini 接続方式</label><select id="set-gemini-backend" class="hidden"><option value="gemini_api">Gemini API</option><option value="vertex_ai">Vertex AI</option></select><div id="gemini-backend-toggle" class="grid grid-cols-1 sm:grid-cols-2 gap-2"><button type="button" data-gemini-backend="gemini_api" class="gemini-backend-btn text-left rounded border border-gray-600 bg-gray-800/70 px-3 py-2"><div class="text-xs font-bold text-white">Gemini API</div><div class="text-[10px] text-gray-400 mt-1">API Key で認証</div></button><button type="button" data-gemini-backend="vertex_ai" class="gemini-backend-btn text-left rounded border border-gray-600 bg-gray-800/70 px-3 py-2"><div class="text-xs font-bold text-white">Vertex AI</div><div class="text-[10px] text-gray-400 mt-1">Project/Location + ADC or JSON</div></button></div><div id="gemini-backend-status" class="mt-2 text-[11px] font-bold text-cyan-300"></div><div class="text-[10px] text-gray-500 mt-1" id="gemini-backend-note">Gemini API は API Key を使用します。Vertex AI は Project ID + Location と認証情報（ADC または Vertex Service Account JSON）が必要です。</div></div>
                 <div id="gemini-vertex-settings" class="space-y-2 hidden"><div><label class="text-xs text-gray-500 block">Vertex AI Project ID</label><input type="text" id="set-gemini-vertex-project" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="my-gcp-project"></div><div><label class="text-xs text-gray-500 block">Vertex AI Location</label><input type="text" id="set-gemini-vertex-location" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="global"></div><div class="text-[10px] text-gray-500">Vertex AI モードでは、このアプリの Gemini Files API 経路は使えません（大容量ファイル時は Gemini API モード推奨）。</div></div>

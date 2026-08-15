@@ -3636,13 +3636,14 @@ body:has(#prompt-controls-row.compact-collapsed) .composer-dock {
     background: linear-gradient(180deg, rgba(12, 20, 40, 0.35), transparent);
 }
 .sidebar-icon-btn {
-    width: 1.85rem;
-    height: 1.85rem;
+    width: 1.7rem;
+    height: 1.7rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     border-radius: 9px;
     border: 1px solid transparent;
+    flex: 0 0 auto;
     transition: background 0.18s var(--ease-standard), color 0.18s var(--ease-standard), border-color 0.18s var(--ease-standard), transform 0.18s var(--ease-out) !important;
 }
 .sidebar-icon-btn:hover {
@@ -3651,21 +3652,32 @@ body:has(#prompt-controls-row.compact-collapsed) .composer-dock {
     transform: translateY(-1px) !important;
 }
 #sidebar #new-chat-btn.sidebar-icon-btn {
-    width: 1.95rem;
-    height: 1.95rem;
+    width: 1.8rem;
+    height: 1.8rem;
     border-radius: 10px;
-    box-shadow: 0 6px 14px rgba(var(--theme-rgb), 0.2);
+    box-shadow: 0 4px 8px rgba(var(--theme-rgb), 0.16);
 }
 #sidebar #new-chat-btn.sidebar-icon-btn:hover {
     filter: brightness(1.06);
     transform: translateY(-1px) !important;
+}
+#sidebar #lib-btn.sidebar-icon-btn {
+    transform: none;
+    box-shadow: none;
+    align-self: center;
+}
+#sidebar #lib-btn.sidebar-icon-btn i {
+    /* fa-folder のタブが上に寄って見えるため、他アイコンと光学的に揃える */
+    position: relative;
+    top: 1px;
 }
 .sidebar-search #search-box {
     height: 2rem;
     font-size: 0.8125rem;
 }
 .sidebar-toolbar {
-    gap: 0.15rem !important;
+    gap: 0.12rem !important;
+    flex-wrap: nowrap !important;
 }
 .sidebar-divider {
     border-color: var(--line-soft) !important;

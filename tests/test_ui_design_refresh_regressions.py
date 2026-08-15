@@ -40,3 +40,13 @@ class UiDesignRefreshRegressionTests(unittest.TestCase):
         self.assertIn("radial-gradient(rgba(226, 232, 240, 0.04)", login)
         self.assertIn("welcome-subtitle", chat)
         self.assertIn("composer-input-shell", chat)
+        self.assertIn("sidebar-toolbar", chat)
+        self.assertIn("flex-nowrap", chat)
+        self.assertNotIn('sidebar-toolbar flex items-center justify-start gap-0.5 flex-wrap', chat)
+
+    def test_sidebar_toolbar_stays_on_one_row(self):
+        custom = _current_asset("css", "chat.custom.v4.8.*.css")
+        chat = (ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        self.assertIn("flex-wrap: nowrap !important;", custom)
+        self.assertIn("#sidebar #lib-btn.sidebar-icon-btn", custom)
+        self.assertIn("id=\"lib-btn\"", chat)

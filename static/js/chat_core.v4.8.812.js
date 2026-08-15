@@ -5405,6 +5405,7 @@
                     if (btn) {
                         btn.classList.add('text-blue-400','border-blue-400','font-bold');
                         btn.classList.remove('text-gray-400','hover:text-white','border-transparent');
+                        try { btn.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' }); } catch (_) {}
                     }
                 } else if (btn) {
                     btn.classList.remove('text-blue-400','border-blue-400','font-bold');
@@ -5413,7 +5414,149 @@
             });
             activeSettingsTab = t;
             filterSettings();
+            refreshSettingsTabsScroll();
         }
+        function getSettingsTabsMaxScroll(tabs) {
+            if (!tabs) return 0;
+            return Math.max(0, tabs.scrollWidth - tabs.clientWidth);
+        }
+        function syncSettingsTabsOverflow() {
+            const wrap = get('settings-tabs-wrap');
+            const tabs = get('settings-tabs');
+            const leftBtn = get('settings-tabs-arrow-left');
+            const rightBtn = get('settings-tabs-arrow-right');
+            if (!wrap || !tabs) return;
+            const max = getSettingsTabsMaxScroll(tabs);
+            const left = tabs.scrollLeft;
+            const canLeft = max > 2 && left > 2;
+            const canRight = max > 2 && left < max - 2;
+            wrap.classList.toggle('can-scroll', max > 2);
+            wrap.classList.toggle('can-scroll-left', canLeft);
+            wrap.classList.toggle('can-scroll-right', canRight);
+            if (leftBtn) {
+                leftBtn.disabled = !canLeft;
+                leftBtn.setAttribute('aria-hidden', canLeft ? 'false' : 'true');
+            }
+            if (rightBtn) {
+                rightBtn.disabled = !canRight;
+                rightBtn.setAttribute('aria-hidden', canRight ? 'false' : 'true');
+            }
+        }
+        function refreshSettingsTabsScroll() {
+            initSettingsTabsScroll();
+            syncSettingsTabsOverflow();
+        }
+        function initSettingsTabsScroll() {
+            const wrap = get('settings-tabs-wrap');
+            const tabs = get('settings-tabs');
+            const leftBtn = get('settings-tabs-arrow-left');
+            const rightBtn = get('settings-tabs-arrow-right');
+            if (!wrap || !tabs || !leftBtn || !rightBtn) return;
+            if (wrap.dataset.scrollBound === '1') {
+                syncSettingsTabsOverflow();
+                return;
+            }
+            wrap.dataset.scrollBound = '1';
+            const EDGE_PX = 56;
+            let holdTimer = 0;
+            let holdRaf = 0;
+            let holdDir = 0;
+
+            const updateEdgeHover = (clientX) => {
+                const rect = wrap.getBoundingClientRect();
+                if (!rect.width) return;
+                const x = clientX - rect.left;
+                wrap.classList.toggle('is-edge-left', x >= 0 && x <= EDGE_PX);
+                wrap.classList.toggle('is-edge-right', x >= rect.width - EDGE_PX && x <= rect.width);
+            };
+            const clearEdgeHover = () => {
+                if (holdDir) return;
+                wrap.classList.remove('is-edge-left', 'is-edge-right');
+            };
+            const scrollTabsBy = (delta, smooth) => {
+                const max = getSettingsTabsMaxScroll(tabs);
+                if (max <= 0 || !delta) return;
+                const next = Math.max(0, Math.min(max, tabs.scrollLeft + delta));
+                if (smooth && typeof tabs.scrollTo === 'function') {
+                    tabs.scrollTo({ left: next, behavior: 'smooth' });
+                } else {
+                    tabs.scrollLeft = next;
+                }
+                syncSettingsTabsOverflow();
+            };
+            const stopHold = () => {
+                holdDir = 0;
+                if (holdTimer) { clearTimeout(holdTimer); holdTimer = 0; }
+                if (holdRaf) { cancelAnimationFrame(holdRaf); holdRaf = 0; }
+            };
+            const startHold = (dir) => {
+                stopHold();
+                holdDir = dir;
+                wrap.classList.toggle('is-edge-left', dir < 0);
+                wrap.classList.toggle('is-edge-right', dir > 0);
+                scrollTabsBy(dir * Math.max(120, tabs.clientWidth * 0.55), true);
+                holdTimer = setTimeout(() => {
+                    const step = () => {
+                        if (!holdDir) return;
+                        scrollTabsBy(holdDir * 14, false);
+                        holdRaf = requestAnimationFrame(step);
+                    };
+                    holdRaf = requestAnimationFrame(step);
+                }, 280);
+            };
+
+            wrap.addEventListener('pointermove', (e) => {
+                if (e.pointerType === 'touch') return;
+                updateEdgeHover(e.clientX);
+            });
+            wrap.addEventListener('pointerenter', (e) => {
+                if (e.pointerType === 'touch') return;
+                updateEdgeHover(e.clientX);
+            });
+            wrap.addEventListener('pointerleave', (e) => {
+                if (e.pointerType === 'touch') return;
+                stopHold();
+                clearEdgeHover();
+            });
+            wrap.addEventListener('wheel', (e) => {
+                const max = getSettingsTabsMaxScroll(tabs);
+                if (max <= 2) return;
+                const primarilyVertical = Math.abs(e.deltaY) >= Math.abs(e.deltaX);
+                const delta = primarilyVertical ? e.deltaY : e.deltaX;
+                if (!delta) return;
+                const next = Math.max(0, Math.min(max, tabs.scrollLeft + delta));
+                if (next === tabs.scrollLeft) return;
+                e.preventDefault();
+                tabs.scrollLeft = next;
+                syncSettingsTabsOverflow();
+            }, { passive: false });
+            leftBtn.addEventListener('pointerdown', (e) => {
+                if (e.button != null && e.button !== 0) return;
+                e.preventDefault();
+                startHold(-1);
+            });
+            rightBtn.addEventListener('pointerdown', (e) => {
+                if (e.button != null && e.button !== 0) return;
+                e.preventDefault();
+                startHold(1);
+            });
+            leftBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
+            rightBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
+            window.addEventListener('pointerup', stopHold);
+            window.addEventListener('pointercancel', stopHold);
+            window.addEventListener('blur', stopHold);
+            tabs.addEventListener('scroll', syncSettingsTabsOverflow, { passive: true });
+            window.addEventListener('resize', syncSettingsTabsOverflow);
+            if (typeof ResizeObserver !== 'undefined') {
+                try {
+                    const ro = new ResizeObserver(() => syncSettingsTabsOverflow());
+                    ro.observe(tabs);
+                    ro.observe(wrap);
+                } catch (_) {}
+            }
+            syncSettingsTabsOverflow();
+        }
+        initSettingsTabsScroll();
         const chatContainer = get('chat-container');
         const scrollToBottomBtn = get('scroll-to-bottom-btn');
         const CHAT_BOTTOM_THRESHOLD = 64;
@@ -9039,6 +9182,8 @@
                 populateDefaultModelOptions();
                 populateDefaultVisionModelOptions();
                 showModal('settings-modal');
+                refreshSettingsTabsScroll();
+                requestAnimationFrame(() => refreshSettingsTabsScroll());
                 restoreThreadSearchValue(preservedThreadSearch, 'restored-search-box-open');
                 revealPersistentSidebarLists();
                 snapshotSidebarHistory('settings-open-after');

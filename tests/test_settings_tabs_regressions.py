@@ -116,6 +116,35 @@ class SettingsTabsRegressionTests(unittest.TestCase):
         before = security[max(0, bot_pos - 400) : bot_pos]
         self.assertIn("{% if is_admin %}", before)
 
+    def test_settings_tabs_have_edge_arrows_and_wheel_scroll(self):
+        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        js = _current_asset("js", "chat_core.v4.8.*.js")
+        css = _current_asset("css", "chat.custom.v4.8.*.css")
+
+        self.assertIn('id="settings-tabs-wrap"', template)
+        self.assertIn('id="settings-tabs"', template)
+        self.assertIn('id="settings-tabs-arrow-left"', template)
+        self.assertIn('id="settings-tabs-arrow-right"', template)
+        self.assertIn("fa-chevron-left", template)
+        self.assertIn("fa-chevron-right", template)
+
+        self.assertIn("function initSettingsTabsScroll()", js)
+        self.assertIn("function refreshSettingsTabsScroll()", js)
+        self.assertIn("function syncSettingsTabsOverflow()", js)
+        self.assertIn("wrap.addEventListener('wheel'", js)
+        self.assertIn("{ passive: false }", js)
+        self.assertIn("primarilyVertical", js)
+        self.assertIn("is-edge-left", js)
+        self.assertIn("is-edge-right", js)
+        self.assertIn("startHold(-1)", js)
+        self.assertIn("startHold(1)", js)
+        self.assertIn("refreshSettingsTabsScroll()", js)
+
+        self.assertIn(".settings-tabs-arrow", css)
+        self.assertIn(".settings-tabs-wrap.can-scroll-left.is-edge-left .settings-tabs-arrow-left", css)
+        self.assertIn(".settings-tabs-wrap.can-scroll-right.is-edge-right .settings-tabs-arrow-right", css)
+        self.assertIn("overscroll-behavior-x: contain", css)
+
     def test_blur_toast_opens_display_tab(self):
         js = _current_asset("js", "chat_core.v4.8.*.js")
         helper = js[js.index("const openAdaptiveBlurSettingsFromToast = () => {") :]

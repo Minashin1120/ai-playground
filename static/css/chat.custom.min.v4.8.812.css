@@ -1154,8 +1154,21 @@
         .settings-jump-highlight { animation: settingsJumpFlash 1.8s var(--ease-out) both; }
         @keyframes settingsJumpFlash { 0% { box-shadow: 0 0 0 3px rgba(var(--theme-rgb),0.45); background: rgba(var(--theme-rgb),0.08); } 100% { box-shadow: 0 0 0 0 transparent; background: transparent; } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-        #settings-modal .settings-tabs { margin-bottom: 10px; gap: 8px; padding: 6px; background: rgba(10, 16, 35, 0.7); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); }
+        #settings-modal .settings-tabs-wrap { position: relative; margin-bottom: 10px; }
+        #settings-modal .settings-tabs { margin-bottom: 0; gap: 8px; padding: 6px; background: rgba(10, 16, 35, 0.7); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); overscroll-behavior-x: contain; scrollbar-width: thin; }
         #settings-modal .settings-tabs::-webkit-scrollbar { height: 6px; }
+        #settings-modal .settings-tabs-arrow { position: absolute; top: 1px; bottom: 1px; width: 36px; z-index: 3; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; border: 0; color: #e5e7eb; background: transparent; cursor: pointer; transition: opacity 0.16s var(--ease-standard), color 0.16s var(--ease-standard); }
+        #settings-modal .settings-tabs-arrow i { font-size: 12px; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.45)); }
+        #settings-modal .settings-tabs-arrow-left { left: 1px; border-radius: 12px 0 0 12px; background: linear-gradient(90deg, rgba(10, 16, 35, 0.96) 48%, rgba(10, 16, 35, 0)); }
+        #settings-modal .settings-tabs-arrow-right { right: 1px; border-radius: 0 12px 12px 0; background: linear-gradient(270deg, rgba(10, 16, 35, 0.96) 48%, rgba(10, 16, 35, 0)); }
+        #settings-modal .settings-tabs-arrow:hover { color: #fff; }
+        #settings-modal .settings-tabs-arrow:disabled { opacity: 0 !important; pointer-events: none !important; }
+        #settings-modal .settings-tabs-wrap.can-scroll-left.is-edge-left .settings-tabs-arrow-left,
+        #settings-modal .settings-tabs-wrap.can-scroll-right.is-edge-right .settings-tabs-arrow-right { opacity: 1; pointer-events: auto; }
+        @media (hover: none) {
+            #settings-modal .settings-tabs-wrap.can-scroll-left .settings-tabs-arrow-left,
+            #settings-modal .settings-tabs-wrap.can-scroll-right .settings-tabs-arrow-right { opacity: 1; pointer-events: auto; }
+        }
         #settings-modal .settings-footer { position: sticky; bottom: 0; z-index: 7; padding-top: 8px; background: linear-gradient(0deg, rgba(13, 21, 36, 0.98), rgba(13, 21, 36, 0.5)); }
         #settings-modal .overflow-y-auto { padding-right: 6px; padding-bottom: 14px; }
         #settings-modal input, #settings-modal textarea, #settings-modal select { background: rgba(8, 14, 26, 0.8); border: 1px solid var(--line); }
@@ -1247,7 +1260,8 @@
         }
         @media (max-width: 640px) {
             #settings-modal .bg-gray-800 { max-height: 92vh; padding: 12px; }
-            #settings-modal .settings-tabs { margin-bottom: 10px; gap: 8px; }
+            #settings-modal .settings-tabs-wrap { margin-bottom: 10px; }
+            #settings-modal .settings-tabs { margin-bottom: 0; gap: 8px; }
             #settings-modal .settings-footer button { padding: 10px 14px; }
             #thread-modal { align-items: flex-start; padding: 8px 0; }
             #thread-modal > div { width: calc(100% - 16px); max-width: none; margin: 8px; padding: 14px 12px; max-height: calc(100dvh - 16px); border-radius: 16px; }
@@ -4090,6 +4104,9 @@ header.bg-gray-800 {
     border-radius: 22px;
     border-color: rgba(255, 255, 255, 0.08);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), var(--shadow);
+}
+#settings-modal .settings-tabs-wrap {
+    margin-bottom: 10px;
 }
 #settings-modal .settings-tabs {
     background: rgba(8, 12, 22, 0.62);

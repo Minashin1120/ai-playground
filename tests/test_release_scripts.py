@@ -140,6 +140,7 @@ class ReleaseScriptContractTests(unittest.TestCase):
         self.assertNotIn("git add -A", source)
         self.assertNotIn("git add .", source)
         self.assertIn("tag -a", source)
+        self.assertIn('refs/tags/$TAG^{}', source)
         restart_at = source.index("restart_services.sh")
         purge_at = source.index("purge_cloudflare_cache.sh")
         confirm_at = source.index("--confirm")

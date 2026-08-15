@@ -277,7 +277,12 @@ if ! git_in push origin "$TAG"; then
     die "failed to send tag $TAG; the branch was sent"
 fi
 
-REMOTE_TAG="$(git_in ls-remote --tags origin "refs/tags/$TAG" | awk '{print $1}')"
+# Annotated tags show as the tag object on refs/tags/NAME and as the
+# pointed-to commit on refs/tags/NAME^{}. Compare the peeled commit.
+REMOTE_TAG="$(git_in ls-remote --tags origin "refs/tags/$TAG^{}" | awk '{print $1}')"
+if [[ -z "$REMOTE_TAG" ]]; then
+    REMOTE_TAG="$(git_in ls-remote --tags origin "refs/tags/$TAG" | awk 'NR==1 {print $1}')"
+fi
 if [[ "$REMOTE_TAG" != "$HEAD_COMMIT" ]]; then
     die "remote tag $TAG is $REMOTE_TAG, expected $HEAD_COMMIT"
 fi

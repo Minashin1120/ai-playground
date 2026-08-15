@@ -226,6 +226,39 @@
             clearTimeout(searchTimeout);
             snapshotSidebarHistory(reason || 'restored-search-box');
         };
+        const THREAD_SEARCH_INPUT_IDS = ['search-box', 'history-search-box'];
+        const isUserInitiatedSearchInput = (event) => !!(event && event.inputType);
+        const unlockThreadSearchInput = (el) => {
+            if (!el) return;
+            if (el.hasAttribute('readonly')) el.removeAttribute('readonly');
+        };
+        const markThreadSearchUserEdited = (el) => {
+            if (!el) return;
+            el.dataset.userEdited = '1';
+        };
+        const discardAutofilledThreadSearch = (reason) => {
+            const el = get('search-box');
+            if (!el || el.dataset.userEdited) return;
+            if (!el.value) return;
+            restoreThreadSearchValue('', reason || 'cleared-autofill-search-box');
+            const historyEl = get('history-search-box');
+            if (historyEl && !historyEl.dataset.userEdited) historyEl.value = '';
+        };
+        const hardenThreadSearchInputs = () => {
+            THREAD_SEARCH_INPUT_IDS.forEach((id) => {
+                const el = get(id);
+                if (!el) return;
+                const unlock = () => unlockThreadSearchInput(el);
+                el.addEventListener('pointerdown', unlock);
+                el.addEventListener('touchstart', unlock, { passive: true });
+                el.addEventListener('keydown', unlock);
+                el.addEventListener('focus', unlock);
+            });
+            discardAutofilledThreadSearch('cleared-autofill-search-box-init');
+            [0, 50, 250, 1000].forEach((ms) => {
+                setTimeout(() => discardAutofilledThreadSearch('cleared-autofill-search-box-' + ms + 'ms'), ms);
+            });
+        };
         const revealPersistentSidebarLists = () => {
             document.querySelectorAll('#thread-list > [data-thread-id], #gem-list > .gem-item').forEach((el) => {
                 el.classList.remove('model-list-animate', 'slide-in-animate', 'fade-in', 'opacity-0');
@@ -10537,7 +10570,14 @@
                 showPendingSlashCommandIndicator('settings');
             }
             if (get('search-box')) {
-                get('search-box').addEventListener('input', () => {
+                get('search-box').addEventListener('input', (event) => {
+                    const el = get('search-box');
+                    if (el && isUserInitiatedSearchInput(event)) {
+                        markThreadSearchUserEdited(el);
+                    } else if (el && !el.dataset.userEdited) {
+                        discardAutofilledThreadSearch('cleared-autofill-search-box-input');
+                        return;
+                    }
                     if (isSettingsModalOpen()) {
                         snapshotSidebarHistory('ignore-search-input-settings-open');
                         return;
@@ -10545,6 +10585,7 @@
                     clearTimeout(searchTimeout);
                     searchTimeout = setTimeout(() => { loadThreads(false); }, 300);
                 });
+                hardenThreadSearchInputs();
             }
             if (get('mobile-new-chat-btn')) get('mobile-new-chat-btn').onclick = () => startNewChat();
             if (get('sts-mic-btn')) get('sts-mic-btn').onclick = () => { if (isStsModel()) get('mic-btn').click(); };

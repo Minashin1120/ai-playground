@@ -2091,6 +2091,27 @@ header.bg-gray-800 {
     border-color: rgba(var(--theme-rgb), 0.55);
     box-shadow: 0 0 0 2px rgba(var(--theme-rgb), 0.18);
 }
+#sidebar #search-box,
+#history-search-box {
+    -webkit-appearance: none;
+    appearance: none;
+}
+#sidebar #search-box[readonly],
+#history-search-box[readonly] {
+    cursor: text;
+}
+#sidebar #search-box::-webkit-search-decoration,
+#sidebar #search-box::-webkit-search-cancel-button,
+#sidebar #search-box::-webkit-search-results-button,
+#sidebar #search-box::-webkit-search-results-decoration,
+#history-search-box::-webkit-search-decoration,
+#history-search-box::-webkit-search-cancel-button,
+#history-search-box::-webkit-search-results-button,
+#history-search-box::-webkit-search-results-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+    display: none;
+}
 #sidebar .text-xs.font-bold.text-gray-400.uppercase {
     letter-spacing: 0.14em;
     color: var(--muted) !important;

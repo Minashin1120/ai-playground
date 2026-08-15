@@ -399,8 +399,21 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("loadThreads-keep-existing-empty-search", script)
         self.assertIn("restoreThreadSearchValue", script)
         self.assertIn('id="search-box"', template)
-        search_input = template[template.index('id="search-box"'):template.index('id="search-box"') + 280]
-        self.assertIn('autocomplete="off"', search_input)
+        search_region = template[template.index('sidebar-search'):template.index('sidebar-search') + 1200]
+        self.assertIn('type="search"', search_region)
+        self.assertIn('autocomplete="off"', search_region)
+        self.assertIn('role="search"', search_region)
+        self.assertIn('data-1p-ignore="true"', search_region)
+        self.assertIn('data-lpignore="true"', search_region)
+        self.assertIn('data-bwignore="true"', search_region)
+        self.assertIn('readonly', search_region)
+        self.assertIn("hardenThreadSearchInputs", script)
+        self.assertIn("discardAutofilledThreadSearch", script)
+        self.assertIn("isUserInitiatedSearchInput", script)
+        history_region = template[template.index('id="history-search-box"') - 220:template.index('id="history-search-box"') + 700]
+        self.assertIn('type="search"', history_region)
+        self.assertIn('data-1p-ignore="true"', history_region)
+        self.assertIn('readonly', history_region)
 
     def test_overlay_notifications_follow_visible_composer_dock(self):
         # V4.8.691: the offline connection banner and the global progress spinner

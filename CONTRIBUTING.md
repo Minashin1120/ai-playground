@@ -18,6 +18,14 @@ Python 3.11、MariaDB、Redis、Node.js（JavaScript構文確認用）、ffmpeg�
 
 ## テスト
 
+変更確認は次のスクリプトにまとまっています。
+
+```bash
+./scripts/verify_changes.sh
+```
+
+個別に実行する場合:
+
 ```bash
 venv/bin/python -m pytest -q
 node --check static/js/progress_spinner.js

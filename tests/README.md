@@ -4,6 +4,7 @@ pytestによるバックエンド・テンプレート・JavaScript回帰テス�
 
 ```bash
 cd /opt/ai-playground
+./scripts/verify_changes.sh
 venv/bin/python -m pytest -q
 ```
 

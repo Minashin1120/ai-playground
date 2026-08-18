@@ -737,8 +737,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-16-003')
-app.config['SYSTEM_VERSION'] = 'V4.8.816'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-19-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.817'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1930,7 +1930,7 @@ ALL_VALID_MODEL_IDS = {
     # Grok Imagine
     "grok-imagine-image-quality", "grok-imagine-image", "grok-imagine-image-pro", "grok-imagine-video",
     # xAI Grok
-    "grok-4.3", "grok-build-0.1",
+    "grok-4.6", "grok-4.5", "grok-4.3", "grok-build-0.1",
     "grok-4.20-reasoning", "grok-4.20-non-reasoning", "grok-4.20-multi-agent",
     "grok-4-1-fast-reasoning", "grok-4-1-fast-non-reasoning",
     "grok-4-fast-reasoning", "grok-4-fast-non-reasoning",
@@ -8359,8 +8359,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     return True
                 return False
             is_llm_model = not _is_non_llm_model(model_key_l)
-            grok_reasoning_supported = ("grok-4.3" in model_key_l) or ("grok-build" in model_key_l) or ("grok-3-mini" in model_key_l) or ("reasoning" in model_key_l and "non-reasoning" not in model_key_l) or ("multi-agent" in model_key_l)
-            grok_reasoning_effort_supported = ("grok-4.3" in model_key_l) or ("grok-build" in model_key_l) or ("grok-3-mini" in model_key_l) or ("multi-agent" in model_key_l)
+            grok_reasoning_supported = ("grok-4.3" in model_key_l) or ("grok-4.5" in model_key_l) or ("grok-4.6" in model_key_l) or ("grok-build" in model_key_l) or ("grok-3-mini" in model_key_l) or ("reasoning" in model_key_l and "non-reasoning" not in model_key_l) or ("multi-agent" in model_key_l)
+            grok_reasoning_effort_supported = ("grok-4.3" in model_key_l) or ("grok-4.5" in model_key_l) or ("grok-4.6" in model_key_l) or ("grok-build" in model_key_l) or ("grok-3-mini" in model_key_l) or ("multi-agent" in model_key_l)
             req_reasoning_effort = (options.get('reasoning_effort') or "").lower().strip()
             reasoning_requested = bool(options.get('enable_thinking')) or (req_reasoning_effort and req_reasoning_effort != "none")
             if is_deepseek and req_reasoning_effort == "none":
@@ -8467,6 +8467,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
             def _grok_reasoning_effort():
                 raw = (options.get('reasoning_effort') or "").lower().strip()
+                is_grok_45 = "grok-4.5" in model_key_l
+                is_grok_46 = "grok-4.6" in model_key_l
+                if is_grok_45 or is_grok_46:
+                    # Grok 4.5 / 4.6: reasoning cannot be disabled (defaults to high).
+                    # "xhigh" is only supported by grok-4.6; grok-4.5 treats it as "high".
+                    if raw in ("low", "medium", "high"):
+                        return raw
+                    if raw == "xhigh":
+                        return "xhigh" if is_grok_46 else "high"
+                    return None
                 if raw in ("none", "low", "medium", "high", "xhigh"):
                     return raw
                 lvl = (options.get('thinking_level') or "low").lower()
@@ -10694,7 +10704,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 if tools: create_kwargs["tools"] = tools
                 if include: create_kwargs["include"] = include
                 if options.get('enable_thinking') and grok_reasoning_effort_supported:
-                    create_kwargs["reasoning_effort"] = _grok_reasoning_effort()
+                    grok_effort = _grok_reasoning_effort()
+                    if grok_effort:
+                        create_kwargs["reasoning_effort"] = grok_effort
                 elif options.get('enable_thinking') and grok_reasoning_supported:
                     log_force("Grok reasoning_effort not supported for this model; skipping parameter")
                 create_kwargs["use_encrypted_content"] = True # Request encrypted reasoning if available
@@ -11931,8 +11943,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         return "minimal"
                     return effort
                 if is_grok and enable_reasoning and grok_reasoning_effort_supported:
-                    kwargs['reasoning'] = {"effort": _grok_reasoning_effort()}
-                    log_force(f"Grok reasoning config: {kwargs['reasoning']}")
+                    grok_effort = _grok_reasoning_effort()
+                    if grok_effort:
+                        kwargs['reasoning'] = {"effort": grok_effort}
+                        log_force(f"Grok reasoning config: {kwargs['reasoning']}")
                 elif is_grok and enable_reasoning and grok_reasoning_supported:
                     log_force("Grok reasoning_effort not supported for this model; skipping reasoning param")
                 elif is_reasoning_model and enable_reasoning:

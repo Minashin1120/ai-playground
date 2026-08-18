@@ -6187,6 +6187,8 @@
                 icon: "fas fa-rocket text-white",
                 description: "Models by xAI",
                 items: [
+                    { id: "grok-4.6", implementedAt: "2026-08-19", implementedRank: 8161, name: "Grok 4.6", desc: "Frontier model for coding, agentic tasks, and knowledge work.", price: "In $2.00/1M, Out $6.00/1M" },
+                    { id: "grok-4.5", implementedAt: "2026-08-19", implementedRank: 8160, name: "Grok 4.5", desc: "Intelligent coding model for agentic software and engineering tasks.", price: "In $2.00/1M, Out $6.00/1M" },
                     { id: "grok-4.3", implementedAt: "2026-05-27", implementedRank: 5530, name: "Grok 4.3", desc: "Most intelligent and fastest flagship model.", price: "In $1.25/1M, Out $2.50/1M" },
                     { id: "grok-build-0.1", implementedAt: "2026-05-27", implementedRank: 5520, quickEmoji: "🛠️", name: "Grok Build 0.1 (Coding)", desc: "Fast agentic coding model with vision and reasoning support.", price: "In $1.00/1M, Out $2.00/1M" },
                     { id: "grok-4.20-reasoning", implementedAt: "2026-04-09", implementedRank: 4000, name: "Grok 4.20 (Reasoning)", desc: "Flagship reasoning model.", price: "In $1.25/1M, Out $2.50/1M" },
@@ -7634,12 +7636,14 @@
                             const isGpt56Model = modelLower === 'gpt-5.6' || modelLower.startsWith('gpt-5.6-');
                             const isDeepSeekFlash0731 = modelLower === 'deepseek-v4-flash-0731' || modelLower === 'deepseek-v4-flash';
                             const isDeepSeekPro = modelLower === 'deepseek-v4-pro';
+                            const isGrok45 = modelLower.includes('grok-4.5');
+                            const isGrok46 = modelLower.includes('grok-4.6');
                             if (opt.value === 'max') {
                                 opt.classList.toggle('hidden', !isGpt56Model && !isDeepSeekFlash0731 && !isDeepSeekPro);
                             } else if (opt.value === 'xhigh') {
-                                opt.classList.toggle('hidden', !modelLower.includes('multi-agent') && !isGpt56Model);
+                                opt.classList.toggle('hidden', !isGrok46 && !modelLower.includes('multi-agent') && !isGpt56Model);
                             } else if (opt.value === 'medium') {
-                                opt.classList.toggle('hidden', !(modelLower.includes('grok-4.3') || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3')));
+                                opt.classList.toggle('hidden', !(modelLower.includes('grok-4.3') || isGrok45 || isGrok46 || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3')));
                             } else if (opt.value === 'none') {
                                 opt.classList.toggle('hidden', !modelLower.includes('grok-4.3') && !modelLower.includes('grok-build') && !modelLower.includes('gpt-5') && !isDeepSeekFlash0731 && !isDeepSeekPro);
                             } else if (opt.value === 'low') {
@@ -7754,7 +7758,7 @@
                         thinkBudget.classList.add('opacity-50');
                     }
                 }
-                const supportsReasoningEffort = isLlmModel() && (modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3') || modelLower.includes('grok-4.3') || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || (modelLower.includes('gpt') && !modelLower.includes('tts')));
+                const supportsReasoningEffort = isLlmModel() && (modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3') || modelLower.includes('grok-4.3') || modelLower.includes('grok-4.5') || modelLower.includes('grok-4.6') || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || (modelLower.includes('gpt') && !modelLower.includes('tts')));
                 if (supportsReasoningEffort) {
                     reasonOpts.classList.remove('hidden');
                     if(searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none');

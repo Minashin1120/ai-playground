@@ -5765,24 +5765,32 @@
         // Image Viewer Logic
         let viewerImages = [];
         let viewerIndex = 0;
+        let viewerSwipe = null;
+        let suppressViewerCloseClick = false;
 
         function openImageViewer(startUrl, groupSelector = '.chat-image') {
             const allImgs = Array.from(document.querySelectorAll(groupSelector));
             // Filter out duplicate sources if needed, but keep DOM order
-            viewerImages = allImgs.map(img => ({
+            const items = allImgs.map(img => ({
                 url: img.dataset.viewerSrc || img.currentSrc || img.src,
                 filename: img.dataset.viewerFilename || img.title || (img.dataset.viewerSrc || img.currentSrc || img.src).split('/').pop(),
                 element: img
             }));
 
             // Find index of startUrl
-            viewerIndex = viewerImages.findIndex(item => item.url === startUrl);
-            if (viewerIndex === -1) {
+            const foundIndex = items.findIndex(item => item.url === startUrl);
+            if (foundIndex === -1) {
                 // Fallback if not found in DOM list (single view)
-                viewerImages = [{ url: startUrl, filename: startUrl.split('/').pop() }];
-                viewerIndex = 0;
+                openViewerWithItems([{ url: startUrl, filename: startUrl.split('/').pop(), element: null }], 0);
+                return;
             }
+            openViewerWithItems(items, foundIndex);
+        }
 
+        function openViewerWithItems(items, index) {
+            viewerImages = items;
+            viewerIndex = (index >= 0 && index < items.length) ? index : 0;
+            clearViewerAdjacent();
             updateViewerState();
             get('image-viewer').classList.add('visible');
             document.addEventListener('keydown', handleViewerKeydown);
@@ -5791,34 +5799,31 @@
         function closeImageViewer() {
             get('image-viewer').classList.remove('visible');
             document.removeEventListener('keydown', handleViewerKeydown);
+            clearViewerAdjacent();
             viewerImages = [];
+            viewerIndex = 0;
+            viewerSwipe = null;
         }
 
-        function updateViewerState() {
+        function clearViewerAdjacent() {
+            const adj = document.querySelector('.viewer-adjacent');
+            if (adj) adj.remove();
+        }
+
+        function renderViewerChrome() {
             if (!viewerImages.length) return;
-            const item = viewerImages[viewerIndex];
-            const img = get('image-viewer-img');
             const meta = get('image-viewer-meta');
             const prevBtn = document.querySelector('.viewer-nav.prev');
             const nextBtn = document.querySelector('.viewer-nav.next');
+            const item = viewerImages[viewerIndex];
+
+            meta.innerText = `${viewerIndex + 1} / ${viewerImages.length} • ${item.filename}`;
 
             // Preload next image
             if (viewerIndex < viewerImages.length - 1) {
                 const preload = new Image();
                 preload.src = viewerImages[viewerIndex + 1].url;
             }
-
-            img.style.opacity = '0.5';
-            img.style.transform = 'scale(0.95)';
-
-            setTimeout(() => {
-                img.src = item.url;
-                img.onload = () => {
-                    img.style.opacity = '1';
-                    img.style.transform = 'scale(1)';
-                };
-                meta.innerText = `${viewerIndex + 1} / ${viewerImages.length} • ${item.filename}`;
-            }, 150);
 
             prevBtn.style.display = viewerImages.length > 1 ? 'flex' : 'none';
             nextBtn.style.display = viewerImages.length > 1 ? 'flex' : 'none';
@@ -5828,12 +5833,198 @@
             nextBtn.style.pointerEvents = viewerIndex < viewerImages.length - 1 ? 'auto' : 'none';
         }
 
+        function updateViewerState(opts) {
+            if (!viewerImages.length) return;
+            const img = get('image-viewer-img');
+            if (!img) return;
+            const item = viewerImages[viewerIndex];
+            const fade = !opts || opts.fade !== false;
+
+            renderViewerChrome();
+
+            img.style.transition = 'none';
+            img.style.transform = fade ? 'scale(0.96)' : 'translateX(0) scale(1)';
+            img.style.opacity = fade ? '0.35' : '0';
+
+            const reveal = () => {
+                img.style.transition = fade ? 'transform 0.28s var(--ease-out), opacity 0.28s var(--ease-out)' : 'none';
+                img.style.opacity = '1';
+                img.style.transform = 'scale(1)';
+                if (!fade) clearViewerAdjacent();
+            };
+
+            if (fade) {
+                setTimeout(() => {
+                    if (viewerSwipe && viewerSwipe.active) return;
+                    img.src = item.url;
+                    img.onload = reveal;
+                    img.onerror = reveal;
+                    if (img.complete && img.naturalWidth) reveal();
+                }, 140);
+            } else {
+                img.src = item.url;
+                img.onload = reveal;
+                img.onerror = reveal;
+                if (img.complete && img.naturalWidth) reveal();
+            }
+        }
+
         function navImage(dir) {
             const newIndex = viewerIndex + dir;
             if (newIndex >= 0 && newIndex < viewerImages.length) {
+                clearViewerAdjacent();
                 viewerIndex = newIndex;
                 updateViewerState();
             }
+        }
+
+        function getViewerAdjacent(dir) {
+            const content = document.querySelector('.viewer-content');
+            if (!content) return null;
+            const targetIndex = viewerIndex + dir;
+            if (targetIndex < 0 || targetIndex >= viewerImages.length) return null;
+            let adj = content.querySelector('.viewer-adjacent');
+            if (!adj) {
+                adj = document.createElement('img');
+                adj.className = 'viewer-adjacent';
+                adj.alt = '';
+                content.appendChild(adj);
+            }
+            adj.src = viewerImages[targetIndex].url;
+            adj.dataset.dir = String(dir);
+            return adj;
+        }
+
+        function onViewerTouchStart(e) {
+            if (!viewerImages.length) return;
+            if (e.touches.length !== 1) return;
+            const t = e.touches[0];
+            viewerSwipe = {
+                startX: t.clientX,
+                startY: t.clientY,
+                lastX: t.clientX,
+                lastY: t.clientY,
+                dx: 0,
+                dy: 0,
+                vx: 0,
+                dir: 0,
+                active: false,
+                resist: false,
+                adjacent: null,
+                lastTime: Date.now()
+            };
+        }
+
+        function onViewerTouchMove(e) {
+            if (!viewerSwipe) return;
+            const t = e.touches[0];
+            const dx = t.clientX - viewerSwipe.startX;
+            const dy = t.clientY - viewerSwipe.startY;
+            const now = Date.now();
+            const dt = Math.max(now - viewerSwipe.lastTime, 1);
+            const instantVx = (t.clientX - viewerSwipe.lastX) / dt;
+            viewerSwipe.vx = instantVx * 0.6 + viewerSwipe.vx * 0.4;
+            viewerSwipe.lastX = t.clientX;
+            viewerSwipe.lastY = t.clientY;
+            viewerSwipe.lastTime = now;
+            viewerSwipe.dx = dx;
+            viewerSwipe.dy = dy;
+
+            if (!viewerSwipe.active) {
+                if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+                if (Math.abs(dx) < Math.abs(dy) * 1.15) {
+                    viewerSwipe = null;
+                    return;
+                }
+                viewerSwipe.active = true;
+                viewerSwipe.dir = dx > 0 ? -1 : 1;
+                viewerSwipe.adjacent = getViewerAdjacent(viewerSwipe.dir);
+                if (!viewerSwipe.adjacent) viewerSwipe.resist = true;
+            }
+
+            e.preventDefault();
+
+            const img = get('image-viewer-img');
+            if (!img) return;
+            const content = document.querySelector('.viewer-content');
+            const stageWidth = content ? content.clientWidth : window.innerWidth;
+            const effDx = viewerSwipe.resist ? dx * 0.3 : dx;
+
+            img.style.transition = 'none';
+            img.style.transform = `translateX(${effDx}px) scale(${1 - Math.min(Math.abs(effDx) / (stageWidth * 4), 0.04)})`;
+            img.style.opacity = String(Math.max(1 - Math.min(Math.abs(effDx) / (stageWidth * 0.45), 0.55), 0.4));
+
+            const adj = viewerSwipe.adjacent;
+            if (adj) {
+                const adjDir = Number(adj.dataset.dir) || 0;
+                adj.style.transition = 'none';
+                adj.style.transform = `translate(-50%, -50%) translateX(${adjDir * stageWidth + dx}px) scale(0.97)`;
+                adj.style.opacity = String(Math.min(Math.abs(dx) / (stageWidth * 0.3), 1));
+            }
+        }
+
+        function onViewerTouchEnd() {
+            if (!viewerSwipe) return;
+            const swipe = viewerSwipe;
+            viewerSwipe = null;
+            if (!swipe.active) return;
+
+            suppressViewerCloseClick = true;
+            setTimeout(() => { suppressViewerCloseClick = false; }, 120);
+
+            const img = get('image-viewer-img');
+            if (!img) return;
+            const content = document.querySelector('.viewer-content');
+            const stageWidth = content ? content.clientWidth : window.innerWidth;
+            const threshold = stageWidth * 0.22;
+            const dir = swipe.dir || (swipe.dx > 0 ? -1 : 1);
+            const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const willNav = !swipe.resist && (Math.abs(swipe.dx) > threshold || (Math.abs(swipe.vx) > 0.45 && Math.sign(swipe.dx) === dir));
+            const adj = swipe.adjacent;
+
+            if (!willNav) {
+                img.style.transition = 'transform 0.32s var(--ease-out), opacity 0.32s var(--ease-out)';
+                img.style.transform = 'translateX(0) scale(1)';
+                img.style.opacity = '1';
+                if (adj) {
+                    const adjRef = adj;
+                    adj.style.transition = 'transform 0.32s var(--ease-out), opacity 0.32s var(--ease-out)';
+                    adj.style.transform = `translate(-50%, -50%) translateX(${dir * stageWidth}px) scale(0.97)`;
+                    adj.style.opacity = '0';
+                    setTimeout(() => { if (adjRef.isConnected) adjRef.remove(); }, 340);
+                }
+                return;
+            }
+
+            if (reducedMotion) {
+                finishSwipeNav(dir);
+                return;
+            }
+
+            const exitX = dir * stageWidth;
+            img.style.transition = 'transform 0.3s var(--ease-out), opacity 0.3s var(--ease-out)';
+            img.style.transform = `translateX(${exitX}px) scale(0.96)`;
+            img.style.opacity = '0.2';
+            if (adj) {
+                adj.style.transition = 'transform 0.3s var(--ease-out), opacity 0.3s var(--ease-out)';
+                adj.style.transform = 'translate(-50%, -50%) translateX(0) scale(1)';
+                adj.style.opacity = '1';
+            }
+            setTimeout(() => finishSwipeNav(dir), 300);
+        }
+
+        function finishSwipeNav(dir) {
+            if (!viewerImages.length) return;
+            if (viewerSwipe && viewerSwipe.active) return;
+            const viewer = get('image-viewer');
+            if (!viewer || !viewer.classList.contains('visible')) {
+                clearViewerAdjacent();
+                return;
+            }
+            const newIndex = viewerIndex + dir;
+            if (newIndex < 0 || newIndex >= viewerImages.length) return;
+            viewerIndex = newIndex;
+            updateViewerState({ fade: false });
         }
 
         function handleViewerKeydown(e) {
@@ -10673,7 +10864,15 @@
                     openImageViewer(viewerSrc);
                 }
             });
+            const viewerContentEl = document.querySelector('.viewer-content');
+            if (viewerContentEl) {
+                viewerContentEl.addEventListener('touchstart', onViewerTouchStart, { passive: false });
+                viewerContentEl.addEventListener('touchmove', onViewerTouchMove, { passive: false });
+                viewerContentEl.addEventListener('touchend', onViewerTouchEnd);
+                viewerContentEl.addEventListener('touchcancel', onViewerTouchEnd);
+            }
             get('image-viewer').addEventListener('click', (e) => {
+                if (suppressViewerCloseClick) { suppressViewerCloseClick = false; return; }
                 // Close if clicking the background area, but not the image or UI controls
                 if (e.target.id === 'image-viewer' || e.target.classList.contains('viewer-content')) {
                     closeImageViewer();
@@ -19043,6 +19242,22 @@
                 }
             });
         }
+        function openLibraryImage(f) {
+            if (!lib.files) return;
+            const ordered = sortLibraryFiles(lib.files);
+            const q = getLibSearchQuery();
+            const filtered = q ? ordered.filter((x) => fileNameForSearch(x).includes(q)) : ordered;
+            const images = filtered.filter((x) => x.type === 'image');
+            if (!images.length) return;
+            const items = images.map((x) => ({
+                url: x.url,
+                filename: x.filename || x.original_filename || x.url.split('/').pop(),
+                element: null
+            }));
+            let idx = items.findIndex((x) => x.url === f.url);
+            if (idx === -1) idx = 0;
+            openViewerWithItems(items, idx);
+        }
         function renderLibraryItem(f, i = 0) {
             const el = document.createElement('div');
             el.className = "relative group bg-gray-700 library-thumb-card rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400 model-list-animate overflow-hidden";
@@ -19072,7 +19287,11 @@
             openBtns.forEach((btn) => {
                 btn.onclick = (e) => {
                     e.stopPropagation();
-                    openFileViewer(f.url, f.filename);
+                    if (f.type === 'image') {
+                        openLibraryImage(f);
+                    } else {
+                        openFileViewer(f.url, f.filename);
+                    }
                 };
             });
             const delBtn = el.querySelector('.lib-del-btn');

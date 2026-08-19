@@ -9435,7 +9435,8 @@
                     });
                     sel.appendChild(optgroup);
                 });
-                if (current) sel.value = current;
+                const stored = (userSettingsSnapshot && userSettingsSnapshot.default_model) || current || 'gemini-3.6-flash';
+                if (stored && Array.from(sel.options).some(o => o.value === stored)) sel.value = stored;
             };
             const populateDefaultVisionModelOptions = () => {
                 const sel = get('set-default-vision-model');
@@ -9458,11 +9459,13 @@
                     });
                     sel.appendChild(optgroup);
                 });
-                if (current) sel.value = current;
+                const stored = (userSettingsSnapshot && userSettingsSnapshot.default_vision_model) || current || 'gemini-3-flash-preview';
+                if (stored && Array.from(sel.options).some(o => o.value === stored)) sel.value = stored;
             };
 
-            window.openSettingsModal = () => {
+            window.openSettingsModal = async () => {
                 snapshotSidebarHistory('settings-open-before');
+                await ensureUserSettingsSnapshot();
                 const searchEl = get('search-box');
                 const preservedThreadSearch = searchEl ? searchEl.value : '';
                 clearTimeout(searchTimeout);

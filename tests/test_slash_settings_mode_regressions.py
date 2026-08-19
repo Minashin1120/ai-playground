@@ -132,6 +132,34 @@ class SlashSettingsModeRegressionTests(unittest.TestCase):
         self.assertIn("activateTypedSlashCommand(input)", direct)
         self.assertIn("input.focus()", direct)
 
+    def test_palette_filter_uses_leading_command_token(self):
+        source = _chat_core_source()
+        self.assertIn("function extractSlashCommandToken(val)", source)
+        helper = source[source.index("function extractSlashCommandToken(val)") :]
+        helper = helper[: helper.index("function hideSlashCommandSuggestions()")]
+        self.assertIn("token.match(/^[a-z][\\w-]*/i)", helper)
+
+        input_handler = source[source.index("get('prompt-input').addEventListener('input'") :]
+        input_handler = input_handler[: input_handler.index("get('prompt-input').addEventListener('blur'")]
+        slash_branch = input_handler[input_handler.index("} else if (val.startsWith('/')) {") :]
+        slash_branch = slash_branch[: slash_branch.index("} else {")]
+        self.assertIn("extractSlashCommandToken(val)", slash_branch)
+        self.assertNotIn("val.substring(1)", slash_branch)
+
+    def test_keyboard_navigation_also_uses_leading_command_token(self):
+        source = _chat_core_source()
+        keydown = source[source.index("// Slash command keyboard navigation") :]
+        keydown = keydown[: keydown.index("// Cancel pending slash command mode with Escape")]
+        self.assertEqual(keydown.count("extractSlashCommandToken(input.value)"), 3)
+        self.assertNotIn("input.value.trim().substring(1)", keydown)
+
+    def test_selecting_command_keeps_text_following_command_without_space(self):
+        source = _chat_core_source()
+        selector = source[source.index("function selectSlashCommand(cmdId)") :]
+        selector = selector[: selector.index("function activateTypedSlashCommand(input)")]
+        self.assertIn("extractSlashCommandToken(val)", selector)
+        self.assertIn("trimmed.substring(1 + token.length).trimStart()", selector)
+
 
 if __name__ == "__main__":
     unittest.main()

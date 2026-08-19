@@ -10612,20 +10612,20 @@
                     if (e.key === 'ArrowDown') {
                         e.preventDefault();
                         slashSelectedIndex = Math.min(slashSelectedIndex + 1, SLASH_COMMANDS.length - 1);
-                        showSlashCommandSuggestions(input.value.trim().substring(1));
+                        showSlashCommandSuggestions(extractSlashCommandToken(input.value));
                         return;
                     }
                     if (e.key === 'ArrowUp') {
                         e.preventDefault();
                         slashSelectedIndex = Math.max(slashSelectedIndex - 1, 0);
-                        showSlashCommandSuggestions(input.value.trim().substring(1));
+                        showSlashCommandSuggestions(extractSlashCommandToken(input.value));
                         return;
                     }
                     if (e.key === 'Enter') {
                         e.preventDefault();
                         // Pick the currently highlighted (or first)
                         const filtered = SLASH_COMMANDS.filter(c =>
-                            c.label.toLowerCase().includes(input.value.trim().substring(1).toLowerCase())
+                            c.label.toLowerCase().includes((extractSlashCommandToken(input.value) || '').toLowerCase())
                         );
                         if (filtered[slashSelectedIndex]) {
                             selectSlashCommand(filtered[slashSelectedIndex].id);
@@ -10744,7 +10744,7 @@
                         showGemSuggestions(filter);
                         if (slashSuggestionsVisible) hideSlashCommandSuggestions();
                     } else if (val.startsWith('/')) {
-                        const filter = val.substring(1);
+                        const filter = extractSlashCommandToken(val);
                         showSlashCommandSuggestions(filter);
                         if (gemSuggestionsVisible) hideGemSuggestions();
                     } else {
@@ -15707,6 +15707,19 @@
         }
 
         // === Slash command palette helpers ===
+        // Extract the leading slash command token (Latin word chars) from the
+        // input, so text typed right after the command name without a space
+        // (e.g. "/settingsデフォルトモデルを...") does not prevent the palette
+        // from recognizing the command. Returns null when the input does not
+        // begin with '/'.
+        function extractSlashCommandToken(val) {
+            const trimmed = String(val || '').trimStart();
+            if (!trimmed.startsWith('/')) return null;
+            const token = trimmed.substring(1).split(/\s+/)[0] || '';
+            const m = token.match(/^[a-z][\w-]*/i);
+            return m ? m[0] : token;
+        }
+
         function hideSlashCommandSuggestions() {
             const box = get('slash-command-suggestions');
             if (box) box.classList.add('hidden');
@@ -15840,13 +15853,22 @@
             if (!input) return;
 
             const val = input.value;
-            // Find the last '/' before cursor or end, and remove from there to the command
-            const lastSlash = val.lastIndexOf('/');
-            if (lastSlash !== -1) {
-                // Keep everything before the command start
-                input.value = val.substring(0, lastSlash).trimEnd();
+            const token = extractSlashCommandToken(val);
+            if (token !== null) {
+                // Input begins with a slash command token, possibly followed
+                // by argument text typed without a space. Strip only the
+                // command part and keep the rest as the instruction.
+                const trimmed = String(val || '').trimStart();
+                input.value = trimmed.substring(1 + token.length).trimStart();
             } else {
-                input.value = '';
+                // Find the last '/' before cursor or end, and remove from there to the command
+                const lastSlash = val.lastIndexOf('/');
+                if (lastSlash !== -1) {
+                    // Keep everything before the command start
+                    input.value = val.substring(0, lastSlash).trimEnd();
+                } else {
+                    input.value = '';
+                }
             }
 
             hideSlashCommandSuggestions();

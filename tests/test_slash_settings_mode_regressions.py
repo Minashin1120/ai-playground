@@ -91,20 +91,21 @@ class SlashSettingsModeRegressionTests(unittest.TestCase):
         self.assertIn("selectSlashCommand(cmd.id)", palette[pointerdown:click])
         self.assertIn("if (!selectedByPointer)", palette[click:append])
 
-    def test_typed_or_pasted_settings_command_enters_visible_mode(self):
+    def test_typed_or_pasted_command_is_not_committed_until_enter_or_click(self):
         source = _chat_core_source()
-        helper = source[source.index("function activateTypedSlashCommand(input)") :]
-        helper = helper[: helper.index("// === Gem suggestion helpers")]
-
-        self.assertIn("input.value.match", helper)
-        self.assertIn("pendingSlashCommand = cmd.id", helper)
-        self.assertIn("showPendingSlashCommandIndicator(cmd.id)", helper)
-        self.assertIn("input.value = match[2]", helper)
+        self.assertNotIn("function activateTypedSlashCommand(input)", source)
+        self.assertNotIn("input.value = match[2]", source)
 
         input_handler = source[source.index("get('prompt-input').addEventListener('input'") :]
         input_handler = input_handler[: input_handler.index("get('prompt-input').addEventListener('blur'")]
-        self.assertIn("activateTypedSlashCommand(this)", input_handler)
+        self.assertNotIn("pendingSlashCommand = cmd.id", input_handler)
+        self.assertIn("extractSlashCommandToken(val)", input_handler)
         self.assertIn("if (pendingSlashCommand)", input_handler)
+
+        selector = source[source.index("function selectSlashCommand(cmdId)") :]
+        selector = selector[: selector.index("const AI_SETTING_JUMP_TARGETS")]
+        self.assertIn("pendingSlashCommand = cmdId", selector)
+        self.assertIn("showPendingSlashCommandIndicator(cmdId)", selector)
 
     def test_empty_pending_command_keeps_mode_active(self):
         source = _chat_core_source()
@@ -129,8 +130,18 @@ class SlashSettingsModeRegressionTests(unittest.TestCase):
         direct = direct[: direct.index("if (isGeminiLocalPythonMode")]
         self.assertIn("/^\\/settings(?:\\s|$)/i.test(trimmedRaw)", direct)
         self.assertNotIn("startsWith('/settings')", direct)
-        self.assertIn("activateTypedSlashCommand(input)", direct)
+        self.assertIn("showSlashCommandSuggestions(hintFilter)", direct)
         self.assertIn("input.focus()", direct)
+
+    def test_palette_rerenders_only_when_command_name_filter_changes(self):
+        source = _chat_core_source()
+        input_handler = source[source.index("get('prompt-input').addEventListener('input'") :]
+        input_handler = input_handler[: input_handler.index("get('prompt-input').addEventListener('blur'")]
+        slash_branch = input_handler[input_handler.index("} else if (val.startsWith('/')) {") :]
+        slash_branch = slash_branch[: slash_branch.index("} else {")]
+        self.assertIn("lastSlashFilter", slash_branch)
+        self.assertIn("filter !== lastSlashFilter", slash_branch)
+        self.assertIn("showSlashCommandSuggestions(filter)", slash_branch)
 
     def test_palette_filter_uses_leading_command_token(self):
         source = _chat_core_source()
@@ -156,7 +167,7 @@ class SlashSettingsModeRegressionTests(unittest.TestCase):
     def test_selecting_command_keeps_text_following_command_without_space(self):
         source = _chat_core_source()
         selector = source[source.index("function selectSlashCommand(cmdId)") :]
-        selector = selector[: selector.index("function activateTypedSlashCommand(input)")]
+        selector = selector[: selector.index("const AI_SETTING_JUMP_TARGETS")]
         self.assertIn("extractSlashCommandToken(val)", selector)
         self.assertIn("trimmed.substring(1 + token.length).trimStart()", selector)
 

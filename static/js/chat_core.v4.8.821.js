@@ -6623,6 +6623,7 @@
         ];
         let slashSuggestionsVisible = false;
         let slashSelectedIndex = 0;
+        let lastSlashFilter = null; // last filter the palette was rendered with
         let pendingSlashCommand = null; // 'settings' など。コマンド選択後に残る引数テキストで発動
         const AI_SETTINGS_CONVERSATION_KEY = `ai-settings-conversation:${(typeof CHAT_CONFIG !== 'undefined' && CHAT_CONFIG.currentUsername) || 'anonymous'}`;
         let aiSettingsConversation = [];
@@ -10730,26 +10731,32 @@
                     }
 
                     // Slash command / gem suggestion triggers
-                    if (activateTypedSlashCommand(this)) {
-                        if (gemSuggestionsVisible) hideGemSuggestions();
-                        schedulePromptTokenEstimate();
-                        return;
-                    }
                     const val = this.value.trim();
                     if (pendingSlashCommand) {
                         if (gemSuggestionsVisible) hideGemSuggestions();
                         if (slashSuggestionsVisible) hideSlashCommandSuggestions();
+                        lastSlashFilter = null;
                     } else if (val.startsWith('@')) {
                         const filter = val.substring(1);
                         showGemSuggestions(filter);
                         if (slashSuggestionsVisible) hideSlashCommandSuggestions();
+                        lastSlashFilter = null;
                     } else if (val.startsWith('/')) {
                         const filter = extractSlashCommandToken(val);
-                        showSlashCommandSuggestions(filter);
+                        // The command is only committed by pressing Enter or
+                        // clicking a palette item, never while typing. Also,
+                        // rebuild the list only when the command name being
+                        // typed changes; typing the instruction text after the
+                        // command must not re-render the palette each key.
+                        if (!slashSuggestionsVisible || filter !== lastSlashFilter) {
+                            lastSlashFilter = filter;
+                            showSlashCommandSuggestions(filter);
+                        }
                         if (gemSuggestionsVisible) hideGemSuggestions();
                     } else {
                         if (gemSuggestionsVisible) hideGemSuggestions();
                         if (slashSuggestionsVisible) hideSlashCommandSuggestions();
+                        lastSlashFilter = null;
                     }
                 });
 
@@ -15883,25 +15890,6 @@
             input.dispatchEvent(new Event('input', { bubbles: true }));
         }
 
-        function activateTypedSlashCommand(input) {
-            if (!input || pendingSlashCommand) return false;
-
-            // A space after an exact command means the user has committed to it,
-            // even when they typed or pasted it instead of choosing the palette.
-            const match = input.value.match(/^\s*\/([a-z][\w-]*)\s+([\s\S]*)$/i);
-            if (!match) return false;
-            const cmd = SLASH_COMMANDS.find((item) => item.id.toLowerCase() === match[1].toLowerCase());
-            if (!cmd) return false;
-
-            input.value = match[2];
-            hideSlashCommandSuggestions();
-            pendingSlashCommand = cmd.id;
-            showPendingSlashCommandIndicator(cmd.id);
-            input.style.height = 'auto';
-            input.style.height = `${input.scrollHeight}px`;
-            return true;
-        }
-
         const AI_SETTING_JUMP_TARGETS = {
             default_model: { label: '既定のモデル', tab: 'general', control: 'set-default-model' },
             default_vision_model: { label: 'Vision Model', tab: 'general', control: 'set-default-vision-model' },
@@ -16727,7 +16715,9 @@
                     showToast('使い方: /settings デフォルトモデルを gemini-2.5-flash に変更して thinking をオンに', 'info');
                     const input = get('prompt-input');
                     input.value = '/settings ';
-                    activateTypedSlashCommand(input);
+                    const hintFilter = extractSlashCommandToken(input.value);
+                    lastSlashFilter = hintFilter;
+                    showSlashCommandSuggestions(hintFilter);
                     input.focus();
                     return;
                 }

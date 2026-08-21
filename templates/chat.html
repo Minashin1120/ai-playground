@@ -498,9 +498,17 @@
                             <option value="auto">Auto</option>
                             <option value="1:1" selected>1:1 (Square)</option>
                             <option value="16:9">16:9 (Landscape)</option>
+                            <option value="9:16">9:16 (Portrait)</option>
                             <option value="4:3">4:3</option>
                             <option value="3:4">3:4</option>
-                            <option value="9:16">9:16 (Portrait)</option>
+                            <option value="3:2">3:2</option>
+                            <option value="2:3">2:3</option>
+                            <option value="2:1">2:1</option>
+                            <option value="1:2">1:2</option>
+                            <option value="19.5:9">19.5:9</option>
+                            <option value="9:19.5">9:19.5</option>
+                            <option value="20:9">20:9</option>
+                            <option value="9:20">9:20</option>
                         </select>
                     </div>
                     <div class="flex items-center gap-2">
@@ -508,6 +516,13 @@
                         <select id="grok-image-resolution" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
                             <option value="1k" selected>1K</option>
                             <option value="2k">2K</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2 hidden">
+                        <span class="text-gray-400">Quality</span>
+                        <select id="grok-image-quality" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="medium" selected>Medium</option>
+                            <option value="low">Low</option>
                         </select>
                     </div>
                     <div class="flex items-center gap-2">
@@ -1066,9 +1081,17 @@
                                 <option value="auto">Auto</option>
                                 <option value="1:1">1:1 (Square)</option>
                                 <option value="16:9">16:9 (Landscape)</option>
+                                <option value="9:16">9:16 (Portrait)</option>
                                 <option value="4:3">4:3</option>
                                 <option value="3:4">3:4</option>
-                                <option value="9:16">9:16 (Portrait)</option>
+                                <option value="3:2">3:2</option>
+                                <option value="2:3">2:3</option>
+                                <option value="2:1">2:1</option>
+                                <option value="1:2">1:2</option>
+                                <option value="19.5:9">19.5:9</option>
+                                <option value="9:19.5">9:19.5</option>
+                                <option value="20:9">20:9</option>
+                                <option value="9:20">9:20</option>
                             </select>
                         </div>
                         <div>
@@ -1076,6 +1099,13 @@
                             <select id="modal-grok-image-resolution" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
                                 <option value="1k">1K</option>
                                 <option value="2k">2K</option>
+                            </select>
+                        </div>
+                        <div class="hidden">
+                            <label class="text-xs text-gray-400 block mb-1">Quality</label>
+                            <select id="modal-grok-image-quality" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
+                                <option value="medium">Medium</option>
+                                <option value="low">Low</option>
                             </select>
                         </div>
                     </div>

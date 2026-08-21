@@ -483,6 +483,7 @@
             sync('gemini-image-size', 'modal-gemini-image-size');
             sync('grok-image-aspect', 'modal-grok-image-aspect');
             sync('grok-image-resolution', 'modal-grok-image-resolution');
+            sync('grok-image-quality', 'modal-grok-image-quality');
             sync('ocr-table-format', 'modal-ocr-table-format');
             sync('ocr-pages', 'modal-ocr-pages');
             const syncChk = (srcId, destId) => {
@@ -6367,6 +6368,7 @@
                 icon: "fas fa-magic text-blue-400",
                 description: "Grok generation models",
                 items: [
+                    { id: "grok-imagine-image-2.0", implementedAt: "2026-08-22", implementedRank: 8250, quickEmoji: "🎨", name: "Grok Imagine Image 2.0", desc: "Precise image generation and editing with 1K/2K output and low/medium quality control.", price: "from $0.04 / image" },
                     { id: "grok-imagine-image-quality", implementedAt: "2026-05-09", implementedRank: 5020, name: "Grok Imagine Image Quality", desc: "Next-gen Grok image generation with 1K/2K support.", price: "$0.05 / image" },
                     { id: "grok-imagine-image", implementedAt: "2026-01-30", implementedRank: 520, name: "Grok Imagine Image", desc: "Latest Grok image generation.", price: "$0.02 / image" },
                     { id: "grok-imagine-image-pro", implementedAt: "2026-02-01", implementedRank: 530, name: "Grok Imagine Image Pro", desc: "Discontinued by xAI. Retained for chat history compatibility.", price: "$0.07 / image", deprecated: true },
@@ -7658,11 +7660,17 @@
             if (!wrap) return;
             const model = (get('model-select').value || '').toLowerCase();
             const isGrokImg = isGrokImageModel();
+            const showResolution = model === 'grok-imagine-image-quality' || model === 'grok-imagine-image-2.0';
+            const showQuality = model === 'grok-imagine-image-2.0';
             if (isGrokImg) {
                 wrap.classList.remove('hidden');
                 const resWrap = get('grok-image-resolution') ? get('grok-image-resolution').parentElement : null;
                 if (resWrap) {
-                    resWrap.classList.toggle('hidden', model !== 'grok-imagine-image-quality');
+                    resWrap.classList.toggle('hidden', !showResolution);
+                }
+                const qualityWrap = get('grok-image-quality') ? get('grok-image-quality').parentElement : null;
+                if (qualityWrap) {
+                    qualityWrap.classList.toggle('hidden', !showQuality);
                 }
             } else {
                 wrap.classList.add('hidden');
@@ -7673,7 +7681,11 @@
             if (modalWrap) {
                 const resWrapModal = get('modal-grok-image-resolution') ? get('modal-grok-image-resolution').parentElement : null;
                 if (resWrapModal) {
-                    resWrapModal.classList.toggle('hidden', model !== 'grok-imagine-image-quality');
+                    resWrapModal.classList.toggle('hidden', !showResolution);
+                }
+                const qualityWrapModal = get('modal-grok-image-quality') ? get('modal-grok-image-quality').parentElement : null;
+                if (qualityWrapModal) {
+                    qualityWrapModal.classList.toggle('hidden', !showQuality);
                 }
             }
         }
@@ -16913,6 +16925,7 @@
                 gemini_image_size: isGeminiImageModel() && get('gemini-image-size') ? get('gemini-image-size').value : null,
                 grok_image_aspect: isGrokImageModel() && get('grok-image-aspect') ? get('grok-image-aspect').value : null,
                 grok_image_resolution: isGrokImageModel() && get('grok-image-resolution') ? get('grok-image-resolution').value : null,
+                grok_image_quality: isGrokImageModel() && get('grok-image-quality') ? get('grok-image-quality').value : null,
                 grok_video_duration: isGrokVideoModel() && get('grok-video-duration') ? get('grok-video-duration').value : null,
                 grok_video_aspect: isGrokVideoModel() && get('grok-video-aspect') ? get('grok-video-aspect').value : null,
                 grok_video_resolution: isGrokVideoModel() && get('grok-video-resolution') ? get('grok-video-resolution').value : null,
@@ -18819,6 +18832,7 @@
             syncBack('modal-gemini-image-size', 'gemini-image-size');
             syncBack('modal-grok-image-aspect', 'grok-image-aspect');
             syncBack('modal-grok-image-resolution', 'grok-image-resolution');
+            syncBack('modal-grok-image-quality', 'grok-image-quality');
             syncBack('modal-ocr-table-format', 'ocr-table-format');
             syncBack('modal-ocr-pages', 'ocr-pages');
             const syncBackChk = (modalId, targetId) => {

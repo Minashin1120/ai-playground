@@ -42,11 +42,11 @@ class WelcomeQuickStartRegressionTests(unittest.TestCase):
         self.assertEqual(
             top5,
             [
+                "grok-imagine-image-2.0",
                 "grok-4.6",
                 "grok-4.5",
                 "mistral-ocr-4-0",
                 "gemini-3.7-flash",
-                "deepseek-v4-flash-0731",
             ],
         )
 

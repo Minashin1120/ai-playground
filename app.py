@@ -737,8 +737,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-22-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.824'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-22-003')
+app.config['SYSTEM_VERSION'] = 'V4.8.825'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1928,7 +1928,7 @@ ALL_VALID_MODEL_IDS = {
     "gemini-2.5-flash-native-audio-preview-12-2025", "gemini-3.1-flash-live-preview",
     "grok-voice-latest", "grok-voice-think-fast-1.0", "grok-voice-fast-1.0", "grok-voice-agent",
     # Grok Imagine
-    "grok-imagine-image-quality", "grok-imagine-image", "grok-imagine-image-pro", "grok-imagine-video",
+    "grok-imagine-image-2.0", "grok-imagine-image-quality", "grok-imagine-image", "grok-imagine-image-pro", "grok-imagine-video",
     # xAI Grok
     "grok-4.6", "grok-4.5", "grok-4.3", "grok-build-0.1",
     "grok-4.20-reasoning", "grok-4.20-non-reasoning", "grok-4.20-multi-agent",
@@ -8349,7 +8349,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     return True
                 if "gpt-image" in mk:
                     return True
-                if mk in ("grok-imagine-image", "grok-imagine-image-pro", "grok-imagine-video"):
+                if mk in (
+                    "grok-imagine-image-2.0",
+                    "grok-imagine-image",
+                    "grok-imagine-image-pro",
+                    "grok-imagine-image-quality",
+                    "grok-imagine-video",
+                ):
                     return True
                 if "tts" in mk:
                     return True
@@ -10304,13 +10310,28 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             log_force(f"Gemini local python failed: {e}")
 
             # --- 1.5 Grok Imagine Image Generation ---
-            elif model_key in ("grok-imagine-image", "grok-imagine-image-pro", "grok-imagine-image-quality"):
+            elif model_key in (
+                "grok-imagine-image-2.0",
+                "grok-imagine-image",
+                "grok-imagine-image-pro",
+                "grok-imagine-image-quality",
+            ):
                 log_force("Routing: Grok Imagine Branch")
                 try:
                     pub("status", "画像を生成中...")
                     
                     aspect_ratio = options.get('grok_image_aspect') or "1:1"
-                    resolution = options.get('grok_image_resolution') or "1k"
+                    resolution = str(options.get('grok_image_resolution') or "1k").lower().strip()
+                    if resolution not in ("1k", "2k"):
+                        resolution = "1k"
+                    quality = str(options.get('grok_image_quality') or "medium").lower().strip()
+                    if quality not in ("low", "medium"):
+                        quality = "medium"
+                    grok_supports_resolution = model_key in (
+                        "grok-imagine-image-2.0",
+                        "grok-imagine-image-quality",
+                    )
+                    grok_supports_quality = model_key == "grok-imagine-image-2.0"
                     grok_prompt, history_image_parts = _build_non_llm_image_context(final_message_text)
                     
                     img_response_format = "b64_json"
@@ -10320,12 +10341,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         "n": 1,
                         "response_format": img_response_format
                     }
-                    # aspect_ratio is an xAI-specific parameter; pass via extra_body for generate
+                    # aspect_ratio / resolution / quality are xAI-specific; pass via extra_body
                     eb = {}
                     if aspect_ratio:
                         eb["aspect_ratio"] = aspect_ratio
-                    if model_key == "grok-imagine-image-quality":
+                    if grok_supports_resolution:
                         eb["resolution"] = resolution
+                    if grok_supports_quality:
+                        eb["quality"] = quality
 
                     img_inputs = []
                     for fi in loaded_files:
@@ -10355,12 +10378,17 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                     img_data_b64 = None
                     if img_inputs:
-                        # Use first image for editing as per docs.
                         # xAI image edits expect JSON (not multipart), so send base64.
-                        img_bytes = img_inputs[0][1]
-                        img_mime = img_inputs[0][2] if len(img_inputs[0]) > 2 else "image/png"
-                        img_b64 = base64.b64encode(img_bytes).decode("utf-8")
-                        img_data_url = f"data:{img_mime};base64,{img_b64}"
+                        # Multi-image editing accepts up to 3 references via `images`.
+                        image_payloads = []
+                        for img_entry in img_inputs[:3]:
+                            img_bytes = img_entry[1]
+                            img_mime = img_entry[2] if len(img_entry) > 2 else "image/png"
+                            img_b64 = base64.b64encode(img_bytes).decode("utf-8")
+                            image_payloads.append({
+                                "url": f"data:{img_mime};base64,{img_b64}",
+                                "type": "image_url",
+                            })
                         endpoint = f"https://{_XAI_API_HOST}/v1/images/edits"
                         headers = {
                             "Authorization": f"Bearer {key}",
@@ -10370,13 +10398,18 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         payload = {
                             "model": model_key,
                             "prompt": grok_prompt,
-                            "image": {"url": img_data_url},
                             "response_format": img_response_format
                         }
+                        if len(image_payloads) == 1:
+                            payload["image"] = image_payloads[0]
+                        else:
+                            payload["images"] = image_payloads
                         if aspect_ratio:
                             payload["aspect_ratio"] = aspect_ratio
-                        if model_key == "grok-imagine-image-quality":
+                        if grok_supports_resolution:
                             payload["resolution"] = resolution
+                        if grok_supports_quality:
+                            payload["quality"] = quality
                         _mark_provider_request_started()
                         resp = httpx.post(endpoint, headers=headers, json=payload, timeout=120)
                         if resp.status_code >= 400:
@@ -14165,6 +14198,8 @@ def chat_stream():
         'gemini_image_aspect': data.get('gemini_image_aspect'),
         'gemini_image_size': data.get('gemini_image_size'),
         'grok_image_aspect': data.get('grok_image_aspect'),
+        'grok_image_resolution': data.get('grok_image_resolution'),
+        'grok_image_quality': data.get('grok_image_quality'),
         'grok_image_format': data.get('grok_image_format'),
         'grok_video_duration': data.get('grok_video_duration'),
             'grok_video_aspect': data.get('grok_video_aspect'),

@@ -1,7 +1,9 @@
 import base64
 import io
 import os
+import tempfile
 import unittest
+from unittest import mock
 
 from PIL import Image
 
@@ -238,6 +240,83 @@ class AgenticImageRegressionTests(unittest.TestCase):
         self.assertNotIn("![Agentic View](/files/1/agentic_abc.png)", out)
         self.assertIn("![背景透過ロゴ](/files/1/agentic_abc.png)", out)
         self.assertEqual(consumed, ["/files/1/agentic_abc.png"])
+
+    def test_verified_save_returns_url_when_file_lands(self):
+        """A successful write that is confirmed on disk must return its URL."""
+        names = []
+        def make_name():
+            fname = f"agentic_test_{len(names)}_{target.os.urandom(3).hex()}.png"
+            names.append(fname)
+            return fname
+
+        def fake_save(user_id, data, fname, encrypt):
+            fdir = os.path.join(target.app.config["UPLOAD_FOLDER"], str(user_id))
+            os.makedirs(fdir, mode=0o700, exist_ok=True)
+            with open(os.path.join(fdir, fname), "wb") as fh:
+                fh.write(data)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(target.app.config, {"UPLOAD_FOLDER": tmp}), \
+                 mock.patch.object(target, "_save_user_generated_bytes", side_effect=fake_save):
+                fname, url = target._save_user_generated_bytes_verified(
+                    7, b"fake-bytes", make_name, False,
+                )
+                landed = os.path.exists(os.path.join(tmp, "7", fname))
+
+        self.assertIn(fname, names)
+        self.assertEqual(url, f"/files/7/{fname}")
+        self.assertTrue(landed)
+
+    def test_verified_save_retries_when_write_is_silently_lost(self):
+        """If the first save produces no on-disk file, a fresh filename is tried."""
+        attempts = []
+        def fake_save(user_id, data, fname, encrypt):
+            attempts.append(fname)
+            # First attempt silently loses the write; the second one lands.
+            if len(attempts) == 2:
+                fdir = os.path.join(target.app.config["UPLOAD_FOLDER"], str(user_id))
+                os.makedirs(fdir, mode=0o700, exist_ok=True)
+                with open(os.path.join(fdir, fname), "wb") as fh:
+                    fh.write(data)
+
+        def make_name():
+            return f"agentic_test_{len(attempts)}.png"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(target.app.config, {"UPLOAD_FOLDER": tmp}), \
+                 mock.patch.object(target, "_save_user_generated_bytes", side_effect=fake_save):
+                fname, url = target._save_user_generated_bytes_verified(
+                    7, b"fake-bytes", make_name, False,
+                )
+
+        self.assertEqual(len(attempts), 2)
+        self.assertNotEqual(attempts[0], attempts[1])
+        self.assertEqual(fname, attempts[1])
+        self.assertEqual(url, f"/files/7/{attempts[1]}")
+
+    def test_verified_save_raises_after_all_attempts_fail(self):
+        def fake_save(user_id, data, fname, encrypt):
+            raise ValueError("storage limit exceeded")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(target.app.config, {"UPLOAD_FOLDER": tmp}), \
+                 mock.patch.object(target, "_save_user_generated_bytes", side_effect=fake_save):
+                with self.assertRaisesRegex(ValueError, "storage limit exceeded"):
+                    target._save_user_generated_bytes_verified(
+                        7, b"fake-bytes", lambda: "agentic_x.png", False,
+                    )
+
+    def test_verified_save_raises_when_file_vanishes_after_every_attempt(self):
+        def fake_save(user_id, data, fname, encrypt):
+            pass  # reports success but never writes anything
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(target.app.config, {"UPLOAD_FOLDER": tmp}), \
+                 mock.patch.object(target, "_save_user_generated_bytes", side_effect=fake_save):
+                with self.assertRaisesRegex(RuntimeError, "on-disk verification"):
+                    target._save_user_generated_bytes_verified(
+                        7, b"fake-bytes", lambda: "agentic_x.png", False,
+                    )
 
 
 if __name__ == "__main__":

@@ -737,8 +737,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-22-004')
-app.config['SYSTEM_VERSION'] = 'V4.8.826'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-23-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.827'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -8548,7 +8548,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
             def _deepseek_reasoning_effort():
                 raw = (options.get('reasoning_effort') or "").lower().strip()
-                if model_key_l in {"deepseek-v4-flash-0731", "deepseek-v4-flash"}:
+                if model_key_l in {"deepseek-v4-flash-0731", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp"}:
                     if raw in ("low", "high", "max"):
                         return raw
                     # DeepSeek maps compatibility values medium/xhigh to high.
@@ -11477,12 +11477,38 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if sys_prompt:
                         messages.append({"role": "system", "content": sys_prompt})
 
+                    # DeepSeek V4 Flash Vision Exp accepts images natively via OpenAI-compatible
+                    # image_url content blocks (official Vision guide). Other DeepSeek V4
+                    # models remain text-only and use the vision-analysis fallback below.
+                    deepseek_native_vision = "vision-exp" in model_key_l
+                    ds_history_img_seen = set()
+                    ds_history_img_bytes = 0
+
                     for m in history:
                         saved_tool_context = m.get("deepseek_tool_context")
                         if m.get("role") == "assistant" and isinstance(saved_tool_context, list):
                             for saved_message in saved_tool_context:
                                 if isinstance(saved_message, dict) and saved_message.get("role") in {"assistant", "tool"}:
                                     messages.append(saved_message)
+                        elif deepseek_native_vision and m.get('image_url'):
+                            try:
+                                ds_content_parts = [{"type": "text", "text": m['content'] or ""}]
+                                ds_msg_images, ds_history_img_bytes = _load_message_history_images(
+                                    m.get('image_url'),
+                                    seen=ds_history_img_seen,
+                                    total_bytes=ds_history_img_bytes,
+                                    include_only_images=True
+                                )
+                                for ds_msg_img in ds_msg_images:
+                                    ds_b64 = base64.b64encode(ds_msg_img['bytes']).decode('utf-8')
+                                    ds_content_parts.append({
+                                        "type": "image_url",
+                                        "image_url": {"url": f"data:{ds_msg_img['mime']};base64,{ds_b64}"}
+                                    })
+                                messages.append({"role": m['role'], "content": ds_content_parts})
+                            except Exception as ds_hist_err:
+                                log_force(f"Error processing history image in DeepSeek branch: {ds_hist_err}")
+                                messages.append({"role": m['role'], "content": m['content']})
                         else:
                             messages.append({"role": m['role'], "content": m['content']})
 
@@ -11497,8 +11523,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if fi.get('text') and not (fi.get('bytes') and str(fi.get('mime', '')).startswith('image/')):
                             user_text += f"\n\n[File: {fi.get('send_name') or fi.get('name') or 'file'}]\n{fi['text']}"
 
-                    # If images are present, analyze them with a vision model (DeepSeek V4 does not support images)
-                    if image_files:
+                    # If images are present, analyze them with a vision model unless the selected
+                    # DeepSeek model accepts image inputs natively (DeepSeek V4 Flash Vision Exp).
+                    if image_files and not deepseek_native_vision:
                         vision_model = (options.get('image_vision_model') or "").strip()
                         analysis_prompt = _auto_notice_text("image_analysis") or DEFAULT_IMAGE_ANALYSIS_PROMPT
                         if not vision_model:
@@ -11535,11 +11562,30 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             pub("error", "画像の解析に失敗しました。Vision Model の API 設定を確認してください。")
                             return
 
-                    if not user_text.strip():
+                    deepseek_user_content = None
+                    if image_files and deepseek_native_vision:
+                        # Native vision path: attach images inline as OpenAI-compatible
+                        # base64 data URL blocks alongside the text turn.
+                        deepseek_user_content = []
+                        if user_text.strip():
+                            deepseek_user_content.append({"type": "text", "text": user_text})
+                        for ds_idx, ds_file in enumerate(image_files):
+                            ds_img_b64 = base64.b64encode(ds_file.get('bytes') or b"").decode("utf-8")
+                            ds_img_mime = str(ds_file.get('mime', 'image/png')) or "image/png"
+                            deepseek_user_content.append({
+                                "type": "image_url",
+                                "image_url": {"url": f"data:{ds_img_mime};base64,{ds_img_b64}"}
+                            })
+                            pub("image_analysis", f"画像 {ds_idx+1}/{len(image_files)} を送信対象に追加")
+
+                    if not user_text.strip() and deepseek_user_content is None:
                         pub("error", "DeepSeek request is empty.")
                         return
 
-                    messages.append({"role": "user", "content": user_text})
+                    if deepseek_user_content is not None:
+                        messages.append({"role": "user", "content": deepseek_user_content})
+                    else:
+                        messages.append({"role": "user", "content": user_text})
                     enable_reasoning = (
                         req_reasoning_effort != "none"
                         and (bool(options.get('enable_thinking')) or bool(req_reasoning_effort))

@@ -1,5 +1,6 @@
 import os
 import unittest
+from pathlib import Path
 
 
 os.environ.setdefault("FLASK_SECRET_KEY", "gemini-agentic-timeout-test-secret")
@@ -9,6 +10,8 @@ os.environ.setdefault("RUN_SCHEMA_MIGRATIONS", "0")
 os.environ.setdefault("VERBOSE_DEBUG_LOGS", "0")
 
 import app as target
+
+APP_SOURCE = Path(__file__).resolve().parents[1].joinpath("app.py").read_text(encoding="utf-8")
 
 
 class GeminiAgenticTimeoutRegressionTests(unittest.TestCase):
@@ -40,6 +43,34 @@ class GeminiAgenticTimeoutRegressionTests(unittest.TestCase):
         formatted = target._format_gemini_runtime_error(err, "gemini_api")
         self.assertIn("504 DEADLINE_EXCEEDED", formatted)
         self.assertIn("時間を超えました", formatted)
+
+    def test_code_execution_guidance_mentions_sandbox_runtime_limit(self):
+        self.assertIn("30 seconds", target.GEMINI_CODE_EXECUTION_GUIDANCE)
+        self.assertIn("downscale", target.GEMINI_CODE_EXECUTION_GUIDANCE.lower())
+        self.assertIn("per-pixel", target.GEMINI_CODE_EXECUTION_GUIDANCE.lower())
+
+    def test_guidance_appended_when_code_execution_tool_enabled(self):
+        block_start = APP_SOURCE.index(
+            "conf['tools'].append(types.Tool(code_execution=types.ToolCodeExecution()))"
+        )
+        block_end = APP_SOURCE.index(
+            "if options.get('system_prompt') and 'system_instruction' not in conf:",
+            block_start,
+        )
+        block = APP_SOURCE[block_start:block_end]
+        self.assertIn("conf['http_options'] = types.HttpOptions(timeout=_GEMINI_AGENTIC_TIMEOUT_MS)", block)
+        self.assertIn("GEMINI_CODE_EXECUTION_GUIDANCE", block)
+        self.assertIn("system_instruction", block)
+
+    def test_base_system_prompt_still_applied_when_python_off(self):
+        self.assertIn(
+            "if options.get('system_prompt') and 'system_instruction' not in conf:",
+            APP_SOURCE,
+        )
+        self.assertIn(
+            "conf['system_instruction'] = options.get('system_prompt')",
+            APP_SOURCE,
+        )
 
 
 if __name__ == "__main__":

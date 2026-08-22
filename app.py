@@ -293,8 +293,9 @@ def _format_gemini_runtime_error(err, backend="gemini_api"):
         if "DEADLINE_EXCEEDED" in str(err) or "504" in str(err):
             return (
                 "Gemini APIの応答が制限時間を超えました（504 DEADLINE_EXCEEDED）。"
-                "サーバー側でのPython実行・処理に時間がかかっています。"
-                "数分待って再度お試しください。"
+                "Pythonコード実行時は、実行環境の制限時間（最大約30秒）を超えるとこのエラーが発生します。"
+                "処理を簡潔にするか、画像を小さくしてから再試行してください。"
+                "改善しない場合はPythonを無効にして再度お試しください。"
             )
     except Exception:
         pass
@@ -737,8 +738,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-23-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.828'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-23-003')
+app.config['SYSTEM_VERSION'] = 'V4.8.829'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -6067,6 +6068,19 @@ def get_bot_detection_global_enabled():
     return get_bool_app_setting("bot_detection_global_enabled", True)
 
 AUTO_SYSTEM_PROMPT_NOTICE_PYTHON = "Python execution is available; you can run Python code when needed."
+# Google's code-execution sandbox enforces a hard runtime limit (~30 seconds) that
+# the request timeout (X-Server-Timeout) cannot extend. When the model writes slow
+# code for heavy tasks (e.g. image mosaic/blur on large photos), the API returns
+# 504 DEADLINE_EXCEEDED before the code finishes. This guidance is appended to the
+# system instruction so the model keeps its code inside the sandbox deadline.
+GEMINI_CODE_EXECUTION_GUIDANCE = (
+    "The Python code execution sandbox has a maximum runtime of about 30 seconds per "
+    "execution, and this limit cannot be extended. Write code that finishes quickly. "
+    "For image processing: downscale or crop the image first, use vectorized "
+    "PIL/NumPy/OpenCV operations, and avoid slow per-pixel Python loops. "
+    "If the image is very large, resize it before applying heavy filters. "
+    "Do not embed the input image as base64 data in your code."
+)
 AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON = (
     "Python execution is available locally. To run code, include a python fenced block "
     "that starts with '# EXECUTE' on the first line."
@@ -9476,7 +9490,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         # Agentic View runs Python server-side; give it a longer
                         # deadline so it doesn't hit 504 DEADLINE_EXCEEDED.
                         conf['http_options'] = types.HttpOptions(timeout=_GEMINI_AGENTIC_TIMEOUT_MS)
-                    if options.get('system_prompt'):
+                        # The sandbox still has its own hard runtime limit (~30s) that
+                        # the request timeout cannot extend, so also guide the model to
+                        # write code that finishes within it (especially for image edits).
+                        if options.get('system_prompt'):
+                            conf['system_instruction'] = (
+                                f"{options.get('system_prompt')}\n\n{GEMINI_CODE_EXECUTION_GUIDANCE}"
+                            )
+                        else:
+                            conf['system_instruction'] = GEMINI_CODE_EXECUTION_GUIDANCE
+                    if options.get('system_prompt') and 'system_instruction' not in conf:
                         conf['system_instruction'] = options.get('system_prompt')
                     
                     contents = []

@@ -737,8 +737,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-22-003')
-app.config['SYSTEM_VERSION'] = 'V4.8.825'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-22-004')
+app.config['SYSTEM_VERSION'] = 'V4.8.826'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2450,34 +2450,86 @@ def _prepare_agentic_image_bytes(data, declared_mime=None):
     return data, extension
 
 
-_SANDBOX_IMG_REF_RE = re.compile(r"!\[([^\]]*)\]\(\s*sandbox:/mnt/data/[^)\s]*\)")
+_SANDBOX_IMG_REF_RE = re.compile(
+    r"!\[([^\]]*)\]\(\s*((?:sandbox:/mnt/data/|/mnt/data/)?[\w.\-]+\.(?:png|jpe?g|webp|gif|bmp))[^)\s]*\)",
+    re.I,
+)
+
+_SANDBOX_IMAGE_EXTENSIONS = frozenset({"png", "jpg", "jpeg", "webp", "gif", "bmp"})
+
+_PY_SANDBOX_OUTPUT_IMAGE_RE = re.compile(
+    r"""\.(?:save|savefig|imsave|imwrite|tofile|export)\s*\(\s*["']([^"']+\.(?:png|jpe?g|webp|gif|bmp))["']""",
+    re.I,
+)
 
 
-def _rewrite_sandbox_image_refs(text, saved_urls, consumed_urls):
+def _extract_sandbox_image_filenames(code):
+    """Return output image filenames written by Python sandbox code.
+
+    Gemini code-execution names the files it produces inside the code it runs
+    (e.g. ``img.save("result.png")``) while the produced bytes are streamed
+    back separately as inline_data.  Matching the save-name to the streamed
+    bytes lets a bare ``![alt](result.png)`` reference in the model's final
+    answer resolve to the locally saved /files/... URL.
+    """
+    if not code:
+        return []
+    found = []
+    for match in _PY_SANDBOX_OUTPUT_IMAGE_RE.finditer(str(code)):
+        fname = os.path.basename(match.group(1).strip())
+        if fname and fname not in found:
+            found.append(fname)
+    return found
+
+
+def _sandbox_ref_basename(url):
+    """Return the image basename of a sandbox-style reference URL, else None."""
+    base = os.path.basename(str(url or "").strip())
+    if "." in base and base.rsplit(".", 1)[-1].lower() in _SANDBOX_IMAGE_EXTENSIONS:
+        return base
+    return None
+
+
+def _rewrite_sandbox_image_refs(text, saved_urls, consumed_urls, filename_url_map=None):
     """
     Rewrite Gemini code-execution sandbox image references (e.g.
-    ![alt](sandbox:/mnt/data/name.png)) to locally saved /files/... URLs.
+    ![alt](sandbox:/mnt/data/name.png), ![alt](/mnt/data/name.png) or the bare
+    ![alt](name.png) the model writes for its final result) to locally saved
+    /files/... URLs.
 
     saved_urls is the live queue of agentic image URLs captured from
     inline_data during this request; references consume them in order.
-    References with no captured file are replaced with a short note so the
-    browser never renders an unloadable sandbox: URL.
+    filename_url_map maps sandbox basenames (e.g. "result.png") to saved
+    /files/ URLs so a bare reference to the model's output can be matched
+    without relying on order.  Unresolved sandbox:/mnt/data references are
+    replaced with a short note so the browser never renders an unloadable URL;
+    unresolved bare filenames are left as-is because they may be a legitimate
+    relative link.
     """
-    if not text or "sandbox:" not in text:
+    if not text or "![" not in text:
         return text
 
     def _repl(match):
         alt = match.group(1) or ""
+        url = match.group(2)
+        basename = _sandbox_ref_basename(url)
+        if filename_url_map and basename:
+            mapped = filename_url_map.get(basename.lower())
+            if mapped:
+                consumed_urls.append(mapped)
+                return f"![{alt}]({mapped})"
         if saved_urls:
-            url = saved_urls.pop(0)
-            consumed_urls.append(url)
-            return f"![{alt}]({url})"
-        return f"（※画像データを取得できませんでした: {alt}）"
+            resolved = saved_urls.pop(0)
+            consumed_urls.append(resolved)
+            return f"![{alt}]({resolved})"
+        if url.startswith("sandbox:") or url.startswith("/mnt/data/"):
+            return f"（※画像データを取得できませんでした: {alt}）"
+        return match.group(0)
 
     return _SANDBOX_IMG_REF_RE.sub(_repl, text)
 
 
-def _rewrite_streamed_sandbox_refs(delta, buffer_state, saved_urls, consumed_urls):
+def _rewrite_streamed_sandbox_refs(delta, buffer_state, saved_urls, consumed_urls, filename_url_map=None):
     """
     Process a streamed text delta, rewriting Gemini code-execution sandbox image
     references (e.g. ![alt](sandbox:/mnt/data/name.png)) to saved /files/... URLs.
@@ -2496,11 +2548,17 @@ def _rewrite_streamed_sandbox_refs(delta, buffer_state, saved_urls, consumed_url
         if not match:
             break
         out.append(pending[:match.start()])
-        if saved_urls:
-            alt = match.group(1) or ""
-            url = saved_urls.pop(0)
-            consumed_urls.append(url)
-            out.append(f"![{alt}]({url})")
+        alt = match.group(1) or ""
+        url = match.group(2)
+        resolved = None
+        basename = _sandbox_ref_basename(url)
+        if filename_url_map and basename:
+            resolved = filename_url_map.get(basename.lower())
+        if resolved is None and saved_urls:
+            resolved = saved_urls.pop(0)
+        if resolved is not None:
+            consumed_urls.append(resolved)
+            out.append(f"![{alt}]({resolved})")
         else:
             out.append(match.group(0))
         pending = pending[match.end():]
@@ -8825,6 +8883,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             agentic_saved_urls = []
             agentic_consumed_urls = []
             sandbox_text_buffer = [""]
+            agentic_filename_url_map = {}
+            pending_sandbox_filenames = []
             signature_parts = []
 
             original_quote_text = quote_text
@@ -10165,6 +10225,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         pub("content", c_txt)
                                         current_py_id = f"gem_py_{int(time.time()*1000)}_{os.urandom(3).hex()}"
                                         current_py_code = part.executable_code.code
+                                        # Reset rather than extend: the stream delivers the
+                                        # executable_code part before that turn's inline_data
+                                        # images, so only this execution's save-names should be
+                                        # eligible for the images that follow it.
+                                        pending_sandbox_filenames = _extract_sandbox_image_filenames(part.executable_code.code)
                                         pub("python", {"id": current_py_id, "code": part.executable_code.code})
                                         continue
                                     
@@ -10194,11 +10259,32 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             _save_user_generated_bytes(
                                                 user_id, img_data, fn2, user_config.get('enable_e2ee')
                                             )
-                                                
-                                            img_md = f"\n![Agentic View](/files/{user_id}/{fn2})\n"
+                                            saved_agentic_url = f"/files/{user_id}/{fn2}"
+                                            agentic_saved_urls.append(saved_agentic_url)
+
+                                            # Associate the sandbox filename with the saved URL when
+                                            # known so a bare ![alt](result.png) reference in the
+                                            # model's final answer is rewritten to the served image.
+                                            sandbox_name = None
+                                            display_name = getattr(part.inline_data, "display_name", None)
+                                            if display_name:
+                                                dname = os.path.basename(str(display_name)).strip()
+                                                if _sandbox_ref_basename(dname):
+                                                    sandbox_name = dname
+                                            if not sandbox_name and pending_sandbox_filenames:
+                                                sandbox_name = pending_sandbox_filenames.pop(0)
+                                            elif sandbox_name and pending_sandbox_filenames:
+                                                # A display_name was used; drop a matching pending
+                                                # entry so the fallback queue does not drift.
+                                                lower = sandbox_name.lower()
+                                                if lower in pending_sandbox_filenames:
+                                                    pending_sandbox_filenames.remove(lower)
+                                            if sandbox_name:
+                                                agentic_filename_url_map[sandbox_name.lower()] = saved_agentic_url
+
+                                            img_md = f"\n![Agentic View]({saved_agentic_url})\n"
                                             full_res += img_md
                                             pub("content", img_md)
-                                            agentic_saved_urls.append(f"/files/{user_id}/{fn2}")
                                         except Exception as e:
                                             log_force(f"Agentic Vision Image Error: {e}")
                                         continue
@@ -10210,6 +10296,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             sandbox_text_buffer,
                                             agentic_saved_urls,
                                             agentic_consumed_urls,
+                                            agentic_filename_url_map,
                                         )
                                         if rewritten:
                                             full_res += rewritten
@@ -10225,9 +10312,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             full_res += _tail
                             pub("content", _tail)
 
-                    if agentic_saved_urls or agentic_consumed_urls or "sandbox:" in full_res:
+                    if agentic_saved_urls or agentic_consumed_urls or agentic_filename_url_map or "sandbox:" in full_res:
                         full_res = _rewrite_sandbox_image_refs(
-                            full_res, agentic_saved_urls, agentic_consumed_urls
+                            full_res, agentic_saved_urls, agentic_consumed_urls, agentic_filename_url_map
                         )
                         for _consumed_url in list(agentic_consumed_urls):
                             full_res = full_res.replace(

@@ -131,6 +131,114 @@ class AgenticImageRegressionTests(unittest.TestCase):
         self.assertEqual(out, "hello ![img](https://example.com/a.png)")
         self.assertEqual(buffer_state, [""])
 
+    def test_extract_sandbox_image_filenames_from_code(self):
+        code = (
+            'img = Image.open("input.png")\n'
+            'img.save("output.png")\n'
+            'cv2.imwrite("cropped.jpg", result)\n'
+            'fig.savefig("/mnt/data/chart.png")\n'
+            'data.tofile("raw.bin")\n'
+            'img.save(variable_name)\n'
+        )
+        names = target._extract_sandbox_image_filenames(code)
+        self.assertIn("output.png", names)
+        self.assertIn("cropped.jpg", names)
+        self.assertIn("chart.png", names)
+        self.assertNotIn("raw.bin", names)
+        self.assertNotIn("variable_name", names)
+
+    def test_bare_filename_ref_resolved_via_filename_map(self):
+        filename_url_map = {
+            "result.png": "/files/1/agentic_abc.png",
+        }
+        out = target._rewrite_sandbox_image_refs(
+            "編集後 ![背景透過ロゴ](result.png)",
+            [],
+            [],
+            filename_url_map,
+        )
+        self.assertIn("![背景透過ロゴ](/files/1/agentic_abc.png)", out)
+        self.assertNotIn("result.png", out)
+
+    def test_mnt_data_ref_resolved_via_filename_map(self):
+        filename_url_map = {
+            "chart.png": "/files/1/agentic_xyz.png",
+        }
+        out = target._rewrite_sandbox_image_refs(
+            "![chart](/mnt/data/chart.png)",
+            [],
+            [],
+            filename_url_map,
+        )
+        self.assertIn("![chart](/files/1/agentic_xyz.png)", out)
+
+    def test_bare_filename_ref_consumes_saved_urls_when_no_map(self):
+        out = target._rewrite_sandbox_image_refs(
+            "![img](result.png)",
+            ["/files/1/agentic_first.png"],
+            [],
+        )
+        self.assertIn("![img](/files/1/agentic_first.png)", out)
+
+    def test_unresolved_bare_filename_ref_is_left_unchanged(self):
+        out = target._rewrite_sandbox_image_refs(
+            "![img](result.png)",
+            [],
+            [],
+        )
+        self.assertEqual(out, "![img](result.png)")
+
+    def test_unresolved_mnt_data_ref_is_replaced_with_note(self):
+        out = target._rewrite_sandbox_image_refs(
+            "![img](/mnt/data/result.png)",
+            [],
+            [],
+        )
+        self.assertNotIn("/mnt/data/", out)
+        self.assertIn("画像データを取得できませんでした", out)
+
+    def test_streamed_bare_ref_with_map_resolves(self):
+        buffer_state = [""]
+        filename_url_map = {"result.png": "/files/1/agentic_abc.png"}
+        out = target._rewrite_streamed_sandbox_refs(
+            "![cropped](result.png)",
+            buffer_state,
+            [],
+            [],
+            filename_url_map,
+        )
+        self.assertEqual(out, "![cropped](/files/1/agentic_abc.png)")
+        self.assertEqual(buffer_state, [""])
+
+    def test_streamed_bare_ref_falls_back_to_saved_urls(self):
+        buffer_state = [""]
+        saved_urls = ["/files/1/agentic_first.png"]
+        consumed = []
+        out = target._rewrite_streamed_sandbox_refs(
+            "![cropped](result.png)",
+            buffer_state,
+            saved_urls,
+            consumed,
+        )
+        self.assertEqual(out, "![cropped](/files/1/agentic_first.png)")
+        self.assertEqual(consumed, ["/files/1/agentic_first.png"])
+
+    def test_placeholder_and_consumed_url_dedup(self):
+        """The placeholder for a map-resolved URL must be removed on final pass."""
+        filename_url_map = {"result.png": "/files/1/agentic_abc.png"}
+        consumed = []
+        text = (
+            "\n![Agentic View](/files/1/agentic_abc.png)\n"
+            "![背景透過ロゴ](result.png)\n"
+        )
+        out = target._rewrite_sandbox_image_refs(text, [], consumed, filename_url_map)
+        # The caller removes the Agentic View placeholder for every consumed URL.
+        for url in list(consumed):
+            out = out.replace(f"![Agentic View]({url})", "")
+        self.assertNotIn("![Agentic View](/files/1/agentic_abc.png)", out)
+        self.assertIn("![背景透過ロゴ](/files/1/agentic_abc.png)", out)
+        self.assertEqual(consumed, ["/files/1/agentic_abc.png"])
+
 
 if __name__ == "__main__":
     unittest.main()

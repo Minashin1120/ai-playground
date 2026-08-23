@@ -1364,6 +1364,8 @@
             <label class="flex items-center gap-2"><input type="checkbox" value="feedback" checked class="accent-blue-500">フィードバック</label>
             <label class="flex items-center gap-2"><input type="checkbox" value="diagnostics" checked class="accent-blue-500">診断メトリクス</label>
         </div>
+        <label class="flex items-center gap-2 text-gray-300"><input type="checkbox" id="account-import-inplace" class="accent-emerald-500">元の場所へ復元（このアカウントのファイルを元のパスへ上書き。キー不整合で見えなくなったファイルの復旧用）</label>
+        <div id="account-import-inplace-warning" class="hidden text-[10px] text-amber-300">⚠ 既存の同名ファイルを上書きします。同じパスに別のファイルがある場合も置き換わります。</div>
         <div class="text-[10px] text-gray-500">既存データは削除しません。設定と認証情報は選択時のみ上書きし、それ以外は追加します。ユーザー名は変更されません。</div>
         <button type="button" id="account-import-btn" data-progress-no-spinner="true" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-2 rounded text-xs font-bold btn-hover"><i class="fas fa-file-import mr-1"></i>選択したデータをインポート</button>
         <div id="account-transfer-progress" class="hidden rounded border border-blue-500/40 bg-blue-950/20 p-3 space-y-2">

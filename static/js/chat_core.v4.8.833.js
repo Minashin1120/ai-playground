@@ -1,6 +1,44 @@
         const get = (id) => document.getElementById(id);
         const nativeConsoleLog = (typeof console.log === 'function') ? console.log.bind(console) : function () {};
         const nativeConsoleInfo = (typeof console.info === 'function') ? console.info.bind(console) : nativeConsoleLog;
+        // --- Key-mismatch file warning -----------------------------------------
+        // Uploaded files are served under /files/ (and /files/thumb/).  When the
+        // media bytes exist on disk but the encryption key no longer matches, the
+        // server answers HTTP 409 (not 404).  A document-level capture listener
+        // turns such a failed image into an explicit "key mismatch" warning
+        // instead of a broken thumbnail.  Non-/files/ (e.g. blob) images keep
+        // their own handlers.
+        (function () {
+            const isFileUrl = (u) => /(\/files\/thumb\/|\/files\/)/.test(String(u || ''));
+            const fileUrlStatus = (url) => fetch(url, { method: 'GET', headers: { 'Range': 'bytes=0-0' }, cache: 'no-store' })
+                .then((r) => r.status).catch(() => -1);
+            const buildWarning = (filename, keyMismatch) => {
+                const box = document.createElement('div');
+                box.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;min-height:80px;text-align:center;padding:8px;gap:4px;';
+                if (keyMismatch) {
+                    box.innerHTML = '<i class="fas fa-key" style="font-size:16px;color:#fbbf24"></i><div style="font-size:9px;color:#fcd34d;font-weight:700;line-height:1.3">暗号キーが一致しないため<br>閲覧できません</div>';
+                } else {
+                    box.innerHTML = '<i class="fas fa-file" style="font-size:16px;color:#6b7280"></i><div style="font-size:9px;color:#9ca3af;font-weight:700">ファイルがありません</div>';
+                }
+                if (filename) box.setAttribute('data-file-name', String(filename));
+                return box;
+            };
+            document.addEventListener('error', (e) => {
+                const el = e.target;
+                if (!el || el.tagName !== 'IMG') return;
+                const src = el.currentSrc || el.src || '';
+                if (!isFileUrl(src)) return;
+                e.stopImmediatePropagation();
+                e.preventDefault();
+                const filename = el.getAttribute('data-viewer-filename') || src.split('/').pop();
+                fileUrlStatus(src).then((status) => {
+                    let replacement;
+                    if (status === 409) replacement = buildWarning(filename, true);
+                    else replacement = buildWarning(filename, false);
+                    try { el.replaceWith(replacement); } catch (_) { /* detached */ }
+                });
+            }, true);
+        })();
         const isAdminSidebarDebugEnabled = () => {
             try {
                 const cfg = window.CHAT_CONFIG || {};
@@ -8756,6 +8794,13 @@
             }
 
             const accountImportBtn = get('account-import-btn');
+            const inplaceToggle = get('account-import-inplace');
+            const inplaceWarn = get('account-import-inplace-warning');
+            if (inplaceToggle && inplaceWarn) {
+                const syncInplaceWarn = () => inplaceWarn.classList.toggle('hidden', !inplaceToggle.checked);
+                inplaceToggle.addEventListener('change', syncInplaceWarn);
+                syncInplaceWarn();
+            }
             if (accountImportBtn) {
                 accountImportBtn.onclick = async () => {
                     const input = get('account-import-file');
@@ -8764,6 +8809,8 @@
                     const categories = categoryBox
                         ? Array.from(categoryBox.querySelectorAll('input[type="checkbox"]:checked')).map(el => el.value)
                         : [];
+                    const inplaceBox = get('account-import-inplace');
+                    const restoreInplace = !!(inplaceBox && inplaceBox.checked);
                     if (!file) {
                         showToast('インポートするZIPファイルを選択してください', 'error', true);
                         return;
@@ -8775,7 +8822,7 @@
                     const selectedLabels = categoryBox
                         ? Array.from(categoryBox.querySelectorAll('input[type="checkbox"]:checked')).map(el => (el.closest('label') && el.closest('label').textContent || el.value).trim())
                         : categories;
-                    if (!confirm(`次のデータをインポートします。既存データは削除されません。\n\n${selectedLabels.join('、')}\n\n続行しますか？`)) return;
+                    if (!confirm(`次のデータをインポートします。既存データは削除されません。\n\n${selectedLabels.join('、')}${restoreInplace ? '\n※「元の場所へ復元」: このアカウントの同名ファイルを上書きします' : ''}\n\n続行しますか？`)) return;
                     const transfer = {
                         id: createAccountTransferId(), type: 'import', stopped: false,
                         controller: new AbortController()
@@ -8914,7 +8961,7 @@
                             try {
                                 res = await apiFetch('/api/account/import', manualSpinnerRequestOptions({
                                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                                    body: JSON.stringify({upload_id: transfer.uploadId, categories: categories.join(','), job_id: transfer.id, selected_files: selectedFiles}),
+                                    body: JSON.stringify({upload_id: transfer.uploadId, categories: categories.join(','), job_id: transfer.id, selected_files: selectedFiles, restore_inplace: restoreInplace}),
                                     signal: transfer.controller.signal,
                                 }));
                             } catch (error) {

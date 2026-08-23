@@ -743,8 +743,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-23-006')
-app.config['SYSTEM_VERSION'] = 'V4.8.832'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-24-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.833'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -15211,6 +15211,22 @@ def _add_thumb_cache_headers(resp, etag=None):
         resp.headers["ETag"] = f'"{etag}"'
     return resp
 
+def _unreadable_file_http_response(filename, is_thumb):
+    """Distinguish a file whose encryption key is unavailable (exists but cannot
+    be decrypted) from a genuinely-missing file.  409 + JSON lets the frontend
+    show a clear warning instead of a broken thumbnail."""
+    resp = jsonify({
+        "error": "encryption_key_mismatch",
+        "message": "このファイルは暗号キーが一致しないため閲覧できません",
+        "unreadable": True,
+        "filename": filename,
+        "thumbnail": bool(is_thumb),
+    })
+    resp.status_code = 409
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 @app.route('/files/thumb/<path:filename>')
 @login_required
 def serve_file_thumb(filename):
@@ -15245,6 +15261,10 @@ def serve_file_thumb(filename):
     if thumb_bytes is None:
         data = _load_user_file_bytes(actual_rel_path, info)
         if data is None:
+            # A file present on disk that the current key cannot decrypt is a
+            # key-mismatch (unrecoverable) case, not a missing file.
+            if info and info.get("exists"):
+                return _unreadable_file_http_response(filename, is_thumb=True)
             abort(404)
         try:
             with Image.open(BytesIO(data)) as im:
@@ -15287,6 +15307,8 @@ def serve_file(filename):
         info = _get_file_disk_info(actual_rel_path)
         data = _load_user_file_bytes(actual_rel_path, info)
         if data is None:
+            if info and info.get("exists"):
+                return _unreadable_file_http_response(filename, is_thumb=False)
             abort(404)
         range_header = request.headers.get('Range')
         if range_header:
@@ -17736,6 +17758,14 @@ def import_account_data():
     body = body if isinstance(body, dict) else {}
     upload_id = str(request.form.get("upload_id") or body.get("upload_id") or "").strip()
     categories = _coerce_account_import_categories(request.form.get("categories", body.get("categories", "")))
+    # When true, files imported for the CURRENT user are written back to their
+    # original rel_path (overwriting the existing entry) instead of being copied
+    # to a fresh "import-<token>" path.  This is how an export is used to restore
+    # local files that have become unreadable (e.g. after an encryption-key loss).
+    restore_inplace = (
+        request.form.get("restore_inplace") in ("1", "true", "on")
+        or body.get("restore_inplace") is True
+    )
     job_id = str(request.form.get("job_id") or body.get("job_id") or secrets.token_hex(16)).lower()
     if not _valid_account_transfer_job_id(job_id):
         return jsonify({'error': 'invalid_job_id'}), 400
@@ -17856,12 +17886,22 @@ def import_account_data():
                     old_rel = _normalize_upload_ref(item.get("rel_path"))
                     if not old_rel:
                         raise ValueError("invalid_file_path")
-                    new_rel = _unique_import_file_rel_path(current_user.id, old_rel)
+                    # In-place restore only applies to the importing user's own
+                    # files, so a foreign export can never overwrite local data.
+                    target_inplace = restore_inplace and old_rel.startswith(str(current_user.id) + "/")
+                    if target_inplace:
+                        new_rel = old_rel
+                    else:
+                        new_rel = _unique_import_file_rel_path(current_user.id, old_rel)
                     disk_data = encrypt_bytes(raw) if current_user.enable_e2ee else raw
                     destination = os.path.join(app.config["UPLOAD_FOLDER"], new_rel)
+                    if not _path_is_within(app.config["UPLOAD_FOLDER"], destination):
+                        raise ValueError("invalid_file_path")
                     os.makedirs(os.path.dirname(destination), mode=0o700, exist_ok=True)
                     disk_destination = destination + ".enc" if current_user.enable_e2ee else destination
-                    handle = open(disk_destination, "xb")
+                    # Overwrite the existing (possibly broken) entry on restore.
+                    open_mode = "wb" if target_inplace else "xb"
+                    handle = open(disk_destination, open_mode)
                     created_paths.append(disk_destination)
                     with handle:
                         handle.write(disk_data)

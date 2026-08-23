@@ -72,6 +72,34 @@ class GeminiAgenticTimeoutRegressionTests(unittest.TestCase):
             APP_SOURCE,
         )
 
+    def test_stream_initial_response_504_retry_exists_for_code_execution(self):
+        block_start = APP_SOURCE.index(
+            "_mark_provider_request_started()\n"
+            "                    log_force(f\"STREAM-TRACE: Gemini stream starting for {job_id} model={rm}\")"
+        )
+        chain_line = "for chunk in itertools.chain([_gemini_first_chunk], _gemini_stream_iter):"
+        block_end = APP_SOURCE.index(chain_line)
+        block = APP_SOURCE[block_start:block_end]
+        self.assertIn("_gemini_code_exec_active", block)
+        self.assertIn('"504" in str(_stream_exc) or "DEADLINE_EXCEEDED" in str(_stream_exc)', block)
+        self.assertIn("_GEMINI_STREAM_DEADLINE_RETRIES", block)
+        self.assertIn("time.sleep(2)", block)
+        # itertools.chain is used to feed the already-pulled first chunk into the loop.
+        self.assertIn("itertools", APP_SOURCE)
+        self.assertIn(chain_line, APP_SOURCE)
+
+    def test_stream_deadline_retry_constant_is_defined(self):
+        self.assertGreaterEqual(target._GEMINI_STREAM_DEADLINE_RETRIES, 1)
+
+    def test_stream_retry_gated_to_code_execution(self):
+        # Retrying before the first chunk is safe, but it is only engaged for
+        # code-execution requests to avoid extra input-token charges elsewhere.
+        self.assertIn(
+            "_gemini_code_exec_active\n"
+            "                                and _is_deadline",
+            APP_SOURCE,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

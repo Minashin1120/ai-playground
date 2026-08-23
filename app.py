@@ -32,6 +32,7 @@ import threading
 import hashlib
 import socket
 import difflib
+import itertools
 from contextlib import contextmanager
 from ipaddress import ip_address
 from collections import OrderedDict
@@ -585,6 +586,10 @@ _GEMINI_TIMEOUT_MS = _env_int("GEMINI_TIMEOUT_MS", 120000)
 # so a short value makes the API abort with 504 DEADLINE_EXCEEDED before the
 # sandboxed Python finishes. Use a dedicated, longer deadline for these requests.
 _GEMINI_AGENTIC_TIMEOUT_MS = _env_int("GEMINI_AGENTIC_TIMEOUT_MS", 600000)
+# Google intermittently returns 504 DEADLINE_EXCEEDED on the initial response of
+# code-execution requests before any content is generated. A plain retry usually
+# succeeds, so re-pull the first streaming chunk this many times before failing.
+_GEMINI_STREAM_DEADLINE_RETRIES = max(0, _env_int("GEMINI_STREAM_DEADLINE_RETRIES", 2))
 
 _HTTPX_LIMITS = httpx.Limits(
     max_connections=_HTTP_MAX_CONNECTIONS,
@@ -738,8 +743,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-23-005')
-app.config['SYSTEM_VERSION'] = 'V4.8.831'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-23-006')
+app.config['SYSTEM_VERSION'] = 'V4.8.832'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -9476,6 +9481,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     # Avoid forcing "minimal" when users disable thinking, because Gemini 3 does not
                     # support fully turning thinking off and defaults are higher per docs.
 
+                    _gemini_code_exec_active = False
                     if auto_enable_search:
                         conf['tools'] = [types.Tool(google_search=types.GoogleSearch())]
                     if auto_enable_url_context:
@@ -9487,6 +9493,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if options.get('enable_python') and not gemini_local_python:
                         if 'tools' not in conf: conf['tools'] = []
                         conf['tools'].append(types.Tool(code_execution=types.ToolCodeExecution()))
+                        _gemini_code_exec_active = True
                         # Agentic View runs Python server-side; give it a longer
                         # deadline so it doesn't hit 504 DEADLINE_EXCEEDED.
                         conf['http_options'] = types.HttpOptions(timeout=_GEMINI_AGENTIC_TIMEOUT_MS)
@@ -10239,12 +10246,46 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                     _mark_provider_request_started()
                     log_force(f"STREAM-TRACE: Gemini stream starting for {job_id} model={rm}")
-                    stream = g_client.models.generate_content_stream(model=rm, contents=contents, config=types.GenerateContentConfig(**conf))
+                    # The streaming generator performs the HTTP request only when the
+                    # first chunk is pulled. Google intermittently returns 504
+                    # DEADLINE_EXCEEDED on the initial response of code-execution
+                    # requests before any content is generated; a plain retry usually
+                    # succeeds. Retry the first-chunk pull (nothing has been streamed
+                    # yet, so no user-visible content is duplicated).
+                    _gemini_stream_attempts = 0
+                    while True:
+                        try:
+                            _gemini_stream = g_client.models.generate_content_stream(
+                                model=rm,
+                                contents=contents,
+                                config=types.GenerateContentConfig(**conf),
+                            )
+                            _gemini_stream_iter = iter(_gemini_stream)
+                            _gemini_first_chunk = next(_gemini_stream_iter)
+                            break
+                        except Exception as _stream_exc:
+                            _is_deadline = (
+                                "504" in str(_stream_exc) or "DEADLINE_EXCEEDED" in str(_stream_exc)
+                            )
+                            if (
+                                _gemini_code_exec_active
+                                and _is_deadline
+                                and _gemini_stream_attempts < _GEMINI_STREAM_DEADLINE_RETRIES
+                                and not check_stop()
+                            ):
+                                _gemini_stream_attempts += 1
+                                log_force(
+                                    f"STREAM-TRACE: Gemini 504 before first chunk, retry "
+                                    f"{_gemini_stream_attempts}/{_GEMINI_STREAM_DEADLINE_RETRIES} for {job_id}"
+                                )
+                                time.sleep(2)
+                                continue
+                            raise
                     current_py_id = None
                     current_py_code = None
                     final_usage_metadata = None
                     log_force(f"STREAM-TRACE: Gemini stream loop start for {job_id}")
-                    for chunk in stream:
+                    for chunk in itertools.chain([_gemini_first_chunk], _gemini_stream_iter):
                         _latency_mark_once(job_id, "provider_first_chunk_ms")
                         if check_stop():
                             log_force(f"STREAM-TRACE: Gemini stream breaking due to stop for {job_id}")

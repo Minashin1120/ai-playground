@@ -106,8 +106,17 @@ class ImportRestoreRegressionTests(unittest.TestCase):
             session["csrf_token"] = "csrf-test-token"
         return client
 
-    def export_archive(self):
+    def export_archive(self, mtime=None):
         sha = hashlib.sha256(self.plain).hexdigest()
+        file_item = {
+            "rel_path": self.rel_path,
+            "archive_path": "files/000001.bin",
+            "display_name": "img.jpg",
+            "size_bytes": len(self.plain),
+            "sha256": sha,
+        }
+        if mtime is not None:
+            file_item["mtime"] = mtime
         manifest = {
             "format": target.ACCOUNT_EXPORT_FORMAT,
             "format_version": target.ACCOUNT_EXPORT_VERSION,
@@ -117,13 +126,7 @@ class ImportRestoreRegressionTests(unittest.TestCase):
                 "api_credentials": {},
                 "chats": [],
                 "gems": [],
-                "files": [{
-                    "rel_path": self.rel_path,
-                    "archive_path": "files/000001.bin",
-                    "display_name": "img.jpg",
-                    "size_bytes": len(self.plain),
-                    "sha256": sha,
-                }],
+                "files": [file_item],
                 "feedback": [],
                 "diagnostics": {},
                 "unreadable_files": [],
@@ -144,6 +147,9 @@ class ImportRestoreRegressionTests(unittest.TestCase):
         os.makedirs(os.path.dirname(disk), exist_ok=True)
         with open(disk, "wb") as fh:
             fh.write(bogus.encrypt(b"old-broken-content"))
+        # Drop any cached bytes for this path so the broken content is read from
+        # disk instead of a stale (possibly same-size/same-second) cache entry.
+        target._media_bytes_cache_evict_path(rel_path)
         return disk
 
     def test_import_inplace_restores_file_at_original_path(self):
@@ -224,6 +230,46 @@ class ImportRestoreRegressionTests(unittest.TestCase):
             base_url="https://localhost",
         )
         self.assertEqual(missing_resp.status_code, 404, missing_resp.get_data(as_text=True))
+
+
+    def test_import_inplace_preserves_mtime(self):
+        self.seed_broken_enc()
+        original_mtime = 1700000000  # fixed past timestamp
+        response = self.client_for(self.user_id).post(
+            "/api/account/import",
+            data={
+                "categories": "files",
+                "restore_inplace": "1",
+                "file": (io.BytesIO(self.export_archive(mtime=original_mtime)), "account.zip"),
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            content_type="multipart/form-data",
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        disk = os.path.join(target.app.config["UPLOAD_FOLDER"], self.rel_path + ".enc")
+        self.assertEqual(int(os.path.getmtime(disk)), original_mtime)
+
+    def test_import_without_mtime_keeps_default_timestamp(self):
+        # Backward compatibility: manifests without "mtime" (old exports) must
+        # not crash and simply leave the current timestamp.
+        self.seed_broken_enc()
+        response = self.client_for(self.user_id).post(
+            "/api/account/import",
+            data={
+                "categories": "files",
+                "restore_inplace": "1",
+                "file": (io.BytesIO(self.export_archive(mtime=None)), "account.zip"),
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            content_type="multipart/form-data",
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        with target.app.app_context():
+            info = target._get_file_disk_info(self.rel_path)
+            self.assertTrue(info.get("exists"))
+            self.assertEqual(target._load_user_file_bytes(self.rel_path, info), self.plain)
 
 
 if __name__ == "__main__":

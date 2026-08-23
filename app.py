@@ -743,8 +743,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-24-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.833'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-24-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.834'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -4202,6 +4202,7 @@ def _build_account_export_archive(user, job_id, export_path):
                 item["archive_path"] = archive_name
                 item["size_bytes"] = size_bytes
                 item["sha256"] = sha256
+                item["mtime"] = (row.get("info") or {}).get("mtime")
                 manifest["data"]["files"].append(item)
             except AccountExportFileUnreadable as exc:
                 recovery_archive_name = f"recovery_files/{index:06d}.enc"
@@ -4211,6 +4212,7 @@ def _build_account_export_archive(user, job_id, export_path):
                     "reason": str(exc),
                     "importable": False,
                     "encrypted_source": bool((row.get("info") or {}).get("is_encrypted")),
+                    "mtime": (row.get("info") or {}).get("mtime"),
                 })
                 if recovery:
                     recovery_item.update(recovery)
@@ -17905,6 +17907,15 @@ def import_account_data():
                     created_paths.append(disk_destination)
                     with handle:
                         handle.write(disk_data)
+                    # Restore the original file mtime (recorded in the export) so
+                    # the library's "newest first" ordering is preserved.
+                    if item.get("mtime") is not None:
+                        try:
+                            mt = int(item["mtime"])
+                            if mt > 0:
+                                os.utime(disk_destination, (mt, mt))
+                        except Exception:
+                            pass
                     imported_files.append((old_rel, new_rel, item.get("display_name")))
                     file_map[old_rel] = new_rel
                     del raw, disk_data

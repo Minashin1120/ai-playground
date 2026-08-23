@@ -105,19 +105,19 @@ class ChatAutoScrollRegressionTests(unittest.TestCase):
         tree = source[source.index("function renderThreadTree(opts = {})") :]
         tree = tree[: tree.index("function switchVersion(targetId)")]
 
-        # keepScroll captures the scroll state before clearing the container.
-        self.assertIn("let scrollState = null;", tree)
+        # keepScroll captures the scroll position before clearing the container.
+        self.assertIn("let previousScrollTop = null;", tree)
         self.assertIn("if (keepScroll) {", tree)
-        self.assertIn("top: container.scrollTop", tree)
-        self.assertIn("bottomOffset: container.scrollHeight - container.scrollTop - container.clientHeight", tree)
+        self.assertIn("previousScrollTop = container.scrollTop", tree)
 
         # The rebuild restores the position synchronously (no one-frame flash to the
-        # top), snapping bottom-anchored users to the bottom and keeping users who
-        # had scrolled up pinned at the same document position.
-        restore = tree[tree.index("function restoreThreadTreeScroll(container, state)") :]
-        self.assertIn("state.bottomOffset <= CHAT_BOTTOM_THRESHOLD", restore)
+        # top). Only users still following the stream (auto-scroll active) are snapped
+        # to the bottom; a paused user keeps their exact position and is never dragged
+        # back down when the answer completes.
+        restore = tree[tree.index("function restoreThreadTreeScroll(container, previousScrollTop)") :]
+        self.assertIn("userAutoScroll && !chatManualPauseIntent", restore)
         self.assertIn("container.scrollTop = container.scrollHeight", restore)
-        self.assertIn("Math.max(0, Math.min(state.top, maxScroll))", restore)
+        self.assertIn("Math.max(0, Math.min(previousScrollTop, maxScroll))", restore)
         self.assertIn("chatLastScrollTop = container.scrollTop", restore)
         self.assertIn("syncScrollToBottomButton()", restore)
 

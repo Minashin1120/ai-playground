@@ -18150,16 +18150,13 @@
             // When a silent reload keeps the current thread view (e.g. right after a
             // streamed answer completes), preserve the scroll position. Clearing the
             // container collapses its height, which would otherwise reset the view to
-            // the top and re-enable auto-scroll (yanking the user to the bottom even
-            // if they had scrolled up to re-read). Capturing the state before the
-            // rebuild and restoring it synchronously after appending the new content
-            // also avoids a one-frame jump to the top for bottom-anchored users.
-            let scrollState = null;
+            // the top. The decision to stay put or snap to the bottom is made by the
+            // restore helper based on the auto-scroll state: users who scrolled away
+            // (auto-scroll paused) must never be dragged back down, while users still
+            // pinned at the bottom stay pinned without a one-frame jump to the top.
+            let previousScrollTop = null;
             if (keepScroll) {
-                scrollState = {
-                    top: container.scrollTop,
-                    bottomOffset: container.scrollHeight - container.scrollTop - container.clientHeight
-                };
+                previousScrollTop = container.scrollTop;
             }
 
             // Always clear and rebuild to ensure the UI reflects the current state (allMessages/currentLeafId).
@@ -18257,8 +18254,8 @@
 
             updateTotalTokenBar(pathTotals.tokens_total, pathTotals, allBranchTotals);
             currentParentId = currentLeafId;
-            if (keepScroll && scrollState) {
-                restoreThreadTreeScroll(container, scrollState);
+            if (keepScroll && previousScrollTop !== null) {
+                restoreThreadTreeScroll(container, previousScrollTop);
             } else {
                 scrollToBottom();
             }
@@ -18273,20 +18270,20 @@
             }
         }
 
-        function restoreThreadTreeScroll(container, state) {
+        function restoreThreadTreeScroll(container, previousScrollTop) {
             if (!container) return;
             const maxScroll = container.scrollHeight - container.clientHeight;
-            if (maxScroll <= 0 || state.bottomOffset <= CHAT_BOTTOM_THRESHOLD) {
-                // The view was at (or near) the bottom, or the rebuilt content no
-                // longer scrolls: snap to the bottom synchronously so a bottom-anchored
-                // user stays pinned without a one-frame jump to the top.
+            if (userAutoScroll && !chatManualPauseIntent) {
+                // The user is still following the stream (pinned at the bottom): snap
+                // to the new bottom synchronously so the view stays pinned without a
+                // one-frame jump to the top.
                 container.scrollTop = container.scrollHeight;
             } else {
-                // Keep the same document position at the viewport top. Silent reloads
-                // only change content below where a scrolled-up user is reading (the
-                // streaming message being finalized), so the content in view is stable
-                // and restoring the exact offset avoids any jump.
-                container.scrollTop = Math.max(0, Math.min(state.top, maxScroll));
+                // Auto-scroll is paused (the user scrolled away to re-read), or a
+                // scroll-up gesture was just made: keep the exact document position.
+                // Completing the answer must never drag a paused user back down to
+                // the bottom, no matter how close to the bottom they were.
+                container.scrollTop = Math.max(0, Math.min(previousScrollTop, maxScroll));
             }
             chatLastScrollTop = container.scrollTop;
             syncScrollToBottomButton();

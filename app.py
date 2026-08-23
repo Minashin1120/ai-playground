@@ -72,7 +72,7 @@ from google.cloud import texttospeech
 from google.api_core.client_options import ClientOptions
 import websockets
 import pypdf
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from authlib.integrations.flask_client import OAuth
@@ -743,8 +743,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-24-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.834'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-24-003')
+app.config['SYSTEM_VERSION'] = 'V4.8.835'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1738,25 +1738,70 @@ def _save_chunk_meta(path, meta):
                 pass
 
 KEY_FILE = os.path.join(os.path.dirname(__file__), 'secret.key')
-cipher = None
-try:
+# Key ring (newest first).  index 0 is the ACTIVE key used for encryption; the
+# rest are historical keys (secret.key.rotated.*) retained so that data still
+# encrypted with an older key remains readable.  This is what makes a live key
+# rotation safe: during a transition both the old and the new key decrypt.
+_KEY_RING = []
+
+
+def _load_fernet_key_file(path):
+    if os.path.islink(path):
+        raise RuntimeError('Encryption key must not be a symbolic link')
+    os.chmod(path, 0o600)
+    with open(path, 'rb') as kf:
+        return Fernet(kf.read().strip())
+
+
+def _initialize_key_ring():
+    global cipher
+    ring = []
     if os.path.exists(KEY_FILE):
-        if os.path.islink(KEY_FILE):
-            raise RuntimeError('Encryption key must not be a symbolic link')
-        os.chmod(KEY_FILE, 0o600)
-        with open(KEY_FILE, 'rb') as kf: cipher = Fernet(kf.read().strip())
+        ring.append(_load_fernet_key_file(KEY_FILE))
     else:
         key = Fernet.generate_key()
         fd = os.open(KEY_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, 'wb') as kf:
             kf.write(key)
-        cipher = Fernet(key)
+        ring.append(Fernet(key))
+    # Retained keys from earlier rotations, newest filename first, appended
+    # after the active key so decryption tries the most recent key first.
+    for path in sorted(glob.glob(KEY_FILE + '.rotated.*'), reverse=True):
+        try:
+            ring.append(_load_fernet_key_file(path))
+        except Exception:
+            continue
+    _KEY_RING[:] = ring
+    cipher = _KEY_RING[0]  # active key (backward-compatible module global)
+
+
+# `cipher` stays defined on module load for backward compatibility; readers use
+# decrypt_val / decrypt_bytes which fall back over the whole key ring.
+try:
+    _initialize_key_ring()
 except Exception as e:
     raise RuntimeError(f'Encryption setup failed: {e}') from e
 
 _DECRYPT_CACHE_LOCK = threading.Lock()
 _DECRYPT_CACHE = OrderedDict()
 _DECRYPT_CACHE_MISS = object()
+
+
+def _ring_decrypt_bytes(data):
+    """Decrypt bytes, trying the active key first then each retained key."""
+    last = None
+    for cipher_obj in _KEY_RING:
+        try:
+            return cipher_obj.decrypt(data)
+        except InvalidToken:
+            continue
+        except Exception as exc:  # pragma: no cover - defensive
+            last = exc
+            continue
+    if last is not None:
+        raise last
+    raise InvalidToken()
+
 
 def encrypt_val(val):
     if not val:
@@ -1776,7 +1821,7 @@ def decrypt_val(val):
                 _DECRYPT_CACHE.move_to_end(val)
                 return hit
     try:
-        plain = cipher.decrypt(val.encode()).decode()
+        plain = _ring_decrypt_bytes(val.encode()).decode()
         if _DECRYPT_TEXT_CACHE_MAX > 0 and isinstance(val, str):
             with _DECRYPT_CACHE_LOCK:
                 _DECRYPT_CACHE[val] = plain
@@ -1793,8 +1838,8 @@ def encrypt_bytes(data):
     return cipher.encrypt(data)
 
 def decrypt_bytes(data):
-    if not cipher: return data
-    return cipher.decrypt(data)
+    if not cipher or not data: return data
+    return _ring_decrypt_bytes(data)
 
 def pick_tts_voice(client, language, prefer_tier):
     try:

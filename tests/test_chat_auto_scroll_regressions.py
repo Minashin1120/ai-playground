@@ -100,6 +100,33 @@ class ChatAutoScrollRegressionTests(unittest.TestCase):
         self.assertIn("else scrollToBottom()", resume)
         self.assertGreaterEqual(source.count("resumeChatAutoScroll();"), 3)
 
+    def test_silent_reload_preserves_scroll_position_across_rebuild(self):
+        source = _chat_core_source()
+        tree = source[source.index("function renderThreadTree(opts = {})") :]
+        tree = tree[: tree.index("function switchVersion(targetId)")]
+
+        # keepScroll captures the scroll state before clearing the container.
+        self.assertIn("let scrollState = null;", tree)
+        self.assertIn("if (keepScroll) {", tree)
+        self.assertIn("top: container.scrollTop", tree)
+        self.assertIn("bottomOffset: container.scrollHeight - container.scrollTop - container.clientHeight", tree)
+
+        # The rebuild restores the position synchronously (no one-frame flash to the
+        # top), snapping bottom-anchored users to the bottom and keeping users who
+        # had scrolled up pinned at the same document position.
+        restore = tree[tree.index("function restoreThreadTreeScroll(container, state)") :]
+        self.assertIn("state.bottomOffset <= CHAT_BOTTOM_THRESHOLD", restore)
+        self.assertIn("container.scrollTop = container.scrollHeight", restore)
+        self.assertIn("Math.max(0, Math.min(state.top, maxScroll))", restore)
+        self.assertIn("chatLastScrollTop = container.scrollTop", restore)
+        self.assertIn("syncScrollToBottomButton()", restore)
+
+        # Silent reloads (stream completion / resume / fast mode / abort sync) keep
+        # the current view instead of scrolling to the bottom.
+        loader = source[source.index("async function loadMessages(tid, opts = {})") :]
+        loader = loader[: loader.index("async function loadOlderMessages()")]
+        self.assertIn("renderThreadTree({ silent, keepScroll: silent })", loader)
+
     def test_resume_button_is_wired_and_accessible(self):
         template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
         css = next((APP_ROOT / "static" / "css").glob("chat.custom.v4.8.*.css")).read_text(encoding="utf-8")

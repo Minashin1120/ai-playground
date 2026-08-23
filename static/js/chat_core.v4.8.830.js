@@ -18060,7 +18060,7 @@
                 currentLeafId = null;
             }
 
-            renderThreadTree({ silent });
+            renderThreadTree({ silent, keepScroll: silent });
             if (silent && codeState) {
                 applyCodeCollapseByMessage(get('chat-container'), codeState, true);
             } else if (!silent) {
@@ -18146,6 +18146,21 @@
             const keepScroll = !!opts.keepScroll;
             const container = get('chat-container');
             if (!container) return;
+
+            // When a silent reload keeps the current thread view (e.g. right after a
+            // streamed answer completes), preserve the scroll position. Clearing the
+            // container collapses its height, which would otherwise reset the view to
+            // the top and re-enable auto-scroll (yanking the user to the bottom even
+            // if they had scrolled up to re-read). Capturing the state before the
+            // rebuild and restoring it synchronously after appending the new content
+            // also avoids a one-frame jump to the top for bottom-anchored users.
+            let scrollState = null;
+            if (keepScroll) {
+                scrollState = {
+                    top: container.scrollTop,
+                    bottomOffset: container.scrollHeight - container.scrollTop - container.clientHeight
+                };
+            }
 
             // Always clear and rebuild to ensure the UI reflects the current state (allMessages/currentLeafId).
             // Silent mode in loadMessages handles skipping the spinner, but we still need to swap the content here.
@@ -18242,7 +18257,11 @@
 
             updateTotalTokenBar(pathTotals.tokens_total, pathTotals, allBranchTotals);
             currentParentId = currentLeafId;
-            if (!keepScroll) scrollToBottom();
+            if (keepScroll && scrollState) {
+                restoreThreadTreeScroll(container, scrollState);
+            } else {
+                scrollToBottom();
+            }
             if (lowBandwidthMode) {
                 queueMessageDecorations(container, container ? (container.textContent || '') : '');
             } else {
@@ -18252,6 +18271,25 @@
                     queueMathTypeset(container, latestText);
                 }
             }
+        }
+
+        function restoreThreadTreeScroll(container, state) {
+            if (!container) return;
+            const maxScroll = container.scrollHeight - container.clientHeight;
+            if (maxScroll <= 0 || state.bottomOffset <= CHAT_BOTTOM_THRESHOLD) {
+                // The view was at (or near) the bottom, or the rebuilt content no
+                // longer scrolls: snap to the bottom synchronously so a bottom-anchored
+                // user stays pinned without a one-frame jump to the top.
+                container.scrollTop = container.scrollHeight;
+            } else {
+                // Keep the same document position at the viewport top. Silent reloads
+                // only change content below where a scrolled-up user is reading (the
+                // streaming message being finalized), so the content in view is stable
+                // and restoring the exact offset avoids any jump.
+                container.scrollTop = Math.max(0, Math.min(state.top, maxScroll));
+            }
+            chatLastScrollTop = container.scrollTop;
+            syncScrollToBottomButton();
         }
 
         function switchVersion(targetId) {

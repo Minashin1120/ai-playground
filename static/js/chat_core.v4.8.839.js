@@ -5436,12 +5436,16 @@
             overlay.className = 'settings-search-overlay';
             if (results.length === 0) {
                 const empty = document.createElement('div');
-                empty.className = 'text-center py-12 text-gray-500 text-sm';
-                empty.textContent = '「' + q.replace(/</g, '&lt;') + '」に一致する設定項目はありません。';
+                empty.className = 'settings-empty-state';
+                empty.innerHTML = '<div class="settings-empty-icon"><i class="fas fa-search"></i></div><div class="settings-empty-title">一致する設定はありません</div>';
+                const sub = document.createElement('div');
+                sub.className = 'settings-empty-sub';
+                sub.textContent = '「' + q + '」に一致する設定項目はありません。';
+                empty.appendChild(sub);
                 overlay.appendChild(empty);
             } else {
                 const hdr = document.createElement('div');
-                hdr.className = 'text-[11px] text-gray-500 px-1 pb-2';
+                hdr.className = 'settings-search-count';
                 hdr.textContent = results.length + '件の一致';
                 overlay.appendChild(hdr);
                 let prevTabId = null;
@@ -5526,13 +5530,11 @@
                         panel.classList.add('tab-enter');
                     }
                     if (btn) {
-                        btn.classList.add('text-blue-400','border-blue-400','font-bold');
-                        btn.classList.remove('text-gray-400','hover:text-white','border-transparent');
+                        btn.classList.add('is-active');
                         try { btn.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' }); } catch (_) {}
                     }
                 } else if (btn) {
-                    btn.classList.remove('text-blue-400','border-blue-400','font-bold');
-                    btn.classList.add('text-gray-400','hover:text-white','border-transparent');
+                    btn.classList.remove('is-active');
                 }
             });
             activeSettingsTab = t;
@@ -9373,9 +9375,9 @@
                 if (!tab || get('temp-chat-settings-card')) return;
                 const card = document.createElement('div');
                 card.id = 'temp-chat-settings-card';
-                card.className = 'bg-gray-900 p-4 rounded border border-gray-700';
+                card.className = 'settings-card';
                 card.innerHTML = `
-                    <h3 class="text-sm font-bold text-amber-300 mb-2">一時チャット</h3>
+                    <h3 class="settings-card-title">一時チャット</h3>
                     <div class="space-y-3 text-xs text-gray-300">
                         <label class="text-xs text-gray-500 block">切断タイムアウト（秒）</label>
                         <input id="set-temp-chat-timeout-seconds" type="number" min="${TEMP_CHAT_TIMEOUT_MIN_SECONDS}" max="${TEMP_CHAT_TIMEOUT_MAX_SECONDS}" step="1" class="w-28 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white">
@@ -9831,6 +9833,8 @@
                 openSettingsModal();
             };
             get('close-settings-btn').onclick = () => closeSettingsModal();
+            const settingsHeaderClose = get('settings-header-close');
+            if (settingsHeaderClose) settingsHeaderClose.onclick = () => closeSettingsModal();
             const settingsSearchInput = get('settings-search');
             if (settingsSearchInput) {
                 settingsSearchInput.addEventListener('input', filterSettings);

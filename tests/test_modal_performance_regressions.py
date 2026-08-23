@@ -151,14 +151,14 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("body.liquid-glass-mode .modal-overlay .modal-panel", source)
         self.assertIn("transition: opacity 0.24s", source)
 
-    def test_settings_search_icon_moves_out_of_the_typing_area(self):
+    def test_settings_search_icon_stays_out_of_the_typing_area(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")
         template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
 
         self.assertIn("settings-search-icon", template)
-        self.assertIn("#settings-search:focus { padding-left: 0.75rem; }", source)
-        self.assertIn("#settings-search:focus + .settings-search-icon", source)
-        self.assertIn("opacity: 0", source)
+        self.assertIn("settings-search-box", template)
+        self.assertIn("#settings-modal #settings-search { padding-left: 36px; padding-right: 36px; }", source)
+        self.assertIn("#settings-modal .settings-search-icon", source)
         self.assertIn("pointer-events: none", source)
 
     def test_standard_blur_is_restored_until_performance_cookie_disables_it(self):

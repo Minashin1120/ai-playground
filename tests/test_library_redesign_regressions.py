@@ -38,6 +38,10 @@ class LibraryRedesignRegressionTests(unittest.TestCase):
             "lib-grid-responsive",
         ):
             self.assertIn(cls, template, f"Missing modern library class: {cls}")
+        # Toolbar action buttons keep a <span> so the label can be updated
+        # (with the selection count) without destroying the icon.
+        self.assertIn('<i class="fas fa-trash"></i><span>削除</span>', template)
+        self.assertIn('<i class="fas fa-paperclip"></i><span>添付</span>', template)
         # The old Tailwind-heavy card grid style must be gone.
         self.assertNotIn("grid-template-columns:repeat(auto-fit,minmax(160px,1fr))", template)
 
@@ -62,6 +66,24 @@ class LibraryRedesignRegressionTests(unittest.TestCase):
         # Empty / no-result / error states render as styled empty states.
         self.assertIn("lib-empty-state", script)
         self.assertIn("lib-empty-icon", script)
+        # Toolbar labels must be updated through the icon-preserving helper so
+        # selecting a file never destroys the button icon.
+        self.assertIn("const setLibBtnLabel = (btn, label)", script)
+        self.assertIn("setLibBtnLabel(delBtn, count ? `削除 (${count})` : \"削除\")", script)
+        self.assertNotIn("delBtn.innerText =", script)
+
+    def test_css_avoids_expensive_per_card_backdrop_filters(self):
+        css = _current_asset("css", "chat.custom.v4.8.*.css")
+        # Many per-card backdrop-filter layers make the library heavy on real
+        # GPUs and can cause composited layers to render outside their clip.
+        # They must not be reintroduced on cards or their action buttons.
+        self.assertIn("content-visibility: auto", css)
+        self.assertIn("contain-intrinsic-size: auto 210px", css)
+        for block in (".lib-overlay", ".lib-overlay-btn", ".lib-action-circle", ".lib-modal-panel"):
+            start = css.index(block)
+            end = css.index("}", start)
+            section = css[start:end]
+            self.assertNotIn("backdrop-filter", section, f"{block} must not use backdrop-filter")
 
     def test_css_has_modern_library_and_skeleton_shimmer(self):
         css = _current_asset("css", "chat.custom.v4.8.*.css")

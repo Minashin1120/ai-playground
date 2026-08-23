@@ -831,9 +831,7 @@
 
         /* Library Grid — modern file library (V4.8.837) */
         .lib-modal-panel {
-            background: rgba(7, 11, 22, 0.92);
-            backdrop-filter: blur(var(--blur-modal)) saturate(160%);
-            -webkit-backdrop-filter: blur(var(--blur-modal)) saturate(160%);
+            background: linear-gradient(180deg, rgba(8, 12, 24, 0.99), rgba(5, 7, 15, 0.99));
             border: 1px solid rgba(255, 255, 255, 0.08);
             box-shadow: var(--shadow);
         }
@@ -880,10 +878,8 @@
             justify-content: space-between;
             gap: 12px;
             padding: 12px 22px;
-            background: rgba(8, 12, 24, 0.65);
+            background: rgba(8, 12, 24, 0.85);
             border-bottom: 1px solid var(--line);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
         }
         .lib-toolbar-left { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; }
         .lib-toolbar-right { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
@@ -985,6 +981,9 @@
             background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)), var(--panel);
             border: 1px solid var(--line);
             cursor: pointer;
+            /* Skip rendering for off-screen cards; each row is a fixed height. */
+            content-visibility: auto;
+            contain-intrinsic-size: auto 210px;
             transition: transform .28s var(--ease-out), box-shadow .28s var(--ease-standard), border-color .28s var(--ease-standard);
         }
         .library-thumb-card:hover {
@@ -1054,9 +1053,7 @@
             position: absolute; inset: 0;
             display: flex; align-items: center; justify-content: center;
             gap: 0.5rem;
-            background: rgba(5,7,15,0.55);
-            backdrop-filter: blur(3px);
-            -webkit-backdrop-filter: blur(3px);
+            background: rgba(5,7,15,0.62);
             opacity: 0;
             pointer-events: none;
             transition: opacity .22s var(--ease-standard);
@@ -1071,12 +1068,10 @@
             width: 40px; height: 40px;
             display: flex; align-items: center; justify-content: center;
             border-radius: 12px;
-            background: rgba(255,255,255,0.12);
-            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(255,255,255,0.14);
+            border: 1px solid rgba(255,255,255,0.20);
             color: #fff;
             cursor: pointer;
-            backdrop-filter: blur(6px);
-            -webkit-backdrop-filter: blur(6px);
             transition: transform .2s var(--ease-out), background .2s var(--ease-standard), border-color .2s var(--ease-standard);
         }
         .lib-overlay-btn:hover { transform: translateY(-2px); background: rgba(var(--theme-rgb), 0.35); border-color: rgba(var(--theme-rgb), 0.6); }
@@ -1106,10 +1101,8 @@
             width: 30px; height: 30px;
             display: flex; align-items: center; justify-content: center;
             border-radius: 10px;
-            background: rgba(13,20,38,0.82);
-            border: 1px solid rgba(255,255,255,0.12);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            background: rgba(13,20,38,0.94);
+            border: 1px solid rgba(255,255,255,0.14);
             color: var(--text);
             font-size: 12px;
             cursor: pointer;

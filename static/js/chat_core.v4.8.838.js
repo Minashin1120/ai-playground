@@ -11745,6 +11745,12 @@
                 }
             };
 
+        const setLibBtnLabel = (btn, label) => {
+            if (!btn) return;
+            const span = btn.querySelector('span');
+            if (span) span.textContent = label;
+            else btn.textContent = label;
+        };
         window.updateLibSelectionUi = function () {
             if (!lib.selected) lib.selected = new Set();
             const count = lib.selected.size;
@@ -11754,19 +11760,19 @@
             const renameBtn = get('lib-rename-btn');
             if (delBtn) {
                 delBtn.disabled = count === 0;
-                delBtn.innerText = count ? `削除 (${count})` : "削除";
+                setLibBtnLabel(delBtn, count ? `削除 (${count})` : "削除");
             }
             if (downloadBtn) {
                 downloadBtn.disabled = count === 0;
-                downloadBtn.innerText = count ? `ダウンロード (${count})` : "ダウンロード";
+                setLibBtnLabel(downloadBtn, count ? `ダウンロード (${count})` : "ダウンロード");
             }
             if (attachBtn) {
                 attachBtn.disabled = count === 0;
-                attachBtn.innerText = count ? `添付 (${count})` : "添付";
+                setLibBtnLabel(attachBtn, count ? `添付 (${count})` : "添付");
             }
             if (renameBtn) {
                 renameBtn.disabled = count !== 1;
-                renameBtn.innerText = "名前変更";
+                setLibBtnLabel(renameBtn, "名前変更");
             }
             if (lib.modal) {
                 const isMobile = window.matchMedia('(max-width: 768px)').matches;

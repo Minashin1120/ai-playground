@@ -74,6 +74,22 @@ class SettingsRedesignRegressionTests(unittest.TestCase):
         self.assertIn(".settings-tabs-wrap.can-scroll-left.is-edge-left .settings-tabs-arrow-left", css)
         self.assertIn("overscroll-behavior-x: contain", css)
 
+    def test_settings_body_can_scroll_inside_fixed_panel(self):
+        css = _current_asset("css", "chat.custom.v4.8.*.css")
+        template = Path(APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        start = template.index('id="settings-modal"')
+        overlay = template[start: template.index(">", start) + 1]
+        self.assertNotIn("overflow-y-auto", overlay)
+        self.assertIn('class="settings-content overflow-y-auto"', template)
+        self.assertIn("height: min(90dvh, 880px)", css)
+        content_css = css[css.index("#settings-modal .settings-content {") :]
+        content_css = content_css[: content_css.index("#settings-modal .settings-tab-panel {")]
+        self.assertIn("overflow-y: auto", content_css)
+        self.assertIn("min-height: 0", content_css)
+        self.assertIn("overscroll-behavior: contain", content_css)
+        self.assertIn("#settings-modal input[type=\"text\"]", css)
+        self.assertIn("#settings-modal .settings-card button", css)
+
 
 if __name__ == "__main__":
     unittest.main()

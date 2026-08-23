@@ -1191,9 +1191,10 @@
             .lib-search-box { max-width: none; }
         }
 
-        /* Settings Modal — modern panel (V4.8.839) */
+        /* Settings Modal — modern panel (V4.8.840) */
         #settings-modal.settings-modal-root {
-            padding: 16px 0;
+            padding: 16px;
+            overflow: hidden;
             background: rgba(3, 7, 16, 0.72);
             backdrop-filter: blur(10px) saturate(140%);
             -webkit-backdrop-filter: blur(10px) saturate(140%);
@@ -1201,16 +1202,23 @@
         #settings-modal .settings-modal-panel {
             display: flex;
             flex-direction: column;
-            width: min(920px, calc(100% - 32px));
+            width: min(920px, 100%);
             max-width: none;
+            height: min(90dvh, 880px);
+            max-height: min(90dvh, 880px);
+            min-height: 0;
             margin: 0 auto;
-            max-height: min(90vh, 860px);
             padding: 0;
             overflow: hidden;
             border-radius: 22px;
             background: linear-gradient(180deg, rgba(10, 14, 28, 0.98), rgba(6, 9, 18, 0.99));
             border: 1px solid rgba(255, 255, 255, 0.08);
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), var(--shadow);
+        }
+        #settings-modal .settings-header,
+        #settings-modal .settings-toolbar,
+        #settings-modal .settings-footer {
+            flex: 0 0 auto;
         }
         #settings-modal .settings-header {
             display: flex;
@@ -1336,11 +1344,14 @@
             display: flex;
             flex: 1 1 auto;
             min-height: 0;
+            overflow: hidden;
             border-top: 1px solid var(--line);
         }
         #settings-modal .settings-tabs-wrap {
             position: relative;
             flex: 0 0 188px;
+            min-height: 0;
+            overflow: hidden;
             margin: 0;
             border-right: 1px solid var(--line);
             background: rgba(8, 12, 22, 0.55);
@@ -1399,25 +1410,32 @@
         #settings-modal .settings-content {
             flex: 1 1 auto;
             min-width: 0;
-            display: flex;
-            flex-direction: column;
+            min-height: 0;
+            overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            display: block;
             background: radial-gradient(520px 180px at 100% 0%, rgba(var(--theme-rgb), 0.06), transparent 70%);
         }
         #settings-modal .settings-tab-panel {
             display: flex;
             flex-direction: column;
             gap: 12px;
-            flex: 1 1 auto;
+            flex: none;
+            height: auto;
             min-height: 0;
+            overflow: visible;
             padding: 16px 18px 18px;
         }
         #settings-modal .settings-tab-panel.hidden { display: none; }
         #settings-modal .settings-card {
-            padding: 16px;
+            flex: 0 0 auto;
+            padding: 16px 18px;
             border-radius: 16px;
-            background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.012)), rgba(10, 16, 30, 0.72);
-            border: 1px solid var(--line);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+            background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.018)), rgba(10, 16, 30, 0.78);
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
             transition: border-color .2s var(--ease-standard), box-shadow .2s var(--ease-standard);
         }
         #settings-modal .settings-card:hover {
@@ -1445,6 +1463,106 @@
         #settings-modal .settings-card-danger {
             border-color: rgba(249, 112, 141, 0.38);
             background: linear-gradient(180deg, rgba(249, 112, 141, 0.10), rgba(10, 16, 30, 0.72));
+        }
+        #settings-modal .settings-card > label.flex {
+            padding: 6px 0;
+            font-size: 13px;
+            color: rgba(226, 232, 240, 0.92);
+        }
+        #settings-modal .settings-card .text-\[10px\],
+        #settings-modal .settings-card .text-xs.text-gray-500,
+        #settings-modal .settings-card .text-gray-500 {
+            color: var(--muted) !important;
+            line-height: 1.55;
+        }
+        #settings-modal .settings-card label.text-xs,
+        #settings-modal .settings-card label.text-gray-500 {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            color: rgba(148, 163, 184, 0.95);
+            margin-bottom: 6px;
+        }
+        #settings-modal input[type="text"],
+        #settings-modal input[type="password"],
+        #settings-modal input[type="number"],
+        #settings-modal textarea,
+        #settings-modal select {
+            border-radius: 11px;
+            padding: 10px 12px;
+            background: rgba(255,255,255,0.045);
+            border: 1px solid var(--line);
+            color: var(--text);
+            font-size: 13px;
+            line-height: 1.45;
+            transition: border-color .2s var(--ease-standard), box-shadow .2s var(--ease-standard), background .2s var(--ease-standard);
+        }
+        #settings-modal input[type="text"]:focus,
+        #settings-modal input[type="password"]:focus,
+        #settings-modal input[type="number"]:focus,
+        #settings-modal textarea:focus,
+        #settings-modal select:focus {
+            border-color: rgba(var(--theme-rgb), 0.5);
+            background: rgba(255,255,255,0.06);
+            box-shadow: 0 0 0 3px rgba(var(--theme-rgb), 0.14);
+        }
+        #settings-modal input[type="color"] {
+            width: 42px;
+            height: 42px;
+            padding: 0;
+            border-radius: 12px;
+            overflow: hidden;
+            background: transparent;
+        }
+        #settings-modal .settings-card button {
+            border-radius: 11px;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+            transition: transform .2s var(--ease-out), background .2s var(--ease-standard), border-color .2s var(--ease-standard), filter .2s var(--ease-standard);
+        }
+        #settings-modal .settings-card .bg-gray-700,
+        #settings-modal .settings-card .bg-gray-800\/70,
+        #settings-modal .settings-card .hover\:bg-gray-600 {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid var(--line-strong);
+            color: var(--text);
+        }
+        #settings-modal .settings-card .bg-gray-700:hover,
+        #settings-modal .settings-card button.hover\:bg-gray-600:hover {
+            background: rgba(255,255,255,0.10);
+            transform: translateY(-1px);
+        }
+        #settings-modal .settings-card .bg-blue-600,
+        #settings-modal .settings-card .bg-blue-700,
+        #settings-modal .settings-card .bg-cyan-600,
+        #settings-modal .settings-card .bg-cyan-700,
+        #settings-modal .settings-card .bg-cyan-700\/70 {
+            background: linear-gradient(135deg, var(--theme-500), var(--theme-600));
+            border: 1px solid rgba(var(--theme-rgb), 0.4);
+            color: var(--text-inverse);
+            box-shadow: 0 8px 20px rgba(var(--theme-rgb), 0.16);
+        }
+        #settings-modal .settings-card .bg-emerald-700,
+        #settings-modal .settings-card .bg-green-600 {
+            background: linear-gradient(135deg, #34d399, #059669);
+            border: 1px solid rgba(52, 211, 153, 0.4);
+            color: #06281c;
+        }
+        #settings-modal .settings-card .rounded.border,
+        #settings-modal .settings-card .rounded.border-gray-700,
+        #settings-modal .settings-card [class~="bg-gray-950/50"],
+        #settings-modal .settings-card [class~="bg-gray-950/40"] {
+            border-radius: 12px;
+            border-color: rgba(255,255,255,0.08);
+            background: rgba(5, 8, 16, 0.45);
+        }
+        #settings-modal .h-2.rounded,
+        #settings-modal .h-2.bg-gray-800 {
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.06);
+            border: 0;
+            overflow: hidden;
         }
         #settings-modal .settings-footer {
             display: flex;
@@ -1528,11 +1646,12 @@
             font-weight: 600;
         }
         @media (max-width: 768px) {
-            #settings-modal.settings-modal-root { padding: 8px 0; align-items: flex-start; }
+            #settings-modal.settings-modal-root { padding: 8px; align-items: stretch; }
             #settings-modal .settings-modal-panel {
-                width: calc(100% - 16px);
-                margin: 8px;
-                max-height: calc(100vh - 16px);
+                width: 100%;
+                margin: 0;
+                height: calc(100dvh - 16px);
+                max-height: calc(100dvh - 16px);
                 border-radius: 18px;
             }
             #settings-modal .settings-header { padding: 14px 14px 8px; }
@@ -1887,7 +2006,18 @@
             #settings-modal .settings-tabs-wrap.can-scroll-right .settings-tabs-arrow-right { opacity: 1; pointer-events: auto; }
         }
         #settings-modal .settings-footer { position: relative; z-index: 7; }
-        #settings-modal .overflow-y-auto { min-height: 0; }
+        #settings-modal .overflow-y-auto {
+            min-height: 0;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+        #settings-modal .settings-content.overflow-y-auto {
+            overflow-y: auto;
+        }
+        #settings-modal .settings-tab-panel.overflow-y-auto {
+            overflow: visible;
+            height: auto;
+        }
         #settings-modal input, #settings-modal textarea, #settings-modal select { background: rgba(8, 14, 26, 0.8); border: 1px solid var(--line); }
         #settings-modal input:focus, #settings-modal textarea:focus, #settings-modal select:focus { box-shadow: 0 0 0 2px rgba(var(--theme-rgb),0.18); outline: none; }
         #settings-modal #settings-search { padding-left: 36px; padding-right: 36px; }
@@ -1974,7 +2104,7 @@
             #marker-image { max-height: 52vh; }
         }
         @media (max-width: 640px) {
-            #settings-modal .settings-modal-panel { max-height: 92vh; }
+            #settings-modal .settings-modal-panel { height: calc(100dvh - 16px); max-height: calc(100dvh - 16px); }
             #settings-modal .settings-footer button { padding: 10px 14px; }
             #thread-modal { align-items: flex-start; padding: 8px 0; }
             #thread-modal > div { width: calc(100% - 16px); max-width: none; margin: 8px; padding: 14px 12px; max-height: calc(100dvh - 16px); border-radius: 16px; }

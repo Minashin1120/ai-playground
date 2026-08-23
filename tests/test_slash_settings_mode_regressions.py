@@ -63,6 +63,7 @@ class SlashSettingsModeRegressionTests(unittest.TestCase):
             "apply_global_system_prompt", "apply_auto_system_prompt_notices",
             "auto_system_prompt_notices_config", "mic_transcribe_mode", "stt_model",
             "llm_transcribe_prompt", "enter_to_send", "use_sw_cache", "compact_prompt_mode",
+            "minimal_prompt_mode",
             "auto_search_on_links", "use_last_chat_settings", "temp_chat_timeout_seconds",
             "theme_color", "liquid_glass_enabled", "rich_paste_prompt_default",
             "rich_paste_prompt_use_custom_default", "enable_latency_metrics",

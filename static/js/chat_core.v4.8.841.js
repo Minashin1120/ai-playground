@@ -768,6 +768,7 @@
             '#sidebar',
             '.composer-dock',
             'body > .flex-1 > header',
+            '#top-model-bar',
             '.modal-panel',
             '.modal-glass-panel',
             '.viewer-toolbar',
@@ -2931,6 +2932,7 @@
         let autoSearchOnLinks = CHAT_CONFIG.autoSearchOnLinks;
         let useSwCache = CHAT_CONFIG.useSwCache;
         let compactPromptMode = CHAT_CONFIG.compactPromptMode;
+        let minimalPromptMode = !!CHAT_CONFIG.minimalPromptMode;
         const CANVAS_MODE_STORAGE_KEY = 'canvas_mode_enabled_v1';
         const CODING_MODE_STORAGE_KEY = 'coding_mode_enabled_v1';
         let canvasModeEnabled = false;
@@ -4215,17 +4217,70 @@
                 input.placeholder = "Ctrl + Enter で送信...";
             }
         }
+        function readPromptBarModeFromForm() {
+            if (get('set-minimal-prompt-mode') && get('set-minimal-prompt-mode').checked) {
+                return { compact_prompt_mode: false, minimal_prompt_mode: true };
+            }
+            if (get('set-compact-prompt-mode') && get('set-compact-prompt-mode').checked) {
+                return { compact_prompt_mode: true, minimal_prompt_mode: false };
+            }
+            return { compact_prompt_mode: false, minimal_prompt_mode: false };
+        }
+        function writePromptBarModeToForm(compact, minimal) {
+            const normalEl = get('set-prompt-bar-mode-normal');
+            const compactEl = get('set-compact-prompt-mode');
+            const minimalEl = get('set-minimal-prompt-mode');
+            if (minimal && minimalEl) minimalEl.checked = true;
+            else if (compact && compactEl) compactEl.checked = true;
+            else if (normalEl) normalEl.checked = true;
+        }
+        function placeModelSelectorButton() {
+            const btn = get('model-selector-btn');
+            const topBar = get('top-model-bar');
+            const home = get('prompt-primary-controls');
+            const hiddenSelect = get('model-select');
+            if (!btn || !topBar || !home) return;
+            if (minimalPromptMode) {
+                if (btn.parentElement !== topBar) topBar.appendChild(btn);
+                return;
+            }
+            if (hiddenSelect && hiddenSelect.parentElement === home) {
+                if (btn.previousElementSibling !== hiddenSelect) {
+                    hiddenSelect.insertAdjacentElement('afterend', btn);
+                }
+                return;
+            }
+            if (btn.parentElement !== home) {
+                home.insertBefore(btn, home.firstChild);
+            }
+        }
+        function applyMinimalPromptMode() {
+            const enabled = !!minimalPromptMode;
+            document.body.classList.toggle('minimal-prompt-mode', enabled);
+            const topBar = get('top-model-bar');
+            if (topBar) {
+                topBar.classList.toggle('hidden', !enabled);
+                topBar.classList.toggle('flex', enabled);
+            }
+            const uploadBtn = get('upload-btn');
+            const uploadIcon = uploadBtn ? uploadBtn.querySelector('i') : null;
+            if (uploadIcon) uploadIcon.className = enabled ? 'fas fa-plus' : 'fas fa-paperclip';
+            if (uploadBtn) uploadBtn.title = enabled ? '添付' : 'Upload';
+            placeModelSelectorButton();
+        }
         function applyPromptControlMode() {
             const details = get('prompt-details-controls');
             const toggleBtn = get('prompt-controls-toggle-btn');
             const toggleText = get('prompt-controls-toggle-text');
             const toggleIcon = get('prompt-controls-toggle-icon');
             const row = get('prompt-controls-row');
+            applyMinimalPromptMode();
             if (!details || !toggleBtn) return;
-            const showDetails = !compactPromptMode || promptControlsExpanded;
-            if (row) row.classList.toggle('compact-collapsed', compactPromptMode && !showDetails);
+            const compactActive = compactPromptMode && !minimalPromptMode;
+            const showDetails = !compactActive || promptControlsExpanded;
+            if (row) row.classList.toggle('compact-collapsed', compactActive && !showDetails);
 
-            if (compactPromptMode) {
+            if (compactActive) {
                 if (showDetails) {
                     details.classList.remove('collapsed');
                     details.classList.add('expanded');
@@ -4240,7 +4295,7 @@
                 details.classList.remove('expanded');
             }
 
-            if (compactPromptMode) {
+            if (compactActive) {
                 toggleBtn.classList.remove('hidden');
                 toggleBtn.classList.add('inline-flex');
                 toggleBtn.setAttribute('aria-expanded', showDetails ? 'true' : 'false');
@@ -4256,9 +4311,18 @@
         }
         function setCompactPromptMode(enabled, keepExpanded = false) {
             compactPromptMode = !!enabled;
+            if (compactPromptMode) minimalPromptMode = false;
             if (!compactPromptMode) {
                 promptControlsExpanded = true;
             } else if (!keepExpanded) {
+                promptControlsExpanded = false;
+            }
+            applyPromptControlMode();
+        }
+        function setMinimalPromptMode(enabled) {
+            minimalPromptMode = !!enabled;
+            if (minimalPromptMode) {
+                compactPromptMode = false;
                 promptControlsExpanded = false;
             }
             applyPromptControlMode();
@@ -7455,7 +7519,13 @@
                 if (get('set-stt-model')) get('set-stt-model').value = d.stt_model || 'gpt-4o-mini-transcribe';
                 if (get('set-llm-transcribe-prompt')) get('set-llm-transcribe-prompt').value = d.llm_transcribe_prompt || '';
                 if (get('set-enter-to-send')) get('set-enter-to-send').checked = !!d.enter_to_send;
-                if (get('set-compact-prompt-mode')) get('set-compact-prompt-mode').checked = !!d.compact_prompt_mode;
+                if (get('set-compact-prompt-mode') || get('set-minimal-prompt-mode') || get('set-prompt-bar-mode-normal')) {
+                    writePromptBarModeToForm(!!d.compact_prompt_mode, !!d.minimal_prompt_mode);
+                }
+                if (d.minimal_prompt_mode) setMinimalPromptMode(true);
+                else if (Object.prototype.hasOwnProperty.call(d, 'compact_prompt_mode') || Object.prototype.hasOwnProperty.call(d, 'minimal_prompt_mode')) {
+                    setCompactPromptMode(!!d.compact_prompt_mode);
+                }
                 if (get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;
                 if (get('set-liquid-glass')) get('set-liquid-glass').checked = !!d.liquid_glass_enabled;
                 applyLiquidGlassMode(!!d.liquid_glass_enabled);
@@ -8140,7 +8210,8 @@
             }
             bindPromptCacheControls();
             toggleOptions();
-            setCompactPromptMode(compactPromptMode, true);
+            if (minimalPromptMode) setMinimalPromptMode(true);
+            else setCompactPromptMode(compactPromptMode, true);
             renderWelcomeQuickStart();
             const canvasModeCheckbox = get('enable-canvas-mode');
             if (canvasModeCheckbox) {
@@ -8477,7 +8548,9 @@
                 if (d && d.theme_color) {
                     applyThemeColor(d.theme_color, true);
                 }
-                if (d && Object.prototype.hasOwnProperty.call(d, 'compact_prompt_mode')) {
+                if (d && Object.prototype.hasOwnProperty.call(d, 'minimal_prompt_mode') && d.minimal_prompt_mode) {
+                    setMinimalPromptMode(true);
+                } else if (d && Object.prototype.hasOwnProperty.call(d, 'compact_prompt_mode')) {
                     setCompactPromptMode(!!d.compact_prompt_mode);
                 }
                 if (get('set-client-debug-log')) {
@@ -9662,7 +9735,7 @@
                     syncRichPastePromptPreferencesUi(d);
                     updateGoogleLinkUI(d);
                     if(get('set-enter-to-send')) get('set-enter-to-send').checked = !!d.enter_to_send;
-                    if(get('set-compact-prompt-mode')) get('set-compact-prompt-mode').checked = !!d.compact_prompt_mode;
+                    writePromptBarModeToForm(!!d.compact_prompt_mode, !!d.minimal_prompt_mode);
                         if(get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;
                         if(get('set-clear-cache-on-version-update')) get('set-clear-cache-on-version-update').checked = !!d.clear_cache_on_version_update;
                     if(get('set-liquid-glass')) get('set-liquid-glass').checked = !!d.liquid_glass_enabled;
@@ -9895,6 +9968,7 @@
             get('save-settings-btn').onclick = async () => {
                 const uEl = get('set-username');
                 const pEl = get('set-password');
+                const promptBarMode = readPromptBarModeFromForm();
                 const b = {
                     system_prompt: get('sys-prompt-text') ? get('sys-prompt-text').value : '',
                     system_prompt_enabled: get('set-global-sys-prompt-enabled') ? get('set-global-sys-prompt-enabled').checked : true,
@@ -9906,7 +9980,8 @@
                     stt_model: get('set-stt-model') ? get('set-stt-model').value : null,
                     llm_transcribe_prompt: get('set-llm-transcribe-prompt') ? get('set-llm-transcribe-prompt').value : '',
                     enter_to_send: get('set-enter-to-send') ? get('set-enter-to-send').checked : false,
-                    compact_prompt_mode: get('set-compact-prompt-mode') ? get('set-compact-prompt-mode').checked : false,
+                    compact_prompt_mode: promptBarMode.compact_prompt_mode,
+                    minimal_prompt_mode: promptBarMode.minimal_prompt_mode,
                     use_sw_cache: get('set-use-sw-cache') ? get('set-use-sw-cache').checked : false,
                     clear_cache_on_version_update: get('set-clear-cache-on-version-update') ? get('set-clear-cache-on-version-update').checked : false,
                     liquid_glass_enabled: get('set-liquid-glass') ? get('set-liquid-glass').checked : false,
@@ -9969,6 +10044,7 @@
                         window.CHAT_CONFIG.clearCacheOnVersionUpdate = !!b.clear_cache_on_version_update;
                     }
                     compactPromptMode = b.compact_prompt_mode;
+                    minimalPromptMode = b.minimal_prompt_mode;
                     temporaryChatTimeoutSeconds = b.temp_chat_timeout_seconds;
 
                     // Apply theme color
@@ -9978,7 +10054,8 @@
                     applyAdaptiveBlurPreference(get('set-background-blur-mode') ? get('set-background-blur-mode').value : adaptiveBlurPreferenceMode);
 
                     // Update UI components
-                    setCompactPromptMode(compactPromptMode);
+                    if (minimalPromptMode) setMinimalPromptMode(true);
+                    else setCompactPromptMode(compactPromptMode);
                     if (previousUseSwCache !== useSwCache) {
                         applyCacheMode(useSwCache, { forceCleanup: !useSwCache });
                     }
@@ -16027,6 +16104,7 @@
             llm_transcribe_prompt: { label: 'LLM文字起こしプロンプト', tab: 'general', control: 'set-llm-transcribe-prompt' },
             enter_to_send: { label: 'Enterで送信', tab: 'general', control: 'set-enter-to-send' },
             compact_prompt_mode: { label: 'プロンプトバー表示', tab: 'general', control: 'set-compact-prompt-mode' },
+            minimal_prompt_mode: { label: 'ミニマル表示', tab: 'general', control: 'set-minimal-prompt-mode' },
             temp_chat_timeout_seconds: { label: '一時チャット保持時間', tab: 'general', control: 'set-temp-chat-timeout-seconds' },
             system_prompt: { label: 'ユーザーシステムプロンプト', tab: 'prompt', control: 'sys-prompt-text' },
             system_prompt_enabled: { label: 'システムプロンプト', tab: 'prompt', control: 'set-global-sys-prompt-enabled' },

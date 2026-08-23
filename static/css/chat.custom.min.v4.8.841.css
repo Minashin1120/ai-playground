@@ -4180,6 +4180,7 @@ html.performance-blur-disabled body:not(.liquid-glass-mode) #sidebar {
 }
 html.performance-blur-disabled body:not(.liquid-glass-mode) .main-chrome-header,
 html.performance-blur-disabled body:not(.liquid-glass-mode) header.bg-gray-800,
+html.performance-blur-disabled body:not(.liquid-glass-mode) #top-model-bar,
 html.performance-blur-disabled body:not(.liquid-glass-mode) .composer-dock,
 html.performance-blur-disabled body:not(.liquid-glass-mode) .bg-gray-800.border-t.border-gray-700 {
         background: #0a1226 !important;
@@ -4246,6 +4247,7 @@ html.performance-lite-mode body:not(.liquid-glass-mode) #sidebar {
 }
 html.performance-lite-mode body:not(.liquid-glass-mode) .main-chrome-header,
 html.performance-lite-mode body:not(.liquid-glass-mode) header.bg-gray-800,
+html.performance-lite-mode body:not(.liquid-glass-mode) #top-model-bar,
 html.performance-lite-mode body:not(.liquid-glass-mode) .composer-dock,
 html.performance-lite-mode body:not(.liquid-glass-mode) .bg-gray-800.border-t.border-gray-700 {
         background: #0a1226 !important;
@@ -4528,6 +4530,41 @@ html.performance-lite-mode #sidebar:not(.compact) .sidebar-gems {
 }
 body:has(#prompt-controls-row.compact-collapsed) .composer-dock {
     /* subtle cue that secondary tools are collapsed */
+}
+
+/* Minimal mode: send + plus only, model picker at the top */
+#top-model-bar {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.75rem;
+    border-bottom: 1px solid var(--line-soft);
+    background: rgba(7, 10, 20, 0.72);
+    backdrop-filter: blur(var(--blur-panel, 16px)) saturate(160%);
+    -webkit-backdrop-filter: blur(var(--blur-panel, 16px)) saturate(160%);
+    z-index: 11;
+}
+body.minimal-prompt-mode #top-model-bar {
+    display: flex !important;
+}
+body.minimal-prompt-mode #prompt-controls-row {
+    display: none !important;
+}
+body.minimal-prompt-mode #rich-paste-btn,
+body.minimal-prompt-mode #mask-btn,
+body.minimal-prompt-mode #mic-btn {
+    display: none !important;
+}
+body.minimal-prompt-mode #model-selector-btn {
+    max-width: min(280px, 78vw);
+}
+body.minimal-prompt-mode .composer-dock {
+    padding-top: 0.45rem;
+}
+body.liquid-glass-mode #top-model-bar {
+    background: rgba(255, 255, 255, 0.04);
+    border-bottom-color: rgba(255, 255, 255, 0.12);
 }
 
 /* --- Sidebar refinement --- */

@@ -19374,7 +19374,7 @@
             if (!grid) return;
             grid.innerHTML = '';
             if (!lib.files || !lib.files.length) {
-                grid.innerHTML = '<div class="text-xs text-gray-500">ファイルがありません。</div>';
+                grid.innerHTML = '<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas fa-folder"></i></div><p class="lib-empty-title">ファイルがまだありません</p><p class="lib-empty-sub">アップロードしたファイルがここに表示されます。</p></div>';
                 const countEl = get('lib-total-count');
                 if (countEl) countEl.innerText = "0 files";
                 return;
@@ -19388,7 +19388,7 @@
                 else countEl.innerText = `${lib.files.length} files`;
             }
             if (!filtered.length) {
-                grid.innerHTML = '<div class="text-xs text-gray-500">一致するファイルがありません。</div>';
+                grid.innerHTML = '<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas fa-search"></i></div><p class="lib-empty-title">一致するファイルがありません</p><p class="lib-empty-sub">検索条件や並び順を変更してください。</p></div>';
                 return;
             }
             let idx = 0;
@@ -19417,30 +19417,42 @@
             if (idx === -1) idx = 0;
             openViewerWithItems(items, idx);
         }
+        function libraryFileIcon(ext) {
+            const safe = {
+                pdf: 'fa-file-pdf',
+                image: 'fa-image',
+                file: 'fa-file'
+            };
+            const e = String(ext || '').toLowerCase();
+            if (e === 'pdf') return safe.pdf;
+            if (['png','jpg','jpeg','gif','webp','bmp','svg','heic'].includes(e)) return safe.image;
+            return safe.file;
+        }
         function renderLibraryItem(f, i = 0) {
             const el = document.createElement('div');
-            el.className = "relative group bg-gray-700 library-thumb-card rounded flex items-center justify-center border border-gray-600 cursor-pointer transition hover:border-gray-400 model-list-animate overflow-hidden";
-            if (i !== null && i !== undefined) el.style.animationDelay = `${i * 0.03}s`;
+            el.className = 'library-thumb-card';
+            if (i !== null && i !== undefined) el.style.animationDelay = `${Math.min(i * 0.035, 0.45)}s`;
             const thumbSrc = f.thumbnail_url || f.thumb_url || f.url;
-            const content = f.type==='image' ? `<img src="${escapeHtml(thumbSrc)}" loading="lazy" decoding="async" class="library-thumb-media">` : `<div class="library-thumb-file flex flex-col items-center"><i class="fas fa-file text-2xl mb-1"></i><span class="text-[10px] truncate w-full text-center">${escapeHtml(f.filename)}</span></div>`;
-            const overlay = `<div class="lib-overlay absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center gap-2 transition rounded z-10"><a href="${escapeHtml(f.url)}" download="${escapeHtml(f.filename)}" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-download"></i></a><button class="lib-open-btn p-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white" onclick="event.stopPropagation()"><i class="fas fa-eye"></i></button></div>`;
-            const actions = `<div class="absolute top-1 right-1 flex gap-1 z-20"><button class="lib-open-btn w-7 h-7 rounded-full bg-gray-900/70 border border-gray-600 text-gray-200 text-[10px]" title="開く"><i class="fas fa-eye"></i></button><button class="lib-del-btn w-7 h-7 rounded-full bg-gray-900/70 border border-gray-600 text-red-300 text-[10px]" title="削除"><i class="fas fa-trash"></i></button></div>`;
-            el.innerHTML = content + overlay + actions;
+            const extName = String(f.ext || (f.filename || '').split('.').pop() || '').toLowerCase();
+            const media = f.type === 'image'
+                ? `<img src="${escapeHtml(thumbSrc)}" alt="${escapeHtml(f.filename)}" loading="lazy" decoding="async" class="library-thumb-media">`
+                : `<div class="library-thumb-file"><div class="lib-file-icon"><i class="fas ${libraryFileIcon(extName)}"></i></div><span class="lib-file-badge">${escapeHtml(extName ? extName.toUpperCase() : 'FILE')}</span></div>`;
+            const overlay = `<div class="lib-overlay"><a href="${escapeHtml(f.url)}" download="${escapeHtml(f.filename)}" class="lib-overlay-btn" onclick="event.stopPropagation()" title="ダウンロード"><i class="fas fa-download"></i></a></div>`;
+            const actions = `<div class="lib-thumb-actions"><button class="lib-open-btn lib-action-circle" title="開く"><i class="fas fa-eye"></i></button><button class="lib-del-btn lib-action-circle lib-del" title="削除"><i class="fas fa-trash"></i></button></div>`;
+            const bar = `<div class="lib-thumb-bar"><span class="lib-thumb-name" title="${escapeHtml(f.filename)}">${escapeHtml(f.filename)}</span></div>`;
+            el.innerHTML = `<div class="lib-thumb-media-wrap">${media}</div>${overlay}${actions}${bar}`;
             el.onclick = () => {
                 if (lib.selected.has(f.filepath)) {
                     lib.selected.delete(f.filepath);
-                    el.classList.remove('ring-2', 'ring-blue-500', 'border-blue-500');
-                    el.classList.add('border-gray-600');
+                    el.classList.remove('is-selected');
                 } else {
                     lib.selected.add(f.filepath);
-                    el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500');
-                    el.classList.remove('border-gray-600');
+                    el.classList.add('is-selected');
                 }
                 window.updateLibSelectionUi();
             };
             if (lib.selected && lib.selected.has(f.filepath)) {
-                el.classList.add('ring-2', 'ring-blue-500', 'border-blue-500');
-                el.classList.remove('border-gray-600');
+                el.classList.add('is-selected');
             }
             const openBtns = el.querySelectorAll('.lib-open-btn');
             openBtns.forEach((btn) => {
@@ -19461,6 +19473,17 @@
                 };
             }
             return el;
+        }
+        function renderLibrarySkeleton(grid) {
+            if (!grid) return;
+            grid.innerHTML = '';
+            for (let i = 0; i < 12; i++) {
+                const card = document.createElement('div');
+                card.className = 'lib-skeleton-card';
+                card.style.animationDelay = `${Math.min(i * 0.04, 0.5)}s`;
+                card.innerHTML = '<div class="lib-skeleton-thumb"></div><div class="lib-skeleton-bar"><span class="lib-skeleton-line" style="width:78%"></span><span class="lib-skeleton-line" style="width:45%"></span></div>';
+                grid.appendChild(card);
+            }
         }
         function addLibraryFileFromPath(filepath) {
             if (!filepath) return;
@@ -19540,7 +19563,7 @@
         }
         async function loadLibraryFiles() {
             const grid = get('lib-grid');
-            if (grid) grid.innerHTML = '<div class="text-xs text-gray-500">読み込み中...</div>';
+            renderLibrarySkeleton(grid);
             let files = null;
             let lastErr = null;
             const baseUrl = CHAT_CONFIG.urls.getFilesLib;
@@ -19593,7 +19616,7 @@
             }
             if (lastErr && grid) {
                 console.error('Library load failed:', lastErr);
-                grid.innerHTML = '<div class="text-xs text-red-400">ライブラリの読み込みに失敗しました。</div>';
+                grid.innerHTML = '<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas fa-exclamation-triangle"></i></div><p class="lib-empty-title">ライブラリの読み込みに失敗しました</p><p class="lib-empty-sub">通信状況を確認して時間をおいて再度お試しください。</p></div>';
             }
         }
         async function deleteSelectedFiles() {

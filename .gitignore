@@ -1,5 +1,6 @@
 .env
 secret.key
+secret.key.*
 virtualenv/
 __pycache__/
 *.py[cod]

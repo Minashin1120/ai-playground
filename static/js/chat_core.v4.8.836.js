@@ -1,14 +1,19 @@
         const get = (id) => document.getElementById(id);
         const nativeConsoleLog = (typeof console.log === 'function') ? console.log.bind(console) : function () {};
         const nativeConsoleInfo = (typeof console.info === 'function') ? console.info.bind(console) : nativeConsoleLog;
-        // --- Key-mismatch file warning -----------------------------------------
+        // --- File/image load fallback ----------------------------------------
         // Uploaded files are served under /files/ (and /files/thumb/).  When the
         // media bytes exist on disk but the encryption key no longer matches, the
         // server answers HTTP 409 (not 404).  A document-level capture listener
-        // turns such a failed image into an explicit "key mismatch" warning
-        // instead of a broken thumbnail.  Non-/files/ (e.g. blob) images keep
-        // their own handlers.
+        // turns a failed image into an explicit warning instead of a broken
+        // thumbnail.  A status of 404/410/403 means the file is genuinely gone;
+        // a status of 200/206/304 means the media is actually served (a transient
+        // load failure or a thumbnail the browser cannot decode), so we retry the
+        // load (with a cache-buster) and, for a thumbnail URL, fall back to the
+        // original full /files/ image that still opens.  Non-/files/ (e.g. blob)
+        // images keep their own handlers.
         (function () {
+            const MAX_FILE_RETRIES = 2;
             const isFileUrl = (u) => /(\/files\/thumb\/|\/files\/)/.test(String(u || ''));
             const fileUrlStatus = (url) => fetch(url, { method: 'GET', headers: { 'Range': 'bytes=0-0' }, cache: 'no-store' })
                 .then((r) => r.status).catch(() => -1);
@@ -23,6 +28,7 @@
                 if (filename) box.setAttribute('data-file-name', String(filename));
                 return box;
             };
+            const fullFileUrl = (u) => String(u || '').split('?')[0].replace('/files/thumb/', '/files/');
             document.addEventListener('error', (e) => {
                 const el = e.target;
                 if (!el || el.tagName !== 'IMG') return;
@@ -30,12 +36,46 @@
                 if (!isFileUrl(src)) return;
                 e.stopImmediatePropagation();
                 e.preventDefault();
-                const filename = el.getAttribute('data-viewer-filename') || src.split('/').pop();
-                fileUrlStatus(src).then((status) => {
-                    let replacement;
-                    if (status === 409) replacement = buildWarning(filename, true);
-                    else replacement = buildWarning(filename, false);
+                const cleanSrc = String(src).split('?')[0];
+                const filename = el.getAttribute('data-viewer-filename') || cleanSrc.split('/').pop();
+                const showWarning = (keyMismatch) => {
+                    const replacement = buildWarning(filename, !!keyMismatch);
                     try { el.replaceWith(replacement); } catch (_) { /* detached */ }
+                };
+                const retryLoad = (url, retryCount) => {
+                    const fresh = el.cloneNode(false);
+                    fresh.setAttribute('data-file-retry', String(retryCount));
+                    const busted = url + (url.includes('?') ? '&' : '?') + 'retry=' + Date.now() + '_' + retryCount;
+                    fresh.setAttribute('src', busted);
+                    try { el.replaceWith(fresh); } catch (_) { /* detached */ }
+                };
+                const handleStatus = (status) => {
+                    if (status === 409) { showWarning(true); return; }
+                    if (status === 404 || status === 410 || status === 403) { showWarning(false); return; }
+                    // The file is still served, or the failure is transient.  Retry
+                    // the load before declaring it missing so a viewable file is not
+                    // replaced by "ファイルがありません".
+                    const retryCount = parseInt((el.getAttribute && el.getAttribute('data-file-retry')) || '0', 10);
+                    if (retryCount < MAX_FILE_RETRIES) { retryLoad(src, retryCount + 1); return; }
+                    // A thumbnail may fail to decode while the original full file
+                    // renders fine; fall back to /files/ once before giving up.
+                    if (src.includes('/files/thumb/') && !el.getAttribute('data-file-fallback')) {
+                        el.setAttribute('data-file-fallback', '1');
+                        retryLoad(fullFileUrl(src), 0);
+                        return;
+                    }
+                    showWarning(false);
+                };
+                fileUrlStatus(src).then(handleStatus).catch(() => {
+                    // Network error: treat as transient, retry.
+                    const retryCount = parseInt((el.getAttribute && el.getAttribute('data-file-retry')) || '0', 10);
+                    if (retryCount < MAX_FILE_RETRIES) { retryLoad(src, retryCount + 1); return; }
+                    if (src.includes('/files/thumb/') && !el.getAttribute('data-file-fallback')) {
+                        el.setAttribute('data-file-fallback', '1');
+                        retryLoad(fullFileUrl(src), 0);
+                        return;
+                    }
+                    showWarning(false);
                 });
             }, true);
         })();

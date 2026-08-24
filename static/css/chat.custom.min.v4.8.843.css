@@ -5069,10 +5069,11 @@ body.liquid-glass-mode .message-bubble.bg-gray-700 {
    Android Chrome 135+ draws the layout viewport behind the gesture
    navigation bar when viewport-fit=cover is set. The minimal prompt
    bar is the only mode that opts in (chat.html adds viewport-fit=cover
-   for it); there the dock surroundings are transparent so the page
-   background shows through around the input and behind the navigation
-   bar. Normal and compact modes keep the traditional solid dock and
-   never enable viewport-fit=cover, so no safe-area rule applies there.
+   for it); there the dock is transparent and floats over the
+   conversation so messages scroll behind it and the page background
+   shows through around the input and behind the navigation bar.
+   Normal and compact modes keep the traditional solid dock and never
+   enable viewport-fit=cover, so no safe-area rule applies there.
    ═══════════════════════════════════════════════════════════ */
 body.minimal-prompt-mode .composer-dock,
 body.minimal-prompt-mode .bg-gray-800.border-t.border-gray-700,
@@ -5085,6 +5086,26 @@ html.performance-lite-mode body.minimal-prompt-mode .composer-dock {
     box-shadow: none !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
+}
+
+/* Float the prompt bar over the conversation so the area around it is
+   transparent and messages scroll behind it (edge-to-edge minimal mode). */
+body.minimal-prompt-mode .composer-dock {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+}
+body.minimal-prompt-mode #chat-container {
+    padding-bottom: calc(var(--composer-h, 0px) + 0.75rem);
+    scroll-padding-bottom: calc(var(--composer-h, 0px) + 1rem);
+}
+body.minimal-prompt-mode .chat-scroll-to-bottom {
+    bottom: calc(var(--composer-h, 0px) + 1.25rem);
+}
+body.minimal-prompt-mode #welcome-screen {
+    padding-bottom: calc(var(--composer-h, 0px) + 1rem);
 }
 
 /* Top bars stay clear of the transparent status bar (PWA standalone). */

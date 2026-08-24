@@ -39,6 +39,24 @@ class EdgeToEdgeRegressionTests(unittest.TestCase):
         # Normal/compact modes keep the traditional solid dock.
         self.assertIn("body.minimal-prompt-mode #top-model-bar", css)
 
+    def test_minimal_mode_dock_floats_over_conversation(self):
+        css = _current_asset("css", "chat.custom.v4.8.*.css")
+        minimal = css[css.index("Edge-to-edge minimal prompt mode") :]
+        self.assertIn("body.minimal-prompt-mode .composer-dock {", minimal)
+        self.assertIn("position: absolute;", minimal)
+        self.assertIn("bottom: 0;", minimal)
+        self.assertIn("z-index: 30;", minimal)
+        self.assertIn("--composer-h", minimal)
+        self.assertIn("body.minimal-prompt-mode #chat-container", minimal)
+        self.assertIn("body.minimal-prompt-mode .chat-scroll-to-bottom", minimal)
+
+    def test_pwa_manifest_theme_matches_page_background(self):
+        import json
+
+        manifest = json.loads((APP_ROOT / "static" / "manifest.webmanifest").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["theme_color"], "#05070f")
+        self.assertEqual(manifest["background_color"], "#05070f")
+
     def test_js_toggles_viewport_fit_for_minimal_mode(self):
         script = _current_asset("js", "chat_core.v4.8.*.js")
         self.assertIn("viewport-fit=cover", script)

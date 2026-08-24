@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import unittest
 
@@ -12,14 +13,14 @@ def _current_asset(folder, pattern):
 
 
 class EdgeToEdgeRegressionTests(unittest.TestCase):
-    def test_chat_viewport_opts_in_only_for_minimal_prompt_mode(self):
+    def test_chat_always_opts_in_to_edge_to_edge(self):
         template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        # Edge-to-edge (viewport-fit=cover) is applied in every prompt-bar mode,
+        # not just the minimal one.
         self.assertIn(
-            '<meta name="viewport" content="width=device-width, initial-scale=1.0'
-            '{% if current_user.is_authenticated and current_user.minimal_prompt_mode %}, viewport-fit=cover{% endif %}">',
+            '<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">',
             template,
         )
-        # The legacy always-on edge-to-edge flags are gone.
         self.assertNotIn("maximum-scale=1.0", template)
         self.assertNotIn("user-scalable=no", template)
 
@@ -41,7 +42,7 @@ class EdgeToEdgeRegressionTests(unittest.TestCase):
 
     def test_minimal_mode_dock_floats_over_conversation(self):
         css = _current_asset("css", "chat.custom.v4.8.*.css")
-        minimal = css[css.index("Edge-to-edge minimal prompt mode") :]
+        minimal = css[css.index("Edge-to-edge") :]
         self.assertIn("body.minimal-prompt-mode .composer-dock {", minimal)
         self.assertIn("position: absolute;", minimal)
         self.assertIn("bottom: 0;", minimal)
@@ -50,17 +51,28 @@ class EdgeToEdgeRegressionTests(unittest.TestCase):
         self.assertIn("body.minimal-prompt-mode #chat-container", minimal)
         self.assertIn("body.minimal-prompt-mode .chat-scroll-to-bottom", minimal)
 
-    def test_pwa_manifest_theme_matches_page_background(self):
-        import json
+    def test_safe_area_rules_are_mode_independent(self):
+        css = _current_asset("css", "chat.custom.v4.8.*.css")
+        # The navigation-bar / status-bar safe-area handling is global, not tied
+        # to the minimal prompt mode.
+        self.assertIn("#alpha-bar", css)
+        self.assertIn("bottom: env(safe-area-inset-bottom, 0px) !important;", css)
+        self.assertIn(".main-chrome-header", css)
+        self.assertIn("env(safe-area-inset-top, 0px)", css)
+        self.assertIn(".sidebar-footer", css)
+        self.assertIn("env(safe-area-inset-bottom, 0px)", css)
 
-        manifest = json.loads((APP_ROOT / "static" / "manifest.webmanifest").read_text(encoding="utf-8"))
-        self.assertEqual(manifest["theme_color"], "#05070f")
-        self.assertEqual(manifest["background_color"], "#05070f")
-
-    def test_js_toggles_viewport_fit_for_minimal_mode(self):
+    def test_no_viewport_meta_toggling_in_js(self):
         script = _current_asset("js", "chat_core.v4.8.*.js")
-        self.assertIn("viewport-fit=cover", script)
         self.assertIn("function applyMinimalPromptMode", script)
+        # viewport-fit=cover is always present in chat.html, so the JS must not
+        # try to add/remove it when switching prompt-bar modes.
+        self.assertNotIn("viewport-fit=cover", script)
+
+    def test_no_theme_color_meta(self):
+        pwa_meta = (APP_ROOT / "templates" / "pwa_meta.html").read_text(encoding="utf-8")
+        self.assertNotIn("theme-color", pwa_meta)
+        self.assertIn('<meta name="color-scheme" content="dark">', pwa_meta)
 
     def test_all_pages_have_viewport_fit_cover(self):
         for name in (
@@ -85,6 +97,13 @@ class EdgeToEdgeRegressionTests(unittest.TestCase):
     def test_color_scheme_unified_on_all_pwa_pages(self):
         pwa_meta = (APP_ROOT / "templates" / "pwa_meta.html").read_text(encoding="utf-8")
         self.assertIn('<meta name="color-scheme" content="dark">', pwa_meta)
+
+    def test_pwa_manifest_has_no_theme_color(self):
+        manifest = json.loads((APP_ROOT / "static" / "manifest.webmanifest").read_text(encoding="utf-8"))
+        # No theme_color key: the navigation bar must not be painted a solid
+        # color in standalone PWA mode; the splash keeps the dark background.
+        self.assertNotIn("theme_color", manifest)
+        self.assertEqual(manifest["background_color"], "#05070f")
 
     def test_offline_page_keeps_safe_area_clearance(self):
         offline = (APP_ROOT / "static" / "offline.html").read_text(encoding="utf-8")

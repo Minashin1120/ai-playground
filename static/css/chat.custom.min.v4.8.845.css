@@ -5065,16 +5065,41 @@ body.liquid-glass-mode .message-bubble.bg-gray-700 {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Edge-to-edge minimal prompt mode
+   Edge-to-edge
    Android Chrome 135+ draws the layout viewport behind the gesture
-   navigation bar when viewport-fit=cover is set. The minimal prompt
-   bar is the only mode that opts in (chat.html adds viewport-fit=cover
-   for it); there the dock is transparent and floats over the
-   conversation so messages scroll behind it and the page background
-   shows through around the input and behind the navigation bar.
-   Normal and compact modes keep the traditional solid dock and never
-   enable viewport-fit=cover, so no safe-area rule applies there.
+   navigation bar when viewport-fit=cover is set (chat.html always
+   opts in). The navigation bar therefore becomes transparent in every
+   prompt-bar mode; safe-area rules below keep bottom/top-anchored
+   chrome clear of the system bars. The minimal prompt bar additionally
+   makes the dock transparent and floats it over the conversation so
+   messages scroll behind it and the page background shows through
+   around the input and behind the navigation bar. Normal and compact
+   modes keep the traditional solid dock.
    ═══════════════════════════════════════════════════════════ */
+
+/* Top bars stay clear of the transparent status bar (PWA standalone). */
+.main-chrome-header {
+    padding-top: calc(0.625rem + env(safe-area-inset-top, 0px));
+}
+@media (min-width: 769px) {
+    #top-model-bar {
+        padding-top: calc(0.375rem + env(safe-area-inset-top, 0px));
+    }
+}
+
+/* Alpha bar stays above the gesture navigation bar. */
+#alpha-bar {
+    bottom: env(safe-area-inset-bottom, 0px) !important;
+}
+
+/* Mobile sidebar drawer footer stays above the gesture navigation bar. */
+@media (max-width: 768px) {
+    .sidebar-footer {
+        padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    }
+}
+
+/* Minimal prompt mode: transparent floating dock. */
 body.minimal-prompt-mode .composer-dock,
 body.minimal-prompt-mode .bg-gray-800.border-t.border-gray-700,
 body.minimal-prompt-mode.liquid-glass-mode .composer-dock,
@@ -5106,19 +5131,4 @@ body.minimal-prompt-mode .chat-scroll-to-bottom {
 }
 body.minimal-prompt-mode #welcome-screen {
     padding-bottom: calc(var(--composer-h, 0px) + 1rem);
-}
-
-/* Top bars stay clear of the transparent status bar (PWA standalone). */
-body.minimal-prompt-mode .main-chrome-header {
-    padding-top: calc(0.625rem + env(safe-area-inset-top, 0px));
-}
-@media (min-width: 769px) {
-    body.minimal-prompt-mode #top-model-bar {
-        padding-top: calc(0.375rem + env(safe-area-inset-top, 0px));
-    }
-}
-
-/* Alpha bar stays above the gesture navigation bar. */
-body.minimal-prompt-mode #alpha-bar {
-    bottom: env(safe-area-inset-bottom, 0px) !important;
 }

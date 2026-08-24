@@ -4257,19 +4257,6 @@
         function applyMinimalPromptMode() {
             const enabled = !!minimalPromptMode;
             document.body.classList.toggle('minimal-prompt-mode', enabled);
-            // Edge-to-edge is opt-in for the minimal prompt bar only: toggle
-            // viewport-fit=cover so env(safe-area-inset-*) becomes active in
-            // this mode and the dock surroundings render transparently.
-            const viewport = document.querySelector('meta[name="viewport"]');
-            if (viewport) {
-                const current = viewport.getAttribute('content') || '';
-                const hasCover = /(^|,)\s*viewport-fit=cover(\s*,|$)/i.test(current);
-                if (enabled && !hasCover) {
-                    viewport.setAttribute('content', current.trim() + ', viewport-fit=cover');
-                } else if (!enabled && hasCover) {
-                    viewport.setAttribute('content', current.replace(/,?\s*viewport-fit=cover\s*/i, '').replace(/,\s*,/g, ',').replace(/^,|,$/g, '').trim());
-                }
-            }
             const topBar = get('top-model-bar');
             if (topBar) {
                 topBar.classList.toggle('hidden', !enabled);
@@ -9986,8 +9973,6 @@
             syncGeminiBackendUi();
             syncAdminApiKeyModeUi();
             get('save-settings-btn').onclick = async () => {
-                const prevMinimal = !!minimalPromptMode;
-                const prevCompact = !!compactPromptMode;
                 const uEl = get('set-username');
                 const pEl = get('set-password');
                 const promptBarMode = readPromptBarModeFromForm();
@@ -10086,15 +10071,10 @@
                     syncClientDebugLogToggle(b.enable_client_debug_log, 'settings saved');
 
                     // Critical changes that still might benefit from a reload for full consistency
-                    // The prompt-bar mode controls the edge-to-edge viewport opt-in
-                    // (viewport-fit=cover), which some browsers only apply on a fresh
-                    // page load, so reload when it changes.
                     if (b.new_username && b.new_username !== oldUsername) {
                         setTimeout(() => location.reload(), 1000);
                     } else if (b.new_password) {
                         showToast("パスワードを変更しました。次回ログイン時から有効です。", "info");
-                    } else if (prevMinimal !== !!b.minimal_prompt_mode || prevCompact !== !!b.compact_prompt_mode) {
-                        setTimeout(() => location.reload(), 600);
                     }
                 }
                 else {

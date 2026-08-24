@@ -2112,19 +2112,6 @@
         }
     
 
-/* Safe Area Insets for Edge-to-Edge */
-:root {
-    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-.safe-pb {
-    padding-bottom: calc(0.75rem + var(--safe-area-inset-bottom));
-}
-
-#alpha-bar {
-    bottom: var(--safe-area-inset-bottom) !important;
-}
-
 /* Sidebar Compact Mode (PC only) */
 @media (min-width: 769px) {
     #sidebar.compact {
@@ -2151,11 +2138,11 @@
         display: none !important;
     }
     #sidebar.compact #version-display,
-    #sidebar.compact .safe-pb > div:not(.toggle-compact-btn),
-    #sidebar.compact .safe-pb > a {
+    #sidebar.compact .sidebar-footer > div:not(.toggle-compact-btn),
+    #sidebar.compact .sidebar-footer > a {
         display: none !important;
     }
-    #sidebar.compact .safe-pb {
+    #sidebar.compact .sidebar-footer {
         padding: 10px 0 !important;
         border-top: 1px solid var(--line);
     }
@@ -5075,4 +5062,42 @@ body.liquid-glass-mode .composer-input-shell {
 }
 body.liquid-glass-mode .message-bubble.bg-gray-700 {
     background: rgba(255, 255, 255, 0.05);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Edge-to-edge minimal prompt mode
+   Android Chrome 135+ draws the layout viewport behind the gesture
+   navigation bar when viewport-fit=cover is set. The minimal prompt
+   bar is the only mode that opts in (chat.html adds viewport-fit=cover
+   for it); there the dock surroundings are transparent so the page
+   background shows through around the input and behind the navigation
+   bar. Normal and compact modes keep the traditional solid dock and
+   never enable viewport-fit=cover, so no safe-area rule applies there.
+   ═══════════════════════════════════════════════════════════ */
+body.minimal-prompt-mode .composer-dock,
+body.minimal-prompt-mode .bg-gray-800.border-t.border-gray-700,
+body.minimal-prompt-mode.liquid-glass-mode .composer-dock,
+html.performance-blur-disabled body.minimal-prompt-mode .composer-dock,
+html.performance-lite-mode body.minimal-prompt-mode .composer-dock {
+    background: transparent !important;
+    border-top-color: transparent !important;
+    border-bottom-color: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* Top bars stay clear of the transparent status bar (PWA standalone). */
+body.minimal-prompt-mode .main-chrome-header {
+    padding-top: calc(0.625rem + env(safe-area-inset-top, 0px));
+}
+@media (min-width: 769px) {
+    body.minimal-prompt-mode #top-model-bar {
+        padding-top: calc(0.375rem + env(safe-area-inset-top, 0px));
+    }
+}
+
+/* Alpha bar stays above the gesture navigation bar. */
+body.minimal-prompt-mode #alpha-bar {
+    bottom: env(safe-area-inset-bottom, 0px) !important;
 }

@@ -4257,6 +4257,19 @@
         function applyMinimalPromptMode() {
             const enabled = !!minimalPromptMode;
             document.body.classList.toggle('minimal-prompt-mode', enabled);
+            // Edge-to-edge is opt-in for the minimal prompt bar only: toggle
+            // viewport-fit=cover so env(safe-area-inset-*) becomes active in
+            // this mode and the dock surroundings render transparently.
+            const viewport = document.querySelector('meta[name="viewport"]');
+            if (viewport) {
+                const current = viewport.getAttribute('content') || '';
+                const hasCover = /(^|,)\s*viewport-fit=cover(\s*,|$)/i.test(current);
+                if (enabled && !hasCover) {
+                    viewport.setAttribute('content', current.trim() + ', viewport-fit=cover');
+                } else if (!enabled && hasCover) {
+                    viewport.setAttribute('content', current.replace(/,?\s*viewport-fit=cover\s*/i, '').replace(/,\s*,/g, ',').replace(/^,|,$/g, '').trim());
+                }
+            }
             const topBar = get('top-model-bar');
             if (topBar) {
                 topBar.classList.toggle('hidden', !enabled);

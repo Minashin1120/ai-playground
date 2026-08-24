@@ -822,3 +822,8 @@ html, body { overflow-x: clip; }
     .ld-faq-body.ld-faq-opened { animation: none !important; }
     .ld-faq summary::after { transition: none !important; }
 }
+
+/* ── Edge-to-edge: keep the landing footer clear of the transparent navigation bar ── */
+footer {
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px)) !important;
+}

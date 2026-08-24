@@ -1,4 +1,5 @@
 import io
+import hashlib
 import json
 import os
 import re
@@ -680,6 +681,62 @@ class AccountPortabilityTests(unittest.TestCase):
         with open(os.path.join(root, "worker.py"), encoding="utf-8") as handle:
             worker_source = handle.read()
         self.assertIn("worker.work(with_scheduler=True)", worker_source)
+
+    def test_frontend_shows_terminal_export_state_when_resuming(self):
+        root = os.path.dirname(os.path.dirname(__file__))
+        js_assets = sorted((Path(root) / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(js_assets), 1)
+        with open(js_assets[0], encoding="utf-8") as handle:
+            source = handle.read()
+        index = source.index("const refreshLatestAccountExport = async () => {")
+        section = source[index:index + 3000]
+        self.assertIn("['failed', 'cancelled', 'expired'].includes(data.state)", section)
+        self.assertIn("renderAccountTransferProgress(data)", section)
+
+    def test_export_job_uses_generous_timeout_for_large_accounts(self):
+        root = os.path.dirname(os.path.dirname(__file__))
+        with open(os.path.join(root, "app.py"), encoding="utf-8") as handle:
+            app_source = handle.read()
+        match = re.search(r"ACCOUNT_EXPORT_JOB_TIMEOUT_SECONDS = (\d+)", app_source)
+        self.assertIsNotNone(match)
+        self.assertGreaterEqual(int(match.group(1)), 3600)
+        export_section = app_source[app_source.index("def export_account_data("):]
+        self.assertIn("job_timeout=ACCOUNT_EXPORT_JOB_TIMEOUT_SECONDS", export_section)
+
+    def test_encrypted_export_files_are_streamed_without_media_cache(self):
+        root = os.path.dirname(os.path.dirname(__file__))
+        with open(os.path.join(root, "app.py"), encoding="utf-8") as handle:
+            app_source = handle.read()
+        section_start = app_source.index("def _write_account_export_file(")
+        section_end = app_source.index("\ndef ", section_start + 1)
+        section = app_source[section_start:section_end]
+        self.assertNotIn("_load_user_file_bytes", section)
+        self.assertIn("decrypt_bytes(token)", section)
+        self.assertIn('archive.open(archive_name, "w", force_zip64=True)', section)
+
+    def test_export_streams_large_encrypted_file_correctly(self):
+        # A file larger than the 1 MiB chunk size must round-trip intact.
+        big = os.urandom(2 * 1024 * 1024 + 123)
+        big_rel = f"{self.source_id}/big.bin"
+        big_path = os.path.join(self.temp_dir.name, str(self.source_id), "big.bin.enc")
+        with open(big_path, "wb") as handle:
+            handle.write(target.encrypt_bytes(big))
+        with target.app.app_context():
+            target.db.session.add(target.FileCache(
+                user_id=self.source_id,
+                rel_path=big_rel,
+                provider="label",
+                file_uri="big.bin",
+                state="ready",
+            ))
+            target.db.session.commit()
+        archive_bytes = self.export_archive()
+        with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+            manifest = json.loads(archive.read("account_data.json"))
+            big_item = next(item for item in manifest["data"]["files"] if item["rel_path"] == big_rel)
+            self.assertEqual(archive.read(big_item["archive_path"]), big)
+            self.assertEqual(big_item["sha256"], hashlib.sha256(big).hexdigest())
+            self.assertEqual(big_item["size_bytes"], len(big))
 
     def test_import_chunk_upload_accepts_chunks_larger_than_the_generic_body_limit(self):
         client = self.client_for(self.destination_id)

@@ -8744,6 +8744,13 @@
                         renderAccountTransferProgress(data);
                         return;
                     }
+                    if (['failed', 'cancelled', 'expired'].includes(data.state)) {
+                        // Show a terminal state left over from a previous session
+                        // (e.g. the background job was interrupted) instead of
+                        // silently showing nothing after the user returns.
+                        renderAccountTransferProgress(data);
+                        return;
+                    }
                     if (!['queued', 'running', 'cancelling'].includes(data.state) || !data.job_id) return;
                     if (activeAccountTransfer && activeAccountTransfer.id === data.job_id) return;
                     if (activeAccountTransfer) return;

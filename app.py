@@ -743,8 +743,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-25-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.843'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-25-003')
+app.config['SYSTEM_VERSION'] = 'V4.8.844'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3775,6 +3775,11 @@ ACCOUNT_TEXT_SETTING_LIMITS = {
 ACCOUNT_TRANSFER_JOB_RE = re.compile(r"^[a-f0-9]{32}$")
 ACCOUNT_EXPORT_RETENTION_SECONDS = 3600
 ACCOUNT_TRANSFER_STATUS_TTL = ACCOUNT_EXPORT_RETENTION_SECONDS + 600
+# RQ kills jobs that outlive job_timeout.  A large account (thousands of chat
+# messages plus hundreds of MB / GB of uploaded files) needs to be read,
+# decrypted and compressed in the background, so keep a generous budget well
+# beyond the typical duration to avoid killing valid exports.
+ACCOUNT_EXPORT_JOB_TIMEOUT_SECONDS = 7200
 ACCOUNT_EXPORT_FILE_RE = re.compile(r"^(\d+)-([a-f0-9]{32})\.(zip|part)$")
 
 
@@ -4171,12 +4176,34 @@ def _write_account_export_file(archive, archive_name, row):
     digest = hashlib.sha256()
     size_bytes = 0
     if info.get("is_encrypted"):
-        data = _load_user_file_bytes(row.get("rel_path"), info)
+        # Decrypt the Fernet token once, then stream the plaintext into the
+        # archive in bounded chunks.  This keeps the export worker's peak
+        # memory near the size of the largest single file instead of also
+        # retaining every decrypted file in the shared media cache, which
+        # could otherwise tip a small server over its memory limit and get
+        # the whole export job OOM-killed.
+        try:
+            with open(info["disk_path"], "rb") as source:
+                token = source.read()
+        except OSError:
+            raise AccountExportFileUnreadable("export_file_unreadable")
+        try:
+            data = decrypt_bytes(token)
+        except Exception:
+            data = None
+        finally:
+            del token
         if data is None:
             raise AccountExportFileUnreadable("export_file_unreadable")
-        digest.update(data)
-        size_bytes = len(data)
-        archive.writestr(archive_name, data)
+        try:
+            with archive.open(archive_name, "w", force_zip64=True) as target:
+                for offset in range(0, len(data), 1024 * 1024):
+                    chunk = data[offset:offset + 1024 * 1024]
+                    target.write(chunk)
+                    digest.update(chunk)
+                    size_bytes += len(chunk)
+        finally:
+            del data
     else:
         with open(info["disk_path"], "rb") as source, archive.open(archive_name, "w", force_zip64=True) as target:
             while True:
@@ -17587,7 +17614,7 @@ def export_account_data():
         )
         task_queue.enqueue(
             build_account_export_task, current_user.id, job_id,
-            job_timeout=600, result_ttl=ACCOUNT_TRANSFER_STATUS_TTL,
+            job_timeout=ACCOUNT_EXPORT_JOB_TIMEOUT_SECONDS, result_ttl=ACCOUNT_TRANSFER_STATUS_TTL,
             failure_ttl=ACCOUNT_TRANSFER_STATUS_TTL,
             on_failure=account_export_job_failure,
         )

@@ -389,14 +389,14 @@
                             <input id="thinking-budget" type="number" min="0" max="32768" step="256" value="4096" class="w-20 bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-[10px] text-white outline-none" title="Gemini 2.5のみ有効（tokens）">
                         </div>
                         <div id="reasoning-effort-container" class="composer-opt composer-opt-group hidden flex items-center gap-1"><span class="text-gray-400">Effort:</span><select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="none">None</option><option value="low">Low</option><option value="medium" selected>Med</option><option value="high">High</option><option value="xhigh">XHigh</option><option value="max">Max</option></select></div>
-                        <div class="composer-opt composer-opt-group flex items-center gap-1"><span class="text-gray-400">Safety:</span><select id="safety-setting" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="default">Default</option><option value="none" class="text-red-300">None</option></select></div>
+                        <div id="safety-option" class="composer-opt composer-opt-group flex items-center gap-1"><span class="text-gray-400">Safety:</span><select id="safety-setting" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="default">Default</option><option value="none" class="text-red-300">None</option></select></div>
                         <div id="prompt-cache-container" class="composer-opt flex items-center gap-0.5 select-none">
                             <label class="flex items-center gap-1 cursor-pointer" title="プロンプトキャッシュを有効化（同一APIプロバイダ内のモデルのみ切替可）">
                                 <input type="checkbox" id="enable-prompt-cache" class="accent-teal-500 w-3 h-3">
                                 <span class="text-teal-300 text-[10px]">PromptCache</span>
                             </label>
                         </div>
-                        <div class="composer-opt flex items-center gap-0.5 select-none">
+                        <div id="compression-option" class="composer-opt flex items-center gap-0.5 select-none">
                             <label class="flex items-center gap-1 cursor-pointer" title="Client-side Compression">
                                 <input type="checkbox" id="enable-compression" class="accent-blue-500 w-3 h-3" checked>
                                 <span class="text-gray-400 text-[10px]">Compress</span>
@@ -696,6 +696,36 @@
                         <span class="ml-auto text-gray-600">↑↓ 選択 / Enter 確定 / Esc 閉じる</span>
                     </div>
                     <div id="gem-suggestions-list" class="overflow-y-auto py-1" style="max-height: 260px;"></div>
+                </div>
+            </div>
+
+            <!-- Minimal mode: options popup (opened from the plus button) -->
+            <div id="minimal-options-popup" class="hidden" aria-hidden="true">
+                <div id="minimal-options-backdrop"></div>
+                <div id="minimal-options-panel" role="dialog" aria-label="プロンプトオプション">
+                    <div class="minimal-options-header">
+                        <span class="minimal-options-title"><i class="fas fa-sliders-h mr-1"></i>オプション</span>
+                        <button id="minimal-options-close-btn" type="button" class="minimal-options-close" aria-label="閉じる" title="閉じる"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div id="minimal-options-items" class="minimal-options-items"></div>
+                    <div id="minimal-options-model-section" class="hidden">
+                        <div class="minimal-options-section-title">モデル設定</div>
+                        <div id="minimal-options-model-body" class="minimal-options-model-body"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Minimal mode: temporary thinking level slide bar -->
+            <div id="thinking-slide-bar" class="hidden" aria-hidden="true">
+                <div id="thinking-slide-inner" class="thinking-slide-inner">
+                    <div class="thinking-slide-label-row">
+                        <i class="fas fa-brain text-purple-300"></i>
+                        <span class="thinking-slide-name">Thinking</span>
+                        <span id="thinking-slide-value" class="thinking-slide-value">High</span>
+                        <button id="thinking-slide-close-btn" type="button" class="thinking-slide-close" aria-label="閉じる" title="閉じる"><i class="fas fa-times"></i></button>
+                    </div>
+                    <input id="thinking-slider" type="range" min="0" max="3" step="1" value="3" aria-label="Thinking level">
+                    <div class="thinking-slide-scale"><span>Min</span><span>Low</span><span>Mid</span><span>High</span></div>
                 </div>
             </div>
         </div>

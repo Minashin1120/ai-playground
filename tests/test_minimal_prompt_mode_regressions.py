@@ -51,6 +51,64 @@ class MinimalPromptModeRegressionTests(unittest.TestCase):
         self.assertIn("ALTER TABLE user ADD COLUMN minimal_prompt_mode BOOLEAN DEFAULT 0", app_source)
         self.assertIn("プロンプトバーをミニマル表示", app_source)
 
+    def test_plus_button_options_popup_markup_exists(self):
+        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        self.assertIn('id="minimal-options-popup"', template)
+        self.assertIn('id="minimal-options-backdrop"', template)
+        self.assertIn('id="minimal-options-panel"', template)
+        self.assertIn('id="minimal-options-items"', template)
+        self.assertIn('id="minimal-options-model-section"', template)
+        self.assertIn('id="minimal-options-model-body"', template)
+        self.assertIn('id="minimal-options-close-btn"', template)
+        self.assertIn('id="thinking-slide-bar"', template)
+        self.assertIn('id="thinking-slider"', template)
+        self.assertIn('id="thinking-slide-close-btn"', template)
+
+    def test_option_wrappers_have_ids_for_popup_reference(self):
+        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        self.assertIn('id="safety-option"', template)
+        self.assertIn('id="compression-option"', template)
+
+    def test_js_implements_plus_button_popup_and_thinking_slider(self):
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        self.assertIn("function openMinimalOptions", script)
+        self.assertIn("function closeMinimalOptions", script)
+        self.assertIn("function toggleMinimalOptions", script)
+        self.assertIn("function renderMinimalOptionItems", script)
+        self.assertIn("function moveModelPanelsIntoPopup", script)
+        self.assertIn("function restoreModelPanelsFromPopup", script)
+        self.assertIn("function showThinkingSlider", script)
+        self.assertIn("function hideThinkingSlider", script)
+        self.assertIn("function bindUploadButton", script)
+        self.assertIn("function bindMinimalOptionsEvents", script)
+        self.assertIn("MINIMAL_POPUP_ITEMS", script)
+        self.assertIn("MINIMAL_MODEL_PANEL_IDS", script)
+        self.assertIn("THINKING_LEVELS", script)
+        self.assertIn("btn.onclick = () => {", script)
+
+    def test_css_hides_special_model_panels_in_minimal_mode(self):
+        css = _current_asset("css", "chat.custom.v4.8.*.css")
+        for panel_id in (
+            "gpt-image-options",
+            "gemini-image-options",
+            "grok-image-options",
+            "grok-video-options",
+            "mistral-ocr-options",
+            "image-input-limits",
+            "audio-gen-options",
+        ):
+            self.assertIn(f".composer-shell > #{panel_id}", css, msg=f"{panel_id} should be hidden inline in minimal mode")
+        self.assertIn("display: none !important;", css)
+
+    def test_css_styles_popup_and_slide_bar(self):
+        css = _current_asset("css", "chat.custom.v4.8.*.css")
+        self.assertIn("#minimal-options-popup", css)
+        self.assertIn(".minimal-option-item", css)
+        self.assertIn(".minimal-option-gear", css)
+        self.assertIn("#thinking-slide-bar", css)
+        self.assertIn(".thinking-slide-inner", css)
+        self.assertIn(".thinking-slide-open", css)
+
 
 if __name__ == "__main__":
     unittest.main()

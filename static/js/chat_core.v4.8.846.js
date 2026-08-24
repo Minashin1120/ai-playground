@@ -4265,7 +4265,11 @@
             const uploadBtn = get('upload-btn');
             const uploadIcon = uploadBtn ? uploadBtn.querySelector('i') : null;
             if (uploadIcon) uploadIcon.className = enabled ? 'fas fa-plus' : 'fas fa-paperclip';
-            if (uploadBtn) uploadBtn.title = enabled ? '添付' : 'Upload';
+            if (uploadBtn) uploadBtn.title = enabled ? 'オプション' : 'Upload';
+            if (!enabled) {
+                closeMinimalOptions();
+                hideThinkingSlider();
+            }
             placeModelSelectorButton();
         }
         function applyPromptControlMode() {
@@ -4332,6 +4336,387 @@
             promptControlsExpanded = !promptControlsExpanded;
             applyPromptControlMode();
         }
+
+        // ------------------------------------------------------------------
+        // Minimal mode: plus-button options popup + temporary Thinking slider
+        // ------------------------------------------------------------------
+        const MINIMAL_MODEL_PANEL_IDS = [
+            'gpt-image-options', 'gemini-image-options', 'grok-image-options',
+            'grok-video-options', 'mistral-ocr-options', 'image-input-limits', 'audio-gen-options'
+        ];
+        const THINKING_LEVELS = [
+            { value: 'minimal', label: 'Min' },
+            { value: 'low', label: 'Low' },
+            { value: 'medium', label: 'Mid' },
+            { value: 'high', label: 'High' }
+        ];
+        const MINIMAL_POPUP_ITEMS = [
+            { key: 'canvas', icon: 'fa-window-restore', label: 'Canvas', checkboxId: 'enable-canvas-mode', containerId: 'canvas-mode-container' },
+            { key: 'coding', icon: 'fa-code-branch', label: 'Coding', checkboxId: 'enable-coding-mode', containerId: 'coding-mode-container' },
+            { key: 'fast', icon: 'fa-bolt', label: '高速', checkboxId: 'enable-browser-fast-mode', containerId: 'browser-fast-mode-container' },
+            { key: 'search', icon: 'fa-search', label: 'Search', checkboxId: 'enable-search', containerId: 'search-container' },
+            { key: 'urls', icon: 'fa-link', label: 'URLs', checkboxId: 'enable-url-context', containerId: 'url-context-container' },
+            { key: 'maps', icon: 'fa-map-location-dot', label: 'Maps', checkboxId: 'enable-maps', containerId: 'maps-grounding-container' },
+            { key: 'python', icon: 'fa-code', label: 'Python', checkboxId: 'enable-python', containerId: 'python-container' },
+            { key: 'sysprompt', icon: 'fa-terminal', label: 'SysPrompt', checkboxId: 'enable-sys-prompt', containerId: 'sys-prompt-option', gear: true, gearAction: () => { if (window.openThreadModal) window.openThreadModal(); } },
+            { key: 'thinking', icon: 'fa-brain', label: 'Thinking', checkboxId: 'enable-thinking', containerId: 'thinking-options', special: 'thinking' },
+            { key: 'effort', icon: 'fa-sliders-h', label: 'Effort', containerId: 'reasoning-effort-container', selectId: 'reasoning-effort' },
+            { key: 'safety', icon: 'fa-shield-halved', label: 'Safety', selectId: 'safety-setting' },
+            { key: 'promptcache', icon: 'fa-database', label: 'PromptCache', checkboxId: 'enable-prompt-cache', containerId: 'prompt-cache-container' },
+            { key: 'compress', icon: 'fa-compress-alt', label: 'Compress', checkboxId: 'enable-compression', containerId: 'compression-option', gear: true, gearAction: () => { if (window.openCompressionModal) window.openCompressionModal(); } },
+            { key: 'tempchat', icon: 'fa-hourglass-half', label: '一時チャット', checkboxId: 'enable-temporary-chat', containerId: 'temporary-chat-container', gear: true, gearAction: () => openTemporaryChatSettings() }
+        ];
+        let minimalOptionsOpen = false;
+        let thinkingSliderOpen = false;
+        let thinkingSliderTimer = null;
+        let thinkingSliderStartY = 0;
+        let thinkingSliderDragging = false;
+        const minimalPanelOrigins = new Map();
+
+        function minimalOptionVisible(item) {
+            if (item.containerId) {
+                const cont = get(item.containerId);
+                if (!cont || cont.classList.contains('hidden')) return false;
+            }
+            return true;
+        }
+        function minimalOptionDisabled(item) {
+            if (item.checkboxId) {
+                const chk = get(item.checkboxId);
+                if (chk && chk.disabled) return true;
+            }
+            if (item.containerId) {
+                const cont = get(item.containerId);
+                if (cont && cont.classList.contains('pointer-events-none')) return true;
+            }
+            return false;
+        }
+        function minimalOptionChecked(item) {
+            if (!item.checkboxId) return false;
+            const chk = get(item.checkboxId);
+            return !!chk && chk.checked;
+        }
+
+        function buildMinimalOptionItem(item) {
+            const row = document.createElement('div');
+            row.className = 'minimal-option-item';
+            row.dataset.key = item.key;
+            if (minimalOptionChecked(item)) row.classList.add('on');
+            else row.classList.add('off');
+            if (minimalOptionDisabled(item)) row.classList.add('disabled');
+            const icon = document.createElement('i');
+            icon.className = 'fas ' + item.icon + ' minimal-option-icon';
+            row.appendChild(icon);
+            const label = document.createElement('span');
+            label.className = 'minimal-option-label';
+            label.textContent = item.label;
+            row.appendChild(label);
+            if (item.selectId) {
+                const src = get(item.selectId);
+                if (src) {
+                    const clone = src.cloneNode(true);
+                    clone.removeAttribute('id');
+                    clone.className = 'minimal-option-select';
+                    clone.addEventListener('change', () => {
+                        src.value = clone.value;
+                        src.dispatchEvent(new Event('change', { bubbles: true }));
+                        refreshMinimalOptionItems();
+                    });
+                    row.appendChild(clone);
+                }
+            }
+            if (item.gear) {
+                const gear = document.createElement('button');
+                gear.type = 'button';
+                gear.className = 'minimal-option-gear';
+                gear.title = item.label + '設定';
+                const gicon = document.createElement('i');
+                gicon.className = 'fas fa-cog';
+                gear.appendChild(gicon);
+                gear.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    closeMinimalOptions();
+                    if (typeof item.gearAction === 'function') item.gearAction();
+                });
+                row.appendChild(gear);
+            }
+            row.addEventListener('click', () => handleMinimalOptionClick(item));
+            return row;
+        }
+
+        function renderMinimalOptionItems() {
+            const wrap = get('minimal-options-items');
+            if (!wrap) return;
+            const frag = document.createDocumentFragment();
+            MINIMAL_POPUP_ITEMS.forEach((item) => {
+                if (!minimalOptionVisible(item)) return;
+                frag.appendChild(buildMinimalOptionItem(item));
+            });
+            wrap.innerHTML = '';
+            wrap.appendChild(frag);
+        }
+
+        function refreshMinimalOptionItems() {
+            const wrap = get('minimal-options-items');
+            if (!wrap || !minimalOptionsOpen) return;
+            const rows = wrap.querySelectorAll('.minimal-option-item');
+            const rowByKey = {};
+            rows.forEach((row) => { rowByKey[row.dataset.key] = row; });
+            MINIMAL_POPUP_ITEMS.forEach((item) => {
+                const row = rowByKey[item.key];
+                if (!row) return;
+                if (!minimalOptionVisible(item)) { row.classList.add('hidden'); return; }
+                row.classList.remove('hidden');
+                row.classList.toggle('on', minimalOptionChecked(item));
+                row.classList.toggle('off', !minimalOptionChecked(item));
+                row.classList.toggle('disabled', minimalOptionDisabled(item));
+                if (item.selectId) {
+                    const src = get(item.selectId);
+                    const clone = row.querySelector('.minimal-option-select');
+                    if (src && clone && document.activeElement !== clone && clone.value !== src.value) {
+                        clone.value = src.value;
+                    }
+                }
+            });
+        }
+
+        function handleMinimalOptionClick(item) {
+            if (minimalOptionDisabled(item)) return;
+            if (item.selectId) return; // select rows change via their own <select>
+            const chk = get(item.checkboxId);
+            if (!chk) return;
+            if (item.special === 'thinking') {
+                const turningOn = !chk.checked;
+                chk.checked = turningOn;
+                chk.dispatchEvent(new Event('change', { bubbles: true }));
+                if (turningOn) {
+                    closeMinimalOptions();
+                    showThinkingSlider();
+                } else {
+                    hideThinkingSlider();
+                }
+                refreshMinimalOptionItems();
+                return;
+            }
+            if (chk.disabled) return;
+            chk.checked = !chk.checked;
+            chk.dispatchEvent(new Event('change', { bubbles: true }));
+            refreshMinimalOptionItems();
+            // Fast mode may open a modal and settles asynchronously; temporary
+            // chat confirmation is async too, so refresh the rows afterwards.
+            if (item.key === 'fast') {
+                closeMinimalOptions();
+                setTimeout(() => refreshMinimalOptionItems(), 350);
+            } else if (item.key === 'tempchat') {
+                setTimeout(() => refreshMinimalOptionItems(), 350);
+            }
+        }
+
+        function moveModelPanelsIntoPopup() {
+            const body = get('minimal-options-model-body');
+            if (!body) return;
+            let anyVisible = false;
+            MINIMAL_MODEL_PANEL_IDS.forEach((id) => {
+                const el = get(id);
+                if (!el) return;
+                if (el.parentElement === body) {
+                    if (!el.classList.contains('hidden')) anyVisible = true;
+                    return;
+                }
+                if (minimalPanelOrigins.has(el)) return;
+                minimalPanelOrigins.set(el, { parent: el.parentElement, next: el.nextSibling });
+                body.appendChild(el);
+                if (!el.classList.contains('hidden')) anyVisible = true;
+            });
+            refreshMinimalModelSection();
+        }
+        function restoreModelPanelsFromPopup() {
+            const body = get('minimal-options-model-body');
+            if (!body) return;
+            minimalPanelOrigins.forEach((origin, el) => {
+                if (origin.parent && origin.parent.contains(el)) {
+                    if (origin.next && origin.next.parentNode === origin.parent) origin.parent.insertBefore(el, origin.next);
+                    else origin.parent.appendChild(el);
+                }
+            });
+            minimalPanelOrigins.clear();
+        }
+        function refreshMinimalModelSection() {
+            const body = get('minimal-options-model-body');
+            const section = get('minimal-options-model-section');
+            if (!body || !section) return;
+            let anyVisible = false;
+            Array.from(body.children).forEach((child) => {
+                if (!child.classList.contains('hidden')) anyVisible = true;
+            });
+            section.classList.toggle('hidden', !anyVisible);
+        }
+
+        function openMinimalOptions() {
+            if (minimalOptionsOpen || !minimalPromptMode) return;
+            hideThinkingSlider();
+            minimalOptionsOpen = true;
+            renderMinimalOptionItems();
+            moveModelPanelsIntoPopup();
+            const popup = get('minimal-options-popup');
+            if (!popup) return;
+            popup.classList.remove('hidden');
+            popup.setAttribute('aria-hidden', 'false');
+            void popup.offsetWidth;
+            popup.classList.add('minimal-options-open');
+        }
+        function closeMinimalOptions() {
+            if (!minimalOptionsOpen) return;
+            minimalOptionsOpen = false;
+            const popup = get('minimal-options-popup');
+            if (popup) {
+                popup.classList.remove('minimal-options-open');
+                popup.setAttribute('aria-hidden', 'true');
+                setTimeout(() => {
+                    if (!minimalOptionsOpen) popup.classList.add('hidden');
+                }, 320);
+            }
+            restoreModelPanelsFromPopup();
+            hideThinkingSlider();
+        }
+        function toggleMinimalOptions() {
+            if (minimalOptionsOpen) closeMinimalOptions();
+            else openMinimalOptions();
+        }
+        function refreshMinimalOptionsIfOpen() {
+            if (!minimalOptionsOpen) return;
+            renderMinimalOptionItems();
+            refreshMinimalModelSection();
+        }
+
+        // --- Thinking level slide bar ---
+        function allowedThinkingValues() {
+            const sel = get('thinking-level');
+            if (!sel) return THINKING_LEVELS.map((l) => l.value);
+            const allowed = Array.from(sel.options)
+                .filter((o) => !o.disabled && !o.classList.contains('hidden'))
+                .map((o) => o.value);
+            // All options disabled (e.g. Claude uses budget only) -> nothing to pick.
+            return allowed;
+        }
+        function thinkingIndexFromValue(value) {
+            const idx = THINKING_LEVELS.findIndex((l) => l.value === value);
+            return idx < 0 ? 3 : idx;
+        }
+        function syncThinkingSliderUi() {
+            const slider = get('thinking-slider');
+            const label = get('thinking-slide-value');
+            const sel = get('thinking-level');
+            const idx = thinkingIndexFromValue(sel ? sel.value : 'high');
+            if (slider) slider.value = String(idx);
+            if (label) label.textContent = THINKING_LEVELS[idx].label;
+        }
+        function scheduleThinkingSliderHide() {
+            if (thinkingSliderTimer) clearTimeout(thinkingSliderTimer);
+            thinkingSliderTimer = setTimeout(() => {
+                thinkingSliderTimer = null;
+                hideThinkingSlider();
+            }, 2500);
+        }
+        function showThinkingSlider() {
+            if (thinkingSliderOpen) {
+                scheduleThinkingSliderHide();
+                return;
+            }
+            const bar = get('thinking-slide-bar');
+            if (!bar) return;
+            thinkingSliderOpen = true;
+            bar.classList.remove('hidden');
+            bar.setAttribute('aria-hidden', 'false');
+            syncThinkingSliderUi();
+            void bar.offsetWidth;
+            bar.classList.add('thinking-slide-open');
+            scheduleThinkingSliderHide();
+        }
+        function hideThinkingSlider() {
+            if (thinkingSliderTimer) { clearTimeout(thinkingSliderTimer); thinkingSliderTimer = null; }
+            const bar = get('thinking-slide-bar');
+            if (!bar) return;
+            thinkingSliderOpen = false;
+            bar.classList.remove('thinking-slide-open');
+            bar.setAttribute('aria-hidden', 'true');
+            const inner = get('thinking-slide-inner');
+            if (inner) inner.style.transform = '';
+            setTimeout(() => {
+                if (!thinkingSliderOpen) bar.classList.add('hidden');
+            }, 360);
+        }
+        function bindMinimalOptionsEvents() {
+            const backdrop = get('minimal-options-backdrop');
+            const closeBtn = get('minimal-options-close-btn');
+            if (backdrop) backdrop.addEventListener('click', () => closeMinimalOptions());
+            if (closeBtn) closeBtn.addEventListener('click', () => closeMinimalOptions());
+            document.addEventListener('keydown', (e) => {
+                if (e.key !== 'Escape') return;
+                if (minimalOptionsOpen) {
+                    closeMinimalOptions();
+                    return;
+                }
+                if (thinkingSliderOpen) hideThinkingSlider();
+            });
+            const slider = get('thinking-slider');
+            if (slider) {
+                slider.addEventListener('input', () => {
+                    const idx = Number(slider.value);
+                    const allowed = allowedThinkingValues();
+                    const sel = get('thinking-level');
+                    if (allowed.length) {
+                        const allowedIdx = allowed.map((v) => thinkingIndexFromValue(v));
+                        const targetIdx = allowedIdx.includes(idx) ? idx : allowedIdx.reduce((best, ai) => Math.abs(ai - idx) < Math.abs(best - idx) ? ai : best, allowedIdx[0]);
+                        if (sel) {
+                            sel.value = THINKING_LEVELS[targetIdx].value;
+                            sel.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    }
+                    syncThinkingSliderUi();
+                    scheduleThinkingSliderHide();
+                });
+            }
+            const closeSlider = get('thinking-slide-close-btn');
+            if (closeSlider) closeSlider.addEventListener('click', (e) => {
+                e.stopPropagation();
+                hideThinkingSlider();
+            });
+            const slideBar = get('thinking-slide-bar');
+            if (slideBar) {
+                const slideInner = get('thinking-slide-inner');
+                slideBar.addEventListener('touchstart', (e) => {
+                    thinkingSliderDragging = true;
+                    thinkingSliderStartY = e.touches[0].clientY;
+                    if (slideInner) slideInner.classList.add('dragging');
+                }, { passive: true });
+                slideBar.addEventListener('touchmove', (e) => {
+                    if (!thinkingSliderDragging) return;
+                    const dy = e.touches[0].clientY - thinkingSliderStartY;
+                    if (slideInner) slideInner.style.transform = dy > 0 ? `translateY(${Math.min(dy, 120)}px)` : '';
+                }, { passive: true });
+                slideBar.addEventListener('touchend', (e) => {
+                    if (!thinkingSliderDragging) return;
+                    thinkingSliderDragging = false;
+                    const dy = e.changedTouches[0].clientY - thinkingSliderStartY;
+                    if (slideInner) {
+                        slideInner.classList.remove('dragging');
+                        slideInner.style.transform = '';
+                    }
+                    if (dy > 60) hideThinkingSlider();
+                    else scheduleThinkingSliderHide();
+                }, { passive: true });
+            }
+        }
+        function bindUploadButton() {
+            const btn = get('upload-btn');
+            if (!btn) return;
+            btn.onclick = () => {
+                if (minimalPromptMode) toggleMinimalOptions();
+                else openUploadModal();
+            };
+        }
+
         function applyChatDefaults(d) {
             if (!d) return;
             applyTemporaryChatTimeoutSeconds(d.temp_chat_timeout_seconds);
@@ -7590,6 +7975,7 @@
             const codingContainer = get('coding-mode-container');
             if (codingCheckbox) codingCheckbox.disabled = true;
             if (codingContainer) codingContainer.classList.add('opacity-50', 'pointer-events-none');
+            refreshMinimalOptionsIfOpen();
         }
 
         function restoreBrowserFastModeOptions() {
@@ -7613,6 +7999,7 @@
             if (previous && previous.coding) syncCodingModeUi(true, { persist: false });
             browserFastPreviousOptions = null;
             if (typeof updatePromptCacheUi === 'function') updatePromptCacheUi();
+            refreshMinimalOptionsIfOpen();
         }
 
         function setBrowserFastModeEnabled(enabled, opts = {}) {
@@ -8203,6 +8590,7 @@
                 updateMistralOcrUi();
                 updateImageInputLimits();
                 purgeUnsupportedAttachments(true);
+                refreshMinimalOptionsIfOpen();
             }
             if (get('model-select')) {
                 get('model-select').addEventListener('change', toggleOptions);
@@ -8573,7 +8961,8 @@
 
             get('send-btn').onclick = () => { if (isStopMode) stopGeneration(); else sendMessage(); };
             get('new-chat-btn').onclick = () => startNewChat();
-            get('upload-btn').onclick = () => openUploadModal();
+            bindUploadButton();
+            bindMinimalOptionsEvents();
             const vmBtn = get('vision-model-change-btn');
             if (vmBtn) vmBtn.onclick = () => _openVisionModelSelector();
             const onlyEl = get('compression-format-only');

@@ -448,6 +448,25 @@ class SetupImportRegressionTests(unittest.TestCase):
         ]:
             self.assertIn(expected, js_source)
 
+    def test_setup_import_settings_confirmation_ui_and_flow(self):
+        root = Path(__file__).resolve().parents[1]
+        with open(root / "templates" / "setup.html", encoding="utf-8") as handle:
+            template = handle.read()
+        for expected in [
+            'id="setup-settings-confirmation-modal"',
+            'id="setup-settings-confirmation-list"',
+            'id="setup-settings-confirmation-count"',
+            'id="setup-settings-confirmation-close"',
+            'id="setup-settings-confirmation-cancel"',
+            'id="setup-settings-confirmation-confirm"',
+            'id="setup-account-import-settings-bypass"',
+            "showSetupSettingsConfirmation",
+            "data.status === 'settings_confirmation'",
+            "outcome.state === 'needs_settings_confirmation'",
+            "confirm_settings: (settingsConfirmed || settingsBypass)",
+        ]:
+            self.assertIn(expected, template)
+
 
 if __name__ == "__main__":
     unittest.main()

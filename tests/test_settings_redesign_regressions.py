@@ -90,6 +90,41 @@ class SettingsRedesignRegressionTests(unittest.TestCase):
         self.assertIn("#settings-modal input[type=\"text\"]", css)
         self.assertIn("#settings-modal .settings-card button", css)
 
+    def test_save_button_is_disabled_until_settings_load_completes(self):
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        # The save button must be disabled at open and only re-enabled after the
+        # async settings fetch has populated the form (prevents saving defaults).
+        self.assertIn("let settingsModalLoaded = false;", script)
+        self.assertIn("setSettingsSaveEnabled(false);", script)
+        self.assertIn("settingsModalLoaded = true;", script)
+        self.assertIn("setSettingsSaveEnabled(true);", script)
+        self.assertIn("if (!settingsModalLoaded) {", script)
+        # enable_e2ee must only be sent when the checkbox differs from the value
+        # loaded from the server, so an unmodified form cannot start a migration.
+        self.assertIn("b.enable_e2ee = e2eeCurrent;", script)
+        self.assertIn("e2eeCurrent !== e2eeLoaded", script)
+
+    def test_import_settings_confirmation_ui_is_present(self):
+        template = Path(APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        for ident in (
+            'id="settings-confirmation-modal"',
+            'id="settings-confirmation-list"',
+            'id="settings-confirmation-count"',
+            'id="settings-confirmation-close"',
+            'id="settings-confirmation-cancel"',
+            'id="settings-confirmation-confirm"',
+            'id="account-import-settings-bypass"',
+        ):
+            self.assertIn(ident, template)
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        for expected in (
+            "showSettingsImportConfirmation",
+            "settings_confirmation",
+            "needs_settings_confirmation",
+            "confirm_settings",
+        ):
+            self.assertIn(expected, script)
+
 
 if __name__ == "__main__":
     unittest.main()

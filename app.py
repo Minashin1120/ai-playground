@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-26-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.854'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-26-003')
+app.config['SYSTEM_VERSION'] = 'V4.8.855'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -4710,6 +4710,7 @@ def _set_account_transfer_status(user_id, job_id, state, progress, phase, messag
     for key in (
         "expires_at", "filename", "size_bytes", "available",
         "files", "used_bytes", "limit_bytes", "available_bytes",
+        "settings_changes",
     ):
         if key in details:
             payload[key] = details[key]
@@ -5344,9 +5345,17 @@ def _safe_account_import_text(value, max_chars):
     return text_value
 
 
-def _apply_imported_account_settings(user, values):
+def _normalize_imported_account_settings(user, values):
+    """Return the canonical (plaintext) values that would be stored for import.
+
+    Fields that are absent from ``values`` are skipped, invalid model ids are
+    ignored, and every other field is normalized to the same form used when
+    saving settings from the settings screen.  The ``system_prompt`` is returned
+    in plaintext (encryption is applied later when storing).
+    """
     if not isinstance(values, dict):
         raise ValueError("invalid_settings")
+    normalized = {}
     for field in ACCOUNT_SETTING_FIELDS:
         if field not in values:
             continue
@@ -5375,9 +5384,51 @@ def _apply_imported_account_settings(user, values):
             value = _normalize_mic_transcribe_mode(value)
         elif field == "llm_transcribe_prompt":
             value = _normalize_llm_transcribe_prompt(value)
-        elif field == "system_prompt" and user.enable_e2ee:
+        normalized[field] = value
+    return normalized
+
+
+def _apply_imported_account_settings(user, values):
+    for field, value in _normalize_imported_account_settings(user, values).items():
+        if field == "system_prompt" and user.enable_e2ee:
             value = encrypt_val(value)
         setattr(user, field, value)
+
+
+def _account_setting_values_equal(a, b):
+    if isinstance(a, bool) or isinstance(b, bool):
+        return bool(a) == bool(b)
+    if a is None:
+        a = ""
+    if b is None:
+        b = ""
+    return a == b
+
+
+def _account_import_settings_changes(user, values):
+    """List the settings that would change if ``values`` were imported.
+
+    Returns ``[{"field": ..., "current": ..., "incoming": ...}, ...]`` for every
+    setting whose normalized import value differs from the current value, so the
+    client can show the user exactly what would be overwritten before starting.
+    """
+    normalized = _normalize_imported_account_settings(user, values)
+    changes = []
+    for field, incoming in normalized.items():
+        current = getattr(user, field, None)
+        if field == "system_prompt" and current and user.enable_e2ee:
+            try:
+                current = decrypt_val(current)
+            except Exception:
+                pass
+        if _account_setting_values_equal(current, incoming):
+            continue
+        changes.append({
+            "field": field,
+            "current": current,
+            "incoming": incoming,
+        })
+    return changes
 
 
 def _apply_imported_account_secrets(user, values):
@@ -19462,6 +19513,13 @@ def import_account_data():
         request.form.get("restore_inplace") in ("1", "true", "on")
         or body.get("restore_inplace") is True
     )
+    # When falsy and the "settings" category is selected, the import pauses after
+    # the upload so the client can show which settings would change and ask for a
+    # confirmation before anything is written.  True bypasses that confirmation.
+    confirm_settings = (
+        request.form.get("confirm_settings") in ("1", "true", "on")
+        or body.get("confirm_settings") is True
+    )
     job_id = str(request.form.get("job_id") or body.get("job_id") or secrets.token_hex(16)).lower()
     if not _valid_account_transfer_job_id(job_id):
         return jsonify({'error': 'invalid_job_id'}), 400
@@ -19510,6 +19568,25 @@ def import_account_data():
             if not isinstance(data, dict):
                 raise ValueError("invalid_manifest")
             _account_transfer_checkpoint(current_user.id, job_id, 38, "validating", "データ構成を確認しています")
+
+            if "settings" in categories and not confirm_settings:
+                settings_changes = _account_import_settings_changes(current_user, data.get("settings") or {})
+                if settings_changes:
+                    _set_account_transfer_status(
+                        current_user.id, job_id, "needs_settings_confirmation", 55, "importing_settings",
+                        "設定のインポート内容を確認してください",
+                        settings_changes=settings_changes,
+                    )
+                    if hasattr(import_stream, 'close'):
+                        import_stream.close()
+                    response = jsonify({
+                        "status": "settings_confirmation",
+                        "error": "settings_confirmation_required",
+                        "message": "設定のインポート内容を確認してください",
+                        "settings_changes": settings_changes,
+                    })
+                    response.headers["Cache-Control"] = "no-store"
+                    return response
 
             file_map = {}
             imported_files = []

@@ -321,6 +321,7 @@ class AccountPortabilityTests(unittest.TestCase):
             "/api/account/import",
             data={
                 "categories": "settings,api_credentials",
+                "confirm_settings": "true",
                 "file": (io.BytesIO(archive_bytes), "account.zip"),
             },
             headers={"X-CSRF-Token": "csrf-test-token"},
@@ -640,6 +641,7 @@ class AccountPortabilityTests(unittest.TestCase):
                 data={
                     "job_id": "c" * 32,
                     "categories": "files,settings",
+                    "confirm_settings": "true",
                     "file": (io.BytesIO(archive_bytes), "account.zip"),
                 },
                 headers={"X-CSRF-Token": "csrf-test-token"},
@@ -806,6 +808,142 @@ class AccountPortabilityTests(unittest.TestCase):
         self.assertGreater(import_index, upload_complete, "polling must start only after the upload completes")
         self.assertIn("{progress: 100, phase: 'completed', message: 'インポートが完了しました'}", source)
         self.assertIn("uploading: 'ZIPをアップロード中'", source)
+
+    def test_settings_import_requires_confirmation_and_does_not_apply(self):
+        archive_bytes = self.export_archive()
+        response = self.client_for(self.destination_id).post(
+            "/api/account/import",
+            data={
+                "categories": "settings",
+                "file": (io.BytesIO(archive_bytes), "account.zip"),
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            content_type="multipart/form-data",
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        payload = response.get_json()
+        self.assertEqual(payload["status"], "settings_confirmation")
+        self.assertEqual(payload["error"], "settings_confirmation_required")
+        changes = payload["settings_changes"]
+        self.assertIsInstance(changes, list)
+        self.assertTrue(changes)
+        fields = {change["field"] for change in changes}
+        self.assertIn("theme_color", fields)
+        self.assertIn("system_prompt", fields)
+        theme = next(change for change in changes if change["field"] == "theme_color")
+        self.assertEqual(theme["current"], "#abcdef")
+        self.assertEqual(theme["incoming"], "#123456")
+        # Nothing must be written until the user confirms.
+        with target.app.app_context():
+            destination = target.db.session.get(target.User, self.destination_id)
+            self.assertEqual(destination.theme_color, "#abcdef")
+            self.assertIn(destination.system_prompt, (None, ''))
+
+    def test_settings_import_applies_after_confirmation(self):
+        archive_bytes = self.export_archive()
+        client = self.client_for(self.destination_id)
+        preview = client.post(
+            "/api/account/import",
+            data={
+                "categories": "settings,api_credentials",
+                "file": (io.BytesIO(archive_bytes), "account.zip"),
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            content_type="multipart/form-data",
+            base_url="https://localhost",
+        )
+        self.assertEqual(preview.status_code, 200, preview.get_data(as_text=True))
+        self.assertEqual(preview.get_json()["status"], "settings_confirmation")
+        confirmed = client.post(
+            "/api/account/import",
+            data={
+                "categories": "settings,api_credentials",
+                "confirm_settings": "true",
+                "file": (io.BytesIO(archive_bytes), "account.zip"),
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            content_type="multipart/form-data",
+            base_url="https://localhost",
+        )
+        self.assertEqual(confirmed.status_code, 200, confirmed.get_data(as_text=True))
+        with target.app.app_context():
+            destination = target.db.session.get(target.User, self.destination_id)
+            self.assertEqual(destination.theme_color, "#123456")
+            self.assertEqual(target.decrypt_val(destination.system_prompt), "portable system prompt")
+            self.assertEqual(target.decrypt_val(destination.openai_api_key), "portable-openai-key")
+
+    def test_settings_import_bypasses_confirmation_when_confirm_settings_true(self):
+        archive_bytes = self.export_archive()
+        response = self.client_for(self.destination_id).post(
+            "/api/account/import",
+            data={
+                "categories": "settings",
+                "confirm_settings": "true",
+                "file": (io.BytesIO(archive_bytes), "account.zip"),
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            content_type="multipart/form-data",
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        payload = response.get_json()
+        self.assertEqual(payload.get("status"), "ok")
+        self.assertNotIn("settings_confirmation", payload)
+        with target.app.app_context():
+            destination = target.db.session.get(target.User, self.destination_id)
+            self.assertEqual(destination.theme_color, "#123456")
+
+    def test_settings_import_confirmation_records_in_transfer_status(self):
+        archive_bytes = self.export_archive()
+        client = self.client_for(self.destination_id)
+        upload_id = self.chunked_upload(client, archive_bytes)
+        job_id = "c0ffee" * 5 + "c" * 2  # 32 hex chars
+        self.assertEqual(len(job_id), 32, job_id)
+        response = client.post(
+            "/api/account/import",
+            json={
+                "upload_id": upload_id,
+                "categories": "settings",
+                "job_id": job_id,
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        status = client.get(
+            f"/api/account/transfer/{job_id}",
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(status.status_code, 200, status.get_data(as_text=True))
+        payload = status.get_json()
+        self.assertEqual(payload["state"], "needs_settings_confirmation")
+        self.assertIsInstance(payload.get("settings_changes"), list)
+        self.assertTrue(payload["settings_changes"])
+
+    def test_settings_confirmation_skipped_when_nothing_would_change(self):
+        # When the imported settings already match the destination's current
+        # values, no confirmation is needed and the import completes directly.
+        with target.app.app_context():
+            destination = target.db.session.get(target.User, self.destination_id)
+            destination.theme_color = "#123456"
+            destination.system_prompt = target.encrypt_val("portable system prompt")
+            target.db.session.commit()
+        archive_bytes = self.export_archive()
+        response = self.client_for(self.destination_id).post(
+            "/api/account/import",
+            data={
+                "categories": "settings",
+                "file": (io.BytesIO(archive_bytes), "account.zip"),
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            content_type="multipart/form-data",
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(response.get_json().get("status"), "ok")
+        self.assertNotIn("settings_confirmation", response.get_json())
 
 
 if __name__ == "__main__":

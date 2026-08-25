@@ -1,6 +1,19 @@
         const get = (id) => document.getElementById(id);
         const nativeConsoleLog = (typeof console.log === 'function') ? console.log.bind(console) : function () {};
         const nativeConsoleInfo = (typeof console.info === 'function') ? console.info.bind(console) : nativeConsoleLog;
+        // Set to true only after the settings modal has fetched the saved values
+        // and populated every control.  The save button stays disabled until then
+        // so a click during the load window cannot overwrite settings with the
+        // form's default/unpopulated values (which used to silently toggle E2EE).
+        let settingsModalLoaded = false;
+        const setSettingsSaveEnabled = (enabled) => {
+            const saveBtn = get('save-settings-btn');
+            if (!saveBtn) return;
+            saveBtn.disabled = !enabled;
+            saveBtn.classList.toggle('opacity-60', !enabled);
+            saveBtn.classList.toggle('cursor-not-allowed', !enabled);
+            saveBtn.setAttribute('title', enabled ? '' : '設定の読み込み完了後に保存できます');
+        };
         // --- File/image load fallback ----------------------------------------
         // Uploaded files are served under /files/ (and /files/thumb/).  When the
         // media bytes exist on disk but the encryption key no longer matches, the
@@ -9605,6 +9618,92 @@
                 };
             }
 
+            // --- Settings import confirmation --------------------------------
+            const ACCOUNT_SETTING_LABELS = {
+                system_prompt: 'システムプロンプト', system_prompt_enabled: 'システムプロンプトを使用',
+                apply_global_system_prompt: '全体システムプロンプトを適用', apply_auto_system_prompt_notices: '自動注入システムプロンプトを適用',
+                auto_system_prompt_notices_config: '自動注入システムプロンプトの種類別設定',
+                gemini_backend: 'Gemini バックエンド', gemini_vertex_location: 'Vertex AI ロケーション',
+                mic_transcribe_mode: 'マイク文字起こし方式', stt_model: 'STTモデル', llm_transcribe_prompt: 'LLM文字起こしプロンプト',
+                enter_to_send: 'Enterキーで送信', use_sw_cache: 'Service Workerキャッシュ',
+                clear_cache_on_version_update: 'バージョン更新時キャッシュ削除', theme_color: 'テーマカラー',
+                liquid_glass_enabled: 'Liquid Glass', auto_search_on_links: 'リンクで自動検索',
+                compact_prompt_mode: 'プロンプトバー表示（コンパクト）', minimal_prompt_mode: 'プロンプトバー表示（ミニマル）',
+                use_last_chat_settings: '直前のチャット設定を使用', voice_studio_ui: '音声スタジオUI',
+                temp_chat_timeout_seconds: '一時チャットの有効時間（秒）', default_model: '既定のモデル',
+                default_enable_search: '既定: Search', default_enable_url_context: '既定: URLコンテキスト',
+                default_enable_maps: '既定: Maps', default_enable_python: '既定: Python',
+                default_enable_thinking: '既定: Thinking', default_thinking_level: '既定: Thinkingレベル',
+                default_thinking_budget: '既定: Thinking budget', default_reasoning_effort: '既定: Reasoning effort',
+                default_enable_system_prompt: '既定: システムプロンプト', default_safety_setting: '既定: 安全設定',
+                default_vision_model: 'Vision Model', rich_paste_prompt_default: 'リッチ貼り付けプロンプト',
+                rich_paste_prompt_use_custom_default: 'リッチ貼り付けカスタムプロンプト既定',
+                last_model: '直前のモデル', last_enable_search: '直前: Search', last_enable_url_context: '直前: URLコンテキスト',
+                last_enable_maps: '直前: Maps', last_enable_python: '直前: Python', last_enable_thinking: '直前: Thinking',
+                last_thinking_level: '直前: Thinkingレベル', last_thinking_budget: '直前: Thinking budget',
+                last_reasoning_effort: '直前: Reasoning effort', last_enable_system_prompt: '直前: システムプロンプト',
+                last_safety_setting: '直前: 安全設定', enable_latency_metrics: 'レスポンス速度の計測',
+                enable_client_debug_log: 'デバッグログの拡張送信',
+            };
+            const formatAccountSettingValue = (value) => {
+                if (value === true) return 'ON';
+                if (value === false) return 'OFF';
+                if (value === null || value === undefined || value === '') return '未設定';
+                const text = String(value);
+                return text.length > 60 ? text.slice(0, 60) + '…' : text;
+            };
+            let settingsImportConfirmationResolver = null;
+            const resolveSettingsImportConfirmation = (result) => {
+                if (settingsImportConfirmationResolver) {
+                    const resolver = settingsImportConfirmationResolver;
+                    settingsImportConfirmationResolver = null;
+                    hideModal('settings-confirmation-modal');
+                    resolver(result);
+                }
+            };
+            const showSettingsImportConfirmation = (payload) => new Promise((resolve) => {
+                const modal = get('settings-confirmation-modal');
+                if (!modal) {
+                    // No modal markup (unexpected).  Proceed so the import is not blocked.
+                    resolve(true);
+                    return;
+                }
+                settingsImportConfirmationResolver = resolve;
+                const changes = Array.isArray(payload && payload.settings_changes) ? payload.settings_changes : [];
+                const listEl = get('settings-confirmation-list');
+                if (listEl) {
+                    if (!changes.length) {
+                        listEl.innerHTML = '<div class="text-xs text-gray-400">変更される設定はありませんでした。</div>';
+                    } else {
+                        listEl.innerHTML = changes.map((c) => {
+                            const label = ACCOUNT_SETTING_LABELS[c.field] || c.field;
+                            const current = formatAccountSettingValue(c.current);
+                            const incoming = formatAccountSettingValue(c.incoming);
+                            return `<div class="rounded border border-gray-700 bg-gray-800/60 p-2">
+                                <div class="text-xs font-bold text-gray-100">${escapeHtml(label)}</div>
+                                <div class="text-[11px] text-gray-400 mt-1">現在: ${escapeHtml(current)}</div>
+                                <div class="text-[11px] text-emerald-300">→ ${escapeHtml(incoming)}</div>
+                            </div>`;
+                        }).join('');
+                    }
+                }
+                const countEl = get('settings-confirmation-count');
+                if (countEl) countEl.textContent = `${changes.length}件の設定が変更されます`;
+                showModal('settings-confirmation-modal');
+            });
+            const settingsConfirmationModal = get('settings-confirmation-modal');
+            if (settingsConfirmationModal) {
+                settingsConfirmationModal.addEventListener('click', (e) => {
+                    if (e.target === settingsConfirmationModal) resolveSettingsImportConfirmation(false);
+                });
+            }
+            const settingsConfirmationCloseBtn = get('settings-confirmation-close');
+            if (settingsConfirmationCloseBtn) settingsConfirmationCloseBtn.onclick = () => resolveSettingsImportConfirmation(false);
+            const settingsConfirmationCancelBtn = get('settings-confirmation-cancel');
+            if (settingsConfirmationCancelBtn) settingsConfirmationCancelBtn.onclick = () => resolveSettingsImportConfirmation(false);
+            const settingsConfirmationConfirmBtn = get('settings-confirmation-confirm');
+            if (settingsConfirmationConfirmBtn) settingsConfirmationConfirmBtn.onclick = () => resolveSettingsImportConfirmation(true);
+
             const accountImportBtn = get('account-import-btn');
             const inplaceToggle = get('account-import-inplace');
             const inplaceWarn = get('account-import-inplace-warning');
@@ -9623,6 +9722,9 @@
                         : [];
                     const inplaceBox = get('account-import-inplace');
                     const restoreInplace = !!(inplaceBox && inplaceBox.checked);
+                    const settingsBypassBox = get('account-import-settings-bypass');
+                    const settingsBypass = !!(settingsBypassBox && settingsBypassBox.checked);
+                    let settingsConfirmed = false;
                     if (!file) {
                         showToast('インポートするZIPファイルを選択してください', 'error', true);
                         return;
@@ -9745,6 +9847,18 @@
                                 selectedFiles = chosen;
                                 return {status: 'reselect'};
                             }
+                            if (outcome.state === 'needs_settings_confirmation' && Array.isArray(outcome.settings_changes)) {
+                                const ok = await showSettingsImportConfirmation({ settings_changes: outcome.settings_changes });
+                                if (!ok) {
+                                    renderAccountTransferProgress({progress: 0, phase: 'cancelled', message: '設定のインポートをキャンセルしました'});
+                                    if (transfer.uploadId) {
+                                        apiFetch(`/api/account/import/upload/${encodeURIComponent(transfer.uploadId)}`, manualSpinnerRequestOptions({method: 'DELETE'})).catch(() => null);
+                                    }
+                                    return {status: 'cancelled'};
+                                }
+                                settingsConfirmed = true;
+                                return {status: 'reselect'};
+                            }
                             if (outcome.state === 'running') {
                                 // The connection dropped but the server is still importing.
                                 // The ongoing poller resolves once a terminal state is reached.
@@ -9773,7 +9887,7 @@
                             try {
                                 res = await apiFetch('/api/account/import', manualSpinnerRequestOptions({
                                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                                    body: JSON.stringify({upload_id: transfer.uploadId, categories: categories.join(','), job_id: transfer.id, selected_files: selectedFiles, restore_inplace: restoreInplace}),
+                                    body: JSON.stringify({upload_id: transfer.uploadId, categories: categories.join(','), job_id: transfer.id, selected_files: selectedFiles, restore_inplace: restoreInplace, confirm_settings: (settingsConfirmed || settingsBypass)}),
                                     signal: transfer.controller.signal,
                                 }));
                             } catch (error) {
@@ -9810,6 +9924,18 @@
                                     return;
                                 }
                                 selectedFiles = chosen;
+                                continue;
+                            }
+                            if (data && data.status === 'settings_confirmation' && Array.isArray(data.settings_changes)) {
+                                const ok = await showSettingsImportConfirmation(data);
+                                if (!ok) {
+                                    renderAccountTransferProgress({progress: 0, phase: 'cancelled', message: '設定のインポートをキャンセルしました'});
+                                    if (transfer.uploadId) {
+                                        apiFetch(`/api/account/import/upload/${encodeURIComponent(transfer.uploadId)}`, manualSpinnerRequestOptions({method: 'DELETE'})).catch(() => null);
+                                    }
+                                    return;
+                                }
+                                settingsConfirmed = true;
                                 continue;
                             }
                             if (!res.ok) throw new Error(data.error || 'インポートに失敗しました');
@@ -10341,6 +10467,8 @@
             };
 
             window.openSettingsModal = async () => {
+                settingsModalLoaded = false;
+                setSettingsSaveEnabled(false);
                 snapshotSidebarHistory('settings-open-before');
                 await ensureUserSettingsSnapshot();
                 const searchEl = get('search-box');
@@ -10525,6 +10653,16 @@
                         if (migBar) migBar.style.width = '0%';
                         if (migText) migText.innerText = '';
                     }
+                    settingsModalLoaded = true;
+                    setSettingsSaveEnabled(true);
+                }).catch(() => {
+                    // The saved settings could not be loaded.  Keep the form
+                    // uneditable so a save cannot overwrite settings with default
+                    // values (previously this silently toggled E2EE and other
+                    // fields).  Closing and reopening the modal retries the load.
+                    settingsModalLoaded = false;
+                    setSettingsSaveEnabled(false);
+                    showToast('設定の読み込みに失敗しました。閉じて再度開いてください', 'error', true);
                 });
                 loadFeedback();
                 bindSessionButtons();
@@ -10663,6 +10801,10 @@
             syncGeminiBackendUi();
             syncAdminApiKeyModeUi();
             get('save-settings-btn').onclick = async () => {
+                if (!settingsModalLoaded) {
+                    showToast('設定を読み込み中です。完了するまでお待ちください', 'error', true);
+                    return;
+                }
                 const uEl = get('set-username');
                 const pEl = get('set-password');
                 const promptBarMode = readPromptBarModeFromForm();
@@ -10702,13 +10844,23 @@
                     default_safety_setting: get('set-default-safety') ? get('set-default-safety').value : null,
                     enable_latency_metrics: get('set-latency-metrics') ? get('set-latency-metrics').checked : false,
                     enable_client_debug_log: get('set-client-debug-log') ? get('set-client-debug-log').checked : false,
-                    enable_e2ee: get('set-e2ee') ? get('set-e2ee').checked : false,
                     passkey_only_login: get('set-passkey-only-login') ? get('set-passkey-only-login').checked : false,
                     skip_2fa_on_google_login: get('set-skip-2fa-google') ? get('set-skip-2fa-google').checked : false,
                     default_2fa_method: get('set-default-2fa-method') ? get('set-default-2fa-method').value : 'totp',
                     new_username: uEl ? uEl.value : null,
                     new_password: pEl ? pEl.value : null
                 };
+                // Only send enable_e2ee when the checkbox actually differs from the
+                // value loaded from the server.  The HTML default is "off", so an
+                // unchanged form used to POST enable_e2ee=false for E2EE accounts,
+                // silently starting a decrypt migration.
+                const e2eeCurrent = get('set-e2ee') ? get('set-e2ee').checked : false;
+                const e2eeLoaded = userSettingsSnapshot && Object.prototype.hasOwnProperty.call(userSettingsSnapshot, 'enable_e2ee')
+                    ? !!userSettingsSnapshot.enable_e2ee
+                    : !!(window.CHAT_CONFIG && window.CHAT_CONFIG.enableE2EE);
+                if (e2eeCurrent !== e2eeLoaded) {
+                    b.enable_e2ee = e2eeCurrent;
+                }
                 if (get('set-openai')) b.openai_key = get('set-openai').value;
                 if (get('set-gemini')) b.gemini_key = get('set-gemini').value;
                 if (get('set-deepseek')) b.deepseek_key = get('set-deepseek').value;

@@ -86,6 +86,7 @@
                         <label class="flex items-center gap-2"><input type="checkbox" value="feedback" checked class="accent-teal-500">フィードバック</label>
                         <label class="flex items-center gap-2"><input type="checkbox" value="diagnostics" checked class="accent-teal-500">診断メトリクス</label>
                     </div>
+                    <label class="flex items-center gap-2 text-slate-300"><input type="checkbox" id="setup-account-import-settings-bypass" class="accent-amber-500">設定の確認をスキップ（「設定」をインポートするとき、変更内容の確認画面を表示せずにインポート）</label>
                     <div class="text-[10px] text-slate-500">既存データは削除されません。設定と認証情報は選択時のみ上書きし、それ以外は追加します。ユーザー名は変更されません。</div>
                     <button type="button" id="setup-account-import-btn" data-progress-no-spinner="true" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-2 rounded text-xs font-bold btn-glow"><i class="fas fa-file-import mr-1"></i>選択したデータをインポート</button>
                     <div id="setup-account-transfer-progress" class="hidden rounded border border-blue-500/40 bg-blue-950/20 p-3 space-y-2">
@@ -323,6 +324,27 @@
                 <div class="flex gap-2">
                     <button type="button" id="setup-import-files-cancel" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded text-xs font-bold btn-hover">キャンセル</button>
                     <button type="button" id="setup-import-files-confirm" class="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded text-xs font-bold btn-hover">選択したファイルをインポート</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Settings import confirmation modal -->
+    <div id="setup-settings-confirmation-modal" class="fixed inset-0 bg-gray-900/95 z-[200] hidden items-center justify-center backdrop-blur-sm modal-overlay">
+        <div class="w-full max-w-lg flex flex-col modal-panel">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800 shadow-lg shrink-0">
+                <h2 class="text-lg font-bold text-white"><i class="fas fa-sliders-h mr-2 text-blue-400"></i>設定のインポート確認</h2>
+                <button type="button" id="setup-settings-confirmation-close" class="text-slate-400 w-8 h-8 rounded-full hover:bg-slate-700" aria-label="閉じる">✕</button>
+            </div>
+            <div class="p-4 overflow-y-auto shrink-0" style="max-height:60dvh;">
+                <div id="setup-settings-confirmation-count" class="text-sm font-bold text-slate-100 mb-2"></div>
+                <p class="text-xs text-slate-400 mb-3">ZIPに含まれる「設定」で、以下の項目が現在の設定から変更されます。よろしければ「この内容でインポート」を押してください。</p>
+                <div id="setup-settings-confirmation-list" class="space-y-2"></div>
+            </div>
+            <div class="p-4 border-t border-slate-700 flex flex-wrap justify-between items-center gap-3 shrink-0 bg-slate-800">
+                <div class="text-[11px] text-slate-400">設定以外の選択データはこの確認後に続けてインポートされます。</div>
+                <div class="flex gap-2">
+                    <button type="button" id="setup-settings-confirmation-cancel" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded text-xs font-bold btn-hover">キャンセル</button>
+                    <button type="button" id="setup-settings-confirmation-confirm" class="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded text-xs font-bold btn-hover">この内容でインポート</button>
                 </div>
             </div>
         </div>
@@ -577,6 +599,114 @@
                 };
             }
 
+            // --- Settings import confirmation ---------------------------------
+            const SETUP_SETTING_LABELS = {
+                system_prompt: 'システムプロンプト', system_prompt_enabled: 'システムプロンプトを使用',
+                apply_global_system_prompt: '全体システムプロンプトを適用', apply_auto_system_prompt_notices: '自動注入システムプロンプトを適用',
+                auto_system_prompt_notices_config: '自動注入システムプロンプトの種類別設定',
+                gemini_backend: 'Gemini バックエンド', gemini_vertex_location: 'Vertex AI ロケーション',
+                mic_transcribe_mode: 'マイク文字起こし方式', stt_model: 'STTモデル', llm_transcribe_prompt: 'LLM文字起こしプロンプト',
+                enter_to_send: 'Enterキーで送信', use_sw_cache: 'Service Workerキャッシュ',
+                clear_cache_on_version_update: 'バージョン更新時キャッシュ削除', theme_color: 'テーマカラー',
+                liquid_glass_enabled: 'Liquid Glass', auto_search_on_links: 'リンクで自動検索',
+                compact_prompt_mode: 'プロンプトバー表示（コンパクト）', minimal_prompt_mode: 'プロンプトバー表示（ミニマル）',
+                use_last_chat_settings: '直前のチャット設定を使用', voice_studio_ui: '音声スタジオUI',
+                temp_chat_timeout_seconds: '一時チャットの有効時間（秒）', default_model: '既定のモデル',
+                default_enable_search: '既定: Search', default_enable_url_context: '既定: URLコンテキスト',
+                default_enable_maps: '既定: Maps', default_enable_python: '既定: Python',
+                default_enable_thinking: '既定: Thinking', default_thinking_level: '既定: Thinkingレベル',
+                default_thinking_budget: '既定: Thinking budget', default_reasoning_effort: '既定: Reasoning effort',
+                default_enable_system_prompt: '既定: システムプロンプト', default_safety_setting: '既定: 安全設定',
+                default_vision_model: 'Vision Model', rich_paste_prompt_default: 'リッチ貼り付けプロンプト',
+                rich_paste_prompt_use_custom_default: 'リッチ貼り付けカスタムプロンプト既定',
+                last_model: '直前のモデル', last_enable_search: '直前: Search', last_enable_url_context: '直前: URLコンテキスト',
+                last_enable_maps: '直前: Maps', last_enable_python: '直前: Python', last_enable_thinking: '直前: Thinking',
+                last_thinking_level: '直前: Thinkingレベル', last_thinking_budget: '直前: Thinking budget',
+                last_reasoning_effort: '直前: Reasoning effort', last_enable_system_prompt: '直前: システムプロンプト',
+                last_safety_setting: '直前: 安全設定', enable_latency_metrics: 'レスポンス速度の計測',
+                enable_client_debug_log: 'デバッグログの拡張送信',
+            };
+            const formatSetupSettingValue = (value) => {
+                if (value === true) return 'ON';
+                if (value === false) return 'OFF';
+                if (value === null || value === undefined || value === '') return '未設定';
+                const text = String(value);
+                return text.length > 60 ? text.slice(0, 60) + '…' : text;
+            };
+            let setupSettingsConfirmationResolver = null;
+            const setupSettingsConfirmationModal = get('setup-settings-confirmation-modal');
+            const resolveSetupSettingsConfirmation = (result) => {
+                if (setupSettingsConfirmationResolver) {
+                    const resolver = setupSettingsConfirmationResolver;
+                    setupSettingsConfirmationResolver = null;
+                    if (setupSettingsConfirmationModal) {
+                        setupSettingsConfirmationModal.classList.remove('modal-open');
+                        setupSettingsConfirmationModal.classList.add('modal-close');
+                        setTimeout(() => {
+                            setupSettingsConfirmationModal.style.display = 'none';
+                            setupSettingsConfirmationModal.classList.remove('modal-close');
+                            setupSettingsConfirmationModal.classList.remove('modal-prep');
+                            setupSettingsConfirmationModal.classList.add('hidden');
+                        }, 300);
+                    }
+                    resolver(result);
+                }
+            };
+            const showSetupSettingsConfirmation = (payload) => new Promise((resolve) => {
+                if (!setupSettingsConfirmationModal) {
+                    resolve(true);
+                    return;
+                }
+                setupSettingsConfirmationResolver = resolve;
+                const changes = Array.isArray(payload && payload.settings_changes) ? payload.settings_changes : [];
+                const listEl = get('setup-settings-confirmation-list');
+                if (listEl) {
+                    if (!changes.length) {
+                        listEl.innerHTML = '<div class="text-xs text-slate-400">変更される設定はありませんでした。</div>';
+                    } else {
+                        listEl.innerHTML = changes.map((c) => {
+                            const label = SETUP_SETTING_LABELS[c.field] || c.field;
+                            const current = formatSetupSettingValue(c.current);
+                            const incoming = formatSetupSettingValue(c.incoming);
+                            return '<div class="rounded border border-slate-700 bg-slate-800/60 p-2">' +
+                                '<div class="text-xs font-bold text-slate-100">' + escapeHtmlSetup(label) + '</div>' +
+                                '<div class="text-[11px] text-slate-400 mt-1">現在: ' + escapeHtmlSetup(current) + '</div>' +
+                                '<div class="text-[11px] text-emerald-300">→ ' + escapeHtmlSetup(incoming) + '</div>' +
+                            '</div>';
+                        }).join('');
+                    }
+                }
+                const countEl = get('setup-settings-confirmation-count');
+                if (countEl) countEl.textContent = changes.length + '件の設定が変更されます';
+                setupSettingsConfirmationModal.classList.remove('hidden');
+                setupSettingsConfirmationModal.style.display = 'flex';
+                setupSettingsConfirmationModal.classList.remove('modal-close');
+                setupSettingsConfirmationModal.classList.remove('modal-open');
+                setupSettingsConfirmationModal.classList.add('modal-prep');
+                const openSetupSettingsConfirm = () => {
+                    setupSettingsConfirmationModal.classList.remove('modal-prep');
+                    setupSettingsConfirmationModal.classList.add('modal-open');
+                };
+                if (typeof requestAnimationFrame === 'function') {
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(openSetupSettingsConfirm);
+                    });
+                } else {
+                    openSetupSettingsConfirm();
+                }
+            });
+            const setupSettingsCloseBtn = get('setup-settings-confirmation-close');
+            if (setupSettingsCloseBtn) setupSettingsCloseBtn.onclick = () => resolveSetupSettingsConfirmation(false);
+            const setupSettingsCancelBtn = get('setup-settings-confirmation-cancel');
+            if (setupSettingsCancelBtn) setupSettingsCancelBtn.onclick = () => resolveSetupSettingsConfirmation(false);
+            const setupSettingsConfirmBtn = get('setup-settings-confirmation-confirm');
+            if (setupSettingsConfirmBtn) setupSettingsConfirmBtn.onclick = () => resolveSetupSettingsConfirmation(true);
+            if (setupSettingsConfirmationModal) {
+                setupSettingsConfirmationModal.addEventListener('click', (e) => {
+                    if (e.target === setupSettingsConfirmationModal) resolveSetupSettingsConfirmation(false);
+                });
+            }
+
             const importBtn = get('setup-account-import-btn');
             if (importBtn) {
                 importBtn.onclick = async () => {
@@ -595,6 +725,9 @@
                         alert('インポートするデータを1つ以上選択してください');
                         return;
                     }
+                    const settingsBypassBox = get('setup-account-import-settings-bypass');
+                    const settingsBypass = !!(settingsBypassBox && settingsBypassBox.checked);
+                    let settingsConfirmed = false;
                     const selectedLabels = categoryBox
                         ? Array.from(categoryBox.querySelectorAll('input[type="checkbox"]:checked')).map(el => (el.closest('label') && el.closest('label').textContent || el.value).trim())
                         : categories;
@@ -702,6 +835,20 @@
                                 selectedFiles = chosen;
                                 return {status: 'reselect'};
                             }
+                            if (outcome.state === 'needs_settings_confirmation' && Array.isArray(outcome.settings_changes)) {
+                                const ok = await showSetupSettingsConfirmation({ settings_changes: outcome.settings_changes });
+                                if (!ok) {
+                                    renderProgress({progress: 0, phase: 'cancelled', message: '設定のインポートをキャンセルしました'});
+                                    if (transfer.uploadId) {
+                                        fetch('/api/account/import/upload/' + encodeURIComponent(transfer.uploadId), manualOpts({
+                                            method: 'DELETE', headers: {'X-CSRF-Token': getCsrf()},
+                                        })).catch(() => null);
+                                    }
+                                    return {status: 'cancelled'};
+                                }
+                                settingsConfirmed = true;
+                                return {status: 'reselect'};
+                            }
                             if (outcome.state === 'running') {
                                 // The connection dropped but the server is still importing.
                                 // The ongoing poller resolves once a terminal state is reached.
@@ -730,7 +877,7 @@
                             try {
                                 res = await fetch('/api/account/import', manualOpts({
                                     method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},
-                                    body: JSON.stringify({upload_id: transfer.uploadId, categories: categories.join(','), job_id: transfer.id, selected_files: selectedFiles}),
+                                    body: JSON.stringify({upload_id: transfer.uploadId, categories: categories.join(','), job_id: transfer.id, selected_files: selectedFiles, confirm_settings: (settingsConfirmed || settingsBypass)}),
                                     signal: transfer.controller.signal,
                                 }));
                             } catch (error) {
@@ -769,6 +916,20 @@
                                     return;
                                 }
                                 selectedFiles = chosen;
+                                continue;
+                            }
+                            if (data && data.status === 'settings_confirmation' && Array.isArray(data.settings_changes)) {
+                                const ok = await showSetupSettingsConfirmation(data);
+                                if (!ok) {
+                                    renderProgress({progress: 0, phase: 'cancelled', message: '設定のインポートをキャンセルしました'});
+                                    if (transfer.uploadId) {
+                                        fetch('/api/account/import/upload/' + encodeURIComponent(transfer.uploadId), manualOpts({
+                                            method: 'DELETE', headers: {'X-CSRF-Token': getCsrf()},
+                                        })).catch(() => null);
+                                    }
+                                    return;
+                                }
+                                settingsConfirmed = true;
                                 continue;
                             }
                             if (!res.ok) throw new Error(data.error || 'インポートに失敗しました');

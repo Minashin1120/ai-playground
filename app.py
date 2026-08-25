@@ -743,8 +743,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-25-008')
-app.config['SYSTEM_VERSION'] = 'V4.8.849'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-25-009')
+app.config['SYSTEM_VERSION'] = 'V4.8.850'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1929,9 +1929,13 @@ STS_MODELS = {
     "gpt-realtime-mini": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gemini-2.5-flash-native-audio-preview-12-2025": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
     "gemini-3.1-flash-live-preview": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
+    "grok-voice-think-fast-2.0": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
     "grok-voice-think-fast-1.0": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
     "grok-voice-fast-1.0": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
     "grok-voice-agent": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
+}
+XAI_STS_MODEL_ALIASES = {
+    "grok-voice-latest": "grok-voice-think-fast-2.0",
 }
 OPENAI_STS_VOICES = {
     "alloy","ash","ballad","coral","echo","sage","shimmer","verse","marin","cedar"
@@ -1977,11 +1981,12 @@ ALL_VALID_MODEL_IDS = {
     "gpt-realtime-2", "gpt-realtime-translate", "gpt-realtime-whisper", "gpt-realtime-1.5",
     "gpt-realtime", "gpt-realtime-mini",
     "gemini-2.5-flash-native-audio-preview-12-2025", "gemini-3.1-flash-live-preview",
-    "grok-voice-latest", "grok-voice-think-fast-1.0", "grok-voice-fast-1.0", "grok-voice-agent",
+    "grok-voice-latest", "grok-voice-think-fast-2.0", "grok-voice-think-fast-1.0", "grok-voice-fast-1.0", "grok-voice-agent",
     # Grok Imagine
-    "grok-imagine-image-2.0", "grok-imagine-image-quality", "grok-imagine-image", "grok-imagine-image-pro", "grok-imagine-video",
+    "grok-imagine-image-2.0", "grok-imagine-image-quality", "grok-imagine-image", "grok-imagine-image-pro", "grok-imagine-video-1.5", "grok-imagine-video",
     # xAI Grok
     "grok-4.6", "grok-4.5", "grok-4.3", "grok-build-0.1",
+    "grok-4.20-0309-reasoning", "grok-4.20-0309-non-reasoning", "grok-4.20-multi-agent-0309",
     "grok-4.20-reasoning", "grok-4.20-non-reasoning", "grok-4.20-multi-agent",
     "grok-4-1-fast-reasoning", "grok-4-1-fast-non-reasoning",
     "grok-4-fast-reasoning", "grok-4-fast-non-reasoning",
@@ -3280,6 +3285,7 @@ async def _openai_realtime_transcribe(pcm_bytes, api_key, model_key, rate=24000)
                 raise RuntimeError(message or "OpenAI Realtime API error")
 
 async def _xai_sts_realtime(pcm_bytes, api_key, model_key="grok-voice-agent", voice="Ara", rate_in=24000, rate_out=24000):
+    model_key = XAI_STS_MODEL_ALIASES.get(model_key, model_key)
     url = f"wss://{_XAI_API_HOST}/v1/realtime?model={model_key}"
     headers = {"Authorization": f"Bearer {api_key}"}
     audio_out = bytearray()
@@ -8559,6 +8565,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     "grok-imagine-image",
                     "grok-imagine-image-pro",
                     "grok-imagine-image-quality",
+                    "grok-imagine-video-1.5",
                     "grok-imagine-video",
                 ):
                     return True
@@ -8571,7 +8578,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 return False
             is_llm_model = not _is_non_llm_model(model_key_l)
             grok_reasoning_supported = ("grok-4.3" in model_key_l) or ("grok-4.5" in model_key_l) or ("grok-4.6" in model_key_l) or ("grok-build" in model_key_l) or ("grok-3-mini" in model_key_l) or ("reasoning" in model_key_l and "non-reasoning" not in model_key_l) or ("multi-agent" in model_key_l)
-            grok_reasoning_effort_supported = ("grok-4.3" in model_key_l) or ("grok-4.5" in model_key_l) or ("grok-4.6" in model_key_l) or ("grok-build" in model_key_l) or ("grok-3-mini" in model_key_l) or ("multi-agent" in model_key_l)
+            grok_reasoning_effort_supported = ("grok-4.3" in model_key_l) or ("grok-4.5" in model_key_l) or ("grok-4.6" in model_key_l) or ("grok-build" in model_key_l) or ("grok-3-mini" in model_key_l) or ("grok-4.20-0309-reasoning" in model_key_l) or ("multi-agent" in model_key_l)
             req_reasoning_effort = (options.get('reasoning_effort') or "").lower().strip()
             reasoning_requested = bool(options.get('enable_thinking')) or (req_reasoning_effort and req_reasoning_effort != "none")
             if is_deepseek and req_reasoning_effort == "none":
@@ -8688,8 +8695,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if raw == "xhigh":
                         return "xhigh" if is_grok_46 else "high"
                     return None
+                if "grok-4.20-0309-reasoning" in model_key_l:
+                    return raw if raw in ("low", "medium", "high") else "high"
                 if raw in ("none", "low", "medium", "high", "xhigh"):
-                    return raw
+                    return "xhigh" if raw == "xhigh" and is_grok_46 else ("high" if raw == "xhigh" else raw)
                 lvl = (options.get('thinking_level') or "low").lower()
                 return "high" if lvl == "high" else "low"
 
@@ -10620,6 +10629,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     quality = str(options.get('grok_image_quality') or "medium").lower().strip()
                     if quality not in ("low", "medium"):
                         quality = "medium"
+                    image_count = 1
+                    try:
+                        image_count = max(1, min(10, int(options.get('grok_image_count') or 1)))
+                    except (TypeError, ValueError):
+                        pass
+                    img_response_format = str(options.get('grok_image_format') or "b64_json").lower().strip()
+                    if img_response_format not in ("url", "b64_json"):
+                        img_response_format = "b64_json"
                     grok_supports_resolution = model_key in (
                         "grok-imagine-image-2.0",
                         "grok-imagine-image-quality",
@@ -10627,11 +10644,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     grok_supports_quality = model_key == "grok-imagine-image-2.0"
                     grok_prompt, history_image_parts = _build_non_llm_image_context(final_message_text)
                     
-                    img_response_format = "b64_json"
                     img_kwargs = {
                         "model": model_key,
                         "prompt": grok_prompt,
-                        "n": 1,
+                        "n": image_count,
                         "response_format": img_response_format
                     }
                     # aspect_ratio / resolution / quality are xAI-specific; pass via extra_body
@@ -10691,6 +10707,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         payload = {
                             "model": model_key,
                             "prompt": grok_prompt,
+                            "n": image_count,
                             "response_format": img_response_format
                         }
                         if len(image_payloads) == 1:
@@ -10712,29 +10729,48 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 pass
                         resp.raise_for_status()
                         resp_json = resp.json()
+                        image_results = []
                         if isinstance(resp_json, dict):
-                            if resp_json.get("data") and resp_json["data"]:
-                                img_data_b64 = (resp_json["data"][0] or {}).get("b64_json")
+                            image_results = [item or {} for item in (resp_json.get("data") or [])]
+                            if image_results:
+                                img_data_b64 = image_results[0].get("b64_json")
                             if not img_data_b64 and resp_json.get("image"):
                                 img_data_b64 = resp_json.get("image")
                     else:
                         _mark_provider_request_started()
                         resp = o_client.images.generate(**img_kwargs, extra_body=eb)
-                        if resp.data:
-                            img_data_b64 = resp.data[0].b64_json
-                    
-                    if img_data_b64:
-                        img_bytes = _decode_base64_limited(img_data_b64, 50 * 1024 * 1024)
+                        image_results = []
+                        for item in (getattr(resp, "data", None) or []):
+                            image_results.append({
+                                "b64_json": getattr(item, "b64_json", None),
+                                "url": getattr(item, "url", None),
+                            })
+                        if image_results:
+                            img_data_b64 = image_results[0].get("b64_json")
+
+                    if img_data_b64 and not image_results:
+                        image_results = [{"b64_json": img_data_b64}]
+                    saved_any = False
+                    for image_index, image_result in enumerate(image_results[:image_count]):
+                        image_b64 = image_result.get("b64_json")
+                        image_url = image_result.get("url")
+                        if image_b64:
+                            img_bytes = _decode_base64_limited(image_b64, 50 * 1024 * 1024)
+                        elif image_url:
+                            img_bytes = _download_public_https_bytes(image_url, 50 * 1024 * 1024, timeout=120.0)
+                        else:
+                            continue
                         ext = "png"
-                        fn2 = f"gen_grok_{int(time.time())}_{len(generated_images)}.{ext}"
+                        fn2 = f"gen_grok_{int(time.time())}_{len(generated_images)}_{image_index}.{ext}"
                         _save_user_generated_bytes(
                             user_id, img_bytes, fn2, user_config.get('enable_e2ee')
                         )
                             
                         generated_images.append(f"{user_id}/{fn2}")
                         pub("content", f"\n![Image](/files/{user_id}/{fn2})\n")
-                        full_res += f"Generated Image for: {final_message_text}\n"
-                    else:
+                        full_res += f"Generated Image {image_index + 1} for: {final_message_text}\n"
+                        saved_any = True
+                    if not saved_any:
                         pub("error", "Grok Image Gen Error: No data returned.")
                 except Exception as e:
                     logger.exception("Grok Imagine Error")
@@ -10753,7 +10789,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     pub("error", f"Grok Imagine Error: {err_msg}")
 
             # --- 1.6 Grok Imagine Video Generation ---
-            elif model_key == "grok-imagine-video":
+            elif model_key in ("grok-imagine-video", "grok-imagine-video-1.5"):
                 log_force("Routing: Grok Video Branch")
                 try:
                     pub("content", "**Generating Video (Grok)...**\n")
@@ -10766,6 +10802,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     
                     aspect_ratio = options.get('grok_video_aspect') or "16:9"
                     resolution = options.get('grok_video_resolution') or "720p"
+                    if resolution not in ("480p", "720p", "1080p"):
+                        resolution = "720p"
+                    if resolution == "1080p" and model_key != "grok-imagine-video-1.5":
+                        resolution = "720p"
                     
                     api_key = key # Decrypted XAI API Key
                     headers = {
@@ -10776,7 +10816,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     # Determine endpoint and payload
                     endpoint = f"https://{_XAI_API_HOST}/v1/videos/generations"
                     payload = {
-                        "model": "grok-imagine-video",
+                        "model": model_key,
                         "prompt": final_message_text,
                         "duration": duration,
                         "aspect_ratio": aspect_ratio,
@@ -11029,12 +11069,63 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 if search_params: create_kwargs["search_parameters"] = search_params
                 if tools: create_kwargs["tools"] = tools
                 if include: create_kwargs["include"] = include
-                if options.get('enable_thinking') and grok_reasoning_effort_supported:
+                forced_grok_reasoning = ("grok-4.5" in model_key_l) or ("grok-4.6" in model_key_l)
+                if (options.get('enable_thinking') or forced_grok_reasoning) and grok_reasoning_effort_supported:
                     grok_effort = _grok_reasoning_effort()
                     if grok_effort:
                         create_kwargs["reasoning_effort"] = grok_effort
-                elif options.get('enable_thinking') and grok_reasoning_supported:
+                elif (options.get('enable_thinking') or forced_grok_reasoning) and grok_reasoning_supported:
                     log_force("Grok reasoning_effort not supported for this model; skipping parameter")
+                def _optional_float(option_key, minimum, maximum):
+                    raw_value = options.get(option_key)
+                    if raw_value is None or str(raw_value).strip() == "":
+                        return None
+                    try:
+                        value = float(raw_value)
+                    except (TypeError, ValueError):
+                        return None
+                    return max(minimum, min(maximum, value))
+                def _optional_int(option_key, minimum=None, maximum=None):
+                    raw_value = options.get(option_key)
+                    if raw_value is None or str(raw_value).strip() == "":
+                        return None
+                    try:
+                        value = int(raw_value)
+                    except (TypeError, ValueError):
+                        return None
+                    if minimum is not None: value = max(minimum, value)
+                    if maximum is not None: value = min(maximum, value)
+                    return value
+                xai_sampling = {
+                    "temperature": _optional_float("xai_temperature", 0.0, 2.0),
+                    "top_p": _optional_float("xai_top_p", 0.0, 1.0),
+                    "frequency_penalty": _optional_float("xai_frequency_penalty", -2.0, 2.0),
+                    "presence_penalty": _optional_float("xai_presence_penalty", -2.0, 2.0),
+                    "seed": _optional_int("xai_seed"),
+                    # xAI's current Chat API calls this max_completion_tokens; the
+                    # installed native SDK serializes the equivalent max_tokens field.
+                    "max_tokens": _optional_int("xai_max_completion_tokens", 1),
+                }
+                for option_key, option_value in xai_sampling.items():
+                    if option_value is not None:
+                        create_kwargs[option_key] = option_value
+                stop_raw = str(options.get("xai_stop") or "").strip()
+                if stop_raw:
+                    create_kwargs["stop"] = [part.strip() for part in stop_raw.split(",") if part.strip()][:4]
+                response_format = str(options.get("xai_response_format") or "").strip()
+                if response_format in ("text", "json_object") and response_format != "text":
+                    create_kwargs["response_format"] = response_format
+                tool_choice = str(options.get("xai_tool_choice") or "auto").strip().lower()
+                if tool_choice in ("auto", "none", "required") and (tools or tool_choice != "required"):
+                    create_kwargs["tool_choice"] = tool_choice
+                if tools:
+                    create_kwargs["parallel_tool_calls"] = bool(options.get("xai_parallel_tool_calls", True))
+                if not model_key_l.startswith("grok-4.20"):
+                    if options.get("xai_logprobs"):
+                        create_kwargs["logprobs"] = True
+                    top_logprobs = _optional_int("xai_top_logprobs", 0, 8)
+                    if top_logprobs is not None and options.get("xai_logprobs"):
+                        create_kwargs["top_logprobs"] = top_logprobs
                 create_kwargs["use_encrypted_content"] = True # Request encrypted reasoning if available
                 if options.get('enable_python') and XAI_SDK_AVAILABLE:
                     create_kwargs["tools"] = [x_code_execution()]
@@ -14540,6 +14631,19 @@ def chat_stream():
         'grok_image_resolution': data.get('grok_image_resolution'),
         'grok_image_quality': data.get('grok_image_quality'),
         'grok_image_format': data.get('grok_image_format'),
+        'grok_image_count': data.get('grok_image_count'),
+        'xai_temperature': data.get('xai_temperature'),
+        'xai_top_p': data.get('xai_top_p'),
+        'xai_max_completion_tokens': data.get('xai_max_completion_tokens'),
+        'xai_seed': data.get('xai_seed'),
+        'xai_presence_penalty': data.get('xai_presence_penalty'),
+        'xai_frequency_penalty': data.get('xai_frequency_penalty'),
+        'xai_stop': data.get('xai_stop'),
+        'xai_response_format': data.get('xai_response_format'),
+        'xai_tool_choice': data.get('xai_tool_choice'),
+        'xai_parallel_tool_calls': data.get('xai_parallel_tool_calls'),
+        'xai_logprobs': data.get('xai_logprobs'),
+        'xai_top_logprobs': data.get('xai_top_logprobs'),
         'grok_video_duration': data.get('grok_video_duration'),
             'grok_video_aspect': data.get('grok_video_aspect'),
             'grok_video_resolution': data.get('grok_video_resolution'),

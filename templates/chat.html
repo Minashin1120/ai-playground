@@ -494,6 +494,10 @@
                 </div>
                 <div id="grok-image-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
                     <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Count</span>
+                        <input id="grok-image-count" type="number" min="1" max="10" step="1" value="1" class="w-12 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                    </div>
+                    <div class="flex items-center gap-2">
                         <span class="text-gray-400">Aspect</span>
                         <select id="grok-image-aspect" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
                             <option value="auto">Auto</option>
@@ -535,6 +539,21 @@
                     </div>
                     <span class="text-gray-500">※ Grok Imagine</span>
                 </div>
+                <div id="xai-chat-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Temp</span><input id="xai-temperature" type="number" min="0" max="2" step="0.1" placeholder="default" class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Top P</span><input id="xai-top-p" type="number" min="0" max="1" step="0.05" placeholder="default" class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Max output</span><input id="xai-max-completion-tokens" type="number" min="1" step="1" placeholder="default" class="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Seed</span><input id="xai-seed" type="number" step="1" placeholder="default" class="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Presence</span><input id="xai-presence-penalty" type="number" min="-2" max="2" step="0.1" placeholder="default" class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Frequency</span><input id="xai-frequency-penalty" type="number" min="-2" max="2" step="0.1" placeholder="default" class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Stop</span><input id="xai-stop" type="text" placeholder="comma separated (max 4)" class="w-40 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Format</span><select id="xai-response-format" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"><option value="text">Text</option><option value="json_object">JSON object</option></select></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Tools</span><select id="xai-tool-choice" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"><option value="auto">Auto</option><option value="none">None</option><option value="required">Required</option></select></div>
+                    <label class="flex items-center gap-1"><input id="xai-parallel-tool-calls" type="checkbox" checked class="accent-blue-400"><span>Parallel tools</span></label>
+                    <label class="flex items-center gap-1"><input id="xai-logprobs" type="checkbox" class="accent-blue-400"><span>Logprobs</span></label>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Top logs</span><input id="xai-top-logprobs" type="number" min="0" max="8" step="1" placeholder="0-8" class="w-14 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <span class="text-gray-500">※ xAI Chat Completions</span>
+                </div>
                 <div id="grok-video-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
                     <div class="flex items-center gap-2">
                         <span class="text-gray-400">Duration</span>
@@ -558,6 +577,7 @@
                         <select id="grok-video-resolution" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
                             <option value="720p" selected>720p</option>
                             <option value="480p">480p</option>
+                            <option value="1080p">1080p</option>
                         </select>
                     </div>
                     <span class="text-gray-500">※ Grok Imagine Video</span>

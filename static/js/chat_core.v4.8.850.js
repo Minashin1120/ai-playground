@@ -4342,7 +4342,7 @@
         // ------------------------------------------------------------------
         const MINIMAL_MODEL_PANEL_IDS = [
             'gpt-image-options', 'gemini-image-options', 'grok-image-options',
-            'grok-video-options', 'mistral-ocr-options', 'image-input-limits', 'audio-gen-options'
+            'xai-chat-options', 'grok-video-options', 'mistral-ocr-options', 'image-input-limits', 'audio-gen-options'
         ];
         const THINKING_LEVELS = [
             { value: 'minimal', label: 'Min' },
@@ -7021,9 +7021,10 @@
                     { id: "gpt-realtime-mini", implementedAt: "2026-02-24", implementedRank: 2532, name: "OpenAI Realtime Mini", desc: "Lower-latency, smaller realtime model.", price: "Audio In $10/1M, Audio Out $20/1M" },
                     { id: "gemini-2.5-flash-native-audio-preview-12-2025", implementedAt: "2026-01-15", implementedRank: 90, name: "Gemini 2.5 Flash Native Audio (Live)", desc: "Google Live native audio model.", price: "Audio In $3.00/1M, Audio Out $12.00/1M" },
                     { id: "gemini-3.1-flash-live-preview", implementedAt: "2026-03-29", implementedRank: 3870, name: "Gemini 3.1 Flash Live", desc: "Google Live native audio model.", price: "Audio In $3.00/1M (~$0.005/min), Out $12.00/1M" },
-                    { id: "grok-voice-latest", implementedAt: "2026-05-27", implementedRank: 5550, quickEmoji: "🎤", name: "Grok Voice Latest", desc: "Recommended alias. Always points to the newest flagship voice model.", price: "$0.05 / min ($3.00 / hr)" },
-                    { id: "grok-voice-think-fast-1.0", implementedAt: "2026-05-11", implementedRank: 5140, name: "Grok Voice Think Fast 1.0", desc: "Current flagship voice model with advanced reasoning.", price: "$0.05 / min ($3.00 / hr)" },
-                    { id: "grok-voice-fast-1.0", implementedAt: "2026-05-01", implementedRank: 500, name: "Grok Voice Fast 1.0", desc: "Legacy xAI realtime voice model (deprecated).", price: "$0.05 / min ($3.00 / hr)" },
+                    { id: "grok-voice-think-fast-2.0", implementedAt: "2026-08-25", implementedRank: 8502, quickEmoji: "🎤", name: "Grok Voice Think Fast 2.0", desc: "Current xAI speech-to-speech model.", price: "$0.08 / min ($4.80 / hr) audio + $0.004 / text input" },
+                    { id: "grok-voice-latest", implementedAt: "2026-05-27", implementedRank: 5550, name: "Grok Voice Latest", desc: "Alias for the current flagship voice model.", price: "$0.08 / min ($4.80 / hr) audio + $0.004 / text input" },
+                    { id: "grok-voice-think-fast-1.0", implementedAt: "2026-05-11", implementedRank: 5140, name: "Grok Voice Think Fast 1.0", desc: "Deprecated xAI realtime voice model retained for history compatibility.", price: "$0.05 / min ($3.00 / hr)", deprecated: true },
+                    { id: "grok-voice-fast-1.0", implementedAt: "2026-05-01", implementedRank: 500, name: "Grok Voice Fast 1.0", desc: "Legacy xAI realtime voice model retained for history compatibility.", price: "$0.05 / min ($3.00 / hr)", deprecated: true },
                     { id: "grok-voice-agent", implementedAt: "2026-04-01", implementedRank: 380, name: "Grok Voice Agent", desc: "xAI realtime voice agent API.", price: "$0.05 / min (Realtime)", deprecated: true }
                 ]
             },
@@ -7036,7 +7037,8 @@
                     { id: "grok-imagine-image-quality", implementedAt: "2026-05-09", implementedRank: 5020, name: "Grok Imagine Image Quality", desc: "Next-gen Grok image generation with 1K/2K support.", price: "$0.05 / image" },
                     { id: "grok-imagine-image", implementedAt: "2026-01-30", implementedRank: 520, name: "Grok Imagine Image", desc: "Latest Grok image generation.", price: "$0.02 / image" },
                     { id: "grok-imagine-image-pro", implementedAt: "2026-02-01", implementedRank: 530, name: "Grok Imagine Image Pro", desc: "Discontinued by xAI. Retained for chat history compatibility.", price: "$0.07 / image", deprecated: true },
-                    { id: "grok-imagine-video", implementedAt: "2026-01-30", implementedRank: 530, name: "Grok Imagine Video", desc: "Latest Grok video generation.", price: "$0.05 / second" }
+                    { id: "grok-imagine-video-1.5", implementedAt: "2026-08-25", implementedRank: 8501, quickEmoji: "🎬", name: "Grok Imagine Video 1.5", desc: "Current xAI video generation model with 1080p text/image-to-video support.", price: "$0.080 / second" },
+                    { id: "grok-imagine-video", implementedAt: "2026-01-30", implementedRank: 530, name: "Grok Imagine Video", desc: "Legacy Grok video generation.", price: "$0.05 / second" }
                 ]
             },
             {
@@ -7048,6 +7050,9 @@
                     { id: "grok-4.5", implementedAt: "2026-08-19", implementedRank: 8160, name: "Grok 4.5", desc: "Intelligent coding model for agentic software and engineering tasks.", price: "In $2.00/1M, Out $6.00/1M" },
                     { id: "grok-4.3", implementedAt: "2026-05-27", implementedRank: 5530, name: "Grok 4.3", desc: "Most intelligent and fastest flagship model.", price: "In $1.25/1M, Out $2.50/1M" },
                     { id: "grok-build-0.1", implementedAt: "2026-05-27", implementedRank: 5520, quickEmoji: "🛠️", name: "Grok Build 0.1 (Coding)", desc: "Fast agentic coding model with vision and reasoning support.", price: "In $1.00/1M, Out $2.00/1M" },
+                    { id: "grok-4.20-0309-reasoning", implementedAt: "2026-08-25", implementedRank: 8503, name: "Grok 4.20 (Reasoning, 0309)", desc: "Dated Grok 4.20 reasoning release.", price: "In $1.25/1M, Out $2.50/1M" },
+                    { id: "grok-4.20-0309-non-reasoning", implementedAt: "2026-08-25", implementedRank: 8504, name: "Grok 4.20 (Non-Reasoning, 0309)", desc: "Dated Grok 4.20 standard release.", price: "In $1.25/1M, Out $2.50/1M" },
+                    { id: "grok-4.20-multi-agent-0309", implementedAt: "2026-08-25", implementedRank: 8505, name: "Grok 4.20 Multi-Agent (0309)", desc: "Dated Grok 4.20 multi-agent release.", price: "In $1.25/1M, Out $2.50/1M" },
                     { id: "grok-4.20-reasoning", implementedAt: "2026-04-09", implementedRank: 4000, name: "Grok 4.20 (Reasoning)", desc: "Flagship reasoning model.", price: "In $1.25/1M, Out $2.50/1M" },
                     { id: "grok-4.20-non-reasoning", implementedAt: "2026-04-09", implementedRank: 4001, name: "Grok 4.20 (Non-Reasoning)", desc: "Flagship standard model.", price: "In $1.25/1M, Out $2.50/1M" },
                     { id: "grok-4.20-multi-agent", implementedAt: "2026-04-09", implementedRank: 4002, name: "Grok 4.20 Multi-Agent", desc: "Agentic flagship model.", price: "In $1.25/1M, Out $2.50/1M" },
@@ -7352,6 +7357,7 @@
             'gpt-realtime-mini',
             'gemini-2.5-flash-native-audio-preview-12-2025',
             'gemini-3.1-flash-live-preview',
+            'grok-voice-think-fast-2.0',
             'grok-voice-latest',
             'grok-voice-think-fast-1.0',
             'grok-voice-fast-1.0',
@@ -8364,10 +8370,35 @@
         function updateGrokVideoUi() {
             const wrap = get('grok-video-options');
             if (!wrap) return;
+            const model = String(get('model-select')?.value || '').toLowerCase();
             if (isGrokVideoModel()) {
                 wrap.classList.remove('hidden');
             } else {
                 wrap.classList.add('hidden');
+            }
+            const resolution = get('grok-video-resolution');
+            if (resolution) {
+                const fullHd = Array.from(resolution.options).find(opt => opt.value === '1080p');
+                if (fullHd) fullHd.disabled = model !== 'grok-imagine-video-1.5';
+                if (model !== 'grok-imagine-video-1.5' && resolution.value === '1080p') resolution.value = '720p';
+            }
+        }
+        function updateXaiChatUi() {
+            const wrap = get('xai-chat-options');
+            if (!wrap) return;
+            const model = String(get('model-select')?.value || '').toLowerCase();
+            const show = model.startsWith('grok-') && !isGrokImageModel(model) && !isGrokVideoModel(model) && !model.includes('voice');
+            wrap.classList.toggle('hidden', !show);
+            const logprobs = get('xai-logprobs');
+            const topLogprobs = get('xai-top-logprobs');
+            const unsupported = model.includes('grok-4.20');
+            if (logprobs) {
+                logprobs.disabled = unsupported;
+                if (unsupported) logprobs.checked = false;
+            }
+            if (topLogprobs) {
+                topLogprobs.disabled = unsupported;
+                if (unsupported) topLogprobs.value = '';
             }
         }
         function updateMistralOcrUi() {
@@ -8522,7 +8553,7 @@
                             } else if (opt.value === 'xhigh') {
                                 opt.classList.toggle('hidden', !isGrok46 && !modelLower.includes('multi-agent') && !isGpt56Model);
                             } else if (opt.value === 'medium') {
-                                opt.classList.toggle('hidden', !(modelLower.includes('grok-4.3') || isGrok45 || isGrok46 || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3')));
+                                opt.classList.toggle('hidden', !(modelLower.includes('grok-4.3') || isGrok45 || isGrok46 || modelLower.includes('grok-4.20-0309-reasoning') || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3')));
                             } else if (opt.value === 'none') {
                                 opt.classList.toggle('hidden', !modelLower.includes('grok-4.3') && !modelLower.includes('grok-build') && !modelLower.includes('gpt-5') && !isDeepSeekFlash0731 && !isDeepSeekPro);
                             } else if (opt.value === 'low') {
@@ -8637,7 +8668,7 @@
                         thinkBudget.classList.add('opacity-50');
                     }
                 }
-                const supportsReasoningEffort = isLlmModel() && (modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3') || modelLower.includes('grok-4.3') || modelLower.includes('grok-4.5') || modelLower.includes('grok-4.6') || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || (modelLower.includes('gpt') && !modelLower.includes('tts')));
+                const supportsReasoningEffort = isLlmModel() && (modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3') || modelLower.includes('grok-4.3') || modelLower.includes('grok-4.5') || modelLower.includes('grok-4.6') || modelLower.includes('grok-4.20-0309-reasoning') || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || (modelLower.includes('gpt') && !modelLower.includes('tts')));
                 if (supportsReasoningEffort) {
                     reasonOpts.classList.remove('hidden');
                     if(searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none');
@@ -8721,6 +8752,7 @@
                 updateGeminiImageUi();
                 updateGrokImageUi();
                 updateGrokVideoUi();
+                updateXaiChatUi();
                 updateMistralOcrUi();
                 updateImageInputLimits();
                 purgeUnsupportedAttachments(true);
@@ -17639,6 +17671,20 @@
                 grok_image_aspect: isGrokImageModel() && get('grok-image-aspect') ? get('grok-image-aspect').value : null,
                 grok_image_resolution: isGrokImageModel() && get('grok-image-resolution') ? get('grok-image-resolution').value : null,
                 grok_image_quality: isGrokImageModel() && get('grok-image-quality') ? get('grok-image-quality').value : null,
+                grok_image_format: isGrokImageModel() && get('grok-image-format') ? get('grok-image-format').value : null,
+                grok_image_count: isGrokImageModel() && get('grok-image-count') ? get('grok-image-count').value : null,
+                xai_temperature: get('xai-temperature') ? get('xai-temperature').value : null,
+                xai_top_p: get('xai-top-p') ? get('xai-top-p').value : null,
+                xai_max_completion_tokens: get('xai-max-completion-tokens') ? get('xai-max-completion-tokens').value : null,
+                xai_seed: get('xai-seed') ? get('xai-seed').value : null,
+                xai_presence_penalty: get('xai-presence-penalty') ? get('xai-presence-penalty').value : null,
+                xai_frequency_penalty: get('xai-frequency-penalty') ? get('xai-frequency-penalty').value : null,
+                xai_stop: get('xai-stop') ? get('xai-stop').value : null,
+                xai_response_format: get('xai-response-format') ? get('xai-response-format').value : null,
+                xai_tool_choice: get('xai-tool-choice') ? get('xai-tool-choice').value : null,
+                xai_parallel_tool_calls: get('xai-parallel-tool-calls') ? get('xai-parallel-tool-calls').checked : true,
+                xai_logprobs: get('xai-logprobs') ? get('xai-logprobs').checked : false,
+                xai_top_logprobs: get('xai-top-logprobs') ? get('xai-top-logprobs').value : null,
                 grok_video_duration: isGrokVideoModel() && get('grok-video-duration') ? get('grok-video-duration').value : null,
                 grok_video_aspect: isGrokVideoModel() && get('grok-video-aspect') ? get('grok-video-aspect').value : null,
                 grok_video_resolution: isGrokVideoModel() && get('grok-video-resolution') ? get('grok-video-resolution').value : null,

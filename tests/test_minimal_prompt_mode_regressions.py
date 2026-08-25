@@ -170,6 +170,22 @@ class MinimalPromptModeRegressionTests(unittest.TestCase):
         self.assertIn("addEventListener('touchcancel'", script)
         self.assertIn("popupPanel.addEventListener('touchcancel'", script)
 
+    def test_thinking_slider_swipe_close_does_not_bounce(self):
+        # A swipe-to-close must keep the inner bar below the open position so
+        # the fade-out runs from the released spot instead of snapping back up
+        # to translateY(0).
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        self.assertIn("Math.max(dy * 0.5, 60)}px)", script)
+        self.assertIn("hideThinkingSlider();", script)
+        # hideThinkingSlider must not reset the inner transform synchronously;
+        # it clears the leftover transform only after the close transition so
+        # the close animation never bounces.
+        self.assertIn("if (!thinkingSliderOpen) bar.classList.add('hidden');", script)
+        self.assertIn("const inner = get('thinking-slide-inner');", script)
+        self.assertIn("if (inner) inner.style.transform = '';", script)
+        # showThinkingSlider clears stale drag transforms before reappearing.
+        self.assertIn("// Clear any leftover drag transform from a previous swipe-close", script)
+
 
 if __name__ == "__main__":
     unittest.main()

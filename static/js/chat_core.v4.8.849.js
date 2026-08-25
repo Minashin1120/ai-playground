@@ -4657,6 +4657,10 @@
             }
             const bar = get('thinking-slide-bar');
             if (!bar) return;
+            // Clear any leftover drag transform from a previous swipe-close so
+            // the slider always reappears in the open position.
+            const inner = get('thinking-slide-inner');
+            if (inner) inner.style.transform = '';
             thinkingSliderOpen = true;
             bar.classList.remove('hidden');
             bar.setAttribute('aria-hidden', 'false');
@@ -4672,10 +4676,13 @@
             thinkingSliderOpen = false;
             bar.classList.remove('thinking-slide-open');
             bar.setAttribute('aria-hidden', 'true');
-            const inner = get('thinking-slide-inner');
-            if (inner) inner.style.transform = '';
             setTimeout(() => {
                 if (!thinkingSliderOpen) bar.classList.add('hidden');
+                // Clear any leftover drag transform only after the close
+                // transition has finished, so a swipe-to-close fades out from
+                // the released position instead of bouncing back to translateY(0).
+                const inner = get('thinking-slide-inner');
+                if (inner) inner.style.transform = '';
             }, 360);
         }
         function bindMinimalOptionsEvents() {
@@ -4750,12 +4757,17 @@
                     if (!thinkingSliderDragging) return;
                     thinkingSliderDragging = false;
                     const dy = e.changedTouches[0].clientY - thinkingSliderStartY;
-                    if (slideInner) {
-                        slideInner.classList.remove('dragging');
-                        slideInner.style.transform = '';
+                    if (slideInner) slideInner.classList.remove('dragging');
+                    if (thinkingSliderAxis === 'v' && dy > 100) {
+                        // Close from the released position: keep the inner below
+                        // the open state so the bar fades out without bouncing
+                        // back up to translateY(0) first.
+                        if (slideInner) slideInner.style.transform = `translateY(${Math.max(dy * 0.5, 60)}px)`;
+                        hideThinkingSlider();
+                    } else {
+                        if (slideInner) slideInner.style.transform = '';
+                        scheduleThinkingSliderHide();
                     }
-                    if (thinkingSliderAxis === 'v' && dy > 100) hideThinkingSlider();
-                    else scheduleThinkingSliderHide();
                 }, { passive: true });
                 slideBar.addEventListener('touchcancel', () => {
                     thinkingSliderDragging = false;

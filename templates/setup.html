@@ -782,6 +782,43 @@
                         let selectedFiles = '';
                         let importDone = false;
                         let parseFailures = 0;
+                        // After a settings import, re-fetch the saved settings and
+                        // mirror them into the step-3 form (default model, Gemini
+                        // backend, Vertex location).  The form is rendered before the
+                        // import runs, so without this the setup POST would overwrite
+                        // the imported values with the pre-import defaults.
+                        const refreshSetupFormAfterSettingsImport = async () => {
+                            try {
+                                const res = await fetch('/api/settings', manualOpts({
+                                    cache: 'no-store', headers: { 'X-CSRF-Token': getCsrf() },
+                                }));
+                                const data = await res.json().catch(() => null);
+                                if (!res.ok || !data) return;
+                                const modelSelect = document.querySelector('select[name="default_model"]');
+                                if (modelSelect && data.default_model) {
+                                    if (!Array.from(modelSelect.options).some(o => o.value === data.default_model)) {
+                                        const option = document.createElement('option');
+                                        option.value = data.default_model;
+                                        option.textContent = data.default_model;
+                                        option.selected = true;
+                                        modelSelect.appendChild(option);
+                                    } else {
+                                        modelSelect.value = data.default_model;
+                                    }
+                                }
+                                const backendSelect = document.getElementById('setup-gemini-backend');
+                                if (backendSelect && data.gemini_backend) {
+                                    if (Array.from(backendSelect.options).some(o => o.value === data.gemini_backend)) {
+                                        backendSelect.value = data.gemini_backend;
+                                    }
+                                }
+                                const vertexLocation = document.querySelector('input[name="gemini_vertex_location"]');
+                                if (vertexLocation && data.gemini_vertex_location) {
+                                    vertexLocation.value = data.gemini_vertex_location;
+                                }
+                                toggleSetupGeminiBackend();
+                            } catch (_) {}
+                        };
                         const finishImportSuccess = (terminal) => {
                             const message = (terminal && terminal.message) || 'インポートが完了しました';
                             if (resultBox) {
@@ -790,6 +827,7 @@
                                 resultBox.classList.add('text-emerald-300');
                             }
                             renderProgress({progress: 100, phase: 'completed', message});
+                            if (categories.indexOf('settings') !== -1) refreshSetupFormAfterSettingsImport();
                         };
                         const fetchImportStatus = async () => {
                             try {
@@ -935,6 +973,7 @@
                             if (!res.ok) throw new Error(data.error || 'インポートに失敗しました');
                             const imported = data.imported || {};
                             const detail = [
+                                '設定 ' + (imported.settings || 0) + '件', 'API認証 ' + (imported.api_credentials || 0) + '件',
                                 'チャット ' + (imported.chats || 0) + '件', 'Gem ' + (imported.gems || 0) + '件',
                                 'ファイル ' + (imported.files || 0) + '件', 'フィードバック ' + (imported.feedback || 0) + '件',
                                 '診断データ ' + (imported.diagnostics || 0) + '件',
@@ -945,6 +984,7 @@
                                 resultBox.classList.add('text-emerald-300');
                             }
                             renderProgress({progress: 100, phase: 'completed', message: 'インポートが完了しました'});
+                            if (categories.indexOf('settings') !== -1) refreshSetupFormAfterSettingsImport();
                             importDone = true;
                         }
                     } catch (error) {

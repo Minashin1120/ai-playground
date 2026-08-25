@@ -9797,12 +9797,26 @@
                         // After a settings / API-credentials import, re-fetch the saved
                         // settings and repopulate the (possibly still-open) settings modal
                         // so imported values are reflected instead of stale pre-import
-                        // form values that a later save would overwrite.
+                        // form values that a later save would overwrite.  The import has
+                        // already persisted the values server-side, so the page is then
+                        // reloaded: that rebuilds every client-side setting (the modal
+                        // form, cached settings, theme, prompt-bar mode, model list, API
+                        // keys) from the freshly imported state and is guaranteed to
+                        // reflect the import.
                         const refreshSettingsFormAfterImport = async () => {
+                            let reloadScheduled = false;
+                            const scheduleReload = () => {
+                                if (reloadScheduled) return;
+                                reloadScheduled = true;
+                                setTimeout(() => { location.reload(); }, 1100);
+                            };
                             try {
                                 const res = await apiFetch(CHAT_CONFIG.urls.handleSettingsQuery, {cache: 'no-store'});
                                 const data = await res.json().catch(() => null);
-                                if (!res.ok || !data) return;
+                                if (!res.ok || !data) {
+                                    scheduleReload();
+                                    return;
+                                }
                                 cacheUserSettings(data);
                                 const settingsModalEl = get('settings-modal');
                                 if (settingsModalEl && settingsModalEl.classList.contains('modal-open')) {
@@ -9816,6 +9830,7 @@
                                     setCompactPromptMode(!!data.compact_prompt_mode);
                                 }
                             } catch (_) {}
+                            scheduleReload();
                         };
                         const finishImportSuccess = (terminal) => {
                             const message = (terminal && terminal.message) || 'インポートが完了しました';

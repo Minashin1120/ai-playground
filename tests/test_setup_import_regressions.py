@@ -449,9 +449,10 @@ class SetupImportRegressionTests(unittest.TestCase):
             self.assertIn(expected, js_source)
 
     def test_settings_import_refreshes_settings_modal_after_success(self):
-        # Imported settings / API credentials must be reflected in the open
-        # settings modal; otherwise stale pre-import form values remain and a
-        # later save would overwrite the imported values.
+        # Imported settings / API credentials must be reflected after the import
+        # completes; otherwise stale pre-import form values remain and a later
+        # save would overwrite the imported values.  The page is reloaded after
+        # the import so every client-side setting is rebuilt from the server.
         root = Path(__file__).resolve().parents[1]
         js_assets = list((root / "static" / "js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(js_assets), 1)
@@ -464,6 +465,8 @@ class SetupImportRegressionTests(unittest.TestCase):
             "refreshSettingsFormAfterImport()",
             "setMinimalPromptMode(true)",
             "setCompactPromptMode(!!data.compact_prompt_mode)",
+            "scheduleReload()",
+            "location.reload()",
         ]:
             self.assertIn(expected, js_source)
         # The settings-import success message must report the imported counts.
@@ -476,6 +479,37 @@ class SetupImportRegressionTests(unittest.TestCase):
         self.assertLess(
             refresh_index, finish_index,
             "the settings refresh helper must be defined before the import success handler uses it",
+        )
+        # The reload must be scheduled inside the settings refresh helper.
+        refresh_body = js_source[refresh_index:finish_index]
+        self.assertIn("location.reload()", refresh_body)
+        self.assertIn("setTimeout(() => { location.reload(); }, 1100)", refresh_body)
+
+    def test_setup_import_refreshes_step3_form_after_settings_import(self):
+        # The setup form is rendered before the import runs.  After importing
+        # settings, the step-3 form (default model / Gemini backend / Vertex
+        # location) must be updated from the imported values so the setup POST
+        # does not overwrite them with the pre-import defaults.
+        root = Path(__file__).resolve().parents[1]
+        with open(root / "templates" / "setup.html", encoding="utf-8") as handle:
+            template = handle.read()
+        for expected in [
+            "const refreshSetupFormAfterSettingsImport = async () => {",
+            "refreshSetupFormAfterSettingsImport()",
+            "categories.indexOf('settings') !== -1",
+            "select[name=\"default_model\"]",
+            "setup-gemini-backend",
+            "input[name=\"gemini_vertex_location\"]",
+            "toggleSetupGeminiBackend()",
+            "'設定 ' + (imported.settings || 0) + '件'",
+            "'API認証 ' + (imported.api_credentials || 0) + '件'",
+        ]:
+            self.assertIn(expected, template)
+        refresh_index = template.index("const refreshSetupFormAfterSettingsImport")
+        finish_index = template.index("const finishImportSuccess")
+        self.assertLess(
+            refresh_index, finish_index,
+            "the setup form refresh helper must be defined before the import success handler uses it",
         )
 
 

@@ -5432,3 +5432,18 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
 .thinking-slide-scale span {
     font-weight: 600;
 }
+
+/* Voice Studio modal */
+#voice-studio-transcript {
+    min-height: 140px;
+    max-height: 30dvh;
+}
+#voice-studio-transcript .voice-studio-line {
+    display: flex;
+    gap: 0.35rem;
+    line-height: 1.5;
+}
+#voice-studio-panel-host .sts-panel-inline,
+#voice-studio-panel-host #sts-panel {
+    width: 100%;
+}

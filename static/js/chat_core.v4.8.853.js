@@ -2933,6 +2933,7 @@
         let useSwCache = CHAT_CONFIG.useSwCache;
         let compactPromptMode = CHAT_CONFIG.compactPromptMode;
         let minimalPromptMode = !!CHAT_CONFIG.minimalPromptMode;
+        let voiceStudioUiEnabled = true;
         const CANVAS_MODE_STORAGE_KEY = 'canvas_mode_enabled_v1';
         const CODING_MODE_STORAGE_KEY = 'coding_mode_enabled_v1';
         let canvasModeEnabled = false;
@@ -4853,6 +4854,9 @@
 
         function applyChatDefaults(d) {
             if (!d) return;
+            if (Object.prototype.hasOwnProperty.call(d, 'voice_studio_ui')) {
+                voiceStudioUiEnabled = d.voice_studio_ui !== false;
+            }
             applyTemporaryChatTimeoutSeconds(d.temp_chat_timeout_seconds);
             if (chatDefaultsLoaded) return;
             const useLast = !!d.use_last_chat_settings;
@@ -7622,17 +7626,32 @@
         }
         function updateStsUi() {
             const sts = isStsModel();
+            const studioMode = sts && voiceStudioUiEnabled !== false;
             const inputRow = get('input-row');
             const stsPanel = get('sts-panel');
+            const studioBar = get('voice-studio-bar');
             const filePreview = get('file-preview');
             if (sts) {
                 if (inputRow) inputRow.classList.add('hidden');
-                if (stsPanel) stsPanel.classList.remove('hidden');
                 if (filePreview) filePreview.classList.add('hidden');
+                if (studioMode) {
+                    // The STS panel lives inside the studio modal while it is open.
+                    if (stsPanel) {
+                        if (window.VoiceStudioOpen) stsPanel.classList.remove('hidden');
+                        else stsPanel.classList.add('hidden');
+                    }
+                    if (studioBar) studioBar.classList.remove('hidden');
+                } else {
+                    if (stsPanel) stsPanel.classList.remove('hidden');
+                    if (studioBar) studioBar.classList.add('hidden');
+                    if (window.VoiceStudio) window.VoiceStudio.closeIfOpen();
+                }
                 setStsStatus('Tap to speak', false);
             } else {
                 if (inputRow) inputRow.classList.remove('hidden');
                 if (stsPanel) stsPanel.classList.add('hidden');
+                if (studioBar) studioBar.classList.add('hidden');
+                if (window.VoiceStudio) window.VoiceStudio.closeIfOpen();
             }
         }
         function updateStsOptions() {
@@ -8132,6 +8151,7 @@
                 applyLiquidGlassMode(!!d.liquid_glass_enabled);
                 if (get('set-auto-search-links')) get('set-auto-search-links').checked = d.auto_search_on_links !== false;
                 if (get('set-use-last-settings')) get('set-use-last-settings').checked = !!d.use_last_chat_settings;
+                if (get('set-voice-studio-ui')) get('set-voice-studio-ui').checked = d.voice_studio_ui !== false;
                 if (get('set-latency-metrics')) get('set-latency-metrics').checked = !!d.enable_latency_metrics;
                 if (get('set-client-debug-log')) syncClientDebugLogToggle(!!d.enable_client_debug_log, 'ai-settings');
                 if (get('set-bot-detect')) get('set-bot-detect').checked = d.bot_detection_enabled !== false;
@@ -10654,6 +10674,7 @@
                     liquid_glass_enabled: get('set-liquid-glass') ? get('set-liquid-glass').checked : false,
                     auto_search_on_links: get('set-auto-search-links') ? get('set-auto-search-links').checked : true,
                     use_last_chat_settings: get('set-use-last-settings') ? get('set-use-last-settings').checked : false,
+                    voice_studio_ui: get('set-voice-studio-ui') ? get('set-voice-studio-ui').checked : true,
                     default_model: get('set-default-model') ? get('set-default-model').value : null,
                     default_vision_model: get('set-default-vision-model') ? get('set-default-vision-model').value : null,
                     temp_chat_timeout_seconds: normalizeTemporaryChatTimeoutSeconds(
@@ -10712,6 +10733,7 @@
                     }
                     compactPromptMode = b.compact_prompt_mode;
                     minimalPromptMode = b.minimal_prompt_mode;
+                    voiceStudioUiEnabled = b.voice_studio_ui !== false;
                     temporaryChatTimeoutSeconds = b.temp_chat_timeout_seconds;
 
                     // Apply theme color
@@ -10723,6 +10745,7 @@
                     // Update UI components
                     if (minimalPromptMode) setMinimalPromptMode(true);
                     else setCompactPromptMode(compactPromptMode);
+                    updateStsUi();
                     if (previousUseSwCache !== useSwCache) {
                         applyCacheMode(useSwCache, { forceCleanup: !useSwCache });
                     }
@@ -12693,6 +12716,138 @@
             })();
             LyriaRealtimeStudio.init();
 
+            // ===========================================================================
+            // Voice Studio (WebSocket voice / STS models) — dedicated studio UI
+            // ===========================================================================
+            const VoiceStudio = (() => {
+                let originalPanelParent = null;
+                let originalFileParent = null;
+                const $ = (id) => document.getElementById(id);
+
+                function isStudioMode() {
+                    return isStsModel() && voiceStudioUiEnabled !== false;
+                }
+
+                function updateTitle() {
+                    const model = get('model-select') ? get('model-select').value : '';
+                    const titleEl = $('voice-studio-title');
+                    if (!titleEl) return;
+                    if (model === 'gpt-transcribe' || model === 'gpt-live-transcribe') {
+                        titleEl.textContent = '音声文字起こしスタジオ';
+                    } else if (model === 'gemini-3.5-live-translate-preview') {
+                        titleEl.textContent = 'リアルタイム音声翻訳スタジオ';
+                    } else {
+                        titleEl.textContent = '音声スタジオ';
+                    }
+                }
+
+                function resetTranscript() {
+                    const host = $('voice-studio-transcript');
+                    if (!host) return;
+                    host.innerHTML = '<div class="text-[10px] text-gray-500">会話の文字起こしがここに表示されます。</div>';
+                }
+
+                function log(role, text) {
+                    if (!text || !String(text).trim()) return;
+                    const host = $('voice-studio-transcript');
+                    if (!host || !window.VoiceStudioOpen) return;
+                    const label = role === 'user' ? 'あなた' : 'AI';
+                    const cls = role === 'user' ? 'text-cyan-300' : 'text-gray-100';
+                    const lines = host.querySelectorAll('.voice-studio-line');
+                    let target = null;
+                    for (let i = lines.length - 1; i >= 0; i--) {
+                        if (lines[i].dataset.role === role) { target = lines[i]; break; }
+                    }
+                    const inner = `<span class="${cls} font-bold">${escapeHtml(label)}:</span> <span class="text-gray-200">${escapeHtml(text)}</span>`;
+                    if (target) {
+                        target.innerHTML = inner;
+                    } else {
+                        const placeholder = host.querySelector('.text-gray-500');
+                        if (placeholder) placeholder.remove();
+                        const line = document.createElement('div');
+                        line.className = 'voice-studio-line';
+                        line.dataset.role = role;
+                        line.innerHTML = inner;
+                        host.appendChild(line);
+                    }
+                    host.scrollTop = host.scrollHeight;
+                }
+
+                function movePanelIntoModal() {
+                    const panel = $('sts-panel');
+                    const host = $('voice-studio-panel-host');
+                    if (panel && host && panel.parentNode !== host) {
+                        originalPanelParent = panel.parentNode;
+                        host.appendChild(panel);
+                    }
+                    const filePreview = $('file-preview');
+                    const fileHost = $('voice-studio-file-host');
+                    if (filePreview && fileHost && filePreview.parentNode !== fileHost) {
+                        originalFileParent = filePreview.parentNode;
+                        fileHost.appendChild(filePreview);
+                        fileHost.classList.remove('hidden');
+                    }
+                }
+
+                function movePanelBack() {
+                    const panel = $('sts-panel');
+                    if (panel && originalPanelParent && panel.parentNode !== originalPanelParent) {
+                        originalPanelParent.appendChild(panel);
+                    }
+                    const filePreview = $('file-preview');
+                    if (filePreview && originalFileParent && filePreview.parentNode !== originalFileParent) {
+                        originalFileParent.appendChild(filePreview);
+                    }
+                    const fileHost = $('voice-studio-file-host');
+                    if (fileHost) fileHost.classList.add('hidden');
+                    originalPanelParent = null;
+                    originalFileParent = null;
+                }
+
+                function open() {
+                    if (!isStudioMode()) {
+                        showToast('音声系モデルを選択してから開いてください', 'warning', true);
+                        return;
+                    }
+                    movePanelIntoModal();
+                    const panel = $('sts-panel');
+                    if (panel) panel.classList.remove('hidden');
+                    updateTitle();
+                    resetTranscript();
+                    window.VoiceStudioOpen = true;
+                    showModal('voice-studio-modal');
+                }
+
+                function close() {
+                    if (window.VoiceStudioOpen && (currentGeminiLive || (mediaRecorder && mediaRecorder.state === 'recording'))) {
+                        cancelRecording();
+                    }
+                    window.VoiceStudioOpen = false;
+                    movePanelBack();
+                    hideModal('voice-studio-modal');
+                    if (isStsModel() && voiceStudioUiEnabled !== false) {
+                        const panel = $('sts-panel');
+                        if (panel) panel.classList.add('hidden');
+                    }
+                }
+
+                function closeIfOpen() {
+                    if (window.VoiceStudioOpen) close();
+                }
+
+                function init() {
+                    window.VoiceStudioOpen = false;
+                    const openBtn = $('voice-studio-open-btn');
+                    if (openBtn) openBtn.addEventListener('click', () => open());
+                    const closeBtn = $('voice-studio-close');
+                    if (closeBtn) closeBtn.addEventListener('click', () => close());
+                    window.VoiceStudio = { open, close, closeIfOpen, log, isStudioMode };
+                }
+
+                return { init, open, close, closeIfOpen, log, isStudioMode };
+            })();
+            VoiceStudio.init();
+
             let currentRtPlayer = null;
 
             function stopStsPlayback() {
@@ -12899,6 +13054,10 @@
                                         }
                                         contentEl.innerText = currentGeminiLive.assistantText;
                                         container.scrollTop = container.scrollHeight;
+                                        if (window.VoiceStudio) {
+                                            if (currentGeminiLive.inputTranscript) window.VoiceStudio.log('user', currentGeminiLive.inputTranscript);
+                                            if (currentGeminiLive.assistantText) window.VoiceStudio.log('assistant', currentGeminiLive.assistantText);
+                                        }
                                     }
                                 }
                             };
@@ -12997,6 +13156,8 @@
                                 setStsStatus(isTranscriptionModel() ? 'Transcribing...' : 'Processing audio...', true);
 
                                 let firstChunk = true;
+                                let studioInput = '';
+                                let studioAssistant = '';
                                 while (true) {
                                     const { done, value } = await reader.read();
                                     if (done) break;
@@ -13017,13 +13178,21 @@
                                             }
                                             await rtPlayer.addChunk(chunk.audio_delta);
                                         }
+                                        if (chunk.input_delta) {
+                                            studioInput += chunk.input_delta;
+                                            if (window.VoiceStudio) window.VoiceStudio.log('user', studioInput);
+                                        }
                                         if (chunk.transcript_delta) {
-                                            // Optional: Update UI with transcript deltas in real-time
+                                            studioAssistant += chunk.transcript_delta;
+                                            if (window.VoiceStudio) window.VoiceStudio.log('assistant', studioAssistant);
                                         }
                                         if (chunk.final) {
                                             stsData = chunk;
                                         }
                                     }
+                                }
+                                if (window.VoiceStudio && !studioInput.trim()) {
+                                    window.VoiceStudio.log('user', '（音声メッセージ）');
                                 }
 
                                 if (stsData && (stsData.audio_url || stsData.transcription_only)) {

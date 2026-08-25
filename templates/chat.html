@@ -728,6 +728,11 @@
                         <button id="sts-cancel-btn" class="text-[10px] px-2 py-1 rounded bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 transition">Cancel</button>
                     </div>
                 </div>
+                <div id="voice-studio-bar" class="hidden mt-2 px-3 py-2 bg-cyan-900/30 border border-cyan-500/30 rounded-lg text-xs text-cyan-100 flex flex-wrap items-center gap-3">
+                    <i class="fas fa-microphone text-cyan-300"></i>
+                    <span class="min-w-0">この音声モデルは専用の音声スタジオで利用できます。マイクをタップするか、下のボタンで開いて会話します。</span>
+                    <button id="voice-studio-open-btn" data-progress-no-spinner="true" class="ml-auto shrink-0 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-[11px] font-bold btn-hover">音声スタジオを開く</button>
+                </div>
                 <div id="auto-search-banner" class="hidden mb-2 px-3 py-2 bg-yellow-900/30 border border-yellow-600/60 text-yellow-200 text-xs rounded flex items-center justify-between gap-3">
                     <div class="flex items-center gap-2"><i class="fas fa-bolt"></i><span id="auto-search-msg">Xリンクを検出しました。検索ON＋Grok 4 Fast Reasoningに切替します。</span></div>
                     <div class="flex gap-2 shrink-0 items-center">
@@ -1032,6 +1037,22 @@
                 <button id="lyria-reset-btn" data-progress-no-spinner="true" disabled class="w-12 h-12 rounded-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white text-sm flex items-center justify-center transition btn-hover" title="コンテキストをリセット（BPM・スケール変更後）"><i class="fas fa-arrows-rotate"></i></button>
             </div>
             <div class="text-[10px] text-gray-500 text-center shrink-0">実験モデル: 楽器のみ・ボーカルなし / 48kHzステレオ / 再生内容は「チャットへ保存」でWAVとして保存できます</div>
+        </div>
+    </div>
+
+    <!-- Voice Studio Modal (WebSocket voice models) -->
+    <div id="voice-studio-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-4 sm:p-6 shadow-2xl border border-cyan-500/30 m-4 flex flex-col gap-3 modal-panel">
+            <div class="flex items-center justify-between shrink-0">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-microphone text-cyan-300"></i> <span id="voice-studio-title">音声スタジオ</span></h2>
+                <button id="voice-studio-close" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="voice-studio-transcript" class="flex flex-col gap-2 overflow-y-auto pr-1 rounded-lg bg-gray-900/40 border border-gray-700/50 p-3 text-xs text-gray-200 leading-relaxed custom-scrollbar">
+                <div class="text-[10px] text-gray-500">会話の文字起こしがここに表示されます。</div>
+            </div>
+            <div id="voice-studio-panel-host" class="shrink-0"></div>
+            <div id="voice-studio-file-host" class="shrink-0 hidden"></div>
+            <div class="text-[10px] text-gray-500 text-center shrink-0 border-t border-gray-700/50 pt-2">マイクをタップして話し始め / もう一度タップで停止。停止後はチャットへ自動保存されます。</div>
         </div>
     </div>
 
@@ -1442,6 +1463,7 @@
 <div class="settings-tab-panel overflow-y-auto animate-fadeIn" id="tab-general">
 <div class="settings-card"><h3 class="settings-card-title">送信設定</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-enter-to-send" class="accent-blue-500 w-3 h-3"><span>Enterで送信（改行はShift+Enter）</span></label></div>
 <div class="settings-card"><h3 class="settings-card-title">プロンプトバー表示</h3><div class="space-y-2"><label class="flex items-center gap-2 text-xs text-gray-300"><input type="radio" name="prompt-bar-mode" id="set-prompt-bar-mode-normal" value="normal" class="accent-cyan-500 w-3 h-3" checked><span>通常表示</span></label><label class="flex items-center gap-2 text-xs text-gray-300"><input type="radio" name="prompt-bar-mode" id="set-compact-prompt-mode" value="compact" class="accent-cyan-500 w-3 h-3"><span>コンパクト表示（モデル選択のみ表示）</span></label><div class="text-[10px] text-gray-500 -mt-1 ml-5">詳細設定を折りたたみ、下部バーをモデル選択中心にします。</div><label class="flex items-center gap-2 text-xs text-gray-300"><input type="radio" name="prompt-bar-mode" id="set-minimal-prompt-mode" value="minimal" class="accent-cyan-500 w-3 h-3"><span>ミニマル表示（送信・プラスのみ）</span></label><div class="text-[10px] text-gray-500 -mt-1 ml-5">下部バーを送信ボタンとプラスボタンだけにし、モデル選択を画面上部へ移します。</div></div></div>
+<div class="settings-card"><h3 class="settings-card-title">音声スタジオUI</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-voice-studio-ui" class="accent-cyan-500 w-3 h-3" checked><span>音声系モデル（WebSocket）で専用の音声スタジオを使う</span></label><div class="text-[10px] text-gray-500 mt-1">オフにすると、従来どおりプロンプトバーのマイクボタンで録音・会話できます。</div></div>
 <div class="settings-card"><h3 class="settings-card-title">確認ダイアログ</h3><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-gemini-local-python-dialog" class="accent-yellow-500 w-3 h-3"><span>Gemini音声/動画 + Python のローカル実行切替を送信前に確認</span></label><div class="text-[10px] text-gray-500 mt-1">OFF にすると確認を表示しません（このブラウザに保存）。</div></div>
 <div class="settings-card"><h3 class="settings-card-title">チャット既定値</h3><div class="space-y-3 text-xs text-gray-300">
     <div>

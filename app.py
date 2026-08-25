@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-25-011')
-app.config['SYSTEM_VERSION'] = 'V4.8.852'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-26-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.853'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2736,7 +2736,7 @@ AI_SAFE_EDITABLE_FIELDS = {
     'mic_transcribe_mode', 'stt_model', 'llm_transcribe_prompt',
     # UI / behavior prefs (safe)
     'enter_to_send', 'use_sw_cache', 'compact_prompt_mode', 'minimal_prompt_mode', 'auto_search_on_links',
-    'use_last_chat_settings', 'temp_chat_timeout_seconds', 'theme_color', 'liquid_glass_enabled',
+    'use_last_chat_settings', 'voice_studio_ui', 'temp_chat_timeout_seconds', 'theme_color', 'liquid_glass_enabled',
     # Rich paste custom prompt
     'rich_paste_prompt_default', 'rich_paste_prompt_use_custom_default',
     # Debug / metrics (user opt-in)
@@ -2790,6 +2790,7 @@ def _get_ai_safe_settings_snapshot(user):
         'liquid_glass_enabled': bool(getattr(user, 'liquid_glass_enabled', False)),
         'compact_prompt_mode': bool(getattr(user, 'compact_prompt_mode', False)),
         'minimal_prompt_mode': bool(getattr(user, 'minimal_prompt_mode', False)),
+        'voice_studio_ui': bool(getattr(user, 'voice_studio_ui', True)),
         'enable_latency_metrics': bool(getattr(user, 'enable_latency_metrics', False)),
         'enable_client_debug_log': bool(getattr(user, 'enable_client_debug_log', False)),
         'bot_detection_enabled': user.bot_detection_enabled if user.bot_detection_enabled is not None else True,
@@ -2884,6 +2885,9 @@ def _apply_ai_settings_update(current_user, delta):
             elif key == 'use_last_chat_settings':
                 current_user.use_last_chat_settings = bool(val)
                 applied[key] = current_user.use_last_chat_settings
+            elif key == 'voice_studio_ui':
+                current_user.voice_studio_ui = bool(val)
+                applied[key] = current_user.voice_studio_ui
             elif key == 'temp_chat_timeout_seconds':
                 current_user.temp_chat_timeout_seconds = _normalize_temp_chat_timeout_seconds(val)
                 applied[key] = current_user.temp_chat_timeout_seconds
@@ -3817,6 +3821,7 @@ class User(UserMixin, db.Model):
     compact_prompt_mode = db.Column(db.Boolean, default=False)
     minimal_prompt_mode = db.Column(db.Boolean, default=False)
     use_last_chat_settings = db.Column(db.Boolean, default=False)
+    voice_studio_ui = db.Column(db.Boolean, default=True)
     temp_chat_timeout_seconds = db.Column(db.Integer, default=_TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS)
     default_model = db.Column(db.String(64), default="gemini-3.6-flash")
     default_enable_search = db.Column(db.Boolean, default=False)
@@ -4089,7 +4094,7 @@ ACCOUNT_SETTING_FIELDS = (
     "llm_transcribe_prompt", "enter_to_send", "use_sw_cache", "clear_cache_on_version_update",
     "theme_color", "liquid_glass_enabled", "auto_search_on_links", "compact_prompt_mode",
     "minimal_prompt_mode",
-    "use_last_chat_settings", "temp_chat_timeout_seconds", "default_model",
+    "use_last_chat_settings", "voice_studio_ui", "temp_chat_timeout_seconds", "default_model",
     "default_enable_search", "default_enable_url_context", "default_enable_maps",
     "default_enable_python", "default_enable_thinking", "default_thinking_level",
     "default_thinking_budget", "default_reasoning_effort", "default_enable_system_prompt",
@@ -4109,6 +4114,7 @@ ACCOUNT_BOOL_SETTING_FIELDS = frozenset({
     "system_prompt_enabled", "apply_global_system_prompt", "apply_auto_system_prompt_notices",
     "enter_to_send", "use_sw_cache", "clear_cache_on_version_update", "liquid_glass_enabled",
     "auto_search_on_links", "compact_prompt_mode", "minimal_prompt_mode", "use_last_chat_settings",
+    "voice_studio_ui",
     "default_enable_search", "default_enable_url_context", "default_enable_maps",
     "default_enable_python", "default_enable_thinking", "default_enable_system_prompt",
     "rich_paste_prompt_use_custom_default", "last_enable_search", "last_enable_url_context",
@@ -5928,6 +5934,21 @@ def ensure_user_minimal_prompt_mode_column():
             if not res:
                 conn.execute(text("SET SESSION lock_wait_timeout=1"))
                 conn.execute(text("ALTER TABLE user ADD COLUMN minimal_prompt_mode BOOLEAN DEFAULT 0"))
+    except Exception:
+        pass
+
+def ensure_user_voice_studio_ui_column():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='user' "
+                "AND COLUMN_NAME='voice_studio_ui'"
+            )).scalar()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN voice_studio_ui BOOLEAN DEFAULT 1"))
     except Exception:
         pass
 
@@ -19860,6 +19881,7 @@ def handle_settings():
             'compact_prompt_mode': current_user.compact_prompt_mode if current_user.compact_prompt_mode is not None else False,
             'minimal_prompt_mode': current_user.minimal_prompt_mode if getattr(current_user, 'minimal_prompt_mode', None) is not None else False,
             'use_last_chat_settings': current_user.use_last_chat_settings,
+            'voice_studio_ui': current_user.voice_studio_ui if getattr(current_user, 'voice_studio_ui', None) is not None else True,
             'temp_chat_timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user),
             'default_model': current_user.default_model or "gemini-3.6-flash",
             'default_enable_search': current_user.default_enable_search,
@@ -19981,6 +20003,7 @@ def handle_settings():
     if 'liquid_glass_enabled' in d: current_user.liquid_glass_enabled = bool(d['liquid_glass_enabled'])
     if 'auto_search_on_links' in d: current_user.auto_search_on_links = bool(d['auto_search_on_links'])
     if 'use_last_chat_settings' in d: current_user.use_last_chat_settings = bool(d['use_last_chat_settings'])
+    if 'voice_studio_ui' in d: current_user.voice_studio_ui = bool(d['voice_studio_ui'])
     if 'default_model' in d: current_user.default_model = d['default_model']
     if 'last_gem_uuid' in d:
         val = d['last_gem_uuid']
@@ -20123,6 +20146,7 @@ def _build_ai_settings_tool_schema():
         "use_sw_cache": {"type": "boolean", "description": "Service Workerキャッシュ使用"},
         "compact_prompt_mode": {"type": "boolean", "description": "プロンプトバーをコンパクト表示 (モデル選択のみ)"},
         "minimal_prompt_mode": {"type": "boolean", "description": "プロンプトバーをミニマル表示 (送信・プラスのみ、モデル選択は上部)"},
+        "voice_studio_ui": {"type": "boolean", "description": "音声系モデルで専用の音声スタジオUIを使う (OFFで従来のマイクUI)"},
         "auto_search_on_links": {"type": "boolean", "description": "リンク検出時の自動検索"},
         "use_last_chat_settings": {"type": "boolean", "description": "前回の送信設定を継続使用"},
         "temp_chat_timeout_seconds": {"type": "integer", "description": "一時チャットの切断タイムアウト秒数 (30-86400)"},
@@ -21768,6 +21792,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_user_voice_studio_ui_column()
+    except Exception:
+        pass
+    try:
         ensure_gem_fixed_prompts_column()
     except Exception:
         pass
@@ -21940,6 +21968,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN use_last_chat_settings BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN voice_studio_ui BOOLEAN DEFAULT 1")
         except: pass
         try:
             try_alter(f"ALTER TABLE user ADD COLUMN temp_chat_timeout_seconds INTEGER DEFAULT {_TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS}")

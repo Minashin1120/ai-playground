@@ -37,6 +37,7 @@
 .fa-chevron-up:before{content:"\f077"}
 .fa-circle-info:before{content:"\f05a"}
 .fa-circle-question:before{content:"\f059"}
+.fa-clapperboard:before{content:"\e131"}
 .fa-clock-rotate-left:before{content:"\f1da"}
 .fa-closed-captioning:before{content:"\f20a"}
 .fa-cloud-upload-alt:before{content:"\f0ee"}
@@ -86,11 +87,13 @@
 .fa-mobile-alt:before{content:"\f3cd"}
 .fa-mobile-screen:before{content:"\f3cf"}
 .fa-mouse-pointer:before{content:"\f245"}
+.fa-music:before{content:"\f001"}
 .fa-paint-brush:before{content:"\f1fc"}
 .fa-palette:before{content:"\f53f"}
 .fa-paper-plane:before{content:"\f1d8"}
 .fa-paperclip:before{content:"\f0c6"}
 .fa-paste:before{content:"\f0ea"}
+.fa-pause:before{content:"\f04c"}
 .fa-pen:before{content:"\f304"}
 .fa-pencil-alt:before{content:"\f303"}
 .fa-play:before{content:"\f04b"}
@@ -113,6 +116,7 @@
 .fa-sliders-h:before{content:"\f1de"}
 .fa-spinner:before{content:"\f110"}
 .fa-star:before{content:"\f005"}
+.fa-stop:before{content:"\f04d"}
 .fa-sync:before{content:"\f021"}
 .fa-tachometer-alt:before{content:"\f625"}
 .fa-tag:before{content:"\f02b"}

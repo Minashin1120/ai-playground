@@ -582,6 +582,38 @@
                     </div>
                     <span class="text-gray-500">※ Grok Imagine Video</span>
                 </div>
+                <div id="gemini-video-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Duration</span>
+                        <input id="gemini-video-duration" type="number" min="1" max="12" step="1" value="8" class="w-12 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                        <span class="text-gray-500">sec</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Aspect</span>
+                        <select id="gemini-video-aspect" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="16:9" selected>16:9</option>
+                            <option value="4:3">4:3</option>
+                            <option value="1:1">1:1</option>
+                            <option value="9:16">9:16</option>
+                            <option value="3:4">3:4</option>
+                            <option value="3:2">3:2</option>
+                            <option value="2:3">2:3</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Resolution</span>
+                        <select id="gemini-video-resolution" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="720p" selected>720p</option>
+                            <option value="1080p">1080p</option>
+                            <option value="4K">4K</option>
+                        </select>
+                    </div>
+                    <span class="text-gray-500">※ Veo 3.1 / Omni Flash（4KはVeo 3.1のみ）</span>
+                </div>
+                <div id="gemini-music-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <label class="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="music-instrumental" class="accent-fuchsia-400 w-3 h-3"><span>インストゥルメンタル（歌詞なし）</span></label>
+                    <span class="text-gray-500">※ Lyria 3（歌詞・楽曲構造テキストも返却）</span>
+                </div>
                 <div id="mistral-ocr-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
                     <div class="flex items-center gap-2">
                         <span class="text-gray-400">Table</span>
@@ -637,6 +669,27 @@
                             <label id="sts-voice-wrap" class="flex items-center gap-1">
                                 <span>Voice</span>
                                 <select id="sts-voice" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none"></select>
+                            </label>
+                            <label id="sts-lang-wrap" class="flex items-center gap-1 hidden">
+                                <span>Target Lang</span>
+                                <select id="sts-target-lang" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none">
+                                    <option value="ja" selected>日本語</option>
+                                    <option value="en">English</option>
+                                    <option value="ko">한국어</option>
+                                    <option value="zh-CN">中文（簡体）</option>
+                                    <option value="zh-TW">中文（繁体）</option>
+                                    <option value="fr">Français</option>
+                                    <option value="de">Deutsch</option>
+                                    <option value="es">Español</option>
+                                    <option value="it">Italiano</option>
+                                    <option value="pt">Português</option>
+                                    <option value="ru">Русский</option>
+                                    <option value="hi">हिन्दी</option>
+                                    <option value="th">ไทย</option>
+                                    <option value="vi">Tiếng Việt</option>
+                                    <option value="id">Bahasa Indonesia</option>
+                                    <option value="ar">العربية</option>
+                                </select>
                             </label>
                             <label id="sts-speed-wrap" class="flex items-center gap-1">
                                 <span>Speed</span>

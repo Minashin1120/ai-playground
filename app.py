@@ -743,8 +743,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-25-009')
-app.config['SYSTEM_VERSION'] = 'V4.8.850'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-25-010')
+app.config['SYSTEM_VERSION'] = 'V4.8.851'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1929,6 +1929,7 @@ STS_MODELS = {
     "gpt-realtime-mini": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gemini-2.5-flash-native-audio-preview-12-2025": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
     "gemini-3.1-flash-live-preview": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
+    "gemini-3.5-live-translate-preview": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
     "grok-voice-think-fast-2.0": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
     "grok-voice-think-fast-1.0": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
     "grok-voice-fast-1.0": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
@@ -1958,9 +1959,17 @@ ALL_VALID_MODEL_IDS = {
     "gemini-3.1-flash-lite", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview",
     "gemini-3-flash-preview", "gemini-3-pro-preview",
     # Gemini 2.5
-    "gemini-2.5-flash-lite", "gemini-2.5-flash",
+    "gemini-2.5-pro", "gemini-2.5-flash-lite", "gemini-2.5-flash",
     # Gemini Image
-    "gemini-2.5-flash-image", "gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image", "gemini-3-pro-image-preview",
+    "gemini-2.5-flash-image", "gemini-3.1-flash-image", "gemini-3.1-flash-image-preview",
+    "gemini-3.1-flash-lite-image", "gemini-3-pro-image", "gemini-3-pro-image-preview",
+    # Gemini Video Generation
+    "gemini-omni-flash", "veo-3.1-generate-preview", "veo-3.1-fast-generate-preview", "veo-3.1-lite-generate-preview",
+    # Gemini Music Generation
+    "lyria-3-pro-preview", "lyria-3-clip-preview", "lyria-realtime-exp",
+    # Gemini Agent / Specialized
+    "gemini-robotics-er-2-preview", "deep-research-preview-04-2026", "deep-research-max-preview-04-2026",
+    "antigravity-preview-05-2026", "gemini-2.5-computer-use-preview-10-2025", "gemini-embedding-2",
     # OpenAI Image Gen
     "gpt-image-2", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini",
     # OpenAI GPT
@@ -2005,7 +2014,7 @@ def get_sts_provider(model_key):
 
 def is_gemini_model_key(model_key):
     mk = str(model_key or "").lower()
-    return "gemini" in mk
+    return "gemini" in mk or is_gemini_video_model_key(mk) or is_gemini_music_model_key(mk) or is_gemini_agent_model_key(mk)
 
 def is_anthropic_model_key(model_key):
     mk = str(model_key or "").lower()
@@ -2032,7 +2041,7 @@ def get_model_api_provider(model_key):
         return "xai"
     if "google-tts" in mk:
         return "google"
-    if "gemini" in mk:
+    if is_gemini_model_key(mk):
         return "gemini"
     if "kimi" in mk:
         return "kimi"
@@ -2295,6 +2304,22 @@ def is_deepseek_model_key(model_key):
 def is_gemini_image_model_key(model_key):
     mk = str(model_key or "").lower()
     return "gemini" in mk and any(x in mk for x in ("image", "nano"))
+
+def is_gemini_video_model_key(model_key):
+    mk = str(model_key or "").lower().strip()
+    return mk.startswith("veo-") or "omni-flash" in mk
+
+def is_gemini_music_model_key(model_key):
+    mk = str(model_key or "").lower().strip()
+    return mk.startswith("lyria-")
+
+def is_gemini_embedding_model_key(model_key):
+    mk = str(model_key or "").lower().strip()
+    return mk.startswith("gemini-embedding")
+
+def is_gemini_agent_model_key(model_key):
+    mk = str(model_key or "").lower().strip()
+    return mk.startswith("deep-research-") or mk.startswith("antigravity-")
 
 def _chunk_bytes(data, chunk_size=32000):
     for i in range(0, len(data), chunk_size):
@@ -8575,6 +8600,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     return True
                 if "gemini" in mk and "native-audio" in mk:
                     return True
+                if is_gemini_video_model_key(mk) or is_gemini_music_model_key(mk) or is_gemini_embedding_model_key(mk):
+                    return True
                 return False
             is_llm_model = not _is_non_llm_model(model_key_l)
             grok_reasoning_supported = ("grok-4.3" in model_key_l) or ("grok-4.5" in model_key_l) or ("grok-4.6" in model_key_l) or ("grok-build" in model_key_l) or ("grok-3-mini" in model_key_l) or ("reasoning" in model_key_l and "non-reasoning" not in model_key_l) or ("multi-agent" in model_key_l)
@@ -9264,6 +9291,167 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     for file_id in uploaded_file_ids:
                         _mistral_delete_file(key, file_id)
 
+            # --- 1A. GEMINI VIDEO GENERATION (Veo 3.1 / Omni Flash) ---
+            elif is_gemini_video_model_key(model_key_l):
+                log_force("Routing: Gemini Video Branch")
+                try:
+                    pub("content", "**Generating Video (Gemini)...**\n")
+                    try:
+                        video_duration = int(options.get('gemini_video_duration') or 8)
+                    except Exception:
+                        video_duration = 8
+                    if video_duration < 1:
+                        video_duration = 1
+                    if video_duration > 8:
+                        video_duration = 8
+                    aspect_ratio = str(options.get('gemini_video_aspect') or "16:9")
+                    if aspect_ratio not in ("16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"):
+                        aspect_ratio = "16:9"
+                    resolution = str(options.get('gemini_video_resolution') or "720p")
+                    if resolution not in ("480p", "720p", "1080p", "4K"):
+                        resolution = "720p"
+                    if resolution == "4K" and model_key != "veo-3.1-generate-preview":
+                        resolution = "1080p"
+
+                    # Image-to-video support: use the first attached image if present
+                    src_image = None
+                    for fi in loaded_files:
+                        if fi.get('bytes') and str(fi.get('mime', '')).startswith('image/'):
+                            src_image = types.Image(imageBytes=fi['bytes'], mimeType=fi['mime'])
+                            break
+                    video_source = types.GenerateVideosSource(
+                        prompt=final_message_text,
+                        image=src_image,
+                    )
+
+                    _mark_provider_request_started()
+                    op = g_client.models.generate_videos(
+                        model=model_key,
+                        source=video_source,
+                        config=types.GenerateVideosConfig(
+                            aspect_ratio=aspect_ratio,
+                            resolution=resolution,
+                            duration_seconds=video_duration,
+                            number_of_videos=1,
+                        ),
+                    )
+                    pub("content", "生成中です。数分かかる場合があります...\n")
+                    max_polls = 120
+                    done_op = None
+                    for i in range(max_polls):
+                        if check_stop():
+                            break
+                        time.sleep(5)
+                        op = g_client.operations.get(op)
+                        if op.done:
+                            done_op = op
+                            break
+                    if done_op is None:
+                        raise RuntimeError("Video generation timed out.")
+                    if getattr(done_op, "error", None):
+                        raise RuntimeError(str(done_op.error))
+                    gen_videos = (done_op.result.generated_videos or []) if done_op.result else []
+                    if not gen_videos:
+                        raise RuntimeError("No video output returned.")
+                    video_uri = gen_videos[0].video.uri if gen_videos[0].video else None
+                    if not video_uri:
+                        raise RuntimeError("No video URI in response.")
+                    _mark_provider_request_started()
+                    video_bytes = _download_public_https_bytes(video_uri, 256 * 1024 * 1024, timeout=180.0)
+                    if not video_bytes:
+                        raise RuntimeError("Video download failed.")
+                    fn2 = f"gen_video_{int(time.time())}_{os.urandom(4).hex()}.mp4"
+                    _save_user_generated_bytes(user_id, video_bytes, fn2, user_config.get('enable_e2ee'))
+                    video_tag = f'\n<video controls src="/files/{user_id}/{fn2}" class="w-full max-w-2xl rounded-lg"></video>\n'
+                    pub("content", video_tag)
+                    full_res += f"Generated Video for: {final_message_text}\n"
+                    generated_images.append(f"{user_id}/{fn2}")
+                except Exception as e:
+                    logger.exception("Gemini Video Gen Error")
+                    pub("error", f"Gemini Video Gen Error: {str(e)}")
+
+            # --- 1B. GEMINI MUSIC GENERATION (Lyria 3) ---
+            elif is_gemini_music_model_key(model_key_l):
+                log_force("Routing: Gemini Music Branch")
+                try:
+                    if model_key == "lyria-realtime-exp":
+                        pub("error", "Lyria RealTimeはWebSocketによるリアルタイム生成専用の実験モデルです。このPlaygroundではLyria 3 Pro / Clipをご利用ください。")
+                    else:
+                        pub("content", "**Generating Music (Lyria)...**\n")
+                        music_prompt = final_message_text
+                        if options.get('music_instrumental'):
+                            music_prompt = f"{music_prompt} Instrumental only, no vocals."
+                        music_parts = [types.Part(text=music_prompt)]
+                        for fi in loaded_files:
+                            if fi.get('bytes') and str(fi.get('mime', '')).startswith('image/'):
+                                music_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime']))
+                                if len(music_parts) >= 11:
+                                    break
+                        music_cfg = types.GenerateContentConfig(response_modalities=["AUDIO", "TEXT"])
+                        _mark_provider_request_started()
+                        m_resp = g_client.models.generate_content(
+                            model=model_key,
+                            contents=music_parts,
+                            config=music_cfg,
+                        )
+                        lyrics = []
+                        audio_data = None
+                        audio_mime = "audio/mpeg"
+                        cand0 = m_resp.candidates[0] if m_resp.candidates else None
+                        for part in (getattr(getattr(cand0, "content", None), "parts", None) or []):
+                            if part.text:
+                                lyrics.append(part.text)
+                            elif getattr(part, 'inline_data', None) and part.inline_data:
+                                audio_data = part.inline_data.data
+                                audio_mime = part.inline_data.mime_type or "audio/mpeg"
+                        if lyrics:
+                            lyrics_text = "\n".join(lyrics)
+                            pub("content", lyrics_text + "\n")
+                            full_res += lyrics_text + "\n"
+                        if audio_data:
+                            if isinstance(audio_data, str):
+                                audio_data = base64.b64decode(audio_data)
+                            ext = ".wav" if "wav" in str(audio_mime).lower() else ".mp3"
+                            fn2 = f"music_{int(time.time())}_{os.urandom(4).hex()}{ext}"
+                            _save_user_generated_bytes(user_id, bytes(audio_data), fn2, user_config.get('enable_e2ee'))
+                            audio_tag = f'\n<audio controls src="/files/{user_id}/{fn2}" class="w-full mt-2"></audio>\n'
+                            pub("content", audio_tag)
+                            full_res += f"Generated Music for: {final_message_text}\n"
+                            generated_images.append(f"{user_id}/{fn2}")
+                        if not audio_data and not lyrics:
+                            pub("error", "Lyria returned no output.")
+                except Exception as e:
+                    logger.exception("Gemini Music Gen Error")
+                    pub("error", f"Gemini Music Gen Error: {str(e)}")
+
+            # --- 1C. GEMINI EMBEDDING ---
+            elif is_gemini_embedding_model_key(model_key_l):
+                log_force("Routing: Gemini Embedding Branch")
+                try:
+                    _mark_provider_request_started()
+                    emb = g_client.models.embed_content(
+                        model=model_key,
+                        contents=final_message_text,
+                    )
+                    emb_list = emb.embeddings if getattr(emb, "embeddings", None) else None
+                    values = emb_list[0].values if emb_list else None
+                    if values is None:
+                        pub("error", "Gemini Embedding returned no values.")
+                    else:
+                        dims = len(values)
+                        preview = ", ".join(f"{float(v):.6f}" for v in values[:12])
+                        out = (
+                            f"**Gemini Embedding 2**\n\n"
+                            f"- 次元数: **{dims}**\n"
+                            f"- 先頭12次元: `[{preview}{', ...' if dims > 12 else ''}]`\n\n"
+                            f"*入力テキストの埋め込みベクトルを生成しました。*"
+                        )
+                        pub("content", out)
+                        full_res += out
+                except Exception as e:
+                    logger.exception("Gemini Embedding Error")
+                    pub("error", f"Gemini Embedding Error: {str(e)}")
+
             # --- 1. GEMINI & GEMINI IMAGE ---
             elif is_gem:
                 log_force("Routing: Gemini Branch")
@@ -9390,11 +9578,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if "gemini-3.1-flash-lite-image" in mk_lower:
                             img_model = "gemini-3.1-flash-lite-image"
                         elif "gemini-3.1-flash-image" in mk_lower:
-                            img_model = "gemini-3.1-flash-image-preview"
+                            img_model = "gemini-3.1-flash-image"
                         elif "2.5" in mk_lower:
                             img_model = "gemini-2.5-flash-image"
                         else:
-                            img_model = "gemini-3-pro-image-preview"
+                            img_model = "gemini-3-pro-image"
                         aspect_allowed = {
                             "1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1",
                             "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9",
@@ -9417,7 +9605,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if img_model == "gemini-3.1-flash-lite-image":
                             # Nano Banana 2 Lite supports 1K output only.
                             image_cfg_kwargs["image_size"] = "1K"
-                        elif size_val and "gemini-3-pro-image-preview" in img_model:
+                        elif size_val and (
+                            "gemini-3-pro-image" in img_model or img_model == "gemini-3.1-flash-image"
+                        ):
                             image_cfg_kwargs["image_size"] = size_val
                         config_kwargs = {
                             "temperature": 0.7,
@@ -9430,7 +9620,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE")
                             ]
                         }
-                        if img_model in ("gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image"):
+                        if img_model in ("gemini-3.1-flash-image", "gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image"):
                             default_level = "minimal" if img_model == "gemini-3.1-flash-lite-image" else "high"
                             raw_lvl = str(options.get('thinking_level') or default_level).lower()
                             if raw_lvl in ("low", "minimal"):
@@ -9447,7 +9637,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             )
                             # Google Search grounding is supported by Nano Banana 2,
                             # but explicitly unsupported by Nano Banana 2 Lite.
-                            if img_model == "gemini-3.1-flash-image-preview" and options.get('enable_search'):
+                            if img_model != "gemini-3.1-flash-lite-image" and options.get('enable_search'):
                                 config_kwargs["tools"] = [types.Tool(google_search=types.GoogleSearch())]
                         if image_cfg_kwargs:
                             config_kwargs["image_config"] = types.ImageConfig(**image_cfg_kwargs)
@@ -9481,10 +9671,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                         text_outputs, image_outputs = _collect_gemini_image_output_parts(
                             resp,
-                            keep_only_last_image=(img_model in ("gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image"))
+                            keep_only_last_image=(img_model in ("gemini-3.1-flash-image", "gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image"))
                         )
 
-                        if not image_outputs and img_model in ("gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image"):
+                        if not image_outputs and img_model in ("gemini-3.1-flash-image", "gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image"):
                             log_force(
                                 f"Nano Banana 2 returned text-only output; retrying with image-only mode. "
                                 f"thread={thread_id} job={job_id}"
@@ -9547,6 +9737,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         rm = "gemini-3-flash-preview"
                     elif "gemini-3-pro" in model_key or "gemini-3.0-pro" in model_key:
                         rm = "gemini-3-pro-preview"
+                    elif "gemini-2.5-pro" in model_key:
+                        rm = "gemini-2.5-pro"
                     elif "gemini-2.5-flash-lite" in model_key:
                         rm = model_key
                     elif "gemini-2.5" in model_key:
@@ -15255,21 +15447,29 @@ def gemini_session():
     thinking_level = data.get('thinking_level') or 'minimal'
     include_thoughts = data.get('include_thoughts') is True
     voice = (data.get('voice') or "Kore").strip()
+    is_live_translate = (model_key == "gemini-3.5-live-translate-preview")
     
     generation_config = {
         'response_modalities': ['AUDIO'],
     }
-    if voice and voice in GEMINI_STS_VOICES:
+    if not is_live_translate and voice and voice in GEMINI_STS_VOICES:
         generation_config['speech_config'] = {
             'voice_config': {
                 'prebuilt_voice_config': {'voice_name': voice}
             }
         }
-    if thinking_level:
+    if not is_live_translate and thinking_level:
         generation_config['thinking_config'] = {
             'thinking_level': thinking_level,
             'include_thoughts': include_thoughts
         }
+    if is_live_translate:
+        target_lang = (data.get('target_lang') or "ja").strip()
+        if target_lang:
+            generation_config['translation_config'] = {
+                'target_language_code': target_lang,
+                'echo_target_language': True,
+            }
 
     config = {
         'live_connect_constraints': {

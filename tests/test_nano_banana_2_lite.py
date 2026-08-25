@@ -30,8 +30,8 @@ class NanoBanana2LiteRegressionTests(unittest.TestCase):
 
     def test_lite_supports_only_official_thinking_levels(self):
         self.assertIn(
-            'img_model in ("gemini-3.1-flash-image-preview", '
-            '"gemini-3.1-flash-lite-image")',
+            'img_model in ("gemini-3.1-flash-image", '
+            '"gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image")',
             APP_SOURCE,
         )
         self.assertIn(
@@ -50,7 +50,7 @@ class NanoBanana2LiteRegressionTests(unittest.TestCase):
             APP_SOURCE,
         )
         self.assertIn(
-            'if img_model == "gemini-3.1-flash-image-preview" and '
+            'if img_model != "gemini-3.1-flash-lite-image" and '
             "options.get('enable_search')",
             APP_SOURCE,
         )

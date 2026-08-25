@@ -6891,7 +6891,7 @@
                     { id: "gemini-3.1-pro-preview", implementedAt: "2026-02-20", implementedRank: 2430, name: "Gemini 3.1 Pro", desc: "Next-gen native multimodal model.", price: "In $2.00/1M, Out $12.00/1M (≤200k)" },
                     { id: "gemini-3.1-flash-lite-preview", implementedAt: "2026-03-04", implementedRank: 3000, name: "Gemini 3.1 Flash-Lite Preview", desc: "Retired preview model retained for chat history compatibility.", price: "In $0.25/1M, Out $1.50/1M", deprecated: true },
                     { id: "gemini-3-flash-preview", implementedAt: "2026-06-13", implementedRank: 5930, name: "Gemini 3.0 Flash", desc: "Fastest and most cost-efficient.", price: "In $0.50/1M, Out $3.00/1M" },
-                    { id: "gemini-3-pro-preview", implementedAt: "2026-01-15", implementedRank: 100, name: "Gemini 3.0 Pro", desc: "Best performing model for complex tasks.", price: "In $2.00/1M, Out $12.00/1M (≤200k)" }
+                    { id: "gemini-3-pro-preview", implementedAt: "2026-01-15", implementedRank: 100, name: "Gemini 3.0 Pro", desc: "Shut down by Google (March 2026). Retained for chat history compatibility.", price: "In $2.00/1M, Out $12.00/1M (≤200k)", deprecated: true }
                 ]
             },
             {
@@ -6899,6 +6899,7 @@
                 icon: "fas fa-history text-gray-400",
                 description: "Gemini 2.5 generation models",
                 items: [
+                    { id: "gemini-2.5-pro", implementedAt: "2026-08-25", implementedRank: 8524, quickEmoji: "🧠", name: "Gemini 2.5 Pro", desc: "Most advanced Gemini 2.5 model for complex reasoning, coding, and long-context analysis.", price: "In $1.25/1M (≤200k), Out $10.00/1M (≤200k)" },
                     { id: "gemini-2.5-flash-lite", implementedAt: "2026-02-07", implementedRank: 1530, name: "Gemini 2.5 Flash-Lite", desc: "Fastest and most cost-efficient Gemini 2.5 model.", price: "In $0.10/1M, Out $0.40/1M" },
                     { id: "gemini-2.5-flash", implementedAt: "2026-02-07", implementedRank: 1531, name: "Gemini 2.5 Flash", desc: "Balanced performance.", price: "In $0.30/1M, Out $2.50/1M" }
                 ]
@@ -6909,9 +6910,32 @@
                 description: "Gemini image generation models",
                 items: [
                     { id: "gemini-2.5-flash-image", implementedAt: "2026-01-20", implementedRank: 120, quickEmoji: "🍌", name: "Nano Banana", desc: "Fast image generation.", price: "In $0.30/1M, Out $0.039/image" },
-                    { id: "gemini-3.1-flash-image-preview", implementedAt: "2026-02-26", implementedRank: 2860, quickEmoji: "🍌", name: "Nano Banana 2", desc: "Fast image generation with Gemini 3.1 Flash Image.", price: "In $0.50/1M, Out $0.067/1K image ($60/1M img tokens)" },
+                    { id: "gemini-3.1-flash-image", implementedAt: "2026-08-25", implementedRank: 8526, quickEmoji: "🍌", name: "Nano Banana 2", desc: "High-efficiency image generation and editing (stable).", price: "In $0.50/1M; Text/Thinking Out $3.00/1M; Image Out $60.00/1M ($0.067/1K image)" },
+                    { id: "gemini-3.1-flash-image-preview", implementedAt: "2026-02-26", implementedRank: 2860, name: "Nano Banana 2 (Preview)", desc: "Retired preview retained for chat history compatibility. Use gemini-3.1-flash-image.", price: "In $0.50/1M, Out $0.067/1K image ($60/1M img tokens)", deprecated: true },
                     { id: "gemini-3.1-flash-lite-image", implementedAt: "2026-07-01", implementedRank: 6020, quickEmoji: "🍌", name: "Nano Banana 2 Lite", desc: "Low-latency Gemini image generation and editing with 1K output.", price: "In $0.25/1M; Text/Thinking Out $1.50/1M; Image Out $30/1M ($0.0336/1K image)" },
-                    { id: "gemini-3-pro-image-preview", implementedAt: "2026-01-25", implementedRank: 130, name: "Nano Banana Pro", desc: "High quality image generation.", price: "In $2.00/1M, Out $0.134 (1K/2K) or $0.24 (4K)" }
+                    { id: "gemini-3-pro-image", implementedAt: "2026-08-25", implementedRank: 8525, quickEmoji: "🍌", name: "Nano Banana Pro", desc: "Professional image generation and editing with 4K output (stable).", price: "In $2.00/1M; Text/Thinking Out $12.00/1M; Image Out $120.00/1M ($0.134/1K-2K, $0.24/4K)" },
+                    { id: "gemini-3-pro-image-preview", implementedAt: "2026-01-25", implementedRank: 130, name: "Nano Banana Pro (Preview)", desc: "Retired preview retained for chat history compatibility. Use gemini-3-pro-image.", price: "In $2.00/1M, Out $0.134 (1K/2K) or $0.24 (4K)", deprecated: true }
+                ]
+            },
+            {
+                category: "Gemini Video Generation",
+                icon: "fas fa-clapperboard text-cyan-400",
+                description: "Gemini video generation models (Veo 3.1 / Omni Flash)",
+                items: [
+                    { id: "gemini-omni-flash", implementedAt: "2026-08-25", implementedRank: 8522, quickEmoji: "🎬", name: "Gemini Omni Flash", desc: "Fast conversational video generation and editing from text and images.", price: "In $1.50/1M; Text Out $9.00/1M; Video ≈$0.10/sec" },
+                    { id: "veo-3.1-generate-preview", implementedAt: "2026-08-25", implementedRank: 8521, quickEmoji: "🎥", name: "Veo 3.1", desc: "Cinematic video generation with native audio and 4K output.", price: "$0.40/sec (720p/1080p), $0.60/sec (4K)" },
+                    { id: "veo-3.1-fast-generate-preview", implementedAt: "2026-08-25", implementedRank: 8520, name: "Veo 3.1 Fast", desc: "Low-cost, fast video generation from the Veo 3.1 family.", price: "$0.10/sec (720p), $0.12/sec (1080p)" },
+                    { id: "veo-3.1-lite-generate-preview", implementedAt: "2026-08-25", implementedRank: 8519, name: "Veo 3.1 Lite", desc: "High-efficiency, developer-first video generation (no 4K).", price: "$0.05/sec (720p), $0.08/sec (1080p)" }
+                ]
+            },
+            {
+                category: "Gemini Music Generation",
+                icon: "fas fa-music text-fuchsia-400",
+                description: "Lyria music generation models",
+                items: [
+                    { id: "lyria-3-pro-preview", implementedAt: "2026-08-25", implementedRank: 8518, quickEmoji: "🎵", name: "Lyria 3 Pro", desc: "Flagship music generation for full-length songs with structural coherence.", price: "$0.08 / song" },
+                    { id: "lyria-3-clip-preview", implementedAt: "2026-08-25", implementedRank: 8517, quickEmoji: "🎶", name: "Lyria 3 Clip", desc: "Short musical clips, loops, and previews (30 seconds).", price: "$0.04 / song" },
+                    { id: "lyria-realtime-exp", implementedAt: "2026-08-25", implementedRank: 8516, name: "Lyria RealTime", desc: "Experimental realtime music generation with deep melodic control.", price: "Experimental (no vocals)" }
                 ]
             },
             {
@@ -7021,11 +7045,25 @@
                     { id: "gpt-realtime-mini", implementedAt: "2026-02-24", implementedRank: 2532, name: "OpenAI Realtime Mini", desc: "Lower-latency, smaller realtime model.", price: "Audio In $10/1M, Audio Out $20/1M" },
                     { id: "gemini-2.5-flash-native-audio-preview-12-2025", implementedAt: "2026-01-15", implementedRank: 90, name: "Gemini 2.5 Flash Native Audio (Live)", desc: "Google Live native audio model.", price: "Audio In $3.00/1M, Audio Out $12.00/1M" },
                     { id: "gemini-3.1-flash-live-preview", implementedAt: "2026-03-29", implementedRank: 3870, name: "Gemini 3.1 Flash Live", desc: "Google Live native audio model.", price: "Audio In $3.00/1M (~$0.005/min), Out $12.00/1M" },
+                    { id: "gemini-3.5-live-translate-preview", implementedAt: "2026-08-25", implementedRank: 8523, quickEmoji: "🌐", name: "Gemini 3.5 Live Translate", desc: "Low-latency real-time speech-to-speech translation supporting 70+ languages.", price: "Audio In $3.50/1M, Audio Out $21.00/1M" },
                     { id: "grok-voice-think-fast-2.0", implementedAt: "2026-08-25", implementedRank: 8502, quickEmoji: "🎤", name: "Grok Voice Think Fast 2.0", desc: "Current xAI speech-to-speech model.", price: "$0.08 / min ($4.80 / hr) audio + $0.004 / text input" },
                     { id: "grok-voice-latest", implementedAt: "2026-05-27", implementedRank: 5550, name: "Grok Voice Latest", desc: "Alias for the current flagship voice model.", price: "$0.08 / min ($4.80 / hr) audio + $0.004 / text input" },
                     { id: "grok-voice-think-fast-1.0", implementedAt: "2026-05-11", implementedRank: 5140, name: "Grok Voice Think Fast 1.0", desc: "Deprecated xAI realtime voice model retained for history compatibility.", price: "$0.05 / min ($3.00 / hr)", deprecated: true },
                     { id: "grok-voice-fast-1.0", implementedAt: "2026-05-01", implementedRank: 500, name: "Grok Voice Fast 1.0", desc: "Legacy xAI realtime voice model retained for history compatibility.", price: "$0.05 / min ($3.00 / hr)", deprecated: true },
                     { id: "grok-voice-agent", implementedAt: "2026-04-01", implementedRank: 380, name: "Grok Voice Agent", desc: "xAI realtime voice agent API.", price: "$0.05 / min (Realtime)", deprecated: true }
+                ]
+            },
+            {
+                category: "Gemini Agent / Specialized",
+                icon: "fas fa-robot text-indigo-400",
+                description: "Gemini agent and specialized models",
+                items: [
+                    { id: "gemini-robotics-er-2-preview", implementedAt: "2026-08-25", implementedRank: 8515, name: "Gemini Robotics ER 2", desc: "Embodied reasoning model for robots with advanced video understanding.", price: "In $2.00/1M, Out $8.00/1M" },
+                    { id: "deep-research-preview-04-2026", implementedAt: "2026-08-25", implementedRank: 8514, quickEmoji: "🔎", name: "Gemini Deep Research", desc: "Agentic multi-step research producing comprehensive cited reports.", price: "Standard Gemini rates + tool usage fees" },
+                    { id: "deep-research-max-preview-04-2026", implementedAt: "2026-08-25", implementedRank: 8513, name: "Gemini Deep Research Max", desc: "Maximum-comprehension research agent over hundreds of sources.", price: "Standard Gemini rates + tool usage fees" },
+                    { id: "antigravity-preview-05-2026", implementedAt: "2026-08-25", implementedRank: 8512, name: "Antigravity Agent", desc: "Managed agent that plans, runs code, manages files, and browses the web in a sandbox.", price: "Standard Gemini rates (sandbox compute free during preview)" },
+                    { id: "gemini-2.5-computer-use-preview-10-2025", implementedAt: "2026-08-25", implementedRank: 8511, name: "Gemini 2.5 Computer Use", desc: "Browser / desktop control agent model for UI automation.", price: "In $1.25/1M (≤200k), Out $10.00/1M (≤200k)" },
+                    { id: "gemini-embedding-2", implementedAt: "2026-08-25", implementedRank: 8510, name: "Gemini Embedding 2", desc: "Multimodal embedding model (text / image / audio / video / PDF).", price: "Text In $0.20/1M, Image $0.45/1M" }
                 ]
             },
             {
@@ -7143,7 +7181,7 @@
         const getModelProviderInfo = (modelId) => {
             const id = String(modelId || '').toLowerCase().trim();
             if (!id) return null;
-            if (id.startsWith('gemini')) return { provider: 'gemini', keyField: 'gemini_key', inputId: 'set-gemini', label: 'Gemini API Key' };
+            if (id.startsWith('gemini') || id.startsWith('veo-') || id.startsWith('lyria-') || id.startsWith('deep-research-') || id.startsWith('antigravity-')) return { provider: 'gemini', keyField: 'gemini_key', inputId: 'set-gemini', label: 'Gemini API Key' };
             if (id.startsWith('gpt') || id.startsWith('o1') || id.startsWith('o3')) return { provider: 'openai', keyField: 'openai_key', inputId: 'set-openai', label: 'OpenAI API Key' };
             if (id.startsWith('deepseek')) return { provider: 'deepseek', keyField: 'deepseek_key', inputId: 'set-deepseek', label: 'DeepSeek API Key' };
             if (id.startsWith('kimi')) return { provider: 'kimi', keyField: 'kimi_key', inputId: 'set-kimi', label: 'Kimi (Moonshot) API Key' };
@@ -7357,6 +7395,7 @@
             'gpt-realtime-mini',
             'gemini-2.5-flash-native-audio-preview-12-2025',
             'gemini-3.1-flash-live-preview',
+            'gemini-3.5-live-translate-preview',
             'grok-voice-think-fast-2.0',
             'grok-voice-latest',
             'grok-voice-think-fast-1.0',
@@ -7414,7 +7453,7 @@
             if (m.includes('deepseek')) return 'deepseek';
             if (m.includes('grok') && !m.includes('gpt')) return 'xai';
             if (m.includes('google-tts')) return 'google';
-            if (m.includes('gemini')) return 'gemini';
+            if (m.includes('gemini') || m.startsWith('veo-') || m.startsWith('lyria-') || m.startsWith('deep-research-') || m.startsWith('antigravity-')) return 'gemini';
             return 'openai';
         };
         const PROVIDER_LABELS = {
@@ -7475,6 +7514,9 @@
             if (m.includes('image') || m.includes('nano') || m.includes('tts') || m.includes('native-audio') || m.includes('live')) {
                 return { audio: false, video: false };
             }
+            if (m.includes('embedding') || m.startsWith('veo-') || m.includes('omni-flash') || m.startsWith('lyria-')) {
+                return { audio: false, video: false };
+            }
             return { audio: true, video: true };
         };
         const supportsAudioInputModel = () => getModelMediaSupport(get('model-select').value).audio;
@@ -7515,10 +7557,13 @@
                 m.includes('native-audio') ||
                 m.includes('live') ||
                 m.includes('image') ||
-                m.includes('video')
+                m.includes('video') ||
+                isGeminiVideoModelKey(m) ||
+                isGeminiMusicModelKey(m) ||
+                isGeminiEmbeddingModelKey(m)
             ) return false;
             if (m.includes('gemini') && (m.includes('image') || m.includes('nano'))) return false;
-            return m.includes('gpt') || m.includes('gemini') || m.includes('grok') || m.includes('deepseek');
+            return m.includes('gpt') || m.includes('gemini') || m.includes('grok') || m.includes('deepseek') || m.startsWith('deep-research-') || m.startsWith('antigravity-');
         };
         const isGrokImageModel = () => {
             const m = (get('model-select').value || '').toLowerCase();
@@ -7528,13 +7573,32 @@
             const m = (get('model-select').value || '').toLowerCase();
             return m.includes('grok') && m.includes('video');
         };
+        const isGeminiVideoModelKey = (model) => {
+            const m = (model || '').toLowerCase();
+            return m.startsWith('veo-') || m.includes('omni-flash');
+        };
+        const isGeminiVideoModel = () => isGeminiVideoModelKey(get('model-select').value);
+        const isGeminiMusicModelKey = (model) => {
+            const m = (model || '').toLowerCase();
+            return m.startsWith('lyria-');
+        };
+        const isGeminiMusicModel = () => isGeminiMusicModelKey(get('model-select').value);
+        const isGeminiEmbeddingModelKey = (model) => {
+            const m = (model || '').toLowerCase();
+            return m.includes('gemini-embedding');
+        };
+        const isGeminiEmbeddingModel = () => isGeminiEmbeddingModelKey(get('model-select').value);
 
         const isStsModel = () => STS_MODELS.has(get('model-select').value);
         const isTranscriptionModel = () => {
             const model = get('model-select') ? get('model-select').value : '';
             return model === 'gpt-transcribe' || model === 'gpt-live-transcribe';
         };
-        const isGeminiLiveModel = () => get('model-select').value === 'gemini-3.1-flash-live-preview';
+        const isGeminiLiveModel = () => {
+            const m = get('model-select').value;
+            return m === 'gemini-3.1-flash-live-preview' || m === 'gemini-3.5-live-translate-preview';
+        };
+        const isGeminiLiveTranslateModel = () => get('model-select').value === 'gemini-3.5-live-translate-preview';
         const getStsProvider = (model) => {
             const m = (model || '').toLowerCase();
             if (m.includes('gpt-realtime') || m === 'gpt-transcribe' || m === 'gpt-live-transcribe') return 'openai';
@@ -7588,6 +7652,7 @@
             const autoPlayWrap = get('sts-auto-play-wrap');
             const modeLabel = get('sts-mode-label');
             const transcription = isTranscriptionModel();
+            const langWrap = get('sts-lang-wrap');
 
             if (transcription) {
                 if (modeLabel) modeLabel.textContent = 'Realtime Speech-to-Text';
@@ -7596,6 +7661,7 @@
                 if (speedWrap) speedWrap.classList.add('hidden');
                 if (rateWrap) rateWrap.classList.add('hidden');
                 if (thinkingWrap) thinkingWrap.classList.add('hidden');
+                if (langWrap) langWrap.classList.add('hidden');
                 if (note) {
                     note.textContent = model === 'gpt-live-transcribe'
                         ? '低遅延ライブ文字起こし（24kHz PCM）'
@@ -7615,6 +7681,7 @@
                 }
                 if (rateWrap) rateWrap.classList.add('hidden');
                 if (thinkingWrap) thinkingWrap.classList.add('hidden');
+                if (langWrap) langWrap.classList.add('hidden');
                 if (note) note.textContent = 'OpenAI Realtimeは24kHz PCM固定';
             } else if (provider === 'xai') {
                 if (modeLabel) modeLabel.textContent = 'Speech-to-Speech Live';
@@ -7624,6 +7691,7 @@
                 if (speedWrap) speedWrap.classList.add('hidden');
                 if (rateWrap) rateWrap.classList.remove('hidden');
                 if (thinkingWrap) thinkingWrap.classList.add('hidden');
+                if (langWrap) langWrap.classList.add('hidden');
                 setSelectOptions(rateIn, GROK_PCM_RATES, Number(rateIn.value || 24000));
                 setSelectOptions(rateOut, GROK_PCM_RATES, Number(rateOut.value || 24000));
                 if (note) note.textContent = 'xAIはPCMサンプルレート変更可';
@@ -7635,7 +7703,15 @@
                 if (speedWrap) speedWrap.classList.add('hidden');
                 if (rateWrap) rateWrap.classList.add('hidden');
                 if (thinkingWrap) thinkingWrap.classList.remove('hidden');
+                if (langWrap) langWrap.classList.add('hidden');
                 if (note) note.textContent = 'Gemini Liveは音声速度変更非対応';
+                if (model === 'gemini-3.5-live-translate-preview') {
+                    if (modeLabel) modeLabel.textContent = 'Realtime Translation';
+                    if (thinkingWrap) thinkingWrap.classList.add('hidden');
+                    if (voiceWrap) voiceWrap.classList.add('hidden');
+                    if (langWrap) langWrap.classList.remove('hidden');
+                    if (note) note.textContent = '70以上の言語に対応するリアルタイム音声翻訳（Think非対応・音声選択不可）';
+                }
             }
             if (speedWrap && speedLabel && speedInput && !speedWrap.classList.contains('hidden')) {
                 speedLabel.textContent = `${Number(speedInput.value || 1).toFixed(2)}x`;
@@ -8323,14 +8399,13 @@
                     wrap.classList.add('hidden');
                 }
                 const model = (get('model-select').value || '').toLowerCase();
-                const isFlashImage = model.includes('gemini-3.1-flash-image') ||
-                    model.includes('gemini-3.1-flash-lite-image');
+                const isLiteImage = model.includes('gemini-3.1-flash-lite-image');
                 [get('gemini-image-size'), get('modal-gemini-image-size')].forEach(sizeEl => {
                     if (!sizeEl) return;
                     Array.from(sizeEl.options).forEach(opt => {
-                        if (opt.value !== '1K') opt.disabled = isFlashImage;
+                        if (opt.value !== '1K') opt.disabled = isLiteImage;
                     });
-                    if (isFlashImage && sizeEl.value !== '1K') sizeEl.value = '1K';
+                    if (isLiteImage && sizeEl.value !== '1K') sizeEl.value = '1K';
                 });
             }
         function updateGrokImageUi() {
@@ -8383,6 +8458,30 @@
                 if (model !== 'grok-imagine-video-1.5' && resolution.value === '1080p') resolution.value = '720p';
             }
         }
+        function updateGeminiVideoUi() {
+            const wrap = get('gemini-video-options');
+            if (!wrap) return;
+            const model = String(get('model-select')?.value || '').toLowerCase();
+            if (isGeminiVideoModel()) {
+                wrap.classList.remove('hidden');
+            } else {
+                wrap.classList.add('hidden');
+            }
+            const resolution = get('gemini-video-resolution');
+            if (resolution) {
+                const fourK = Array.from(resolution.options).find(opt => opt.value === '4K');
+                const no4k = model === 'veo-3.1-lite-generate-preview' || model === 'veo-3.1-fast-generate-preview' || model === 'gemini-omni-flash';
+                if (fourK) fourK.disabled = no4k;
+                if (no4k && resolution.value === '4K') resolution.value = '1080p';
+            }
+        }
+        function updateGeminiMusicUi() {
+            const wrap = get('gemini-music-options');
+            if (!wrap) return;
+            const music = isGeminiMusicModel() && !isGeminiRealtimeMusicModel();
+            wrap.classList.toggle('hidden', !music);
+        }
+        const isGeminiRealtimeMusicModel = () => (get('model-select').value || '') === 'lyria-realtime-exp';
         function updateXaiChatUi() {
             const wrap = get('xai-chat-options');
             if (!wrap) return;
@@ -8752,6 +8851,8 @@
                 updateGeminiImageUi();
                 updateGrokImageUi();
                 updateGrokVideoUi();
+                updateGeminiVideoUi();
+                updateGeminiMusicUi();
                 updateXaiChatUi();
                 updateMistralOcrUi();
                 updateImageInputLimits();
@@ -11838,6 +11939,11 @@
                             setupMsg.setup.generationConfig.thinkingConfig = config.thinkingConfig;
                         }
 
+                        // Live Translate uses a top-level translationConfig in the setup message
+                        if (config.translationConfig) {
+                            setupMsg.setup.translationConfig = config.translationConfig;
+                        }
+
                         console.log("Sending setup:", JSON.stringify(setupMsg));
                         this.ws.send(JSON.stringify(setupMsg));
                     };
@@ -12135,7 +12241,8 @@
                                     model: get('model-select').value,
                                     voice: get('sts-voice') ? get('sts-voice').value : 'Kore',
                                     thinking_level: get('sts-thinking-level') ? get('sts-thinking-level').value : 'minimal',
-                                    include_thoughts: get('sts-include-thoughts') ? get('sts-include-thoughts').checked : false
+                                    include_thoughts: get('sts-include-thoughts') ? get('sts-include-thoughts').checked : false,
+                                    target_lang: isGeminiLiveTranslateModel() && get('sts-target-lang') ? get('sts-target-lang').value : null
                                 })
                             });
                             if (!res.ok) throw new Error("Failed to get session token");
@@ -12151,10 +12258,17 @@
                                 currentGeminiLive.rtPlayer = new RealTimeAudioPlayer();
                             }
 
-                            await currentGeminiLive.start(token, url, modelKey, {
-                                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-                                thinkingConfig: { thinkingLevel: thinking_level, includeThoughts: include_thoughts }
-                            });
+                            if (isGeminiLiveTranslateModel()) {
+                                const targetLang = get('sts-target-lang') ? get('sts-target-lang').value : 'ja';
+                                await currentGeminiLive.start(token, url, modelKey, {
+                                    translationConfig: { targetLanguageCode: targetLang, echoTargetLanguage: true }
+                                });
+                            } else {
+                                await currentGeminiLive.start(token, url, modelKey, {
+                                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
+                                    thinkingConfig: { thinkingLevel: thinking_level, includeThoughts: include_thoughts }
+                                });
+                            }
                             mediaRecorder = currentGeminiLive.backupRecorder; // For silence monitor
 
                             // Bind onstop to trigger the save logic (clicking mic-btn again)
@@ -17688,6 +17802,10 @@
                 grok_video_duration: isGrokVideoModel() && get('grok-video-duration') ? get('grok-video-duration').value : null,
                 grok_video_aspect: isGrokVideoModel() && get('grok-video-aspect') ? get('grok-video-aspect').value : null,
                 grok_video_resolution: isGrokVideoModel() && get('grok-video-resolution') ? get('grok-video-resolution').value : null,
+                gemini_video_duration: isGeminiVideoModel() && get('gemini-video-duration') ? get('gemini-video-duration').value : null,
+                gemini_video_aspect: isGeminiVideoModel() && get('gemini-video-aspect') ? get('gemini-video-aspect').value : null,
+                gemini_video_resolution: isGeminiVideoModel() && get('gemini-video-resolution') ? get('gemini-video-resolution').value : null,
+                music_instrumental: isGeminiMusicModel() && get('music-instrumental') ? get('music-instrumental').checked : false,
                 ocr_table_format: isMistralOcrModel() && get('ocr-table-format') ? get('ocr-table-format').value : null,
                 ocr_extract_header: isMistralOcrModel() && get('ocr-extract-header') ? get('ocr-extract-header').checked : false,
                 ocr_extract_footer: isMistralOcrModel() && get('ocr-extract-footer') ? get('ocr-extract-footer').checked : false,

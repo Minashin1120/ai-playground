@@ -42,11 +42,11 @@ class WelcomeQuickStartRegressionTests(unittest.TestCase):
         self.assertEqual(
             top5,
             [
-                "grok-4.20-multi-agent-0309",
-                "grok-4.20-0309-non-reasoning",
-                "grok-4.20-0309-reasoning",
-                "grok-voice-think-fast-2.0",
-                "grok-imagine-video-1.5",
+                "gemini-3.1-flash-image",
+                "gemini-3-pro-image",
+                "gemini-2.5-pro",
+                "gemini-3.5-live-translate-preview",
+                "gemini-omni-flash",
             ],
         )
 

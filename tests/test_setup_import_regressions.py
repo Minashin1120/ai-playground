@@ -448,6 +448,37 @@ class SetupImportRegressionTests(unittest.TestCase):
         ]:
             self.assertIn(expected, js_source)
 
+    def test_settings_import_refreshes_settings_modal_after_success(self):
+        # Imported settings / API credentials must be reflected in the open
+        # settings modal; otherwise stale pre-import form values remain and a
+        # later save would overwrite the imported values.
+        root = Path(__file__).resolve().parents[1]
+        js_assets = list((root / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(js_assets), 1)
+        js_source = js_assets[0].read_text(encoding="utf-8")
+        for expected in [
+            "const populateSettingsFormFromData = (d) => {",
+            "const refreshSettingsFormAfterImport = async () => {",
+            "populateSettingsFormFromData(data)",
+            "categories.includes('settings') || categories.includes('api_credentials')",
+            "refreshSettingsFormAfterImport()",
+            "setMinimalPromptMode(true)",
+            "setCompactPromptMode(!!data.compact_prompt_mode)",
+        ]:
+            self.assertIn(expected, js_source)
+        # The settings-import success message must report the imported counts.
+        self.assertIn("`設定 ${imported.settings || 0}件`", js_source)
+        self.assertIn("`API認証 ${imported.api_credentials || 0}件`", js_source)
+        # openSettingsModal must delegate its population to the shared helper.
+        self.assertIn("apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).then(r=>r.json()).then(d=>{", js_source)
+        refresh_index = js_source.index("const refreshSettingsFormAfterImport")
+        finish_index = js_source.index("const finishImportSuccess")
+        self.assertLess(
+            refresh_index, finish_index,
+            "the settings refresh helper must be defined before the import success handler uses it",
+        )
+
+
     def test_setup_import_settings_confirmation_ui_and_flow(self):
         root = Path(__file__).resolve().parents[1]
         with open(root / "templates" / "setup.html", encoding="utf-8") as handle:

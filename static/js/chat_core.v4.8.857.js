@@ -9794,6 +9794,29 @@
                         let selectedFiles = '';
                         let importDone = false;
                         let parseFailures = 0;
+                        // After a settings / API-credentials import, re-fetch the saved
+                        // settings and repopulate the (possibly still-open) settings modal
+                        // so imported values are reflected instead of stale pre-import
+                        // form values that a later save would overwrite.
+                        const refreshSettingsFormAfterImport = async () => {
+                            try {
+                                const res = await apiFetch(CHAT_CONFIG.urls.handleSettingsQuery, {cache: 'no-store'});
+                                const data = await res.json().catch(() => null);
+                                if (!res.ok || !data) return;
+                                cacheUserSettings(data);
+                                const settingsModalEl = get('settings-modal');
+                                if (settingsModalEl && settingsModalEl.classList.contains('modal-open')) {
+                                    try { populateSettingsFormFromData(data); } catch (_) {}
+                                }
+                                // Apply UI-affecting settings immediately (theme / prompt-bar mode).
+                                if (data.theme_color) applyThemeColor(data.theme_color, true);
+                                if (Object.prototype.hasOwnProperty.call(data, 'minimal_prompt_mode') && data.minimal_prompt_mode) {
+                                    setMinimalPromptMode(true);
+                                } else if (Object.prototype.hasOwnProperty.call(data, 'compact_prompt_mode')) {
+                                    setCompactPromptMode(!!data.compact_prompt_mode);
+                                }
+                            } catch (_) {}
+                        };
                         const finishImportSuccess = (terminal) => {
                             const message = (terminal && terminal.message) || 'インポートが完了しました';
                             if (resultBox) {
@@ -9806,6 +9829,7 @@
                             if (categories.includes('chats')) loadThreads();
                             if (categories.includes('gems')) loadGems();
                             if (categories.includes('files')) loadStorageUsage();
+                            if (categories.includes('settings') || categories.includes('api_credentials')) refreshSettingsFormAfterImport();
                         };
                         const fetchImportStatus = async () => {
                             try {
@@ -9941,6 +9965,7 @@
                             if (!res.ok) throw new Error(data.error || 'インポートに失敗しました');
                             const imported = data.imported || {};
                             const detail = [
+                                `設定 ${imported.settings || 0}件`, `API認証 ${imported.api_credentials || 0}件`,
                                 `チャット ${imported.chats || 0}件`, `Gem ${imported.gems || 0}件`,
                                 `ファイル ${imported.files || 0}件`, `フィードバック ${imported.feedback || 0}件`,
                                 `診断データ ${imported.diagnostics || 0}件`,
@@ -9955,6 +9980,7 @@
                             if (categories.includes('chats')) loadThreads();
                             if (categories.includes('gems')) loadGems();
                             if (categories.includes('files')) loadStorageUsage();
+                            if (categories.includes('settings') || categories.includes('api_credentials')) refreshSettingsFormAfterImport();
                             importDone = true;
                         }
                     } catch (error) {
@@ -10465,6 +10491,163 @@
                 const stored = (userSettingsSnapshot && userSettingsSnapshot.default_vision_model) || current || 'gemini-3-flash-preview';
                 if (stored && Array.from(sel.options).some(o => o.value === stored)) sel.value = stored;
             };
+            // Populate every settings-modal control from a settings payload.  Shared
+            // by openSettingsModal and the account-import flow so imported settings
+            // and API credentials are reflected in the open settings modal instead of
+            // leaving stale (pre-import) values that a later save would overwrite.
+            const populateSettingsFormFromData = (d) => {
+                if (!d) return;
+                cacheUserSettings(d);
+                const globalPreview = get('app-global-sys-prompt-preview');
+                if (globalPreview) {
+                    globalPreview.value = d.global_system_prompt_effective || '';
+                }
+                const globalPreviewStatus = get('app-global-sys-prompt-preview-status');
+                if (globalPreviewStatus) {
+                    if (d.global_system_prompt_enabled === false) {
+                        globalPreviewStatus.textContent = '現在は無効化されています。';
+                    } else if (d.global_system_prompt_uses_time_fallback) {
+                        globalPreviewStatus.textContent = '管理者設定が空欄のため、時刻の既定プロンプトが適用されています。';
+                    } else {
+                        globalPreviewStatus.textContent = '管理者が設定した全体システムプロンプトが適用されています。';
+                    }
+                }
+                if(get('sys-prompt-text')) get('sys-prompt-text').value = d.system_prompt || '';
+                if(get('set-global-sys-prompt-enabled')) get('set-global-sys-prompt-enabled').checked = d.system_prompt_enabled !== false;
+
+                window.ensureAutoSystemPromptSettingsCard();
+                if(get('set-apply-global-sys-prompt')) get('set-apply-global-sys-prompt').checked = d.apply_global_system_prompt !== false;
+                if(get('set-apply-auto-sys-prompt-notices')) get('set-apply-auto-sys-prompt-notices').checked = d.apply_auto_system_prompt_notices !== false;
+                window.applyAutoSystemPromptConfigToForm('set', d.auto_system_prompt_notices_config || {});
+
+                if(get('set-latency-metrics')) get('set-latency-metrics').checked = d.enable_latency_metrics === true;
+                if(get('set-client-debug-log')) syncClientDebugLogToggle(d.enable_client_debug_log === true, 'settings modal sync');
+                if(get('set-openai')) get('set-openai').value = d.openai_key || '';
+                if(get('set-gemini')) get('set-gemini').value = d.gemini_key || '';
+                if(get('set-deepseek')) get('set-deepseek').value = d.deepseek_key || '';
+                if(get('set-kimi')) get('set-kimi').value = d.kimi_key || '';
+                if(get('set-mistral')) get('set-mistral').value = d.mistral_key || '';
+                if(get('set-anthropic')) get('set-anthropic').value = d.anthropic_key || '';
+                if(get('set-gemini-backend')) get('set-gemini-backend').value = normalizeGeminiBackend(d.gemini_backend || 'gemini_api');
+                if(get('set-gemini-vertex-project')) get('set-gemini-vertex-project').value = d.gemini_vertex_project || '';
+                if(get('set-gemini-vertex-location')) get('set-gemini-vertex-location').value = d.gemini_vertex_location || 'global';
+                ensureGeminiVertexCredentialsField();
+                if(get('set-gemini-vertex-credentials-json')) get('set-gemini-vertex-credentials-json').value = d.gemini_vertex_credentials_json || '';
+                syncGeminiBackendUi();
+                if(get('set-admin-api-key-mode')) get('set-admin-api-key-mode').value = normalizeAdminApiKeyMode(d.admin_api_key_mode || 'env_fallback');
+                syncAdminApiKeyModeUi();
+                if(get('set-xai')) get('set-xai').value = d.xai_key || '';
+            if(get('set-google-key')) get('set-google-key').value = d.google_key || '';
+            if(get('set-google-project')) get('set-google-project').value = d.google_project || '';
+            modelApiKeyMap = normalizeModelApiKeyMap(d.model_api_keys || {});
+            syncModelApiKeyModelOptions();
+            renderModelApiKeyList();
+            setModelApiKeyPanelOpen(false);
+            if(get('set-mic-transcribe-mode')) get('set-mic-transcribe-mode').value = d.mic_transcribe_mode || 'stt_api';
+            if(get('set-stt-model')) get('set-stt-model').value = d.stt_model || 'gpt-4o-mini-transcribe';
+            if(get('set-llm-transcribe-prompt')) {
+                get('set-llm-transcribe-prompt').value = d.llm_transcribe_prompt || '';
+                get('set-llm-transcribe-prompt').placeholder = d.llm_transcribe_prompt_default || '';
+            }
+            syncRichPastePromptPreferencesUi(d);
+            updateGoogleLinkUI(d);
+            if(get('set-enter-to-send')) get('set-enter-to-send').checked = !!d.enter_to_send;
+            writePromptBarModeToForm(!!d.compact_prompt_mode, !!d.minimal_prompt_mode);
+                if(get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;
+                if(get('set-clear-cache-on-version-update')) get('set-clear-cache-on-version-update').checked = !!d.clear_cache_on_version_update;
+            if(get('set-liquid-glass')) get('set-liquid-glass').checked = !!d.liquid_glass_enabled;
+            if(get('set-auto-search-links')) get('set-auto-search-links').checked = d.auto_search_on_links !== false;
+            if(get('set-use-last-settings')) get('set-use-last-settings').checked = !!d.use_last_chat_settings;
+            if(get('set-default-model')) get('set-default-model').value = d.default_model || 'gemini-3.6-flash';
+            if(get('set-default-vision-model')) get('set-default-vision-model').value = d.default_vision_model || 'gemini-3-flash-preview';
+            applyTemporaryChatTimeoutSeconds(d.temp_chat_timeout_seconds);
+            if(get('set-default-search')) get('set-default-search').checked = !!d.default_enable_search;
+            if(get('set-default-url-context')) get('set-default-url-context').checked = !!d.default_enable_url_context;
+            if(get('set-default-maps')) get('set-default-maps').checked = !!d.default_enable_maps;
+            if(get('set-default-python')) get('set-default-python').checked = !!d.default_enable_python;
+            if(get('set-default-thinking')) get('set-default-thinking').checked = !!d.default_enable_thinking;
+            if(get('set-default-sys-prompt')) get('set-default-sys-prompt').checked = !!d.default_enable_system_prompt;
+            if(get('set-default-thinking-level')) get('set-default-thinking-level').value = d.default_thinking_level || 'high';
+            if(get('set-default-thinking-budget')) get('set-default-thinking-budget').value = d.default_thinking_budget || 4096;
+            if(get('set-default-reasoning-effort')) get('set-default-reasoning-effort').value = d.default_reasoning_effort || 'medium';
+            if(get('set-default-safety')) get('set-default-safety').value = d.default_safety_setting || 'default';
+            get('set-e2ee').checked = d.enable_e2ee;
+            if(get('set-bot-detect')) get('set-bot-detect').checked = d.bot_detection_enabled !== false;
+            if(get('set-bot-detect-global')) get('set-bot-detect-global').checked = d.bot_detection_global_enabled !== false;
+            const botStatus = get('bot-status');
+            if (botStatus) {
+                if (d.is_bot_banned) {
+                    botStatus.textContent = `BAN中: ${d.bot_ban_reason || 'Bot detection'}`;
+                    botStatus.classList.remove('hidden');
+                    botStatus.classList.add('text-red-400');
+                } else {
+                    botStatus.classList.add('hidden');
+                }
+            }
+            if (d && d.theme_color) {
+                applyThemeColor(d.theme_color, true);
+                syncThemeInputs(d.theme_color);
+            } else {
+                syncThemeInputs(localStorage.getItem(THEME_STORAGE_KEY) || INITIAL_THEME_COLOR || THEME_DEFAULT);
+            }
+            snapshotSidebarHistory('settings-theme-synced');
+            syncGeminiLocalPyDialogSetting();
+            syncCompressionSettingsUi();
+            if(get('set-username')) get('set-username').value = d.username;
+
+            // 2FA UI Update
+            const badge = get('2fa-badge');
+            const disBtn = get('disable-2fa-btn');
+            if(d.is_2fa_enabled) {
+                badge.innerText = "ENABLED";
+                badge.classList.replace('bg-gray-700', 'bg-green-600');
+                badge.classList.replace('text-gray-400', 'text-white');
+                disBtn.classList.remove('hidden');
+            } else {
+                badge.innerText = "DISABLED";
+                badge.classList.replace('bg-green-600', 'bg-gray-700');
+                badge.classList.replace('text-white', 'text-gray-400');
+                disBtn.classList.add('hidden');
+            }
+            if(get('set-skip-2fa-google')) get('set-skip-2fa-google').checked = !!d.skip_2fa_on_google_login;
+            if(get('set-default-2fa-method')) get('set-default-2fa-method').value = d.default_2fa_method || 'totp';
+
+            const pkOnly = get('set-passkey-only-login');
+            const pkNote = get('passkey-only-note');
+            const passkeys = Array.isArray(d.passkey_credentials) ? d.passkey_credentials : [];
+            renderPasskeyList(passkeys);
+            if (pkOnly) {
+                pkOnly.checked = !!d.passkey_only_login;
+                const hasKey = passkeys.length > 0 || !!d.has_webauthn;
+                pkOnly.disabled = !hasKey;
+                if (!hasKey) pkOnly.checked = false;
+                if (pkNote) {
+                    if (hasKey) pkNote.classList.add('hidden');
+                    else pkNote.classList.remove('hidden');
+                }
+            }
+
+            const migBox = get('mig-status-box');
+            const migText = get('mig-progress-text');
+            const migBar = get('mig-progress-bar');
+            const status = d.migration_status || 'idle';
+            if (status === 'processing') {
+                migBox.classList.remove('hidden');
+                const prog = (d.migration_progress || '').split('/');
+                if (prog.length === 2) {
+                    const done = parseInt(prog[0] || '0', 10);
+                    const total = parseInt(prog[1] || '0', 10);
+                    if (migText) migText.innerText = `${done} / ${total}`;
+                    if (migBar && total > 0) migBar.style.width = `${Math.min(100, Math.floor((done/total)*100))}%`;
+                }
+            } else {
+                migBox.classList.add('hidden');
+                if (migBar) migBar.style.width = '0%';
+                if (migText) migText.innerText = '';
+            }
+            settingsModalLoaded = true;
+            setSettingsSaveEnabled(true);
+            };
 
             window.openSettingsModal = async () => {
                 settingsModalLoaded = false;
@@ -10505,157 +10688,8 @@
                     refreshBanAppealSummary(true);
                     loadBanAppeals();
                     apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).then(r=>r.json()).then(d=>{
-                        cacheUserSettings(d);
-                        const globalPreview = get('app-global-sys-prompt-preview');
-                        if (globalPreview) {
-                            globalPreview.value = d.global_system_prompt_effective || '';
-                        }
-                        const globalPreviewStatus = get('app-global-sys-prompt-preview-status');
-                        if (globalPreviewStatus) {
-                            if (d.global_system_prompt_enabled === false) {
-                                globalPreviewStatus.textContent = '現在は無効化されています。';
-                            } else if (d.global_system_prompt_uses_time_fallback) {
-                                globalPreviewStatus.textContent = '管理者設定が空欄のため、時刻の既定プロンプトが適用されています。';
-                            } else {
-                                globalPreviewStatus.textContent = '管理者が設定した全体システムプロンプトが適用されています。';
-                            }
-                        }
-                        if(get('sys-prompt-text')) get('sys-prompt-text').value = d.system_prompt || '';
-                        if(get('set-global-sys-prompt-enabled')) get('set-global-sys-prompt-enabled').checked = d.system_prompt_enabled !== false;
-
-                        window.ensureAutoSystemPromptSettingsCard();
-                        if(get('set-apply-global-sys-prompt')) get('set-apply-global-sys-prompt').checked = d.apply_global_system_prompt !== false;
-                        if(get('set-apply-auto-sys-prompt-notices')) get('set-apply-auto-sys-prompt-notices').checked = d.apply_auto_system_prompt_notices !== false;
-                        window.applyAutoSystemPromptConfigToForm('set', d.auto_system_prompt_notices_config || {});
-
-                        if(get('set-latency-metrics')) get('set-latency-metrics').checked = d.enable_latency_metrics === true;
-                        if(get('set-client-debug-log')) syncClientDebugLogToggle(d.enable_client_debug_log === true, 'settings modal sync');
-                        if(get('set-openai')) get('set-openai').value = d.openai_key || '';
-                        if(get('set-gemini')) get('set-gemini').value = d.gemini_key || '';
-                        if(get('set-deepseek')) get('set-deepseek').value = d.deepseek_key || '';
-                        if(get('set-kimi')) get('set-kimi').value = d.kimi_key || '';
-                        if(get('set-mistral')) get('set-mistral').value = d.mistral_key || '';
-                        if(get('set-anthropic')) get('set-anthropic').value = d.anthropic_key || '';
-                        if(get('set-gemini-backend')) get('set-gemini-backend').value = normalizeGeminiBackend(d.gemini_backend || 'gemini_api');
-                        if(get('set-gemini-vertex-project')) get('set-gemini-vertex-project').value = d.gemini_vertex_project || '';
-                        if(get('set-gemini-vertex-location')) get('set-gemini-vertex-location').value = d.gemini_vertex_location || 'global';
-                        ensureGeminiVertexCredentialsField();
-                        if(get('set-gemini-vertex-credentials-json')) get('set-gemini-vertex-credentials-json').value = d.gemini_vertex_credentials_json || '';
-                        syncGeminiBackendUi();
-                        if(get('set-admin-api-key-mode')) get('set-admin-api-key-mode').value = normalizeAdminApiKeyMode(d.admin_api_key_mode || 'env_fallback');
-                        syncAdminApiKeyModeUi();
-                        if(get('set-xai')) get('set-xai').value = d.xai_key || '';
-                    if(get('set-google-key')) get('set-google-key').value = d.google_key || '';
-                    if(get('set-google-project')) get('set-google-project').value = d.google_project || '';
-                    modelApiKeyMap = normalizeModelApiKeyMap(d.model_api_keys || {});
-                    syncModelApiKeyModelOptions();
-                    renderModelApiKeyList();
-                    setModelApiKeyPanelOpen(false);
-                    if(get('set-mic-transcribe-mode')) get('set-mic-transcribe-mode').value = d.mic_transcribe_mode || 'stt_api';
-                    if(get('set-stt-model')) get('set-stt-model').value = d.stt_model || 'gpt-4o-mini-transcribe';
-                    if(get('set-llm-transcribe-prompt')) {
-                        get('set-llm-transcribe-prompt').value = d.llm_transcribe_prompt || '';
-                        get('set-llm-transcribe-prompt').placeholder = d.llm_transcribe_prompt_default || '';
-                    }
-                    syncRichPastePromptPreferencesUi(d);
-                    updateGoogleLinkUI(d);
-                    if(get('set-enter-to-send')) get('set-enter-to-send').checked = !!d.enter_to_send;
-                    writePromptBarModeToForm(!!d.compact_prompt_mode, !!d.minimal_prompt_mode);
-                        if(get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;
-                        if(get('set-clear-cache-on-version-update')) get('set-clear-cache-on-version-update').checked = !!d.clear_cache_on_version_update;
-                    if(get('set-liquid-glass')) get('set-liquid-glass').checked = !!d.liquid_glass_enabled;
-                    if(get('set-auto-search-links')) get('set-auto-search-links').checked = d.auto_search_on_links !== false;
-                    if(get('set-use-last-settings')) get('set-use-last-settings').checked = !!d.use_last_chat_settings;
-                    if(get('set-default-model')) get('set-default-model').value = d.default_model || 'gemini-3.6-flash';
-                    if(get('set-default-vision-model')) get('set-default-vision-model').value = d.default_vision_model || 'gemini-3-flash-preview';
-                    applyTemporaryChatTimeoutSeconds(d.temp_chat_timeout_seconds);
-                    if(get('set-default-search')) get('set-default-search').checked = !!d.default_enable_search;
-                    if(get('set-default-url-context')) get('set-default-url-context').checked = !!d.default_enable_url_context;
-                    if(get('set-default-maps')) get('set-default-maps').checked = !!d.default_enable_maps;
-                    if(get('set-default-python')) get('set-default-python').checked = !!d.default_enable_python;
-                    if(get('set-default-thinking')) get('set-default-thinking').checked = !!d.default_enable_thinking;
-                    if(get('set-default-sys-prompt')) get('set-default-sys-prompt').checked = !!d.default_enable_system_prompt;
-                    if(get('set-default-thinking-level')) get('set-default-thinking-level').value = d.default_thinking_level || 'high';
-                    if(get('set-default-thinking-budget')) get('set-default-thinking-budget').value = d.default_thinking_budget || 4096;
-                    if(get('set-default-reasoning-effort')) get('set-default-reasoning-effort').value = d.default_reasoning_effort || 'medium';
-                    if(get('set-default-safety')) get('set-default-safety').value = d.default_safety_setting || 'default';
-                    get('set-e2ee').checked = d.enable_e2ee;
-                    if(get('set-bot-detect')) get('set-bot-detect').checked = d.bot_detection_enabled !== false;
-                    if(get('set-bot-detect-global')) get('set-bot-detect-global').checked = d.bot_detection_global_enabled !== false;
-                    const botStatus = get('bot-status');
-                    if (botStatus) {
-                        if (d.is_bot_banned) {
-                            botStatus.textContent = `BAN中: ${d.bot_ban_reason || 'Bot detection'}`;
-                            botStatus.classList.remove('hidden');
-                            botStatus.classList.add('text-red-400');
-                        } else {
-                            botStatus.classList.add('hidden');
-                        }
-                    }
-                    if (d && d.theme_color) {
-                        applyThemeColor(d.theme_color, true);
-                        syncThemeInputs(d.theme_color);
-                    } else {
-                        syncThemeInputs(localStorage.getItem(THEME_STORAGE_KEY) || INITIAL_THEME_COLOR || THEME_DEFAULT);
-                    }
-                    snapshotSidebarHistory('settings-theme-synced');
-                    syncGeminiLocalPyDialogSetting();
-                    syncCompressionSettingsUi();
-                    if(get('set-username')) get('set-username').value = d.username;
-
-                    // 2FA UI Update
-                    const badge = get('2fa-badge');
-                    const disBtn = get('disable-2fa-btn');
-                    if(d.is_2fa_enabled) {
-                        badge.innerText = "ENABLED";
-                        badge.classList.replace('bg-gray-700', 'bg-green-600');
-                        badge.classList.replace('text-gray-400', 'text-white');
-                        disBtn.classList.remove('hidden');
-                    } else {
-                        badge.innerText = "DISABLED";
-                        badge.classList.replace('bg-green-600', 'bg-gray-700');
-                        badge.classList.replace('text-white', 'text-gray-400');
-                        disBtn.classList.add('hidden');
-                    }
-                    if(get('set-skip-2fa-google')) get('set-skip-2fa-google').checked = !!d.skip_2fa_on_google_login;
-                    if(get('set-default-2fa-method')) get('set-default-2fa-method').value = d.default_2fa_method || 'totp';
-
-                    const pkOnly = get('set-passkey-only-login');
-                    const pkNote = get('passkey-only-note');
-                    const passkeys = Array.isArray(d.passkey_credentials) ? d.passkey_credentials : [];
-                    renderPasskeyList(passkeys);
-                    if (pkOnly) {
-                        pkOnly.checked = !!d.passkey_only_login;
-                        const hasKey = passkeys.length > 0 || !!d.has_webauthn;
-                        pkOnly.disabled = !hasKey;
-                        if (!hasKey) pkOnly.checked = false;
-                        if (pkNote) {
-                            if (hasKey) pkNote.classList.add('hidden');
-                            else pkNote.classList.remove('hidden');
-                        }
-                    }
-
-                    const migBox = get('mig-status-box');
-                    const migText = get('mig-progress-text');
-                    const migBar = get('mig-progress-bar');
-                    const status = d.migration_status || 'idle';
-                    if (status === 'processing') {
-                        migBox.classList.remove('hidden');
-                        const prog = (d.migration_progress || '').split('/');
-                        if (prog.length === 2) {
-                            const done = parseInt(prog[0] || '0', 10);
-                            const total = parseInt(prog[1] || '0', 10);
-                            if (migText) migText.innerText = `${done} / ${total}`;
-                            if (migBar && total > 0) migBar.style.width = `${Math.min(100, Math.floor((done/total)*100))}%`;
-                        }
-                    } else {
-                        migBox.classList.add('hidden');
-                        if (migBar) migBar.style.width = '0%';
-                        if (migText) migText.innerText = '';
-                    }
-                    settingsModalLoaded = true;
-                    setSettingsSaveEnabled(true);
-                }).catch(() => {
+                        populateSettingsFormFromData(d);
+                    }).catch(() => {
                     // The saved settings could not be loaded.  Keep the form
                     // uneditable so a save cannot overwrite settings with default
                     // values (previously this silently toggled E2EE and other

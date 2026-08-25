@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-26-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.853'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-26-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.854'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3692,6 +3692,505 @@ def _lyria_get_session(session_id):
     if not session or session.user_id != current_user.id:
         return None
     return session
+
+# =============================================================================
+# True real-time STS sessions (OpenAI Realtime / Grok Voice / Gemini native-audio)
+# -----------------------------------------------------------------------------
+# Server-held WebSocket sessions.  The browser streams microphone PCM over HTTP,
+# the server relays it to the provider WebSocket in real time, and the provider's
+# audio + transcripts stream back to the browser over SSE.  Provider-side VAD
+# (or Gemini's natural turn handling) drives automatic turn-taking, so the user
+# can talk continuously and hear the model reply while speaking.
+# =============================================================================
+RT_SESSIONS = {}
+RT_SESSIONS_LOCK = threading.Lock()
+RT_MAX_SESSION_SECONDS = 15 * 60
+RT_SESSION_TTL_SECONDS = 30 * 60
+RT_AUDIO_POST_MAX = 1 << 20
+RT_PCM_CAP = 512 * 1024 * 1024
+
+
+def _rt_is_conversation_model(model_key):
+    """True for STS models that support a persistent streaming conversation."""
+    model_key = XAI_STS_MODEL_ALIASES.get(model_key, model_key)
+    if not is_sts_model(model_key):
+        return False
+    meta = STS_MODELS.get(model_key, {})
+    if meta.get("mode") == "transcription":
+        return False
+    # Browser-direct Gemini Live models already stream in real time.
+    if model_key in ("gemini-3.1-flash-live-preview", "gemini-3.5-live-translate-preview"):
+        return False
+    # One-shot transcription session model.
+    if model_key == "gpt-realtime-whisper":
+        return False
+    return True
+
+
+def _rt_push_event(session, event):
+    with session.pending_cond:
+        session.pending.append(event)
+        session.pending_cond.notify_all()
+
+
+def _rt_purge_old_sessions():
+    now = time.time()
+    with RT_SESSIONS_LOCK:
+        stale = [
+            sid for sid, sess in list(RT_SESSIONS.items())
+            if sess.status in ("closed", "error", "stopped")
+            and (now - sess.started_at) > RT_SESSION_TTL_SECONDS
+        ]
+        for sid in stale:
+            RT_SESSIONS.pop(sid, None)
+
+
+def _rt_get_session(session_id):
+    session = RT_SESSIONS.get(session_id or "")
+    if not session or session.user_id != current_user.id:
+        return None
+    return session
+
+
+class RtSession:
+    """One persistent real-time speech-to-speech session for a single user."""
+
+    def __init__(self, session_id, user_id, model_key, api_key, params):
+        self.session_id = session_id
+        self.user_id = user_id
+        self.model_key = model_key
+        self.provider = get_sts_provider(model_key)
+        self.api_key = api_key
+        self.params = params
+        meta = STS_MODELS.get(model_key, {})
+        self.rate_in = int(params.get("rate_in") or meta.get("rate_in", 24000))
+        self.rate_out = int(params.get("rate_out") or meta.get("rate_out", 24000))
+        self.loop = None                # asyncio event loop of the worker thread
+        self.ws = None                  # provider WebSocket (owned by worker thread)
+        self.audio_in = _queue.Queue()  # ("audio", bytes) / ("commit",)
+        self.pending = []               # output events awaiting the SSE stream
+        self.pending_cond = threading.Condition()
+        self.cmd_queue = _queue.Queue()  # reserved for future steering commands
+        self.stop_event = threading.Event()
+        self.status = "connecting"       # connecting|ready|speaking|stopped|error|closed
+        self.error = None
+        self.started_at = time.time()
+        self.thread = None
+        self.assistant_audio = bytearray()   # accumulated output PCM (for saving)
+        self.assistant_lock = threading.Lock()
+        self.user_audio = bytearray()        # accumulated input PCM (for saving)
+        self.user_lock = threading.Lock()
+        self.user_transcript = ""
+        self.assistant_transcript = ""
+        self.assistant_thought = ""
+        self.speech_active = False
+        self.turn_count = 0
+        self.saved = False
+
+
+def _normalize_rt_params(provider, model_key, data):
+    """Validate / normalize real-time session parameters (always returns a dict)."""
+    data = data or {}
+    meta = STS_MODELS.get(model_key, {})
+    params = {
+        "rate_in": int(data.get("rate_in") or meta.get("rate_in", 24000)),
+        "rate_out": int(data.get("rate_out") or meta.get("rate_out", 24000)),
+    }
+    if provider == "openai":
+        v = str(data.get("voice") or "alloy").lower()
+        params["voice"] = v if v in OPENAI_STS_VOICES else "alloy"
+        speed = clamp_float(data.get("speed"), 0.25, 1.5)
+        if speed is not None:
+            params["speed"] = speed
+    elif provider == "xai":
+        v = str(data.get("voice") or "Ara")
+        params["voice"] = v if v in XAI_STS_VOICES else "Ara"
+    elif provider == "google":
+        v = str(data.get("voice") or "Kore")
+        params["voice"] = v if v in GEMINI_STS_VOICES else "Kore"
+        thinking = str(data.get("thinking_level") or "").strip()
+        params["thinking_level"] = thinking or None
+        params["include_thoughts"] = bool(data.get("include_thoughts"))
+    return params
+
+
+async def _rt_openai_xai_send_loop(session, ws):
+    while not session.stop_event.is_set():
+        try:
+            item = session.audio_in.get_nowait()
+        except _queue.Empty:
+            item = None
+        if item is None:
+            await asyncio.sleep(0.02)
+            continue
+        kind = item[0]
+        try:
+            if kind == "audio":
+                data = item[1]
+                if not data:
+                    continue
+                await ws.send(json.dumps({
+                    "type": "input_audio_buffer.append",
+                    "audio": base64.b64encode(data).decode("ascii"),
+                }))
+            elif kind == "commit":
+                # Finalize any trailing audio; with server VAD this is usually
+                # automatic, but the explicit commit covers the push-to-talk end.
+                await ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
+                session.status = "speaking"
+        except Exception as exc:
+            logger.error(f"Realtime STS send error: {exc}")
+
+
+async def _rt_openai_xai_receive_loop(session, ws):
+    try:
+        while True:
+            raw = await ws.recv()
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8", "replace")
+            msg = json.loads(raw)
+            mtype = msg.get("type")
+            if mtype == "session.updated":
+                session.status = "ready"
+                _rt_push_event(session, {"type": "status", "status": "ready"})
+            elif mtype == "input_audio_buffer.speech_started":
+                session.speech_active = True
+                _rt_push_event(session, {"type": "speech_started"})
+            elif mtype == "input_audio_buffer.speech_stopped":
+                session.speech_active = False
+                _rt_push_event(session, {"type": "speech_stopped"})
+            elif mtype == "input_audio_buffer.committed":
+                _rt_push_event(session, {"type": "committed"})
+            elif mtype == "response.created":
+                _rt_push_event(session, {"type": "response_start"})
+            elif mtype in ("response.output_audio.delta", "response.audio.delta"):
+                delta = msg.get("delta")
+                if delta:
+                    try:
+                        binary = base64.b64decode(delta)
+                    except Exception:
+                        binary = b""
+                    if binary:
+                        with session.assistant_lock:
+                            if len(session.assistant_audio) + len(binary) <= RT_PCM_CAP:
+                                session.assistant_audio += binary
+                        _rt_push_event(session, {"type": "audio", "data": delta})
+            elif mtype == "response.output_audio_transcript.delta":
+                delta = msg.get("delta")
+                if delta:
+                    session.assistant_transcript += delta
+                    _rt_push_event(session, {"type": "transcript", "role": "assistant", "delta": delta})
+            elif mtype == "conversation.item.input_audio_transcription.delta":
+                delta = msg.get("delta")
+                if delta:
+                    session.user_transcript += delta
+                    _rt_push_event(session, {"type": "transcript", "role": "user", "delta": delta})
+            elif mtype == "conversation.item.input_audio_transcription.updated":
+                # xAI emits a cumulative transcript here.
+                text = str(msg.get("transcript") or "")
+                if text:
+                    session.user_transcript = text
+                    _rt_push_event(session, {"type": "transcript", "role": "user", "delta": text, "cumulative": True})
+            elif mtype == "conversation.item.input_audio_transcription.completed":
+                # OpenAI emits the full committed transcript here.
+                text = str(msg.get("transcript") or "")
+                if text:
+                    session.user_transcript = text
+                    _rt_push_event(session, {"type": "transcript", "role": "user", "delta": text, "cumulative": True})
+            elif mtype == "response.done":
+                session.turn_count += 1
+                _rt_push_event(session, {"type": "response_done"})
+            elif mtype == "error":
+                raise RuntimeError(str(msg.get("error") or "Provider error"))
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        session.error = str(exc)
+        session.status = "error"
+        session.stop_event.set()
+        _rt_push_event(session, {"type": "error", "message": str(exc)})
+        with session.pending_cond:
+            session.pending_cond.notify_all()
+
+
+async def _rt_openai_xai_session_async(session):
+    model_key = session.model_key
+    if session.provider == "xai":
+        model_key = XAI_STS_MODEL_ALIASES.get(model_key, model_key)
+        url = f"wss://{_XAI_API_HOST}/v1/realtime?model={model_key}"
+        headers = {"Authorization": f"Bearer {session.api_key}"}
+    else:
+        if model_key == "gpt-realtime-translate":
+            url = f"wss://api.openai.com/v1/realtime/translations?model={model_key}"
+        else:
+            url = f"wss://api.openai.com/v1/realtime?model={model_key}"
+        headers = {
+            "Authorization": f"Bearer {session.api_key}",
+            "OpenAI-Beta": "realtime=v1",
+        }
+
+    async with websockets.connect(url, additional_headers=headers, max_size=None) as ws:
+        session.ws = ws
+        voice = session.params.get("voice") or ("alloy" if session.provider == "openai" else "Ara")
+        audio_cfg = {
+            "input": {"format": {"type": "audio/pcm", "rate": session.rate_in}},
+            "output": {"format": {"type": "audio/pcm", "rate": session.rate_out}},
+        }
+        if session.provider == "xai":
+            # xAI is OpenAI-Realtime compatible but uses a top-level turn_detection.
+            sess = {
+                "voice": voice,
+                "turn_detection": {"type": "server_vad"},
+                "audio": audio_cfg,
+            }
+        else:
+            sess = {
+                "type": "realtime",
+                "model": model_key,
+                "output_modalities": ["audio"],
+                "voice": voice,
+                "audio": audio_cfg,
+            }
+            sess["audio"]["input"]["turn_detection"] = {"type": "server_vad"}
+            speed = session.params.get("speed")
+            if speed is not None:
+                sess["speed"] = speed
+        await ws.send(json.dumps({"type": "session.update", "session": sess}))
+
+        # Wait for the session to be ready before streaming audio.
+        while True:
+            raw = await asyncio.wait_for(ws.recv(), timeout=30)
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8", "replace")
+            msg = json.loads(raw)
+            if msg.get("type") == "session.updated":
+                session.status = "ready"
+                _rt_push_event(session, {"type": "status", "status": "ready"})
+                break
+            if msg.get("type") == "error":
+                raise RuntimeError(str(msg.get("error") or "Session setup failed"))
+
+        recv_task = asyncio.ensure_future(_rt_openai_xai_receive_loop(session, ws))
+        send_task = asyncio.ensure_future(_rt_openai_xai_send_loop(session, ws))
+        while not session.stop_event.is_set():
+            if time.time() - session.started_at > RT_MAX_SESSION_SECONDS:
+                session.error = "最大セッション時間（15分）に達したため自動停止しました。"
+                session.status = "stopped"
+                session.stop_event.set()
+                break
+            if recv_task.done():
+                break
+            await asyncio.sleep(0.05)
+        recv_task.cancel()
+        send_task.cancel()
+        try:
+            await recv_task
+        except Exception:
+            pass
+        try:
+            await send_task
+        except Exception:
+            pass
+
+
+async def _rt_gemini_send_loop(session, ws):
+    while not session.stop_event.is_set():
+        try:
+            item = session.audio_in.get_nowait()
+        except _queue.Empty:
+            item = None
+        if item is None:
+            await asyncio.sleep(0.02)
+            continue
+        kind = item[0]
+        if kind == "audio":
+            data = item[1]
+            if not data:
+                continue
+            try:
+                await ws.send(json.dumps({
+                    "realtimeInput": {
+                        "audio": {
+                            "data": base64.b64encode(data).decode("ascii"),
+                            "mimeType": f"audio/pcm;rate={session.rate_in}",
+                        }
+                    }
+                }))
+            except Exception as exc:
+                logger.error(f"Realtime STS Gemini send error: {exc}")
+
+
+async def _rt_gemini_receive_loop(session, ws):
+    try:
+        while True:
+            raw = await ws.recv()
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8", "replace")
+            msg = json.loads(raw)
+            if msg.get("setupComplete") is not None:
+                session.status = "ready"
+                _rt_push_event(session, {"type": "status", "status": "ready"})
+            sc = msg.get("serverContent")
+            if sc is not None:
+                model_turn = sc.get("modelTurn")
+                if model_turn:
+                    for part in model_turn.get("parts") or []:
+                        inline = part.get("inlineData") or {}
+                        audio_b64 = inline.get("data")
+                        if audio_b64:
+                            try:
+                                binary = base64.b64decode(audio_b64)
+                            except Exception:
+                                binary = b""
+                            if binary:
+                                with session.assistant_lock:
+                                    if len(session.assistant_audio) + len(binary) <= RT_PCM_CAP:
+                                        session.assistant_audio += binary
+                                _rt_push_event(session, {"type": "audio", "data": audio_b64})
+                        text = part.get("text")
+                        if text:
+                            if part.get("thought"):
+                                session.assistant_thought += text
+                                _rt_push_event(session, {"type": "transcript", "role": "thought", "delta": text})
+                            else:
+                                session.assistant_transcript += text
+                                _rt_push_event(session, {"type": "transcript", "role": "assistant", "delta": text})
+                out_tr = sc.get("outputTranscription") or {}
+                if out_tr.get("text"):
+                    text = out_tr["text"]
+                    session.assistant_transcript += text
+                    _rt_push_event(session, {"type": "transcript", "role": "assistant", "delta": text})
+                in_tr = sc.get("inputTranscription") or {}
+                if in_tr.get("text"):
+                    text = in_tr["text"]
+                    session.user_transcript += text
+                    _rt_push_event(session, {"type": "transcript", "role": "user", "delta": text})
+                if sc.get("interrupted"):
+                    _rt_push_event(session, {"type": "interrupted"})
+                if sc.get("turnComplete"):
+                    session.turn_count += 1
+                    _rt_push_event(session, {"type": "turn_complete"})
+            if msg.get("error"):
+                raise RuntimeError(str(msg.get("error")))
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        session.error = str(exc)
+        session.status = "error"
+        session.stop_event.set()
+        _rt_push_event(session, {"type": "error", "message": str(exc)})
+        with session.pending_cond:
+            session.pending_cond.notify_all()
+
+
+async def _rt_gemini_session_async(session):
+    ws_url = (
+        "wss://generativelanguage.googleapis.com/ws/"
+        "google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+        f"?key={quote(session.api_key, safe='')}"
+    )
+    async with websockets.connect(ws_url, max_size=None) as ws:
+        session.ws = ws
+        setup = {
+            "setup": {
+                "model": f"models/{session.model_key}",
+                "generationConfig": {"responseModalities": ["AUDIO"]},
+                "inputAudioTranscription": {},
+                "outputAudioTranscription": {},
+            }
+        }
+        voice = session.params.get("voice")
+        if voice and voice in GEMINI_STS_VOICES:
+            setup["setup"]["generationConfig"]["speechConfig"] = {
+                "voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}
+            }
+        thinking_level = session.params.get("thinking_level")
+        if thinking_level:
+            setup["setup"]["generationConfig"]["thinkingConfig"] = {
+                "thinkingLevel": thinking_level,
+                "includeThoughts": bool(session.params.get("include_thoughts")),
+            }
+        await ws.send(json.dumps(setup))
+        while True:
+            raw = await asyncio.wait_for(ws.recv(), timeout=30)
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8", "replace")
+            msg = json.loads(raw)
+            if msg.get("setupComplete") is not None:
+                session.status = "ready"
+                _rt_push_event(session, {"type": "status", "status": "ready"})
+                break
+            if msg.get("error"):
+                raise RuntimeError(str(msg.get("error")))
+
+        recv_task = asyncio.ensure_future(_rt_gemini_receive_loop(session, ws))
+        send_task = asyncio.ensure_future(_rt_gemini_send_loop(session, ws))
+        while not session.stop_event.is_set():
+            if time.time() - session.started_at > RT_MAX_SESSION_SECONDS:
+                session.error = "最大セッション時間（15分）に達したため自動停止しました。"
+                session.status = "stopped"
+                session.stop_event.set()
+                break
+            if recv_task.done():
+                break
+            await asyncio.sleep(0.05)
+        recv_task.cancel()
+        send_task.cancel()
+        try:
+            await recv_task
+        except Exception:
+            pass
+        try:
+            await send_task
+        except Exception:
+            pass
+
+
+def _rt_worker(session):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    session.loop = loop
+    try:
+        if session.provider == "google":
+            loop.run_until_complete(_rt_gemini_session_async(session))
+        else:
+            loop.run_until_complete(_rt_openai_xai_session_async(session))
+    except asyncio.CancelledError:
+        pass
+    except Exception as exc:
+        session.error = str(exc)
+        session.status = "error"
+        _rt_push_event(session, {"type": "error", "message": str(exc)})
+        logger.exception("Realtime STS session error")
+    finally:
+        if session.status not in ("error", "stopped", "paused"):
+            session.status = "closed"
+        session.stop_event.set()
+        with session.pending_cond:
+            session.pending_cond.notify_all()
+        try:
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        except Exception:
+            pass
+        loop.close()
+
+
+def _rt_resolve_api_key(current_user_obj, model_key, provider):
+    model_specific_key = _get_model_specific_api_key(current_user_obj, model_key)
+    if provider == "google":
+        runtime = _resolve_gemini_runtime(current_user_obj)
+        return (model_specific_key or runtime.get("api_key")), None
+    if provider == "openai":
+        key = model_specific_key or decrypt_val(current_user_obj.openai_api_key)
+        if not key and _admin_env_fallback_enabled(current_user_obj):
+            key = os.getenv("OPENAI_API_KEY")
+        return key, None
+    if provider == "xai":
+        key = model_specific_key or decrypt_val(current_user_obj.xai_api_key)
+        if not key and _admin_env_fallback_enabled(current_user_obj):
+            key = os.getenv("XAI_API_KEY")
+        return key, None
+    return None, None
 
 async def _google_sts_live(
     pcm_bytes,
@@ -15972,6 +16471,239 @@ def gemini_music_save():
 
     with LYRIA_SESSIONS_LOCK:
         LYRIA_SESSIONS.pop(session.session_id, None)
+    return jsonify({'status': 'ok', 'audio_url': audio_url, 'thread_id': str(thread_id)})
+
+
+# -----------------------------------------------------------------------------
+# True real-time STS session API (OpenAI Realtime / Grok Voice / Gemini native-audio)
+# -----------------------------------------------------------------------------
+@app.route('/api/realtime/start', methods=['POST'])
+@login_required
+def realtime_start():
+    _rt_purge_old_sessions()
+    data = request.get_json(silent=True) or {}
+    model_key = (data.get('model') or "").strip()
+    if not _rt_is_conversation_model(model_key):
+        return jsonify({'error': 'このモデルはリアルタイム会話セッションに対応していません'}), 400
+    model_key = XAI_STS_MODEL_ALIASES.get(model_key, model_key)
+    provider = get_sts_provider(model_key)
+
+    key, _ = _rt_resolve_api_key(current_user, model_key, provider)
+    if not key:
+        labels = {"google": "Gemini", "openai": "OpenAI", "xai": "xAI"}
+        return jsonify({'error': f'{labels.get(provider, "API")} API Key not configured'}), 400
+
+    params = _normalize_rt_params(provider, model_key, data)
+    session_id = f"rt_{int(time.time())}_{secrets.token_hex(4)}"
+    session = RtSession(session_id, current_user.id, model_key, key, params)
+    thread = threading.Thread(target=_rt_worker, args=(session,), daemon=True, name=f"rt-{session_id}")
+    session.thread = thread
+    with RT_SESSIONS_LOCK:
+        RT_SESSIONS[session_id] = session
+    thread.start()
+    return jsonify({
+        'session_id': session_id,
+        'rate_in': session.rate_in,
+        'rate_out': session.rate_out,
+        'provider': provider,
+    })
+
+
+@app.route('/api/realtime/stream')
+@login_required
+def realtime_stream():
+    session = _rt_get_session(request.args.get('session_id'))
+    if not session:
+        return jsonify({'error': 'Session not found'}), 404
+
+    def generate():
+        try:
+            with session.pending_cond:
+                pending = list(session.pending)
+                session.pending.clear()
+            if pending:
+                for ev in pending:
+                    yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+            else:
+                yield f"data: {json.dumps({'type': 'status', 'status': session.status}, ensure_ascii=False)}\n\n"
+            while True:
+                with session.pending_cond:
+                    while not session.pending and not session.stop_event.is_set() and session.status != "error":
+                        session.pending_cond.wait(timeout=1.0)
+                    events = list(session.pending)
+                    session.pending.clear()
+                for ev in events:
+                    yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+                if session.status == "error":
+                    yield f"data: {json.dumps({'type': 'error', 'message': session.error or 'Unknown error'}, ensure_ascii=False)}\n\n"
+                    break
+                if session.stop_event.is_set() and not session.pending:
+                    yield f"data: {json.dumps({'type': 'final', 'status': session.status}, ensure_ascii=False)}\n\n"
+                    break
+        except GeneratorExit:
+            pass
+        except Exception:
+            logger.exception("Realtime STS stream error")
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+    )
+
+
+@app.route('/api/realtime/audio', methods=['POST'])
+@login_required
+def realtime_audio():
+    session = _rt_get_session(request.args.get('session_id'))
+    if not session:
+        return jsonify({'error': 'Session not found'}), 404
+    if session.status in ("closed", "error", "stopped"):
+        return jsonify({'error': 'セッションは終了しています'}), 400
+    data = request.get_data(cache=False)
+    if not data or len(data) > RT_AUDIO_POST_MAX:
+        return jsonify({'error': 'Invalid audio payload'}), 400
+    with session.user_lock:
+        if len(session.user_audio) + len(data) <= RT_PCM_CAP:
+            session.user_audio += data
+    session.audio_in.put(("audio", data))
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/api/realtime/commit', methods=['POST'])
+@login_required
+def realtime_commit():
+    data = request.get_json(silent=True) or {}
+    session = _rt_get_session(data.get('session_id'))
+    if not session:
+        return jsonify({'error': 'Session not found'}), 404
+    if session.status in ("closed", "error", "stopped"):
+        return jsonify({'error': 'セッションは終了しています'}), 400
+    session.audio_in.put(("commit",))
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/api/realtime/cancel', methods=['POST'])
+@login_required
+def realtime_cancel():
+    data = request.get_json(silent=True) or {}
+    session = _rt_get_session(data.get('session_id'))
+    if not session:
+        return jsonify({'error': 'Session not found'}), 404
+    session.stop_event.set()
+    if session.thread:
+        session.thread.join(timeout=3)
+    with RT_SESSIONS_LOCK:
+        RT_SESSIONS.pop(session.session_id, None)
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/api/realtime/save', methods=['POST'])
+@login_required
+def realtime_save():
+    data = request.get_json(silent=True) or {}
+    session = _rt_get_session(data.get('session_id'))
+    if not session:
+        return jsonify({'error': 'Session not found'}), 404
+
+    session.stop_event.set()
+    if session.thread:
+        session.thread.join(timeout=6)
+
+    with session.assistant_lock:
+        assistant_pcm = bytes(session.assistant_audio)
+    with session.user_lock:
+        user_pcm = bytes(session.user_audio)
+
+    audio_url = None
+    in_fname = None
+    try:
+        if len(assistant_pcm) >= 1024:
+            wav_bytes = _pcm_to_wav_bytes(assistant_pcm, rate=session.rate_out)
+            out_fname, _ = _save_user_audio(current_user.id, wav_bytes, ".wav", current_user.enable_e2ee)
+            audio_url = f"/files/{current_user.id}/{out_fname}"
+        if len(user_pcm) >= 1024:
+            u_wav = _pcm_to_wav_bytes(user_pcm, rate=session.rate_in)
+            in_fname, _ = _save_user_audio(current_user.id, u_wav, ".wav", current_user.enable_e2ee)
+    except Exception as exc:
+        logger.exception("Realtime STS audio save error")
+
+    user_text = (session.user_transcript or "音声メッセージ").strip()
+    assistant_text = (session.assistant_transcript or "").strip()
+    assistant_thought = (session.assistant_thought or "").strip()
+
+    # Nothing was captured — drop the empty session without saving a message.
+    if (not assistant_pcm and not user_pcm
+            and not user_text.strip() and not assistant_text.strip()):
+        with RT_SESSIONS_LOCK:
+            RT_SESSIONS.pop(session.session_id, None)
+        return jsonify({'status': 'empty'})
+
+    thread_id = data.get('thread_id')
+    t = resolve_thread_for_user(thread_id, current_user.id) if thread_id else None
+    if not t:
+        t = Thread(
+            user_id=current_user.id,
+            public_id=generate_thread_public_id(),
+            is_temporary=True,
+        )
+        db.session.add(t)
+        safe_db_commit()
+        thread_id = t.id
+    else:
+        thread_id = t.id
+
+    thought_tag = f"<thought>\n{assistant_thought}\n</thought>\n" if assistant_thought else ""
+    audio_tag = f'\n<audio controls src="{audio_url}" class="w-full mt-2"></audio>\n' if audio_url else ""
+    assistant_content = thought_tag + (assistant_text + "\n" if assistant_text else "") + audio_tag
+
+    try:
+        u_content = encrypt_val(user_text) if current_user.enable_e2ee else user_text
+        a_content = encrypt_val(assistant_content) if current_user.enable_e2ee else assistant_content
+        user_tokens_in = count_tokens_for_display(user_text, session.model_key)
+        assistant_tokens_out = count_tokens_for_display(assistant_text, session.model_key)
+        if assistant_thought:
+            assistant_tokens_out += count_tokens_for_display(assistant_thought, session.model_key)
+
+        parent_id = None
+        last_msg = Message.query.filter_by(thread_id=thread_id).order_by(Message.id.desc()).first()
+        if last_msg:
+            parent_id = last_msg.id
+
+        user_msg = Message(
+            thread_id=thread_id,
+            role='user',
+            content=u_content,
+            image_url=json.dumps([f"{current_user.id}/{in_fname}"]) if in_fname else None,
+            is_encrypted=current_user.enable_e2ee,
+            parent_id=parent_id,
+            model=session.model_key,
+            tokens_in=user_tokens_in,
+            tokens=sum_token_counts(user_tokens_in, None),
+        )
+        db.session.add(user_msg)
+        safe_db_commit()
+
+        assistant_msg = Message(
+            thread_id=thread_id,
+            role='assistant',
+            content=a_content,
+            model=session.model_key,
+            is_encrypted=current_user.enable_e2ee,
+            parent_id=user_msg.id,
+            tokens_out=assistant_tokens_out,
+            tokens=sum_token_counts(None, assistant_tokens_out),
+        )
+        db.session.add(assistant_msg)
+        safe_db_commit()
+    except Exception as exc:
+        logger.exception("Realtime STS message save error")
+        with RT_SESSIONS_LOCK:
+            RT_SESSIONS.pop(session.session_id, None)
+        return jsonify({'error': f'メッセージ保存に失敗しました: {exc}', 'audio_url': audio_url}), 500
+
+    with RT_SESSIONS_LOCK:
+        RT_SESSIONS.pop(session.session_id, None)
     return jsonify({'status': 'ok', 'audio_url': audio_url, 'thread_id': str(thread_id)})
 
 

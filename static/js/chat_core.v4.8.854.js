@@ -7603,6 +7603,16 @@
             return m === 'gemini-3.1-flash-live-preview' || m === 'gemini-3.5-live-translate-preview';
         };
         const isGeminiLiveTranslateModel = () => get('model-select').value === 'gemini-3.5-live-translate-preview';
+        // True real-time server-session STS models: OpenAI Realtime conversation
+        // models, Grok Voice, and Gemini native-audio. Gemini Live models stream
+        // browser-direct, transcription models stay one-shot.
+        const isRealtimeSessionModel = () => {
+            if (!isStsModel()) return false;
+            if (isGeminiLiveModel()) return false;
+            if (isTranscriptionModel()) return false;
+            if (get('model-select') && get('model-select').value === 'gpt-realtime-whisper') return false;
+            return true;
+        };
         const getStsProvider = (model) => {
             const m = (model || '').toLowerCase();
             if (m.includes('gpt-realtime') || m === 'gpt-transcribe' || m === 'gpt-live-transcribe') return 'openai';
@@ -12134,6 +12144,404 @@
             }
 
             // ===========================================================================
+            // RealtimeVoiceSession — true real-time STS over a server-held session.
+            // The server keeps the provider WebSocket open; this controller streams
+            // microphone PCM to the server via HTTP, consumes audio/transcripts over
+            // SSE, and plays responses while the user keeps talking (server VAD or
+            // Gemini's natural turn handling drives turn-taking).
+            // ===========================================================================
+            class RealtimeVoiceSession {
+                constructor() {
+                    this.active = false;
+                    this.capturing = false;
+                    this.sessionId = null;
+                    this.abortCtrl = null;
+                    this.reader = null;
+                    this.audioCtx = null;
+                    this.processor = null;
+                    this.stream = null;
+                    this.rtPlayer = null;
+                    this.rateIn = 24000;
+                    this.rateOut = 24000;
+                    this.userTranscript = '';
+                    this.assistantTranscript = '';
+                    this.assistantThought = '';
+                    this.speechActive = false;
+                    this.responseDoneCount = 0;
+                    this.lastAudioAt = 0;
+                    this.streamError = null;
+                    this.saved = false;
+                    this.saving = false;
+                    this.stopping = false;
+                }
+
+                isActive() {
+                    return this.active;
+                }
+
+                async start() {
+                    if (this.active) return;
+                    if (this.saving || this.stopping) {
+                        showToast('前の会話を処理中です。しばらくお待ちください。', 'warning', true);
+                        return;
+                    }
+                    const model = get('model-select') ? get('model-select').value : '';
+                    if (!isRealtimeSessionModel()) {
+                        showToast('このモデルはリアルタイム会話に対応していません', 'warning', true);
+                        return;
+                    }
+                    if (!currentThreadId) {
+                        try {
+                            const r = await apiFetch(CHAT_CONFIG.urls.handleThreads, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ is_temporary: temporaryChatEnabled })
+                            });
+                            const d = await r.json();
+                            currentThreadId = d.id !== null && d.id !== undefined ? String(d.id) : d.id;
+                            setTemporaryChatUiState(!!(d && d.is_temporary));
+                            setCurrentChatHeaderTitle(d && d.title);
+                            applyTemporaryChatRuntimeMeta(d || {});
+                            ensureTemporaryChatHeartbeat(true);
+                            history.pushState({}, '', '/c/' + d.id);
+                            get('welcome-screen').classList.add('hidden');
+                        } catch (e) {
+                            showToast('スレッドの作成に失敗しました: ' + e.message, 'error', true);
+                            return;
+                        }
+                    }
+                    const payload = {
+                        model,
+                        thread_id: currentThreadId,
+                        voice: get('sts-voice') ? get('sts-voice').value : '',
+                        speed: get('sts-speed') ? get('sts-speed').value : '',
+                        rate_in: get('sts-rate-in') ? get('sts-rate-in').value : '',
+                        rate_out: get('sts-rate-out') ? get('sts-rate-out').value : '',
+                        thinking_level: get('sts-thinking-level') ? get('sts-thinking-level').value : '',
+                        include_thoughts: get('sts-include-thoughts') ? get('sts-include-thoughts').checked : false,
+                        target_lang: (isGeminiLiveTranslateModel() && get('sts-target-lang')) ? get('sts-target-lang').value : ''
+                    };
+                    setStsStatus('接続中...', true);
+                    try {
+                        const resp = await apiFetch('/api/realtime/start', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        const data = await resp.json().catch(() => ({}));
+                        if (!resp.ok) throw new Error(data.error || 'セッション開始に失敗しました');
+                        this.sessionId = data.session_id;
+                        this.rateIn = data.rate_in || this.rateIn;
+                        this.rateOut = data.rate_out || this.rateOut;
+                        this.active = true;
+                        this.capturing = true;
+                        this.saved = false;
+                        this.userTranscript = '';
+                        this.assistantTranscript = '';
+                        this.assistantThought = '';
+                        this.responseDoneCount = 0;
+                        this.lastAudioAt = 0;
+                        this.streamError = null;
+                        this.rtPlayer = null;
+                    } catch (e) {
+                        setStsStatus('接続エラー', false);
+                        showToast('リアルタイムセッションを開始できませんでした: ' + e.message, 'error', true);
+                        return;
+                    }
+
+                    // Open the SSE stream first so audio events are not missed.
+                    this.abortCtrl = new AbortController();
+                    this._openStream();
+
+                    // Start mic capture and stream PCM chunks to the server.
+                    try {
+                        await this._startCapture();
+                    } catch (e) {
+                        setStsStatus('マイクエラー', false);
+                        showToast('マイクを利用できません: ' + e.message, 'error', true);
+                        this._cancel();
+                        return;
+                    }
+
+                    get('mic-btn').classList.remove('bg-gray-700');
+                    get('mic-btn').classList.add('bg-red-600', 'animate-pulse');
+                    setStsStatus('話してください...', true);
+                }
+
+                _openStream() {
+                    const url = '/api/realtime/stream?session_id=' + encodeURIComponent(this.sessionId);
+                    const opts = window.ProgressSpinner && typeof window.ProgressSpinner.manualRequestOptions === 'function'
+                        ? window.ProgressSpinner.manualRequestOptions({ credentials: 'include', signal: this.abortCtrl.signal })
+                        : { credentials: 'include', signal: this.abortCtrl.signal };
+                    fetch(url, opts).then((resp) => {
+                        if (!resp.ok) throw new Error('SSE stream failed (' + resp.status + ')');
+                        this.reader = resp.body.getReader();
+                        this._readLoop();
+                    }).catch((e) => {
+                        if (e && e.name === 'AbortError') return;
+                        this.streamError = e && e.message ? e.message : 'ストリームエラー';
+                        if (this.active) {
+                            setStsStatus('ストリームエラー', false);
+                            showToast('リアルタイム接続が切断されました', 'error', true);
+                        }
+                    });
+                }
+
+                async _readLoop() {
+                    const decoder = new TextDecoder();
+                    let buf = '';
+                    try {
+                        while (this.reader) {
+                            const { done, value } = await this.reader.read();
+                            if (done) break;
+                            buf += decoder.decode(value, { stream: true });
+                            let idx;
+                            while ((idx = buf.indexOf('\n\n')) >= 0) {
+                                const chunk = buf.slice(0, idx);
+                                buf = buf.slice(idx + 2);
+                                for (const line of chunk.split('\n')) {
+                                    if (!line.startsWith('data: ')) continue;
+                                    let ev = null;
+                                    try { ev = JSON.parse(line.slice(6)); } catch (e) { continue; }
+                                    this._handleEvent(ev);
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        if (e && e.name === 'AbortError') return;
+                        if (this.active) {
+                            this.streamError = e && e.message ? e.message : 'ストリームエラー';
+                        }
+                    } finally {
+                        this.reader = null;
+                    }
+                }
+
+                _handleEvent(ev) {
+                    if (!ev) return;
+                    switch (ev.type) {
+                        case 'audio':
+                            this.lastAudioAt = Date.now();
+                            if (stsOpt('sts-auto-play')) {
+                                if (!this.rtPlayer) {
+                                    this.rtPlayer = new RealTimeAudioPlayer(this.rateOut || 24000);
+                                    currentRtPlayer = this.rtPlayer;
+                                }
+                                setStsStatus('再生中...', true);
+                                this.rtPlayer.addChunk(ev.data);
+                            }
+                            break;
+                        case 'transcript':
+                            if (ev.role === 'user') {
+                                if (ev.cumulative) {
+                                    this.userTranscript = ev.delta;
+                                } else {
+                                    this.userTranscript += ev.delta;
+                                }
+                                if (window.VoiceStudio) window.VoiceStudio.log('user', this.userTranscript);
+                            } else if (ev.role === 'assistant') {
+                                this.assistantTranscript += ev.delta;
+                                if (window.VoiceStudio) window.VoiceStudio.log('assistant', this.assistantTranscript);
+                            } else if (ev.role === 'thought') {
+                                this.assistantThought += ev.delta;
+                            }
+                            break;
+                        case 'speech_started':
+                            this.speechActive = true;
+                            this._stopPlayback();
+                            setStsStatus('聞き取り中...', true);
+                            break;
+                        case 'speech_stopped':
+                            this.speechActive = false;
+                            setStsStatus('応答待ち...', true);
+                            break;
+                        case 'interrupted':
+                            this._stopPlayback();
+                            break;
+                        case 'response_done':
+                        case 'turn_complete':
+                            this.responseDoneCount += 1;
+                            break;
+                        case 'status':
+                            if (ev.status === 'ready' && this.active) setStsStatus('話してください...', true);
+                            break;
+                        case 'error':
+                            this.streamError = ev.message || 'リアルタイムエラー';
+                            setStsStatus('エラー', false);
+                            break;
+                        case 'final':
+                            if (this.active && !this.saved) {
+                                // The worker stopped; close out cleanly.
+                                this._save();
+                            }
+                            break;
+                    }
+                }
+
+                _stopPlayback() {
+                    if (this.rtPlayer) {
+                        try { this.rtPlayer.stop(); } catch (e) {}
+                        this.rtPlayer = null;
+                    }
+                    currentRtPlayer = null;
+                }
+
+                _startCapture() {
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    if (!AC) throw new Error('AudioContext not supported');
+                    this.audioCtx = new AC({ sampleRate: this.rateIn || 24000 });
+                    return navigator.mediaDevices.getUserMedia(getMicCaptureConstraints()).then((stream) => {
+                        this.stream = stream;
+                        const source = this.audioCtx.createMediaStreamSource(stream);
+                        const targetRate = this.rateIn || 24000;
+                        const ctxRate = this.audioCtx.sampleRate;
+                        const bufSize = 4096;
+                        this.processor = this.audioCtx.createScriptProcessor(bufSize, 1, 1);
+                        this.processor.onaudioprocess = (e) => {
+                            if (!this.active || !this.capturing) return;
+                            const input = e.inputBuffer.getChannelData(0);
+                            const pcm = pcm16FromFloat32(input, ctxRate, targetRate);
+                            if (!pcm || !pcm.byteLength) return;
+                            this._sendAudio(pcm);
+                        };
+                        source.connect(this.processor);
+                        this.processor.connect(this.audioCtx.destination);
+                    });
+                }
+
+                _sendAudio(pcmBytes) {
+                    if (!this.sessionId || !this.active) return;
+                    const url = '/api/realtime/audio?session_id=' + encodeURIComponent(this.sessionId);
+                    const opts = {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/octet-stream' },
+                        body: pcmBytes
+                    };
+                    const finalOpts = window.ProgressSpinner && typeof window.ProgressSpinner.manualRequestOptions === 'function'
+                        ? window.ProgressSpinner.manualRequestOptions(opts)
+                        : opts;
+                    fetch(url, finalOpts).catch(() => {});
+                }
+
+                _stopCapture() {
+                    this.capturing = false;
+                    if (this.processor) { try { this.processor.disconnect(); } catch (e) {} this.processor = null; }
+                    if (this.stream) { try { this.stream.getTracks().forEach((t) => t.stop()); } catch (e) {} this.stream = null; }
+                    if (this.audioCtx) { try { this.audioCtx.close(); } catch (e) {} this.audioCtx = null; }
+                    stopSilenceMonitor();
+                    stopMicWaveform();
+                }
+
+                async stop() {
+                    if (!this.active) return;
+                    this.active = false;
+                    this.stopping = true;
+                    this._stopCapture();
+                    setStsStatus('応答を待っています...', true);
+                    // Finalize any trailing audio so the last turn is included.
+                    try {
+                        await apiFetch('/api/realtime/commit', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ session_id: this.sessionId })
+                        });
+                    } catch (e) {}
+                    // Wait for the final response (or a quiet timeout) before saving.
+                    const startedAt = Date.now();
+                    const beforeCount = this.responseDoneCount;
+                    let lastActivity = this.lastAudioAt;
+                    while (Date.now() - startedAt < 20000) {
+                        if (this.responseDoneCount > beforeCount) break;
+                        if (this.lastAudioAt > lastActivity) lastActivity = this.lastAudioAt;
+                        if (!this.speechActive && Date.now() - startedAt > 2000 && Date.now() - lastActivity > 2500) break;
+                        await new Promise((r) => setTimeout(r, 250));
+                    }
+                    await this._save();
+                }
+
+                async _save() {
+                    if (this.saved) return;
+                    this.saved = true;
+                    this.saving = true;
+                    try {
+                        const resp = await apiFetch('/api/realtime/save', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ session_id: this.sessionId, thread_id: currentThreadId })
+                        });
+                        const data = await resp.json().catch(() => ({}));
+                        if (!resp.ok) throw new Error(data.error || '保存に失敗しました');
+                        if (this.streamError) {
+                            setStsStatus('エラー', false);
+                            showToast('リアルタイム会話でエラーが発生しました: ' + this.streamError, 'error', true);
+                        } else {
+                            setStsStatus('保存しました', false);
+                            setTimeout(() => setStsStatus('Tap to speak', false), 1200);
+                            try { await loadMessages(currentThreadId); } catch (e) {}
+                        }
+                    } catch (e) {
+                        setStsStatus('保存エラー', false);
+                        showToast('音声会話の保存に失敗しました: ' + (e && e.message ? e.message : e), 'error', true);
+                    } finally {
+                        this.saving = false;
+                        this.stopping = false;
+                        this._cleanup();
+                    }
+                }
+
+                _cancel() {
+                    if (this.sessionId) {
+                        apiFetch('/api/realtime/cancel', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ session_id: this.sessionId })
+                        }).catch(() => {});
+                    }
+                    this._cleanup();
+                    setStsStatus('Canceled', false);
+                    setTimeout(() => setStsStatus('Tap to speak', false), 800);
+                }
+
+                _cleanup() {
+                    this.active = false;
+                    this.capturing = false;
+                    this.stopping = false;
+                    this._stopCapture();
+                    this._stopPlayback();
+                    if (this.abortCtrl) { try { this.abortCtrl.abort(); } catch (e) {} this.abortCtrl = null; }
+                    this.reader = null;
+                    this.sessionId = null;
+                    const micBtn = get('mic-btn');
+                    if (micBtn) {
+                        micBtn.classList.remove('bg-red-600', 'animate-pulse');
+                        micBtn.classList.add('bg-gray-700');
+                    }
+                }
+            }
+
+            function pcm16FromFloat32(input, ctxRate, targetRate) {
+                let data = input;
+                if (ctxRate !== targetRate && ctxRate > 0 && targetRate > 0) {
+                    const ratio = ctxRate / targetRate;
+                    const outLen = Math.floor(data.length / ratio);
+                    const down = new Float32Array(outLen);
+                    for (let i = 0; i < outLen; i++) {
+                        down[i] = data[Math.min(Math.floor(i * ratio), data.length - 1)];
+                    }
+                    data = down;
+                }
+                const pcm = new Int16Array(data.length);
+                for (let i = 0; i < data.length; i++) {
+                    const s = Math.max(-1, Math.min(1, data[i]));
+                    pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                }
+                return pcm.buffer;
+            }
+
+            const rtVoiceSession = new RealtimeVoiceSession();
+
+            // ===========================================================================
             // Lyria RealTime Studio (lyria-realtime-exp) — dedicated realtime music UI
             // ===========================================================================
             const LyriaRealtimeStudio = (() => {
@@ -12819,7 +13227,7 @@
                 }
 
                 function close() {
-                    if (window.VoiceStudioOpen && (currentGeminiLive || (mediaRecorder && mediaRecorder.state === 'recording'))) {
+                    if (window.VoiceStudioOpen && (currentGeminiLive || (mediaRecorder && mediaRecorder.state === 'recording') || rtVoiceSession.isActive())) {
                         cancelRecording();
                     }
                     window.VoiceStudioOpen = false;
@@ -12876,6 +13284,10 @@
                 });
             }
             function cancelRecording() {
+                if (rtVoiceSession.isActive()) {
+                    rtVoiceSession._cancel();
+                    return;
+                }
                 if (currentGeminiLive) {
                     currentGeminiLive.stop();
                     currentGeminiLive = null;
@@ -12953,6 +13365,12 @@
                         console.error("Failed to save Gemini Live session:", e);
                         setStsStatus('Error saving', false);
                     }
+                    return;
+                }
+                if (rtVoiceSession.isActive()) {
+                    get('mic-btn').classList.remove('bg-red-600', 'animate-pulse');
+                    get('mic-btn').classList.add('bg-gray-700');
+                    rtVoiceSession.stop();
                     return;
                 }
                 if (mediaRecorder && mediaRecorder.state === "recording") {
@@ -13073,6 +13491,11 @@
                             setStsStatus('Error', false);
                             return;
                         }
+                    }
+
+                    if (isRealtimeSessionModel()) {
+                        await rtVoiceSession.start();
+                        return;
                     }
 
                     if (!isStsModel()) {

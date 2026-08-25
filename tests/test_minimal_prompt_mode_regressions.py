@@ -109,6 +109,45 @@ class MinimalPromptModeRegressionTests(unittest.TestCase):
         self.assertIn(".thinking-slide-inner", css)
         self.assertIn(".thinking-slide-open", css)
 
+    def test_thinking_row_works_when_checkbox_disabled(self):
+        # Gemini 3.x forces thinking on and disables the checkbox, so the
+        # Thinking row must not be treated as disabled: tapping it opens the
+        # level slider.
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        self.assertIn("if (item.special === 'thinking') {", script)
+        self.assertIn("// Thinking needs special handling", script)
+        # minimalOptionDisabled must exempt the thinking row from the plain
+        # checkbox-disabled rule.
+        self.assertIn(
+            "if (item.special === 'thinking') {",
+            script,
+        )
+        self.assertIn("forced on for the current model", script)
+        # handleMinimalOptionClick runs the thinking branch before the generic
+        # disabled early-return, and opens the slider even when the checkbox is
+        # disabled.
+        self.assertIn("chk && !chk.disabled", script)
+        self.assertIn("closeMinimalOptions();\n                        showThinkingSlider();", script)
+
+    def test_popup_supports_swipe_down_to_close(self):
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        self.assertIn("popupSwipeStartY", script)
+        self.assertIn("popupSwipeDragging", script)
+        self.assertIn("popupSwipeAtTop", script)
+        self.assertIn("minimal-options-panel", script)
+        # Swipe down past the threshold closes the popup.
+        self.assertIn("if (popupSwipeAtTop && dy > 70) closeMinimalOptions();", script)
+        # Drag must not be animated by the open transition.
+        css = _current_asset("css", "chat.custom.v4.8.*.css")
+        self.assertIn("#minimal-options-panel.dragging", css)
+
+    def test_popup_swipe_respects_scrolled_lists(self):
+        # Swiping down inside a scrolled options/model list must scroll the list
+        # instead of closing the popup, so the swipe handler checks scrollTop.
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        self.assertIn("node.scrollTop > 0", script)
+        self.assertIn("popupPanel.classList.add('dragging')", script)
+
 
 if __name__ == "__main__":
     unittest.main()

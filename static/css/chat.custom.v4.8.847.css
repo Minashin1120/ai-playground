@@ -5200,6 +5200,9 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
     transform: translateY(0);
     opacity: 1;
 }
+#minimal-options-panel.dragging {
+    transition: opacity 0.25s var(--ease-standard);
+}
 .minimal-options-header {
     display: flex;
     align-items: center;

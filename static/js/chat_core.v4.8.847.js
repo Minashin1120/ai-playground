@@ -4371,6 +4371,9 @@
         let thinkingSliderTimer = null;
         let thinkingSliderStartY = 0;
         let thinkingSliderDragging = false;
+        let popupSwipeStartY = 0;
+        let popupSwipeDragging = false;
+        let popupSwipeAtTop = false;
         const minimalPanelOrigins = new Map();
 
         function minimalOptionVisible(item) {
@@ -4381,6 +4384,13 @@
             return true;
         }
         function minimalOptionDisabled(item) {
+            if (item.special === 'thinking') {
+                // The Thinking row is handled specially: a disabled checkbox only
+                // means thinking is forced on for the current model (e.g. Gemini 3.x),
+                // so the row must stay tappable to open the level slider.
+                const cont = get(item.containerId);
+                return !!(cont && cont.classList.contains('pointer-events-none'));
+            }
             if (item.checkboxId) {
                 const chk = get(item.checkboxId);
                 if (chk && chk.disabled) return true;
@@ -4481,23 +4491,34 @@
         }
 
         function handleMinimalOptionClick(item) {
+            if (item.special === 'thinking') {
+                // Thinking needs special handling: for models where thinking is
+                // forced on (e.g. Gemini 3.x) the checkbox is disabled, but the
+                // row must still open the level slider.
+                const chk = get(item.checkboxId);
+                if (chk && !chk.disabled) {
+                    const turningOn = !chk.checked;
+                    chk.checked = turningOn;
+                    chk.dispatchEvent(new Event('change', { bubbles: true }));
+                    if (turningOn) {
+                        closeMinimalOptions();
+                        showThinkingSlider();
+                    } else {
+                        hideThinkingSlider();
+                    }
+                    refreshMinimalOptionItems();
+                } else {
+                    // Thinking is forced on (or the checkbox is unavailable):
+                    // open the slider so the level can still be adjusted.
+                    closeMinimalOptions();
+                    showThinkingSlider();
+                }
+                return;
+            }
             if (minimalOptionDisabled(item)) return;
             if (item.selectId) return; // select rows change via their own <select>
             const chk = get(item.checkboxId);
             if (!chk) return;
-            if (item.special === 'thinking') {
-                const turningOn = !chk.checked;
-                chk.checked = turningOn;
-                chk.dispatchEvent(new Event('change', { bubbles: true }));
-                if (turningOn) {
-                    closeMinimalOptions();
-                    showThinkingSlider();
-                } else {
-                    hideThinkingSlider();
-                }
-                refreshMinimalOptionItems();
-                return;
-            }
             if (chk.disabled) return;
             chk.checked = !chk.checked;
             chk.dispatchEvent(new Event('change', { bubbles: true }));
@@ -4705,6 +4726,39 @@
                     }
                     if (dy > 60) hideThinkingSlider();
                     else scheduleThinkingSliderHide();
+                }, { passive: true });
+            }
+            // Swipe down on the popup panel to close it (bottom-sheet gesture).
+            const popupPanel = get('minimal-options-panel');
+            if (popupPanel) {
+                popupPanel.addEventListener('touchstart', (e) => {
+                    if (!minimalOptionsOpen) return;
+                    popupSwipeDragging = true;
+                    popupSwipeStartY = e.touches[0].clientY;
+                    let node = e.target instanceof Element ? e.target : null;
+                    let atTop = true;
+                    while (node && node !== popupPanel) {
+                        if (node.scrollTop > 0) { atTop = false; break; }
+                        node = node.parentElement;
+                    }
+                    popupSwipeAtTop = atTop;
+                    if (atTop) popupPanel.classList.add('dragging');
+                }, { passive: true });
+                popupPanel.addEventListener('touchmove', (e) => {
+                    if (!popupSwipeDragging || !popupSwipeAtTop || !minimalOptionsOpen) return;
+                    const dy = e.touches[0].clientY - popupSwipeStartY;
+                    if (dy > 0) {
+                        if (e.cancelable) e.preventDefault();
+                        popupPanel.style.transform = `translateY(${Math.min(dy * 0.6, 140)}px)`;
+                    }
+                }, { passive: false });
+                popupPanel.addEventListener('touchend', (e) => {
+                    if (!popupSwipeDragging) return;
+                    popupSwipeDragging = false;
+                    const dy = e.changedTouches[0].clientY - popupSwipeStartY;
+                    popupPanel.classList.remove('dragging');
+                    popupPanel.style.transform = '';
+                    if (popupSwipeAtTop && dy > 70) closeMinimalOptions();
                 }, { passive: true });
             }
         }

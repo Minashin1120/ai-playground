@@ -4370,10 +4370,14 @@
         let thinkingSliderOpen = false;
         let thinkingSliderTimer = null;
         let thinkingSliderStartY = 0;
+        let thinkingSliderStartX = 0;
         let thinkingSliderDragging = false;
+        let thinkingSliderAxis = null;
         let popupSwipeStartY = 0;
+        let popupSwipeStartX = 0;
         let popupSwipeDragging = false;
         let popupSwipeAtTop = false;
+        let popupSwipeAxis = null;
         const minimalPanelOrigins = new Map();
 
         function minimalOptionVisible(item) {
@@ -4581,6 +4585,13 @@
             moveModelPanelsIntoPopup();
             const popup = get('minimal-options-popup');
             if (!popup) return;
+            // Clear any inline transform/opacity left by a swipe-to-close so a
+            // quick reopen starts from the clean open state.
+            const panel = get('minimal-options-panel');
+            if (panel) {
+                panel.style.transform = '';
+                panel.style.opacity = '';
+            }
             popup.classList.remove('hidden');
             popup.setAttribute('aria-hidden', 'false');
             void popup.offsetWidth;
@@ -4707,15 +4718,34 @@
             if (slideBar) {
                 const slideInner = get('thinking-slide-inner');
                 slideBar.addEventListener('touchstart', (e) => {
+                    if (!thinkingSliderOpen) return;
                     thinkingSliderDragging = true;
                     thinkingSliderStartY = e.touches[0].clientY;
+                    thinkingSliderStartX = e.touches[0].clientX;
+                    thinkingSliderAxis = null;
                     if (slideInner) slideInner.classList.add('dragging');
                 }, { passive: true });
                 slideBar.addEventListener('touchmove', (e) => {
                     if (!thinkingSliderDragging) return;
+                    const dx = e.touches[0].clientX - thinkingSliderStartX;
                     const dy = e.touches[0].clientY - thinkingSliderStartY;
-                    if (slideInner) slideInner.style.transform = dy > 0 ? `translateY(${Math.min(dy, 120)}px)` : '';
-                }, { passive: true });
+                    // Lock the gesture axis from the first substantial movement so
+                    // a horizontal swipe never moves or dismisses the slider.
+                    if (thinkingSliderAxis === null) {
+                        if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+                            thinkingSliderAxis = Math.abs(dy) > Math.abs(dx) ? 'v' : 'h';
+                        }
+                    }
+                    if (thinkingSliderAxis !== 'v') return;
+                    if (dy > 0) {
+                        if (e.cancelable) e.preventDefault();
+                        // Dead zone + dampened travel keeps the drag stable.
+                        const travel = Math.min((dy - 8) * 0.5, 120);
+                        if (slideInner) slideInner.style.transform = travel > 0 ? `translateY(${travel}px)` : '';
+                    } else if (slideInner) {
+                        slideInner.style.transform = '';
+                    }
+                }, { passive: false });
                 slideBar.addEventListener('touchend', (e) => {
                     if (!thinkingSliderDragging) return;
                     thinkingSliderDragging = false;
@@ -4724,8 +4754,16 @@
                         slideInner.classList.remove('dragging');
                         slideInner.style.transform = '';
                     }
-                    if (dy > 60) hideThinkingSlider();
+                    if (thinkingSliderAxis === 'v' && dy > 100) hideThinkingSlider();
                     else scheduleThinkingSliderHide();
+                }, { passive: true });
+                slideBar.addEventListener('touchcancel', () => {
+                    thinkingSliderDragging = false;
+                    if (slideInner) {
+                        slideInner.classList.remove('dragging');
+                        slideInner.style.transform = '';
+                    }
+                    scheduleThinkingSliderHide();
                 }, { passive: true });
             }
             // Swipe down on the popup panel to close it (bottom-sheet gesture).
@@ -4735,6 +4773,8 @@
                     if (!minimalOptionsOpen) return;
                     popupSwipeDragging = true;
                     popupSwipeStartY = e.touches[0].clientY;
+                    popupSwipeStartX = e.touches[0].clientX;
+                    popupSwipeAxis = null;
                     let node = e.target instanceof Element ? e.target : null;
                     let atTop = true;
                     while (node && node !== popupPanel) {
@@ -4746,7 +4786,16 @@
                 }, { passive: true });
                 popupPanel.addEventListener('touchmove', (e) => {
                     if (!popupSwipeDragging || !popupSwipeAtTop || !minimalOptionsOpen) return;
+                    const dx = e.touches[0].clientX - popupSwipeStartX;
                     const dy = e.touches[0].clientY - popupSwipeStartY;
+                    // Lock the gesture axis from the first substantial movement so
+                    // a horizontal swipe never drags or closes the popup.
+                    if (popupSwipeAxis === null) {
+                        if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+                            popupSwipeAxis = Math.abs(dy) > Math.abs(dx) ? 'v' : 'h';
+                        }
+                    }
+                    if (popupSwipeAxis !== 'v') return;
                     if (dy > 0) {
                         if (e.cancelable) e.preventDefault();
                         popupPanel.style.transform = `translateY(${Math.min(dy * 0.6, 140)}px)`;
@@ -4757,8 +4806,27 @@
                     popupSwipeDragging = false;
                     const dy = e.changedTouches[0].clientY - popupSwipeStartY;
                     popupPanel.classList.remove('dragging');
+                    if (popupSwipeAtTop && popupSwipeAxis !== 'h' && dy > 70) {
+                        // Close from the released position: keep the panel below
+                        // the open state and fade it out so it never bounces back
+                        // up to translateY(0) before closing.
+                        popupPanel.style.transform = `translateY(${Math.max(dy * 0.6, 100)}px)`;
+                        popupPanel.style.opacity = '0';
+                        closeMinimalOptions();
+                        setTimeout(() => {
+                            popupPanel.style.transform = '';
+                            popupPanel.style.opacity = '';
+                        }, 340);
+                    } else {
+                        // Snap back to the open position.
+                        popupPanel.style.transform = '';
+                    }
+                }, { passive: true });
+                popupPanel.addEventListener('touchcancel', () => {
+                    popupSwipeDragging = false;
+                    popupPanel.classList.remove('dragging');
                     popupPanel.style.transform = '';
-                    if (popupSwipeAtTop && dy > 70) closeMinimalOptions();
+                    popupPanel.style.opacity = '';
                 }, { passive: true });
             }
         }

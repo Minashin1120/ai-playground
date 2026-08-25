@@ -132,11 +132,19 @@ class MinimalPromptModeRegressionTests(unittest.TestCase):
     def test_popup_supports_swipe_down_to_close(self):
         script = _current_asset("js", "chat_core.v4.8.*.js")
         self.assertIn("popupSwipeStartY", script)
+        self.assertIn("popupSwipeStartX", script)
         self.assertIn("popupSwipeDragging", script)
         self.assertIn("popupSwipeAtTop", script)
+        self.assertIn("popupSwipeAxis", script)
         self.assertIn("minimal-options-panel", script)
-        # Swipe down past the threshold closes the popup.
-        self.assertIn("if (popupSwipeAtTop && dy > 70) closeMinimalOptions();", script)
+        # Swipe down past the threshold closes the popup (horizontal swipes are
+        # ignored via the axis lock).
+        self.assertIn("popupSwipeAtTop && popupSwipeAxis !== 'h' && dy > 70", script)
+        # The close starts from the released drag position instead of resetting
+        # to translateY(0) first, so the panel never bounces back up.
+        self.assertIn("popupPanel.style.transform = `translateY(${Math.max(dy * 0.6, 100)}px)`;", script)
+        self.assertIn("popupPanel.style.opacity = '0';", script)
+        self.assertIn("closeMinimalOptions();", script)
         # Drag must not be animated by the open transition.
         css = _current_asset("css", "chat.custom.v4.8.*.css")
         self.assertIn("#minimal-options-panel.dragging", css)
@@ -147,6 +155,20 @@ class MinimalPromptModeRegressionTests(unittest.TestCase):
         script = _current_asset("js", "chat_core.v4.8.*.js")
         self.assertIn("node.scrollTop > 0", script)
         self.assertIn("popupPanel.classList.add('dragging')", script)
+
+    def test_thinking_slider_swipe_is_axis_locked_and_dampened(self):
+        # Horizontal swipes must not move or dismiss the thinking slider, and a
+        # downward swipe needs a dead zone plus a larger threshold so accidental
+        # touches do not close it.
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        self.assertIn("thinkingSliderAxis", script)
+        self.assertIn("thinkingSliderStartX", script)
+        self.assertIn("Math.abs(dy) > Math.abs(dx)", script)
+        self.assertIn("const travel = Math.min((dy - 8) * 0.5, 120);", script)
+        self.assertIn("thinkingSliderAxis === 'v' && dy > 100", script)
+        # A cancelled touch must reset the drag state cleanly.
+        self.assertIn("addEventListener('touchcancel'", script)
+        self.assertIn("popupPanel.addEventListener('touchcancel'", script)
 
 
 if __name__ == "__main__":

@@ -125,6 +125,21 @@ class SettingsRedesignRegressionTests(unittest.TestCase):
         ):
             self.assertIn(expected, script)
 
+    def test_import_modals_sit_above_settings_modal_via_explicit_zindex(self):
+        # The Tailwind bundle ships z-50 (settings modal) but not z-[200], so the
+        # import file-selection / settings-confirmation modals must get an
+        # explicit z-index from chat.custom CSS or they paint behind the settings
+        # modal and are invisible while it is open.
+        css = _current_asset("css", "chat.custom.v4.8.*.css")
+        block = css[css.index("#import-files-modal,") :]
+        block = block[: block.index("}") + 1]
+        self.assertIn("#settings-confirmation-modal", block)
+        self.assertIn("z-index: 200", block)
+        self.assertIn("position: fixed", block)
+        # The static Tailwind bundle must not silently drop the z-index either.
+        tailwind = _current_asset("css", "chat.tailwind.v4.8.*.css")
+        self.assertNotIn("z-\\[200\\]", tailwind)
+
 
 if __name__ == "__main__":
     unittest.main()

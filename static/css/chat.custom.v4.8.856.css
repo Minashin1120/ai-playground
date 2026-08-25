@@ -2322,6 +2322,17 @@ body.liquid-glass-mode .liquid-glass-surface.liquid-glass-pressed {
     z-index: 110;
 }
 
+/* The import file-selection and settings-confirmation modals open on top of
+   the settings modal (z-50).  Their Tailwind z-[200] class is not present in
+   the static bundle, so give them an explicit high z-index here; otherwise
+   they paint behind the settings modal and are invisible while it is open. */
+#import-files-modal,
+#settings-confirmation-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+}
+
 /* Prompt Details Animation (Compact Mode) */
 #prompt-details-controls {
     display: grid;

@@ -467,6 +467,16 @@ class SetupImportRegressionTests(unittest.TestCase):
         ]:
             self.assertIn(expected, template)
 
+    def test_setup_import_modals_have_explicit_zindex(self):
+        root = Path(__file__).resolve().parents[1]
+        with open(root / "static" / "css" / "app-design.css", encoding="utf-8") as handle:
+            css = handle.read()
+        block = css[css.index("#setup-import-files-modal,") :]
+        block = block[: block.index("}") + 1]
+        self.assertIn("#setup-settings-confirmation-modal", block)
+        self.assertIn("z-index: 200", block)
+        self.assertIn("position: fixed", block)
+
 
 if __name__ == "__main__":
     unittest.main()

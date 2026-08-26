@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-27-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.862'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-27-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.863'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -17108,19 +17108,13 @@ def gemini_session():
     is_live_transcribe = (model_key == "gemini-3.5-transcribe-live")
 
     if is_live_transcribe:
-        # Live Transcription: TEXT output with streaming speech-to-text config.
-        input_transcription = {
-            'language_codes': [],
-        }
-        custom_vocab = data.get('custom_vocabulary') or []
-        if isinstance(custom_vocab, list) and custom_vocab:
-            input_transcription['custom_vocabulary'] = [str(x) for x in custom_vocab][:1000]
-        t_mode = str(data.get('transcription_mode') or 'VERBATIM').upper()
-        if t_mode in ("VERBATIM", "SMART"):
-            input_transcription['mode'] = t_mode
+        # Live Transcription: TEXT output. The detailed transcription config
+        # (language_codes / custom_vocabulary / mode) is sent by the client in
+        # the WebSocket setup message; the installed SDK (v1.56.0) rejects those
+        # fields inside the ephemeral token config, so pass an empty object here.
         generation_config = {
             'response_modalities': ['TEXT'],
-            'input_audio_transcription': input_transcription,
+            'input_audio_transcription': {},
         }
     else:
         generation_config = {
@@ -17138,12 +17132,11 @@ def gemini_session():
                 'include_thoughts': include_thoughts
             }
         if is_live_translate:
-            target_lang = (data.get('target_lang') or "ja").strip()
-            if target_lang:
-                generation_config['translation_config'] = {
-                    'target_language_code': target_lang,
-                    'echo_target_language': True,
-                }
+            # The installed SDK rejects `translation_config` inside the ephemeral
+            # token config (no such field in LiveConnectConfig). The client sends
+            # `translationConfig` in the WebSocket setup message instead, so we
+            # intentionally omit it here to avoid a token-creation 400/422 error.
+            pass
 
     config = {
         'live_connect_constraints': {

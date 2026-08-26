@@ -64,8 +64,11 @@ class GeminiTranscribeRegressionTests(unittest.TestCase):
         self.assertIn("'gemini-3.5-transcribe-live',", CHAT_JS)
         # /api/gemini/session must build TEXT + input_audio_transcription for it.
         self.assertIn("is_live_transcribe = (model_key == \"gemini-3.5-transcribe-live\")", APP_SOURCE)
-        self.assertIn("'input_audio_transcription': input_transcription", APP_SOURCE)
+        self.assertIn("'input_audio_transcription': {},", APP_SOURCE)
         self.assertIn("'response_modalities': ['TEXT']", APP_SOURCE)
+        # The installed SDK rejects `translation_config` inside the ephemeral token
+        # config; the WebSocket setup message carries it instead.
+        self.assertIn("translationConfig", CHAT_JS)
 
     def test_frontend_live_transcribe_helpers(self):
         self.assertIn("isGeminiLiveTranscribeModel", CHAT_JS)

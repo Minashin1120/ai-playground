@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-26-008')
-app.config['SYSTEM_VERSION'] = 'V4.8.860'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-26-009')
+app.config['SYSTEM_VERSION'] = 'V4.8.861'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -20153,13 +20153,17 @@ def _decrypt_dedupe_value(value, is_encrypted):
     Values that cannot be decrypted (e.g. after an encryption-key change) are
     normalised to a fixed placeholder so identical unreadable records still hash
     the same way.
+
+    This deliberately bypasses the shared decrypt cache (``decrypt_val`` keeps up
+    to 4096 plaintext payloads in memory).  A full-account dedupe scan decrypts
+    every message, so caching them would exhaust memory on small servers.
     """
     if value is None:
         return ""
     if not is_encrypted:
         return value
     try:
-        return decrypt_val(value)
+        return _ring_decrypt_bytes(value.encode()).decode()
     except Exception:
         return "\x00unreadable"
 
@@ -20176,7 +20180,16 @@ def _thread_dedupe_signature(thread):
     digest.update(b"1" if thread.is_bookmarked else b"0")
     digest.update(b"|")
     message_count = 0
-    for message in Message.query.filter_by(thread_id=thread.id).order_by(Message.id.asc()).all():
+    message_query = (
+        Message.query
+        .with_entities(Message.id, Message.role, Message.content, Message.model,
+                       Message.timestamp, Message.gem_uuid, Message.thought_data,
+                       Message.is_encrypted)
+        .filter(Message.thread_id == thread.id)
+        .order_by(Message.id.asc())
+        .yield_per(50)
+    )
+    for message in message_query:
         message_count += 1
         content = _decrypt_dedupe_value(message.content, bool(message.is_encrypted))
         thought = _decrypt_dedupe_value(message.thought_data, bool(message.is_encrypted))
@@ -20215,7 +20228,10 @@ def _file_plaintext_sha256(rel_path):
         if info.get("is_encrypted"):
             with open(info["disk_path"], "rb") as source:
                 token = source.read()
-            data = decrypt_bytes(token)
+            try:
+                data = decrypt_bytes(token)
+            finally:
+                del token
             digest.update(data)
         else:
             with open(info["disk_path"], "rb") as source:
@@ -20316,7 +20332,7 @@ def _dedupe_plan_for_user(user_id):
     kept_referenced_files = 0
 
     thread_groups = {}
-    for thread in Thread.query.filter_by(user_id=user_id).order_by(Thread.id.asc()).all():
+    for thread in Thread.query.filter_by(user_id=user_id).order_by(Thread.id.asc()).yield_per(200):
         signature = _thread_dedupe_signature(thread)
         if signature is not None:
             thread_groups.setdefault(signature, []).append(thread.id)
@@ -20325,28 +20341,28 @@ def _dedupe_plan_for_user(user_id):
             removed["chats"].extend(ids[1:])
 
     gem_groups = {}
-    for gem in Gem.query.filter_by(user_id=user_id).order_by(Gem.id.asc()).all():
+    for gem in Gem.query.filter_by(user_id=user_id).order_by(Gem.id.asc()).yield_per(200):
         gem_groups.setdefault(_gem_dedupe_signature(gem), []).append(gem.id)
     for ids in gem_groups.values():
         if len(ids) > 1:
             removed["gems"].extend(ids[1:])
 
     feedback_groups = {}
-    for feedback in Feedback.query.filter_by(user_id=user_id).order_by(Feedback.id.asc()).all():
+    for feedback in Feedback.query.filter_by(user_id=user_id).order_by(Feedback.id.asc()).yield_per(200):
         feedback_groups.setdefault(_feedback_dedupe_signature(feedback), []).append(feedback.id)
     for ids in feedback_groups.values():
         if len(ids) > 1:
             removed["feedback"].extend(ids[1:])
 
     metric_groups = {}
-    for metric in FirstTokenLatencyMetric.query.filter_by(user_id=user_id).order_by(FirstTokenLatencyMetric.id.asc()).all():
+    for metric in FirstTokenLatencyMetric.query.filter_by(user_id=user_id).order_by(FirstTokenLatencyMetric.id.asc()).yield_per(500):
         metric_groups.setdefault(_metric_dedupe_signature(metric), []).append(metric.id)
     for ids in metric_groups.values():
         if len(ids) > 1:
             removed["metrics"].extend(ids[1:])
 
     trace_groups = {}
-    for trace in ChatLatencyTrace.query.filter_by(user_id=user_id).order_by(ChatLatencyTrace.id.asc()).all():
+    for trace in ChatLatencyTrace.query.filter_by(user_id=user_id).order_by(ChatLatencyTrace.id.asc()).yield_per(500):
         trace_groups.setdefault(_trace_dedupe_signature(trace), []).append(trace.id)
     for ids in trace_groups.values():
         if len(ids) > 1:

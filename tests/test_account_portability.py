@@ -1058,6 +1058,31 @@ class AccountPortabilityTests(unittest.TestCase):
         with target.app.app_context():
             self.assertEqual(target.ChatLatencyTrace.query.filter_by(user_id=self.destination_id).count(), 1)
 
+    def test_dedupe_scan_does_not_grow_shared_decrypt_cache(self):
+        # The dedupe scan decrypts every message for signature hashing.  It must
+        # not populate the shared 4096-entry decrypt cache, otherwise a full
+        # account scan would exhaust memory on small servers (observed as an OOM
+        # kill of a gunicorn worker).
+        dest = self.destination_id
+        fixed_ts = target.datetime(2026, 1, 1, 0, 0, 0)
+        with target.app.app_context():
+            thread = target.Thread(user_id=dest, public_id="cache-thread", title="Cache check")
+            target.db.session.add(thread)
+            target.db.session.flush()
+            for index in range(20):
+                target.db.session.add(target.Message(
+                    thread_id=thread.id, role="user",
+                    content=target.encrypt_val(f"encrypted payload {index}"),
+                    timestamp=fixed_ts, is_encrypted=True,
+                ))
+            target.db.session.commit()
+        with target.app.app_context():
+            cache_before = len(target._DECRYPT_CACHE)
+            plan = target._dedupe_plan_for_user(dest)
+            cache_after = len(target._DECRYPT_CACHE)
+            self.assertEqual(cache_after, cache_before, "dedupe scan must bypass the shared decrypt cache")
+            self.assertEqual(plan["removed"]["chats"], [])
+
     def test_dedupe_preview_and_execute_removes_duplicates(self):
         dest = self.destination_id
         fixed_ts = target.datetime(2026, 1, 1, 0, 0, 0)

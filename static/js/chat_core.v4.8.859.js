@@ -9736,7 +9736,7 @@
                     const selectedLabels = categoryBox
                         ? Array.from(categoryBox.querySelectorAll('input[type="checkbox"]:checked')).map(el => (el.closest('label') && el.closest('label').textContent || el.value).trim())
                         : categories;
-                    if (!confirm(`次のデータをインポートします。既存データは削除されません。\n\n${selectedLabels.join('、')}${restoreInplace ? '\n※「元の場所へ復元」: このアカウントの同名ファイルを上書きします' : ''}\n\n続行しますか？`)) return;
+                    if (!confirm(`次のデータをインポートします。既存データは削除されません。すでに同じ内容のデータがある場合はスキップされます。\n\n${selectedLabels.join('、')}${restoreInplace ? '\n※「元の場所へ復元」: このアカウントの同名ファイルを上書きします' : ''}\n\n続行しますか？`)) return;
                     const transfer = {
                         id: createAccountTransferId(), type: 'import', stopped: false,
                         controller: new AbortController()
@@ -9985,8 +9985,16 @@
                                 `ファイル ${imported.files || 0}件`, `フィードバック ${imported.feedback || 0}件`,
                                 `診断データ ${imported.diagnostics || 0}件`,
                             ].join(' / ');
+                            const duplicated = data.duplicates || {};
+                            const dupLabels = {chats: 'チャット', gems: 'Gem', files: 'ファイル', feedback: 'フィードバック', diagnostics: '診断データ'};
+                            const dupParts = [];
+                            for (const key of Object.keys(dupLabels)) {
+                                const count = Number(duplicated[key]) || 0;
+                                if (count > 0) dupParts.push(`${dupLabels[key]} ${count}件`);
+                            }
+                            const dupNote = dupParts.length ? `（重複をスキップ: ${dupParts.join('、')}）` : '';
                             if (resultBox) {
-                                resultBox.textContent = `完了: ${detail}`;
+                                resultBox.textContent = `完了: ${detail}${dupNote}`;
                                 resultBox.classList.remove('hidden', 'text-red-300');
                                 resultBox.classList.add('text-emerald-300');
                             }
@@ -10018,6 +10026,73 @@
                         transfer.stopped = true;
                         await pollPromise.catch(() => null);
                         finishAccountTransfer(transfer);
+                    }
+                };
+            }
+            const accountDedupeBtn = get('account-dedupe-btn');
+            const accountDedupeResult = get('account-dedupe-result');
+            const showDedupeResult = (message, isError = false) => {
+                if (!accountDedupeResult) return;
+                accountDedupeResult.textContent = message;
+                accountDedupeResult.classList.remove('hidden');
+                accountDedupeResult.classList.toggle('text-red-300', !!isError);
+                accountDedupeResult.classList.toggle('text-emerald-300', !isError);
+            };
+            if (accountDedupeBtn) {
+                accountDedupeBtn.onclick = async () => {
+                    const run = async () => {
+                        const previewRes = await apiFetch('/api/account/dedupe/preview', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({}),
+                        });
+                        const preview = await previewRes.json().catch(() => null);
+                        if (!previewRes.ok || !preview) throw new Error((preview && preview.error) || '重複データを確認できませんでした');
+                        if (!preview.has_duplicates) {
+                            showDedupeResult('重複データは見つかりませんでした');
+                            return;
+                        }
+                        const parts = [];
+                        const labels = {chats: 'チャット', gems: 'Gem', files: 'ファイル', feedback: 'フィードバック', diagnostics: '診断データ'};
+                        for (const key of ['chats', 'gems', 'files', 'feedback', 'diagnostics']) {
+                            const count = Number(preview.duplicates && preview.duplicates[key]) || 0;
+                            if (count > 0) parts.push(`${labels[key]} ${count}件`);
+                        }
+                        const keptNote = Number(preview.kept_referenced_files) > 0
+                            ? `\n※チャットから参照されているため、ファイル ${preview.kept_referenced_files}件は削除せず残します。`
+                            : '';
+                        if (!confirm(`重複データが ${preview.total}件 見つかりました。\n\n${parts.join('、')}${keptNote}\n\n同じ内容のデータは最も古い1件を残して削除します。続行しますか？`)) {
+                            return;
+                        }
+                        const execRes = await apiFetch('/api/account/dedupe/execute', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({}),
+                        });
+                        const executed = await execRes.json().catch(() => null);
+                        if (!execRes.ok || !executed) throw new Error((executed && executed.error) || '重複データの修復に失敗しました');
+                        const removedParts = [];
+                        for (const key of ['chats', 'gems', 'files', 'feedback', 'diagnostics']) {
+                            const count = Number(executed.removed && executed.removed[key]) || 0;
+                            if (count > 0) removedParts.push(`${labels[key]} ${count}件`);
+                        }
+                        const keptAfter = Number(executed.kept_referenced_files) > 0
+                            ? `（参照のため残したファイル ${executed.kept_referenced_files}件）`
+                            : '';
+                        showDedupeResult(`重複データを修復しました: ${removedParts.join('、') || '0件'}${keptAfter}`);
+                        loadThreads();
+                        loadGems();
+                        loadStorageUsage();
+                    };
+                    if (accountDedupeBtn.disabled) return;
+                    accountDedupeBtn.disabled = true;
+                    showDedupeResult('重複データを確認しています...');
+                    try {
+                        await run();
+                    } catch (error) {
+                        showDedupeResult((error && error.message) || '重複データの修復に失敗しました', true);
+                    } finally {
+                        accountDedupeBtn.disabled = false;
                     }
                 };
             }

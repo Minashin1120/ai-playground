@@ -946,5 +946,234 @@ class AccountPortabilityTests(unittest.TestCase):
         self.assertNotIn("settings_confirmation", response.get_json())
 
 
+    def test_export_includes_thread_public_id(self):
+        archive_bytes = self.export_archive()
+        with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+            manifest = json.loads(archive.read("account_data.json"))
+            chats = manifest["data"]["chats"]
+            self.assertEqual(len(chats), 1)
+            self.assertEqual(chats[0]["public_id"], "source-thread-public-id")
+
+    def test_import_twice_skips_duplicates(self):
+        archive_bytes = self.export_archive()
+        client = self.client_for(self.destination_id)
+        categories = "chats,gems,files,feedback,diagnostics"
+        first = client.post(
+            "/api/account/import",
+            data={
+                "categories": categories,
+                "file": (io.BytesIO(archive_bytes), "account.zip"),
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            content_type="multipart/form-data",
+            base_url="https://localhost",
+        )
+        self.assertEqual(first.status_code, 200, first.get_data(as_text=True))
+        self.assertEqual(first.get_json()["imported"]["chats"], 1)
+        self.assertEqual(first.get_json()["imported"]["files"], 1)
+        second = client.post(
+            "/api/account/import",
+            data={
+                "categories": categories,
+                "file": (io.BytesIO(archive_bytes), "account.zip"),
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            content_type="multipart/form-data",
+            base_url="https://localhost",
+        )
+        self.assertEqual(second.status_code, 200, second.get_data(as_text=True))
+        payload = second.get_json()
+        self.assertEqual(payload["imported"]["chats"], 0)
+        self.assertEqual(payload["imported"]["gems"], 0)
+        self.assertEqual(payload["imported"]["files"], 0)
+        self.assertEqual(payload["imported"]["feedback"], 0)
+        self.assertEqual(payload["imported"]["diagnostics"], 0)
+        self.assertEqual(payload["duplicates"]["chats"], 1)
+        self.assertEqual(payload["duplicates"]["gems"], 1)
+        self.assertEqual(payload["duplicates"]["files"], 1)
+        self.assertEqual(payload["duplicates"]["feedback"], 1)
+        self.assertEqual(payload["duplicates"]["diagnostics"], 1)
+        with target.app.app_context():
+            self.assertEqual(target.Thread.query.filter_by(user_id=self.destination_id).count(), 1)
+            self.assertEqual(target.Gem.query.filter_by(user_id=self.destination_id).count(), 1)
+            self.assertEqual(target.Feedback.query.filter_by(user_id=self.destination_id).count(), 1)
+            self.assertEqual(target.FileCache.query.filter_by(user_id=self.destination_id).count(), 1)
+            self.assertEqual(target.FirstTokenLatencyMetric.query.filter_by(user_id=self.destination_id).count(), 1)
+
+    def test_self_import_skips_existing_threads(self):
+        archive_bytes = self.export_archive()
+        response = self.client_for(self.source_id).post(
+            "/api/account/import",
+            data={
+                "categories": "chats",
+                "file": (io.BytesIO(archive_bytes), "account.zip"),
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            content_type="multipart/form-data",
+            base_url="https://localhost",
+        )
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        payload = response.get_json()
+        self.assertEqual(payload["imported"]["chats"], 0)
+        self.assertEqual(payload["duplicates"]["chats"], 1)
+        with target.app.app_context():
+            self.assertEqual(target.Thread.query.filter_by(user_id=self.source_id).count(), 1)
+
+    def test_import_twice_skips_trace_duplicates(self):
+        with target.app.app_context():
+            target.db.session.add(target.ChatLatencyTrace(
+                user_id=self.source_id, job_id="trace-import-test", model="gemini-2.5-flash",
+                execution_path="chat", client_first_event_type="content",
+                client_first_latency_ms=120, client_total_latency_ms=500,
+            ))
+            target.db.session.commit()
+        archive_bytes = self.export_archive()
+        client = self.client_for(self.destination_id)
+        first = client.post(
+            "/api/account/import",
+            data={
+                "categories": "diagnostics",
+                "file": (io.BytesIO(archive_bytes), "account.zip"),
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            content_type="multipart/form-data",
+            base_url="https://localhost",
+        )
+        self.assertEqual(first.status_code, 200, first.get_data(as_text=True))
+        self.assertEqual(first.get_json()["imported"]["diagnostics"], 2)
+        second = client.post(
+            "/api/account/import",
+            data={
+                "categories": "diagnostics",
+                "file": (io.BytesIO(archive_bytes), "account.zip"),
+            },
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            content_type="multipart/form-data",
+            base_url="https://localhost",
+        )
+        self.assertEqual(second.status_code, 200, second.get_data(as_text=True))
+        payload = second.get_json()
+        self.assertEqual(payload["imported"]["diagnostics"], 0)
+        self.assertEqual(payload["duplicates"]["diagnostics"], 2)
+        with target.app.app_context():
+            self.assertEqual(target.ChatLatencyTrace.query.filter_by(user_id=self.destination_id).count(), 1)
+
+    def test_dedupe_preview_and_execute_removes_duplicates(self):
+        dest = self.destination_id
+        fixed_ts = target.datetime(2026, 1, 1, 0, 0, 0)
+        with target.app.app_context():
+            t1 = target.Thread(user_id=dest, public_id="keep-thread", title="Duplicate chat")
+            t2 = target.Thread(user_id=dest, public_id="dup-thread", title="Duplicate chat")
+            target.db.session.add_all([t1, t2])
+            target.db.session.flush()
+            for thread in (t1, t2):
+                target.db.session.add(target.Message(
+                    thread_id=thread.id, role="user", content="hello",
+                    timestamp=fixed_ts, is_encrypted=False,
+                ))
+                target.db.session.add(target.Message(
+                    thread_id=thread.id, role="assistant", content="hi",
+                    timestamp=fixed_ts, is_encrypted=False,
+                ))
+            # Each duplicate thread references its own content-identical file copy,
+            # mirroring what happens when the same export is imported twice.
+            target.db.session.add(target.Message(
+                thread_id=t1.id, role="user", content="file",
+                image_url=json.dumps([f"{dest}/same.bin"]),
+                timestamp=fixed_ts, is_encrypted=False,
+            ))
+            target.db.session.add(target.Message(
+                thread_id=t2.id, role="user", content="file",
+                image_url=json.dumps([f"{dest}/same-copy.bin"]),
+                timestamp=fixed_ts, is_encrypted=False,
+            ))
+            target.db.session.add(target.Gem(uuid="gem-keep-uuid", user_id=dest, name="Dup Gem", instruction="instr"))
+            target.db.session.add(target.Gem(uuid="gem-dup-uuid", user_id=dest, name="Dup Gem", instruction="instr"))
+            target.db.session.add(target.Feedback(
+                user_id=dest, title="Dup feedback", message="body", status="new",
+                created_at=target.datetime(2026, 1, 1, 0, 0, 0),
+            ))
+            target.db.session.add(target.Feedback(
+                user_id=dest, title="Dup feedback", message="body", status="new",
+                created_at=target.datetime(2026, 1, 1, 0, 0, 0),
+            ))
+            dest_dir = os.path.join(self.temp_dir.name, str(dest))
+            os.makedirs(dest_dir, mode=0o700, exist_ok=True)
+            for name in ("same.bin", "same-copy.bin"):
+                with open(os.path.join(dest_dir, name), "wb") as handle:
+                    handle.write(b"same content bytes")
+                target.db.session.add(target.FileCache(
+                    user_id=dest, rel_path=f"{dest}/{name}", provider="label",
+                    file_uri=name, state="ready",
+                ))
+            target.db.session.commit()
+
+        client = self.client_for(dest)
+        preview = client.post(
+            "/api/account/dedupe/preview",
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(preview.status_code, 200, preview.get_data(as_text=True))
+        payload = preview.get_json()
+        self.assertTrue(payload["has_duplicates"])
+        self.assertEqual(payload["duplicates"]["chats"], 1)
+        self.assertEqual(payload["duplicates"]["gems"], 1)
+        self.assertEqual(payload["duplicates"]["files"], 1)
+        self.assertEqual(payload["duplicates"]["feedback"], 1)
+        self.assertEqual(payload["kept_referenced_files"], 0)
+
+        execute = client.post(
+            "/api/account/dedupe/execute",
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(execute.status_code, 200, execute.get_data(as_text=True))
+        removed = execute.get_json()["removed"]
+        self.assertEqual(removed["chats"], 1)
+        self.assertEqual(removed["gems"], 1)
+        self.assertEqual(removed["files"], 1)
+        self.assertEqual(removed["feedback"], 1)
+
+        with target.app.app_context():
+            self.assertEqual(target.Thread.query.filter_by(user_id=dest).count(), 1)
+            self.assertEqual(target.Thread.query.filter_by(user_id=dest).one().public_id, "keep-thread")
+            self.assertEqual(target.Gem.query.filter_by(user_id=dest).count(), 1)
+            self.assertEqual(target.Feedback.query.filter_by(user_id=dest).count(), 1)
+            self.assertEqual(target.FileCache.query.filter_by(user_id=dest).count(), 1)
+            self.assertTrue(target._get_file_disk_info(f"{dest}/same.bin")["exists"])
+            self.assertFalse(target._get_file_disk_info(f"{dest}/same-copy.bin")["exists"])
+            thread = target.Thread.query.filter_by(user_id=dest).one()
+            ref_msg = target.Message.query.filter_by(thread_id=thread.id, role="user", content="file").one()
+            self.assertEqual(json.loads(ref_msg.image_url), [f"{dest}/same.bin"])
+
+    def test_dedupe_preview_reports_none_when_no_duplicates(self):
+        client = self.client_for(self.destination_id)
+        preview = client.post(
+            "/api/account/dedupe/preview",
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(preview.status_code, 200, preview.get_data(as_text=True))
+        payload = preview.get_json()
+        self.assertFalse(payload["has_duplicates"])
+        self.assertEqual(payload["total"], 0)
+
+    def test_frontend_dedupe_button_and_handler_present(self):
+        root = os.path.dirname(os.path.dirname(__file__))
+        js_assets = sorted((Path(root) / "static" / "js").glob("chat_core.v4.8.*.js"))
+        self.assertEqual(len(js_assets), 1)
+        with open(js_assets[0], encoding="utf-8") as handle:
+            source = handle.read()
+        with open(os.path.join(root, "templates", "chat.html"), encoding="utf-8") as handle:
+            template = handle.read()
+        self.assertIn("/api/account/dedupe/preview", source)
+        self.assertIn("/api/account/dedupe/execute", source)
+        self.assertIn("重複データは見つかりませんでした", source)
+        self.assertIn('id="account-dedupe-btn"', template)
+        self.assertIn('id="account-dedupe-result"', template)
+        self.assertIn("重複データを確認して修復", template)
+
+
 if __name__ == "__main__":
     unittest.main()

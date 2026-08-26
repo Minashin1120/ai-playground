@@ -6956,6 +6956,15 @@
                 ]
             },
             {
+                category: "Gemini Transcription",
+                icon: "fas fa-microphone text-teal-400",
+                description: "Gemini speech-to-text transcription models",
+                items: [
+                    { id: "gemini-3.5-transcribe", implementedAt: "2026-08-27", implementedRank: 8621, quickEmoji: "🎙️", name: "Gemini 3.5 Transcribe", desc: "Audio-file speech-to-text with language detection, speaker diarization, word timestamps, and smart formatting (audio file up to 1 hour).", price: "In $2.00/1M (audio), Out $12.00/1M (text)" },
+                    { id: "gemini-3.5-transcribe-live", implementedAt: "2026-08-27", implementedRank: 8622, quickEmoji: "🔴", name: "Gemini 3.5 Transcribe Live", desc: "Real-time low-latency streaming speech-to-text over the Live API (microphone input, sessions up to 10 minutes).", price: "In $3.50/1M (audio), Out $21.00/1M (text)" }
+                ]
+            },
+            {
                 category: "OpenAI Image Gen",
                 icon: "fas fa-paint-brush text-purple-400",
                 description: "GPT Image models",
@@ -7413,6 +7422,7 @@
             'gemini-2.5-flash-native-audio-preview-12-2025',
             'gemini-3.1-flash-live-preview',
             'gemini-3.5-live-translate-preview',
+            'gemini-3.5-transcribe-live',
             'grok-voice-think-fast-2.0',
             'grok-voice-latest',
             'grok-voice-think-fast-1.0',
@@ -7613,9 +7623,10 @@
         };
         const isGeminiLiveModel = () => {
             const m = get('model-select').value;
-            return m === 'gemini-3.1-flash-live-preview' || m === 'gemini-3.5-live-translate-preview';
+            return m === 'gemini-3.1-flash-live-preview' || m === 'gemini-3.5-live-translate-preview' || m === 'gemini-3.5-transcribe-live';
         };
         const isGeminiLiveTranslateModel = () => get('model-select').value === 'gemini-3.5-live-translate-preview';
+        const isGeminiLiveTranscribeModel = () => get('model-select').value === 'gemini-3.5-transcribe-live';
         // True real-time server-session STS models: OpenAI Realtime conversation
         // models, Grok Voice, and Gemini native-audio. Gemini Live models stream
         // browser-direct, transcription models stay one-shot.
@@ -7693,7 +7704,7 @@
             const voiceWrap = get('sts-voice-wrap');
             const autoPlayWrap = get('sts-auto-play-wrap');
             const modeLabel = get('sts-mode-label');
-            const transcription = isTranscriptionModel();
+            const transcription = isTranscriptionModel() || isGeminiLiveTranscribeModel();
             const langWrap = get('sts-lang-wrap');
 
             if (transcription) {
@@ -7704,10 +7715,16 @@
                 if (rateWrap) rateWrap.classList.add('hidden');
                 if (thinkingWrap) thinkingWrap.classList.add('hidden');
                 if (langWrap) langWrap.classList.add('hidden');
+                const transcribeWrap = get('sts-transcribe-wrap');
+                const customVocabWrap = get('sts-custom-vocab-wrap');
+                if (transcribeWrap) transcribeWrap.classList.toggle('hidden', !isGeminiLiveTranscribeModel());
+                if (customVocabWrap) customVocabWrap.classList.toggle('hidden', !isGeminiLiveTranscribeModel());
                 if (note) {
-                    note.textContent = model === 'gpt-live-transcribe'
-                        ? '低遅延ライブ文字起こし（24kHz PCM）'
-                        : '高精度なコミット単位の文字起こし（24kHz PCM）';
+                    note.textContent = isGeminiLiveTranscribeModel()
+                        ? 'リアルタイム低遅延文字起こし（16kHz PCM / 最大10分）'
+                        : model === 'gpt-live-transcribe'
+                            ? '低遅延ライブ文字起こし（24kHz PCM）'
+                            : '高精度なコミット単位の文字起こし（24kHz PCM）';
                 }
             } else if (provider === 'openai') {
                 if (modeLabel) modeLabel.textContent = 'Speech-to-Speech Live';
@@ -12214,6 +12231,7 @@
                     this.assistantText = '';
                     this.assistantThought = '';
                     this.inputTranscript = '';
+                    this.interimInputTranscript = '';
                     this.assistantAudioChunks = [];
                     this.userAudioChunks = [];
                     this.onMessage = null;
@@ -12229,15 +12247,19 @@
 
                     this.ws.onopen = () => {
                         console.log("Gemini Live WebSocket opened. Sending setup...");
-                        // Refined setup message based on docs and SDK patterns
+                        // Live Transcription: TEXT output + input audio transcription config.
+                        // Otherwise: audio-to-audio Live agent with transcription metadata.
+                        const isTranscribeMode = !!(config && config.transcriptionConfig);
                         const setupMsg = {
                             setup: {
                                 model: `models/${model}`,
                                 generationConfig: {
-                                    responseModalities: ["AUDIO"]
+                                    responseModalities: isTranscribeMode ? ["TEXT"] : ["AUDIO"]
                                 },
                                 // Enable transcription at setup level (as per docs)
-                                inputAudioTranscription: {},
+                                inputAudioTranscription: isTranscribeMode
+                                    ? (config.transcriptionConfig || {})
+                                    : {},
                                 outputAudioTranscription: {}
                             }
                         };
@@ -12345,6 +12367,11 @@
                         if (sc.inputTranscription) {
                             console.log("User input transcription delta:", sc.inputTranscription.text);
                             this.inputTranscript += sc.inputTranscription.text;
+                            this.interimInputTranscript = '';
+                        }
+                        if (sc.interimInputTranscription) {
+                            console.log("User interim transcription:", sc.interimInputTranscription.text);
+                            this.interimInputTranscript = sc.interimInputTranscription.text;
                         }
                     }
                     if (this.onMessage) this.onMessage(data);
@@ -13613,6 +13640,19 @@
                     try {
                         const finalData = await client.getFinalData();
 
+                        if (isGeminiLiveTranscribeModel()) {
+                            // Live transcription: transcript is the assistant output;
+                            // user message keeps the recorded audio + placeholder text.
+                            finalData.user_text = '音声文字起こし';
+                            finalData.assistant_text = (client.inputTranscript || '').trim();
+                            finalData.assistant_thought = '';
+                            if (!finalData.assistant_text) {
+                                setStsStatus('No transcript', false);
+                                setTimeout(() => setStsStatus('Tap to speak', false), 1000);
+                                return;
+                            }
+                        }
+
                         if (!currentThreadId) {
                             const r = await apiFetch(CHAT_CONFIG.urls.handleThreads, {
                                 method:'POST',
@@ -13670,16 +13710,28 @@
                     if (isGeminiLiveModel()) {
                         setStsStatus('Connecting...', true);
                         try {
+                            const modelKeyForSession = get('model-select').value;
+                            const sessionBody = {
+                                model: modelKeyForSession
+                            };
+                            if (isGeminiLiveTranscribeModel()) {
+                                sessionBody.transcription_mode = get('sts-transcribe-mode') ? get('sts-transcribe-mode').value : 'VERBATIM';
+                                if (get('sts-custom-vocab')) {
+                                    const cv = get('sts-custom-vocab').value.split(/[,、\n]/).map(s => s.trim()).filter(Boolean);
+                                    if (cv.length) sessionBody.custom_vocabulary = cv.slice(0, 1000);
+                                }
+                            } else {
+                                sessionBody.voice = get('sts-voice') ? get('sts-voice').value : 'Kore';
+                                sessionBody.thinking_level = get('sts-thinking-level') ? get('sts-thinking-level').value : 'minimal';
+                                sessionBody.include_thoughts = get('sts-include-thoughts') ? get('sts-include-thoughts').checked : false;
+                                if (isGeminiLiveTranslateModel() && get('sts-target-lang')) {
+                                    sessionBody.target_lang = get('sts-target-lang').value;
+                                }
+                            }
                             const res = await apiFetch('/api/gemini/session', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    model: get('model-select').value,
-                                    voice: get('sts-voice') ? get('sts-voice').value : 'Kore',
-                                    thinking_level: get('sts-thinking-level') ? get('sts-thinking-level').value : 'minimal',
-                                    include_thoughts: get('sts-include-thoughts') ? get('sts-include-thoughts').checked : false,
-                                    target_lang: isGeminiLiveTranslateModel() && get('sts-target-lang') ? get('sts-target-lang').value : null
-                                })
+                                body: JSON.stringify(sessionBody)
                             });
                             if (!res.ok) throw new Error("Failed to get session token");
                             const { token, url } = await res.json();
@@ -13690,11 +13742,22 @@
                             const include_thoughts = get('sts-include-thoughts') ? get('sts-include-thoughts').checked : false;
 
                             currentGeminiLive = new GeminiLiveClient();
-                            if (stsOpt('sts-auto-play')) {
+                            if (stsOpt('sts-auto-play') && !isGeminiLiveTranscribeModel()) {
                                 currentGeminiLive.rtPlayer = new RealTimeAudioPlayer();
                             }
 
-                            if (isGeminiLiveTranslateModel()) {
+                            if (isGeminiLiveTranscribeModel()) {
+                                const tMode = get('sts-transcribe-mode') ? get('sts-transcribe-mode').value : 'VERBATIM';
+                                const transcriptionConfig = { languageCodes: [] };
+                                if (tMode === 'SMART' || tMode === 'VERBATIM') transcriptionConfig.mode = tMode;
+                                if (get('sts-custom-vocab')) {
+                                    const cv = get('sts-custom-vocab').value.split(/[,、\n]/).map(s => s.trim()).filter(Boolean);
+                                    if (cv.length) transcriptionConfig.customVocabulary = cv.slice(0, 1000);
+                                }
+                                await currentGeminiLive.start(token, url, modelKey, {
+                                    transcriptionConfig
+                                });
+                            } else if (isGeminiLiveTranslateModel()) {
                                 const targetLang = get('sts-target-lang') ? get('sts-target-lang').value : 'ja';
                                 await currentGeminiLive.start(token, url, modelKey, {
                                     translationConfig: { targetLanguageCode: targetLang, echoTargetLanguage: true }
@@ -13716,6 +13779,32 @@
                             let liveMsgId = 'live-sts-' + Date.now();
                             currentGeminiLive.onMessage = (data) => {
                                 if (data.serverContent) {
+                                    if (isGeminiLiveTranscribeModel()) {
+                                        // Live transcription: show interim + finalized user transcript.
+                                        const interim = currentGeminiLive.interimInputTranscript;
+                                        const finalText = currentGeminiLive.inputTranscript;
+                                        const displayText = finalText + (interim && !finalText.endsWith(interim) ? (finalText ? '\n' : '') + interim : '');
+                                        const container = get('chat-messages');
+                                        let msgEl = document.getElementById(liveMsgId);
+                                        if (!msgEl) {
+                                            msgEl = document.createElement('div');
+                                            msgEl.id = liveMsgId;
+                                            msgEl.className = 'flex flex-col gap-2 mb-4 assistant-message bg-slate-800/40 p-3 rounded-lg border border-slate-700/50';
+                                            msgEl.innerHTML = `
+                                                <div class="text-[10px] text-teal-400 font-bold uppercase tracking-wider flex items-center gap-2">
+                                                    <i class="fas fa-microphone"></i> Gemini 3.5 Transcribe Live
+                                                </div>
+                                                <div class="message-content text-sm text-slate-100 leading-relaxed"></div>
+                                            `;
+                                            container.appendChild(msgEl);
+                                            container.scrollTop = container.scrollHeight;
+                                        }
+                                        const contentEl = msgEl.querySelector('.message-content');
+                                        contentEl.innerText = displayText || '聴き取り中...';
+                                        container.scrollTop = container.scrollHeight;
+                                        if (window.VoiceStudio && finalText) window.VoiceStudio.log('user', finalText);
+                                        return;
+                                    }
                                     if (data.serverContent.modelTurn) {
                                         if (firstAudio) {
                                             setStsStatus('Gemini is speaking...', false);
@@ -19275,6 +19364,11 @@
                 ocr_include_blocks: isMistralOcrModel() && get('ocr-include-blocks') ? get('ocr-include-blocks').checked : false,
                 ocr_include_image_base64: isMistralOcrModel() && get('ocr-include-images') ? get('ocr-include-images').checked : true,
                 ocr_pages: isMistralOcrModel() && get('ocr-pages') ? get('ocr-pages').value : null,
+                transcription_language_codes: [],
+                transcription_custom_vocabulary: [],
+                transcription_mode: 'verbatim',
+                transcription_diarization: false,
+                transcription_word_timestamps: false,
                 quote_text: currentQuote,
                 parent_id: capturedParentId,
                 parent_id_explicit: parentIdExplicit,

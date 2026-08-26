@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-26-009')
-app.config['SYSTEM_VERSION'] = 'V4.8.861'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-27-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.862'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1931,6 +1931,7 @@ STS_MODELS = {
     "gemini-2.5-flash-native-audio-preview-12-2025": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
     "gemini-3.1-flash-live-preview": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
     "gemini-3.5-live-translate-preview": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
+    "gemini-3.5-transcribe-live": {"provider": "google", "mode": "transcription", "rate_in": 16000, "rate_out": 16000},
     "grok-voice-think-fast-2.0": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
     "grok-voice-think-fast-1.0": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
     "grok-voice-fast-1.0": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
@@ -1991,6 +1992,7 @@ ALL_VALID_MODEL_IDS = {
     "gpt-realtime-2", "gpt-realtime-translate", "gpt-realtime-whisper", "gpt-realtime-1.5",
     "gpt-realtime", "gpt-realtime-mini",
     "gemini-2.5-flash-native-audio-preview-12-2025", "gemini-3.1-flash-live-preview",
+    "gemini-3.5-transcribe", "gemini-3.5-transcribe-live",
     "grok-voice-latest", "grok-voice-think-fast-2.0", "grok-voice-think-fast-1.0", "grok-voice-fast-1.0", "grok-voice-agent",
     # Grok Imagine
     "grok-imagine-image-2.0", "grok-imagine-image-quality", "grok-imagine-image", "grok-imagine-image-pro", "grok-imagine-video-1.5", "grok-imagine-video",
@@ -2321,6 +2323,123 @@ def is_gemini_embedding_model_key(model_key):
 def is_gemini_agent_model_key(model_key):
     mk = str(model_key or "").lower().strip()
     return mk.startswith("deep-research-") or mk.startswith("antigravity-")
+
+def is_gemini_transcribe_model_key(model_key):
+    """True for the unary (audio-file) Gemini Transcribe model. The Live variant
+    (gemini-3.5-transcribe-live) is routed through STS_MODELS / Live API instead."""
+    mk = str(model_key or "").lower().strip()
+    return mk == "gemini-3.5-transcribe"
+
+def _extract_interaction_text(interaction):
+    """Extract the full text from a Gemini Interactions API response.
+
+    The Interactions API returns content in ``outputs`` (older v1beta shape) or
+    ``steps[].content[]`` (newer shape); both are handled defensively because the
+    installed google-genai SDK is older than the Transcribe model documentation.
+    """
+    if interaction is None:
+        return ""
+    outputs = getattr(interaction, "outputs", None) or []
+    texts = []
+    for out in outputs or []:
+        if out is None:
+            continue
+        if isinstance(out, dict):
+            if out.get("type") == "text":
+                t = out.get("text") or ""
+                if t:
+                    texts.append(str(t))
+            continue
+        t = getattr(out, "text", None)
+        if t:
+            texts.append(str(t))
+    if texts:
+        return "".join(texts)
+    # Newer shape: steps[].content[].text
+    steps = getattr(interaction, "steps", None) or []
+    for step in steps or []:
+        contents = step.get("content") if isinstance(step, dict) else getattr(step, "content", None)
+        for c in contents or []:
+            if isinstance(c, dict):
+                if c.get("type") == "text":
+                    t = c.get("text") or ""
+                    if t:
+                        texts.append(str(t))
+            else:
+                t = getattr(c, "text", None)
+                if t:
+                    texts.append(str(t))
+    return "".join(texts)
+
+
+def _gemini_transcribe_rest(api_key, file_uri, mime_type, transcription_config, timeout=600):
+    """Call the Gemini Interactions API directly (REST) for gemini-3.5-transcribe.
+
+    The installed google-genai SDK (1.x) serializes the legacy Interactions schema,
+    which the API removed on 2026-06-08. Calling /v1beta/interactions directly with
+    the documented body works with the current steps schema. ``store=False`` keeps
+    the request stateless (no project storage setting required) and still returns
+    the transcript in ``steps``.
+    """
+    if not api_key:
+        return None
+    url = "https://generativelanguage.googleapis.com/v1beta/interactions"
+    payload = {
+        "model": "gemini-3.5-transcribe",
+        "store": False,
+        "input": [
+            {"type": "audio", "uri": file_uri, "mime_type": mime_type}
+        ],
+        "generation_config": {
+            "transcription_config": transcription_config or {"language_codes": []}
+        },
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": api_key,
+    }
+    try:
+        resp = httpx.post(url, json=payload, headers=headers, timeout=timeout)
+    except Exception as exc:
+        raise RuntimeError(f"Gemini Transcribe request failed: {exc}") from exc
+    if resp.status_code >= 400:
+        try:
+            err = resp.json()
+            msg = (err.get("error") or {}).get("message") or resp.text
+        except Exception:
+            msg = resp.text
+        raise RuntimeError(f"Gemini Transcribe API error ({resp.status_code}): {str(msg)[:500]}")
+    try:
+        data = resp.json()
+    except Exception:
+        raise RuntimeError("Gemini Transcribe returned non-JSON response")
+    if data.get("status") not in (None, "completed", "done"):
+        raise RuntimeError(f"Gemini Transcribe status: {data.get('status')}")
+    texts = []
+    for step in data.get("steps") or []:
+        contents = step.get("content") if isinstance(step, dict) else getattr(step, "content", None)
+        for c in contents or []:
+            if isinstance(c, dict):
+                if c.get("type") == "text":
+                    t = c.get("text") or ""
+                    if t:
+                        texts.append(str(t))
+            else:
+                t = getattr(c, "text", None)
+                if t:
+                    texts.append(str(t))
+    if not texts:
+        for out in data.get("outputs") or []:
+            if isinstance(out, dict):
+                if out.get("type") == "text":
+                    t = out.get("text") or ""
+                    if t:
+                        texts.append(str(t))
+            else:
+                t = getattr(out, "text", None)
+                if t:
+                    texts.append(str(t))
+    return "".join(texts)
 
 def _chunk_bytes(data, chunk_size=32000):
     for i in range(0, len(data), chunk_size):
@@ -10413,9 +10532,133 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             elif is_gem:
                 log_force("Routing: Gemini Branch")
                 gemini_files_api_enabled = (gemini_backend_mode != "vertex_ai")
-                
+
+                # Gemini Transcribe (audio file -> text, Interactions API)
+                if is_gemini_transcribe_model_key(model_key):
+                    try:
+                        _mark_provider_request_started()
+                        if gemini_backend_mode == "vertex_ai":
+                            pub("error", "Gemini 3.5 Transcribe: 現在は Gemini API モード（Vertex AI 以外）でのみ利用できます。")
+                            return
+                        audio_fi = next(
+                            (
+                                fi for fi in loaded_files
+                                if fi.get('bytes') and str(fi.get('mime', '')).startswith('audio/')
+                            ),
+                            None
+                        )
+                        if not audio_fi:
+                            pub("error", "Gemini 3.5 Transcribe: 文字起こしには音声ファイル（MP3/WAV/M4A/OGG/FLAC等）を添付してください。")
+                            return
+                        audio_data = audio_fi.get('bytes')
+                        audio_mime = audio_fi.get('mime') or "audio/mpeg"
+                        audio_name = audio_fi.get('name') or "audio.mp3"
+
+                        # Normalize WebM/OGG/Opus to 16kHz WAV (Gemini inline audio + model expectations)
+                        m_low = (audio_mime or '').lower()
+                        ext_low = (os.path.splitext(audio_name or '')[1] or '').lower()
+                        if m_low in ("audio/webm", "audio/ogg", "audio/oga", "audio/opus") or ext_low in (".webm", ".ogg", ".oga", ".opus"):
+                            try:
+                                src_suffix = ext_low if ext_low else ".webm"
+                                pcm = _convert_audio_to_pcm(audio_data, src_suffix=src_suffix, rate=16000)
+                                audio_data = _pcm_to_wav_bytes(pcm, rate=16000)
+                                audio_mime = "audio/wav"
+                                audio_name = os.path.splitext(audio_name or "audio")[0] + ".wav"
+                            except Exception as conv_e:
+                                logger.exception("Gemini Transcribe audio conversion failed")
+                                pub("error", f"Gemini 3.5 Transcribe: 音声の変換に失敗しました: {str(conv_e)}")
+                                return
+
+                        # Upload via Gemini Files API (documented path for transcribe input)
+                        file_uri = None
+                        try:
+                            if not gemini_files_api_enabled:
+                                pub("error", "Gemini 3.5 Transcribe: Vertex AI モードではファイルアップロードを利用できません。Gemini API モードへ切り替えてください。")
+                                return
+                            with tempfile.NamedTemporaryFile(suffix=os.path.splitext(audio_name)[1] or ".wav") as tmp:
+                                tmp.write(audio_data)
+                                tmp.flush()
+                                up = g_client.files.upload(file=tmp.name, config={"mimeType": audio_mime})
+                            up_name = getattr(up, "name", None) or (up.get("name") if isinstance(up, dict) else None)
+                            deadline = time.time() + 120
+                            while time.time() < deadline:
+                                if isinstance(up, dict):
+                                    st = up.get("state")
+                                else:
+                                    st = getattr(up, "state", None)
+                                if isinstance(st, dict):
+                                    st = st.get("name") or st.get("state")
+                                else:
+                                    st = getattr(st, "name", None) or st
+                                if not st or st == "ACTIVE" or st == "FAILED":
+                                    break
+                                time.sleep(2)
+                                try:
+                                    if up_name:
+                                        up = g_client.files.get(name=up_name)
+                                except Exception:
+                                    break
+                            if isinstance(up, dict):
+                                file_uri = up.get("uri") or up.get("file_uri") or up.get("fileUri") or up.get("name")
+                            else:
+                                file_uri = (
+                                    getattr(up, "uri", None)
+                                    or getattr(up, "file_uri", None)
+                                    or getattr(up, "fileUri", None)
+                                    or getattr(up, "name", None)
+                                )
+                        except Exception as up_e:
+                            logger.exception("Gemini Transcribe file upload failed")
+                            pub("error", f"Gemini 3.5 Transcribe: 音声のアップロードに失敗しました: {str(up_e)}")
+                            return
+                        if not file_uri:
+                            pub("error", "Gemini 3.5 Transcribe: 音声のアップロードに失敗しました（ファイルURIを取得できません）。")
+                            return
+
+                        transcription_config = {}
+                        try:
+                            lang_codes = options.get('transcription_language_codes') or []
+                            if isinstance(lang_codes, (list, tuple)) and lang_codes:
+                                transcription_config['language_codes'] = [str(x) for x in lang_codes][:20]
+                            else:
+                                transcription_config['language_codes'] = []
+                            custom_vocab = options.get('transcription_custom_vocabulary') or []
+                            if isinstance(custom_vocab, (list, tuple)) and custom_vocab:
+                                transcription_config['custom_vocabulary'] = [str(x) for x in custom_vocab][:1000]
+                            t_mode = str(options.get('transcription_mode') or 'verbatim').lower()
+                            if t_mode == "smart":
+                                transcription_config['mode'] = {"type": "smart"}
+                            else:
+                                verbatim_mode = {"type": "verbatim"}
+                                if options.get('transcription_diarization'):
+                                    verbatim_mode['diarization_mode'] = "speaker"
+                                if options.get('transcription_word_timestamps'):
+                                    verbatim_mode['timestamp_granularities'] = ["word"]
+                                transcription_config['mode'] = verbatim_mode
+                        except Exception as cfg_e:
+                            logger.warning(f"Gemini Transcribe config fallback: {cfg_e}")
+                            transcription_config = {"language_codes": []}
+
+                        pub("status", "文字起こしを実行中です。音声の長さによって時間がかかります...")
+                        transcript = _gemini_transcribe_rest(
+                            api_key=key,
+                            file_uri=file_uri,
+                            mime_type=audio_mime,
+                            transcription_config=transcription_config,
+                        )
+                        if not transcript or not str(transcript).strip():
+                            pub("error", "Gemini 3.5 Transcribe: 文字起こし結果が空でした。音声が無声または対応外形式の可能性があります。")
+                            return
+                        transcript = str(transcript).strip()
+                        full_res += transcript
+                        pub("content", transcript)
+                        log_force(f"Gemini Transcribe completed for {job_id} chars={len(transcript)}")
+                    except Exception as e:
+                        logger.exception("Gemini Transcribe Error")
+                        pub("error", f"Gemini 3.5 Transcribe Error: {str(e)}")
+
                 # Gemini TTS (Preview)
-                if "tts" in model_key:
+                elif "tts" in model_key:
                     try:
                         voice_name = (options.get('tts_voice') or "Kore").strip()
                         if voice_name not in GEMINI_TTS_VOICES:
@@ -15802,6 +16045,11 @@ def chat_stream():
             'ocr_include_blocks': data.get('ocr_include_blocks'),
             'ocr_include_image_base64': data.get('ocr_include_image_base64'),
             'ocr_pages': data.get('ocr_pages'),
+            'transcription_language_codes': data.get('transcription_language_codes'),
+            'transcription_custom_vocabulary': data.get('transcription_custom_vocabulary'),
+            'transcription_mode': data.get('transcription_mode'),
+            'transcription_diarization': data.get('transcription_diarization'),
+            'transcription_word_timestamps': data.get('transcription_word_timestamps'),
             'attachment_name_map': attachment_name_map,
             'image_vision_model': data.get('image_vision_model'),
             'gem_uuid': data.get('gem_uuid'),
@@ -16857,28 +17105,45 @@ def gemini_session():
     include_thoughts = data.get('include_thoughts') is True
     voice = (data.get('voice') or "Kore").strip()
     is_live_translate = (model_key == "gemini-3.5-live-translate-preview")
-    
-    generation_config = {
-        'response_modalities': ['AUDIO'],
-    }
-    if not is_live_translate and voice and voice in GEMINI_STS_VOICES:
-        generation_config['speech_config'] = {
-            'voice_config': {
-                'prebuilt_voice_config': {'voice_name': voice}
-            }
+    is_live_transcribe = (model_key == "gemini-3.5-transcribe-live")
+
+    if is_live_transcribe:
+        # Live Transcription: TEXT output with streaming speech-to-text config.
+        input_transcription = {
+            'language_codes': [],
         }
-    if not is_live_translate and thinking_level:
-        generation_config['thinking_config'] = {
-            'thinking_level': thinking_level,
-            'include_thoughts': include_thoughts
+        custom_vocab = data.get('custom_vocabulary') or []
+        if isinstance(custom_vocab, list) and custom_vocab:
+            input_transcription['custom_vocabulary'] = [str(x) for x in custom_vocab][:1000]
+        t_mode = str(data.get('transcription_mode') or 'VERBATIM').upper()
+        if t_mode in ("VERBATIM", "SMART"):
+            input_transcription['mode'] = t_mode
+        generation_config = {
+            'response_modalities': ['TEXT'],
+            'input_audio_transcription': input_transcription,
         }
-    if is_live_translate:
-        target_lang = (data.get('target_lang') or "ja").strip()
-        if target_lang:
-            generation_config['translation_config'] = {
-                'target_language_code': target_lang,
-                'echo_target_language': True,
+    else:
+        generation_config = {
+            'response_modalities': ['AUDIO'],
+        }
+        if not is_live_translate and voice and voice in GEMINI_STS_VOICES:
+            generation_config['speech_config'] = {
+                'voice_config': {
+                    'prebuilt_voice_config': {'voice_name': voice}
+                }
             }
+        if not is_live_translate and thinking_level:
+            generation_config['thinking_config'] = {
+                'thinking_level': thinking_level,
+                'include_thoughts': include_thoughts
+            }
+        if is_live_translate:
+            target_lang = (data.get('target_lang') or "ja").strip()
+            if target_lang:
+                generation_config['translation_config'] = {
+                    'target_language_code': target_lang,
+                    'echo_target_language': True,
+                }
 
     config = {
         'live_connect_constraints': {

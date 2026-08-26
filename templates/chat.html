@@ -696,6 +696,17 @@
                                     <option value="ar">العربية</option>
                                 </select>
                             </label>
+                            <label id="sts-transcribe-wrap" class="flex items-center gap-1 hidden">
+                                <span>Mode</span>
+                                <select id="sts-transcribe-mode" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none">
+                                    <option value="VERBATIM" selected>Verbatim</option>
+                                    <option value="SMART">Smart</option>
+                                </select>
+                            </label>
+                            <label id="sts-custom-vocab-wrap" class="flex items-center gap-1 hidden" title="認識をバイアスする用語（カンマ区切り、最大1,000語）">
+                                <span>Custom Vocab</span>
+                                <input id="sts-custom-vocab" type="text" placeholder="Gemini, Kubernetes, BigQuery" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none w-44">
+                            </label>
                             <label id="sts-speed-wrap" class="flex items-center gap-1">
                                 <span>Speed</span>
                                 <input id="sts-speed" type="range" min="0.25" max="1.5" step="0.05" value="1" class="accent-cyan-400">

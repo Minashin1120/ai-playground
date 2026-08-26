@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-26-007')
-app.config['SYSTEM_VERSION'] = 'V4.8.859'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-26-008')
+app.config['SYSTEM_VERSION'] = 'V4.8.860'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -6217,6 +6217,51 @@ def ensure_thread_prompt_caching_columns():
             if not res2:
                 conn.execute(text("SET SESSION lock_wait_timeout=1"))
                 conn.execute(text("ALTER TABLE thread ADD COLUMN prompt_cache_provider VARCHAR(32)"))
+    except Exception:
+        pass
+
+def ensure_import_signature_columns():
+    """Add the import dedupe columns used by account-data imports.
+
+    These must exist before any import query touches them, so they are applied
+    unconditionally at startup (like the other correctness-critical ensure_*
+    migrations) rather than gated behind RUN_SCHEMA_MIGRATIONS.
+    """
+    candidates = [
+        ("thread", "import_signature", "ALTER TABLE thread ADD COLUMN import_signature VARCHAR(64)"),
+        ("gem", "import_signature", "ALTER TABLE gem ADD COLUMN import_signature VARCHAR(64)"),
+        ("feedback", "import_signature", "ALTER TABLE feedback ADD COLUMN import_signature VARCHAR(64)"),
+        ("file_cache", "import_signature", "ALTER TABLE file_cache ADD COLUMN import_signature VARCHAR(64)"),
+        ("first_token_latency_metric", "import_signature", "ALTER TABLE first_token_latency_metric ADD COLUMN import_signature VARCHAR(64)"),
+        ("chat_latency_trace", "import_signature", "ALTER TABLE chat_latency_trace ADD COLUMN import_signature VARCHAR(64)"),
+    ]
+    try:
+        table_names = set(inspect(db.engine).get_table_names())
+    except Exception:
+        table_names = set()
+    try:
+        with db.engine.connect() as conn:
+            for table, column, ddl in candidates:
+                if table not in table_names:
+                    continue
+                try:
+                    res = conn.execute(text(
+                        "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                        "WHERE TABLE_SCHEMA=DATABASE() "
+                        "AND TABLE_NAME=:tbl AND COLUMN_NAME=:col"
+                    ), {"tbl": table, "col": column}).scalar()
+                except Exception:
+                    res = 0
+                if not res:
+                    try:
+                        conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                        conn.execute(text(ddl))
+                        conn.commit()
+                    except Exception:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
     except Exception:
         pass
 
@@ -23049,6 +23094,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_import_signature_columns()
+    except Exception:
+        pass
+    try:
         ensure_message_token_io_columns()
     except Exception:
         pass
@@ -23433,24 +23482,6 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE thread ADD COLUMN prompt_cache_provider VARCHAR(32)")
-        except: pass
-        try:
-            try_alter("ALTER TABLE thread ADD COLUMN import_signature VARCHAR(64)")
-        except: pass
-        try:
-            try_alter("ALTER TABLE gem ADD COLUMN import_signature VARCHAR(64)")
-        except: pass
-        try:
-            try_alter("ALTER TABLE feedback ADD COLUMN import_signature VARCHAR(64)")
-        except: pass
-        try:
-            try_alter("ALTER TABLE file_cache ADD COLUMN import_signature VARCHAR(64)")
-        except: pass
-        try:
-            try_alter("ALTER TABLE first_token_latency_metric ADD COLUMN import_signature VARCHAR(64)")
-        except: pass
-        try:
-            try_alter("ALTER TABLE chat_latency_trace ADD COLUMN import_signature VARCHAR(64)")
         except: pass
 
 @app.route('/api/metrics/first_token', methods=['POST'])

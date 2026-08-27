@@ -7627,6 +7627,8 @@
         };
         const isGeminiLiveTranslateModel = () => get('model-select').value === 'gemini-3.5-live-translate-preview';
         const isGeminiLiveTranscribeModel = () => get('model-select').value === 'gemini-3.5-transcribe-live';
+        const isGeminiRealtimeMusicModel = () => (get('model-select').value || '') === 'lyria-realtime-exp';
+        const isLyriaRealtimeModel = () => isGeminiRealtimeMusicModel();
         // True real-time server-session STS models: OpenAI Realtime conversation
         // models, Grok Voice, and Gemini native-audio. Gemini Live models stream
         // browser-direct, transcription models stay one-shot.
@@ -8544,8 +8546,6 @@
             const studioBar = get('lyria-realtime-studio-bar');
             if (studioBar) studioBar.classList.toggle('hidden', !realtime);
         }
-        const isGeminiRealtimeMusicModel = () => (get('model-select').value || '') === 'lyria-realtime-exp';
-        const isLyriaRealtimeModel = () => isGeminiRealtimeMusicModel();
         function updateXaiChatUi() {
             const wrap = get('xai-chat-options');
             if (!wrap) return;

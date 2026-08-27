@@ -4280,6 +4280,8 @@
             const uploadIcon = uploadBtn ? uploadBtn.querySelector('i') : null;
             if (uploadIcon) uploadIcon.className = enabled ? 'fas fa-plus' : 'fas fa-paperclip';
             if (uploadBtn) uploadBtn.title = enabled ? 'オプション' : 'Upload';
+            const attachBar = get('minimal-attach-bar');
+            if (attachBar) attachBar.setAttribute('aria-hidden', enabled ? 'false' : 'true');
             if (!enabled) {
                 closeMinimalOptions();
                 hideThinkingSlider();
@@ -4863,6 +4865,10 @@
                 if (minimalPromptMode) toggleMinimalOptions();
                 else openUploadModal();
             };
+            const attachBtn = get('minimal-attach-btn');
+            if (attachBtn) {
+                attachBtn.onclick = () => openUploadModal();
+            }
         }
 
         function applyChatDefaults(d) {

@@ -4280,8 +4280,6 @@
             const uploadIcon = uploadBtn ? uploadBtn.querySelector('i') : null;
             if (uploadIcon) uploadIcon.className = enabled ? 'fas fa-plus' : 'fas fa-paperclip';
             if (uploadBtn) uploadBtn.title = enabled ? 'オプション' : 'Upload';
-            const attachBar = get('minimal-attach-bar');
-            if (attachBar) attachBar.setAttribute('aria-hidden', enabled ? 'false' : 'true');
             if (!enabled) {
                 closeMinimalOptions();
                 hideThinkingSlider();
@@ -4367,6 +4365,7 @@
             { value: 'high', label: 'High' }
         ];
         const MINIMAL_POPUP_ITEMS = [
+            { key: 'attach', icon: 'fa-paperclip', label: 'ファイルを添付', action: 'upload' },
             { key: 'canvas', icon: 'fa-window-restore', label: 'Canvas', checkboxId: 'enable-canvas-mode', containerId: 'canvas-mode-container' },
             { key: 'coding', icon: 'fa-code-branch', label: 'Coding', checkboxId: 'enable-coding-mode', containerId: 'coding-mode-container' },
             { key: 'fast', icon: 'fa-bolt', label: '高速', checkboxId: 'enable-browser-fast-mode', containerId: 'browser-fast-mode-container' },
@@ -4431,6 +4430,7 @@
             const row = document.createElement('div');
             row.className = 'minimal-option-item';
             row.dataset.key = item.key;
+            if (item.action) row.classList.add('action-' + item.action);
             if (minimalOptionChecked(item)) row.classList.add('on');
             else row.classList.add('off');
             if (minimalOptionDisabled(item)) row.classList.add('disabled');
@@ -4511,6 +4511,11 @@
         }
 
         function handleMinimalOptionClick(item) {
+            if (item.action === 'upload') {
+                closeMinimalOptions();
+                openUploadModal();
+                return;
+            }
             if (item.special === 'thinking') {
                 // Thinking needs special handling: for models where thinking is
                 // forced on (e.g. Gemini 3.x) the checkbox is disabled, but the
@@ -4865,10 +4870,6 @@
                 if (minimalPromptMode) toggleMinimalOptions();
                 else openUploadModal();
             };
-            const attachBtn = get('minimal-attach-btn');
-            if (attachBtn) {
-                attachBtn.onclick = () => openUploadModal();
-            }
         }
 
         function applyChatDefaults(d) {

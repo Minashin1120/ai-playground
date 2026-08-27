@@ -5158,41 +5158,6 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
     display: none !important;
 }
 
-/* Minimal mode: file attachment bar (horizontal, attach-only row at the top) */
-#minimal-attach-bar {
-    display: none;
-    padding-top: 0.1rem;
-}
-body.minimal-prompt-mode #minimal-attach-bar {
-    display: block !important;
-}
-#minimal-attach-btn {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 0.55rem 1rem;
-    border-radius: 12px;
-    border: 1px dashed rgba(96, 165, 250, 0.55);
-    background: rgba(37, 99, 235, 0.16);
-    color: #bfdbfe;
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    cursor: pointer;
-    transition: background 0.18s var(--ease-standard), border-color 0.18s var(--ease-standard), color 0.18s var(--ease-standard), transform 0.18s var(--ease-out);
-    -webkit-tap-highlight-color: transparent;
-}
-#minimal-attach-btn:hover {
-    background: rgba(37, 99, 235, 0.3);
-    border-color: rgba(96, 165, 250, 0.95);
-    color: #ffffff;
-}
-#minimal-attach-btn:active {
-    transform: scale(0.99);
-}
-
 /* Minimal mode: options popup (plus button) */
 #minimal-options-popup {
     position: fixed;
@@ -5341,6 +5306,27 @@ body.minimal-prompt-mode #minimal-attach-bar {
 }
 .minimal-option-item.hidden {
     display: none;
+}
+/* Minimal mode: file attachment action row (prominent, spans both columns) */
+.minimal-option-item.action-upload {
+    grid-column: 1 / -1;
+    justify-content: center;
+    gap: 0.55rem;
+    padding: 0.62rem 0.75rem;
+    border: 1px dashed rgba(96, 165, 250, 0.55);
+    background: rgba(37, 99, 235, 0.16);
+}
+.minimal-option-item.action-upload:hover {
+    background: rgba(37, 99, 235, 0.3);
+    border-color: rgba(96, 165, 250, 0.95);
+}
+.minimal-option-item.action-upload .minimal-option-icon,
+.minimal-option-item.action-upload .minimal-option-label {
+    color: #bfdbfe;
+}
+.minimal-option-item.action-upload:hover .minimal-option-icon,
+.minimal-option-item.action-upload:hover .minimal-option-label {
+    color: #ffffff;
 }
 .minimal-option-gear {
     width: 1.4rem;

@@ -109,26 +109,21 @@ class MinimalPromptModeRegressionTests(unittest.TestCase):
         self.assertIn(".thinking-slide-inner", css)
         self.assertIn(".thinking-slide-open", css)
 
-    def test_minimal_mode_file_attach_bar(self):
+    def test_minimal_mode_file_attach_in_plus_popup(self):
         # Minimal mode removes the paperclip from the input row (it becomes the
-        # plus/options button), so a dedicated attach-only bar must exist at the
-        # top of the prompt bar and stay hidden in normal mode.
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
-        self.assertIn('id="minimal-attach-bar"', template)
-        self.assertIn('id="minimal-attach-btn"', template)
-        # The bar must render only the attachment button (no extra controls).
-        bar_block = template[template.index('id="minimal-attach-bar"') : template.index('id="quote-bar"')]
-        self.assertEqual(bar_block.count("minimal-attach-btn"), 1)
-
+        # plus/options button), so file attachment is offered inside the
+        # plus-button options popup as a prominent action row.
         script = _current_asset("js", "chat_core.v4.8.*.js")
-        self.assertIn("minimal-attach-bar", script)
-        self.assertIn("minimal-attach-btn", script)
-        self.assertIn("attachBtn.onclick = () => openUploadModal();", script)
+        self.assertIn("key: 'attach'", script)
+        self.assertIn("label: 'ファイルを添付'", script)
+        self.assertIn("action: 'upload'", script)
+        self.assertIn("item.action === 'upload'", script)
+        self.assertIn("closeMinimalOptions();", script)
+        self.assertIn("openUploadModal();", script)
+        self.assertIn("row.classList.add('action-' + item.action)", script)
 
         css = _current_asset("css", "chat.custom.v4.8.*.css")
-        self.assertIn("body.minimal-prompt-mode #minimal-attach-bar", css)
-        self.assertIn("display: block !important;", css)
-        self.assertIn("#minimal-attach-btn", css)
+        self.assertIn(".minimal-option-item.action-upload", css)
 
     def test_thinking_row_works_when_checkbox_disabled(self):
         # Gemini 3.x forces thinking on and disables the checkbox, so the

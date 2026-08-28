@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-29-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.868'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-29-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.869'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -827,6 +827,33 @@ MESSAGE_PAYLOAD_TEXT = db.Text().with_variant(LONGTEXT(), "mysql", "mariadb")
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+# Flask-Login's default login_message ("Please log in to access this page.")
+# is flashed by unauthorized() whenever an unauthenticated request hits a
+# @login_required route.  The login page does not render flashed messages, so
+# this English message is never shown where intended -- it only stays in the
+# session and leaks onto the chat home screen (#flash-msg) after the user logs
+# in, misleadingly saying they need to log in when they already have.
+login_manager.login_message = None
+login_manager.needs_refresh_message = None
+
+@app.before_request
+def _clear_stale_flask_login_flash():
+    """Drop any leftover Flask-Login login flash from before it was disabled.
+
+    Sessions created before the fix above may still carry
+    "Please log in to access this page." in _flashes.  Without this, those
+    users would see the misleading toast once more on their next page load."""
+    if request.endpoint == 'static':
+        return
+    flashes = session.get("_flashes") or []
+    if not flashes:
+        return
+    cleaned = [
+        f for f in flashes
+        if not (isinstance(f, (list, tuple)) and len(f) >= 2 and f[1] == "Please log in to access this page.")
+    ]
+    if len(cleaned) != len(flashes):
+        session["_flashes"] = cleaned
 
 @app.before_request
 def _apply_per_user_upload_limits():

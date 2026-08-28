@@ -626,6 +626,68 @@ class AccountPortabilityTests(unittest.TestCase):
         self.assertEqual(status["state"], "expired")
         self.assertFalse(status["available"])
 
+    def test_download_recovers_archive_when_redis_metadata_lapsed(self):
+        job_id = "f" * 32
+        client = self.client_for(self.source_id)
+        start = client.post(
+            "/api/account/export",
+            json={"job_id": job_id},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(start.status_code, 202)
+        export_path = target._account_export_path(self.source_id, job_id)
+        self.assertTrue(os.path.exists(export_path))
+        # Simulate the Redis artifact + status records being evicted while the
+        # archive file is still on disk (scheduler delay / eviction / TTL race).
+        self.memory_redis.delete(target._account_export_artifact_key(self.source_id, job_id))
+        self.memory_redis.delete(target._account_transfer_status_key(self.source_id, job_id))
+        response = client.get(
+            f"/api/account/export/{job_id}/download", base_url="https://localhost", buffered=False
+        )
+        self.assertEqual(response.status_code, 200)
+        response.close()
+        # Metadata is rebuilt from the on-disk file, so the latest status is
+        # accurate again instead of "idle"/"not available".
+        latest = client.get("/api/account/export/latest", base_url="https://localhost")
+        self.assertEqual(latest.status_code, 200)
+        payload = latest.get_json()
+        self.assertEqual(payload["state"], "ready")
+        self.assertTrue(payload["available"])
+        self.assertEqual(payload["download_url"], f"/api/account/export/{job_id}/download")
+
+    def test_failed_download_does_not_destroy_artifact_record(self):
+        job_id = "b" * 32
+        client = self.client_for(self.source_id)
+        start = client.post(
+            "/api/account/export",
+            json={"job_id": job_id},
+            headers={"X-CSRF-Token": "csrf-test-token"},
+            base_url="https://localhost",
+        )
+        self.assertEqual(start.status_code, 202)
+        export_path = target._account_export_path(self.source_id, job_id)
+        self.assertTrue(os.path.exists(export_path))
+        artifact_key = target._account_export_artifact_key(self.source_id, job_id)
+        self.assertTrue(self.memory_redis.exists(artifact_key))
+        # The archive file disappears (external cleanup), but the Redis record
+        # must survive a failed download so the UI can show an accurate state
+        # instead of silently dropping the record (which used to make the file
+        # look like it disappeared after reloading).
+        os.remove(export_path)
+        response = client.get(
+            f"/api/account/export/{job_id}/download", base_url="https://localhost"
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(self.memory_redis.exists(artifact_key))
+        latest = client.get("/api/account/export/latest", base_url="https://localhost")
+        self.assertEqual(latest.status_code, 200)
+        payload = latest.get_json()
+        self.assertFalse(payload["available"])
+        self.assertEqual(payload["state"], "expired")
+        # The record is intentionally left intact for the scheduled cleanup.
+        self.assertTrue(self.memory_redis.exists(artifact_key))
+
     def test_cancelled_import_removes_files_and_rolls_back_database(self):
         archive_bytes = self.export_archive()
         original_checkpoint = target._account_transfer_checkpoint
@@ -680,6 +742,13 @@ class AccountPortabilityTests(unittest.TestCase):
         self.assertIn('id="account-transfer-progress-bar"', template)
         self.assertIn('id="account-transfer-cancel-btn"', template)
         self.assertIn('id="account-export-download-btn"', template)
+        # The download button must re-verify availability before navigating so a
+        # stale/expired URL never sends the user to a full-page 404.
+        self.assertIn("accountExportDownloadBtn.addEventListener('click'", source)
+        self.assertIn("event.preventDefault()", source)
+        self.assertIn("data.available && data.download_url", source)
+        self.assertIn("window.location.assign(data.download_url)", source)
+        self.assertIn("window.location.assign(href)", source)
         with open(os.path.join(root, "worker.py"), encoding="utf-8") as handle:
             worker_source = handle.read()
         self.assertIn("worker.work(with_scheduler=True)", worker_source)

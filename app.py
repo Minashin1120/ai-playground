@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-27-005')
-app.config['SYSTEM_VERSION'] = 'V4.8.866'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-28-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.867'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -4877,7 +4877,22 @@ def _account_transfer_checkpoint(user_id, job_id, progress, phase, message=""):
     _set_account_transfer_status(user_id, job_id, "running", progress, phase, message)
 
 
-def _account_export_artifact(user_id, job_id):
+def _account_export_artifact(user_id, job_id, destroy_on_missing=True):
+    """Return metadata for a downloadable account-export archive.
+
+    ``destroy_on_missing`` controls whether a missing/expired archive also
+    clears the Redis record and the on-disk file.  Status and download
+    endpoints pass ``False`` so a single failed check never erases an archive
+    the user might still be able to retry, and so the UI can show an accurate
+    terminal state instead of silently discarding it.  Scheduled cleanup
+    (``delete_account_export_task`` / ``_cleanup_expired_account_export_files``)
+    is the only path that should actually remove archives.
+
+    When the archive file is still on disk but the Redis metadata lapsed
+    (worker/scheduler delay, eviction, TTL expiry), the record is rebuilt so
+    the download keeps working as long as the file is within its retention
+    window.
+    """
     if not _valid_account_transfer_job_id(job_id):
         return None
     try:
@@ -4885,12 +4900,49 @@ def _account_export_artifact(user_id, job_id):
     except Exception:
         metadata = None
     if not isinstance(metadata, dict):
-        return None
+        metadata = {}
     path = _account_export_path(user_id, job_id)
-    expires_ts = int(metadata.get("expires_ts") or 0)
-    if not path or expires_ts <= int(time.time()) or not os.path.isfile(path):
-        _delete_account_export_artifact(user_id, job_id, state="expired")
+    if not path:
+        if destroy_on_missing:
+            _delete_account_export_artifact(user_id, job_id, state="expired")
         return None
+    now = int(time.time())
+    try:
+        file_mtime = int(os.path.getmtime(path))
+    except OSError:
+        file_mtime = 0
+    if not os.path.isfile(path):
+        if destroy_on_missing:
+            _delete_account_export_artifact(user_id, job_id, state="expired")
+        return None
+    if file_mtime <= 0 or now - file_mtime >= ACCOUNT_EXPORT_RETENTION_SECONDS:
+        # The archive is beyond its one-hour retention window.  Removal is owned
+        # by scheduled cleanup, but it must no longer be served.
+        if destroy_on_missing:
+            _delete_account_export_artifact(user_id, job_id, state="expired")
+        return None
+    if not metadata or not metadata.get("expires_ts"):
+        # Redis metadata lapsed / was evicted while the archive is still on
+        # disk and inside the retention window.  Rebuild the record so status
+        # and download keep working instead of failing with a 404.
+        ready_ts = file_mtime
+        metadata = {
+            "job_id": job_id,
+            "filename": f"ai-playground-account-{datetime.utcfromtimestamp(ready_ts).strftime('%Y%m%d-%H%M%S')}.zip",
+            "size_bytes": os.path.getsize(path),
+            "ready_ts": ready_ts,
+            "expires_ts": ready_ts + ACCOUNT_EXPORT_RETENTION_SECONDS,
+            "expires_at": _portable_datetime(datetime.utcfromtimestamp(ready_ts + ACCOUNT_EXPORT_RETENTION_SECONDS)),
+            "unreadable_count": 0,
+        }
+        try:
+            redis_conn.setex(
+                _account_export_artifact_key(user_id, job_id),
+                ACCOUNT_TRANSFER_STATUS_TTL,
+                json.dumps(metadata, ensure_ascii=False, separators=(",", ":")),
+            )
+        except Exception:
+            pass
     metadata["path"] = path
     return metadata
 
@@ -4903,7 +4955,7 @@ def _account_transfer_status_payload(user_id, job_id):
     except Exception:
         payload = {"state": "pending", "progress": 0, "phase": "pending", "message": ""}
     payload["job_id"] = job_id
-    artifact = _account_export_artifact(user_id, job_id)
+    artifact = _account_export_artifact(user_id, job_id, destroy_on_missing=False)
     if artifact:
         payload.update({
             "state": "ready",
@@ -4918,6 +4970,17 @@ def _account_transfer_status_payload(user_id, job_id):
         })
     else:
         payload["available"] = False
+        # A job that previously reached "ready" but whose archive is no longer
+        # present must surface a terminal state instead of a stale "ready"
+        # without a file.  The artifact record itself is left untouched so the
+        # scheduled cleanup owns the actual deletion.
+        if payload.get("state") == "ready":
+            payload.update({
+                "state": "expired",
+                "progress": 0,
+                "phase": "expired",
+                "message": "エクスポートZIPの保存期限が切れたか、利用できません",
+            })
     return payload
 
 
@@ -19610,16 +19673,26 @@ def export_account_data():
 def download_account_export(job_id):
     if not _valid_account_transfer_job_id(job_id):
         return jsonify({'error': 'invalid_job_id'}), 400
-    artifact = _account_export_artifact(current_user.id, job_id)
+    artifact = _account_export_artifact(current_user.id, job_id, destroy_on_missing=False)
     if not artifact:
+        # Non-destructive: a failed download must not wipe the archive/record,
+        # otherwise a single 404 makes the file look like it disappeared and
+        # prevents any retry. State transitions are owned by the status
+        # endpoint and the scheduled cleanup.
         return jsonify({'error': 'export_not_available'}), 404
     if not rate_limit(f"rl:account_export_download:user:{current_user.id}", 30, 3600):
         return jsonify({'error': 'rate_limit'}), 429
-    response = send_file(
-        artifact["path"], mimetype="application/zip", as_attachment=True,
-        download_name=artifact.get("filename") or "ai-playground-account.zip",
-        conditional=True,
-    )
+    try:
+        response = send_file(
+            artifact["path"], mimetype="application/zip", as_attachment=True,
+            download_name=artifact.get("filename") or "ai-playground-account.zip",
+            conditional=True,
+        )
+    except OSError:
+        # The archive vanished between the availability check and the actual
+        # send (e.g. scheduled cleanup ran). Return 404 without destroying the
+        # record so the UI can refresh to an accurate state.
+        return jsonify({'error': 'export_not_available'}), 404
     response.headers["Cache-Control"] = "private, no-store, max-age=0"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response

@@ -9532,6 +9532,35 @@
                     }
                 };
             }
+            const accountExportDownloadBtn = get('account-export-download-btn');
+            if (accountExportDownloadBtn) {
+                accountExportDownloadBtn.addEventListener('click', async (event) => {
+                    const href = accountExportDownloadBtn.getAttribute('href');
+                    if (!href || href === '#') return;
+                    // Re-verify availability immediately before navigating so a
+                    // stale/expired download URL never sends the user to a
+                    // full-page 404. The archive may have been auto-deleted
+                    // between the status check and the click.
+                    event.preventDefault();
+                    try {
+                        const res = await apiFetch('/api/account/export/latest', manualSpinnerRequestOptions({cache: 'no-store'}));
+                        const data = await res.json().catch(() => ({}));
+                        if (res.ok && data.available && data.download_url) {
+                            accountExportDownloadBtn.href = data.download_url;
+                            window.location.assign(data.download_url);
+                        } else {
+                            renderAccountExportAvailability(data);
+                            renderAccountTransferProgress(data);
+                            showToast('エクスポートZIPをダウンロードできません。最新の状態を確認してください。', 'warning', true);
+                            refreshLatestAccountExport();
+                        }
+                    } catch (_) {
+                        // Network hiccup: fall back to the anchor navigation so
+                        // the click still behaves like a normal download link.
+                        window.location.assign(href);
+                    }
+                });
+            }
             setAccountTransferControls(false);
             refreshLatestAccountExport();
             // ---- Import file selection modal (storage limit exceeded) ----

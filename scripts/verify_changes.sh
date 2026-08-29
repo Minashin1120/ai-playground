@@ -55,6 +55,11 @@ info "verify $(run_common versions | json_get system_version) / $(run_common ver
 
 run_logged "versioned assets and docs" run_common check-assets
 
+# chat_core is edited as ordered parts; warn (non-blocking) when a part grows
+# past the readable size limit so it can be re-split and the README updated.
+info "chat_core parts size"
+run_common check-parts || warn "chat_core parts size check failed"
+
 JS_SOURCES=(
     static/js/progress_spinner.js
     static/js/connection_monitor.js

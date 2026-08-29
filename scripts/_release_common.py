@@ -188,6 +188,29 @@ def list_chat_core_parts() -> list[Path]:
     )
 
 
+# When a chat_core part grows past this many lines it should be re-split so the
+# per-file read cost stays low (see scripts/rebuild_chat_core_parts.sh).
+CHAT_CORE_PART_MAX_LINES = 2000
+
+
+def check_parts_sizes() -> list[str]:
+    """Warning strings for chat_core parts that exceed the readable-size limit.
+
+    Non-blocking: the release can proceed, but verify_changes.sh surfaces the
+    warning so the parts can be re-split and the part README updated."""
+    warnings: list[str] = []
+    for part in list_chat_core_parts():
+        line_count = part.read_text(encoding="utf-8").count("\n")
+        if line_count > CHAT_CORE_PART_MAX_LINES:
+            warnings.append(
+                f"chat_core part {part.name} is {line_count} lines "
+                f"(max {CHAT_CORE_PART_MAX_LINES}); re-split chat_core_parts and "
+                "update static/js/chat_core_parts/README.md "
+                "(scripts/rebuild_chat_core_parts.sh)"
+            )
+    return warnings
+
+
 def combined_matches_parts(combined: Path, parts: list[Path]) -> bool:
     if not parts:
         return True
@@ -571,6 +594,19 @@ def cmd_check_assets(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_check_parts(_args: argparse.Namespace) -> int:
+    """Warn (non-blocking) when a chat_core part grows past the readable limit."""
+    warnings = check_parts_sizes()
+    for warning in warnings:
+        print(f"WARN: {warning}", file=sys.stderr)
+    if warnings:
+        print(f"{len(warnings)} chat_core part(s) exceed the readable size limit", file=sys.stderr)
+        print("re-run scripts/rebuild_chat_core_parts.sh to re-split, then update README.md")
+    else:
+        print(f"chat_core parts sizes ok (max {CHAT_CORE_PART_MAX_LINES} lines)")
+    return 0
+
+
 def cmd_prepare(args: argparse.Namespace) -> int:
     notes = args.notes
     if args.notes_file:
@@ -615,6 +651,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("versions").set_defaults(func=cmd_versions)
     sub.add_parser("check-assets").set_defaults(func=cmd_check_assets)
+    sub.add_parser("check-parts").set_defaults(func=cmd_check_parts)
     sub.add_parser("classify-git").set_defaults(func=cmd_classify_git)
 
     prepare = sub.add_parser("prepare")

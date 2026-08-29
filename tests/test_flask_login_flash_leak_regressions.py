@@ -71,6 +71,7 @@ class FlaskLoginFlashLeakRegressionTests(unittest.TestCase):
             sess["_flashes"] = [
                 ("message", "Please log in to access this page."),
                 ("message", "設定を保存しました"),
+                ("message", "ボット検出によるBANが解除されました。"),
             ]
         client.get("/", base_url="https://localhost")
         with client.session_transaction() as sess:
@@ -79,9 +80,15 @@ class FlaskLoginFlashLeakRegressionTests(unittest.TestCase):
             "Please log in to access this page.",
             [f[1] for f in flashes if isinstance(f, (list, tuple)) and len(f) >= 2],
         )
-        # Unrelated flashes are preserved.
-        self.assertIn(
+        # Settings-save flashes are stale too (see _LEAKY_SETTINGS_FLASHES) and
+        # must never leak onto a page render.
+        self.assertNotIn(
             "設定を保存しました",
+            [f[1] for f in flashes if isinstance(f, (list, tuple)) and len(f) >= 2],
+        )
+        # Truly unrelated flashes (e.g. the bot-unban notice) are preserved.
+        self.assertIn(
+            "ボット検出によるBANが解除されました。",
             [f[1] for f in flashes if isinstance(f, (list, tuple)) and len(f) >= 2],
         )
 

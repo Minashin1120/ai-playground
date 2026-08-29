@@ -87,6 +87,31 @@ class SettingsFlashLeakRegressionTests(unittest.TestCase):
         for leaked in ("設定を保存しました", "暗号化設定の変更処理を開始しました。完了までしばらくお待ちください。"):
             self.assertNotIn('flash("%s")' % leaked, APP_SOURCE)
 
+    def test_stale_settings_save_flash_is_purged_before_page_render(self):
+        # A session created while the settings endpoint still used flash() may
+        # carry a stale "設定を保存しました" message.  Because the settings
+        # modal is a client-side route (history.pushState), opening it does not
+        # consume the flash; the next full page render (e.g. navigating to "/"
+        # from the URL bar) used to render it as a misleading toast even though
+        # nothing was saved.  Every request must purge these stale flashes so no
+        # page render can show them.
+        client = self.authenticated_client()
+        with client.session_transaction() as sess:
+            sess["_flashes"] = [
+                ("message", "設定を保存しました"),
+                ("message", "暗号化設定の変更処理を開始しました。完了までしばらくお待ちください。"),
+                ("message", "2FAを無効化しました。"),
+                ("message", "ボット検出によるBANが解除されました。"),
+            ]
+        page = client.get("/", base_url="https://localhost")
+        self.assertEqual(page.status_code, 200, page.get_data(as_text=True))
+        html = page.get_data(as_text=True)
+        # The stale settings-save flashes must not be rendered as a toast.
+        for leaked in ("設定を保存しました", "暗号化設定の変更処理を開始しました。完了までしばらくお待ちください。", "2FAを無効化しました。"):
+            self.assertNotIn(leaked, html)
+        # Unrelated flashes (e.g. the bot-unban notice) survive the purge.
+        self.assertIn("ボット検出によるBANが解除されました。", html)
+
     def test_client_uses_server_message_for_save_toast(self):
         # The settings-modal save handler reads the server-provided message
         # (e.g. the E2EE migration notice) instead of always showing the generic

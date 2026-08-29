@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-30-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.871'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-30-003')
+app.config['SYSTEM_VERSION'] = 'V4.8.872'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -896,6 +896,42 @@ def _clear_stale_flask_login_flash():
     cleaned = [
         f for f in flashes
         if not (isinstance(f, (list, tuple)) and len(f) >= 2 and f[1] == "Please log in to access this page.")
+    ]
+    if len(cleaned) != len(flashes):
+        session["_flashes"] = cleaned
+
+# Settings-save result messages.  /api/settings no longer flashes them (the
+# result is returned in the JSON response and the client shows its own toast),
+# but sessions created while the old code was live may still carry these stale
+# flashes.  They are purged on every request so they can never be rendered on a
+# page load as a misleading "設定を保存しました" toast -- e.g. when a user has
+# the settings modal open (a client-side history navigation that does not render
+# the flash) and then navigates via the URL bar (a full page render that would).
+_LEAKY_SETTINGS_FLASHES = {
+    "設定を保存しました",
+    "暗号化設定の変更処理を開始しました。完了までしばらくお待ちください。",
+    "2FAを無効化しました。",
+}
+
+@app.before_request
+def _purge_stale_settings_flashes():
+    """Drop any leftover settings-save flashes from before they were removed.
+
+    Previously this endpoint used flash(), whose messages are only consumed on
+    the next full page render.  Sessions created before that fix can still
+    carry a stale "設定を保存しました" flash, which would otherwise render on
+    the next full page load and claim a save that never happened.  Purging on
+    every request (not just inside the settings POST handler) guarantees the
+    stale message is gone before any page render can show it.  Unrelated
+    flashes, e.g. the bot-unban notice, are kept."""
+    if request.endpoint == 'static':
+        return
+    flashes = session.get("_flashes") or []
+    if not flashes:
+        return
+    cleaned = [
+        f for f in flashes
+        if not (isinstance(f, (list, tuple)) and len(f) >= 2 and f[1] in _LEAKY_SETTINGS_FLASHES)
     ]
     if len(cleaned) != len(flashes):
         session["_flashes"] = cleaned
@@ -21875,20 +21911,10 @@ def handle_settings():
     # the next full page render -- so a save's message (including background
     # auto-saves such as rich-paste prompts, Gem application, etc.) leaked onto
     # the next reload as a stale "設定を保存しました" toast even when the user
-    # never opened the settings modal.  Discard any leftover settings-save
-    # flashes here too so pre-existing stale messages stop showing up after this
-    # fix is deployed (other flashes, e.g. the bot-unban notice, are kept).
-    _LEAKY_SETTINGS_FLASHES = {
-        "設定を保存しました",
-        "暗号化設定の変更処理を開始しました。完了までしばらくお待ちください。",
-        "2FAを無効化しました。",
-    }
-    _pending_flashes = session.get("_flashes") or []
-    if _pending_flashes:
-        session["_flashes"] = [
-            f for f in _pending_flashes
-            if not (isinstance(f, (list, tuple)) and len(f) >= 2 and f[1] in _LEAKY_SETTINGS_FLASHES)
-        ]
+    # never opened the settings modal.  Any leftover settings-save flashes from
+    # sessions created before that change are purged on every request by
+    # _purge_stale_settings_flashes() (see _LEAKY_SETTINGS_FLASHES above), so
+    # nothing is flashed here.
     log_force("DEBUG: handle_settings returning ok")
     return jsonify({'status': 'ok', 'message': result_message})
 

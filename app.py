@@ -872,6 +872,33 @@ _install_schema_reset_guard()
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+# Flask-Login's default login_message ("Please log in to access this page.")
+# is flashed by unauthorized() whenever an unauthenticated request hits a
+# @login_required route.  The login page does not render flashed messages, so
+# this English message is never shown where intended -- it only stays in the
+# session and leaks onto the chat home screen (#flash-msg) after the user logs
+# in, misleadingly saying they need to log in when they already have.
+login_manager.login_message = None
+login_manager.needs_refresh_message = None
+
+@app.before_request
+def _clear_stale_flask_login_flash():
+    """Drop any leftover Flask-Login login flash from before it was disabled.
+
+    Sessions created before the fix above may still carry
+    "Please log in to access this page." in _flashes.  Without this, those
+    users would see the misleading toast once more on their next page load."""
+    if request.endpoint == 'static':
+        return
+    flashes = session.get("_flashes") or []
+    if not flashes:
+        return
+    cleaned = [
+        f for f in flashes
+        if not (isinstance(f, (list, tuple)) and len(f) >= 2 and f[1] == "Please log in to access this page.")
+    ]
+    if len(cleaned) != len(flashes):
+        session["_flashes"] = cleaned
 
 @app.before_request
 def _apply_per_user_upload_limits():
@@ -21809,6 +21836,7 @@ def handle_settings():
         set_app_setting("bot_detection_global_enabled", "1" if d['bot_detection_global_enabled'] else "0")
     
     log_force(f"DEBUG: handle_settings processing keys={sorted(d.keys())}")
+    result_message = None
     if d.get('new_password'):
         new_password = str(d['new_password'])
         if len(new_password) < 8 or len(new_password) > 256:
@@ -21825,23 +21853,44 @@ def handle_settings():
     if 'enable_e2ee' in d and d['enable_e2ee'] != current_user.enable_e2ee:
         target_enable = d['enable_e2ee']
         task_queue.enqueue(migrate_e2ee_task, current_user.id, target_enable)
-        flash("暗号化設定の変更処理を開始しました。完了までしばらくお待ちください。")
+        result_message = "暗号化設定の変更処理を開始しました。完了までしばらくお待ちください。"
     if 'disable_2fa' in d and d['disable_2fa']:
         current_user.is_2fa_enabled = False
         current_user.totp_secret = None
         current_user.webauthn_credentials = None
         current_user.passkey_only_login = False
         current_user.default_2fa_method = 'totp'
-        flash("2FAを無効化しました。")
+        result_message = "2FAを無効化しました。"
     else:
         log_force("DEBUG: handle_settings calling _refresh_user_2fa_state")
         _refresh_user_2fa_state(current_user)
         log_force("DEBUG: handle_settings calling safe_db_commit")
         safe_db_commit()
         log_force("DEBUG: handle_settings safe_db_commit finished")
-        flash("設定を保存しました")
+        if result_message is None:
+            result_message = "設定を保存しました"
+    # /api/settings is AJAX-only (the client always posts with fetch/apiFetch and
+    # shows its own toast), so the result is returned in the JSON response.
+    # Previously this endpoint used flash(), whose messages are only consumed on
+    # the next full page render -- so a save's message (including background
+    # auto-saves such as rich-paste prompts, Gem application, etc.) leaked onto
+    # the next reload as a stale "設定を保存しました" toast even when the user
+    # never opened the settings modal.  Discard any leftover settings-save
+    # flashes here too so pre-existing stale messages stop showing up after this
+    # fix is deployed (other flashes, e.g. the bot-unban notice, are kept).
+    _LEAKY_SETTINGS_FLASHES = {
+        "設定を保存しました",
+        "暗号化設定の変更処理を開始しました。完了までしばらくお待ちください。",
+        "2FAを無効化しました。",
+    }
+    _pending_flashes = session.get("_flashes") or []
+    if _pending_flashes:
+        session["_flashes"] = [
+            f for f in _pending_flashes
+            if not (isinstance(f, (list, tuple)) and len(f) >= 2 and f[1] in _LEAKY_SETTINGS_FLASHES)
+        ]
     log_force("DEBUG: handle_settings returning ok")
-    return jsonify({'status': 'ok'})
+    return jsonify({'status': 'ok', 'message': result_message})
 
 @app.route('/api/debug/client_log', methods=['POST'])
 @login_required

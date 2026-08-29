@@ -11057,6 +11057,15 @@
                 if (get('set-bot-detect-global')) b.bot_detection_global_enabled = get('set-bot-detect-global').checked;
                 const res = await apiFetch(CHAT_CONFIG.urls.handleSettings, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)});
                 if (res.ok) {
+                    // The server returns the result message in the JSON body
+                    // (e.g. the E2EE migration notice).  It no longer uses
+                    // flash(), which used to leak a stale "設定を保存しました"
+                    // toast onto the next page load.
+                    let saveMsg = "設定を保存しました";
+                    try {
+                        const d = await res.json();
+                        if (d && d.message) saveMsg = d.message;
+                    } catch (e) {}
                     closeSettingsModal();
 
                     const oldUsername = currentUsername;
@@ -11089,7 +11098,7 @@
                         applyCacheMode(useSwCache, { forceCleanup: !useSwCache });
                     }
 
-                    showToast("設定を保存しました", "success");
+                    showToast(saveMsg, "success");
                     syncClientDebugLogToggle(b.enable_client_debug_log, 'settings saved');
 
                     // Critical changes that still might benefit from a reload for full consistency

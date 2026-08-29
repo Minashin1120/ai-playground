@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Minify versioned chat assets with esbuild. Source files stay readable for
-# editing and regression tests; browsers load the .min counterparts.
+# Rebuild the combined chat_core source from its ordered parts, then minify the
+# versioned assets with esbuild.  The source parts stay readable for editing and
+# regression tests; browsers load the .min counterparts.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -18,6 +19,29 @@ if [[ -z "$VERSION_FILE" ]]; then
 fi
 VERSION="$(basename "$VERSION_FILE" | sed -E 's/^chat_core\.(v[0-9.]+)\.js$/\1/')"
 
+JS_SRC="static/js/chat_core.${VERSION}.js"
+JS_MIN="static/js/chat_core.min.${VERSION}.js"
+
+# chat_core is edited as ordered parts under static/js/chat_core_parts/.
+# Rebuild the combined versioned source from the parts so the versioned file and
+# the minified browser asset always reflect the parts.  If the parts directory
+# is missing (legacy layout), fall back to minifying the existing combined
+# source as before.
+PARTS_DIR="static/js/chat_core_parts"
+if [[ -d "$PARTS_DIR" ]] && compgen -G "$PARTS_DIR/chat_core.part*.js" > /dev/null; then
+  PARTS=( $(ls -1 "$PARTS_DIR"/chat_core.part*.js | sort) )
+  if [[ ${#PARTS[@]} -eq 0 ]]; then
+    echo "No chat_core.part*.js files found in $PARTS_DIR." >&2
+    exit 1
+  fi
+  : > "$JS_SRC"
+  for part in "${PARTS[@]}"; do
+    cat "$part" >> "$JS_SRC"
+  done
+  echo "Rebuilt $JS_SRC from ${#PARTS[@]} parts:"
+  ls -1 "$PARTS_DIR"/chat_core.part*.js
+fi
+
 ESBUILD=(npx --yes esbuild@0.25.9)
 
 minify_js() {
@@ -28,11 +52,10 @@ minify_js() {
     --legal-comments=none \
     --keep-names \
     --target=es2019 \
+    --line-limit=100 \
     --outfile="$dest"
 }
 
-JS_SRC="static/js/chat_core.${VERSION}.js"
-JS_MIN="static/js/chat_core.min.${VERSION}.js"
 CSS_SRC="static/css/chat.custom.${VERSION}.css"
 CSS_MIN="static/css/chat.custom.min.${VERSION}.css"
 TW_SRC="static/css/chat.tailwind.${VERSION}.css"

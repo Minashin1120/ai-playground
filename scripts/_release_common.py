@@ -175,6 +175,27 @@ def list_chat_core_sources() -> list[Path]:
     )
 
 
+def list_chat_core_parts() -> list[Path]:
+    """Ordered editable parts that rebuild the combined chat_core source.
+
+    When the parts directory exists, static/js/chat_core.v4.8.*.js and its
+    .min counterpart are generated from these parts by build_frontend.sh.  The
+    parts themselves are not versioned (the versioned combined file is)."""
+    return sorted(
+        path
+        for path in (JS_DIR / "chat_core_parts").glob("chat_core.part*.js")
+        if ".min." not in path.name
+    )
+
+
+def combined_matches_parts(combined: Path, parts: list[Path]) -> bool:
+    if not parts:
+        return True
+    if not combined.is_file():
+        return False
+    return combined.read_bytes() == b"".join(p.read_bytes() for p in parts)
+
+
 def changelog_path(system_lower: str, day: dt.date | None = None) -> Path:
     day = day or dt.date.today()
     return CHANGELOG_DIR / f"{day.strftime('%Y%m%d')}_{system_lower}.md"
@@ -292,6 +313,17 @@ def check_workspace_assets(versions: dict[str, str] | None = None) -> list[str]:
     for path in required_all_assets(versions["system_lower"]):
         if not path.is_file():
             errors.append(f"missing required asset: {path.relative_to(ROOT)}")
+    # The combined chat_core source is rebuilt from its ordered parts; a stale
+    # combined file would hide edits made to a part, so require them to match.
+    parts = list_chat_core_parts()
+    if parts:
+        combined = versioned_assets(versions["system_lower"])["chat_core_js"]
+        if not combined_matches_parts(combined, parts):
+            errors.append(
+                f"{combined.relative_to(ROOT)} does not match the concatenation of "
+                f"{len(parts)} parts under static/js/chat_core_parts/ "
+                "(run scripts/build_frontend.sh to rebuild it)"
+            )
     changelog = find_changelog(versions["system_lower"])
     if changelog is None:
         errors.append(f"missing changelog for {versions['system_lower']}")

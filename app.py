@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-28-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.867'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-30-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.870'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -824,6 +824,51 @@ _TEMP_CHAT_MONITOR_TOKEN = None
 
 db = SQLAlchemy(app)
 MESSAGE_PAYLOAD_TEXT = db.Text().with_variant(LONGTEXT(), "mysql", "mariadb")
+
+def _sqlite_database_uri(uri):
+    return (uri or "").strip().lower().startswith("sqlite:")
+
+def schema_reset_is_allowed(uri=None):
+    """True only for sqlite, or an explicit emergency override.
+
+    Regression tests call db.drop_all().  If DATABASE_URL already pointed at
+    the production MySQL database, os.environ.setdefault() in those tests was
+    a no-op and drop_all wiped live chat/gem rows.  Non-sqlite URLs are
+    therefore refused unless ALLOW_PRODUCTION_SCHEMA_RESET=1.
+    """
+    if os.getenv("ALLOW_PRODUCTION_SCHEMA_RESET") == "1":
+        return True
+    value = uri if uri is not None else (
+        app.config.get("SQLALCHEMY_DATABASE_URI") or os.getenv("DATABASE_URL") or ""
+    )
+    return _sqlite_database_uri(value)
+
+def _refuse_protected_schema_reset(op="drop_all"):
+    if schema_reset_is_allowed():
+        return
+    uri = app.config.get("SQLALCHEMY_DATABASE_URI") or os.getenv("DATABASE_URL") or ""
+    location = uri.split("@", 1)[-1] if "@" in uri else "non-sqlite"
+    raise RuntimeError(
+        f"refusing {op} on {location}. Tests must use a sqlite DATABASE_URL. "
+        "Set ALLOW_PRODUCTION_SCHEMA_RESET=1 only for a deliberate emergency reset."
+    )
+
+def _install_schema_reset_guard():
+    original_drop_all = db.drop_all
+    original_metadata_drop_all = db.metadata.drop_all
+
+    def guarded_drop_all(*args, **kwargs):
+        _refuse_protected_schema_reset("db.drop_all")
+        return original_drop_all(*args, **kwargs)
+
+    def guarded_metadata_drop_all(*args, **kwargs):
+        _refuse_protected_schema_reset("metadata.drop_all")
+        return original_metadata_drop_all(*args, **kwargs)
+
+    db.drop_all = guarded_drop_all
+    db.metadata.drop_all = guarded_metadata_drop_all
+
+_install_schema_reset_guard()
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'

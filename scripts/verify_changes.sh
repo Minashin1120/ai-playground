@@ -78,6 +78,10 @@ PY_SOURCES=(app.py worker.py scripts/_release_common.py)
 run_logged "python syntax" "$PYTHON" -m py_compile "${PY_SOURCES[@]}"
 
 if [[ "$SKIP_TESTS" -eq 0 ]]; then
+    # Never inherit a live MySQL URL into pytest. setdefault() in tests cannot
+    # override an already-exported DATABASE_URL, and db.drop_all() would wipe it.
+    export DATABASE_URL="${AI_CHAT_TEST_DATABASE_URL:-sqlite:////tmp/ai-chat-verify.db}"
+    export RUN_SCHEMA_MIGRATIONS="${RUN_SCHEMA_MIGRATIONS:-0}"
     info "running pytest (quiet; full output in $VERIFY_LOG)"
     if ! "$PYTHON" -m pytest -q --tb=line "${PYTEST_ARGS[@]}" >>"$VERIFY_LOG" 2>&1; then
         echo "----- pytest failures -----" >&2

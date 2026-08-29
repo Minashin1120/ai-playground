@@ -15,4 +15,4 @@ venv/bin/python -m pytest -q tests/test_security_regressions.py
 venv/bin/python -m pytest -q tests/test_progress_spinner_regressions.py
 ```
 
-テストデータは一時領域とモックで生成されることを前提としています。実運用のデータベースや外部APIキーはテストに使用しません。
+テストデータは一時領域とモックで生成されることを前提としています。実運用のデータベースや外部APIキーはテストに使用しません。`verify_changes.sh` と `tests/conftest.py` は `DATABASE_URL` が MySQL のままでも sqlite に差し替えます。アプリ本体は sqlite 以外への `db.drop_all()` を拒否します。

@@ -585,6 +585,13 @@
             const box = document.getElementById('passkey-error');
             if (box) box.classList.add('hidden');
         };
+        // Turnstile tokens are single-use: the passkey options request consumes
+        // the token on the server, so the widget must be reset afterwards.
+        // Otherwise the next attempt (password login or a passkey retry) submits
+        // an already-consumed token and fails on the first try.
+        const resetTurnstile = () => {
+            if (window.turnstile) window.turnstile.reset();
+        };
         document.getElementById('passkey-login-btn').onclick = async (e) => {
             const btn = e.currentTarget;
             const originalText = btn.innerHTML;
@@ -612,6 +619,7 @@
                 const options = await optsRes.json();
                 if (!optsRes.ok) { 
                     showPasskeyError(options.error || 'パスキーの準備に失敗しました');
+                    resetTurnstile();
                     btn.disabled = false;
                     btn.classList.remove('btn-loading');
                     btn.innerHTML = originalText;
@@ -629,6 +637,7 @@
                     triggerSuccess("/");
                 } else { 
                     showPasskeyError(verifyData.error || 'ログインに失敗しました');
+                    resetTurnstile();
                     btn.disabled = false;
                     btn.classList.remove('btn-loading');
                     btn.innerHTML = originalText;
@@ -636,6 +645,7 @@
             } catch (e) {
                 console.error(e);
                 showPasskeyError('パスキー認証に失敗しました');
+                resetTurnstile();
                 btn.disabled = false;
                 btn.classList.remove('btn-loading');
                 btn.innerHTML = originalText;

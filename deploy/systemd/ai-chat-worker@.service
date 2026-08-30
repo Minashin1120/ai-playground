@@ -1,4 +1,7 @@
 [Unit]
+# Template RQ worker. メモリ負荷対策で @1 / @2 の2インスタンスのみ有効にする
+# （デプロイ手順は deploy/systemd/README.md を参照。ホスト RAM が小さいため
+#   3・4番を起動するとスワップでリクエストが10秒以上ストールする）。
 Description=AI Chat Playground RQ worker %i
 After=network-online.target mariadb.service redis-server.service
 Wants=network-online.target

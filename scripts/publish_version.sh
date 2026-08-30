@@ -179,8 +179,7 @@ info "re-checking the prepared tree"
 
 dump_restart_logs() {
     echo "----- service status -----" >&2
-    for unit in ai-chat.service ai-chat-worker@1.service ai-chat-worker@2.service \
-                ai-chat-worker@3.service ai-chat-worker@4.service; do
+    for unit in ai-chat.service ai-chat-worker@1.service ai-chat-worker@2.service; do
         printf '  %s: %s\n' "$unit" "$(systemctl is-active "$unit" 2>/dev/null || echo unknown)" >&2
     done
     echo "----- ai-chat.service log -----" >&2

@@ -15,7 +15,8 @@ logger = logging.getLogger(__name__)
 
 def _default_queue_names():
     instance = (os.getenv("WORKER_INSTANCE") or "").strip()
-    # 1,2 番は fast 優先。3,4 番は heavy 優先で詰まりを分散する。
+    # 現在のデプロイでは @1 / @2 の2つのみ有効（メモリ負荷対策）。3,4番は
+    # heavy 優先として残してあるが、ホスト RAM が小さいため通常は使わない。
     if instance in {"3", "4"}:
         return [HEAVY_QUEUE_NAME, FAST_QUEUE_NAME, LEGACY_QUEUE_NAME]
     return [FAST_QUEUE_NAME, HEAVY_QUEUE_NAME, LEGACY_QUEUE_NAME]

@@ -20,13 +20,13 @@ Safety model
 Usage (from the app directory; see the public ROTATION doc for full steps)
 -------------------------------------------------------------------------
     # 1) stop the web + workers (avoid concurrent writes during the sweep)
-    sudo systemctl stop ai-chat.service ai-chat-worker@1.service ...
+    sudo systemctl stop ai-chat.service ai-chat-worker@1.service ai-chat-worker@2.service
 
     # 2) create the backups + rotate + re-encrypt + verify (offline)
     venv/bin/python scripts/rotate_encryption_key.py --execute --yes
 
     # 3) start services and confirm
-    sudo systemctl start ai-chat.service ai-chat-worker@1.service ...
+    sudo systemctl start ai-chat.service ai-chat-worker@1.service ai-chat-worker@2.service
 """
 
 import argparse
@@ -344,8 +344,8 @@ def _verify(new_cipher, old_cipher):
 # --------------------------------------------------------------------------- #
 def _app_services_active():
     active = []
-    for unit in ["ai-chat.service", "ai-chat-worker@1.service", "ai-chat-worker@2.service",
-                 "ai-chat-worker@3.service", "ai-chat-worker@4.service"]:
+    # RQ workers: only @1 and @2 are enabled (memory-pressure reduction).
+    for unit in ["ai-chat.service", "ai-chat-worker@1.service", "ai-chat-worker@2.service"]:
         try:
             out = subprocess.run(["systemctl", "is-active", unit], capture_output=True, text=True).stdout.strip()
         except Exception:

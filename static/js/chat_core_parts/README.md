@@ -17,7 +17,7 @@
 | 部品 | 行数 | 主な内容 |
 |---|---|---|
 | `part01_bootstrap_utils.js` | ~1,580 | 基盤ユーティリティ。`get()` ヘルパー、設定保存ボタン制御、画像読み込み失敗フォールバック、テーマ（`applyThemeColor` / `THEME_STORAGE_KEY`）、Liquid Glass、圧縮設定、アダプティブぼかし（低負荷自動化）、モーダルの開閉（`showModal` / `hideModal`） |
-| `part02_rich_paste.js` | ~1,580 | リッチペースト（HTML整形・サニタイズ・印刷）、MathJax読み込み、Google連携解除、各種定数（添付・低帯域・一時チャット・Coding/Canvas・マーカー） |
+| `part02_rich_paste.js` | ~1,580 | リッチペースト（HTML整形・サニタイズ・印刷）、MathJax読み込み、Google／Minashin連携解除・連携UI（`updateGoogleLinkUI` / `updateMinashinLinkUI`）、各種定数（添付・低帯域・一時チャット・Coding/Canvas・マーカー） |
 | `part03_security_token_promptbar.js` | ~1,550 | セキュリティ（polyfill.io等のブロック）、トークン見積もり、プロンプトバー表示、Thinkingレベル、コード折りたたみ、低帯域モード適用 |
 | `part04_minimal_options_thinking.js` | ~1,580 | ミニマル表示のプラスボタンポップアップ、Thinkingスライダー、設定タブ（`TAB_LABELS`）、Botロックオーバーレイ、SWキャッシュモード（`applyCacheMode`）、Turnstile初期化 |
 | `part05_settings_modal.js` | ~1,610 | 設定モーダル本体。モデル定義 `MODELS` 配列、`MODEL_NAME_BY_ID` / `MODEL_TAGS`、音声（TTS/STS）一覧、画像・音声・動画拡張子、スラッシュコマンド定義、ウェルカム画面クイックアクセス |

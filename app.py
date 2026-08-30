@@ -27,7 +27,7 @@ import zipfile
 import warnings
 import cairosvg
 from defusedxml import ElementTree as ET
-from urllib.parse import urlparse, unquote, quote
+from urllib.parse import urlparse, unquote, quote, urlencode
 import threading
 import queue as _queue
 import hashlib
@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-30-010')
-app.config['SYSTEM_VERSION'] = 'V4.8.879'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-31-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.880'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -791,6 +791,13 @@ oauth.register(
         'scope': 'openid email profile'
     }
 )
+
+# Minashin 中央アカウントシステム（account.minashin1120.com）との
+# OAuth 2.0 + PKCE 連携用の設定。client_id は連携サイト自身の Origin
+# （= redirect_uri の Origin）で、事前登録は不要（Origin-Based 自動登録）。
+MINASHIN_ACCOUNT_BASE_URL = (os.getenv('MINASHIN_ACCOUNT_BASE_URL') or 'https://account.minashin1120.com').rstrip('/')
+MINASHIN_REQUEST_TIMEOUT = 10
+_PKCE_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
 
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/10')
 redis_conn = redis.from_url(REDIS_URL)
@@ -4513,6 +4520,8 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True)
     google_id = db.Column(db.String(128), unique=True, nullable=True, index=True)
     google_email = db.Column(db.String(128), nullable=True)
+    minashin_sub = db.Column(db.String(128), unique=True, nullable=True, index=True)
+    minashin_email = db.Column(db.String(128), nullable=True)
     is_admin = db.Column(db.Boolean, default=False)
     admin_api_key_mode = db.Column(db.String(24), default="env_fallback")
     password_hash = db.Column(db.String(255))
@@ -6468,6 +6477,44 @@ def ensure_thread_last_model_column():
             if not res:
                 conn.execute(text("SET SESSION lock_wait_timeout=1"))
                 conn.execute(text("ALTER TABLE thread ADD COLUMN last_model VARCHAR(64)"))
+    except Exception:
+        pass
+
+def ensure_user_minashin_columns():
+    """Add the Minashin SSO columns to the user table.
+
+    These are required by the minashin login/settings queries and must exist
+    before any authenticated request, so they are applied unconditionally at
+    startup (like the other correctness-critical ensure_* migrations).
+    """
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='user' "
+                "AND COLUMN_NAME='minashin_sub'"
+            )).scalar()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN minashin_sub VARCHAR(128) NULL"))
+            res_email = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='user' "
+                "AND COLUMN_NAME='minashin_email'"
+            )).scalar()
+            if not res_email:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN minashin_email VARCHAR(128) NULL"))
+            try:
+                conn.execute(text(
+                    "CREATE UNIQUE INDEX ux_user_minashin_sub ON user (minashin_sub)"
+                ))
+            except Exception:
+                # Index already exists (duplicate key on index name).
+                pass
+            conn.commit()
     except Exception:
         pass
 
@@ -15237,6 +15284,255 @@ def unlink_google():
     safe_db_commit()
     return jsonify({'status': 'ok'})
 
+# ============================================================
+# Minashin 中央アカウント連携 (OAuth 2.0 + PKCE)
+# ============================================================
+def _minashin_code_verifier(length=128):
+    """暗号論的に安全な PKCE code_verifier を生成する（43〜128文字）。"""
+    if length < 43 or length > 128:
+        raise ValueError(f"code_verifier の長さは43〜128である必要があります（指定: {length}）")
+    return ''.join(secrets.choice(_PKCE_CHARSET) for _ in range(length))
+
+
+def _minashin_code_challenge(code_verifier):
+    """code_verifier から code_challenge を生成する（SHA-256 + Base64URL）。"""
+    digest = hashlib.sha256(code_verifier.encode('ascii')).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b'=').decode('ascii')
+
+
+def _minashin_state(length=32):
+    """CSRF 対策用の state パラメータを生成する。"""
+    return secrets.token_hex(length)
+
+
+def _minashin_client_identity():
+    """リクエストから (client_id, redirect_uri) を導出する。
+
+    Origin-Based 自動登録のため、client_id は連携サイト自身の Origin URL
+    （= redirect_uri の Origin）でなければならない。
+    """
+    redirect_uri = url_for('minashin_callback', _external=True, _scheme='https')
+    parsed = urlparse(redirect_uri)
+    client_id = f"{parsed.scheme}://{parsed.netloc}"
+    return client_id, redirect_uri
+
+
+def _resolve_or_create_minashin_user(minashin_sub, email, user_data):
+    """Minashin アカウントからローカルユーザーを解決または作成する。
+
+    Google 連携と同じく、アカウントは Minashin の ``sub`` と、アカウントに
+    記録済みの ``minashin_email`` でのみ照合する。ユーザー名でリンクすることは
+    しない（別ユーザーのメールと同じユーザー名のアカウントがその人の
+    Minashin ログインを吸収しないための、アカウント乗っ取り対策）。
+    """
+    user = User.query.filter_by(minashin_sub=minashin_sub).first()
+    if user:
+        return user
+    if email:
+        user = User.query.filter_by(minashin_email=email).first()
+        if user:
+            if user.minashin_sub and user.minashin_sub != minashin_sub:
+                raise ValueError("Invalid Minashin identity")
+            user.minashin_sub = minashin_sub
+            if not user.minashin_email:
+                user.minashin_email = email
+            safe_db_commit()
+            return user
+    # 新しいアカウントを作成。preferred_username / nickname / メールローカル部から
+    # ユーザー名を生成し、重複があれば数値を足してユニークにする。
+    base = (
+        user_data.get('preferred_username')
+        or user_data.get('nickname')
+        or (email.split('@', 1)[0] if email else '')
+        or 'minashin'
+    )
+    base = re.sub(r'[\x00-\x1f\x7f@]', '', str(base)).strip()[:40] or 'minashin'
+    username = base
+    suffix = 2
+    while User.query.filter_by(username=username).first():
+        username = f"{base}{suffix}"
+        suffix += 1
+    user = User(
+        username=username,
+        minashin_sub=minashin_sub,
+        minashin_email=email or None,
+        is_setup_completed=False,
+    )
+    db.session.add(user)
+    safe_db_commit()
+    return user
+
+
+@app.route('/login/minashin')
+def login_minashin():
+    """Minashin アカウントでログイン（または設定画面からの連携）を開始する。"""
+    if current_user.is_authenticated:
+        # 設定画面からログイン済みユーザーの連携を開始する場合
+        session['minashin_link_mode'] = True
+    else:
+        session.pop('minashin_link_mode', None)
+
+    code_verifier = _minashin_code_verifier(128)
+    code_challenge = _minashin_code_challenge(code_verifier)
+    state = _minashin_state(32)
+
+    session['minashin_oauth_state'] = state
+    session['minashin_code_verifier'] = code_verifier
+
+    client_id, redirect_uri = _minashin_client_identity()
+
+    params = {
+        'response_type': 'code',
+        'client_id': client_id,
+        'redirect_uri': redirect_uri,
+        'code_challenge': code_challenge,
+        'code_challenge_method': 'S256',
+        'state': state,
+        'scope': 'openid profile email',
+    }
+    authorize_url = f"{MINASHIN_ACCOUNT_BASE_URL}/oauth/authorize?{urlencode(params)}"
+    return redirect(authorize_url)
+
+
+@app.route('/auth/minashin/callback')
+def minashin_callback():
+    """Minashin アカウントからの OAuth コールバックを処理する。"""
+    link_mode = session.pop('minashin_link_mode', False)
+    redirect_target = 'index' if current_user.is_authenticated else 'login'
+    try:
+        code = request.args.get('code')
+        state = request.args.get('state')
+        error = request.args.get('error')
+        error_description = request.args.get('error_description')
+
+        if error:
+            flash(f"Minashin アカウント認証に失敗しました: {error_description or error}")
+            return redirect(url_for(redirect_target))
+
+        if not code:
+            flash("Minashin アカウント認証に失敗しました（認可コードがありません）。")
+            return redirect(url_for(redirect_target))
+
+        expected_state = session.pop('minashin_oauth_state', None)
+        if not state or not expected_state or not secrets.compare_digest(state, expected_state):
+            flash("Minashin アカウント認証に失敗しました（state 検証エラー）。")
+            return redirect(url_for(redirect_target))
+
+        code_verifier = session.pop('minashin_code_verifier', None)
+        if not code_verifier:
+            flash("セッション情報が失われました。もう一度お試しください。")
+            return redirect(url_for(redirect_target))
+
+        client_id, redirect_uri = _minashin_client_identity()
+
+        # 認可コードをアクセストークンに交換する
+        token_response = requests.post(
+            f"{MINASHIN_ACCOUNT_BASE_URL}/oauth/token",
+            json={
+                'grant_type': 'authorization_code',
+                'code': code,
+                'redirect_uri': redirect_uri,
+                'client_id': client_id,
+                'code_verifier': code_verifier,
+            },
+            headers={'Content-Type': 'application/json', 'Accept': 'application/json'},
+            timeout=MINASHIN_REQUEST_TIMEOUT,
+        )
+        if not token_response.ok:
+            try:
+                error_data = token_response.json()
+            except Exception:
+                error_data = {}
+            error_code = error_data.get('error', 'unknown')
+            logger.error(f"Minashin token exchange failed: {token_response.status_code} - {error_data}")
+            if error_code == 'invalid_grant':
+                flash("認証コードの有効期限が切れているか、すでに使用されています。もう一度お試しください。")
+            else:
+                flash("Minashin アカウントとの連携に失敗しました。")
+            return redirect(url_for(redirect_target))
+
+        token_data = token_response.json()
+        access_token = token_data.get('access_token')
+        if not access_token:
+            flash("Minashin アカウントとの連携に失敗しました（トークンが取得できませんでした）。")
+            return redirect(url_for(redirect_target))
+
+        # ユーザー情報を取得する
+        userinfo_response = requests.get(
+            f"{MINASHIN_ACCOUNT_BASE_URL}/api/userinfo",
+            headers={'Authorization': f'Bearer {access_token}', 'Accept': 'application/json'},
+            timeout=MINASHIN_REQUEST_TIMEOUT,
+        )
+        if not userinfo_response.ok:
+            logger.error(f"Minashin userinfo failed: {userinfo_response.status_code}")
+            flash("Minashin アカウント情報の取得に失敗しました。")
+            return redirect(url_for(redirect_target))
+
+        user_data = userinfo_response.json()
+        sub = str(user_data.get('sub') or '').strip()
+        email = str(user_data.get('email') or '').strip().lower()
+        if not sub:
+            raise ValueError("No 'sub' in Minashin userinfo response")
+        if len(sub) > 128:
+            raise ValueError("Invalid Minashin sub")
+        # メール未確認（email_verified=False）の場合はメールを使わない。
+        # 未確認メールでの既存アカウント吸収（乗っ取り）を防ぐため、連携は
+        # sub ベースでのみ行い、email による照合・保存は行わない。
+        if str(user_data.get('email_verified')) == 'False' or user_data.get('email_verified') is False:
+            email = ''
+
+        if current_user.is_authenticated:
+            # 設定画面からの連携
+            existing_with_sub = User.query.filter_by(minashin_sub=sub).first()
+            if existing_with_sub and existing_with_sub.id != current_user.id:
+                flash("この Minashin アカウントは既に他のユーザーに紐付けられています。")
+                return redirect(url_for('index'))
+            current_user.minashin_sub = sub
+            if not current_user.minashin_email:
+                current_user.minashin_email = email or None
+            safe_db_commit()
+            flash("Minashin アカウントと連携しました。")
+            return redirect(url_for('index'))
+
+        # ログイン / アカウント作成フロー
+        user = _resolve_or_create_minashin_user(sub, email, user_data)
+
+        if user.is_2fa_enabled:
+            session['pre_2fa_user_id'] = user.id
+            session['remember_me'] = True
+            return redirect(url_for('verify_2fa'))
+
+        login_user(user, remember=True)
+        create_user_session(user)
+        record_user_client_token(user)
+
+        if not user.is_setup_completed:
+            return redirect(url_for('setup'))
+        return redirect(url_for('index'))
+
+    except requests.RequestException as e:
+        logger.error(f"Minashin login connection error: {e}")
+        flash("Minashin アカウントシステムに接続できませんでした。時間をおいて再度お試しください。")
+        return redirect(url_for(redirect_target))
+    except Exception as e:
+        logger.error(f"Minashin Login Callback Error: {e}")
+        flash("Minashin 連携中にエラーが発生しました。")
+        return redirect(url_for(redirect_target))
+
+
+@app.route('/api/account/unlink_minashin', methods=['POST'])
+@login_required
+def unlink_minashin():
+    if not current_user.minashin_sub:
+        return jsonify({'error': 'Not linked'}), 400
+
+    # Google 連携と同じく、解除を許可する（パスワード等が未設定の場合は
+    # 別のログイン手段が残っていない可能性に注意する旨を UI 側で案内）。
+    current_user.minashin_sub = None
+    current_user.minashin_email = None
+    safe_db_commit()
+    return jsonify({'status': 'ok'})
+
 @app.route('/login/passkey/options', methods=['POST'])
 def login_passkey_options():
     if current_user.is_authenticated:
@@ -21718,6 +22014,8 @@ def handle_settings():
             'last_reasoning_effort': current_user.last_reasoning_effort or "medium",
             'google_id': current_user.google_id,
             'google_email': current_user.google_email,
+            'minashin_sub': current_user.minashin_sub,
+            'minashin_email': current_user.minashin_email,
             'last_enable_system_prompt': current_user.last_enable_system_prompt,
             'last_safety_setting': current_user.last_safety_setting or "default",
             'enable_e2ee': current_user.enable_e2ee,
@@ -23562,6 +23860,10 @@ with app.app_context():
         pass
     try:
         ensure_import_signature_columns()
+    except Exception:
+        pass
+    try:
+        ensure_user_minashin_columns()
     except Exception:
         pass
     try:

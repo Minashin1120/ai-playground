@@ -2794,6 +2794,45 @@
                 showToast('ネットワークエラーが発生しました', 'error', true);
             }
         };
+
+        window.updateMinashinLinkUI = (d) => {
+            const linkText = get('minashin-link-text');
+            const emailText = get('minashin-email-text');
+            const actionArea = get('minashin-action-area');
+            const icon = get('minashin-link-icon');
+            if (!linkText || !actionArea) return;
+
+            if (d.minashin_sub) {
+                linkText.innerText = '連携済み';
+                linkText.classList.replace('text-gray-200', 'text-green-400');
+                emailText.innerText = d.minashin_email || '連携中の Minashin アカウント';
+                icon.classList.replace('bg-gray-800', 'bg-green-900/30');
+                actionArea.innerHTML = `<button onclick="unlinkMinashinAccount()" class="px-4 py-2 bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-800 rounded text-xs font-bold transition btn-hover">連携を解除</button>`;
+            } else {
+                linkText.innerText = '未連携';
+                linkText.classList.replace('text-green-400', 'text-gray-200');
+                emailText.innerText = 'Minashin アカウントでログインできるようになります。';
+                icon.classList.replace('bg-green-900/30', 'bg-gray-800');
+                actionArea.innerHTML = `<a href="/login/minashin" class="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-bold transition btn-hover">Minashin と連携する</a>`;
+            }
+        };
+
+        window.unlinkMinashinAccount = async () => {
+            if (!confirm('Minashin 連携を解除しますか？\n解除後は Minashin ログインが利用できなくなります（パスワードが設定されていない場合はログインできなくなる可能性があります）。')) return;
+            try {
+                const res = await apiFetch(CHAT_CONFIG.urls.unlinkMinashinAccount, {method: 'POST'});
+                if (res.ok) {
+                    showToast('Minashin 連携を解除しました');
+                    // Refresh UI
+                    apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).then(r=>r.json()).then(d=>updateMinashinLinkUI(d));
+                } else {
+                    const err = await res.json();
+                    showToast(err.error || '解除に失敗しました', 'error', true);
+                }
+            } catch (e) {
+                showToast('ネットワークエラーが発生しました', 'error', true);
+            }
+        };
         let lastClientDebugEnabled = null;
         const isClientDebugLogEnabled = () => {
             const settingEl = get('set-client-debug-log');
@@ -10694,6 +10733,7 @@
             }
             syncRichPastePromptPreferencesUi(d);
             updateGoogleLinkUI(d);
+            updateMinashinLinkUI(d);
             if(get('set-enter-to-send')) get('set-enter-to-send').checked = !!d.enter_to_send;
             writePromptBarModeToForm(!!d.compact_prompt_mode, !!d.minimal_prompt_mode);
                 if(get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;

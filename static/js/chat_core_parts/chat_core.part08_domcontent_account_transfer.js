@@ -610,6 +610,7 @@
             }
             syncRichPastePromptPreferencesUi(d);
             updateGoogleLinkUI(d);
+            updateMinashinLinkUI(d);
             if(get('set-enter-to-send')) get('set-enter-to-send').checked = !!d.enter_to_send;
             writePromptBarModeToForm(!!d.compact_prompt_mode, !!d.minimal_prompt_mode);
                 if(get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;

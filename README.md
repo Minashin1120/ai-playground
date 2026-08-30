@@ -1,6 +1,6 @@
 # AI Chat Playground
 
-[![Version](https://img.shields.io/badge/version-V4.8.879-2563eb)](static/changelogs/20260830_v4.8.879.md)
+[![Version](https://img.shields.io/badge/version-V4.8.880-2563eb)](static/changelogs/20260831_v4.8.880.md)
 [![Python](https://img.shields.io/badge/Python-3.11-3776ab)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-f59e0b)](LICENSE)
 
@@ -227,6 +227,8 @@ Google OAuthを利用する場合、Google Cloud ConsoleのOAuth 2.0クライア
 - 承認済みリダイレクトURI：`https://chat.example.com/login/google/callback`
 
 `.env` に `GOOGLE_CLIENT_ID` と `GOOGLE_CLIENT_SECRET` を設定します。Cloudflare Turnstileには実ドメインを登録し、`TURNSTILE_SITE_KEY` と `TURNSTILE_SECRET_KEY` を設定します。Turnstileは新規登録に必須です。Google OAuthは任意であり、ローカルのユーザー名／パスワード認証だけで運用する場合は省略できます。設定変更後はWebと全ワーカーを再起動してください。
+
+Minashin 中央アカウント（`account.minashin1120.com`）との連携も利用できます。OAuth 2.0 + PKCE（Origin-Based自動登録）のため事前登録は不要で、`.env` に `MINASHIN_ACCOUNT_BASE_URL`（既定: `https://account.minashin1120.com`）を設定するだけで、ログイン・アカウント作成・設定画面からの連携が有効になります。連携サイト側の `client_id` と `redirect_uri`（`/auth/minashin/callback`）はリクエストの Origin から自動的に導出されます。
 
 ### 9. 最終確認
 

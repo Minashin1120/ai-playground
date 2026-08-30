@@ -74,6 +74,22 @@
                 Googleで登録
             </a>
         </div>
+        <div class="mt-3">
+            <a href="{{ url_for('login_minashin') }}" class="w-full flex items-center justify-center gap-3 bg-white text-gray-900 font-bold py-2.5 rounded-xl transition hover:bg-gray-100 border border-gray-200">
+                <svg class="w-5 h-5" viewBox="0 0 64 64" aria-hidden="true">
+                    <defs>
+                        <linearGradient id="minashin-g-signup" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0" stop-color="#6366f1"/>
+                            <stop offset="0.55" stop-color="#a855f7"/>
+                            <stop offset="1" stop-color="#d946ef"/>
+                        </linearGradient>
+                    </defs>
+                    <rect width="64" height="64" rx="14" fill="url(#minashin-g-signup)"/>
+                    <path d="M18 45V20l14 17 14-17v25" stroke="#ffffff" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Minashin アカウントで登録
+            </a>
+        </div>
         <div class="mt-4 text-center">
             <a href="/login" class="text-sm ghost-link">ログイン画面に戻る</a>
         </div>

@@ -5,7 +5,7 @@
 - `verify_changes.sh`：構文、必須の版付き資産、公開文書の版番号、回帰テストをまとめて確認する
 - `prepare_version.sh`：版番号と版付きチャットJS/CSSを次の版へ進め、公開更新履歴を書き、圧縮ファイルを作り直す
 - `publish_version.sh`：確認後に稼働中サービスへ反映し、キャッシュを消し、版をリポジトリへ記録する
-- `restart_services.sh`：`ai-chat.service` と `ai-chat-worker@1..4.service` を再起動し、PID変更とWeb応答を確認
+- `restart_services.sh`：`ai-chat.service` と `ai-chat-worker@1..2.service` を再起動し、PID変更とWeb応答を確認（RQワーカーはメモリ負荷対策で2つのみ有効）
 - `purge_cloudflare_cache.sh`：指定ゾーンのホストキャッシュを削除
 - `build_frontend.sh`：バージョン付きチャットJS/CSSと補助スクリプトを圧縮する
 - `build_icon_subset.py`：使用中のFont Awesomeアイコンだけを同梱する

@@ -13,7 +13,10 @@
 set -euo pipefail
 
 WEB=ai-chat.service
-WORKERS=(ai-chat-worker@1.service ai-chat-worker@2.service ai-chat-worker@3.service ai-chat-worker@4.service)
+# Only 2 RQ workers are enabled now: the 1.9 GB host ran out of memory and
+# swapped-out worker pages were stalling requests for 10-15 s. Two workers keep
+# the fast/chat queue responsive while staying within the host's RAM budget.
+WORKERS=(ai-chat-worker@1.service ai-chat-worker@2.service)
 SERVICES=("$WEB" "${WORKERS[@]}")
 
 # Bounded wait: fail after this many seconds even if some unit is still stopping

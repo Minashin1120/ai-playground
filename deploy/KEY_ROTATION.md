@@ -5,7 +5,7 @@
 ## 対象
 
 - 既定のインストール先 `/opt/ai-playground`（リポジトリをクローンした場所）
-- systemd ユニット名: `ai-chat.service` と `ai-chat-worker@1..4.service`
+- systemd ユニット名: `ai-chat.service` と `ai-chat-worker@1..2.service`（メモリ負荷対策でワーカーは2つのみ有効）
 - 前提: 通常どおり運用中であり、起動時に `secret.key` が生成されていること
 
 ## 重要な考え方
@@ -35,7 +35,7 @@
 
 ```bash
 sudo systemctl stop ai-chat.service ai-chat-worker@1.service \
-  ai-chat-worker@2.service ai-chat-worker@3.service ai-chat-worker@4.service
+  ai-chat-worker@2.service
 ```
 
 ### 3. 事前確認（ドライラン）を行う
@@ -68,7 +68,7 @@ venv/bin/python scripts/rotate_encryption_key.py --execute --yes
 
 ```bash
 sudo systemctl start ai-chat.service ai-chat-worker@1.service \
-  ai-chat-worker@2.service ai-chat-worker@3.service ai-chat-worker@4.service
+  ai-chat-worker@2.service
 curl -fsS https://<あなたのドメイン>/api/version
 ```
 

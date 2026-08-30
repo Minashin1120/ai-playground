@@ -1,6 +1,6 @@
 # AI Chat Playground
 
-[![Version](https://img.shields.io/badge/version-V4.8.877-2563eb)](static/changelogs/20260830_v4.8.877.md)
+[![Version](https://img.shields.io/badge/version-V4.8.878-2563eb)](static/changelogs/20260830_v4.8.878.md)
 [![Python](https://img.shields.io/badge/Python-3.11-3776ab)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-f59e0b)](LICENSE)
 
@@ -179,7 +179,9 @@ sudo cp /opt/ai-playground/deploy/systemd/ai-chat.service /etc/systemd/system/
 sudo cp /opt/ai-playground/deploy/systemd/ai-chat-worker@.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now ai-chat.service
-sudo systemctl enable --now ai-chat-worker@{1..4}.service
+# メモリ負荷対策で RQ ワーカーは2つのみ有効にする（1.9GB程度のRAMのホストでは
+# 4つに増やすとスワップでリクエストが10秒以上ストールするため）
+sudo systemctl enable --now ai-chat-worker@{1..2}.service
 ```
 
 確認します。
@@ -231,8 +233,7 @@ Google OAuthを利用する場合、Google Cloud ConsoleのOAuth 2.0クライア
 ```bash
 curl -fsS https://chat.example.com/api/version
 systemctl is-active ai-chat.service
-systemctl is-active 'ai-chat-worker@1.service' 'ai-chat-worker@2.service' \
-  'ai-chat-worker@3.service' 'ai-chat-worker@4.service'
+systemctl is-active 'ai-chat-worker@1.service' 'ai-chat-worker@2.service'
 redis-cli -n 10 ping
 sudo mariadb -e 'SELECT 1'
 sudo journalctl -u ai-chat.service -u 'ai-chat-worker@1.service' -n 100 --no-pager
@@ -245,7 +246,7 @@ sudo journalctl -u ai-chat.service -u 'ai-chat-worker@1.service' -n 100 --no-pag
 1. Turnstileを設定し、`.env` の `PRIMARY_ADMIN_USERNAME` が空欄であることを確認します。
 2. 公開範囲を運用者のIPへ一時制限した状態で、`https://chat.example.com/signup` から管理者にするユーザーを登録します。
 3. 登録直後のセットアップ画面で既定モデルとAPIキーを設定します。
-4. `.env` の `PRIMARY_ADMIN_USERNAME` に登録済みユーザー名を正確に設定し、Webと4ワーカーを再起動します。
+4. `.env` の `PRIMARY_ADMIN_USERNAME` に登録済みユーザー名を正確に設定し、Webと全ワーカーを再起動します。
 5. 再ログインして管理者画面へアクセスできることを確認し、強固なパスワード、2FAまたはPasskey、管理者APIキーフォールバック方針を設定します。
 6. 必要に応じてE2EEを有効にし、復旧に必要な情報を安全に保管してから公開制限を解除します。
 
@@ -260,7 +261,7 @@ cd /opt/ai-playground
 sudo -u ai-playground git pull --ff-only
 sudo -u ai-playground /opt/ai-playground/venv/bin/pip install -r requirements.txt
 sudo systemctl restart ai-chat.service 'ai-chat-worker@1.service' \
-  'ai-chat-worker@2.service' 'ai-chat-worker@3.service' 'ai-chat-worker@4.service'
+  'ai-chat-worker@2.service'
 curl -fsS https://chat.example.com/api/version
 ```
 

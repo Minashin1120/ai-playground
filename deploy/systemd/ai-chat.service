@@ -10,7 +10,11 @@ Group=ai-playground
 WorkingDirectory=/opt/ai-playground
 EnvironmentFile=/opt/ai-playground/.env
 Environment="PATH=/opt/ai-playground/venv/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/opt/ai-playground/venv/bin/gunicorn --timeout 600 --graceful-timeout 10 --workers 3 --worker-class gthread --threads 8 --bind 127.0.0.1:3111 app:app --access-logfile - --error-logfile -
+# 2 workers (was 3) to reduce memory pressure on the shared 1.9 GB host, where
+# swapped-out worker pages were stalling requests for 10-15 s (swap_readpage).
+# --max-requests recycles workers periodically so per-worker RSS cannot grow
+# without bound and get the process swapped out again.
+ExecStart=/opt/ai-playground/venv/bin/gunicorn --timeout 600 --graceful-timeout 10 --workers 2 --max-requests 2000 --max-requests-jitter 300 --worker-class gthread --threads 8 --bind 127.0.0.1:3111 app:app --access-logfile - --error-logfile -
 Restart=always
 RestartSec=5
 TimeoutStopSec=30

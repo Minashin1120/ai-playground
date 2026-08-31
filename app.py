@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-31-008')
-app.config['SYSTEM_VERSION'] = 'V4.8.887'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-31-009')
+app.config['SYSTEM_VERSION'] = 'V4.8.888'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1088,6 +1088,22 @@ def _get_filestorage_size(fs):
             return len(data)
         except Exception:
             return None
+
+def _sanitize_upload_filename(raw_name):
+    """Return (safe_base, ext) for a user-supplied upload filename.
+
+    ``secure_filename()`` strips non-ASCII characters, so Japanese names such
+    as ``売上データ.xlsx`` become ``xlsx`` (the leading dot is also removed),
+    which makes every extension check fail with an empty extension.  The
+    extension must therefore be read from the *original* filename (after
+    taking only its basename), while ``safe_base`` stays the sanitized name
+    used for display / storage.
+    """
+    raw = str(raw_name or "").strip().replace("\\", "/")
+    base_raw = raw.rsplit("/", 1)[-1].strip()
+    ext = os.path.splitext(base_raw)[1].lower()
+    safe_base = secure_filename(base_raw) or ""
+    return safe_base, ext
 
 def _normalize_upload_ref(ref):
     if not ref:
@@ -24181,8 +24197,7 @@ def upload():
     cache_updated = False
     for f in files:
         if f.filename:
-            orig_name = secure_filename(f.filename)
-            ext = os.path.splitext(orig_name)[1].lower()
+            orig_name, ext = _sanitize_upload_filename(f.filename)
             if ext not in ALLOWED_EXTENSIONS:
                 return jsonify({'error': f'File type {ext} not allowed'}), 400
             
@@ -24236,7 +24251,7 @@ def upload_init():
     if not rate_limit(f"rl:upload_init:user:{current_user.id}", 30, 60):
         return jsonify({'error': 'Too many upload requests'}), 429
     data = request.get_json(silent=True) or {}
-    filename = secure_filename((data.get('filename') or '').strip())
+    filename, ext = _sanitize_upload_filename(data.get('filename') or '')
     try:
         total_size = int(data.get('size') or 0)
     except (TypeError, ValueError):
@@ -24245,7 +24260,6 @@ def upload_init():
         return jsonify({'error': 'Invalid upload'}), 400
 
     allowed = _UPLOAD_ALLOWED_EXTENSIONS
-    ext = os.path.splitext(filename)[1].lower()
     if ext not in allowed:
         return jsonify({'error': f'File type {ext} not allowed'}), 400
 
@@ -24389,8 +24403,11 @@ def upload_complete():
         try: os.chmod(ud, 0o700)
         except: pass
 
-    orig_name = meta.get('filename') or 'file'
-    ext = os.path.splitext(orig_name)[1].lower()
+    ext = (meta.get('ext') or '').lower()
+    if not ext.startswith('.'):
+        # Fall back to the sanitized filename's extension for sessions created
+        # before the meta["ext"] value started carrying the original extension.
+        ext = os.path.splitext(str(meta.get('filename') or 'file'))[1].lower()
     fname_base = f"{int(time.time())}_{os.urandom(4).hex()}"
     fname = f"{fname_base}{ext}"
     save_path = os.path.join(ud, fname)

@@ -128,6 +128,68 @@ class UploadFileTypesRegressionTests(unittest.TestCase):
                 ext = os.path.splitext(fname)[1].lower()
                 self.assertIn(ext, target._TEXT_LIKE_UPLOAD_EXTS)
 
+    def test_upload_accepts_non_ascii_filenames(self):
+        """secure_filename() strips non-ASCII (e.g. Japanese) name parts, which
+        previously removed the leading dot and produced an empty extension.
+        The extension must be read from the original filename."""
+        samples = {
+            "売上データ.xlsx": b"\x50\x4b\x03\x04",  # ZIP container prefix
+            "レポート.md": "# レポート\n\n本文\n".encode("utf-8"),
+            "報告書.pdf": b"%PDF-1.4",
+            "明細.csv": b"a,b\n1,2\n",
+            "コード.py": b"def f():\n    return 1\n",
+        }
+        client = self.client_for()
+        for fname, content in samples.items():
+            with self.subTest(filename=fname):
+                resp = client.post(
+                    "/upload",
+                    data={"file": (io.BytesIO(content), fname)},
+                    content_type="multipart/form-data",
+                    headers={"X-CSRF-Token": "csrf-test-token"},
+                )
+                self.assertEqual(resp.status_code, 200, resp.get_data(as_text=True))
+                payload = resp.get_json()
+                self.assertTrue(payload.get("filename"))
+                stored = payload["filename"].split("/", 1)[1]
+                saved = os.path.join(self.temp_dir.name, payload["filename"])
+                self.assertTrue(os.path.exists(saved))
+                # The stored file must keep the real extension from the name.
+                self.assertTrue(
+                    stored.endswith(os.path.splitext(fname)[1]),
+                    f"stored {stored!r} lost extension of {fname!r}",
+                )
+
+    def test_chunked_upload_keeps_non_ascii_extension(self):
+        """The chunked upload (init → chunk → complete) must keep the original
+        extension even when secure_filename() strips the non-ASCII name."""
+        client = self.client_for()
+        headers = {"X-CSRF-Token": "csrf-test-token"}
+        content = b"name\tvalue\napple\t3\n" * 200
+        init = client.post(
+            "/upload/init",
+            json={"filename": "売上データ.xlsx", "size": len(content)},
+            headers=headers,
+        )
+        self.assertEqual(init.status_code, 200, init.get_data(as_text=True))
+        upload_id = init.get_json()["upload_id"]
+        chunk = client.post(
+            "/upload/chunk",
+            data={"upload_id": upload_id, "index": 0, "total": 1, "chunk": (io.BytesIO(content), "blob")},
+            content_type="multipart/form-data",
+            headers=headers,
+        )
+        self.assertEqual(chunk.status_code, 200, chunk.get_data(as_text=True))
+        done = client.post(
+            "/upload/complete",
+            json={"upload_id": upload_id},
+            headers=headers,
+        )
+        self.assertEqual(done.status_code, 200, done.get_data(as_text=True))
+        stored = done.get_json()["filename"].split("/", 1)[1]
+        self.assertTrue(stored.endswith(".xlsx"), f"stored {stored!r} lost .xlsx extension")
+        self.assertTrue(os.path.exists(os.path.join(self.temp_dir.name, done.get_json()["filename"])))
+
     def test_estimate_tokens_marks_new_text_files_as_countable(self):
         rel_path = f"{self.user_id}/memo.md"
         ud = os.path.join(self.temp_dir.name, str(self.user_id))

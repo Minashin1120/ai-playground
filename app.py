@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-31-007')
-app.config['SYSTEM_VERSION'] = 'V4.8.886'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-31-008')
+app.config['SYSTEM_VERSION'] = 'V4.8.887'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1531,7 +1531,8 @@ def _estimate_attachment_prompt_tokens(rel_path, model_key=None):
     mime = _normalize_media_mime(clean_fn, mime_guess)
     is_pdf = clean_fn.lower().endswith('.pdf')
     is_docx = clean_fn.lower().endswith('.docx')
-    is_text = (mime or '').startswith('text/') or clean_fn.lower().endswith('.txt')
+    clean_ext = os.path.splitext(clean_fn)[1].lower()
+    is_text = (mime or '').startswith('text/') or clean_ext in _TEXT_LIKE_UPLOAD_EXTS
 
     extracted = None
     if is_pdf:
@@ -2710,6 +2711,22 @@ _CREATE_FILE_FORMAT_BY_EXT = {
 }
 
 _CREATE_FILE_FORMATS = ("text", "markdown", "code", "pdf", "docx", "xlsx", "csv", "tsv", "json")
+
+# Extensions a user may upload from their own device.  This intentionally
+# covers every extension the create_file tool can produce (text / markdown /
+# code / PDF / Word / Excel) so that files the model creates on the server can
+# be downloaded to the device and uploaded again later (e.g. to attach them in
+# another chat) without being rejected.
+_UPLOAD_ALLOWED_EXTENSIONS = frozenset({
+    '.txt', '.pdf', '.docx', '.png', '.jpg', '.jpeg', '.gif', '.webp',
+    '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm', '.mp4', '.mov', '.mkv',
+    '.avi', '.m4v',
+}) | frozenset(_CREATE_FILE_TEXT_EXTS) | frozenset(_CREATE_FILE_CODE_EXTS) | frozenset(_CREATE_FILE_DOC_EXTS)
+
+# Extensions whose contents are text (or code) and can be read as plain text
+# by the chat models when attached.  Used to detect "text-like" attachments
+# even when the platform MIME map reports a non-text MIME (e.g. .json, .yaml).
+_TEXT_LIKE_UPLOAD_EXTS = frozenset(_CREATE_FILE_TEXT_EXTS) | frozenset(_CREATE_FILE_CODE_EXTS)
 
 
 def _create_file_allowed_ext(ext):
@@ -10764,7 +10781,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     is_pptx = clean_fn.lower().endswith('.pptx')
                     mime_guess = mimetypes.guess_type(clean_fn)[0]
                     mime = _normalize_media_mime(clean_fn, mime_guess)
-                    is_text = (mime or '').startswith('text/') or clean_fn.lower().endswith('.txt')
+                    clean_ext = os.path.splitext(clean_fn)[1].lower()
+                    is_text = (mime or '').startswith('text/') or clean_ext in _TEXT_LIKE_UPLOAD_EXTS
                     if is_pdf:
                         mime = 'application/pdf'
                     elif is_docx:
@@ -18370,7 +18388,14 @@ def _add_file_privacy_headers(resp):
     resp.headers["X-Robots-Tag"] = "noindex, nofollow"
     resp.headers["Cache-Control"] = "private, no-cache, no-store, must-revalidate"
     resp.headers["Vary"] = "Cookie"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
     return resp
+
+# File extensions whose contents can contain active scripts (HTML / SVG) when
+# rendered inline.  They are now uploadable (the create_file tool can produce
+# them), but serving them as their native MIME would let a browser execute any
+# embedded script, so /files/ forces them to download instead of rendering.
+_FILE_FORCE_DOWNLOAD_EXTS = {'.html', '.htm', '.xhtml', '.svg'}
 
 def _add_thumb_cache_headers(resp, etag=None):
     resp.headers["X-Robots-Tag"] = "noindex, nofollow"
@@ -18467,9 +18492,13 @@ def serve_file(filename):
     
     enc_path = file_path + '.enc'
     mtype = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
+    file_ext = os.path.splitext(file_path)[1].lower()
+    force_download = file_ext in _FILE_FORCE_DOWNLOAD_EXTS
+    if force_download:
+        mtype = 'application/octet-stream'
 
     if os.path.exists(file_path):
-        resp = send_file(file_path, mimetype=mtype, conditional=True)
+        resp = send_file(file_path, mimetype=mtype, conditional=True, as_attachment=force_download, download_name=os.path.basename(actual_rel_path))
         resp.headers.setdefault("Accept-Ranges", "bytes")
         return _add_file_privacy_headers(resp)
     elif os.path.exists(enc_path):
@@ -18495,7 +18524,7 @@ def serve_file(filename):
                 resp.headers["Accept-Ranges"] = "bytes"
                 resp.headers["Content-Length"] = str(end - start + 1)
                 return _add_file_privacy_headers(resp)
-        resp = send_file(BytesIO(data), download_name=os.path.basename(actual_rel_path), as_attachment=False, mimetype=mtype)
+        resp = send_file(BytesIO(data), download_name=os.path.basename(actual_rel_path), as_attachment=force_download, mimetype=mtype)
         return _add_file_privacy_headers(resp)
     else:
         abort(404)
@@ -24110,7 +24139,7 @@ def speech_to_speech():
 @app.route('/upload', methods=['POST'])
 @login_required
 def upload():
-    ALLOWED_EXTENSIONS = {'.txt', '.pdf', '.docx', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm', '.mp4', '.mov', '.mkv', '.avi', '.m4v'}
+    ALLOWED_EXTENSIONS = _UPLOAD_ALLOWED_EXTENSIONS
     files = request.files.getlist('file')
     if not files: return jsonify({'error': 'No file'}), 400
     if len(files) > int(app.config.get('ATTACHMENT_MAX_FILES') or 30):
@@ -24215,7 +24244,7 @@ def upload_init():
     if not filename or total_size <= 0:
         return jsonify({'error': 'Invalid upload'}), 400
 
-    allowed = {'.txt', '.pdf', '.docx', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm', '.mp4', '.mov', '.mkv', '.avi', '.m4v'}
+    allowed = _UPLOAD_ALLOWED_EXTENSIONS
     ext = os.path.splitext(filename)[1].lower()
     if ext not in allowed:
         return jsonify({'error': f'File type {ext} not allowed'}), 400

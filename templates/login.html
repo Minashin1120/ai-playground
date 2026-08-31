@@ -87,7 +87,7 @@
             stroke-width: 3; stroke-linecap: round; stroke-linejoin: round;
             fill: none; stroke-dasharray: 48; stroke-dashoffset: 48;
         }
-        .active .checkmark-svg { animation: checkmark 0.4s cubic-bezier(0.65, 0, 0.45, 1) forwards 0.2s; }
+        .active .checkmark-svg { animation: checkmark 0.8s cubic-bezier(0.65, 0, 0.45, 1) forwards 0.2s; }
     </style>
 </head>
 <body class="text-white min-h-screen flex flex-col items-center justify-center">
@@ -345,7 +345,7 @@
                 successScreen.classList.add('active');
                 setTimeout(() => {
                     window.location.href = redirectUrl || '/';
-                }, 1100);
+                }, 1200);
             }, 200);
         };
 

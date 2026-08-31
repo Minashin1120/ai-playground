@@ -17,10 +17,10 @@ class LoginSuccessRedirectRegressionTests(unittest.TestCase):
 
     以前はパスワードログインで約2秒（ボタンアニメ 520ms + 成功画面 300ms +
     1200ms）、パスキー／2FA／Google で約1.5秒待ってからリダイレクトしていました。
-    V4.8.877 で各待ち時間を短縮しましたが、リダイレクトが成功画面のフェードイン
-    完了とチェックマーク描画完了の同時刻になってしまい、アニメーションが視認できなく
-    なりました。そこで、チェックマーク描画が完了したあとにリダイレクトされるよう
-    表示時間を確保しつつ、従来よりは短い待ち時間を維持することを検証します。
+    V4.8.877 で各待ち時間を短縮しましたが、リダイレクトがチェックマーク描画完了と
+    同時刻になり、アニメーションが視認できなくなりました。チェックマークの描画
+    （0.8s）がオーバーレイ上で確実に視認できるよう、描画完了後に余裕を持って
+    リダイレクトすることを検証します。
     """
 
     def setUp(self):
@@ -31,24 +31,23 @@ class LoginSuccessRedirectRegressionTests(unittest.TestCase):
         self.assertIn("await new Promise((resolve) => setTimeout(resolve, 300));", self.source)
         self.assertNotIn("setTimeout(resolve, 520)", self.source)
 
-    def test_trigger_success_redirects_within_short_budget(self):
-        # 認証成功画面を表示し、チェックマーク描画完了後にリダイレクトする
-        # （旧 600ms は描画完了と同時でアニメーションが見えない。旧 1200ms は禁止）
+    def test_trigger_success_redirects_after_checkmark_draw(self):
+        # 成功画面のフェード + チェックマーク描画が完了したあとにリダイレクトする
+        # （旧 600ms は描画完了と同時でアニメーションが見えない）
         trigger = self.source[self.source.index("const triggerSuccess = (redirectUrl) => {") :]
         trigger = trigger[: trigger.index("window.backToLogin")]
-        self.assertIn("}, 1100);", trigger)  # 成功画面の表示時間（描画完了＋余白）
+        self.assertIn("}, 1200);", trigger)  # 成功画面の表示時間（描画完了＋余白）
         self.assertIn("}, 200);", trigger)  # コンテナのフェード時間
         self.assertNotIn("}, 600);", trigger)
-        self.assertNotIn("}, 1200);", trigger)
 
     def test_success_screen_total_budget_shorter_than_original(self):
         # フェード + 成功画面の合計が従来（1.5秒）より短いこと
-        self.assertLess(200 + 1100, 1500)
+        self.assertLess(200 + 1200, 1500)
 
-    def test_success_checkmark_animation_matches_short_window(self):
-        # チェックマークの描画が表示時間内に完了する（旧 0.8s は禁止）
-        self.assertIn(".active .checkmark-svg { animation: checkmark 0.4s", self.source)
-        self.assertNotIn("checkmark 0.8s", self.source)
+    def test_success_checkmark_animation_is_visible(self):
+        # チェックマークの描画は0.8秒かけて視認できる（0.4秒では描画が消える）
+        self.assertIn(".active .checkmark-svg { animation: checkmark 0.8s", self.source)
+        self.assertNotIn("checkmark 0.4s", self.source)
 
 
 if __name__ == "__main__":

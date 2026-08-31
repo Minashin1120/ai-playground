@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-31-004')
-app.config['SYSTEM_VERSION'] = 'V4.8.883'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-31-006')
+app.config['SYSTEM_VERSION'] = 'V4.8.885'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2676,6 +2676,529 @@ def _save_user_generated_bytes_verified(user_id, data, make_filename, encrypt, a
         time.sleep(0.05)
     raise last_error if last_error else RuntimeError("generated file could not be saved")
 
+# ============================================================================
+# Model file-creation tool ("create_file")
+# ----------------------------------------------------------------------------
+# Lets chat models create text / markdown / code / PDF / DOCX / XLSX files and
+# save them straight into the user's file library.  Generation happens entirely
+# server-side (no bubblewrap sandbox is involved), so nothing is left behind in
+# the sandbox and code files are written, never executed.
+# ============================================================================
+
+# Allowed output extensions for the create_file tool.
+_CREATE_FILE_TEXT_EXTS = {
+    ".txt", ".text", ".md", ".markdown", ".mdown", ".mkd", ".log", ".rst",
+    ".csv", ".tsv", ".json", ".jsonl", ".ndjson", ".xml", ".yaml", ".yml",
+    ".toml", ".ini", ".cfg", ".conf", ".env", ".properties",
+}
+_CREATE_FILE_CODE_EXTS = {
+    ".py", ".pyw", ".js", ".mjs", ".cjs", ".ts", ".jsx", ".tsx", ".html",
+    ".htm", ".css", ".scss", ".sass", ".less", ".sh", ".bash", ".zsh", ".fish",
+    ".sql", ".java", ".kt", ".kts", ".c", ".h", ".cpp", ".hpp", ".cc", ".cs",
+    ".go", ".rs", ".rb", ".php", ".swift", ".scala", ".dart", ".lua", ".pl",
+    ".r", ".m", ".mm", ".ipynb", ".vue", ".svelte", ".astro", ".dockerfile",
+    "dockerfile", ".makefile", "makefile",
+}
+_CREATE_FILE_DOC_EXTS = {".pdf", ".docx", ".xlsx", ".xlsm"}
+_CREATE_FILE_MAX_BYTES = 8 * 1024 * 1024  # max generated file size
+_CREATE_FILE_MAX_CONTENT_CHARS = 4 * 1024 * 1024  # max tool content input
+
+_CREATE_FILE_FORMAT_BY_EXT = {
+    ".pdf": "pdf", ".docx": "docx", ".xlsx": "xlsx", ".xlsm": "xlsx",
+    ".md": "markdown", ".markdown": "markdown",
+    ".csv": "csv", ".tsv": "tsv", ".json": "json",
+}
+
+_CREATE_FILE_FORMATS = ("text", "markdown", "code", "pdf", "docx", "xlsx", "csv", "tsv", "json")
+
+
+def _create_file_allowed_ext(ext):
+    return ext in _CREATE_FILE_TEXT_EXTS or ext in _CREATE_FILE_CODE_EXTS or ext in _CREATE_FILE_DOC_EXTS
+
+
+def _infer_create_file_format(filename):
+    ext = os.path.splitext(str(filename or ""))[1].lower()
+    if ext in _CREATE_FILE_FORMAT_BY_EXT:
+        return _CREATE_FILE_FORMAT_BY_EXT[ext]
+    if ext in _CREATE_FILE_DOC_EXTS:
+        return "pdf" if ext == ".pdf" else ("docx" if ext == ".docx" else "xlsx")
+    if ext in _CREATE_FILE_CODE_EXTS:
+        return "code"
+    return "text"
+
+
+def _sanitize_create_file_base_name(filename):
+    """Return a safe file base-name (no path separators) for display purposes."""
+    raw = str(filename or "").strip()
+    raw = raw.replace("\\", "/")
+    base = raw.rsplit("/", 1)[-1].strip()
+    base = secure_filename(base) or "file"
+    return base
+
+
+def _inline_library_images_for_create_file(markdown_text, user_id):
+    """Rewrite markdown image references so embedded documents can include
+    images from the user's library (/files/...) or data URIs.
+
+    Returns (markdown_text, warnings).
+    """
+    if not markdown_text:
+        return markdown_text, []
+    warnings = []
+    # Matches ![alt](src "title") and ![alt](src)
+    pattern = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)(?:\s+[\"'].*?[\"'])?\)")
+    consumed_srcs = []
+
+    def _replace(match):
+        alt = match.group(1)
+        src = match.group(2).strip()
+        if src.startswith("data:"):
+            return match.group(0)
+        resolved = None
+        # Support /files/<user_id>/<name> and files/<user_id>/<name> and relative library refs.
+        norm_candidates = []
+        src_clean = src.split("?")[0].split("#")[0]
+        if src_clean.startswith("/files/"):
+            norm_candidates.append(src_clean[len("/files/"):])
+        elif src_clean.startswith("files/"):
+            norm_candidates.append(src_clean[len("files/"):])
+        else:
+            norm_candidates.append(src_clean)
+        for cand in norm_candidates:
+            norm = _normalize_upload_ref(cand)
+            if not norm:
+                continue
+            info = _get_file_disk_info(norm)
+            if not info or not info.get("exists"):
+                continue
+            data = _load_user_file_bytes(norm, info)
+            if not data:
+                continue
+            mime = _normalize_media_mime(norm, mimetypes.guess_type(norm)[0] or "application/octet-stream")
+            b64 = base64.b64encode(data).decode("ascii")
+            resolved = f"data:{mime};base64,{b64}"
+            break
+        if resolved is None:
+            warnings.append(f"画像参照を解決できませんでした: {src[:120]}")
+            return match.group(0)
+        consumed_srcs.append(src)
+        return f"![{alt}]({resolved})"
+
+    new_text = pattern.sub(_replace, markdown_text)
+    return new_text, warnings
+
+
+def _build_created_pdf_bytes(content_md, title):
+    """Render markdown content to a multi-page PDF using WeasyPrint."""
+    import markdown as _md
+
+    html_body = _md.markdown(
+        content_md or "",
+        extensions=["tables", "fenced_code", "sane_lists", "nl2br"],
+    )
+    safe_title = html.escape(str(title or "Document").strip() or "Document")
+    document_html = f"""<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>{safe_title}</title>
+<style>
+@page {{
+  size: A4;
+  margin: 16mm 16mm 18mm;
+  @bottom-right {{
+    content: "Page " counter(page) " / " counter(pages);
+    color: #6b7280;
+    font-size: 8.5pt;
+  }}
+}}
+html {{ color-scheme: light; background: #ffffff; }}
+body {{
+  margin: 0;
+  background: #ffffff;
+  color: #1f2937;
+  font-family: "IPAPGothic", "IPAGothic", "Droid Sans Fallback", sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}}
+h1 {{ font-size: 18pt; margin: 0 0 4mm; padding-bottom: 2mm; border-bottom: 1.5pt solid #e5e7eb; break-after: avoid; }}
+h2 {{ font-size: 15pt; margin: 5mm 0 2.5mm; break-after: avoid; }}
+h3 {{ font-size: 13pt; margin: 4mm 0 2mm; break-after: avoid; }}
+h4, h5, h6 {{ font-size: 11pt; margin: 3mm 0 1.5mm; break-after: avoid; }}
+p {{ margin: 0 0 0.85em; }}
+ul, ol {{ margin: 0 0 0.85em; padding-left: 6mm; }}
+li {{ margin: 0 0 0.2em; }}
+blockquote {{ margin: 0 0 0.85em; padding: 2mm 4mm; border-left: 2pt solid #9ca3af; color: #4b5563; }}
+img {{ display: block; max-width: 100%; height: auto; margin: 0.9em auto; }}
+pre {{
+  background: #f3f4f6;
+  padding: 2.5mm 3mm;
+  border-radius: 2mm;
+  font-family: "DejaVu Sans Mono", monospace;
+  font-size: 8.5pt;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}}
+code {{ font-family: "DejaVu Sans Mono", monospace; font-size: 8.8pt; }}
+pre code {{ font-size: 8.5pt; background: transparent; padding: 0; }}
+table {{
+  max-width: 100%;
+  margin: 1em 0;
+  border-collapse: collapse;
+  font-size: 9pt;
+}}
+thead {{ display: table-header-group; }}
+tr {{ break-inside: avoid; }}
+th, td {{ border: 0.6pt solid #d1d5db; padding: 2.2mm 2.5mm; text-align: left; }}
+th {{ background: #f3f4f6; }}
+hr {{ margin: 1em 0; border: 0; border-top: 0.7pt solid #d1d5db; }}
+</style>
+</head>
+<body>
+{html_body}
+</body>
+</html>"""
+    weasyprint_bin = os.path.join(os.path.dirname(sys.executable), "weasyprint")
+    if not os.path.isfile(weasyprint_bin):
+        raise RuntimeError("weasyprint_command_not_found")
+    completed = subprocess.run(
+        [
+            weasyprint_bin,
+            "--quiet",
+            "--presentational-hints",
+            "--optimize-images",
+            "--jpeg-quality", "92",
+            "--dpi", "180",
+            "--timeout", "5",
+            "--allowed-protocols", "data",
+            "--no-http-redirects",
+            "-", "-",
+        ],
+        input=document_html.encode("utf-8"),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=90,
+        check=False,
+    )
+    if completed.returncode != 0:
+        stderr = completed.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(f"weasyprint_failed: {stderr[-1000:]}")
+    pdf_bytes = completed.stdout
+    if not isinstance(pdf_bytes, bytes) or not pdf_bytes.startswith(b"%PDF"):
+        raise RuntimeError("weasyprint_invalid_pdf")
+    return pdf_bytes
+
+
+def _build_created_docx_bytes(content_md, title):
+    """Render markdown content to a .docx file using python-docx."""
+    from docx import Document
+    from docx.shared import Pt, Inches, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    doc = Document()
+    doc.add_heading(str(title or "Document").strip() or "Document", level=0)
+
+    lines = (content_md or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    i = 0
+    n = len(lines)
+
+    def _add_runs(paragraph, text):
+        import re as _re
+        token_re = _re.compile(r"(\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|`[^`]+`)")
+        for token in token_re.split(text):
+            if not token:
+                continue
+            if token.startswith("**") and token.endswith("**") and len(token) > 4:
+                run = paragraph.add_run(token[2:-2])
+                run.bold = True
+            elif token.startswith("__") and token.endswith("__") and len(token) > 4:
+                run = paragraph.add_run(token[2:-2])
+                run.bold = True
+            elif token.startswith("*") and token.endswith("*") and len(token) > 2:
+                run = paragraph.add_run(token[1:-1])
+                run.italic = True
+            elif token.startswith("`") and token.endswith("`") and len(token) > 2:
+                run = paragraph.add_run(token[1:-1])
+                run.font.name = "Consolas"
+                run.font.size = Pt(9)
+            else:
+                paragraph.add_run(token)
+
+    def _parse_table_rows(header_line, body_lines):
+        def _split_row(line):
+            line = line.strip()
+            if line.startswith("|"):
+                line = line[1:]
+            if line.endswith("|"):
+                line = line[:-1]
+            return [cell.strip() for cell in line.split("|")]
+
+        rows = [_split_row(header_line)]
+        for bl in body_lines:
+            bl = bl.strip()
+            if not bl:
+                continue
+            if set(bl.replace("|", "").replace(" ", "").replace(":", "")) == set("-"):
+                continue
+            rows.append(_split_row(bl))
+        return rows
+
+    while i < n:
+        line = lines[i]
+        stripped = line.strip()
+
+        # Fenced code block
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            fence_char = stripped[0]
+            i += 1
+            code_lines = []
+            while i < n:
+                if lines[i].strip().startswith(fence_char * 3):
+                    i += 1
+                    break
+                code_lines.append(lines[i])
+                i += 1
+            p = doc.add_paragraph()
+            run = p.add_run("\n".join(code_lines))
+            run.font.name = "Consolas"
+            run.font.size = Pt(9)
+            p.paragraph_format.left_indent = Inches(0.2)
+            continue
+
+        # Table block
+        if stripped.startswith("|") and i + 1 < n:
+            body_lines = []
+            j = i + 1
+            while j < n:
+                bj = lines[j].strip()
+                if bj.startswith("|") or (j == i + 1 and set(bj.replace("|", "").replace(" ", "").replace(":", "")) == set("-")):
+                    body_lines.append(bj)
+                    j += 1
+                else:
+                    break
+            if body_lines:
+                rows = _parse_table_rows(stripped, body_lines)
+                if len(rows) > 1:
+                    table = doc.add_table(rows=len(rows), cols=len(rows[0]))
+                    table.style = "Table Grid"
+                    for r_idx, row in enumerate(rows):
+                        for c_idx in range(min(len(row), len(rows[0]))):
+                            cell = table.cell(r_idx, c_idx)
+                            cell.text = ""
+                            _add_runs(cell.paragraphs[0], row[c_idx])
+                    doc.add_paragraph()
+                    i = j
+                    continue
+
+        # Headings
+        h_match = re.match(r"^(#{1,6})\s+(.*)$", stripped)
+        if h_match and len(h_match.group(1)) <= 6:
+            level = len(h_match.group(1))
+            doc.add_heading(h_match.group(2).strip(), level=level)
+            i += 1
+            continue
+
+        # Horizontal rule
+        if re.fullmatch(r"(-{3,}|\*{3,}|_{3,})", stripped):
+            doc.add_paragraph("─" * 40)
+            i += 1
+            continue
+
+        # Unordered list
+        if re.match(r"^[-*+]\s+", stripped):
+            p = doc.add_paragraph(style="List Bullet")
+            _add_runs(p, re.sub(r"^[-*+]\s+", "", stripped))
+            i += 1
+            continue
+
+        # Ordered list
+        if re.match(r"^\d+[.)]\s+", stripped):
+            p = doc.add_paragraph(style="List Number")
+            _add_runs(p, re.sub(r"^\d+[.)]\s+", "", stripped))
+            i += 1
+            continue
+
+        # Blockquote
+        if stripped.startswith(">"):
+            p = doc.add_paragraph()
+            _add_runs(p, stripped.lstrip("> ").strip())
+            p.paragraph_format.left_indent = Inches(0.2)
+            i += 1
+            continue
+
+        # Image
+        img_match = re.match(r"^!\[([^\]]*)\]\(([^)\s]+)\)\s*$", stripped)
+        if img_match:
+            src = img_match.group(2).strip()
+            if src.startswith("data:"):
+                try:
+                    header, _, b64 = src.partition(",")
+                    img_bytes = base64.b64decode(b64)
+                    from io import BytesIO as _BytesIO
+                    doc.add_picture(_BytesIO(img_bytes), width=Inches(5.5))
+                except Exception:
+                    p = doc.add_paragraph(img_match.group(1) or "画像")
+            else:
+                doc.add_paragraph(img_match.group(1) or src)
+            i += 1
+            continue
+
+        # Empty line
+        if not stripped:
+            i += 1
+            continue
+
+        # Normal paragraph
+        p = doc.add_paragraph()
+        _add_runs(p, stripped)
+        i += 1
+
+    from io import BytesIO as _BytesIO2
+    buf = _BytesIO2()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+def _build_created_xlsx_bytes(content_tsv):
+    """Render TSV content to an .xlsx workbook using openpyxl."""
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Sheet1"
+    lines = (content_tsv or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    row_index = 1
+    for line in lines:
+        if not line.strip():
+            continue
+        cells = line.split("\t")
+        for col_index, cell in enumerate(cells, start=1):
+            ws.cell(row=row_index, column=col_index, value=cell)
+        row_index += 1
+    from io import BytesIO as _BytesIO3
+    buf = _BytesIO3()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _create_file_generated_bytes(filename, format_name, content, user_id):
+    """Return the generated file bytes for the given create_file arguments."""
+    if format_name in ("text", "csv", "tsv", "json"):
+        return str(content or "").encode("utf-8")
+    if format_name in ("markdown", "code"):
+        return str(content or "").encode("utf-8")
+    if format_name == "pdf":
+        resolved_md, _warnings = _inline_library_images_for_create_file(str(content or ""), user_id)
+        return _build_created_pdf_bytes(resolved_md, os.path.splitext(filename)[0])
+    if format_name == "docx":
+        resolved_md, _warnings = _inline_library_images_for_create_file(str(content or ""), user_id)
+        return _build_created_docx_bytes(resolved_md, os.path.splitext(filename)[0])
+    if format_name == "xlsx":
+        return _build_created_xlsx_bytes(str(content or ""))
+    raise ValueError(f"Unsupported create_file format: {format_name}")
+
+
+def _execute_create_file_tool(user_id, args, encrypt):
+    """Execute the create_file tool server-side.  Returns a dict result.
+
+    result = {"ok": True, "filename": ..., "url": ...} or
+             {"ok": False, "error": ...}
+    """
+    if not isinstance(args, dict):
+        return {"ok": False, "error": "create_fileの引数が不正です。"}
+    filename_raw = str(args.get("filename") or "").strip()
+    if not filename_raw:
+        return {"ok": False, "error": "filename は必須です。"}
+    safe_base = _sanitize_create_file_base_name(filename_raw)
+    ext = os.path.splitext(safe_base)[1].lower()
+    if not _create_file_allowed_ext(ext):
+        return {"ok": False, "error": f"対応していないファイル形式です: {ext or '(拡張子なし)'}"}
+    format_name = str(args.get("format") or "").strip().lower()
+    if format_name not in _CREATE_FILE_FORMATS:
+        format_name = _infer_create_file_format(safe_base)
+    content = args.get("content")
+    if content is None:
+        return {"ok": False, "error": "content は必須です。"}
+    content = str(content)
+    if len(content) > _CREATE_FILE_MAX_CONTENT_CHARS:
+        return {"ok": False, "error": "ファイル内容が大きすぎます。"}
+    try:
+        data = _create_file_generated_bytes(safe_base, format_name, content, user_id)
+    except Exception as exc:
+        logger.warning("create_file generation failed: %s", exc)
+        return {"ok": False, "error": f"ファイル生成に失敗しました: {str(exc)[:200]}"}
+    if not isinstance(data, (bytes, bytearray)) or not data:
+        return {"ok": False, "error": "生成されたファイルが空です。"}
+    if len(data) > _CREATE_FILE_MAX_BYTES:
+        return {"ok": False, "error": "生成されたファイルが大きすぎます。"}
+
+    def _make_unique_filename():
+        return f"{os.path.splitext(safe_base)[0]}_{int(time.time())}_{os.urandom(3).hex()}{ext}"
+
+    try:
+        fname, url = _save_user_generated_bytes_verified(user_id, bytes(data), _make_unique_filename, bool(encrypt))
+    except StorageLimitError as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:
+        logger.warning("create_file save failed: %s", exc)
+        return {"ok": False, "error": f"ライブラリへの保存に失敗しました: {str(exc)[:200]}"}
+    return {"ok": True, "filename": fname, "display_name": safe_base, "url": url, "size": len(data)}
+
+
+def _create_file_tool_result_text(result):
+    """Convert a create_file result dict into the text fed back to the model."""
+    if result.get("ok"):
+        return (
+            f"ファイルを作成しました。\n"
+            f"filename: {result.get('display_name')}\n"
+            f"url: {result.get('url')}\n"
+            f"ユーザーにはこのURLでファイルをダウンロードできるリンクを提供してください。"
+        )
+    return f"create_file エラー: {result.get('error')}"
+
+
+def _build_create_file_tool_schema():
+    """Return the OpenAI-compatible tool schema for create_file."""
+    return {
+        "type": "function",
+        "function": {
+            "name": "create_file",
+            "description": (
+                "テキスト・Markdown・コード・PDF・Word (docx)・Excel (xlsx) などのファイルを作成し、"
+                "ユーザーのファイルライブラリに保存します。保存後のURLが返るので、それを回答中でリンクとして提示してください。"
+                "PDF/DOCX の content は Markdown 形式（見出し・段落・表・画像）。"
+                "XLSX の content は TSV（タブ区切り、1行目がヘッダー）。"
+                "コードファイルは実行せず、そのままテキストとして保存されます。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {
+                        "type": "string",
+                        "description": "作成するファイル名（拡張子含む）。例: report.txt, memo.md, script.py, document.pdf, data.xlsx",
+                    },
+                    "format": {
+                        "type": "string",
+                        "enum": list(_CREATE_FILE_FORMATS),
+                        "description": "ファイル形式。省略時は拡張子から自動判定されます。",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": (
+                            "ファイルの内容。text/markdown/code はそのままのテキスト（改行を含めて保存）。"
+                            "pdf/docx は Markdown 形式。xlsx は TSV。"
+                        ),
+                    },
+                },
+                "required": ["filename", "content"],
+                "additionalProperties": False,
+            },
+        },
+    }
+
+
 _AGENTIC_IMAGE_MAX_BYTES = 50 * 1024 * 1024
 _AGENTIC_SVG_MAX_BYTES = 10 * 1024 * 1024
 _AGENTIC_SVG_MAX_DIMENSION = 4096
@@ -2958,7 +3481,7 @@ DEFAULT_IMAGE_ANALYSIS_PROMPT = (
 AI_SAFE_EDITABLE_FIELDS = {
     # Default chat behaviors
     'default_model', 'default_enable_search', 'default_enable_url_context', 'default_enable_maps',
-    'default_enable_python', 'default_enable_thinking', 'default_thinking_level',
+    'default_enable_python', 'default_enable_file_creation', 'default_enable_thinking', 'default_thinking_level',
     'default_thinking_budget', 'default_reasoning_effort', 'default_enable_system_prompt',
     'default_safety_setting',
     # Vision model for image analysis
@@ -3144,6 +3667,9 @@ def _apply_ai_settings_update(current_user, delta):
             elif key == 'default_enable_python':
                 current_user.default_enable_python = bool(val)
                 applied[key] = current_user.default_enable_python
+            elif key == 'default_enable_file_creation':
+                current_user.default_enable_file_creation = bool(val)
+                applied[key] = current_user.default_enable_file_creation
             elif key == 'default_enable_thinking':
                 current_user.default_enable_thinking = bool(val)
                 applied[key] = current_user.default_enable_thinking
@@ -4563,6 +5089,7 @@ class User(UserMixin, db.Model):
     default_enable_url_context = db.Column(db.Boolean, default=False)
     default_enable_maps = db.Column(db.Boolean, default=False)
     default_enable_python = db.Column(db.Boolean, default=True)
+    default_enable_file_creation = db.Column(db.Boolean, default=True)
     default_enable_thinking = db.Column(db.Boolean, default=False)
     default_thinking_level = db.Column(db.String(16), default="high")
     default_thinking_budget = db.Column(db.Integer, default=4096)
@@ -4577,6 +5104,7 @@ class User(UserMixin, db.Model):
     last_enable_url_context = db.Column(db.Boolean, default=False)
     last_enable_maps = db.Column(db.Boolean, default=False)
     last_enable_python = db.Column(db.Boolean, default=True)
+    last_enable_file_creation = db.Column(db.Boolean, default=True)
     last_enable_thinking = db.Column(db.Boolean, default=False)
     last_thinking_level = db.Column(db.String(16), default="high")
     last_thinking_budget = db.Column(db.Integer, default=4096)
@@ -4850,12 +5378,12 @@ ACCOUNT_SETTING_FIELDS = (
     "minimal_prompt_mode",
     "use_last_chat_settings", "voice_studio_ui", "temp_chat_timeout_seconds", "default_model",
     "default_enable_search", "default_enable_url_context", "default_enable_maps",
-    "default_enable_python", "default_enable_thinking", "default_thinking_level",
+    "default_enable_python", "default_enable_file_creation", "default_enable_thinking", "default_thinking_level",
     "default_thinking_budget", "default_reasoning_effort", "default_enable_system_prompt",
     "default_safety_setting", "default_vision_model", "rich_paste_prompt_default",
     "rich_paste_prompt_use_custom_default", "last_model", "last_enable_search",
     "last_enable_url_context", "last_enable_maps", "last_enable_python",
-    "last_enable_thinking", "last_thinking_level", "last_thinking_budget",
+    "last_enable_file_creation", "last_enable_thinking", "last_thinking_level", "last_thinking_budget",
     "last_reasoning_effort", "last_enable_system_prompt", "last_safety_setting",
     "enable_latency_metrics", "enable_client_debug_log",
 )
@@ -4870,9 +5398,9 @@ ACCOUNT_BOOL_SETTING_FIELDS = frozenset({
     "auto_search_on_links", "compact_prompt_mode", "minimal_prompt_mode", "use_last_chat_settings",
     "voice_studio_ui",
     "default_enable_search", "default_enable_url_context", "default_enable_maps",
-    "default_enable_python", "default_enable_thinking", "default_enable_system_prompt",
+    "default_enable_python", "default_enable_file_creation", "default_enable_thinking", "default_enable_system_prompt",
     "rich_paste_prompt_use_custom_default", "last_enable_search", "last_enable_url_context",
-    "last_enable_maps", "last_enable_python", "last_enable_thinking",
+    "last_enable_maps", "last_enable_python", "last_enable_file_creation", "last_enable_thinking",
     "last_enable_system_prompt", "enable_latency_metrics", "enable_client_debug_log",
 })
 ACCOUNT_INT_SETTING_FIELDS = frozenset({
@@ -11224,6 +11752,37 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             )
                         else:
                             conf['system_instruction'] = GEMINI_CODE_EXECUTION_GUIDANCE
+                    if options.get('enable_file_creation'):
+                        def _gemini_create_file_tool(
+                            filename: str,
+                            content: str,
+                            format: str = "",
+                        ) -> str:
+                            """テキスト・コード・Markdown・PDF・Word(docx)・Excel(xlsx)ファイルを作成し、ユーザーのファイルライブラリに保存します。保存後のURLを回答内のリンクとして提示してください。format は省略可能（拡張子から自動判定）。PDF/DOCX の content は Markdown 形式、XLSX の content は TSV（タブ区切り、1行目ヘッダー）です。"""
+                            result = _execute_create_file_tool(
+                                user_id,
+                                {
+                                    "filename": filename,
+                                    "content": content,
+                                    "format": format,
+                                },
+                                user_config.get("enable_e2ee"),
+                            )
+                            if result.get("ok"):
+                                created_file_rel = f"{user_id}/{result['filename']}"
+                                if created_file_rel not in generated_images:
+                                    generated_images.append(created_file_rel)
+                                file_link_md = (
+                                    f"\n📄 **ファイルを作成しました:** [{result.get('display_name')}]({result.get('url')})\n"
+                                )
+                                nonlocal full_res
+                                full_res += file_link_md
+                                pub("content", file_link_md)
+                            return _create_file_tool_result_text(result)
+
+                        _gemini_create_file_tool.__name__ = "create_file"
+                        if 'tools' not in conf: conf['tools'] = []
+                        conf['tools'].append(_gemini_create_file_tool)
                     if options.get('system_prompt') and 'system_instruction' not in conf:
                         conf['system_instruction'] = options.get('system_prompt')
                     
@@ -13524,6 +14083,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 },
                             },
                         })
+                    if options.get("enable_file_creation"):
+                        python_tools.append(_build_create_file_tool_schema())
 
                     deepseek_usage_totals = {
                         "completion_tokens": 0,
@@ -13661,7 +14222,27 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             call_name = function_data.get("name")
                             call_arguments = function_data.get("arguments") or ""
                             code = ""
-                            if call_name != "execute_python":
+                            if call_name == "create_file":
+                                try:
+                                    parsed_arguments = json.loads(call_arguments)
+                                    if not isinstance(parsed_arguments, dict):
+                                        raise ValueError("arguments must be a JSON object")
+                                    create_result = _execute_create_file_tool(
+                                        user_id, parsed_arguments, user_config.get('enable_e2ee')
+                                    )
+                                    result = _create_file_tool_result_text(create_result)
+                                    if create_result.get("ok"):
+                                        created_file_rel = f"{user_id}/{create_result['filename']}"
+                                        if created_file_rel not in generated_images:
+                                            generated_images.append(created_file_rel)
+                                        file_link_md = (
+                                            f"\n📄 **ファイルを作成しました:** [{create_result.get('display_name')}]({create_result.get('url')})\n"
+                                        )
+                                        full_res += file_link_md
+                                        pub("content", file_link_md)
+                                except Exception as tool_exc:
+                                    result = f"Error: Invalid create_file arguments: {tool_exc}"
+                            elif call_name != "execute_python":
                                 result = f"Error: Unsupported tool: {call_name or '(missing name)'}"
                             else:
                                 try:
@@ -14001,6 +14582,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         }
                     })
 
+                if options.get('enable_file_creation'):
+                    if 'tools' not in kwargs: kwargs['tools'] = []
+                    kwargs['tools'].append(_build_create_file_tool_schema())
+
                 if is_grok and options.get('enable_thinking') and not grok_reasoning_supported:
                     pub("thought", "APIの仕様により表示されません")
                 is_reasoning_model = (not is_grok) and any(x in model_key.lower() for x in ['o1', 'o3', 'gpt-5.2', 'gpt-5.1', 'gpt-5', 'reasoning'])
@@ -14217,48 +14802,65 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             call_name = getattr(item, 'name', None)
                             call_args = getattr(item, 'arguments', None)
 
-                        if item_type == "function_call" and call_name == "execute_python":
+                        if item_type == "function_call" and call_name in ("execute_python", "create_file"):
                             try:
                                 args_json = json.loads(call_args or "{}")
-                                code = args_json.get('code', '')
-                                if code:
-                                    pub("content", f"\n```python\n{code}\n```\n")
-                                    result = safe_execute_python(code)
-                                    pub("content", f"\n**Output:**\n```\n{result}\n```\n")
-                                    full_res += f"\n```python\n{code}\n```\n\n**Output:**\n```\n{result}\n```\n"
-                                    full_res += f"\n```pyexec\n{json.dumps({'code': code, 'output': result})}\n```\n"
-                                    pub("python", {"id": tool_call_id or f"py_{int(time.time()*1000)}_{os.urandom(3).hex()}", "code": code, "output": result})
-                                    if response_id and tool_call_id:
-                                        _mark_provider_request_started()
-                                        tool_stream = client.responses.create(
-                                            model=model_key,
-                                            previous_response_id=response_id,
-                                            input=[{
-                                                "type": "function_call_output",
-                                                "call_id": tool_call_id,
-                                                "output": result
-                                            }],
-                                            stream=True
+                                if call_name == "create_file":
+                                    create_result = _execute_create_file_tool(
+                                        user_id, args_json, user_config.get('enable_e2ee')
+                                    )
+                                    result = _create_file_tool_result_text(create_result)
+                                    if create_result.get("ok"):
+                                        created_file_rel = f"{user_id}/{create_result['filename']}"
+                                        if created_file_rel not in generated_images:
+                                            generated_images.append(created_file_rel)
+                                        file_link_md = (
+                                            f"\n📄 **ファイルを作成しました:** [{create_result.get('display_name')}]({create_result.get('url')})\n"
                                         )
-                                        for tchunk in tool_stream:
-                                            _latency_mark_once(job_id, "provider_first_chunk_ms")
-                                            if check_stop(): break
-                                            if isinstance(tchunk, dict):
-                                                t_event = tchunk.get('type')
-                                            else:
-                                                t_event = getattr(tchunk, 'type', None)
-                                            if t_event == "response.output_text.delta":
-                                                t_delta = tchunk.get('delta') if isinstance(tchunk, dict) else getattr(tchunk, 'delta', None)
-                                                if t_delta:
-                                                    full_res += t_delta
-                                                    pub("content", t_delta)
-                                            elif t_event in ("response.reasoning_text.delta", "response.reasoning_summary_text.delta"):
-                                                t_reason = tchunk.get('delta') if isinstance(tchunk, dict) else getattr(tchunk, 'delta', None)
-                                                if t_reason:
-                                                    thought_accumulated += t_reason
-                                                    pub("thought", t_reason)
+                                        full_res += file_link_md
+                                        pub("content", file_link_md)
+                                else:
+                                    code = args_json.get('code', '')
+                                    if code:
+                                        pub("content", f"\n```python\n{code}\n```\n")
+                                        result = safe_execute_python(code)
+                                        pub("content", f"\n**Output:**\n```\n{result}\n```\n")
+                                        full_res += f"\n```python\n{code}\n```\n\n**Output:**\n```\n{result}\n```\n"
+                                        full_res += f"\n```pyexec\n{json.dumps({'code': code, 'output': result})}\n```\n"
+                                        pub("python", {"id": tool_call_id or f"py_{int(time.time()*1000)}_{os.urandom(3).hex()}", "code": code, "output": result})
+                                    else:
+                                        result = "Error: No code provided."
+                                if response_id and tool_call_id:
+                                    _mark_provider_request_started()
+                                    tool_stream = client.responses.create(
+                                        model=model_key,
+                                        previous_response_id=response_id,
+                                        input=[{
+                                            "type": "function_call_output",
+                                            "call_id": tool_call_id,
+                                            "output": result
+                                        }],
+                                        stream=True
+                                    )
+                                    for tchunk in tool_stream:
+                                        _latency_mark_once(job_id, "provider_first_chunk_ms")
+                                        if check_stop(): break
+                                        if isinstance(tchunk, dict):
+                                            t_event = tchunk.get('type')
+                                        else:
+                                            t_event = getattr(tchunk, 'type', None)
+                                        if t_event == "response.output_text.delta":
+                                            t_delta = tchunk.get('delta') if isinstance(tchunk, dict) else getattr(tchunk, 'delta', None)
+                                            if t_delta:
+                                                full_res += t_delta
+                                                pub("content", t_delta)
+                                        elif t_event in ("response.reasoning_text.delta", "response.reasoning_summary_text.delta"):
+                                            t_reason = tchunk.get('delta') if isinstance(tchunk, dict) else getattr(tchunk, 'delta', None)
+                                            if t_reason:
+                                                thought_accumulated += t_reason
+                                                pub("thought", t_reason)
                             except Exception as e:
-                                pub("error", f"Python Tool Error: {e}")
+                                pub("error", f"Tool Error: {e}")
 
                         if item_type == "reasoning" and summary_parts:
                             for part in summary_parts:
@@ -16421,6 +17023,7 @@ def chat_stream():
             current_user.last_enable_url_context = bool(data.get('enable_url_context'))
             current_user.last_enable_maps = bool(data.get('enable_maps'))
             current_user.last_enable_python = bool(data.get('enable_python'))
+            current_user.last_enable_file_creation = bool(data.get('enable_file_creation'))
             current_user.last_enable_thinking = bool(data.get('enable_thinking'))
             current_user.last_thinking_level = (data.get('thinking_level') or current_user.last_thinking_level or "high")
             tb = data.get('thinking_budget')
@@ -16468,6 +17071,7 @@ def chat_stream():
         'enable_url_context': data.get('enable_url_context'),
         'disable_auto_search': data.get('disable_auto_search'),
         'enable_python': data.get('enable_python'),
+        'enable_file_creation': data.get('enable_file_creation'),
         'enable_thinking': data.get('enable_thinking'),
         'thinking_level': data.get('thinking_level'),
         'thinking_budget': data.get('thinking_budget'),
@@ -21993,6 +22597,7 @@ def handle_settings():
             'default_enable_url_context': current_user.default_enable_url_context,
             'default_enable_maps': current_user.default_enable_maps,
             'default_enable_python': current_user.default_enable_python,
+            'default_enable_file_creation': current_user.default_enable_file_creation,
             'default_enable_thinking': current_user.default_enable_thinking,
             'default_thinking_level': current_user.default_thinking_level or "high",
             'default_thinking_budget': current_user.default_thinking_budget if current_user.default_thinking_budget is not None else 4096,
@@ -22008,6 +22613,7 @@ def handle_settings():
             'last_enable_url_context': current_user.last_enable_url_context,
             'last_enable_maps': current_user.last_enable_maps,
             'last_enable_python': current_user.last_enable_python,
+            'last_enable_file_creation': current_user.last_enable_file_creation,
             'last_enable_thinking': current_user.last_enable_thinking,
             'last_thinking_level': current_user.last_thinking_level or "high",
             'last_thinking_budget': current_user.last_thinking_budget if current_user.last_thinking_budget is not None else 4096,
@@ -22133,6 +22739,7 @@ def handle_settings():
     if 'default_enable_url_context' in d: current_user.default_enable_url_context = bool(d['default_enable_url_context'])
     if 'default_enable_maps' in d: current_user.default_enable_maps = bool(d['default_enable_maps'])
     if 'default_enable_python' in d: current_user.default_enable_python = bool(d['default_enable_python'])
+    if 'default_enable_file_creation' in d: current_user.default_enable_file_creation = bool(d['default_enable_file_creation'])
     if 'default_enable_thinking' in d: current_user.default_enable_thinking = bool(d['default_enable_thinking'])
     if 'default_thinking_level' in d: current_user.default_thinking_level = d['default_thinking_level'] or "high"
     if 'default_thinking_budget' in d:
@@ -22247,6 +22854,7 @@ def _build_ai_settings_tool_schema():
         "default_enable_url_context": {"type": "boolean", "description": "URLs (URLコンテキスト) の既定ON/OFF"},
         "default_enable_maps": {"type": "boolean", "description": "Maps (Google Maps grounding) の既定ON/OFF"},
         "default_enable_python": {"type": "boolean", "description": "Python実行ツールの既定ON/OFF"},
+        "default_enable_file_creation": {"type": "boolean", "description": "ファイル作成ツールの既定ON/OFF"},
         "default_enable_thinking": {"type": "boolean", "description": "Thinking (拡張思考) の既定ON/OFF"},
         "default_thinking_level": {"type": "string", "description": "Thinkingレベル", "enum": sorted(VALID_THINKING_LEVELS)},
         "default_thinking_budget": {"type": "integer", "description": "Thinking budget (トークン数, 例: 4096)"},
@@ -24115,6 +24723,9 @@ with app.app_context():
             try_alter("ALTER TABLE user ADD COLUMN default_enable_python BOOLEAN DEFAULT 1")
         except: pass
         try:
+            try_alter("ALTER TABLE user ADD COLUMN default_enable_file_creation BOOLEAN DEFAULT 1")
+        except: pass
+        try:
             try_alter("ALTER TABLE user ADD COLUMN default_enable_thinking BOOLEAN DEFAULT 0")
         except: pass
         try:
@@ -24161,6 +24772,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN last_enable_python BOOLEAN DEFAULT 1")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN last_enable_file_creation BOOLEAN DEFAULT 1")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN last_enable_thinking BOOLEAN DEFAULT 0")

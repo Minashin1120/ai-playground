@@ -625,6 +625,7 @@
             if(get('set-default-url-context')) get('set-default-url-context').checked = !!d.default_enable_url_context;
             if(get('set-default-maps')) get('set-default-maps').checked = !!d.default_enable_maps;
             if(get('set-default-python')) get('set-default-python').checked = !!d.default_enable_python;
+            if(get('set-default-file-creation')) get('set-default-file-creation').checked = !!d.default_enable_file_creation;
             if(get('set-default-thinking')) get('set-default-thinking').checked = !!d.default_enable_thinking;
             if(get('set-default-sys-prompt')) get('set-default-sys-prompt').checked = !!d.default_enable_system_prompt;
             if(get('set-default-thinking-level')) get('set-default-thinking-level').value = d.default_thinking_level || 'high';
@@ -930,6 +931,7 @@
                     default_enable_url_context: get('set-default-url-context') ? get('set-default-url-context').checked : false,
                     default_enable_maps: get('set-default-maps') ? get('set-default-maps').checked : false,
                     default_enable_python: get('set-default-python') ? get('set-default-python').checked : false,
+                    default_enable_file_creation: get('set-default-file-creation') ? get('set-default-file-creation').checked : false,
                     default_enable_thinking: get('set-default-thinking') ? get('set-default-thinking').checked : false,
                     default_thinking_level: get('set-default-thinking-level') ? get('set-default-thinking-level').value : null,
                     default_thinking_budget: get('set-default-thinking-budget') ? get('set-default-thinking-budget').value : null,

@@ -588,6 +588,7 @@
                 enable_url_context: get('enable-url-context') ? get('enable-url-context').checked : false,
                 enable_maps: get('enable-maps') ? get('enable-maps').checked : false,
                 enable_python: get('enable-python').checked,
+                enable_file_creation: get('enable-file-creation') ? get('enable-file-creation').checked : true,
                 enable_thinking: isDeepSeekNonThinking ? false : get('enable-thinking').checked,
                 thinking_level: get('thinking-level').value,
                 thinking_budget: get('thinking-budget') ? get('thinking-budget').value : null,

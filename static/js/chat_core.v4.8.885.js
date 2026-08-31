@@ -4412,6 +4412,7 @@
             { key: 'urls', icon: 'fa-link', label: 'URLs', checkboxId: 'enable-url-context', containerId: 'url-context-container' },
             { key: 'maps', icon: 'fa-map-location-dot', label: 'Maps', checkboxId: 'enable-maps', containerId: 'maps-grounding-container' },
             { key: 'python', icon: 'fa-code', label: 'Python', checkboxId: 'enable-python', containerId: 'python-container' },
+            { key: 'file', icon: 'fa-file-lines', label: 'File', checkboxId: 'enable-file-creation', containerId: 'file-creation-container' },
             { key: 'sysprompt', icon: 'fa-terminal', label: 'SysPrompt', checkboxId: 'enable-sys-prompt', containerId: 'sys-prompt-option', gear: true, gearAction: () => { if (window.openThreadModal) window.openThreadModal(); } },
             { key: 'thinking', icon: 'fa-brain', label: 'Thinking', checkboxId: 'enable-thinking', containerId: 'thinking-options', special: 'thinking' },
             { key: 'effort', icon: 'fa-sliders-h', label: 'Effort', containerId: 'reasoning-effort-container', selectId: 'reasoning-effort' },
@@ -4925,6 +4926,7 @@
                 enable_url_context: d.last_enable_url_context,
                 enable_maps: d.last_enable_maps,
                 enable_python: d.last_enable_python,
+                enable_file_creation: d.last_enable_file_creation,
                 enable_thinking: d.last_enable_thinking,
                 thinking_level: d.last_thinking_level,
                 thinking_budget: d.last_thinking_budget,
@@ -4937,6 +4939,7 @@
                 enable_url_context: d.default_enable_url_context,
                 enable_maps: d.default_enable_maps,
                 enable_python: d.default_enable_python,
+                enable_file_creation: d.default_enable_file_creation,
                 enable_thinking: d.default_enable_thinking,
                 thinking_level: d.default_thinking_level,
                 thinking_budget: d.default_thinking_budget,
@@ -4950,6 +4953,7 @@
             if (get('enable-url-context')) get('enable-url-context').checked = !!s(src.enable_url_context, get('enable-url-context').checked);
             if (get('enable-maps')) get('enable-maps').checked = !!s(src.enable_maps, get('enable-maps').checked);
             if (get('enable-python')) get('enable-python').checked = !!s(src.enable_python, get('enable-python').checked);
+            if (get('enable-file-creation')) get('enable-file-creation').checked = !!s(src.enable_file_creation, get('enable-file-creation').checked);
             if (get('enable-thinking')) get('enable-thinking').checked = !!s(src.enable_thinking, get('enable-thinking').checked);
             if (get('thinking-level')) get('thinking-level').value = s(src.thinking_level, get('thinking-level').value || "high");
             if (get('thinking-budget')) get('thinking-budget').value = s(src.thinking_budget, get('thinking-budget').value || 4096);
@@ -8213,6 +8217,7 @@
                 if (get('set-default-url-context')) get('set-default-url-context').checked = !!d.default_enable_url_context;
                 if (get('set-default-maps')) get('set-default-maps').checked = !!d.default_enable_maps;
                 if (get('set-default-python')) get('set-default-python').checked = !!d.default_enable_python;
+                if (get('set-default-file-creation')) get('set-default-file-creation').checked = !!d.default_enable_file_creation;
                 if (get('set-default-thinking')) get('set-default-thinking').checked = !!d.default_enable_thinking;
                 if (get('set-default-sys-prompt')) get('set-default-sys-prompt').checked = !!d.default_enable_system_prompt;
                 if (get('set-default-thinking-level')) get('set-default-thinking-level').value = d.default_thinking_level || 'high';
@@ -9725,13 +9730,14 @@
                 temp_chat_timeout_seconds: '一時チャットの有効時間（秒）', default_model: '既定のモデル',
                 default_enable_search: '既定: Search', default_enable_url_context: '既定: URLコンテキスト',
                 default_enable_maps: '既定: Maps', default_enable_python: '既定: Python',
+                default_enable_file_creation: '既定: File',
                 default_enable_thinking: '既定: Thinking', default_thinking_level: '既定: Thinkingレベル',
                 default_thinking_budget: '既定: Thinking budget', default_reasoning_effort: '既定: Reasoning effort',
                 default_enable_system_prompt: '既定: システムプロンプト', default_safety_setting: '既定: 安全設定',
                 default_vision_model: 'Vision Model', rich_paste_prompt_default: 'リッチ貼り付けプロンプト',
                 rich_paste_prompt_use_custom_default: 'リッチ貼り付けカスタムプロンプト既定',
                 last_model: '直前のモデル', last_enable_search: '直前: Search', last_enable_url_context: '直前: URLコンテキスト',
-                last_enable_maps: '直前: Maps', last_enable_python: '直前: Python', last_enable_thinking: '直前: Thinking',
+                last_enable_maps: '直前: Maps', last_enable_python: '直前: Python', last_enable_file_creation: '直前: File', last_enable_thinking: '直前: Thinking',
                 last_thinking_level: '直前: Thinkingレベル', last_thinking_budget: '直前: Thinking budget',
                 last_reasoning_effort: '直前: Reasoning effort', last_enable_system_prompt: '直前: システムプロンプト',
                 last_safety_setting: '直前: 安全設定', enable_latency_metrics: 'レスポンス速度の計測',
@@ -10748,6 +10754,7 @@
             if(get('set-default-url-context')) get('set-default-url-context').checked = !!d.default_enable_url_context;
             if(get('set-default-maps')) get('set-default-maps').checked = !!d.default_enable_maps;
             if(get('set-default-python')) get('set-default-python').checked = !!d.default_enable_python;
+            if(get('set-default-file-creation')) get('set-default-file-creation').checked = !!d.default_enable_file_creation;
             if(get('set-default-thinking')) get('set-default-thinking').checked = !!d.default_enable_thinking;
             if(get('set-default-sys-prompt')) get('set-default-sys-prompt').checked = !!d.default_enable_system_prompt;
             if(get('set-default-thinking-level')) get('set-default-thinking-level').value = d.default_thinking_level || 'high';
@@ -11053,6 +11060,7 @@
                     default_enable_url_context: get('set-default-url-context') ? get('set-default-url-context').checked : false,
                     default_enable_maps: get('set-default-maps') ? get('set-default-maps').checked : false,
                     default_enable_python: get('set-default-python') ? get('set-default-python').checked : false,
+                    default_enable_file_creation: get('set-default-file-creation') ? get('set-default-file-creation').checked : false,
                     default_enable_thinking: get('set-default-thinking') ? get('set-default-thinking').checked : false,
                     default_thinking_level: get('set-default-thinking-level') ? get('set-default-thinking-level').value : null,
                     default_thinking_budget: get('set-default-thinking-budget') ? get('set-default-thinking-budget').value : null,
@@ -18397,6 +18405,7 @@
             default_enable_url_context: { label: '既定のURLs', tab: 'general', control: 'set-default-url-context' },
             default_enable_maps: { label: '既定のMaps', tab: 'general', control: 'set-default-maps' },
             default_enable_python: { label: '既定のPython', tab: 'general', control: 'set-default-python' },
+            default_enable_file_creation: { label: '既定のFile', tab: 'general', control: 'set-default-file-creation' },
             default_enable_thinking: { label: '既定のThinking', tab: 'general', control: 'set-default-thinking' },
             default_thinking_level: { label: 'Thinking Level', tab: 'general', control: 'set-default-thinking-level' },
             default_thinking_budget: { label: 'Thinking Budget', tab: 'general', control: 'set-default-thinking-budget' },
@@ -19400,6 +19409,7 @@
                 enable_url_context: get('enable-url-context') ? get('enable-url-context').checked : false,
                 enable_maps: get('enable-maps') ? get('enable-maps').checked : false,
                 enable_python: get('enable-python').checked,
+                enable_file_creation: get('enable-file-creation') ? get('enable-file-creation').checked : true,
                 enable_thinking: isDeepSeekNonThinking ? false : get('enable-thinking').checked,
                 thinking_level: get('thinking-level').value,
                 thinking_budget: get('thinking-budget') ? get('thinking-budget').value : null,

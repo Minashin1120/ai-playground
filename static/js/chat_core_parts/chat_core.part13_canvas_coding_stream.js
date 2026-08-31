@@ -1069,6 +1069,7 @@
             default_enable_url_context: { label: '既定のURLs', tab: 'general', control: 'set-default-url-context' },
             default_enable_maps: { label: '既定のMaps', tab: 'general', control: 'set-default-maps' },
             default_enable_python: { label: '既定のPython', tab: 'general', control: 'set-default-python' },
+            default_enable_file_creation: { label: '既定のFile', tab: 'general', control: 'set-default-file-creation' },
             default_enable_thinking: { label: '既定のThinking', tab: 'general', control: 'set-default-thinking' },
             default_thinking_level: { label: 'Thinking Level', tab: 'general', control: 'set-default-thinking-level' },
             default_thinking_budget: { label: 'Thinking Budget', tab: 'general', control: 'set-default-thinking-budget' },

@@ -178,6 +178,7 @@
                 enable_url_context: d.last_enable_url_context,
                 enable_maps: d.last_enable_maps,
                 enable_python: d.last_enable_python,
+                enable_file_creation: d.last_enable_file_creation,
                 enable_thinking: d.last_enable_thinking,
                 thinking_level: d.last_thinking_level,
                 thinking_budget: d.last_thinking_budget,
@@ -190,6 +191,7 @@
                 enable_url_context: d.default_enable_url_context,
                 enable_maps: d.default_enable_maps,
                 enable_python: d.default_enable_python,
+                enable_file_creation: d.default_enable_file_creation,
                 enable_thinking: d.default_enable_thinking,
                 thinking_level: d.default_thinking_level,
                 thinking_budget: d.default_thinking_budget,
@@ -203,6 +205,7 @@
             if (get('enable-url-context')) get('enable-url-context').checked = !!s(src.enable_url_context, get('enable-url-context').checked);
             if (get('enable-maps')) get('enable-maps').checked = !!s(src.enable_maps, get('enable-maps').checked);
             if (get('enable-python')) get('enable-python').checked = !!s(src.enable_python, get('enable-python').checked);
+            if (get('enable-file-creation')) get('enable-file-creation').checked = !!s(src.enable_file_creation, get('enable-file-creation').checked);
             if (get('enable-thinking')) get('enable-thinking').checked = !!s(src.enable_thinking, get('enable-thinking').checked);
             if (get('thinking-level')) get('thinking-level').value = s(src.thinking_level, get('thinking-level').value || "high");
             if (get('thinking-budget')) get('thinking-budget').value = s(src.thinking_budget, get('thinking-budget').value || 4096);

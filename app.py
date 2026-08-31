@@ -746,8 +746,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-01-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.894'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-01-003')
+app.config['SYSTEM_VERSION'] = 'V4.8.895'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3416,37 +3416,219 @@ def _build_create_file_tool_schema():
     }
 
 
-def _resolve_attached_file_ref(source, loaded_files):
-    """Resolve a model-provided ``source`` reference to a loaded attachment.
+def _resolve_attached_file_ref(source, loaded_files=None, history=None, user_id=None, thread_id=None):
+    """Resolve a model-provided ``source`` reference to a target file.
 
-    Matches against the user-facing send name, the stored rel path and their
-    basenames (case-insensitive) so the model can reference an attached file by
-    any of the names it has seen in the prompt.  Returns the matching entry from
-    ``loaded_files`` or ``None``.
+    Matches against the user-facing send name, the stored rel path, and their
+    basenames (case-insensitive) across:
+    1. The current turn's loaded attachments (``loaded_files``).
+    2. Files attached or generated across messages in the conversation ``history``
+       (both user uploads and assistant-generated files).
+       If an original file has been edited into newer versions in the thread,
+       prioritizes the latest edited version so follow-up edits are cumulative.
+    3. User's file library / FileCache / uploads disk for ``user_id``.
+
+    Returns the matching entry dictionary or ``None``.
     """
-    if not source or not loaded_files:
+    if not source:
         return None
     src = str(source).strip()
+    if not src:
+        return None
+
+    # Strip URL formatting like /files/... or markdown link syntax [name](/files/path)
+    url_m = re.search(r'/files/([^)\s?#]+)', src)
+    if url_m:
+        src = url_m.group(1).strip()
+    elif src.startswith('[') and '](' in src:
+        inner_m = re.search(r'\((?:/files/)?([^)\s?#]+)\)', src)
+        if inner_m:
+            src = inner_m.group(1).strip()
+
+    # Strip leading [File: ...] wrapper if present
+    file_tag_m = re.match(r'^\[(?:File|file):\s*(.*?)\s*\]$', src)
+    if file_tag_m:
+        src = file_tag_m.group(1).strip()
+
     src_lower = src.lower()
     src_base = os.path.basename(src).lower()
-    for fi in loaded_files:
-        candidates = [
-            str(fi.get('send_name') or ''),
-            str(fi.get('name') or ''),
-            str(fi.get('path') or ''),
-        ]
-        for name in candidates:
-            if not name:
+    src_stem = os.path.splitext(src_base)[0].lower()
+    src_ext = os.path.splitext(src_base)[1].lower()
+
+    # 1. Search loaded_files (current message attachments)
+    if loaded_files:
+        for fi in loaded_files:
+            candidates = [
+                str(fi.get('send_name') or ''),
+                str(fi.get('name') or ''),
+                str(fi.get('path') or ''),
+            ]
+            for name in candidates:
+                if not name:
+                    continue
+                name_lower = name.lower()
+                name_base = os.path.basename(name).lower()
+                if (
+                    name_lower == src_lower
+                    or name_base == src_lower
+                    or name_lower == src_base
+                    or name_base == src_base
+                ):
+                    return fi
+
+    # 2. Search conversation history (from newest message to oldest)
+    if history:
+        history_candidates = []
+        seen_paths = set()
+        for m in reversed(history):
+            role = str(m.get('role') or '').lower()
+            # 2a. image_url (which holds JSON list or string of uploaded / generated file refs)
+            raw_urls = m.get('image_url')
+            if raw_urls:
+                try:
+                    ref_list = json.loads(raw_urls)
+                except Exception:
+                    ref_list = raw_urls
+                if not isinstance(ref_list, list):
+                    ref_list = [ref_list]
+                for ref in ref_list:
+                    norm = _normalize_upload_ref(ref)
+                    if norm and norm not in seen_paths:
+                        if user_id is not None and not norm.startswith(f"{user_id}/"):
+                            continue
+                        info = _get_file_disk_info(norm)
+                        if info.get('exists'):
+                            seen_paths.add(norm)
+                            history_candidates.append({
+                                'path': norm,
+                                'name': norm,
+                                'send_name': os.path.basename(norm),
+                                'is_assistant': (role == 'assistant'),
+                                'mtime': info.get('mtime', 0),
+                            })
+            # 2b. markdown links in message content: e.g. [display_name](/files/user_id/filename)
+            content = m.get('content') or ''
+            if content:
+                for link_name, link_url in re.findall(r'\[([^\]]+)\]\((?:/files/)?([^\)\s?#]+)\)', content):
+                    norm = _normalize_upload_ref(link_url)
+                    if not norm:
+                        continue
+                    if user_id is not None and not norm.startswith(f"{user_id}/"):
+                        continue
+                    # Update display name on existing candidate if found
+                    updated = False
+                    for cand in history_candidates:
+                        if cand['path'] == norm:
+                            if link_name.strip():
+                                cand['send_name'] = link_name.strip()
+                            updated = True
+                            break
+                    if not updated and norm not in seen_paths:
+                        info = _get_file_disk_info(norm)
+                        if info.get('exists'):
+                            seen_paths.add(norm)
+                            history_candidates.append({
+                                'path': norm,
+                                'name': norm,
+                                'send_name': link_name.strip() or os.path.basename(norm),
+                                'is_assistant': (role == 'assistant'),
+                                'mtime': info.get('mtime', 0),
+                            })
+
+        # 2c. Exact matches in history candidates (newest first)
+        for cand in history_candidates:
+            candidates = [
+                str(cand.get('send_name') or ''),
+                str(cand.get('name') or ''),
+                str(cand.get('path') or ''),
+            ]
+            for name in candidates:
+                if not name:
+                    continue
+                name_lower = name.lower()
+                name_base = os.path.basename(name).lower()
+                if (
+                    name_lower == src_lower
+                    or name_base == src_lower
+                    or name_lower == src_base
+                    or name_base == src_base
+                ):
+                    return cand
+
+        # 2d. Stem / prefix match (e.g. source is the original filename or display name,
+        # but a newer assistant-edited version exists in history)
+        for cand in history_candidates:
+            cand_base = os.path.basename(cand.get('path') or '').lower()
+            cand_stem = os.path.splitext(cand_base)[0]
+            cand_ext = os.path.splitext(cand_base)[1].lower()
+            cand_send_base = os.path.basename(cand.get('send_name') or '').lower()
+            cand_send_stem = os.path.splitext(cand_send_base)[0]
+
+            if src_ext and cand_ext and src_ext != cand_ext:
                 continue
-            name_lower = name.lower()
-            name_base = os.path.basename(name).lower()
+
             if (
-                name_lower == src_lower
-                or name_base == src_lower
-                or name_lower == src_base
-                or name_base == src_base
+                cand_stem.startswith(src_stem)
+                or src_stem.startswith(cand_stem)
+                or cand_send_stem == src_stem
+                or cand_send_base == src_base
             ):
-                return fi
+                return cand
+
+    # 3. Fallback: Search user's library / disk files for user_id
+    if user_id is not None:
+        try:
+            cache_rows = FileCache.query.filter_by(user_id=user_id).all()
+            for row in cache_rows:
+                cand_path = row.path
+                if not cand_path:
+                    continue
+                cand_base = os.path.basename(cand_path).lower()
+                cand_stem = os.path.splitext(cand_base)[0]
+                if (
+                    cand_path.lower() == src_lower
+                    or cand_base == src_lower
+                    or cand_base == src_base
+                    or (src_stem and cand_stem == src_stem)
+                ):
+                    norm = _normalize_upload_ref(cand_path)
+                    if norm:
+                        info = _get_file_disk_info(norm)
+                        if info.get('exists'):
+                            return {
+                                'path': norm,
+                                'name': norm,
+                                'send_name': os.path.basename(norm),
+                                'mtime': info.get('mtime', 0),
+                            }
+        except Exception:
+            pass
+
+        try:
+            user_dir = os.path.join(app.config.get('UPLOAD_FOLDER', 'instance/uploads'), str(user_id))
+            if os.path.isdir(user_dir):
+                for fname in os.listdir(user_dir):
+                    fname_clean = fname[:-4] if fname.endswith('.enc') else fname
+                    fname_lower = fname_clean.lower()
+                    fname_base = os.path.basename(fname_clean).lower()
+                    fname_stem = os.path.splitext(fname_base)[0]
+                    if (
+                        fname_lower == src_lower
+                        or fname_base == src_base
+                        or (src_stem and fname_stem == src_stem)
+                    ):
+                        rel_p = f"{user_id}/{fname_clean}"
+                        info = _get_file_disk_info(rel_p)
+                        if info.get('exists'):
+                            return {
+                                'path': rel_p,
+                                'name': rel_p,
+                                'send_name': fname_clean,
+                                'mtime': info.get('mtime', 0),
+                            }
+        except Exception:
+            pass
+
     return None
 
 
@@ -4189,8 +4371,8 @@ th {{ background: #f3f4f6; }}
     return pdf_bytes
 
 
-def _execute_edit_file_tool(user_id, args, encrypt, loaded_files):
-    """Edit an uploaded file attached to the current message.
+def _execute_edit_file_tool(user_id, args, encrypt, loaded_files=None, history=None, thread_id=None):
+    """Edit an uploaded or previously created file.
 
     Editing modes:
 
@@ -4219,7 +4401,13 @@ def _execute_edit_file_tool(user_id, args, encrypt, loaded_files):
     source = str(args.get("source") or "").strip()
     if not source:
         return {"ok": False, "error": "source（編集対象の添付ファイル名）は必須です。"}
-    target = _resolve_attached_file_ref(source, loaded_files or [])
+    target = _resolve_attached_file_ref(
+        source,
+        loaded_files=loaded_files or [],
+        history=history,
+        user_id=user_id,
+        thread_id=thread_id,
+    )
     if not target:
         return {"ok": False, "error": f"添付ファイルが見つかりません: {source}"}
     rel_path = str(target.get('path') or target.get('name') or '').strip()
@@ -13170,6 +13358,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             )
                         else:
                             conf['system_instruction'] = GEMINI_CODE_EXECUTION_GUIDANCE
+                    last_file_tool_error = None
                     if options.get('enable_file_creation'):
                         def _gemini_create_file_tool(
                             filename: str,
@@ -13177,6 +13366,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             format: str = "",
                         ) -> str:
                             """テキスト・コード・Markdown・PDF・Word(docx)・Excel(xlsx)ファイルを作成し、ユーザーのファイルライブラリに保存します。保存後のURLを回答内のリンクとして提示してください。format は省略可能（拡張子から自動判定）。PDF/DOCX の content は Markdown 形式、XLSX の content は TSV（タブ区切り、1行目ヘッダー）です。添付済みの既存ファイルの編集を求められた場合は、新規作成せず edit_file を使用してください。"""
+                            nonlocal last_file_tool_error
                             result = _execute_create_file_tool(
                                 user_id,
                                 {
@@ -13196,6 +13386,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 nonlocal full_res
                                 full_res += file_link_md
                                 pub("content", file_link_md)
+                            else:
+                                last_file_tool_error = _create_file_tool_result_text(result)
                             return _create_file_tool_result_text(result)
 
                         _gemini_create_file_tool.__name__ = "create_file"
@@ -13209,7 +13401,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             paragraph_edits: Optional[list[dict]] = None,
                             text_edits: Optional[list[dict]] = None,
                         ) -> str:
-                            """会話に添付された既存のファイル（source に添付ファイル名）を編集し、編集後のファイルをユーザーのファイルライブラリに保存します。元ファイルの書式・構造・内容を保ったまま変更してください。Excel(xlsx/xlsm)は cell_edits で変更するセルのリストを指定します。各要素は { cell: セル番地（添付時に表示される列名ヘッダー A, B, C... を参照、例 B5）, value: 新しい値, sheet: シート名(省略時は最初のシート), style: 任意の新しい書式 } です。style は指定した項目だけを上書きします: fill: { color: '#RRGGBB' 塗りつぶし色, fillType: 'solid'(既定)/'none'(解除) }, font: { bold, italic, strikethrough, underline: 'none'/'single'/'double', color: 文字色, size: サイズpt, name: フォント名 }, border: { style: 'none'/'thin'/'medium'/'thick'/'dashed'/'dotted'/'double'（四辺）, color: 罫線色, left/right/top/bottom: { style, color } で辺ごとに上書き }, alignment: { horizontal: 'left'/'center'/'right'/'justify', vertical: 'top'/'center'/'bottom', wrapText }, numberFormat: 表示形式コード。Word(docx)は paragraph_edits で変更する段落のリストを指定します（元の書式を維持し、編集後に PDF 版も生成されます）。各要素は { paragraph: [N]番号または段落テキスト(部分一致), text: 新しいテキスト(省略可), style: { font: { bold, italic, strikethrough, underline: 'none'/'single'/'double', color: 文字色, size: サイズpt, name: フォント名, highlight: 'yellow'/'green'/'cyan'/'magenta'/'red'/'blue'/'gray'/'none' }, alignment: 'left'/'center'/'right'/'justify'/'default' } } です。PDF は text_edits で { find: 検索文字列, replace: 置換文字列, page: ページ番号(省略可) } のリストを指定すると、レイアウトを保ったままベストエフォートで置換します（見つからない場合はエラー）。テキスト系は content に編集後の全文、PDF/DOCX の全文置き換えは content に Markdown 形式の全文を指定します。"""
+                            """会話に添付された既存のファイルや過去に作成・編集されたファイル（source に添付ファイル名またはURL）を編集し、編集後のファイルをユーザーのファイルライブラリに保存します。元ファイルの書式・構造・内容を保ったまま変更してください。Excel(xlsx/xlsm)は cell_edits で変更するセルのリストを指定します。各要素は { cell: セル番地（添付時に表示される列名ヘッダー A, B, C... を参照、例 B5）, value: 新しい値, sheet: シート名(省略時は最初のシート), style: 任意の新しい書式 } です。style は指定した項目だけを上書きします: fill: { color: '#RRGGBB' 塗りつぶし色, fillType: 'solid'(既定)/'none'(解除) }, font: { bold, italic, strikethrough, underline: 'none'/'single'/'double', color: 文字色, size: サイズpt, name: フォント名 }, border: { style: 'none'/'thin'/'medium'/'thick'/'dashed'/'dotted'/'double'（四辺）, color: 罫線色, left/right/top/bottom: { style, color } で辺ごとに上書き }, alignment: { horizontal: 'left'/'center'/'right'/'justify', vertical: 'top'/'center'/'bottom', wrapText }, numberFormat: 表示形式コード。Word(docx)は paragraph_edits で変更する段落のリストを指定します（元の書式を維持し、編集後に PDF 版も生成されます）。各要素は { paragraph: [N]番号または段落テキスト(部分一致), text: 新しいテキスト(省略可), style: { font: { bold, italic, strikethrough, underline: 'none'/'single'/'double', color: 文字色, size: サイズpt, name: フォント名, highlight: 'yellow'/'green'/'cyan'/'magenta'/'red'/'blue'/'gray'/'none' }, alignment: 'left'/'center'/'right'/'justify'/'default' } } です。PDF は text_edits で { find: 検索文字列, replace: 置換文字列, page: ページ番号(省略可) } のリストを指定すると、レイアウトを保ったままベストエフォートで置換します（見つからない場合はエラー）。テキスト系は content に編集後の全文、PDF/DOCX の全文置き換えは content に Markdown 形式の全文を指定します。"""
+                            nonlocal last_file_tool_error
                             result = _execute_edit_file_tool(
                                 user_id,
                                 {
@@ -13220,7 +13413,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     "text_edits": text_edits,
                                 },
                                 user_config.get("enable_e2ee"),
-                                loaded_files,
+                                loaded_files=loaded_files,
+                                history=history,
+                                thread_id=thread_id,
                             )
                             if result.get("ok"):
                                 edited_file_rel = f"{user_id}/{result['filename']}"
@@ -13232,6 +13427,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 nonlocal full_res
                                 full_res += file_link_md
                                 pub("content", file_link_md)
+                            else:
+                                last_file_tool_error = _create_file_tool_result_text(result, "edit_file", "編集")
                             return _create_file_tool_result_text(result, "edit_file", "編集")
 
                         _gemini_edit_file_tool.__name__ = "edit_file"
@@ -14233,6 +14430,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 pub("python", {"id": f"gem_local_py_{int(time.time()*1000)}_{os.urandom(3).hex()}", "code": b, "output": result})
                         except Exception as e:
                             log_force(f"Gemini local python failed: {e}")
+
+                    if not full_res.strip() and last_file_tool_error:
+                        full_res = last_file_tool_error
+                        pub("content", full_res)
 
             # --- 1.5 Grok Imagine Image Generation ---
             elif model_key in (
@@ -15703,7 +15904,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     if not isinstance(parsed_arguments, dict):
                                         raise ValueError("arguments must be a JSON object")
                                     edit_result = _execute_edit_file_tool(
-                                        user_id, parsed_arguments, user_config.get('enable_e2ee'), loaded_files
+                                        user_id,
+                                        parsed_arguments,
+                                        user_config.get('enable_e2ee'),
+                                        loaded_files=loaded_files,
+                                        history=history,
+                                        thread_id=thread_id,
                                     )
                                     result = _create_file_tool_result_text(edit_result, "edit_file", "編集")
                                     if edit_result.get("ok"):
@@ -16297,7 +16503,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         pub("content", file_link_md)
                                 elif call_name == "edit_file":
                                     edit_result = _execute_edit_file_tool(
-                                        user_id, args_json, user_config.get('enable_e2ee'), loaded_files
+                                        user_id,
+                                        args_json,
+                                        user_config.get('enable_e2ee'),
+                                        loaded_files=loaded_files,
+                                        history=history,
+                                        thread_id=thread_id,
                                     )
                                     result = _create_file_tool_result_text(edit_result, "edit_file", "編集")
                                     if edit_result.get("ok"):

@@ -135,6 +135,56 @@ class EditFileToolTests(unittest.TestCase):
         self.assertIsNone(target._resolve_attached_file_ref("", loaded))
         self.assertIsNone(target._resolve_attached_file_ref("a.csv", None))
 
+    def test_resolve_from_conversation_history(self):
+        history = [
+            {"role": "user", "content": "ファイルです", "image_url": '["1/1788181323_fc48c741.xlsx"]'},
+            {"role": "assistant", "content": "\n📄 **ファイルを編集しました:** [1788181323_fc48c741.xlsx](/files/1/1788181323_fc48c741_1788190840_b8e900.xlsx)\n", "image_url": '["1/1788181323_fc48c741_1788190840_b8e900.xlsx"]'},
+        ]
+        with patch("app._get_file_disk_info", return_value={"exists": True, "size": 100}):
+            # Follow-up prompt with empty loaded_files referring to original name
+            resolved = target._resolve_attached_file_ref(
+                "1788181323_fc48c741.xlsx", loaded_files=[], history=history, user_id=1
+            )
+            self.assertIsNotNone(resolved)
+            self.assertEqual(resolved["path"], "1/1788181323_fc48c741_1788190840_b8e900.xlsx")
+
+            # Referring to full URL
+            resolved_url = target._resolve_attached_file_ref(
+                "/files/1/1788181323_fc48c741_1788190840_b8e900.xlsx", loaded_files=[], history=history, user_id=1
+            )
+            self.assertIsNotNone(resolved_url)
+            self.assertEqual(resolved_url["path"], "1/1788181323_fc48c741_1788190840_b8e900.xlsx")
+
+            # Referring to markdown link
+            resolved_md = target._resolve_attached_file_ref(
+                "[1788181323_fc48c741.xlsx](/files/1/1788181323_fc48c741_1788190840_b8e900.xlsx)", loaded_files=[], history=history, user_id=1
+            )
+            self.assertIsNotNone(resolved_md)
+            self.assertEqual(resolved_md["path"], "1/1788181323_fc48c741_1788190840_b8e900.xlsx")
+
+    def test_execute_edit_file_in_followup_prompt(self):
+        original = self._make_styled_xlsx()
+        history = [
+            {"role": "user", "content": "編集して", "image_url": '["1/1788181323_fc48c741.xlsx"]'},
+            {"role": "assistant", "content": "編集しました [1788181323_fc48c741.xlsx](/files/1/1788181323_fc48c741_1788190840_b8e900.xlsx)", "image_url": '["1/1788181323_fc48c741_1788190840_b8e900.xlsx"]'},
+        ]
+        # In follow-up prompt, user uploads a screenshot only
+        loaded_screenshot = [{"send_name": "screen.png", "name": "1/screen.png", "path": "1/screen.png"}]
+        with patch("app._get_file_disk_info", return_value={"exists": True, "size": len(original)}), \
+             patch("app._load_user_file_bytes", return_value=original), \
+             patch("app._save_user_generated_bytes_verified") as save_mock:
+            save_mock.return_value = ("edited_v2.xlsx", "/files/1/edited_v2.xlsx")
+            result = target._execute_edit_file_tool(
+                1,
+                {"source": "1788181323_fc48c741.xlsx", "cell_edits": [{"cell": "B2", "value": "修正値"}]},
+                encrypt=False,
+                loaded_files=loaded_screenshot,
+                history=history,
+            )
+            self.assertTrue(result.get("ok"))
+            self.assertEqual(result["display_name"], "1788181323_fc48c741.xlsx")
+            self.assertEqual(result["url"], "/files/1/edited_v2.xlsx")
+
     def test_missing_source_rejected(self):
         result = target._execute_edit_file_tool(1, {"content": "x"}, encrypt=False, loaded_files=[])
         self.assertFalse(result.get("ok"))

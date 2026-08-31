@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-31-010')
-app.config['SYSTEM_VERSION'] = 'V4.8.889'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-31-011')
+app.config['SYSTEM_VERSION'] = 'V4.8.890'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3172,15 +3172,29 @@ def _build_created_xlsx_bytes(content_tsv):
     return buf.getvalue()
 
 
-def _extract_xlsx_as_tsv(data, max_sheets=8, max_cells=500000):
+def _excel_column_letters(count):
+    """Return the first ``count`` Excel column letters (A, B, ..., Z, AA, AB, ...)."""
+    letters = []
+    for i in range(1, int(count) + 1):
+        n = i
+        label = ""
+        while n > 0:
+            n, rem = divmod(n - 1, 26)
+            label = chr(65 + rem) + label
+        letters.append(label)
+    return letters
+
+
+def _extract_xlsx_as_tsv(data, max_sheets=8, max_cells=500000, include_column_headers=False):
     """Read .xlsx/.xlsm bytes and return a tab-separated text representation.
 
     Every worksheet is rendered as one TSV row per spreadsheet row.  When the
     workbook has more than one sheet, a ``# Sheet: <name>`` marker line is
-    emitted before each sheet so the text can be edited and fed back into
-    _build_created_xlsx_bytes (e.g. through the edit_file tool) without losing
-    the sheet structure.  Cells that contain tabs / newlines / backslashes are
-    escaped with _escape_tsv_cell so the text stays one row per spreadsheet row.
+    emitted before each sheet.  When ``include_column_headers`` is set, a row of
+    Excel column letters (A, B, C, ...) is emitted at the top of each sheet so a
+    model can derive cell addresses (e.g. AD15) to feed back into the edit_file
+    tool.  Cells that contain tabs / newlines / backslashes are escaped with
+    _escape_tsv_cell so the text stays one row per spreadsheet row.
     Returns None when the bytes cannot be parsed.
     """
     if not data:
@@ -3202,6 +3216,8 @@ def _extract_xlsx_as_tsv(data, max_sheets=8, max_cells=500000):
             row_iter = ws.iter_rows(values_only=True)
         except Exception:
             continue
+        sheet_lines = []
+        max_cols = 0
         for row in row_iter:
             if row is None:
                 continue
@@ -3227,9 +3243,13 @@ def _extract_xlsx_as_tsv(data, max_sheets=8, max_cells=500000):
                     break
             while cells and cells[-1] == "":
                 cells.pop()
-            out_lines.append("\t".join(cells))
+            max_cols = max(max_cols, len(cells))
+            sheet_lines.append("\t".join(cells))
             if cell_count > max_cells:
                 break
+        if include_column_headers and max_cols:
+            out_lines.append("\t".join(_excel_column_letters(max_cols)))
+        out_lines.extend(sheet_lines)
         if cell_count > max_cells:
             break
     return "\n".join(out_lines)
@@ -3303,15 +3323,20 @@ def _create_file_tool_result_text(result, tool_name="create_file", action="作�
     """Convert a file-tool result dict into the text fed back to the model.
 
     Shared by create_file (default) and edit_file (pass tool_name="edit_file",
-    action="編集").
+    action="編集").  A ``note`` key on the result (e.g. partial-edit warnings)
+    is appended when present.
     """
     if result.get("ok"):
-        return (
+        text = (
             f"ファイルを{action}しました。\n"
             f"filename: {result.get('display_name')}\n"
             f"url: {result.get('url')}\n"
             f"ユーザーにはこのURLでファイルをダウンロードできるリンクを提供してください。"
         )
+        note = result.get("note")
+        if note:
+            text = f"{text}\n{note}"
+        return text
     return f"{tool_name} エラー: {result.get('error')}"
 
 
@@ -3390,14 +3415,64 @@ def _resolve_attached_file_ref(source, loaded_files):
     return None
 
 
+# Validates a spreadsheet cell address such as "B5" or "AD15".
+_XLSX_CELL_RE = re.compile(r"^[A-Za-z]{1,3}[1-9][0-9]{0,6}$")
+
+
+def _apply_xlsx_cell_edits(data, cell_edits, keep_vba=False):
+    """Apply targeted cell-value edits to an xlsx/xlsm workbook in place.
+
+    The workbook is opened with openpyxl (not read-only), so all existing
+    formatting (fill colors, borders, fonts, merged cells, number formats) is
+    preserved and only the given cells' values are changed.  Returns
+    ``(new_bytes, errors)`` where ``errors`` is a list of human-readable
+    messages describing any invalid edits that were skipped.
+    """
+    from openpyxl import load_workbook
+
+    if not isinstance(cell_edits, list):
+        return None, ["cell_edits はリストで指定してください。"]
+    try:
+        wb = load_workbook(BytesIO(data), keep_vba=bool(keep_vba))
+    except Exception as exc:
+        raise ValueError(f"Excelファイルを開けませんでした: {str(exc)[:120]}")
+    default_sheet = wb.worksheets[0].title if wb.worksheets else None
+    errors = []
+    for i, edit in enumerate(cell_edits):
+        if not isinstance(edit, dict):
+            errors.append(f"編集 {i + 1}: 形式が不正です。")
+            continue
+        cell_ref = str(edit.get("cell") or "").strip()
+        if not _XLSX_CELL_RE.match(cell_ref):
+            errors.append(f"編集 {i + 1}: セル番地が不正です: {cell_ref or '(空)'}")
+            continue
+        sheet_name = str(edit.get("sheet") or "").strip() or default_sheet
+        if not sheet_name or sheet_name not in wb.sheetnames:
+            errors.append(f"編集 {i + 1}: シートが見つかりません: {sheet_name}")
+            continue
+        try:
+            wb[sheet_name][cell_ref] = edit.get("value")
+        except Exception as exc:
+            errors.append(f"編集 {i + 1}: セル {cell_ref} の更新に失敗しました: {str(exc)[:100]}")
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue(), errors
+
+
 def _execute_edit_file_tool(user_id, args, encrypt, loaded_files):
     """Edit an uploaded file attached to the current message.
 
-    The model names an attached file (``source``) and supplies the new full
-    content (``content``) in the same format the create_file tool accepts
-    (text / markdown / code as-is, PDF/DOCX as Markdown, XLSX as TSV).  The
-    edited file is saved into the user's library as a new file that keeps the
-    original attachment's name and extension, so the original is preserved.
+    Two editing modes are supported:
+
+    * Excel (xlsx/xlsm): the model supplies ``cell_edits`` (a list of cell
+      addresses + new values).  The original workbook is opened in place, so
+      all existing formatting (colors, borders, fonts, merges, number formats)
+      is preserved and only the given cells' values change.
+    * Text-like files (text/markdown/code/csv/tsv/json) and PDF/DOCX: the model
+      supplies ``content`` (the full new content; Markdown for PDF/DOCX).
+
+    The edited file is saved into the user's library as a new file that keeps
+    the original attachment's name and extension, so the original is preserved.
 
     result = {"ok": True, "filename": ..., "display_name": ..., "url": ...} or
              {"ok": False, "error": ...}
@@ -3417,12 +3492,6 @@ def _execute_edit_file_tool(user_id, args, encrypt, loaded_files):
     if not _create_file_allowed_ext(orig_ext):
         return {"ok": False, "error": f"対応していないファイル形式です: {orig_ext or '(拡張子なし)'}"}
     format_name = _infer_create_file_format(rel_path)
-    content = args.get("content")
-    if content is None:
-        return {"ok": False, "error": "content は必須です。"}
-    content = str(content)
-    if len(content) > _CREATE_FILE_MAX_CONTENT_CHARS:
-        return {"ok": False, "error": "ファイル内容が大きすぎます。"}
     # Base the output name on the user-facing attachment name so the edited
     # file keeps the original document's identity (not the random on-disk name).
     # _sanitize_file_display_name preserves non-ASCII (e.g. Japanese) names,
@@ -3439,15 +3508,50 @@ def _execute_edit_file_tool(user_id, args, encrypt, loaded_files):
     # On-disk filenames must stay ASCII-safe (secure_filename strips non-ASCII),
     # so derive a sanitized stem from the display name.
     safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "_", display_stem).strip("._ ") or "edited"
-    try:
-        data = _create_file_generated_bytes(display_name, format_name, content, user_id)
-    except Exception as exc:
-        logger.warning("edit_file generation failed: %s", exc)
-        return {"ok": False, "error": f"ファイル生成に失敗しました: {str(exc)[:200]}"}
+
+    edit_note = ""
+    if format_name == "xlsx":
+        # Excel: targeted in-place edits that preserve formatting.
+        cell_edits = args.get("cell_edits")
+        if not isinstance(cell_edits, list) or not cell_edits:
+            return {
+                "ok": False,
+                "error": (
+                    "xlsxファイルの編集には cell_edits（変更するセルのリスト）を指定してください。"
+                    "content での全体再生成は元の色・罫線・フォントなどの書式が失われるため対応していません。"
+                ),
+            }
+        info = _get_file_disk_info(rel_path)
+        original = _load_user_file_bytes(rel_path, info)
+        if not original:
+            return {"ok": False, "error": "元ファイルの読み込みに失敗しました。"}
+        try:
+            data, edit_errors = _apply_xlsx_cell_edits(
+                original, cell_edits, keep_vba=(orig_ext == ".xlsm")
+            )
+        except Exception as exc:
+            logger.warning("edit_file xlsx apply failed: %s", exc)
+            return {"ok": False, "error": f"Excelファイルの編集に失敗しました: {str(exc)[:200]}"}
+        if edit_errors:
+            edit_note = "一部の編集を適用できませんでした: " + "; ".join(edit_errors[:5])
+    else:
+        # Text-like files and PDF/DOCX: full content replacement.
+        content = args.get("content")
+        if content is None:
+            return {"ok": False, "error": "content は必須です。"}
+        content = str(content)
+        if len(content) > _CREATE_FILE_MAX_CONTENT_CHARS:
+            return {"ok": False, "error": "ファイル内容が大きすぎます。"}
+        try:
+            data = _create_file_generated_bytes(display_name, format_name, content, user_id)
+        except Exception as exc:
+            logger.warning("edit_file generation failed: %s", exc)
+            return {"ok": False, "error": f"ファイル生成に失敗しました: {str(exc)[:200]}"}
+
     if not isinstance(data, (bytes, bytearray)) or not data:
-        return {"ok": False, "error": "生成されたファイルが空です。"}
+        return {"ok": False, "error": "編集後のファイルが空です。"}
     if len(data) > _CREATE_FILE_MAX_BYTES:
-        return {"ok": False, "error": "生成されたファイルが大きすぎます。"}
+        return {"ok": False, "error": "編集後のファイルが大きすぎます。"}
 
     def _make_unique_filename():
         return f"{safe_stem}_{int(time.time())}_{os.urandom(3).hex()}{orig_ext}"
@@ -3461,7 +3565,10 @@ def _execute_edit_file_tool(user_id, args, encrypt, loaded_files):
     except Exception as exc:
         logger.warning("edit_file save failed: %s", exc)
         return {"ok": False, "error": f"ライブラリへの保存に失敗しました: {str(exc)[:200]}"}
-    return {"ok": True, "filename": fname, "display_name": display_name, "url": url, "size": len(data)}
+    result = {"ok": True, "filename": fname, "display_name": display_name, "url": url, "size": len(data)}
+    if edit_note:
+        result["note"] = edit_note
+    return result
 
 
 def _build_edit_file_tool_schema():
@@ -3474,11 +3581,12 @@ def _build_edit_file_tool_schema():
                 "会話に添付された既存のファイルを編集し、編集後のファイルをユーザーのファイルライブラリに保存します。"
                 "ユーザーが添付したファイルの編集・更新・修正を求めた場合に使用してください（新規作成には create_file を使用）。"
                 "source には添付ファイル名（プロンプトの [File: ...] で表示されるファイル名）を指定します。"
-                "content には編集後の新しいファイル内容を指定します。"
-                "テキスト・Markdown・コード・CSV・TSV・JSON はそのままの内容、"
-                "PDF/DOCX は Markdown 形式、XLSX は TSV（タブ区切り、1行目がヘッダー、"
-                "複数シートは「# Sheet: シート名」で区切ってください）。"
-                "元ファイルの形式・構造・内容を保ったまま、変更箇所だけを反映してください。"
+                "Excel(xlsx/xlsm)ファイルは cell_edits で変更するセル（セル番地と新しい値）のリストを指定します。"
+                "元の色・罫線・フォント・セル結合などの書式はそのまま維持され、指定したセルの値だけが変わります。"
+                "セル番地は添付時に表示される表の列名ヘッダー行（A, B, C, ...）と行番号で指定します（例: B5, AD15）。"
+                "テキスト・Markdown・コード・CSV・TSV・JSON は content に編集後の全文を指定します。"
+                "PDF/DOCX は content に Markdown 形式の全文を指定します。"
+                "元ファイルの構造・内容を保ったまま、変更箇所だけを反映してください。"
             ),
             "parameters": {
                 "type": "object",
@@ -3487,12 +3595,34 @@ def _build_edit_file_tool_schema():
                         "type": "string",
                         "description": "編集対象の添付ファイル名（例: 予定表.xlsx, data.csv）",
                     },
+                    "cell_edits": {
+                        "type": "array",
+                        "description": "Excel(xlsx/xlsm)ファイル用。変更するセルのリスト。",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "cell": {
+                                    "type": "string",
+                                    "description": "セル番地（例: B5, AD15）。列は添付時に表示される列名ヘッダー行（A, B, C, ...）を参照。",
+                                },
+                                "value": {
+                                    "type": "string",
+                                    "description": "セルに入れる新しい値。",
+                                },
+                                "sheet": {
+                                    "type": "string",
+                                    "description": "シート名（省略時は最初のシート）。",
+                                },
+                            },
+                            "required": ["cell", "value"],
+                        },
+                    },
                     "content": {
                         "type": "string",
-                        "description": "編集後の新しいファイル内容。",
+                        "description": "テキスト系・PDF・DOCX ファイル用の編集後の新しい内容。",
                     },
                 },
-                "required": ["source", "content"],
+                "required": ["source"],
                 "additionalProperties": False,
             },
         },
@@ -11140,9 +11270,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         })
                     elif is_xlsx:
                         # Spreadsheets are binary, so the model cannot read them
-                        # as a native file part.  Render the cells as TSV text so
-                        # the model can see (and edit via edit_file) the content.
-                        xlsx_text = _extract_xlsx_as_tsv(data)
+                        # as a native file part.  Render the cells as TSV text
+                        # (with a column-letter header row) so the model can see
+                        # the content and derive cell addresses for edit_file.
+                        xlsx_text = _extract_xlsx_as_tsv(data, include_column_headers=True)
                         loaded_files.append({
                             'name': clean_fn,
                             'path': clean_fn,
@@ -12136,7 +12267,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             source: str,
                             content: str,
                         ) -> str:
-                            """会話に添付された既存のファイル（source に添付ファイル名）を編集し、編集後のファイルをユーザーのファイルライブラリに保存します。元ファイルの形式・構造・内容を保ったまま変更してください。PDF/DOCX の content は Markdown 形式、XLSX の content は TSV（タブ区切り、1行目ヘッダー）です。"""
+                            """会話に添付された既存のファイル（source に添付ファイル名）を編集し、編集後のファイルをユーザーのファイルライブラリに保存します。元ファイルの書式・構造・内容を保ったまま変更してください。Excel(xlsx/xlsm)は cell_edits で変更するセル（セル番地と新しい値）のリストを指定します（列名は添付時に表示されるヘッダー行 A, B, C... を参照）。テキスト系は content に編集後の全文、PDF/DOCX は content に Markdown 形式の全文を指定します。"""
                             result = _execute_edit_file_tool(
                                 user_id,
                                 {"source": source, "content": content},

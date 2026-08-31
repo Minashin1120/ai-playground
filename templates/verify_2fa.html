@@ -33,6 +33,22 @@
             color: var(--theme-300);
             border-bottom-color: rgba(var(--theme-rgb), 0.8);
         }
+        .success-overlay {
+            position: fixed; inset: 0; background: var(--bg-1); z-index: 100;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.6s ease;
+        }
+        .success-overlay.active { opacity: 1; pointer-events: auto; }
+        @keyframes checkmark {
+            0% { stroke-dashoffset: 48; }
+            100% { stroke-dashoffset: 0; }
+        }
+        .checkmark-svg {
+            width: 80px; height: 80px; stroke: var(--accent);
+            stroke-width: 3; stroke-linecap: round; stroke-linejoin: round;
+            fill: none; stroke-dasharray: 48; stroke-dashoffset: 48;
+        }
+        .active .checkmark-svg { animation: checkmark 0.8s cubic-bezier(0.65, 0, 0.45, 1) forwards 0.2s; }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen">
@@ -42,6 +58,16 @@
         <div class="aurora-blob blob-amber1"></div>
         <div class="aurora-blob blob-cyan1"></div>
         <div class="aurora-blob blob-violet1"></div>
+    </div>
+
+    <div id="success-screen" class="success-overlay">
+        <div class="text-center">
+            <svg class="checkmark-svg mx-auto mb-4" viewBox="0 0 24 24">
+                <path d="M20 6L9 17L4 12"></path>
+            </svg>
+            <h2 class="text-2xl font-bold auth-title">認証成功</h2>
+            <p class="text-slate-400 mt-2">ダッシュボードへ移動しています...</p>
+        </div>
     </div>
 
     <div class="auth-card p-8 rounded-2xl w-full max-w-md">
@@ -96,6 +122,23 @@
     </div>
 
     <script>
+        const triggerSuccess = (redirectUrl) => {
+            const container = document.querySelector('.auth-card');
+            const successScreen = document.getElementById('success-screen');
+
+            if (container) {
+                container.style.transform = 'scale(0.95)';
+                container.style.opacity = '0';
+            }
+
+            setTimeout(() => {
+                successScreen.classList.add('active');
+                setTimeout(() => {
+                    window.location.href = redirectUrl || "{{ url_for('index') }}";
+                }, 1200);
+            }, 200);
+        };
+
         function switchTab(t) {
             const totpForm = document.getElementById('form-totp');
             const webauthnForm = document.getElementById('form-webauthn');
@@ -138,7 +181,7 @@
 
                 const data = await res.json();
                 if (res.ok && data.status === 'ok') {
-                    window.location.href = data.redirect || "{{ url_for('index') }}";
+                    triggerSuccess(data.redirect);
                 } else {
                     errEl.innerText = data.error || "認証に失敗しました";
                     errEl.classList.remove('hidden');
@@ -190,7 +233,7 @@
                 
                 const result = await verifyRes.json();
                 if(result.status === 'ok') {
-                    window.location.href = "{{ url_for('index') }}";
+                    triggerSuccess("{{ url_for('index') }}");
                 } else {
                     alert("Verification failed: " + (result.error || "Unknown error"));
                     btn.disabled = false;

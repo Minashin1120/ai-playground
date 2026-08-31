@@ -175,6 +175,13 @@ class CreateFileToolTests(unittest.TestCase):
         self.assertIn("ALTER TABLE user ADD COLUMN default_enable_file_creation BOOLEAN DEFAULT 1", app_source)
         self.assertIn("ALTER TABLE user ADD COLUMN last_enable_file_creation BOOLEAN DEFAULT 1", app_source)
 
+    def test_file_creation_columns_are_ensured_at_startup(self):
+        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn("def ensure_user_file_creation_columns():", app_source)
+        self.assertIn("ensure_user_file_creation_columns()", app_source)
+        # Must be applied unconditionally at startup (not only under RUN_SCHEMA_MIGRATIONS)
+        self.assertIn("information_schema.COLUMNS", app_source)
+
 
 if __name__ == "__main__":
     unittest.main()

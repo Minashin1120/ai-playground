@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-31-006')
-app.config['SYSTEM_VERSION'] = 'V4.8.885'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-31-007')
+app.config['SYSTEM_VERSION'] = 'V4.8.886'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -7235,6 +7235,34 @@ def ensure_user_system_prompt_columns():
                 if not res:
                     conn.execute(text("SET SESSION lock_wait_timeout=1"))
                     conn.execute(text(ddl))
+    except Exception:
+        pass
+
+def ensure_user_file_creation_columns():
+    """Add the create_file tool default / last-used columns to the user table.
+
+    The chat request flow reads these columns on every authenticated User SELECT,
+    so they must exist before any request.  Applied unconditionally at startup
+    (like the other correctness-critical ensure_* migrations) rather than gated
+    behind RUN_SCHEMA_MIGRATIONS.
+    """
+    try:
+        with db.engine.connect() as conn:
+            columns = [
+                ("default_enable_file_creation", "ALTER TABLE user ADD COLUMN default_enable_file_creation BOOLEAN DEFAULT 1"),
+                ("last_enable_file_creation", "ALTER TABLE user ADD COLUMN last_enable_file_creation BOOLEAN DEFAULT 1"),
+            ]
+            for column_name, ddl in columns:
+                res = conn.execute(text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA=DATABASE() "
+                    "AND TABLE_NAME='user' "
+                    "AND COLUMN_NAME=:column_name"
+                ), {"column_name": column_name}).scalar()
+                if not res:
+                    conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                    conn.execute(text(ddl))
+            conn.commit()
     except Exception:
         pass
 
@@ -24480,6 +24508,10 @@ with app.app_context():
         pass
     try:
         ensure_user_system_prompt_columns()
+    except Exception:
+        pass
+    try:
+        ensure_user_file_creation_columns()
     except Exception:
         pass
     try:

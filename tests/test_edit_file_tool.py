@@ -593,10 +593,34 @@ class DocxPdfEditToolTests(unittest.TestCase):
         app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
         idx = app_source.index("def _gemini_edit_file_tool(")
         branch = app_source[idx:idx + 4000]
-        self.assertIn("paragraph_edits: Optional[list] = None", branch)
-        self.assertIn("text_edits: Optional[list] = None", branch)
+        self.assertIn("cell_edits: Optional[list[dict]] = None", branch)
+        self.assertIn("paragraph_edits: Optional[list[dict]] = None", branch)
+        self.assertIn("text_edits: Optional[list[dict]] = None", branch)
         self.assertIn('"paragraph_edits": paragraph_edits', branch)
         self.assertIn('"text_edits": text_edits', branch)
+
+    def test_gemini_edit_tool_declaration_has_items_for_array_properties(self):
+        from google.genai import types, Client
+        from typing import Optional
+
+        def _sample_gemini_edit_file_tool(
+            source: str,
+            content: Optional[str] = None,
+            cell_edits: Optional[list[dict]] = None,
+            paragraph_edits: Optional[list[dict]] = None,
+            text_edits: Optional[list[dict]] = None,
+        ) -> str:
+            """Sample docstring."""
+            return "ok"
+
+        _sample_gemini_edit_file_tool.__name__ = "edit_file"
+        client = Client(api_key="fake")
+        decl = types.FunctionDeclaration.from_callable(client=client, callable=_sample_gemini_edit_file_tool)
+        for key in ("cell_edits", "paragraph_edits", "text_edits"):
+            prop = decl.parameters.properties.get(key)
+            self.assertIsNotNone(prop, f"Property {key} missing")
+            self.assertEqual(prop.type, types.Type.ARRAY)
+            self.assertIsNotNone(prop.items, f"Property {key} must have items definition")
 
 
 if __name__ == "__main__":

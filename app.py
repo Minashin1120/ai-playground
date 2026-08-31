@@ -746,8 +746,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-31-013')
-app.config['SYSTEM_VERSION'] = 'V4.8.892'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-01-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.893'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -13205,9 +13205,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         def _gemini_edit_file_tool(
                             source: str,
                             content: Optional[str] = None,
-                            cell_edits: Optional[list] = None,
-                            paragraph_edits: Optional[list] = None,
-                            text_edits: Optional[list] = None,
+                            cell_edits: Optional[list[dict]] = None,
+                            paragraph_edits: Optional[list[dict]] = None,
+                            text_edits: Optional[list[dict]] = None,
                         ) -> str:
                             """会話に添付された既存のファイル（source に添付ファイル名）を編集し、編集後のファイルをユーザーのファイルライブラリに保存します。元ファイルの書式・構造・内容を保ったまま変更してください。Excel(xlsx/xlsm)は cell_edits で変更するセルのリストを指定します。各要素は { cell: セル番地（添付時に表示される列名ヘッダー A, B, C... を参照、例 B5）, value: 新しい値, sheet: シート名(省略時は最初のシート), style: 任意の新しい書式 } です。style は指定した項目だけを上書きします: fill: { color: '#RRGGBB' 塗りつぶし色, fillType: 'solid'(既定)/'none'(解除) }, font: { bold, italic, strikethrough, underline: 'none'/'single'/'double', color: 文字色, size: サイズpt, name: フォント名 }, border: { style: 'none'/'thin'/'medium'/'thick'/'dashed'/'dotted'/'double'（四辺）, color: 罫線色, left/right/top/bottom: { style, color } で辺ごとに上書き }, alignment: { horizontal: 'left'/'center'/'right'/'justify', vertical: 'top'/'center'/'bottom', wrapText }, numberFormat: 表示形式コード。Word(docx)は paragraph_edits で変更する段落のリストを指定します（元の書式を維持し、編集後に PDF 版も生成されます）。各要素は { paragraph: [N]番号または段落テキスト(部分一致), text: 新しいテキスト(省略可), style: { font: { bold, italic, strikethrough, underline: 'none'/'single'/'double', color: 文字色, size: サイズpt, name: フォント名, highlight: 'yellow'/'green'/'cyan'/'magenta'/'red'/'blue'/'gray'/'none' }, alignment: 'left'/'center'/'right'/'justify'/'default' } } です。PDF は text_edits で { find: 検索文字列, replace: 置換文字列, page: ページ番号(省略可) } のリストを指定すると、レイアウトを保ったままベストエフォートで置換します（見つからない場合はエラー）。テキスト系は content に編集後の全文、PDF/DOCX の全文置き換えは content に Markdown 形式の全文を指定します。"""
                             result = _execute_edit_file_tool(

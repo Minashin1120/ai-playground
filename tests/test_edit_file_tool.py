@@ -245,5 +245,202 @@ class EditFileToolTests(unittest.TestCase):
         self.assertIn("edit_file", schema["function"]["description"])
 
 
+class XlsxCellStyleTests(unittest.TestCase):
+    def _make_plain_xlsx(self):
+        from openpyxl import Workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Sheet1"
+        ws["A1"] = "売上"
+        buf = BytesIO()
+        wb.save(buf)
+        return buf.getvalue()
+
+    def test_normalize_xlsx_color(self):
+        self.assertEqual(target._normalize_xlsx_color("#FFFF00"), "FFFFFF00")
+        self.assertEqual(target._normalize_xlsx_color("FFFF00"), "FFFFFF00")
+        self.assertEqual(target._normalize_xlsx_color("FFFF0000"), "FFFF0000")
+        self.assertEqual(target._normalize_xlsx_color("#f00"), "FFFF0000")
+        self.assertIsNone(target._normalize_xlsx_color("notacolor"))
+        self.assertIsNone(target._normalize_xlsx_color(""))
+        self.assertIsNone(target._normalize_xlsx_color(None))
+        self.assertIsNone(target._normalize_xlsx_color("#GGGGGG"))
+
+    def test_apply_style_sets_fill_font_border_alignment_number_format(self):
+        original = self._make_plain_xlsx()
+        edits = [{
+            "cell": "A1",
+            "value": "売上(千円)",
+            "style": {
+                "fill": {"color": "#FFFF00"},
+                "font": {"bold": True, "italic": True, "color": "#FF0000", "size": 14},
+                "border": {"style": "thin", "color": "#000000"},
+                "alignment": {"horizontal": "center", "vertical": "center", "wrapText": True},
+                "numberFormat": "0.00%",
+            },
+        }]
+        data, errors = target._apply_xlsx_cell_edits(original, edits)
+        self.assertEqual(errors, [])
+        from openpyxl import load_workbook
+        wb = load_workbook(BytesIO(data))
+        cell = wb["Sheet1"]["A1"]
+        self.assertEqual(cell.value, "売上(千円)")
+        self.assertEqual(cell.fill.start_color.rgb, "FFFFFF00")
+        self.assertTrue(cell.font.bold)
+        self.assertTrue(cell.font.italic)
+        self.assertEqual(cell.font.color.rgb, "FFFF0000")
+        self.assertEqual(cell.font.size, 14.0)
+        for side in ("left", "right", "top", "bottom"):
+            self.assertEqual(getattr(cell.border, side).style, "thin")
+        self.assertEqual(cell.alignment.horizontal, "center")
+        self.assertEqual(cell.alignment.vertical, "center")
+        self.assertTrue(cell.alignment.wrap_text)
+        self.assertEqual(cell.number_format, "0.00%")
+
+    def test_style_only_edit_preserves_value(self):
+        original = self._make_plain_xlsx()
+        data, errors = target._apply_xlsx_cell_edits(
+            original, [{"cell": "A1", "style": {"font": {"bold": True}}}]
+        )
+        self.assertEqual(errors, [])
+        from openpyxl import load_workbook
+        wb = load_workbook(BytesIO(data))
+        cell = wb["Sheet1"]["A1"]
+        self.assertEqual(cell.value, "売上")
+        self.assertTrue(cell.font.bold)
+
+    def test_style_preserves_unspecified_formatting(self):
+        from openpyxl import Workbook
+        from openpyxl.styles import PatternFill, Font
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Sheet1"
+        ws["B2"] = "旧"
+        ws["B2"].fill = PatternFill(start_color="FFFFFF00", end_color="FFFFFF00", fill_type="solid")
+        ws["B2"].font = Font(bold=True, size=11)
+        buf = BytesIO()
+        wb.save(buf)
+        original = buf.getvalue()
+        # Only change the font color; fill and bold must survive.
+        data, errors = target._apply_xlsx_cell_edits(
+            original, [{"cell": "B2", "style": {"font": {"color": "#0000FF"}}}]
+        )
+        self.assertEqual(errors, [])
+        from openpyxl import load_workbook
+        wb2 = load_workbook(BytesIO(data))
+        cell = wb2["Sheet1"]["B2"]
+        self.assertEqual(cell.fill.start_color.rgb, "FFFFFF00")
+        self.assertTrue(cell.font.bold)
+        self.assertEqual(cell.font.size, 11.0)
+        self.assertEqual(cell.font.color.rgb, "FF0000FF")
+
+    def test_style_fill_none_clears_fill(self):
+        from openpyxl import Workbook
+        from openpyxl.styles import PatternFill
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Sheet1"
+        ws["A1"] = "x"
+        ws["A1"].fill = PatternFill(start_color="FFFFFF00", end_color="FFFFFF00", fill_type="solid")
+        buf = BytesIO()
+        wb.save(buf)
+        original = buf.getvalue()
+        data, errors = target._apply_xlsx_cell_edits(
+            original, [{"cell": "A1", "style": {"fill": {"fillType": "none"}}}]
+        )
+        self.assertEqual(errors, [])
+        from openpyxl import load_workbook
+        wb2 = load_workbook(BytesIO(data))
+        self.assertIsNone(wb2["Sheet1"]["A1"].fill.fill_type)
+
+    def test_style_per_side_border_override(self):
+        original = self._make_plain_xlsx()
+        data, errors = target._apply_xlsx_cell_edits(
+            original, [{"cell": "A1", "style": {"border": {
+                "style": "thin",
+                "left": {"style": "thick", "color": "00FF00"},
+            }}}]
+        )
+        self.assertEqual(errors, [])
+        from openpyxl import load_workbook
+        wb = load_workbook(BytesIO(data))
+        cell = wb["Sheet1"]["A1"]
+        self.assertEqual(cell.border.left.style, "thick")
+        self.assertEqual(cell.border.left.color.rgb, "FF00FF00")
+        self.assertEqual(cell.border.right.style, "thin")
+        self.assertEqual(cell.border.top.style, "thin")
+
+    def test_style_invalid_values_report_errors_but_keep_valid_parts(self):
+        original = self._make_plain_xlsx()
+        data, errors = target._apply_xlsx_cell_edits(
+            original, [{
+                "cell": "A1",
+                "style": {
+                    "fill": {"color": "notacolor"},
+                    "font": {"bold": True},
+                },
+            }]
+        )
+        self.assertEqual(len(errors), 1)
+        self.assertIn("塗りつぶし色", errors[0])
+        from openpyxl import load_workbook
+        wb = load_workbook(BytesIO(data))
+        cell = wb["Sheet1"]["A1"]
+        self.assertTrue(cell.font.bold)
+
+    def test_style_non_object_reports_error(self):
+        original = self._make_plain_xlsx()
+        data, errors = target._apply_xlsx_cell_edits(
+            original, [{"cell": "A1", "style": "nope"}]
+        )
+        self.assertEqual(len(errors), 1)
+        self.assertIn("style はオブジェクト", errors[0])
+
+    def test_edit_file_schema_includes_cell_style(self):
+        schema = target._build_edit_file_tool_schema()
+        items = schema["function"]["parameters"]["properties"]["cell_edits"]["items"]
+        self.assertIn("style", items["properties"])
+        style_props = items["properties"]["style"]["properties"]
+        for key in ("fill", "font", "border", "alignment", "numberFormat"):
+            self.assertIn(key, style_props)
+        # value is optional when only styling a cell.
+        self.assertEqual(items["required"], ["cell"])
+
+    def test_execute_edit_file_applies_style(self):
+        from openpyxl import Workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Sheet1"
+        ws["A1"] = "売上"
+        ws["B2"] = 100
+        buf = BytesIO()
+        wb.save(buf)
+        original = buf.getvalue()
+        loaded = [{"send_name": "予定表.xlsx", "name": "1/abc123.xlsx", "path": "1/abc123.xlsx"}]
+        with patch("app._get_file_disk_info", return_value={"exists": True, "size": len(original)}), \
+             patch("app._load_user_file_bytes", return_value=original), \
+             patch("app._save_user_generated_bytes_verified") as save_mock:
+            save_mock.return_value = ("edited_123.xlsx", "/files/1/edited_123.xlsx")
+            result = target._execute_edit_file_tool(
+                1,
+                {"source": "予定表.xlsx", "cell_edits": [
+                    {"cell": "A1", "style": {"font": {"bold": True}, "fill": {"color": "#FFFF00"}}},
+                    {"cell": "B2", "value": 120, "style": {"border": {"style": "thin"}}},
+                ]},
+                encrypt=False,
+                loaded_files=loaded,
+            )
+        self.assertTrue(result.get("ok"))
+        saved_bytes = save_mock.call_args[0][1]
+        from openpyxl import load_workbook
+        wb2 = load_workbook(BytesIO(saved_bytes))
+        ws2 = wb2["Sheet1"]
+        self.assertEqual(ws2["A1"].value, "売上")
+        self.assertTrue(ws2["A1"].font.bold)
+        self.assertEqual(ws2["A1"].fill.start_color.rgb, "FFFFFF00")
+        self.assertEqual(ws2["B2"].value, 120)
+        self.assertEqual(ws2["B2"].border.left.style, "thin")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -34,6 +34,7 @@ import hashlib
 import socket
 import difflib
 import itertools
+from typing import Optional
 from contextlib import contextmanager
 from ipaddress import ip_address
 from collections import OrderedDict
@@ -744,8 +745,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-31-011')
-app.config['SYSTEM_VERSION'] = 'V4.8.890'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-31-012')
+app.config['SYSTEM_VERSION'] = 'V4.8.891'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3419,14 +3420,225 @@ def _resolve_attached_file_ref(source, loaded_files):
 _XLSX_CELL_RE = re.compile(r"^[A-Za-z]{1,3}[1-9][0-9]{0,6}$")
 
 
+def _normalize_xlsx_color(color):
+    """Normalize a user/model-provided color to openpyxl ARGB hex (FFRRGGBB).
+
+    Accepts ``#RRGGBB`` / ``RRGGBB`` / 3-digit CSS shorthand / 8-digit ARGB.
+    Returns ``None`` when the value cannot be parsed.
+    """
+    if color is None:
+        return None
+    text = str(color).strip()
+    if not text:
+        return None
+    if text.startswith("#"):
+        text = text[1:]
+    text = text.strip()
+    if len(text) == 3:
+        text = "".join(ch * 2 for ch in text)
+    if len(text) == 6:
+        # openpyxl would treat a 6-digit value as ARGB with alpha 00
+        # (fully transparent), so make 6-digit colors opaque.
+        text = "FF" + text
+    if len(text) != 8 or not re.fullmatch(r"[0-9A-Fa-f]{8}", text):
+        return None
+    return text.upper()
+
+
+def _apply_cell_style(cell, style, label):
+    """Apply a style dict (fill / font / border / alignment / numberFormat) to an openpyxl cell.
+
+    Only the properties explicitly present in ``style`` are changed; every other
+    formatting property on the cell is left untouched, so a style edit adds new
+    formatting without destroying existing formatting.  Returns a list of
+    human-readable error messages for invalid values (the valid parts are still
+    applied).
+    """
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+
+    errors = []
+    if not isinstance(style, dict):
+        return [f"{label}: style はオブジェクトで指定してください。"]
+
+    fill = style.get("fill")
+    if fill is not None:
+        if not isinstance(fill, dict):
+            errors.append(f"{label}: fill はオブジェクトで指定してください。")
+        else:
+            try:
+                fill_type = str(fill.get("fillType") or "").strip().lower()
+                color_raw = fill.get("color")
+                if fill_type == "none":
+                    cell.fill = PatternFill()
+                elif color_raw is not None:
+                    color = _normalize_xlsx_color(color_raw)
+                    if color is None:
+                        errors.append(f"{label}: 塗りつぶし色が不正です: {color_raw}")
+                    else:
+                        cell.fill = PatternFill(
+                            start_color=color,
+                            end_color=color,
+                            fill_type=fill_type if fill_type in ("solid", "medium", "dark") else "solid",
+                        )
+                elif fill_type == "solid":
+                    errors.append(f"{label}: 塗りつぶし色 (fill.color) を指定してください。")
+            except Exception as exc:
+                errors.append(f"{label}: 塗りつぶしの設定に失敗しました: {str(exc)[:80]}")
+
+    font = style.get("font")
+    if font is not None:
+        if not isinstance(font, dict):
+            errors.append(f"{label}: font はオブジェクトで指定してください。")
+        else:
+            try:
+                cur = cell.font
+                kw = {
+                    "name": cur.name,
+                    "size": cur.size,
+                    "bold": cur.bold,
+                    "italic": cur.italic,
+                    "underline": cur.underline,
+                    "strikethrough": cur.strikethrough,
+                    "color": cur.color,
+                    "vertAlign": cur.vertAlign,
+                }
+                if font.get("name") is not None:
+                    kw["name"] = str(font["name"])
+                if font.get("size") is not None:
+                    try:
+                        kw["size"] = float(font["size"])
+                    except (TypeError, ValueError):
+                        errors.append(f"{label}: フォントサイズが不正です: {font['size']}")
+                if font.get("bold") is not None:
+                    kw["bold"] = bool(font["bold"])
+                if font.get("italic") is not None:
+                    kw["italic"] = bool(font["italic"])
+                if font.get("strikethrough") is not None:
+                    kw["strikethrough"] = bool(font["strikethrough"])
+                if font.get("underline") is not None:
+                    u = str(font["underline"]).strip().lower()
+                    if u in ("none", "single", "double", "singleaccounting", "doubleaccounting"):
+                        kw["underline"] = u
+                    else:
+                        errors.append(f"{label}: underline の値が不正です: {font['underline']}")
+                if font.get("color") is not None:
+                    color = _normalize_xlsx_color(font["color"])
+                    if color is None:
+                        errors.append(f"{label}: 文字色が不正です: {font['color']}")
+                    else:
+                        kw["color"] = color
+                cell.font = Font(**kw)
+            except Exception as exc:
+                errors.append(f"{label}: フォントの設定に失敗しました: {str(exc)[:80]}")
+
+    border = style.get("border")
+    if border is not None:
+        if not isinstance(border, dict):
+            errors.append(f"{label}: border はオブジェクトで指定してください。")
+        else:
+            try:
+                cur = cell.border
+
+                def _side_spec(side):
+                    return {
+                        "style": getattr(side, "style", None),
+                        "color": getattr(side, "color", None),
+                    }
+
+                sides = {
+                    "left": _side_spec(cur.left),
+                    "right": _side_spec(cur.right),
+                    "top": _side_spec(cur.top),
+                    "bottom": _side_spec(cur.bottom),
+                }
+                all_style = border.get("style")
+                all_color = border.get("color")
+                if all_style is not None:
+                    for sname in sides:
+                        sides[sname]["style"] = all_style
+                if all_color is not None:
+                    color = _normalize_xlsx_color(all_color)
+                    if color is None:
+                        errors.append(f"{label}: 罫線の色が不正です: {all_color}")
+                    else:
+                        for sname in sides:
+                            sides[sname]["color"] = color
+                for sname in ("left", "right", "top", "bottom"):
+                    side_spec = border.get(sname)
+                    if side_spec is None:
+                        continue
+                    if not isinstance(side_spec, dict):
+                        errors.append(f"{label}: border.{sname} はオブジェクトで指定してください。")
+                        continue
+                    if side_spec.get("style") is not None:
+                        sides[sname]["style"] = side_spec["style"]
+                    if side_spec.get("color") is not None:
+                        color = _normalize_xlsx_color(side_spec["color"])
+                        if color is None:
+                            errors.append(f"{label}: 罫線の色が不正です: {side_spec['color']}")
+                        else:
+                            sides[sname]["color"] = color
+                new_sides = {}
+                for sname, spec in sides.items():
+                    if spec["style"] is None and spec["color"] is None:
+                        new_sides[sname] = getattr(cur, sname)
+                    else:
+                        side_kw = {}
+                        if spec["style"] is not None:
+                            side_kw["style"] = spec["style"]
+                        if spec["color"] is not None:
+                            side_kw["color"] = spec["color"]
+                        new_sides[sname] = Side(**side_kw)
+                cell.border = Border(**new_sides)
+            except Exception as exc:
+                errors.append(f"{label}: 罫線の設定に失敗しました: {str(exc)[:80]}")
+
+    alignment = style.get("alignment")
+    if alignment is None:
+        alignment = style.get("align")
+    if alignment is not None:
+        if not isinstance(alignment, dict):
+            errors.append(f"{label}: alignment はオブジェクトで指定してください。")
+        else:
+            try:
+                cur = cell.alignment
+                kw = {
+                    "horizontal": cur.horizontal,
+                    "vertical": cur.vertical,
+                    "wrap_text": cur.wrap_text,
+                    "shrink_to_fit": cur.shrink_to_fit,
+                }
+                if alignment.get("horizontal") is not None:
+                    kw["horizontal"] = str(alignment["horizontal"]).lower()
+                if alignment.get("vertical") is not None:
+                    kw["vertical"] = str(alignment["vertical"]).lower()
+                if alignment.get("wrapText") is not None:
+                    kw["wrap_text"] = bool(alignment["wrapText"])
+                if alignment.get("shrinkToFit") is not None:
+                    kw["shrink_to_fit"] = bool(alignment["shrinkToFit"])
+                cell.alignment = Alignment(**kw)
+            except Exception as exc:
+                errors.append(f"{label}: 配置の設定に失敗しました: {str(exc)[:80]}")
+
+    if style.get("numberFormat") is not None:
+        try:
+            cell.number_format = str(style["numberFormat"])
+        except Exception as exc:
+            errors.append(f"{label}: 表示形式の設定に失敗しました: {str(exc)[:80]}")
+
+    return errors
+
+
 def _apply_xlsx_cell_edits(data, cell_edits, keep_vba=False):
     """Apply targeted cell-value edits to an xlsx/xlsm workbook in place.
 
     The workbook is opened with openpyxl (not read-only), so all existing
     formatting (fill colors, borders, fonts, merged cells, number formats) is
-    preserved and only the given cells' values are changed.  Returns
-    ``(new_bytes, errors)`` where ``errors`` is a list of human-readable
-    messages describing any invalid edits that were skipped.
+    preserved and only the given cells' values are changed.  Each edit may also
+    carry a ``style`` object (fill / font / border / alignment / numberFormat)
+    that adds or updates formatting on that cell while leaving everything else
+    untouched.  Returns ``(new_bytes, errors)`` where ``errors`` is a list of
+    human-readable messages describing any invalid edits that were skipped.
     """
     from openpyxl import load_workbook
 
@@ -3450,10 +3662,17 @@ def _apply_xlsx_cell_edits(data, cell_edits, keep_vba=False):
         if not sheet_name or sheet_name not in wb.sheetnames:
             errors.append(f"編集 {i + 1}: シートが見つかりません: {sheet_name}")
             continue
+        label = f"編集 {i + 1} ({sheet_name}!{cell_ref})"
         try:
-            wb[sheet_name][cell_ref] = edit.get("value")
+            cell = wb[sheet_name][cell_ref]
+            if "value" in edit:
+                cell.value = edit.get("value")
         except Exception as exc:
-            errors.append(f"編集 {i + 1}: セル {cell_ref} の更新に失敗しました: {str(exc)[:100]}")
+            errors.append(f"{label}: セルの更新に失敗しました: {str(exc)[:100]}")
+            continue
+        style = edit.get("style")
+        if style is not None:
+            errors.extend(_apply_cell_style(cell, style, label))
     buf = BytesIO()
     wb.save(buf)
     return buf.getvalue(), errors
@@ -3583,6 +3802,7 @@ def _build_edit_file_tool_schema():
                 "source には添付ファイル名（プロンプトの [File: ...] で表示されるファイル名）を指定します。"
                 "Excel(xlsx/xlsm)ファイルは cell_edits で変更するセル（セル番地と新しい値）のリストを指定します。"
                 "元の色・罫線・フォント・セル結合などの書式はそのまま維持され、指定したセルの値だけが変わります。"
+                "各セルの style に書式指定を追加すると、そのセルへ新しい書式（塗りつぶし色・罫線・太字など）を追加できます（指定した項目だけが上書きされます）。"
                 "セル番地は添付時に表示される表の列名ヘッダー行（A, B, C, ...）と行番号で指定します（例: B5, AD15）。"
                 "テキスト・Markdown・コード・CSV・TSV・JSON は content に編集後の全文を指定します。"
                 "PDF/DOCX は content に Markdown 形式の全文を指定します。"
@@ -3607,14 +3827,74 @@ def _build_edit_file_tool_schema():
                                 },
                                 "value": {
                                     "type": "string",
-                                    "description": "セルに入れる新しい値。",
+                                    "description": "セルに入れる新しい値。書式のみを変更する場合は省略できます（省略時は現在の値を維持）。",
                                 },
                                 "sheet": {
                                     "type": "string",
                                     "description": "シート名（省略時は最初のシート）。",
                                 },
+                                "style": {
+                                    "type": "object",
+                                    "description": (
+                                        "このセルへ追加・更新する新しい書式（省略時は既存の書式を維持）。指定した項目だけが上書きされます。"
+                                        "fill: { color: 塗りつぶし色('#FFFF00' / 'FFFF00' / 8桁ARGB), fillType: 'solid'(既定)または 'none'(塗りつぶし解除) }。"
+                                        "font: { bold, italic, strikethrough: true/false, size: サイズ(pt), name: フォント名, color: 文字色, underline: 'none'/'single'/'double' }。"
+                                        "border: { style: 四辺すべての罫線('none'/'thin'/'medium'/'thick'/'dashed'/'dotted'/'double'), color: 罫線色, left/right/top/bottom: { style, color } で辺ごとに上書き }。"
+                                        "alignment: { horizontal: 'left'/'center'/'right'/'justify', vertical: 'top'/'center'/'bottom', wrapText: true/false }。"
+                                        "numberFormat: 表示形式（例: '#,##0', '0.00%', 'yyyy/mm/dd'）。"
+                                    ),
+                                    "properties": {
+                                        "fill": {
+                                            "type": "object",
+                                            "description": "セルの塗りつぶし。",
+                                            "properties": {
+                                                "color": {"type": "string", "description": "塗りつぶし色。'#RRGGBB' 形式（例: '#FFFF00'）。"},
+                                                "fillType": {"type": "string", "enum": ["solid", "none"], "description": "'solid'（既定）で塗りつぶし、'none' で塗りつぶしを解除。"},
+                                            },
+                                        },
+                                        "font": {
+                                            "type": "object",
+                                            "description": "フォント設定。",
+                                            "properties": {
+                                                "bold": {"type": "boolean", "description": "太字にするか。true で太字、false で解除。"},
+                                                "italic": {"type": "boolean", "description": "斜体にするか。"},
+                                                "strikethrough": {"type": "boolean", "description": "取り消し線。"},
+                                                "underline": {"type": "string", "enum": ["none", "single", "double"], "description": "下線。'none' で解除。"},
+                                                "color": {"type": "string", "description": "文字色。'#RRGGBB' 形式。"},
+                                                "size": {"type": "number", "description": "フォントサイズ（pt）。"},
+                                                "name": {"type": "string", "description": "フォント名（例: 'Meiryo', 'Arial'）。"},
+                                            },
+                                        },
+                                        "border": {
+                                            "type": "object",
+                                            "description": "セルの罫線。",
+                                            "properties": {
+                                                "style": {"type": "string", "enum": ["none", "thin", "medium", "thick", "dashed", "dotted", "double"], "description": "四辺すべてに適用する罫線スタイル。'none' で罫線を解除。"},
+                                                "color": {"type": "string", "description": "罫線の色。'#RRGGBB' 形式。"},
+                                                "left": {"type": "object", "properties": {"style": {"type": "string", "enum": ["none", "thin", "medium", "thick", "dashed", "dotted", "double"]}, "color": {"type": "string"}}, "description": "左辺のみの設定。"},
+                                                "right": {"type": "object", "properties": {"style": {"type": "string", "enum": ["none", "thin", "medium", "thick", "dashed", "dotted", "double"]}, "color": {"type": "string"}}, "description": "右辺のみの設定。"},
+                                                "top": {"type": "object", "properties": {"style": {"type": "string", "enum": ["none", "thin", "medium", "thick", "dashed", "dotted", "double"]}, "color": {"type": "string"}}, "description": "上辺のみの設定。"},
+                                                "bottom": {"type": "object", "properties": {"style": {"type": "string", "enum": ["none", "thin", "medium", "thick", "dashed", "dotted", "double"]}, "color": {"type": "string"}}, "description": "下辺のみの設定。"},
+                                            },
+                                        },
+                                        "alignment": {
+                                            "type": "object",
+                                            "description": "セル内の配置。",
+                                            "properties": {
+                                                "horizontal": {"type": "string", "enum": ["left", "center", "right", "justify", "general"], "description": "水平配置。"},
+                                                "vertical": {"type": "string", "enum": ["top", "center", "bottom", "justify", "distributed"], "description": "垂直配置。"},
+                                                "wrapText": {"type": "boolean", "description": "セル内で折り返して表示するか。"},
+                                            },
+                                        },
+                                        "numberFormat": {
+                                            "type": "string",
+                                            "description": "表示形式コード（例: '#,##0', '0.00%', 'yyyy/mm/dd'）。",
+                                        },
+                                    },
+                                    "additionalProperties": False,
+                                },
                             },
-                            "required": ["cell", "value"],
+                            "required": ["cell"],
                         },
                     },
                     "content": {
@@ -12265,12 +12545,17 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                         def _gemini_edit_file_tool(
                             source: str,
-                            content: str,
+                            content: Optional[str] = None,
+                            cell_edits: Optional[list] = None,
                         ) -> str:
-                            """会話に添付された既存のファイル（source に添付ファイル名）を編集し、編集後のファイルをユーザーのファイルライブラリに保存します。元ファイルの書式・構造・内容を保ったまま変更してください。Excel(xlsx/xlsm)は cell_edits で変更するセル（セル番地と新しい値）のリストを指定します（列名は添付時に表示されるヘッダー行 A, B, C... を参照）。テキスト系は content に編集後の全文、PDF/DOCX は content に Markdown 形式の全文を指定します。"""
+                            """会話に添付された既存のファイル（source に添付ファイル名）を編集し、編集後のファイルをユーザーのファイルライブラリに保存します。元ファイルの書式・構造・内容を保ったまま変更してください。Excel(xlsx/xlsm)は cell_edits で変更するセルのリストを指定します。各要素は { cell: セル番地（添付時に表示される列名ヘッダー A, B, C... を参照、例 B5）, value: 新しい値, sheet: シート名(省略時は最初のシート), style: 任意の新しい書式 } です。style は指定した項目だけを上書きします: fill: { color: '#RRGGBB' 塗りつぶし色, fillType: 'solid'(既定)/'none'(解除) }, font: { bold, italic, strikethrough, underline: 'none'/'single'/'double', color: 文字色, size: サイズpt, name: フォント名 }, border: { style: 'none'/'thin'/'medium'/'thick'/'dashed'/'dotted'/'double'（四辺）, color: 罫線色, left/right/top/bottom: { style, color } で辺ごとに上書き }, alignment: { horizontal: 'left'/'center'/'right'/'justify', vertical: 'top'/'center'/'bottom', wrapText }, numberFormat: 表示形式コード。テキスト系は content に編集後の全文、PDF/DOCX は content に Markdown 形式の全文を指定します。"""
                             result = _execute_edit_file_tool(
                                 user_id,
-                                {"source": source, "content": content},
+                                {
+                                    "source": source,
+                                    "content": content,
+                                    "cell_edits": cell_edits,
+                                },
                                 user_config.get("enable_e2ee"),
                                 loaded_files,
                             )

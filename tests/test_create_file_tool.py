@@ -136,8 +136,11 @@ class CreateFileToolTests(unittest.TestCase):
         ]
         self.assertIn('options.get("enable_file_creation")', deepseek_branch)
         self.assertIn("_build_create_file_tool_schema()", deepseek_branch)
+        self.assertIn("_build_edit_file_tool_schema()", deepseek_branch)
         self.assertIn('call_name == "create_file"', deepseek_branch)
+        self.assertIn('call_name == "edit_file"', deepseek_branch)
         self.assertIn("_execute_create_file_tool(", deepseek_branch)
+        self.assertIn("_execute_edit_file_tool(", deepseek_branch)
         self.assertIn("_create_file_tool_result_text(create_result)", deepseek_branch)
 
     def test_responses_api_branch_registers_create_file_tool(self):
@@ -148,12 +151,15 @@ class CreateFileToolTests(unittest.TestCase):
         ]
         self.assertIn("options.get('enable_file_creation')", responses_branch)
         self.assertIn("_build_create_file_tool_schema()", responses_branch)
-        self.assertIn('call_name in ("execute_python", "create_file")', responses_branch)
+        self.assertIn("_build_edit_file_tool_schema()", responses_branch)
+        self.assertIn('call_name in ("execute_python", "create_file", "edit_file")', responses_branch)
 
     def test_gemini_branch_registers_create_file_callable(self):
         app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
         self.assertIn("_gemini_create_file_tool.__name__ = \"create_file\"", app_source)
         self.assertIn("conf['tools'].append(_gemini_create_file_tool)", app_source)
+        self.assertIn("_gemini_edit_file_tool.__name__ = \"edit_file\"", app_source)
+        self.assertIn("conf['tools'].append(_gemini_edit_file_tool)", app_source)
         self.assertIn("options.get('enable_file_creation')", app_source)
 
     def test_frontend_wires_enable_file_creation(self):

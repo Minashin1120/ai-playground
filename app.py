@@ -744,8 +744,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-31-009')
-app.config['SYSTEM_VERSION'] = 'V4.8.888'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-08-31-010')
+app.config['SYSTEM_VERSION'] = 'V4.8.889'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -3094,8 +3094,59 @@ def _build_created_docx_bytes(content_md, title):
     return buf.getvalue()
 
 
+# Marker used both by _extract_xlsx_as_tsv and _build_created_xlsx_bytes so a
+# workbook with multiple sheets can round-trip through the TSV text form.
+_XLSX_SHEET_MARKER = "# Sheet: "
+
+
+def _escape_tsv_cell(value):
+    """Escape a spreadsheet cell value for the TSV text form.
+
+    Tabs, newlines and backslashes inside a cell are escaped so the text stays
+    one logical row per spreadsheet row and can round-trip losslessly.
+    """
+    return (
+        str(value)
+        .replace("\\", "\\\\")
+        .replace("\t", "\\t")
+        .replace("\r", "\\r")
+        .replace("\n", "\\n")
+    )
+
+
+def _unescape_tsv_cell(value):
+    """Undo _escape_tsv_cell when rebuilding a workbook from TSV text."""
+    out = []
+    s = str(value)
+    i = 0
+    while i < len(s):
+        if s[i] == "\\" and i + 1 < len(s):
+            nxt = s[i + 1]
+            if nxt == "n":
+                out.append("\n")
+            elif nxt == "t":
+                out.append("\t")
+            elif nxt == "r":
+                out.append("\r")
+            elif nxt == "\\":
+                out.append("\\")
+            else:
+                out.append(s[i])
+            i += 2
+        else:
+            out.append(s[i])
+            i += 1
+    return "".join(out)
+
+
 def _build_created_xlsx_bytes(content_tsv):
-    """Render TSV content to an .xlsx workbook using openpyxl."""
+    """Render TSV content to an .xlsx workbook using openpyxl.
+
+    Lines starting with ``# Sheet: <name>`` start a new worksheet, so workbooks
+    produced from _extract_xlsx_as_tsv (which emits that marker for every sheet
+    after the first) can be rebuilt with their sheet structure preserved.
+    Cells may use the \\n / \\t / \\\\ escapes produced by _escape_tsv_cell.
+    """
     from openpyxl import Workbook
 
     wb = Workbook()
@@ -3104,16 +3155,84 @@ def _build_created_xlsx_bytes(content_tsv):
     lines = (content_tsv or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
     row_index = 1
     for line in lines:
+        if line.startswith(_XLSX_SHEET_MARKER):
+            sheet_name = line[len(_XLSX_SHEET_MARKER):].strip()[:31] or "Sheet"
+            ws = wb.create_sheet(title=sheet_name)
+            row_index = 1
+            continue
         if not line.strip():
             continue
         cells = line.split("\t")
         for col_index, cell in enumerate(cells, start=1):
-            ws.cell(row=row_index, column=col_index, value=cell)
+            ws.cell(row=row_index, column=col_index, value=_unescape_tsv_cell(cell))
         row_index += 1
     from io import BytesIO as _BytesIO3
     buf = _BytesIO3()
     wb.save(buf)
     return buf.getvalue()
+
+
+def _extract_xlsx_as_tsv(data, max_sheets=8, max_cells=500000):
+    """Read .xlsx/.xlsm bytes and return a tab-separated text representation.
+
+    Every worksheet is rendered as one TSV row per spreadsheet row.  When the
+    workbook has more than one sheet, a ``# Sheet: <name>`` marker line is
+    emitted before each sheet so the text can be edited and fed back into
+    _build_created_xlsx_bytes (e.g. through the edit_file tool) without losing
+    the sheet structure.  Cells that contain tabs / newlines / backslashes are
+    escaped with _escape_tsv_cell so the text stays one row per spreadsheet row.
+    Returns None when the bytes cannot be parsed.
+    """
+    if not data:
+        return None
+    try:
+        from openpyxl import load_workbook
+        wb = load_workbook(BytesIO(data), read_only=True, data_only=True)
+    except Exception:
+        return None
+    out_lines = []
+    cell_count = 0
+    sheets = list(wb.worksheets)[:max_sheets]
+    for idx, ws in enumerate(sheets):
+        # The first sheet maps onto the default "Sheet1" created by
+        # _build_created_xlsx_bytes, so only later sheets need a marker.
+        if idx > 0 and len(sheets) > 1:
+            out_lines.append(f"{_XLSX_SHEET_MARKER}{ws.title}")
+        try:
+            row_iter = ws.iter_rows(values_only=True)
+        except Exception:
+            continue
+        for row in row_iter:
+            if row is None:
+                continue
+            cells = []
+            for value in row:
+                if value is None:
+                    cells.append("")
+                elif isinstance(value, datetime):
+                    if value.hour or value.minute or value.second:
+                        cells.append(value.strftime("%Y-%m-%d %H:%M:%S"))
+                    else:
+                        cells.append(value.strftime("%Y-%m-%d"))
+                elif isinstance(value, (int, float)) and not isinstance(value, bool):
+                    # Keep numbers compact (avoid 1.0 for integer cells).
+                    if isinstance(value, float) and value.is_integer():
+                        cells.append(str(int(value)))
+                    else:
+                        cells.append(str(value))
+                else:
+                    cells.append(_escape_tsv_cell(value))
+                cell_count += 1
+                if cell_count > max_cells:
+                    break
+            while cells and cells[-1] == "":
+                cells.pop()
+            out_lines.append("\t".join(cells))
+            if cell_count > max_cells:
+                break
+        if cell_count > max_cells:
+            break
+    return "\n".join(out_lines)
 
 
 def _create_file_generated_bytes(filename, format_name, content, user_id):
@@ -3180,16 +3299,20 @@ def _execute_create_file_tool(user_id, args, encrypt):
     return {"ok": True, "filename": fname, "display_name": safe_base, "url": url, "size": len(data)}
 
 
-def _create_file_tool_result_text(result):
-    """Convert a create_file result dict into the text fed back to the model."""
+def _create_file_tool_result_text(result, tool_name="create_file", action="作成"):
+    """Convert a file-tool result dict into the text fed back to the model.
+
+    Shared by create_file (default) and edit_file (pass tool_name="edit_file",
+    action="編集").
+    """
     if result.get("ok"):
         return (
-            f"ファイルを作成しました。\n"
+            f"ファイルを{action}しました。\n"
             f"filename: {result.get('display_name')}\n"
             f"url: {result.get('url')}\n"
             f"ユーザーにはこのURLでファイルをダウンロードできるリンクを提供してください。"
         )
-    return f"create_file エラー: {result.get('error')}"
+    return f"{tool_name} エラー: {result.get('error')}"
 
 
 def _build_create_file_tool_schema():
@@ -3204,6 +3327,7 @@ def _build_create_file_tool_schema():
                 "PDF/DOCX の content は Markdown 形式（見出し・段落・表・画像）。"
                 "XLSX の content は TSV（タブ区切り、1行目がヘッダー）。"
                 "コードファイルは実行せず、そのままテキストとして保存されます。"
+                "添付されている既存ファイルの編集を求められた場合は、新規作成せず edit_file ツールを使用してください。"
             ),
             "parameters": {
                 "type": "object",
@@ -3226,6 +3350,149 @@ def _build_create_file_tool_schema():
                     },
                 },
                 "required": ["filename", "content"],
+                "additionalProperties": False,
+            },
+        },
+    }
+
+
+def _resolve_attached_file_ref(source, loaded_files):
+    """Resolve a model-provided ``source`` reference to a loaded attachment.
+
+    Matches against the user-facing send name, the stored rel path and their
+    basenames (case-insensitive) so the model can reference an attached file by
+    any of the names it has seen in the prompt.  Returns the matching entry from
+    ``loaded_files`` or ``None``.
+    """
+    if not source or not loaded_files:
+        return None
+    src = str(source).strip()
+    src_lower = src.lower()
+    src_base = os.path.basename(src).lower()
+    for fi in loaded_files:
+        candidates = [
+            str(fi.get('send_name') or ''),
+            str(fi.get('name') or ''),
+            str(fi.get('path') or ''),
+        ]
+        for name in candidates:
+            if not name:
+                continue
+            name_lower = name.lower()
+            name_base = os.path.basename(name).lower()
+            if (
+                name_lower == src_lower
+                or name_base == src_lower
+                or name_lower == src_base
+                or name_base == src_base
+            ):
+                return fi
+    return None
+
+
+def _execute_edit_file_tool(user_id, args, encrypt, loaded_files):
+    """Edit an uploaded file attached to the current message.
+
+    The model names an attached file (``source``) and supplies the new full
+    content (``content``) in the same format the create_file tool accepts
+    (text / markdown / code as-is, PDF/DOCX as Markdown, XLSX as TSV).  The
+    edited file is saved into the user's library as a new file that keeps the
+    original attachment's name and extension, so the original is preserved.
+
+    result = {"ok": True, "filename": ..., "display_name": ..., "url": ...} or
+             {"ok": False, "error": ...}
+    """
+    if not isinstance(args, dict):
+        return {"ok": False, "error": "edit_fileの引数が不正です。"}
+    source = str(args.get("source") or "").strip()
+    if not source:
+        return {"ok": False, "error": "source（編集対象の添付ファイル名）は必須です。"}
+    target = _resolve_attached_file_ref(source, loaded_files or [])
+    if not target:
+        return {"ok": False, "error": f"添付ファイルが見つかりません: {source}"}
+    rel_path = str(target.get('path') or target.get('name') or '').strip()
+    if not rel_path:
+        return {"ok": False, "error": f"添付ファイルのパスが不明です: {source}"}
+    orig_ext = os.path.splitext(rel_path)[1].lower()
+    if not _create_file_allowed_ext(orig_ext):
+        return {"ok": False, "error": f"対応していないファイル形式です: {orig_ext or '(拡張子なし)'}"}
+    format_name = _infer_create_file_format(rel_path)
+    content = args.get("content")
+    if content is None:
+        return {"ok": False, "error": "content は必須です。"}
+    content = str(content)
+    if len(content) > _CREATE_FILE_MAX_CONTENT_CHARS:
+        return {"ok": False, "error": "ファイル内容が大きすぎます。"}
+    # Base the output name on the user-facing attachment name so the edited
+    # file keeps the original document's identity (not the random on-disk name).
+    # _sanitize_file_display_name preserves non-ASCII (e.g. Japanese) names,
+    # unlike the ASCII-only secure_filename path used by create_file.
+    display_name = _sanitize_file_display_name(
+        target.get('send_name') or os.path.basename(rel_path) or "file"
+    ) or "file"
+    display_ext = os.path.splitext(display_name)[1]
+    if not display_ext:
+        display_name = f"{display_name}{orig_ext}"
+    elif display_ext.lower() != orig_ext:
+        display_name = f"{os.path.splitext(display_name)[0]}{orig_ext}"
+    display_stem = os.path.splitext(display_name)[0]
+    # On-disk filenames must stay ASCII-safe (secure_filename strips non-ASCII),
+    # so derive a sanitized stem from the display name.
+    safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "_", display_stem).strip("._ ") or "edited"
+    try:
+        data = _create_file_generated_bytes(display_name, format_name, content, user_id)
+    except Exception as exc:
+        logger.warning("edit_file generation failed: %s", exc)
+        return {"ok": False, "error": f"ファイル生成に失敗しました: {str(exc)[:200]}"}
+    if not isinstance(data, (bytes, bytearray)) or not data:
+        return {"ok": False, "error": "生成されたファイルが空です。"}
+    if len(data) > _CREATE_FILE_MAX_BYTES:
+        return {"ok": False, "error": "生成されたファイルが大きすぎます。"}
+
+    def _make_unique_filename():
+        return f"{safe_stem}_{int(time.time())}_{os.urandom(3).hex()}{orig_ext}"
+
+    try:
+        fname, url = _save_user_generated_bytes_verified(
+            user_id, bytes(data), _make_unique_filename, bool(encrypt)
+        )
+    except StorageLimitError as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:
+        logger.warning("edit_file save failed: %s", exc)
+        return {"ok": False, "error": f"ライブラリへの保存に失敗しました: {str(exc)[:200]}"}
+    return {"ok": True, "filename": fname, "display_name": display_name, "url": url, "size": len(data)}
+
+
+def _build_edit_file_tool_schema():
+    """Return the OpenAI-compatible tool schema for edit_file."""
+    return {
+        "type": "function",
+        "function": {
+            "name": "edit_file",
+            "description": (
+                "会話に添付された既存のファイルを編集し、編集後のファイルをユーザーのファイルライブラリに保存します。"
+                "ユーザーが添付したファイルの編集・更新・修正を求めた場合に使用してください（新規作成には create_file を使用）。"
+                "source には添付ファイル名（プロンプトの [File: ...] で表示されるファイル名）を指定します。"
+                "content には編集後の新しいファイル内容を指定します。"
+                "テキスト・Markdown・コード・CSV・TSV・JSON はそのままの内容、"
+                "PDF/DOCX は Markdown 形式、XLSX は TSV（タブ区切り、1行目がヘッダー、"
+                "複数シートは「# Sheet: シート名」で区切ってください）。"
+                "元ファイルの形式・構造・内容を保ったまま、変更箇所だけを反映してください。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "source": {
+                        "type": "string",
+                        "description": "編集対象の添付ファイル名（例: 予定表.xlsx, data.csv）",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "編集後の新しいファイル内容。",
+                    },
+                },
+                "required": ["source", "content"],
                 "additionalProperties": False,
             },
         },
@@ -10795,6 +11062,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     is_pdf = clean_fn.lower().endswith('.pdf')
                     is_docx = clean_fn.lower().endswith('.docx')
                     is_pptx = clean_fn.lower().endswith('.pptx')
+                    is_xlsx = clean_fn.lower().endswith(('.xlsx', '.xlsm'))
                     mime_guess = mimetypes.guess_type(clean_fn)[0]
                     mime = _normalize_media_mime(clean_fn, mime_guess)
                     clean_ext = os.path.splitext(clean_fn)[1].lower()
@@ -10866,6 +11134,24 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             'mime': mime,
                             'is_pdf': False,
                             'is_text': True,
+                            'send_name': send_name,
+                            'size': len(data),
+                            'mtime': info.get("mtime")
+                        })
+                    elif is_xlsx:
+                        # Spreadsheets are binary, so the model cannot read them
+                        # as a native file part.  Render the cells as TSV text so
+                        # the model can see (and edit via edit_file) the content.
+                        xlsx_text = _extract_xlsx_as_tsv(data)
+                        loaded_files.append({
+                            'name': clean_fn,
+                            'path': clean_fn,
+                            'text': xlsx_text,
+                            'bytes': data,
+                            'mime': mime,
+                            'is_pdf': False,
+                            'is_xlsx': True,
+                            'is_text': False,
                             'send_name': send_name,
                             'size': len(data),
                             'mtime': info.get("mtime")
@@ -11820,7 +12106,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             content: str,
                             format: str = "",
                         ) -> str:
-                            """テキスト・コード・Markdown・PDF・Word(docx)・Excel(xlsx)ファイルを作成し、ユーザーのファイルライブラリに保存します。保存後のURLを回答内のリンクとして提示してください。format は省略可能（拡張子から自動判定）。PDF/DOCX の content は Markdown 形式、XLSX の content は TSV（タブ区切り、1行目ヘッダー）です。"""
+                            """テキスト・コード・Markdown・PDF・Word(docx)・Excel(xlsx)ファイルを作成し、ユーザーのファイルライブラリに保存します。保存後のURLを回答内のリンクとして提示してください。format は省略可能（拡張子から自動判定）。PDF/DOCX の content は Markdown 形式、XLSX の content は TSV（タブ区切り、1行目ヘッダー）です。添付済みの既存ファイルの編集を求められた場合は、新規作成せず edit_file を使用してください。"""
                             result = _execute_create_file_tool(
                                 user_id,
                                 {
@@ -11845,6 +12131,33 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         _gemini_create_file_tool.__name__ = "create_file"
                         if 'tools' not in conf: conf['tools'] = []
                         conf['tools'].append(_gemini_create_file_tool)
+
+                        def _gemini_edit_file_tool(
+                            source: str,
+                            content: str,
+                        ) -> str:
+                            """会話に添付された既存のファイル（source に添付ファイル名）を編集し、編集後のファイルをユーザーのファイルライブラリに保存します。元ファイルの形式・構造・内容を保ったまま変更してください。PDF/DOCX の content は Markdown 形式、XLSX の content は TSV（タブ区切り、1行目ヘッダー）です。"""
+                            result = _execute_edit_file_tool(
+                                user_id,
+                                {"source": source, "content": content},
+                                user_config.get("enable_e2ee"),
+                                loaded_files,
+                            )
+                            if result.get("ok"):
+                                edited_file_rel = f"{user_id}/{result['filename']}"
+                                if edited_file_rel not in generated_images:
+                                    generated_images.append(edited_file_rel)
+                                file_link_md = (
+                                    f"\n📄 **ファイルを編集しました:** [{result.get('display_name')}]({result.get('url')})\n"
+                                )
+                                nonlocal full_res
+                                full_res += file_link_md
+                                pub("content", file_link_md)
+                            return _create_file_tool_result_text(result, "edit_file", "編集")
+
+                        _gemini_edit_file_tool.__name__ = "edit_file"
+                        if 'tools' not in conf: conf['tools'] = []
+                        conf['tools'].append(_gemini_edit_file_tool)
                     if options.get('system_prompt') and 'system_instruction' not in conf:
                         conf['system_instruction'] = options.get('system_prompt')
                     
@@ -14147,6 +14460,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         })
                     if options.get("enable_file_creation"):
                         python_tools.append(_build_create_file_tool_schema())
+                        python_tools.append(_build_edit_file_tool_schema())
 
                     deepseek_usage_totals = {
                         "completion_tokens": 0,
@@ -14304,6 +14618,26 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         pub("content", file_link_md)
                                 except Exception as tool_exc:
                                     result = f"Error: Invalid create_file arguments: {tool_exc}"
+                            elif call_name == "edit_file":
+                                try:
+                                    parsed_arguments = json.loads(call_arguments)
+                                    if not isinstance(parsed_arguments, dict):
+                                        raise ValueError("arguments must be a JSON object")
+                                    edit_result = _execute_edit_file_tool(
+                                        user_id, parsed_arguments, user_config.get('enable_e2ee'), loaded_files
+                                    )
+                                    result = _create_file_tool_result_text(edit_result, "edit_file", "編集")
+                                    if edit_result.get("ok"):
+                                        edited_file_rel = f"{user_id}/{edit_result['filename']}"
+                                        if edited_file_rel not in generated_images:
+                                            generated_images.append(edited_file_rel)
+                                        file_link_md = (
+                                            f"\n📄 **ファイルを編集しました:** [{edit_result.get('display_name')}]({edit_result.get('url')})\n"
+                                        )
+                                        full_res += file_link_md
+                                        pub("content", file_link_md)
+                                except Exception as tool_exc:
+                                    result = f"Error: Invalid edit_file arguments: {tool_exc}"
                             elif call_name != "execute_python":
                                 result = f"Error: Unsupported tool: {call_name or '(missing name)'}"
                             else:
@@ -14647,6 +14981,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 if options.get('enable_file_creation'):
                     if 'tools' not in kwargs: kwargs['tools'] = []
                     kwargs['tools'].append(_build_create_file_tool_schema())
+                    kwargs['tools'].append(_build_edit_file_tool_schema())
 
                 if is_grok and options.get('enable_thinking') and not grok_reasoning_supported:
                     pub("thought", "APIの仕様により表示されません")
@@ -14864,7 +15199,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             call_name = getattr(item, 'name', None)
                             call_args = getattr(item, 'arguments', None)
 
-                        if item_type == "function_call" and call_name in ("execute_python", "create_file"):
+                        if item_type == "function_call" and call_name in ("execute_python", "create_file", "edit_file"):
                             try:
                                 args_json = json.loads(call_args or "{}")
                                 if call_name == "create_file":
@@ -14878,6 +15213,20 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             generated_images.append(created_file_rel)
                                         file_link_md = (
                                             f"\n📄 **ファイルを作成しました:** [{create_result.get('display_name')}]({create_result.get('url')})\n"
+                                        )
+                                        full_res += file_link_md
+                                        pub("content", file_link_md)
+                                elif call_name == "edit_file":
+                                    edit_result = _execute_edit_file_tool(
+                                        user_id, args_json, user_config.get('enable_e2ee'), loaded_files
+                                    )
+                                    result = _create_file_tool_result_text(edit_result, "edit_file", "編集")
+                                    if edit_result.get("ok"):
+                                        edited_file_rel = f"{user_id}/{edit_result['filename']}"
+                                        if edited_file_rel not in generated_images:
+                                            generated_images.append(edited_file_rel)
+                                        file_link_md = (
+                                            f"\n📄 **ファイルを編集しました:** [{edit_result.get('display_name')}]({edit_result.get('url')})\n"
                                         )
                                         full_res += file_link_md
                                         pub("content", file_link_md)

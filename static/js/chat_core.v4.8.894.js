@@ -11415,6 +11415,27 @@
                 applyMarkerTransform();
                 renderCropOverlay();
             });
+            const isUploadModalOpen = () => {
+                const uploadModal = get('upload-modal');
+                return !!(uploadModal && !uploadModal.classList.contains('hidden'));
+            };
+            const dropOverlay = get('drop-overlay');
+            let dragCounter = 0;
+            const showDropOverlay = () => {
+                if (isUploadModalOpen()) return;
+                if (dropOverlay) {
+                    dropOverlay.classList.remove('hidden');
+                    dropOverlay.classList.add('flex');
+                }
+            };
+            const hideDropOverlay = () => {
+                dragCounter = 0;
+                if (dropOverlay) {
+                    dropOverlay.classList.add('hidden');
+                    dropOverlay.classList.remove('flex');
+                }
+            };
+            window.hideDropOverlay = hideDropOverlay;
             const dropzone = get('upload-dropzone');
             if (dropzone) {
                 dropzone.addEventListener('dragover', (e) => {
@@ -11428,24 +11449,11 @@
                     e.preventDefault();
                     e.stopPropagation();
                     dropzone.classList.remove('dragover');
+                    hideDropOverlay();
                     const files = e.dataTransfer ? e.dataTransfer.files : null;
                     if (files && files.length) handleFiles(files);
                 });
             }
-            const dropOverlay = get('drop-overlay');
-            let dragCounter = 0;
-            const showDropOverlay = () => {
-                if (dropOverlay) {
-                    dropOverlay.classList.remove('hidden');
-                    dropOverlay.classList.add('flex');
-                }
-            };
-            const hideDropOverlay = () => {
-                if (dropOverlay) {
-                    dropOverlay.classList.add('hidden');
-                    dropOverlay.classList.remove('flex');
-                }
-            };
             window.addEventListener('dragenter', (e) => {
                 if (!e.dataTransfer || !e.dataTransfer.types || !e.dataTransfer.types.includes('Files')) return;
                 dragCounter += 1;
@@ -11458,14 +11466,18 @@
             window.addEventListener('dragleave', (e) => {
                 if (!e.dataTransfer || !e.dataTransfer.types || !e.dataTransfer.types.includes('Files')) return;
                 dragCounter = Math.max(0, dragCounter - 1);
-                if (dragCounter === 0) hideDropOverlay();
+                if (dragCounter === 0 || !e.relatedTarget || e.clientY <= 0 || e.clientX <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+                    hideDropOverlay();
+                }
+            });
+            window.addEventListener('dragend', () => {
+                hideDropOverlay();
             });
             window.addEventListener('drop', (e) => {
+                hideDropOverlay();
                 if (!e.dataTransfer || !e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
                 e.preventDefault();
                 if (dropzone && dropzone.contains(e.target)) return;
-                dragCounter = 0;
-                hideDropOverlay();
                 handleFiles(e.dataTransfer.files);
             });
             const botAdminModal = get('bot-admin-modal');
@@ -15350,6 +15362,9 @@
             }
         }
         function openUploadModal() {
+            if (typeof window.hideDropOverlay === 'function') {
+                window.hideDropOverlay();
+            }
             syncUploadRowsFromCurrent();
             showModal('upload-modal');
             if (location.pathname !== '/upload') {
@@ -15387,6 +15402,9 @@
             }, 50);
         }
         function closeUploadModal(skipHistory = false) {
+            if (typeof window.hideDropOverlay === 'function') {
+                window.hideDropOverlay();
+            }
             hideModal('upload-modal');
             if (!skipHistory && location.pathname === '/upload') {
                 history.back();

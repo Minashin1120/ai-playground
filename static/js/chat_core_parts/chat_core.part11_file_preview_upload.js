@@ -1007,6 +1007,9 @@
             }
         }
         function openUploadModal() {
+            if (typeof window.hideDropOverlay === 'function') {
+                window.hideDropOverlay();
+            }
             syncUploadRowsFromCurrent();
             showModal('upload-modal');
             if (location.pathname !== '/upload') {
@@ -1044,6 +1047,9 @@
             }, 50);
         }
         function closeUploadModal(skipHistory = false) {
+            if (typeof window.hideDropOverlay === 'function') {
+                window.hideDropOverlay();
+            }
             hideModal('upload-modal');
             if (!skipHistory && location.pathname === '/upload') {
                 history.back();

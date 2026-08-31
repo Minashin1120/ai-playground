@@ -746,8 +746,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-01-003')
-app.config['SYSTEM_VERSION'] = 'V4.8.895'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-01-004')
+app.config['SYSTEM_VERSION'] = 'V4.8.896'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -17345,7 +17345,22 @@ def favicon():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if current_user.is_authenticated: return redirect(url_for('index'))
+    auth_success = request.args.get('auth_success') == '1'
+    next_url = request.args.get('next') or url_for('index')
+    if not (isinstance(next_url, str) and next_url.startswith('/') and not next_url.startswith('//')):
+        next_url = url_for('index')
+
+    if current_user.is_authenticated:
+        if auth_success:
+            g_client_id = os.getenv('GOOGLE_CLIENT_ID', '')
+            return render_template(
+                'login.html',
+                site_key=os.getenv('TURNSTILE_SITE_KEY'),
+                google_client_id=g_client_id,
+                auth_success=True,
+                auth_success_redirect=next_url
+            )
+        return redirect(url_for('index'))
     if request.method == 'POST':
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
                   'application/json' in request.headers.get('Accept', '')
@@ -17526,9 +17541,8 @@ def login_google_callback():
         create_user_session(user)
         record_user_client_token(user)
         
-        if not user.is_setup_completed:
-            return redirect(url_for('setup'))
-        return redirect(url_for('index'))
+        target_url = url_for('setup') if not user.is_setup_completed else url_for('index')
+        return redirect(url_for('login', auth_success='1', next=target_url))
     except Exception as e:
         logger.error(f"Google Login Callback Error: {e}")
         flash("Google 連携中にエラーが発生しました。")
@@ -17809,9 +17823,8 @@ def minashin_callback():
         create_user_session(user)
         record_user_client_token(user)
 
-        if not user.is_setup_completed:
-            return redirect(url_for('setup'))
-        return redirect(url_for('index'))
+        target_url = url_for('setup') if not user.is_setup_completed else url_for('index')
+        return redirect(url_for('login', auth_success='1', next=target_url))
 
     except requests.RequestException as e:
         logger.error(f"Minashin login connection error: {e}")

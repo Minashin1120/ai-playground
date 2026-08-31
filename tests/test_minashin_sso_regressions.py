@@ -114,7 +114,7 @@ class MinashinSSORegressionTests(unittest.TestCase):
                 base_url="https://localhost",
             )
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.headers["Location"], "/setup")
+        self.assertEqual(response.headers["Location"], "/login?auth_success=1&next=/setup")
         with target.app.app_context():
             user = target.User.query.filter_by(minashin_sub="user_minashin_test_1").one()
             self.assertEqual(user.minashin_email, "taro@minashin1120.com")
@@ -139,7 +139,7 @@ class MinashinSSORegressionTests(unittest.TestCase):
                 base_url="https://localhost",
             )
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.headers["Location"], "/")
+        self.assertEqual(response.headers["Location"], "/login?auth_success=1&next=/")
         with client.session_transaction() as session:
             self.assertTrue(session.get("_user_id"))
 
@@ -161,7 +161,7 @@ class MinashinSSORegressionTests(unittest.TestCase):
                 base_url="https://localhost",
             )
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.headers["Location"], "/")
+        self.assertEqual(response.headers["Location"], "/login?auth_success=1&next=/")
         with target.app.app_context():
             linked = target.User.query.filter_by(username="email-match-user").one()
             self.assertEqual(linked.minashin_sub, "user_minashin_test_1")
@@ -259,7 +259,7 @@ class MinashinSSORegressionTests(unittest.TestCase):
             )
         # 未確認メールでは既存ユーザーに吸収されず、新しいアカウントが作られる
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.headers["Location"], "/setup")
+        self.assertEqual(response.headers["Location"], "/login?auth_success=1&next=/setup")
         with target.app.app_context():
             existing = target.User.query.filter_by(username="email-unverified-user").one()
             self.assertIsNone(existing.minashin_sub)

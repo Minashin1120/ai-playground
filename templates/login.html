@@ -117,7 +117,7 @@
         </div>
     </div>
 
-    <div id="auth-container" class="auth-card p-8 rounded-2xl w-full max-w-sm transition-all duration-500">
+    <div id="auth-container" class="auth-card p-8 rounded-2xl w-full max-w-sm transition-all duration-500{% if auth_success %} opacity-0 pointer-events-none{% endif %}">
         <h1 class="text-3xl mb-8 font-bold text-center auth-title">おかえりなさい</h1>
         
         <div id="login-error" class="hidden bg-rose-500/15 text-rose-200 p-3 rounded-lg mb-4 text-sm text-center border border-rose-400/40"></div>
@@ -724,6 +724,12 @@
                 });
             }
         };
+
+        {% if auth_success %}
+        document.addEventListener('DOMContentLoaded', () => {
+            triggerSuccess({{ auth_success_redirect | tojson }});
+        });
+        {% endif %}
     </script>
 </body>
 </html>

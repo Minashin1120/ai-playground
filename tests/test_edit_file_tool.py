@@ -442,5 +442,162 @@ class XlsxCellStyleTests(unittest.TestCase):
         self.assertEqual(ws2["B2"].border.left.style, "thin")
 
 
+class DocxPdfEditToolTests(unittest.TestCase):
+    def _make_styled_docx(self):
+        from docx import Document
+        from docx.shared import Pt, RGBColor
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        doc = Document()
+        doc.add_heading("見出し", level=1)
+        p = doc.add_paragraph()
+        r = p.add_run("太字テキスト")
+        r.bold = True
+        r.font.color.rgb = RGBColor(0xFF, 0, 0)
+        r.font.size = Pt(14)
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        doc.add_paragraph("ふつうの文章。")
+        buf = BytesIO()
+        doc.save(buf)
+        return buf.getvalue()
+
+    def test_docx_numbered_extraction(self):
+        data = self._make_styled_docx()
+        text = target._extract_docx_as_numbered(data)
+        self.assertIsNotNone(text)
+        self.assertIn("[1] 見出し", text)
+        self.assertIn("[2] 太字テキスト", text)
+        self.assertIn("[3] ふつうの文章。", text)
+
+    def test_docx_paragraph_edits_text_and_style(self):
+        original = self._make_styled_docx()
+        data, errors = target._apply_docx_paragraph_edits(original, [{
+            "paragraph": 2,
+            "text": "新しい太字テキスト",
+            "style": {"font": {"bold": True, "color": "#0000FF"}, "alignment": "center"},
+        }])
+        self.assertEqual(errors, [])
+        from docx import Document
+        doc = Document(BytesIO(data))
+        p = doc.paragraphs[1]
+        self.assertEqual(p.text, "新しい太字テキスト")
+        self.assertTrue(p.runs[0].bold)
+        self.assertEqual(str(p.runs[0].font.color.rgb), "0000FF")
+
+    def test_docx_style_only_edit_preserves_text(self):
+        original = self._make_styled_docx()
+        data, errors = target._apply_docx_paragraph_edits(original, [{
+            "paragraph": 3,
+            "style": {"font": {"italic": True}},
+        }])
+        self.assertEqual(errors, [])
+        from docx import Document
+        doc = Document(BytesIO(data))
+        p = doc.paragraphs[2]
+        self.assertEqual(p.text, "ふつうの文章。")
+        self.assertTrue(p.runs[0].italic)
+
+    def test_docx_paragraph_by_text_match(self):
+        original = self._make_styled_docx()
+        data, errors = target._apply_docx_paragraph_edits(original, [{
+            "paragraph": "ふつうの文章",
+            "text": "変更後",
+        }])
+        self.assertEqual(errors, [])
+        from docx import Document
+        doc = Document(BytesIO(data))
+        self.assertEqual(doc.paragraphs[2].text, "変更後")
+
+    def test_docx_unknown_paragraph_reports_error(self):
+        original = self._make_styled_docx()
+        data, errors = target._apply_docx_paragraph_edits(original, [{"paragraph": 999, "text": "x"}])
+        self.assertTrue(data)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("段落が見つかりません", errors[0])
+
+    def test_docx_convert_to_pdf(self):
+        original = self._make_styled_docx()
+        pdf = target._convert_docx_to_pdf_bytes(original)
+        self.assertTrue(pdf.startswith(b"%PDF"))
+
+    def test_pdf_text_edits_replaces_and_keeps_layout(self):
+        pdf = target._build_created_pdf_bytes("# テスト\n\n売上は 100 万円です。", "テスト")
+        out, errors = target._apply_pdf_text_edits(pdf, [{"find": "売上は", "replace": "利益は"}])
+        self.assertEqual(errors, [])
+        import pymupdf
+        doc = pymupdf.open(stream=out, filetype="pdf")
+        self.assertIn("利益は", doc[0].get_text())
+
+    def test_pdf_text_edits_not_found_reports_error(self):
+        pdf = target._build_created_pdf_bytes("# テスト\n\n本文。", "テスト")
+        out, errors = target._apply_pdf_text_edits(pdf, [{"find": "存在しない文字列", "replace": "x"}])
+        self.assertTrue(out)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("見つかりません", errors[0])
+
+    def test_execute_docx_paragraph_edit_returns_extra_pdf(self):
+        original = self._make_styled_docx()
+        loaded = [{"send_name": "原稿.docx", "name": "1/abc.docx", "path": "1/abc.docx"}]
+        call_count = {"n": 0}
+
+        def fake_save(user_id, data, name_fn, encrypt):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return ("edited_1.docx", "/files/1/edited_1.docx")
+            return ("edited_1.pdf", "/files/1/edited_1.pdf")
+
+        with patch("app._get_file_disk_info", return_value={"exists": True, "size": len(original)}), \
+             patch("app._load_user_file_bytes", return_value=original), \
+             patch("app._save_user_generated_bytes_verified", side_effect=fake_save) as save_mock:
+            result = target._execute_edit_file_tool(
+                1,
+                {"source": "原稿.docx", "paragraph_edits": [
+                    {"paragraph": 1, "text": "変更", "style": {"font": {"bold": True}}}
+                ]},
+                encrypt=False, loaded_files=loaded,
+            )
+        self.assertTrue(result.get("ok"))
+        self.assertEqual(result["display_name"], "原稿.docx")
+        extras = result.get("extra_files") or []
+        self.assertEqual(len(extras), 1)
+        self.assertTrue(extras[0]["display_name"].endswith(".pdf"))
+        saved_bytes = save_mock.call_args_list[0][0][1]
+        self.assertTrue(saved_bytes.startswith(b"PK"))  # docx zip container
+
+    def test_execute_pdf_text_edit(self):
+        pdf = target._build_created_pdf_bytes("# タイトル\n\n変更したい文字列です。", "テスト")
+        loaded = [{"send_name": "資料.pdf", "name": "1/abc.pdf", "path": "1/abc.pdf"}]
+        with patch("app._get_file_disk_info", return_value={"exists": True, "size": len(pdf)}), \
+             patch("app._load_user_file_bytes", return_value=pdf), \
+             patch("app._save_user_generated_bytes_verified") as save_mock:
+            save_mock.return_value = ("edited_1.pdf", "/files/1/edited_1.pdf")
+            result = target._execute_edit_file_tool(
+                1,
+                {"source": "資料.pdf", "text_edits": [{"find": "変更したい", "replace": "修正済み"}]},
+                encrypt=False, loaded_files=loaded,
+            )
+        self.assertTrue(result.get("ok"))
+        self.assertEqual(result["display_name"], "資料.pdf")
+        saved_bytes = save_mock.call_args[0][1]
+        self.assertTrue(saved_bytes.startswith(b"%PDF"))
+
+    def test_edit_file_schema_includes_docx_and_pdf_edits(self):
+        schema = target._build_edit_file_tool_schema()
+        props = schema["function"]["parameters"]["properties"]
+        self.assertIn("paragraph_edits", props)
+        self.assertIn("text_edits", props)
+        self.assertIn("style", props["paragraph_edits"]["items"]["properties"])
+        self.assertIn("find", props["text_edits"]["items"]["properties"])
+        self.assertIn("replace", props["text_edits"]["items"]["properties"])
+
+    def test_gemini_edit_tool_accepts_paragraph_and_text_edits(self):
+        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        idx = app_source.index("def _gemini_edit_file_tool(")
+        branch = app_source[idx:idx + 4000]
+        self.assertIn("paragraph_edits: Optional[list] = None", branch)
+        self.assertIn("text_edits: Optional[list] = None", branch)
+        self.assertIn('"paragraph_edits": paragraph_edits', branch)
+        self.assertIn('"text_edits": text_edits', branch)
+
+
 if __name__ == "__main__":
     unittest.main()

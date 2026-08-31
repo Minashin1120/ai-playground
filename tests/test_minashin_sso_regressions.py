@@ -317,6 +317,96 @@ class MinashinSSORegressionTests(unittest.TestCase):
         self.assertEqual(data["minashin_sub"], "user_minashin_test_1")
         self.assertEqual(data["minashin_email"], "taro@minashin1120.com")
 
+    def test_minashin_login_with_2fa_clears_flashes_on_verification(self):
+        client = target.app.test_client()
+        with target.app.app_context():
+            user = target.User(
+                username="minashin-2fa-user",
+                minashin_sub="user_minashin_test_2fa",
+                minashin_email="taro2fa@minashin1120.com",
+                is_2fa_enabled=True,
+                totp_secret=target.encrypt_val("JBSWY3DPEHPK3PXP"),
+                is_setup_completed=True,
+            )
+            target.db.session.add(user)
+            target.db.session.commit()
+            user_id = user.id
+
+        params = self._start_login(client)
+        userinfo = _fake_userinfo_response(sub="user_minashin_test_2fa", email="taro2fa@minashin1120.com")
+        with mock.patch.object(target.requests, "post", return_value=_fake_token_response()), \
+             mock.patch.object(target.requests, "get", return_value=userinfo):
+            response = client.get(
+                "/auth/minashin/callback?code=test-code&state=" + params["state"],
+                base_url="https://localhost",
+            )
+        # 2FA が有効なため /verify-2fa にリダイレクトされる
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/verify-2fa")
+
+        with client.session_transaction() as session:
+            self.assertEqual(session.get("pre_2fa_user_id"), user_id)
+
+        # 並行リクエスト等で重複コールバックが到達した場合、2FA画面へ静かにリダイレクトされflashが残らないこと
+        with mock.patch.object(
+            target.requests,
+            "post",
+            return_value=_fake_failure_response(status=400, error="invalid_grant"),
+        ):
+            dup_response = client.get(
+                "/auth/minashin/callback?code=test-code&state=" + params["state"],
+                base_url="https://localhost",
+            )
+        self.assertEqual(dup_response.status_code, 302)
+        self.assertEqual(dup_response.headers["Location"], "/verify-2fa")
+
+        with client.session_transaction() as session:
+            session["csrf_token"] = "minashin-csrf-token"
+
+        # 2FA を完了する
+        import pyotp
+        totp = pyotp.TOTP("JBSWY3DPEHPK3PXP")
+        code = totp.now()
+
+        with mock.patch.object(target, "rate_limit", return_value=True):
+            verify_res = client.post(
+                "/verify-2fa",
+                json={"totp_code": code},
+                headers={
+                    "X-Requested-With": "XMLHttpRequest",
+                    "X-CSRF-Token": "minashin-csrf-token",
+                },
+                base_url="https://localhost",
+            )
+        self.assertEqual(verify_res.status_code, 200)
+        self.assertEqual(verify_res.get_json()["status"], "ok")
+
+        with client.session_transaction() as session:
+            self.assertNotIn("_flashes", session)
+            self.assertEqual(session.get("_user_id"), str(user_id))
+
+    def test_duplicate_code_exchange_is_safely_ignored(self):
+        client = target.app.test_client()
+        params = self._start_login(client)
+        # 1回目の交換成功
+        with mock.patch.object(target.requests, "post", return_value=_fake_token_response()), \
+             mock.patch.object(target.requests, "get", return_value=_fake_userinfo_response()):
+            response = client.get(
+                "/auth/minashin/callback?code=test-code-dup&state=" + params["state"],
+                base_url="https://localhost",
+            )
+        self.assertEqual(response.status_code, 302)
+
+        # 同一セッション・同一コードでの2回目のリクエスト（既ログイン済み）
+        response2 = client.get(
+            "/auth/minashin/callback?code=test-code-dup&state=" + params["state"],
+            base_url="https://localhost",
+        )
+        self.assertEqual(response2.status_code, 302)
+        self.assertEqual(response2.headers["Location"], "/")
+        with client.session_transaction() as session:
+            self.assertNotIn("_flashes", session)
+
     def test_login_page_and_signup_page_have_minashin_buttons(self):
         client = target.app.test_client()
         with mock.patch.object(target, "rate_limit", return_value=True):

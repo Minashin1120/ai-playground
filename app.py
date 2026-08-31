@@ -746,8 +746,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-01-004')
-app.config['SYSTEM_VERSION'] = 'V4.8.896'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-01-005')
+app.config['SYSTEM_VERSION'] = 'V4.8.897'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -17406,6 +17406,7 @@ def login():
                 user.easy_login_expires_at = None
                 safe_db_commit()
                 session['easy_login_used'] = True
+                session.pop('_flashes', None)
                 remember = bool(form_data.get('remember'))
                 login_user(user, remember=remember)
                 create_user_session(user)
@@ -17428,6 +17429,7 @@ def login():
                     })
                     return redirect(url_for('verify_2fa'))
                 
+                session.pop('_flashes', None)
                 remember = bool(form_data.get('remember'))
                 login_user(user, remember=remember)
                 create_user_session(user)
@@ -17537,6 +17539,7 @@ def login_google_callback():
             session['remember_me'] = True
             return redirect(url_for('verify_2fa'))
 
+        session.pop('_flashes', None)
         login_user(user, remember=True)
         create_user_session(user)
         record_user_client_token(user)
@@ -17576,6 +17579,7 @@ def login_google_one_tap():
                 'default_method': user.default_2fa_method or 'totp'
             })
 
+        session.pop('_flashes', None)
         login_user(user, remember=True)
         create_user_session(user)
         record_user_client_token(user)
@@ -17730,13 +17734,38 @@ def minashin_callback():
             flash("Minashin アカウント認証に失敗しました（認可コードがありません）。")
             return redirect(url_for(redirect_target))
 
+        # 並行リクエストやリトライ時の二重交換防止（アトミックキー取得）
+        code_lock_key = f"oauth:minashin:code:{hashlib.sha256(code.encode()).hexdigest()}"
+        is_first_exchange = True
+        try:
+            if redis_client:
+                is_first_exchange = bool(redis_client.set(code_lock_key, "1", nx=True, ex=120))
+        except Exception:
+            is_first_exchange = True
+
+        if not is_first_exchange:
+            # 既に別スレッド/リクエストで交換処理中または交換済み
+            if session.get('pre_2fa_user_id'):
+                return redirect(url_for('verify_2fa'))
+            if current_user.is_authenticated:
+                return redirect(url_for('index'))
+            return redirect(url_for('login'))
+
         expected_state = session.pop('minashin_oauth_state', None)
         if not state or not expected_state or not secrets.compare_digest(state, expected_state):
+            if session.get('pre_2fa_user_id'):
+                return redirect(url_for('verify_2fa'))
+            if current_user.is_authenticated:
+                return redirect(url_for('index'))
             flash("Minashin アカウント認証に失敗しました（state 検証エラー）。")
             return redirect(url_for(redirect_target))
 
         code_verifier = session.pop('minashin_code_verifier', None)
         if not code_verifier:
+            if session.get('pre_2fa_user_id'):
+                return redirect(url_for('verify_2fa'))
+            if current_user.is_authenticated:
+                return redirect(url_for('index'))
             flash("セッション情報が失われました。もう一度お試しください。")
             return redirect(url_for(redirect_target))
 
@@ -17756,6 +17785,10 @@ def minashin_callback():
             timeout=MINASHIN_REQUEST_TIMEOUT,
         )
         if not token_response.ok:
+            if session.get('pre_2fa_user_id'):
+                return redirect(url_for('verify_2fa'))
+            if current_user.is_authenticated:
+                return redirect(url_for('index'))
             try:
                 error_data = token_response.json()
             except Exception:
@@ -17819,6 +17852,7 @@ def minashin_callback():
             session['remember_me'] = True
             return redirect(url_for('verify_2fa'))
 
+        session.pop('_flashes', None)
         login_user(user, remember=True)
         create_user_session(user)
         record_user_client_token(user)
@@ -17919,6 +17953,7 @@ def login_passkey_verify():
         db.session.commit()
         session.pop('passkey_login_user_id', None)
         session.pop('webauthn_login_challenge', None)
+        session.pop('_flashes', None)
         remember = bool(session.pop('passkey_login_remember', False))
         login_user(user, remember=remember)
         create_user_session(user)
@@ -17957,6 +17992,7 @@ def verify_2fa():
             secret = decrypt_val(user.totp_secret)
             if secret and pyotp.TOTP(secret).verify(code):
                 session.pop('pre_2fa_user_id', None)
+                session.pop('_flashes', None)
                 remember = bool(session.pop('remember_me', False))
                 login_user(user, remember=remember)
                 create_user_session(user)
@@ -18040,9 +18076,11 @@ def verify_2fa_webauthn_verify():
         db.session.commit()
         
         session.pop('pre_2fa_user_id', None)
+        session.pop('_flashes', None)
         remember = bool(session.pop('remember_me', False))
         login_user(user, remember=remember)
         create_user_session(user)
+        record_user_client_token(user)
         return jsonify({'status': 'ok'})
     except Exception as e:
         logger.error(f"WebAuthn Verify Error: {e}")
@@ -18072,6 +18110,7 @@ def signup():
         new_user.set_password(password)
         db.session.add(new_user)
         safe_db_commit()
+        session.pop('_flashes', None)
         login_user(new_user)
         # Establish the server-side session before redirecting.  Deferring this
         # to ensure_active_session on the first /setup request allowed parallel

@@ -42,11 +42,11 @@ class WelcomeQuickStartRegressionTests(unittest.TestCase):
         self.assertEqual(
             top5,
             [
+                "gemini-omni-1.1-flash",
                 "gemini-3.5-transcribe-live",
                 "gemini-3.5-transcribe",
                 "gemini-3.1-flash-image",
                 "gemini-3-pro-image",
-                "gemini-2.5-pro",
             ],
         )
 

@@ -746,8 +746,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-01-008')
-app.config['SYSTEM_VERSION'] = 'V4.8.900'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-02-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.901'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2126,7 +2126,7 @@ ALL_VALID_MODEL_IDS = {
     "gemini-2.5-flash-image", "gemini-3.1-flash-image", "gemini-3.1-flash-image-preview",
     "gemini-3.1-flash-lite-image", "gemini-3-pro-image", "gemini-3-pro-image-preview",
     # Gemini Video Generation
-    "gemini-omni-flash", "veo-3.1-generate-preview", "veo-3.1-fast-generate-preview", "veo-3.1-lite-generate-preview",
+    "gemini-omni-1.1-flash", "gemini-omni-flash", "veo-3.1-generate-preview", "veo-3.1-fast-generate-preview", "veo-3.1-lite-generate-preview",
     # Gemini Music Generation
     "lyria-3-pro-preview", "lyria-3-clip-preview", "lyria-realtime-exp",
     # Gemini Agent / Specialized
@@ -2470,7 +2470,7 @@ def is_gemini_image_model_key(model_key):
 
 def is_gemini_video_model_key(model_key):
     mk = str(model_key or "").lower().strip()
-    return mk.startswith("veo-") or "omni-flash" in mk
+    return mk.startswith("veo-") or "omni-flash" in mk or "omni-1.1-flash" in mk
 
 def is_gemini_music_model_key(model_key):
     mk = str(model_key or "").lower().strip()
@@ -12762,6 +12762,87 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 finally:
                     for file_id in uploaded_file_ids:
                         _mistral_delete_file(key, file_id)
+
+            # --- 1A-0. GEMINI OMNI 1.1 FLASH (Interactions API) ---
+            elif model_key_l == "gemini-omni-1.1-flash":
+                log_force("Routing: Gemini Omni 1.1 Flash (Interactions API)")
+                try:
+                    if gemini_backend_mode != "gemini_api":
+                        pub("error", "Gemini Omni 1.1 Flash は Gemini API バックエンドでのみ利用できます（Vertex AI バックエンドでは利用不可）。")
+                    else:
+                        pub("content", "**Generating Video (Gemini Omni 1.1 Flash)...**\n")
+                        aspect_ratio = str(options.get('gemini_video_aspect') or "16:9")
+                        if aspect_ratio not in ("16:9", "9:16"):
+                            aspect_ratio = "16:9"
+                        resolution = str(options.get('gemini_video_resolution') or "720p")
+                        if resolution == "4K":
+                            resolution = "4k"
+                        elif resolution not in ("360p", "720p", "1080p", "4k"):
+                            resolution = "720p"
+
+                        # Build Interactions API input parts: attached images + text prompt.
+                        # Omni 1.1 accepts text / image / video / audio inputs via the Interactions API.
+                        interaction_input = []
+                        for fi in loaded_files:
+                            if fi.get('bytes') and str(fi.get('mime', '')).startswith('image/'):
+                                interaction_input.append({
+                                    "type": "image",
+                                    "data": base64.b64encode(fi['bytes']).decode('ascii'),
+                                    "mime_type": str(fi.get('mime') or 'image/jpeg'),
+                                })
+                        interaction_input.append({"type": "text", "text": final_message_text})
+
+                        # Synchronous unary generation (background=false / store=false / stream=false).
+                        # Use URI delivery so videos larger than 4MB are not clipped by payload limits.
+                        _mark_provider_request_started()
+                        interaction = g_client.interactions.create(
+                            model=model_key,
+                            input=interaction_input,
+                            response_format={
+                                "type": "video",
+                                "aspect_ratio": aspect_ratio,
+                                "resolution": resolution,
+                                "delivery": "uri",
+                            },
+                            background=False,
+                            store=False,
+                            stream=False,
+                            timeout=600.0,
+                        )
+                        if getattr(interaction, "status", None) == "failed":
+                            raise RuntimeError("Omni 1.1 video generation failed.")
+                        video_data = None
+                        video_uri = None
+                        for out in (getattr(interaction, "outputs", None) or []):
+                            if getattr(out, "type", None) == "video":
+                                video_data = getattr(out, "data", None)
+                                video_uri = getattr(out, "uri", None)
+                                break
+                        if video_data:
+                            video_bytes = base64.b64decode(video_data)
+                        elif video_uri:
+                            file_id_match = re.search(r'files/([A-Za-z0-9_-]+)', video_uri)
+                            if file_id_match:
+                                for _i in range(15):
+                                    finfo = g_client.files.get(name=f"files/{file_id_match.group(1)}")
+                                    if str(getattr(getattr(finfo, "state", None), "name", "")) == "ACTIVE":
+                                        break
+                                    time.sleep(2)
+                            _mark_provider_request_started()
+                            video_bytes = g_client.files.download(file=video_uri)
+                        else:
+                            raise RuntimeError("No video output returned from Omni 1.1.")
+                        if not video_bytes:
+                            raise RuntimeError("Video download failed.")
+                        fn2 = f"gen_video_{int(time.time())}_{os.urandom(4).hex()}.mp4"
+                        _save_user_generated_bytes(user_id, video_bytes, fn2, user_config.get('enable_e2ee'))
+                        video_tag = f'\n<video controls src="/files/{user_id}/{fn2}" class="w-full max-w-2xl rounded-lg"></video>\n'
+                        pub("content", video_tag)
+                        full_res += f"Generated Video for: {final_message_text}\n"
+                        generated_images.append(f"{user_id}/{fn2}")
+                except Exception as e:
+                    logger.exception("Gemini Video Gen Error")
+                    pub("error", f"Gemini Video Gen Error: {str(e)}")
 
             # --- 1A. GEMINI VIDEO GENERATION (Veo 3.1 / Omni Flash) ---
             elif is_gemini_video_model_key(model_key_l):

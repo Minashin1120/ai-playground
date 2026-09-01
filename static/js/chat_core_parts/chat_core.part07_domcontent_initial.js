@@ -159,6 +159,10 @@
                 if (fourK) fourK.disabled = no4k;
                 if (no4k && resolution.value === '4K') resolution.value = '1080p';
             }
+            // Gemini Omni 1.1 Flash generates fixed-length clips and has no
+            // output duration parameter, so hide the duration selector for it.
+            const durationWrap = get('gemini-video-duration-wrap');
+            if (durationWrap) durationWrap.classList.toggle('hidden', model === 'gemini-omni-1.1-flash');
         }
         function updateGeminiMusicUi() {
             const wrap = get('gemini-music-options');

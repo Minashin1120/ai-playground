@@ -2121,53 +2121,57 @@ g Out $12.00/1M; Image Out $120.00/1M ($0.134/1K-2K, $0.24/4K)"},{id:"gemini-3-p
 2026-01-25",implementedRank:130,name:"Nano Banana Pro (Preview)",desc:"Retired preview retained for \
 chat history compatibility. Use gemini-3-pro-image.",price:"In $2.00/1M, Out $0.134 (1K/2K) or $0.24\
  (4K)",deprecated:!0}]},{category:"Gemini Video Generation",icon:"fas fa-clapperboard text-cyan-400",
-description:"Gemini video generation models (Veo 3.1 / Omni Flash)",items:[{id:"gemini-omni-flash",implementedAt:"\
-2026-08-25",implementedRank:8522,quickEmoji:"\u{1F3AC}",name:"Gemini Omni Flash",desc:"Fast conversa\
-tional video generation and editing from text and images.",price:"In $1.50/1M; Text Out $9.00/1M; Vi\
-deo \u2248$0.10/sec"},{id:"veo-3.1-generate-preview",implementedAt:"2026-08-25",implementedRank:8521,
-quickEmoji:"\u{1F3A5}",name:"Veo 3.1",desc:"Cinematic video generation with native audio and 4K outp\
-ut.",price:"$0.40/sec (720p/1080p), $0.60/sec (4K)"},{id:"veo-3.1-fast-generate-preview",implementedAt:"\
-2026-08-25",implementedRank:8520,name:"Veo 3.1 Fast",desc:"Low-cost, fast video generation from the \
-Veo 3.1 family.",price:"$0.10/sec (720p), $0.12/sec (1080p)"},{id:"veo-3.1-lite-generate-preview",implementedAt:"\
-2026-08-25",implementedRank:8519,name:"Veo 3.1 Lite",desc:"High-efficiency, developer-first video ge\
-neration (no 4K).",price:"$0.05/sec (720p), $0.08/sec (1080p)"}]},{category:"Gemini Music Generation",
-icon:"fas fa-music text-fuchsia-400",description:"Lyria music generation models",items:[{id:"lyria-3\
--pro-preview",implementedAt:"2026-08-25",implementedRank:8518,quickEmoji:"\u{1F3B5}",name:"Lyria 3 P\
-ro",desc:"Flagship music generation for full-length songs with structural coherence.",price:"$0.08 /\
- song"},{id:"lyria-3-clip-preview",implementedAt:"2026-08-25",implementedRank:8517,quickEmoji:"\u{1F3B6}",
-name:"Lyria 3 Clip",desc:"Short musical clips, loops, and previews (30 seconds).",price:"$0.04 / son\
-g"},{id:"lyria-realtime-exp",implementedAt:"2026-08-25",implementedRank:8516,name:"Lyria RealTime",desc:"\
-Experimental realtime music generation with deep melodic control.",price:"Experimental (no vocals)"}]},
-{category:"Gemini Transcription",icon:"fas fa-microphone text-teal-400",description:"Gemini speech-t\
-o-text transcription models",items:[{id:"gemini-3.5-transcribe",implementedAt:"2026-08-27",implementedRank:8621,
-quickEmoji:"\u{1F399}\uFE0F",name:"Gemini 3.5 Transcribe",desc:"Audio-file speech-to-text with langu\
-age detection, speaker diarization, word timestamps, and smart formatting (audio file up to 1 hour).",
-price:"In $2.00/1M (audio), Out $12.00/1M (text)"},{id:"gemini-3.5-transcribe-live",implementedAt:"2\
-026-08-27",implementedRank:8622,quickEmoji:"\u{1F534}",name:"Gemini 3.5 Transcribe Live",desc:"Real-\
-time low-latency streaming speech-to-text over the Live API (microphone input, sessions up to 10 min\
-utes).",price:"In $3.50/1M (audio), Out $21.00/1M (text)"}]},{category:"OpenAI Image Gen",icon:"fas \
-fa-paint-brush text-purple-400",description:"GPT Image models",items:[{id:"gpt-image-2",implementedAt:"\
-2026-04-30",implementedRank:4680,name:"GPT Image 2",desc:"State-of-the-art image generation and edit\
-ing.",price:"Text In $5/1M; Image In $8/1M; Image Out $30/1M"},{id:"gpt-image-1.5",implementedAt:"20\
-26-03-13",implementedRank:3410,name:"GPT Image 1.5",desc:"Previous-generation flagship image model.",
-price:"Text In $5/1M, Text Out $10/1M; Image Out $32/1M"},{id:"gpt-image-1",implementedAt:"2026-03-1\
-3",implementedRank:3411,name:"GPT Image 1",desc:"Standard quality.",price:"Text In $5/1M; Image Out \
-$40/1M"},{id:"gpt-image-1-mini",implementedAt:"2026-03-13",implementedRank:3412,name:"GPT Image 1 Mi\
-ni",desc:"Faster, lower resolution.",price:"Text In $2/1M; Image In $2.50/1M; Image Out $8/1M"}]},{category:"\
-OpenAI GPT",icon:"fas fa-brain text-green-400",description:"OpenAI's flagship models",items:[{id:"gp\
-t-5.6-sol",implementedAt:"2026-07-31",implementedRank:6550,quickEmoji:"\u2600\uFE0F",name:"GPT-5.6 S\
-ol",desc:"Frontier reasoning model for complex professional work with 1.05M context.",price:"In $5.0\
-0/1M, Cached $0.50/1M, Out $30.00/1M (over 272K: In $10.00, Out $45.00)"},{id:"gpt-5.6-terra",implementedAt:"\
-2026-07-31",implementedRank:6560,quickEmoji:"\u{1F30D}",name:"GPT-5.6 Terra",desc:"Balanced intellig\
-ence and cost for everyday work with 1.05M context.",price:"In $2.00/1M, Cached $0.20/1M, Out $12.00\
-/1M (over 272K: In $4.00, Out $18.00)"},{id:"gpt-5.6-luna",implementedAt:"2026-07-31",implementedRank:6561,
-quickEmoji:"\u{1F319}",name:"GPT-5.6 Luna",desc:"Cost-efficient model for high-volume workloads with\
- 1.05M context.",price:"In $0.20/1M, Cached $0.02/1M, Out $1.20/1M (over 272K: In $0.40, Out $1.80)"},
-{id:"gpt-4o",implementedAt:"2026-06-04",implementedRank:5820,name:"GPT-4o",desc:"Multimodal flagship\
- model.",price:"In $2.50/1M, Out $10.00/1M"},{id:"gpt-4o-mini",implementedAt:"2026-06-04",implementedRank:5821,
-name:"GPT-4o mini",desc:"Fast, low-cost model.",price:"In $0.15/1M, Out $0.60/1M"},{id:"gpt-5.5",implementedAt:"\
-2026-04-26",implementedRank:4500,name:"GPT-5.5",desc:"Experimental OpenAI model ID for accounts with\
- access.",price:"In $5.00/1M, Out $30.00/1M"},{id:"gpt-5.5-mini",implementedAt:"2026-04-26",implementedRank:4501,
+description:"Gemini video generation models (Veo 3.1 / Omni Flash)",items:[{id:"gemini-omni-1.1-flas\
+h",implementedAt:"2026-09-02",implementedRank:9010,quickEmoji:"\u{1F3AC}",name:"Gemini Omni 1.1 Flas\
+h",desc:"Fastest multimodal video generation and conversational editing from text, images, video, an\
+d audio (native audio in output).",price:"In $1.50/1M (text/image/video/audio); Text Out $9.00/1M; V\
+ideo $17.50/1M (\u2248$0.10/sec)"},{id:"gemini-omni-flash",implementedAt:"2026-08-25",implementedRank:8522,
+quickEmoji:"\u{1F3AC}",name:"Gemini Omni Flash",desc:"Fast conversational video generation and editi\
+ng from text and images.",price:"In $1.50/1M; Text Out $9.00/1M; Video \u2248$0.10/sec"},{id:"veo-3.\
+1-generate-preview",implementedAt:"2026-08-25",implementedRank:8521,quickEmoji:"\u{1F3A5}",name:"Veo\
+ 3.1",desc:"Cinematic video generation with native audio and 4K output.",price:"$0.40/sec (720p/1080\
+p), $0.60/sec (4K)"},{id:"veo-3.1-fast-generate-preview",implementedAt:"2026-08-25",implementedRank:8520,
+name:"Veo 3.1 Fast",desc:"Low-cost, fast video generation from the Veo 3.1 family.",price:"$0.10/sec\
+ (720p), $0.12/sec (1080p)"},{id:"veo-3.1-lite-generate-preview",implementedAt:"2026-08-25",implementedRank:8519,
+name:"Veo 3.1 Lite",desc:"High-efficiency, developer-first video generation (no 4K).",price:"$0.05/s\
+ec (720p), $0.08/sec (1080p)"}]},{category:"Gemini Music Generation",icon:"fas fa-music text-fuchsia\
+-400",description:"Lyria music generation models",items:[{id:"lyria-3-pro-preview",implementedAt:"20\
+26-08-25",implementedRank:8518,quickEmoji:"\u{1F3B5}",name:"Lyria 3 Pro",desc:"Flagship music genera\
+tion for full-length songs with structural coherence.",price:"$0.08 / song"},{id:"lyria-3-clip-previ\
+ew",implementedAt:"2026-08-25",implementedRank:8517,quickEmoji:"\u{1F3B6}",name:"Lyria 3 Clip",desc:"\
+Short musical clips, loops, and previews (30 seconds).",price:"$0.04 / song"},{id:"lyria-realtime-ex\
+p",implementedAt:"2026-08-25",implementedRank:8516,name:"Lyria RealTime",desc:"Experimental realtime\
+ music generation with deep melodic control.",price:"Experimental (no vocals)"}]},{category:"Gemini \
+Transcription",icon:"fas fa-microphone text-teal-400",description:"Gemini speech-to-text transcripti\
+on models",items:[{id:"gemini-3.5-transcribe",implementedAt:"2026-08-27",implementedRank:8621,quickEmoji:"\
+\u{1F399}\uFE0F",name:"Gemini 3.5 Transcribe",desc:"Audio-file speech-to-text with language detectio\
+n, speaker diarization, word timestamps, and smart formatting (audio file up to 1 hour).",price:"In \
+$2.00/1M (audio), Out $12.00/1M (text)"},{id:"gemini-3.5-transcribe-live",implementedAt:"2026-08-27",
+implementedRank:8622,quickEmoji:"\u{1F534}",name:"Gemini 3.5 Transcribe Live",desc:"Real-time low-la\
+tency streaming speech-to-text over the Live API (microphone input, sessions up to 10 minutes).",price:"\
+In $3.50/1M (audio), Out $21.00/1M (text)"}]},{category:"OpenAI Image Gen",icon:"fas fa-paint-brush \
+text-purple-400",description:"GPT Image models",items:[{id:"gpt-image-2",implementedAt:"2026-04-30",
+implementedRank:4680,name:"GPT Image 2",desc:"State-of-the-art image generation and editing.",price:"\
+Text In $5/1M; Image In $8/1M; Image Out $30/1M"},{id:"gpt-image-1.5",implementedAt:"2026-03-13",implementedRank:3410,
+name:"GPT Image 1.5",desc:"Previous-generation flagship image model.",price:"Text In $5/1M, Text Out\
+ $10/1M; Image Out $32/1M"},{id:"gpt-image-1",implementedAt:"2026-03-13",implementedRank:3411,name:"\
+GPT Image 1",desc:"Standard quality.",price:"Text In $5/1M; Image Out $40/1M"},{id:"gpt-image-1-mini",
+implementedAt:"2026-03-13",implementedRank:3412,name:"GPT Image 1 Mini",desc:"Faster, lower resoluti\
+on.",price:"Text In $2/1M; Image In $2.50/1M; Image Out $8/1M"}]},{category:"OpenAI GPT",icon:"fas f\
+a-brain text-green-400",description:"OpenAI's flagship models",items:[{id:"gpt-5.6-sol",implementedAt:"\
+2026-07-31",implementedRank:6550,quickEmoji:"\u2600\uFE0F",name:"GPT-5.6 Sol",desc:"Frontier reasoni\
+ng model for complex professional work with 1.05M context.",price:"In $5.00/1M, Cached $0.50/1M, Out\
+ $30.00/1M (over 272K: In $10.00, Out $45.00)"},{id:"gpt-5.6-terra",implementedAt:"2026-07-31",implementedRank:6560,
+quickEmoji:"\u{1F30D}",name:"GPT-5.6 Terra",desc:"Balanced intelligence and cost for everyday work w\
+ith 1.05M context.",price:"In $2.00/1M, Cached $0.20/1M, Out $12.00/1M (over 272K: In $4.00, Out $18\
+.00)"},{id:"gpt-5.6-luna",implementedAt:"2026-07-31",implementedRank:6561,quickEmoji:"\u{1F319}",name:"\
+GPT-5.6 Luna",desc:"Cost-efficient model for high-volume workloads with 1.05M context.",price:"In $0\
+.20/1M, Cached $0.02/1M, Out $1.20/1M (over 272K: In $0.40, Out $1.80)"},{id:"gpt-4o",implementedAt:"\
+2026-06-04",implementedRank:5820,name:"GPT-4o",desc:"Multimodal flagship model.",price:"In $2.50/1M,\
+ Out $10.00/1M"},{id:"gpt-4o-mini",implementedAt:"2026-06-04",implementedRank:5821,name:"GPT-4o mini",
+desc:"Fast, low-cost model.",price:"In $0.15/1M, Out $0.60/1M"},{id:"gpt-5.5",implementedAt:"2026-04\
+-26",implementedRank:4500,name:"GPT-5.5",desc:"Experimental OpenAI model ID for accounts with access\
+.",price:"In $5.00/1M, Out $30.00/1M"},{id:"gpt-5.5-mini",implementedAt:"2026-04-26",implementedRank:4501,
 name:"GPT-5.5 mini",desc:"Smaller and more cost-efficient GPT-5.5 tier.",price:"Pricing not publicly\
  listed"},{id:"gpt-5.5-nano",implementedAt:"2026-04-26",implementedRank:4502,name:"GPT-5.5 nano",desc:"\
 Smallest and fastest GPT-5.5 tier.",price:"Pricing not publicly listed"},{id:"gpt-5.5-pro",implementedAt:"\
@@ -2438,29 +2442,29 @@ get("model-select")?get("model-select").value:""),n=PROVIDER_LABELS[t]||t||"\u73
 \u3067\u304D\u307E\u305B\u3093\u3002`,"info",!0)}}))},"bindPromptCacheControls"),getModelMediaSupport=a(
 e=>{const t=(e||"").toLowerCase();return t.includes("gemini")?t.includes("image")||t.includes("nano")||
 t.includes("tts")||t.includes("native-audio")||t.includes("live")?{audio:!1,video:!1}:t.includes("em\
-bedding")||t.startsWith("veo-")||t.includes("omni-flash")||t.startsWith("lyria-")?{audio:!1,video:!1}:
-{audio:!0,video:!0}:{audio:!1,video:!1}},"getModelMediaSupport"),supportsAudioInputModel=a(()=>getModelMediaSupport(
-get("model-select").value).audio,"supportsAudioInputModel"),supportsVideoInputModel=a(()=>getModelMediaSupport(
-get("model-select").value).video,"supportsVideoInputModel"),isImagePath=a(e=>IMAGE_EXTS.includes(getFileExt(
-e||"")),"isImagePath"),isAudioPath=a(e=>AUDIO_EXTS.includes(getFileExt(e||"")),"isAudioPath"),isVideoPath=a(
-e=>VIDEO_EXTS.includes(getFileExt(e||"")),"isVideoPath"),OPENAI_TTS_VOICES=["alloy","ash","ballad","\
-coral","echo","fable","nova","onyx","sage","shimmer","verse","marin","cedar"],GEMINI_TTS_VOICES=["Ze\
-phyr","Puck","Charon","Kore","Fenrir","Leda","Orus","Aoede","Callirrhoe","Autonoe","Enceladus","Iape\
-tus","Umbriel","Algieba","Despina","Erinome","Algenib","Rasalgethi","Laomedeia","Achernar","Alnilam",
-"Schedar","Gacrux","Pulcherrima","Achird","Zubenelgenubi","Vindemiatrix","Sadachbia","Sadaltager","S\
-ulafat"],OPENAI_STS_VOICES=["alloy","ash","ballad","coral","echo","sage","shimmer","verse","marin","\
-cedar"],GROK_STS_VOICES=["Ara","Rex","Sal","Eve","Leo"],GROK_TTS_VOICES=["Eve","Ara","Rex","Sal","Le\
-o"],GEMINI_STS_VOICES=["Zephyr","Puck","Charon","Kore","Fenrir","Leda","Orus","Aoede","Callirrhoe","\
-Autonoe","Enceladus","Iapetus","Umbriel","Algieba","Despina","Erinome","Algenib","Rasalgethi","Laome\
-deia","Achernar","Alnilam","Schedar","Gacrux","Pulcherrima","Achird","Zubenelgenubi","Vindemiatrix",
-"Sadachbia","Sadaltager","Sulafat"],GROK_PCM_RATES=[8e3,16e3,21050,24e3,32e3,44100,48e3],isTtsModel=a(
-()=>get("model-select").value.includes("tts"),"isTtsModel"),isGptImageModel=a(()=>(get("model-select").
-value||"").includes("gpt-image"),"isGptImageModel"),isGeminiImageModel=a(()=>isGeminiImageModelKey(get(
-"model-select").value),"isGeminiImageModel"),isMistralOcrModel=a(e=>{const t=String(e!=null?e:get("m\
-odel-select")&&get("model-select").value||"").toLowerCase();return t==="mistral-ocr-4-0"||t==="mistr\
-al-ocr-latest"||t.startsWith("mistral-ocr")},"isMistralOcrModel"),isLlmModel=a(()=>{const e=(get("mo\
-del-select").value||"").toLowerCase();return isMistralOcrModel(e)||e.includes("tts")||e.includes("tr\
-anscribe")||e.includes("realtime")||e.includes("voice-agent")||e.includes("native-audio")||e.includes(
+bedding")||t.startsWith("veo-")||t.includes("omni-flash")||t.includes("omni-1.1-flash")||t.startsWith(
+"lyria-")?{audio:!1,video:!1}:{audio:!0,video:!0}:{audio:!1,video:!1}},"getModelMediaSupport"),supportsAudioInputModel=a(
+()=>getModelMediaSupport(get("model-select").value).audio,"supportsAudioInputModel"),supportsVideoInputModel=a(
+()=>getModelMediaSupport(get("model-select").value).video,"supportsVideoInputModel"),isImagePath=a(e=>IMAGE_EXTS.
+includes(getFileExt(e||"")),"isImagePath"),isAudioPath=a(e=>AUDIO_EXTS.includes(getFileExt(e||"")),"\
+isAudioPath"),isVideoPath=a(e=>VIDEO_EXTS.includes(getFileExt(e||"")),"isVideoPath"),OPENAI_TTS_VOICES=[
+"alloy","ash","ballad","coral","echo","fable","nova","onyx","sage","shimmer","verse","marin","cedar"],
+GEMINI_TTS_VOICES=["Zephyr","Puck","Charon","Kore","Fenrir","Leda","Orus","Aoede","Callirrhoe","Auto\
+noe","Enceladus","Iapetus","Umbriel","Algieba","Despina","Erinome","Algenib","Rasalgethi","Laomedeia",
+"Achernar","Alnilam","Schedar","Gacrux","Pulcherrima","Achird","Zubenelgenubi","Vindemiatrix","Sadac\
+hbia","Sadaltager","Sulafat"],OPENAI_STS_VOICES=["alloy","ash","ballad","coral","echo","sage","shimm\
+er","verse","marin","cedar"],GROK_STS_VOICES=["Ara","Rex","Sal","Eve","Leo"],GROK_TTS_VOICES=["Eve",
+"Ara","Rex","Sal","Leo"],GEMINI_STS_VOICES=["Zephyr","Puck","Charon","Kore","Fenrir","Leda","Orus","\
+Aoede","Callirrhoe","Autonoe","Enceladus","Iapetus","Umbriel","Algieba","Despina","Erinome","Algenib",
+"Rasalgethi","Laomedeia","Achernar","Alnilam","Schedar","Gacrux","Pulcherrima","Achird","Zubenelgenu\
+bi","Vindemiatrix","Sadachbia","Sadaltager","Sulafat"],GROK_PCM_RATES=[8e3,16e3,21050,24e3,32e3,44100,
+48e3],isTtsModel=a(()=>get("model-select").value.includes("tts"),"isTtsModel"),isGptImageModel=a(()=>(get(
+"model-select").value||"").includes("gpt-image"),"isGptImageModel"),isGeminiImageModel=a(()=>isGeminiImageModelKey(
+get("model-select").value),"isGeminiImageModel"),isMistralOcrModel=a(e=>{const t=String(e!=null?e:get(
+"model-select")&&get("model-select").value||"").toLowerCase();return t==="mistral-ocr-4-0"||t==="mis\
+tral-ocr-latest"||t.startsWith("mistral-ocr")},"isMistralOcrModel"),isLlmModel=a(()=>{const e=(get("\
+model-select").value||"").toLowerCase();return isMistralOcrModel(e)||e.includes("tts")||e.includes("\
+transcribe")||e.includes("realtime")||e.includes("voice-agent")||e.includes("native-audio")||e.includes(
 "live")||e.includes("image")||e.includes("video")||isGeminiVideoModelKey(e)||isGeminiMusicModelKey(e)||
 isGeminiEmbeddingModelKey(e)||e.includes("gemini")&&(e.includes("image")||e.includes("nano"))?!1:e.includes(
 "gpt")||e.includes("gemini")||e.includes("grok")||e.includes("deepseek")||e.startsWith("deep-researc\
@@ -2468,19 +2472,19 @@ h-")||e.startsWith("antigravity-")},"isLlmModel"),isGrokImageModel=a(()=>{const 
 value||"").toLowerCase();return e.includes("grok")&&(e.includes("imagine")||e.includes("image"))&&!e.
 includes("video")},"isGrokImageModel"),isGrokVideoModel=a(()=>{const e=(get("model-select").value||"").
 toLowerCase();return e.includes("grok")&&e.includes("video")},"isGrokVideoModel"),isGeminiVideoModelKey=a(
-e=>{const t=(e||"").toLowerCase();return t.startsWith("veo-")||t.includes("omni-flash")},"isGeminiVi\
-deoModelKey"),isGeminiVideoModel=a(()=>isGeminiVideoModelKey(get("model-select").value),"isGeminiVid\
-eoModel"),isGeminiMusicModelKey=a(e=>(e||"").toLowerCase().startsWith("lyria-"),"isGeminiMusicModelK\
-ey"),isGeminiMusicModel=a(()=>isGeminiMusicModelKey(get("model-select").value),"isGeminiMusicModel"),
-isGeminiEmbeddingModelKey=a(e=>(e||"").toLowerCase().includes("gemini-embedding"),"isGeminiEmbedding\
-ModelKey"),isGeminiEmbeddingModel=a(()=>isGeminiEmbeddingModelKey(get("model-select").value),"isGemi\
-niEmbeddingModel"),isStsModel=a(()=>STS_MODELS.has(get("model-select").value),"isStsModel"),isTranscriptionModel=a(
-()=>{const e=get("model-select")?get("model-select").value:"";return e==="gpt-transcribe"||e==="gpt-\
-live-transcribe"},"isTranscriptionModel"),isGeminiLiveModel=a(()=>{const e=get("model-select").value;
-return e==="gemini-3.1-flash-live-preview"||e==="gemini-3.5-live-translate-preview"||e==="gemini-3.5\
--transcribe-live"},"isGeminiLiveModel"),isGeminiLiveTranslateModel=a(()=>get("model-select").value===
-"gemini-3.5-live-translate-preview","isGeminiLiveTranslateModel"),isGeminiLiveTranscribeModel=a(()=>get(
-"model-select").value==="gemini-3.5-transcribe-live","isGeminiLiveTranscribeModel"),isGeminiRealtimeMusicModel=a(
+e=>{const t=(e||"").toLowerCase();return t.startsWith("veo-")||t.includes("omni-flash")||t.includes(
+"omni-1.1-flash")},"isGeminiVideoModelKey"),isGeminiVideoModel=a(()=>isGeminiVideoModelKey(get("mode\
+l-select").value),"isGeminiVideoModel"),isGeminiMusicModelKey=a(e=>(e||"").toLowerCase().startsWith(
+"lyria-"),"isGeminiMusicModelKey"),isGeminiMusicModel=a(()=>isGeminiMusicModelKey(get("model-select").
+value),"isGeminiMusicModel"),isGeminiEmbeddingModelKey=a(e=>(e||"").toLowerCase().includes("gemini-e\
+mbedding"),"isGeminiEmbeddingModelKey"),isGeminiEmbeddingModel=a(()=>isGeminiEmbeddingModelKey(get("\
+model-select").value),"isGeminiEmbeddingModel"),isStsModel=a(()=>STS_MODELS.has(get("model-select").
+value),"isStsModel"),isTranscriptionModel=a(()=>{const e=get("model-select")?get("model-select").value:
+"";return e==="gpt-transcribe"||e==="gpt-live-transcribe"},"isTranscriptionModel"),isGeminiLiveModel=a(
+()=>{const e=get("model-select").value;return e==="gemini-3.1-flash-live-preview"||e==="gemini-3.5-l\
+ive-translate-preview"||e==="gemini-3.5-transcribe-live"},"isGeminiLiveModel"),isGeminiLiveTranslateModel=a(
+()=>get("model-select").value==="gemini-3.5-live-translate-preview","isGeminiLiveTranslateModel"),isGeminiLiveTranscribeModel=a(
+()=>get("model-select").value==="gemini-3.5-transcribe-live","isGeminiLiveTranscribeModel"),isGeminiRealtimeMusicModel=a(
 ()=>(get("model-select").value||"")==="lyria-realtime-exp","isGeminiRealtimeMusicModel"),isLyriaRealtimeModel=a(
 ()=>isGeminiRealtimeMusicModel(),"isLyriaRealtimeModel"),isRealtimeSessionModel=a(()=>!(!isStsModel()||
 isGeminiLiveModel()||isTranscriptionModel()||get("model-select")&&get("model-select").value==="gpt-r\
@@ -2771,13 +2775,14 @@ on")?get("modal-grok-image-resolution").parentElement:null;_&&_.classList.toggle
 const d=String(((m=get("model-select"))==null?void 0:m.value)||"").toLowerCase();isGrokVideoModel()?
 l.classList.remove("hidden"):l.classList.add("hidden");const f=get("grok-video-resolution");if(f){const y=Array.
 from(f.options).find(k=>k.value==="1080p");y&&(y.disabled=d!=="grok-imagine-video-1.5"),d!=="grok-im\
-agine-video-1.5"&&f.value==="1080p"&&(f.value="720p")}}a(u,"updateGrokVideoUi");function p(){var m;const l=get(
-"gemini-video-options");if(!l)return;const d=String(((m=get("model-select"))==null?void 0:m.value)||
+agine-video-1.5"&&f.value==="1080p"&&(f.value="720p")}}a(u,"updateGrokVideoUi");function p(){var y;const l=get(
+"gemini-video-options");if(!l)return;const d=String(((y=get("model-select"))==null?void 0:y.value)||
 "").toLowerCase();isGeminiVideoModel()?l.classList.remove("hidden"):l.classList.add("hidden");const f=get(
-"gemini-video-resolution");if(f){const y=Array.from(f.options).find(_=>_.value==="4K"),k=d==="veo-3.\
-1-lite-generate-preview"||d==="veo-3.1-fast-generate-preview"||d==="gemini-omni-flash";y&&(y.disabled=
-k),k&&f.value==="4K"&&(f.value="1080p")}}a(p,"updateGeminiVideoUi");function g(){const l=get("gemini\
--music-options");if(!l)return;const d=isGeminiRealtimeMusicModel(),f=isGeminiMusicModel()&&!d;l.classList.
+"gemini-video-resolution");if(f){const k=Array.from(f.options).find(S=>S.value==="4K"),_=d==="veo-3.\
+1-lite-generate-preview"||d==="veo-3.1-fast-generate-preview"||d==="gemini-omni-flash";k&&(k.disabled=
+_),_&&f.value==="4K"&&(f.value="1080p")}const m=get("gemini-video-duration-wrap");m&&m.classList.toggle(
+"hidden",d==="gemini-omni-1.1-flash")}a(p,"updateGeminiVideoUi");function g(){const l=get("gemini-mu\
+sic-options");if(!l)return;const d=isGeminiRealtimeMusicModel(),f=isGeminiMusicModel()&&!d;l.classList.
 toggle("hidden",!f);const m=get("lyria-realtime-studio-bar");m&&m.classList.toggle("hidden",!d)}a(g,
 "updateGeminiMusicUi");function h(){var _;const l=get("xai-chat-options");if(!l)return;const d=String(
 ((_=get("model-select"))==null?void 0:_.value)||"").toLowerCase(),f=d.startsWith("grok-")&&!isGrokImageModel(

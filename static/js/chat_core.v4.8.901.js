@@ -6989,6 +6989,7 @@
                 icon: "fas fa-clapperboard text-cyan-400",
                 description: "Gemini video generation models (Veo 3.1 / Omni Flash)",
                 items: [
+                    { id: "gemini-omni-1.1-flash", implementedAt: "2026-09-02", implementedRank: 9010, quickEmoji: "🎬", name: "Gemini Omni 1.1 Flash", desc: "Fastest multimodal video generation and conversational editing from text, images, video, and audio (native audio in output).", price: "In $1.50/1M (text/image/video/audio); Text Out $9.00/1M; Video $17.50/1M (≈$0.10/sec)" },
                     { id: "gemini-omni-flash", implementedAt: "2026-08-25", implementedRank: 8522, quickEmoji: "🎬", name: "Gemini Omni Flash", desc: "Fast conversational video generation and editing from text and images.", price: "In $1.50/1M; Text Out $9.00/1M; Video ≈$0.10/sec" },
                     { id: "veo-3.1-generate-preview", implementedAt: "2026-08-25", implementedRank: 8521, quickEmoji: "🎥", name: "Veo 3.1", desc: "Cinematic video generation with native audio and 4K output.", price: "$0.40/sec (720p/1080p), $0.60/sec (4K)" },
                     { id: "veo-3.1-fast-generate-preview", implementedAt: "2026-08-25", implementedRank: 8520, name: "Veo 3.1 Fast", desc: "Low-cost, fast video generation from the Veo 3.1 family.", price: "$0.10/sec (720p), $0.12/sec (1080p)" },
@@ -7591,7 +7592,7 @@
             if (m.includes('image') || m.includes('nano') || m.includes('tts') || m.includes('native-audio') || m.includes('live')) {
                 return { audio: false, video: false };
             }
-            if (m.includes('embedding') || m.startsWith('veo-') || m.includes('omni-flash') || m.startsWith('lyria-')) {
+            if (m.includes('embedding') || m.startsWith('veo-') || m.includes('omni-flash') || m.includes('omni-1.1-flash') || m.startsWith('lyria-')) {
                 return { audio: false, video: false };
             }
             return { audio: true, video: true };
@@ -7652,7 +7653,7 @@
         };
         const isGeminiVideoModelKey = (model) => {
             const m = (model || '').toLowerCase();
-            return m.startsWith('veo-') || m.includes('omni-flash');
+            return m.startsWith('veo-') || m.includes('omni-flash') || m.includes('omni-1.1-flash');
         };
         const isGeminiVideoModel = () => isGeminiVideoModelKey(get('model-select').value);
         const isGeminiMusicModelKey = (model) => {
@@ -8587,6 +8588,10 @@
                 if (fourK) fourK.disabled = no4k;
                 if (no4k && resolution.value === '4K') resolution.value = '1080p';
             }
+            // Gemini Omni 1.1 Flash generates fixed-length clips and has no
+            // output duration parameter, so hide the duration selector for it.
+            const durationWrap = get('gemini-video-duration-wrap');
+            if (durationWrap) durationWrap.classList.toggle('hidden', model === 'gemini-omni-1.1-flash');
         }
         function updateGeminiMusicUi() {
             const wrap = get('gemini-music-options');

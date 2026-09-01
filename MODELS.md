@@ -1,6 +1,6 @@
-# 対応モデル (V4.8.900)
+# 対応モデル (V4.8.901)
 
-全対応モデルの一覧です。モデル定義の一次ソースは `static/js/chat_core.v4.8.900.js` の `MODELS` 配列です。
+全対応モデルの一覧です。モデル定義の一次ソースは `static/js/chat_core.v4.8.901.js` の `MODELS` 配列です。
 モデル選択モーダルには各モデルの公式 API 価格（`price` フィールド）が表示されます。
 
 **価格最終確認:** 2026-08-15
@@ -33,6 +33,7 @@
 | Gemini 2.5 | gemini-2.5-flash-lite | In $0.10/1M, Out $0.40/1M |
 | Gemini 2.5 | gemini-2.5-flash | In $0.30/1M, Out $2.50/1M |
 | Gemini Image | gemini-3.1-flash-lite-image | In $0.25/1M, Text/Thinking Out $1.50/1M, Image Out $30/1M（$0.0336/1K image） |
+| Gemini Video | gemini-omni-1.1-flash | In $1.50/1M（テキスト/画像/動画/音声）, Text Out $9.00/1M, Video Out $17.50/1M（約$0.10/秒） |
 | OpenAI GPT | gpt-5.6-sol | In $5.00/1M, Cached $0.50/1M, Out $30.00/1M（>272K: In $10.00/1M, Out $45.00/1M） |
 | OpenAI GPT | gpt-5.6-terra | In $2.00/1M, Cached $0.20/1M, Out $12.00/1M（>272K: In $4.00/1M, Out $18.00/1M） |
 | OpenAI GPT | gpt-5.6-luna | In $0.20/1M, Cached $0.02/1M, Out $1.20/1M（>272K: In $0.40/1M, Out $1.80/1M） |
@@ -67,5 +68,5 @@
 
 ---
 
-*最終更新: 2026-09-01 (V4.8.900)*
-*ソース: `static/js/chat_core.v4.8.900.js` MODELS配列*
+*最終更新: 2026-09-02 (V4.8.901)*
+*ソース: `static/js/chat_core.v4.8.901.js` MODELS配列*

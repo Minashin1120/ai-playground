@@ -18,6 +18,7 @@ class GeminiNewModelsRegressionTests(unittest.TestCase):
         "gemini-3.5-live-translate-preview",
     )
     VIDEO_MODELS = (
+        "gemini-omni-1.1-flash",
         "gemini-omni-flash",
         "veo-3.1-generate-preview",
         "veo-3.1-fast-generate-preview",
@@ -56,6 +57,7 @@ class GeminiNewModelsRegressionTests(unittest.TestCase):
             "gemini-3.1-flash-image",
             "gemini-3-pro-image",
             "gemini-3.5-live-translate-preview",
+            "gemini-omni-1.1-flash",
             "gemini-omni-flash",
             "veo-3.1-generate-preview",
             "veo-3.1-fast-generate-preview",

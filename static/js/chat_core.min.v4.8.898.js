@@ -6359,69 +6359,69 @@ nded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 truncate flex justif
 er group ${b}`,p.dataset.threadId=u,p.innerHTML=`<div class="flex items-center gap-1 truncate flex-1\
 "><button class="${g} hover:text-yellow-400 px-1" onclick="toggleBookmark(event, '${u}')"><i class="\
 fas fa-star text-[10px]"></i></button><span class="truncate">${escapeHtml(c.title||"No Title")}</spa\
-n>${h}</div><div class="flex gap-1 opacity-0 group-hover:opacity-100" data-thread-actions="1"><butto\
-n class="text-gray-500 hover:text-white px-1" onclick="renameThread(event, '${u}')"><i class="fas fa\
--pen text-xs"></i></button><button class="text-gray-500 hover:text-red-400 px-1" onclick="deleteThre\
-ad(event, '${u}')"><i class="fas fa-trash text-xs"></i></button></div>`,p.onclick=w=>{w.target.closest(
-"button")||w.target.closest("[data-thread-actions]")||loadMessages(u)},r?o.insertBefore(p,r):o.appendChild(
-p)}),hasMoreThreads=!!s.has_next,hasMoreThreads&&threadPage++,snapshotSidebarHistory("loadThreads-re\
-ndered count="+s.threads.length+" append="+!!e)):snapshotSidebarHistory("loadThreads-empty-or-invali\
-d")}catch(t){console.error("Failed to load threads:",t),snapshotSidebarHistory("loadThreads-error")}finally{
-threadLoading=!1,updateThreadHighlighting(),snapshotSidebarHistory("loadThreads-finally")}}a(loadThreads,
-"loadThreads");function initPullToRefresh(e,t){const n=get(e);if(!n)return;const i=`${e}-pull-indica\
-tor`,s=60,o=88,r=52,c=.5,u=8;let p=0,g=!1,h=0,v=null;const b=a(()=>get(i),"indicatorEl"),w=a(()=>{const T=b();
-return T?T.querySelector(".ptr-pull-label"):null},"labelEl"),x=a(T=>{const E=b();if(!E)return;E.style.
-height=Math.min(T,o)+"px",E.classList.toggle("active",T>2),E.classList.toggle("pull-ready",T>=s);const F=w();
-F&&(F.textContent=T>=s?"\u96E2\u3057\u3066\u66F4\u65B0":"\u5F15\u3063\u5F35\u3063\u3066\u66F4\u65B0")},
-"applyPullUI"),L=a(()=>{const T=b();T&&(T.style.height="0px",T.classList.remove("active","pull-ready",
-"refreshing"),T.classList.remove("dragging"))},"resetPullUI");n.addEventListener("touchstart",T=>{if(v){
-g=!1;return}if(n.scrollTop>0){g=!1;return}const E=T.touches[0];E&&(p=E.clientY,h=0,g=!0)},{passive:!0}),
-n.addEventListener("touchmove",T=>{if(!g||v)return;if(n.scrollTop>0){g=!1;return}const E=T.touches[0];
-if(!E)return;const F=E.clientY-p;if(F<=0){h>0&&(h=0,x(0)),g=!1;return}const se=b();se&&!se.classList.
-contains("dragging")&&se.classList.add("dragging"),h=Math.min(F*c,o),x(h),F>=u&&T.preventDefault()},
-{passive:!1}),n.addEventListener("touchend",()=>{if(!g||(g=!1,v))return;const T=b();T&&T.classList.remove(
-"dragging");const E=h>=s;if(h=0,!E){L();return}let F;try{F=t()}catch{F=null}const se=b();if(se){se.classList.
-add("refreshing"),se.style.height=r+"px";const Y=se.querySelector(".ptr-pull-label");Y&&(Y.textContent=
-"\u66F4\u65B0\u4E2D...")}F&&typeof F.then=="function"?(v=F,F.catch(()=>{}).finally(()=>{v=null,L()})):
-(v=Promise.resolve(),setTimeout(()=>{v=null,L()},400))}),n.addEventListener("touchcancel",()=>{g=!1,
-h=0,L()})}a(initPullToRefresh,"initPullToRefresh");const initThreadPullToRefresh=a(()=>initPullToRefresh(
-"thread-list",()=>loadThreads(!1)),"initThreadPullToRefresh"),initGemPullToRefresh=a(()=>initPullToRefresh(
-"gem-list",()=>loadGems()),"initGemPullToRefresh"),initPullToRefreshAll=a(()=>{initThreadPullToRefresh(),
-initGemPullToRefresh()},"initPullToRefreshAll");document.readyState==="loading"?document.addEventListener(
-"DOMContentLoaded",initPullToRefreshAll,{once:!0}):initPullToRefreshAll();async function toggleBookmark(e,t){
-e&&e.stopPropagation(),await apiFetch(`/api/threads/${t}/bookmark`,{method:"POST"}),loadThreads()}a(
-toggleBookmark,"toggleBookmark");async function loadMessages(e,t={}){const n=++threadLoadSequence;window.
-closeHistoryModal&&window.closeHistoryModal();const i=!!t.preserveDraft,s=!!t.silent;s||resumeChatAutoScroll(
-{scroll:!1});const o=s?snapshotCodeCollapseByMessage(get("chat-container")):null;let r="",c="",u=[];
-if(i){const p=get("prompt-input");r=p?p.value:"",c=p?p.style.height:"",u=currentImageUrls?currentImageUrls.
-slice():[],editingMessageId=null,setEditUi(!1)}else cancelEdit();currentThreadId=e!=null?String(e):e,
-t.skipHistory||history.pushState({},"","/c/"+e),updateThreadHighlighting(),syncActiveGemForThread(currentThreadId),
-get("welcome-screen").classList.add("hidden"),s||(get("chat-container").innerHTML=buildChatLoadingSkeletonHtml());
-try{const p=new URL(CHAT_CONFIG.urls.handleThreadItem.replace("0",e),window.location.origin);p.searchParams.
-set("limit",String(getEffectiveThreadInitialMessageLimit()));const g=await apiFetch(p.toString());if(!g.
-ok)throw new Error(`thread request failed (${g.status})`);const h=await g.json();if(!h||!Array.isArray(
-h.messages))throw new Error("invalid thread response");if(n!==threadLoadSequence)return!1;setCurrentChatHeaderTitle(
-h&&h.title),allMessages=h.messages,threadHasOlderMessages=!!h.has_older_messages,oldestLoadedMessageId=
-h.oldest_loaded_id||(allMessages.length?allMessages[0].id:null);const v=(allMessages||[]).filter(w=>w.
-role==="user"&&w.content).map(w=>w.content);if(promptHistory=[...new Set(v.slice().reverse())],historyIndex=
--1,tempPrompt="",currentThreadPending=h.pending_job||null,setTemporaryChatUiState(!!(h&&h.is_temporary)),
-applyTemporaryChatRuntimeMeta(h||{}),ensureTemporaryChatHeartbeat(!0),get("thread-custom-instruction")&&
-(get("thread-custom-instruction").value=h.custom_instruction||""),h.last_model&&selectModelById(h.last_model),
-get("enable-prompt-cache")&&(get("enable-prompt-cache").checked=!!h.enable_prompt_caching,updatePromptCacheUi()),
-h.last_gem_uuid&&loadedGems.length>0){const w=loadedGems.find(x=>x.uuid===h.last_gem_uuid);w&&(threadGemMap[currentThreadId]=
-w,applyActiveGem(w))}const b=localStorage.getItem(`fixed_branch_${currentThreadId}`);if(b&&allMessages.
-find(w=>String(w.id)===String(b))?currentLeafId=b:allMessages.length>0?currentLeafId=allMessages[allMessages.
-length-1].id:currentLeafId=null,renderThreadTree({silent:s,keepScroll:s}),s&&o?applyCodeCollapseByMessage(
-get("chat-container"),o,!0):s||applyCodeCollapseByMessage(get("chat-container"),null,!0),currentThreadPending&&
-!s&&!isPendingJobSuppressed(currentThreadPending.job_id)&&resumePendingStream(currentThreadPending),
-i){const w=get("prompt-input");w&&(w.value=r||"",c?w.style.height=c:w.style.height="auto"),currentImageUrls=
-u,currentImageUrls&&currentImageUrls.length?(get("file-preview").classList.remove("hidden"),get("fil\
-e-name").innerText=`${currentImageUrls.length} files ready`):get("file-preview").classList.add("hidd\
-en"),schedulePromptTokenEstimate(!0)}if(i||schedulePromptTokenEstimate(!0),window.innerWidth<768&&get(
-"overlay").click(),typeof window.__refreshAdminThreadEncState=="function")try{window.__refreshAdminThreadEncState()}catch{}
-return!0}catch(p){return n!==threadLoadSequence||(console.error("Failed to load chat thread:",p),s||
-showChatLoadError(e),s||showToast("\u30C1\u30E3\u30C3\u30C8\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
-"error",!0)),!1}}a(loadMessages,"loadMessages");async function loadOlderMessages(){if(loadingOlderMessages||
+n>${h}</div><div class="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 \
+transition" data-thread-actions="1"><button class="text-gray-500 hover:text-white px-1 transition" o\
+nclick="renameThread(event, '${u}')"><i class="fas fa-pen text-xs"></i></button><button class="text-\
+gray-500 hover:text-red-400 px-1 transition" onclick="deleteThread(event, '${u}')"><i class="fas fa-\
+trash text-xs"></i></button></div>`,p.onclick=w=>{w.target.closest("button")||w.target.closest("[dat\
+a-thread-actions]")||loadMessages(u)},r?o.insertBefore(p,r):o.appendChild(p)}),hasMoreThreads=!!s.has_next,
+hasMoreThreads&&threadPage++,snapshotSidebarHistory("loadThreads-rendered count="+s.threads.length+"\
+ append="+!!e)):snapshotSidebarHistory("loadThreads-empty-or-invalid")}catch(t){console.error("Faile\
+d to load threads:",t),snapshotSidebarHistory("loadThreads-error")}finally{threadLoading=!1,updateThreadHighlighting(),
+snapshotSidebarHistory("loadThreads-finally")}}a(loadThreads,"loadThreads");function initPullToRefresh(e,t){
+const n=get(e);if(!n)return;const i=`${e}-pull-indicator`,s=60,o=88,r=52,c=.5,u=8;let p=0,g=!1,h=0,v=null;
+const b=a(()=>get(i),"indicatorEl"),w=a(()=>{const T=b();return T?T.querySelector(".ptr-pull-label"):
+null},"labelEl"),x=a(T=>{const E=b();if(!E)return;E.style.height=Math.min(T,o)+"px",E.classList.toggle(
+"active",T>2),E.classList.toggle("pull-ready",T>=s);const F=w();F&&(F.textContent=T>=s?"\u96E2\u3057\u3066\u66F4\u65B0":
+"\u5F15\u3063\u5F35\u3063\u3066\u66F4\u65B0")},"applyPullUI"),L=a(()=>{const T=b();T&&(T.style.height=
+"0px",T.classList.remove("active","pull-ready","refreshing"),T.classList.remove("dragging"))},"reset\
+PullUI");n.addEventListener("touchstart",T=>{if(v){g=!1;return}if(n.scrollTop>0){g=!1;return}const E=T.
+touches[0];E&&(p=E.clientY,h=0,g=!0)},{passive:!0}),n.addEventListener("touchmove",T=>{if(!g||v)return;
+if(n.scrollTop>0){g=!1;return}const E=T.touches[0];if(!E)return;const F=E.clientY-p;if(F<=0){h>0&&(h=
+0,x(0)),g=!1;return}const se=b();se&&!se.classList.contains("dragging")&&se.classList.add("dragging"),
+h=Math.min(F*c,o),x(h),F>=u&&T.preventDefault()},{passive:!1}),n.addEventListener("touchend",()=>{if(!g||
+(g=!1,v))return;const T=b();T&&T.classList.remove("dragging");const E=h>=s;if(h=0,!E){L();return}let F;
+try{F=t()}catch{F=null}const se=b();if(se){se.classList.add("refreshing"),se.style.height=r+"px";const Y=se.
+querySelector(".ptr-pull-label");Y&&(Y.textContent="\u66F4\u65B0\u4E2D...")}F&&typeof F.then=="funct\
+ion"?(v=F,F.catch(()=>{}).finally(()=>{v=null,L()})):(v=Promise.resolve(),setTimeout(()=>{v=null,L()},
+400))}),n.addEventListener("touchcancel",()=>{g=!1,h=0,L()})}a(initPullToRefresh,"initPullToRefresh");
+const initThreadPullToRefresh=a(()=>initPullToRefresh("thread-list",()=>loadThreads(!1)),"initThread\
+PullToRefresh"),initGemPullToRefresh=a(()=>initPullToRefresh("gem-list",()=>loadGems()),"initGemPull\
+ToRefresh"),initPullToRefreshAll=a(()=>{initThreadPullToRefresh(),initGemPullToRefresh()},"initPullT\
+oRefreshAll");document.readyState==="loading"?document.addEventListener("DOMContentLoaded",initPullToRefreshAll,
+{once:!0}):initPullToRefreshAll();async function toggleBookmark(e,t){e&&e.stopPropagation(),await apiFetch(
+`/api/threads/${t}/bookmark`,{method:"POST"}),loadThreads()}a(toggleBookmark,"toggleBookmark");async function loadMessages(e,t={}){
+const n=++threadLoadSequence;window.closeHistoryModal&&window.closeHistoryModal();const i=!!t.preserveDraft,
+s=!!t.silent;s||resumeChatAutoScroll({scroll:!1});const o=s?snapshotCodeCollapseByMessage(get("chat-\
+container")):null;let r="",c="",u=[];if(i){const p=get("prompt-input");r=p?p.value:"",c=p?p.style.height:
+"",u=currentImageUrls?currentImageUrls.slice():[],editingMessageId=null,setEditUi(!1)}else cancelEdit();
+currentThreadId=e!=null?String(e):e,t.skipHistory||history.pushState({},"","/c/"+e),updateThreadHighlighting(),
+syncActiveGemForThread(currentThreadId),get("welcome-screen").classList.add("hidden"),s||(get("chat-\
+container").innerHTML=buildChatLoadingSkeletonHtml());try{const p=new URL(CHAT_CONFIG.urls.handleThreadItem.
+replace("0",e),window.location.origin);p.searchParams.set("limit",String(getEffectiveThreadInitialMessageLimit()));
+const g=await apiFetch(p.toString());if(!g.ok)throw new Error(`thread request failed (${g.status})`);
+const h=await g.json();if(!h||!Array.isArray(h.messages))throw new Error("invalid thread response");
+if(n!==threadLoadSequence)return!1;setCurrentChatHeaderTitle(h&&h.title),allMessages=h.messages,threadHasOlderMessages=
+!!h.has_older_messages,oldestLoadedMessageId=h.oldest_loaded_id||(allMessages.length?allMessages[0].
+id:null);const v=(allMessages||[]).filter(w=>w.role==="user"&&w.content).map(w=>w.content);if(promptHistory=
+[...new Set(v.slice().reverse())],historyIndex=-1,tempPrompt="",currentThreadPending=h.pending_job||
+null,setTemporaryChatUiState(!!(h&&h.is_temporary)),applyTemporaryChatRuntimeMeta(h||{}),ensureTemporaryChatHeartbeat(
+!0),get("thread-custom-instruction")&&(get("thread-custom-instruction").value=h.custom_instruction||
+""),h.last_model&&selectModelById(h.last_model),get("enable-prompt-cache")&&(get("enable-prompt-cach\
+e").checked=!!h.enable_prompt_caching,updatePromptCacheUi()),h.last_gem_uuid&&loadedGems.length>0){const w=loadedGems.
+find(x=>x.uuid===h.last_gem_uuid);w&&(threadGemMap[currentThreadId]=w,applyActiveGem(w))}const b=localStorage.
+getItem(`fixed_branch_${currentThreadId}`);if(b&&allMessages.find(w=>String(w.id)===String(b))?currentLeafId=
+b:allMessages.length>0?currentLeafId=allMessages[allMessages.length-1].id:currentLeafId=null,renderThreadTree(
+{silent:s,keepScroll:s}),s&&o?applyCodeCollapseByMessage(get("chat-container"),o,!0):s||applyCodeCollapseByMessage(
+get("chat-container"),null,!0),currentThreadPending&&!s&&!isPendingJobSuppressed(currentThreadPending.
+job_id)&&resumePendingStream(currentThreadPending),i){const w=get("prompt-input");w&&(w.value=r||"",
+c?w.style.height=c:w.style.height="auto"),currentImageUrls=u,currentImageUrls&&currentImageUrls.length?
+(get("file-preview").classList.remove("hidden"),get("file-name").innerText=`${currentImageUrls.length}\
+ files ready`):get("file-preview").classList.add("hidden"),schedulePromptTokenEstimate(!0)}if(i||schedulePromptTokenEstimate(
+!0),window.innerWidth<768&&get("overlay").click(),typeof window.__refreshAdminThreadEncState=="funct\
+ion")try{window.__refreshAdminThreadEncState()}catch{}return!0}catch(p){return n!==threadLoadSequence||
+(console.error("Failed to load chat thread:",p),s||showChatLoadError(e),s||showToast("\u30C1\u30E3\u30C3\u30C8\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\
+\u3057\u305F","error",!0)),!1}}a(loadMessages,"loadMessages");async function loadOlderMessages(){if(loadingOlderMessages||
 !currentThreadId||!threadHasOlderMessages||!oldestLoadedMessageId)return;loadingOlderMessages=!0;const e=get(
 "chat-container"),t=e?e.scrollHeight:0,n=e?e.scrollTop:0;try{const i=new URL(CHAT_CONFIG.urls.handleThreadItem.
 replace("0",currentThreadId),window.location.origin);i.searchParams.set("before_id",String(oldestLoadedMessageId)),

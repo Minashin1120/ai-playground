@@ -90,6 +90,49 @@ class ReleaseCommonTests(unittest.TestCase):
             )
         )
 
+    def test_update_handoff_keeps_toc_at_top(self):
+        import tempfile
+
+        block = (
+            "**最終更新:** 2026-09-01\n"
+            "**システム状態:** **正常稼働中 (V4.8.900)**\n"
+            "**バージョン:** V4.8.900\n"
+            "**特記事項:** テスト\n\n"
+        )
+        toc = (
+            "====\n"
+            "【引き継ぎ資料 目次】\n"
+            "1. 概要\n"
+            "※ バージョンの更新履歴\n"
+            "\n"
+            "【現行のサービス構成】\n"
+            "本文\n"
+        )
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "handoff.txt"
+            p.write_text(toc, encoding="utf-8")
+            COMMON.update_handoff(p, block)
+            result = p.read_text(encoding="utf-8")
+        self.assertTrue(result.startswith("====\n【引き継ぎ資料 目次】"))
+        note_pos = result.index("※ バージョンの更新履歴")
+        block_pos = result.index("**最終更新:**")
+        body_pos = result.index("【現行のサービス構成】")
+        self.assertLess(note_pos, block_pos)
+        self.assertLess(block_pos, body_pos)
+
+    def test_update_handoff_prepends_when_no_toc_marker(self):
+        import tempfile
+
+        block = "**最終更新:** 2026-09-01\n**バージョン:** V4.8.900\n\n"
+        previous = "【現行のサービス構成】\n本文\n"
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "handoff.txt"
+            p.write_text(previous, encoding="utf-8")
+            COMMON.update_handoff(p, block)
+            result = p.read_text(encoding="utf-8")
+        self.assertTrue(result.startswith("**最終更新:**"))
+        self.assertIn("【現行のサービス構成】", result)
+
 
 class ReleaseScriptContractTests(unittest.TestCase):
     def test_expected_scripts_exist(self):

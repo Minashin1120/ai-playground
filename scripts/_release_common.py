@@ -401,6 +401,18 @@ def render_handoff_block(
 
 def update_handoff(path: Path, block: str) -> None:
     previous = read_text(path) if path.is_file() else ""
+    if not previous:
+        write_text(path, block)
+        return
+    # The handoff document starts with a table of contents ("【引き継ぎ資料 目次】").
+    # Keep that header at the very top: insert the release block right after the
+    # TOC note line instead of above the whole document.
+    marker = "※ バージョンの更新履歴"
+    if marker in previous:
+        idx = previous.index(marker)
+        end = previous.index("\n", idx) + 1
+        write_text(path, previous[:end] + "\n" + block + previous[end:])
+        return
     write_text(path, block + previous)
 
 

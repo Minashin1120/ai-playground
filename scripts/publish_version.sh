@@ -175,7 +175,9 @@ if [[ "$plan_errors" -ne 0 ]]; then
 fi
 
 info "re-checking the prepared tree"
-"$ROOT/scripts/verify_changes.sh"
+# Full regression tests already ran inside prepare_version.sh and nothing changes
+# between prepare and publish, so re-check assets/syntax only (--skip-tests).
+"$ROOT/scripts/verify_changes.sh" --skip-tests
 
 dump_restart_logs() {
     echo "----- service status -----" >&2

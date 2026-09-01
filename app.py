@@ -746,8 +746,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-01-006')
-app.config['SYSTEM_VERSION'] = 'V4.8.898'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-01-007')
+app.config['SYSTEM_VERSION'] = 'V4.8.899'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -2754,6 +2754,20 @@ _CREATE_FILE_FORMAT_BY_EXT = {
     ".csv": "csv", ".tsv": "tsv", ".json": "json",
 }
 
+# Default extension used when the model supplies an explicit ``format`` but the
+# filename has no extension (e.g. create_file(filename="企画書", format="docx")).
+_CREATE_FILE_EXT_BY_FORMAT = {
+    "text": ".txt",
+    "markdown": ".md",
+    "code": ".txt",
+    "pdf": ".pdf",
+    "docx": ".docx",
+    "xlsx": ".xlsx",
+    "csv": ".csv",
+    "tsv": ".tsv",
+    "json": ".json",
+}
+
 _CREATE_FILE_FORMATS = ("text", "markdown", "code", "pdf", "docx", "xlsx", "csv", "tsv", "json")
 
 # Extensions a user may upload from their own device.  This intentionally
@@ -2789,12 +2803,25 @@ def _infer_create_file_format(filename):
 
 
 def _sanitize_create_file_base_name(filename):
-    """Return a safe file base-name (no path separators) for display purposes."""
+    """Return a safe ASCII file base-name that preserves the original extension.
+
+    ``secure_filename()`` strips non-ASCII characters, so Japanese names such
+    as ``企画書.docx`` become ``docx`` (the leading dot is also removed),
+    which makes the extension check fail with an empty extension.  The
+    extension is therefore read from the original basename and re-appended to
+    the sanitized stem (same approach as ``_sanitize_upload_filename``).  The
+    returned name is used for extension detection and on-disk storage;
+    ``_execute_create_file_tool`` keeps the original name for user display.
+    """
     raw = str(filename or "").strip()
     raw = raw.replace("\\", "/")
     base = raw.rsplit("/", 1)[-1].strip()
-    base = secure_filename(base) or "file"
-    return base
+    ext = os.path.splitext(base)[1].lower()
+    stem = secure_filename(base) or ""
+    if ext and not stem.endswith(ext):
+        stem = secure_filename(os.path.splitext(base)[0]) or "file"
+        return f"{stem}{ext}"
+    return stem or "file"
 
 
 def _inline_library_images_for_create_file(markdown_text, user_id):
@@ -3313,11 +3340,28 @@ def _execute_create_file_tool(user_id, args, encrypt):
         return {"ok": False, "error": "filename は必須です。"}
     safe_base = _sanitize_create_file_base_name(filename_raw)
     ext = os.path.splitext(safe_base)[1].lower()
+    explicit_format = str(args.get("format") or "").strip().lower()
+    if explicit_format not in _CREATE_FILE_FORMATS:
+        explicit_format = ""
+    format_name = explicit_format or _infer_create_file_format(safe_base)
     if not _create_file_allowed_ext(ext):
-        return {"ok": False, "error": f"対応していないファイル形式です: {ext or '(拡張子なし)'}"}
-    format_name = str(args.get("format") or "").strip().lower()
-    if format_name not in _CREATE_FILE_FORMATS:
-        format_name = _infer_create_file_format(safe_base)
+        # An explicit format lets the model create a file even when the
+        # filename has no (recognized) extension; the format's default
+        # extension is used for the on-disk name.
+        if explicit_format and explicit_format in _CREATE_FILE_EXT_BY_FORMAT and not ext:
+            ext = _CREATE_FILE_EXT_BY_FORMAT[explicit_format]
+            safe_base = f"{os.path.splitext(safe_base)[0]}{ext}"
+        else:
+            return {"ok": False, "error": f"対応していないファイル形式です: {ext or '(拡張子なし)'}"}
+    # User-facing name keeps the original (possibly non-ASCII) basename while
+    # the extension is normalized to the detected lowercase ext, so the model
+    # can present/download the file under its original Japanese name.
+    display_name = _sanitize_file_display_name(filename_raw) or "file"
+    display_ext = os.path.splitext(display_name)[1]
+    if not display_ext:
+        display_name = f"{display_name}{ext}"
+    elif display_ext.lower() != ext:
+        display_name = f"{os.path.splitext(display_name)[0]}{ext}"
     content = args.get("content")
     if content is None:
         return {"ok": False, "error": "content は必須です。"}
@@ -3325,7 +3369,7 @@ def _execute_create_file_tool(user_id, args, encrypt):
     if len(content) > _CREATE_FILE_MAX_CONTENT_CHARS:
         return {"ok": False, "error": "ファイル内容が大きすぎます。"}
     try:
-        data = _create_file_generated_bytes(safe_base, format_name, content, user_id)
+        data = _create_file_generated_bytes(display_name, format_name, content, user_id)
     except Exception as exc:
         logger.warning("create_file generation failed: %s", exc)
         return {"ok": False, "error": f"ファイル生成に失敗しました: {str(exc)[:200]}"}
@@ -3344,7 +3388,7 @@ def _execute_create_file_tool(user_id, args, encrypt):
     except Exception as exc:
         logger.warning("create_file save failed: %s", exc)
         return {"ok": False, "error": f"ライブラリへの保存に失敗しました: {str(exc)[:200]}"}
-    return {"ok": True, "filename": fname, "display_name": safe_base, "url": url, "size": len(data)}
+    return {"ok": True, "filename": fname, "display_name": display_name, "url": url, "size": len(data)}
 
 
 def _create_file_tool_result_text(result, tool_name="create_file", action="作成"):

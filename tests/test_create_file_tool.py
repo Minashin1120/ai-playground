@@ -70,6 +70,46 @@ class CreateFileToolTests(unittest.TestCase):
         )
         self.assertFalse(result.get("ok"))
 
+    def test_non_ascii_filename_keeps_extension(self):
+        # secure_filename() strips non-ASCII, so 企画書.docx would become
+        # "docx" (no extension) without this fix.  The sanitized on-disk base
+        # must keep the original extension.
+        self.assertEqual(target._sanitize_create_file_base_name("企画書.docx"), "file.docx")
+        self.assertEqual(target._sanitize_create_file_base_name("更新したドキュメント.docx"), "file.docx")
+        self.assertEqual(target._sanitize_create_file_base_name("企画書_ver2.docx"), "ver2.docx")
+        self.assertEqual(target._sanitize_create_file_base_name("メモ.txt"), "file.txt")
+        # ASCII names are unchanged.
+        self.assertEqual(target._sanitize_create_file_base_name("report.docx"), "report.docx")
+        self.assertEqual(target._sanitize_create_file_base_name("memo.txt"), "memo.txt")
+
+    def test_non_ascii_filename_creates_file_with_original_display_name(self):
+        # Regression: editing a docx via create_file with a Japanese filename
+        # used to fail with "対応していないファイル形式です: (拡張子なし)".
+        with patch("app._save_user_generated_bytes_verified") as save_mock:
+            save_mock.return_value = ("file_123_abc.docx", "/files/1/file_123_abc.docx")
+            result = target._execute_create_file_tool(
+                1, {"filename": "企画書.docx", "content": "# Title\n\nBody"}, encrypt=False
+            )
+        self.assertTrue(result.get("ok"))
+        self.assertEqual(result["display_name"], "企画書.docx")
+        self.assertEqual(result["url"], "/files/1/file_123_abc.docx")
+
+    def test_explicit_format_allows_extensionless_filename(self):
+        with patch("app._save_user_generated_bytes_verified") as save_mock:
+            save_mock.return_value = ("file_456_def.docx", "/files/1/file_456_def.docx")
+            result = target._execute_create_file_tool(
+                1, {"filename": "企画書", "format": "docx", "content": "# Title\n\nBody"}, encrypt=False
+            )
+        self.assertTrue(result.get("ok"))
+        self.assertEqual(result["display_name"], "企画書.docx")
+
+    def test_unknown_extension_without_format_still_rejected(self):
+        result = target._execute_create_file_tool(
+            1, {"filename": "企画書", "content": "x"}, encrypt=False
+        )
+        self.assertFalse(result.get("ok"))
+        self.assertIn("拡張子なし", result.get("error", ""))
+
     def test_missing_filename_rejected(self):
         result = target._execute_create_file_tool(1, {"content": "x"}, encrypt=False)
         self.assertFalse(result.get("ok"))

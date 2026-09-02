@@ -50,3 +50,12 @@ class UiDesignRefreshRegressionTests(unittest.TestCase):
         self.assertIn("flex-wrap: nowrap !important;", custom)
         self.assertIn("#sidebar #lib-btn.sidebar-icon-btn", custom)
         self.assertIn("id=\"lib-btn\"", chat)
+
+    def test_mobile_toolbar_icon_buttons_keep_flex_centering(self):
+        # On mobile, forcing display:block on every .hide-compact item sank the
+        # icon inside the settings/GitHub/etc. toolbar buttons to the button
+        # bottom, so the flex-centered library button looked raised. The
+        # toolbar icon buttons must keep display:inline-flex on small screens.
+        custom = _current_asset("css", "chat.custom.v4.8.*.css")
+        self.assertIn("#sidebar .sidebar-toolbar .sidebar-icon-btn.hide-compact", custom)
+        self.assertIn("display: inline-flex !important;", custom)

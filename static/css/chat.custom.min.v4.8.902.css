@@ -2178,6 +2178,12 @@
     #sidebar .hide-compact {
         display: block !important;
     }
+    /* ツールバーのアイコンボタンは display:block にすると内側のアイコンが
+       ボタン下寄りになり、flex中央揃えのライブラリ等より浮いて見えるため
+       inline-flex（アイコン中央揃え）を維持する */
+    #sidebar .sidebar-toolbar .sidebar-icon-btn.hide-compact {
+        display: inline-flex !important;
+    }
     #history-modal-btn {
         display: none !important;
     }

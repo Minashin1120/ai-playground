@@ -1252,9 +1252,10 @@
             account: 'アカウント',
             security: 'セキュリティ',
             '2fa': '2要素認証',
-            feedback: 'フィードバック'
+            feedback: 'フィードバック',
+            mcp: 'MCP'
         };
-        const ALL_TABS = ['general', 'api', 'prompt', 'display', 'data', 'account', 'security', '2fa', 'feedback'];
+        const ALL_TABS = ['general', 'api', 'prompt', 'display', 'data', 'account', 'security', '2fa', 'feedback', 'mcp'];
         function getSectionHeading(el) {
             const h3 = el.querySelector('h3');
             if (h3) return h3.textContent.trim();

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>MCP認証結果 - AI Chat Playground</title>
+    <meta name="robots" content="noindex">
+    {% include 'pwa_meta.html' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app-design.css') }}?v={{ app_version }}">
+    {% include 'icon_css.html' %}
+    {% include 'web_fonts.html' %}
+    <style>
+        body {
+            font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
+            background: radial-gradient(900px 520px at 20% -10%, rgba(37,99,235,0.16), transparent 55%),
+                        radial-gradient(700px 520px at 85% 0%, rgba(13,212,191,0.14), transparent 60%),
+                        linear-gradient(180deg, #05070f, #080c18);
+            color: #e8eaef;
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .mcp-result-card {
+            background: rgba(10, 16, 35, 0.9);
+            border: 1px solid rgba(148,163,184,0.16);
+            border-radius: 22px;
+            padding: 36px 40px;
+            max-width: 480px;
+            width: calc(100% - 48px);
+            text-align: center;
+            box-shadow: 0 26px 60px rgba(0,0,0,0.5);
+        }
+        .mcp-result-icon { font-size: 44px; margin-bottom: 14px; }
+        .mcp-result-title { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+        .mcp-result-msg { font-size: 13px; color: #9ca3af; line-height: 1.7; }
+        .mcp-result-close {
+            margin-top: 22px;
+            display: inline-block;
+            border: 1px solid rgba(148,163,184,0.3);
+            color: #e8eaef;
+            border-radius: 10px;
+            padding: 8px 18px;
+            font-size: 13px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.04);
+        }
+        .mcp-result-close:hover { background: rgba(255,255,255,0.1); }
+        a.mcp-result-close { text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="mcp-result-card">
+        {% if ok %}
+        <div class="mcp-result-icon"><i class="fas fa-check-circle" style="color:#34d399;"></i></div>
+        {% else %}
+        <div class="mcp-result-icon"><i class="fas fa-exclamation-triangle" style="color:#fbbf24;"></i></div>
+        {% endif %}
+        <div class="mcp-result-title">
+            {% if ok %}認証が完了しました{% else %}認証に失敗しました{% endif %}
+        </div>
+        <div class="mcp-result-msg">{{ message }}</div>
+        {% if ok %}
+        <button type="button" class="mcp-result-close" onclick="window.close(); setTimeout(()=>location.href='/settings', 500);">このタブを閉じる</button>
+        {% else %}
+        <a class="mcp-result-close" href="/settings">設定画面に戻る</a>
+        {% endif %}
+    </div>
+</body>
+</html>

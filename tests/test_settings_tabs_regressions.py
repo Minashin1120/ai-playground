@@ -23,6 +23,7 @@ class SettingsTabsRegressionTests(unittest.TestCase):
         "security",
         "2fa",
         "feedback",
+        "mcp",
     ]
 
     def test_settings_tabs_exist_in_template_and_js(self):

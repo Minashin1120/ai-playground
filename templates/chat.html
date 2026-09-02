@@ -1468,6 +1468,7 @@
                         <button type="button" id="btn-tab-security" data-progress-no-spinner="true" class="settings-tab" onclick="clickTab('security')"><i class="fas fa-shield-alt"></i><span>セキュリティ</span></button>
                         <button type="button" id="btn-tab-2fa" data-progress-no-spinner="true" class="settings-tab" onclick="clickTab('2fa')"><i class="fas fa-lock"></i><span>2要素認証</span></button>
                         <button type="button" id="btn-tab-feedback" data-progress-no-spinner="true" class="settings-tab" onclick="clickTab('feedback')"><i class="fas fa-bug"></i><span>フィードバック</span></button>
+                        <button type="button" id="btn-tab-mcp" data-progress-no-spinner="true" class="settings-tab" onclick="clickTab('mcp')"><i class="fas fa-plug"></i><span>MCP</span></button>
                     </div>
                     <button type="button" id="settings-tabs-arrow-right" class="settings-tabs-arrow settings-tabs-arrow-right" data-progress-no-spinner="true" aria-label="設定セクションを右へ" tabindex="-1"><i class="fas fa-chevron-right"></i></button>
                 </div>
@@ -1800,11 +1801,106 @@
             <div id="fb-admin-list" class="space-y-3 text-xs text-gray-300"></div>
         </div>
     </div>
+    <div class="settings-tab-panel overflow-y-auto hidden animate-fadeIn" id="tab-mcp">
+        <div class="settings-card">
+            <h3 class="settings-card-title"><i class="fas fa-plug text-cyan-300 mr-1"></i>外部MCPサーバー連携</h3>
+            <div class="text-[10px] text-gray-500 mb-3 leading-relaxed">
+                MCP（Model Context Protocol）で、チャット中に Gmail や Google Drive などの外部ツールを
+                モデルから利用できるようになります。サーバーごとに「有効」にすると、そのツールがチャットで
+                使えるようになります（変更を伴う操作は実行前に確認されます）。
+            </div>
+            <div class="rounded border border-gray-700 bg-gray-950/50 p-3 mb-3" id="mcp-google-oauth-card">
+                <div class="text-xs font-bold text-cyan-300 flex items-center gap-2"><i class="fab fa-google"></i>Google Workspace 連携（OAuthクライアント情報）</div>
+                <div class="text-[10px] text-gray-500 mt-1 leading-relaxed">
+                    Google Cloud で発行した OAuth クライアント（種類: Web）の Client ID / Client Secret を登録します。
+                    リダイレクトURIに <span class="text-gray-400">https://ai.minashin1120.com/api/mcp/oauth/callback</span> を
+                    追加してください。保存後はマスク表示されます（BYOK方式・このアカウント専用）。
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                    <div>
+                        <label class="text-xs text-gray-500 block">Client ID</label>
+                        <input type="text" id="mcp-google-client-id" autocomplete="off" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-500 block">Client Secret</label>
+                        <input type="password" id="mcp-google-client-secret" autocomplete="off" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white">
+                    </div>
+                </div>
+                <div class="flex items-center justify-end mt-2 gap-2">
+                    <span id="mcp-google-client-state" class="text-[10px] text-gray-500"></span>
+                    <button type="button" id="mcp-save-google-client-btn" data-progress-no-spinner="true" class="settings-btn settings-btn-primary" style="min-height:0;padding:6px 14px;font-size:12px;"><i class="fas fa-save"></i><span>保存</span></button>
+                </div>
+            </div>
+            <div class="flex items-center justify-between mt-1">
+                <div class="text-xs font-bold text-white flex items-center gap-2"><i class="fas fa-server text-gray-400"></i>登録済みサーバー</div>
+                <span id="mcp-server-count" class="text-[10px] text-gray-500"></span>
+            </div>
+            <div id="mcp-server-list" class="space-y-3 mt-2"></div>
+            <div id="mcp-status-msg" class="text-[11px] text-gray-400 mt-2"></div>
+        </div>
+        <div class="settings-card">
+            <h3 class="settings-card-title"><i class="fas fa-plus-circle text-emerald-400 mr-1"></i>カスタムMCPサーバーを追加</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div>
+                    <label class="text-xs text-gray-500 block">表示名</label>
+                    <input type="text" id="mcp-custom-name" autocomplete="off" data-1p-ignore="true" placeholder="例: 社内ナレッジMCP" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500 block">MCP URL（Streamable HTTP）</label>
+                    <input type="text" id="mcp-custom-url" autocomplete="off" data-1p-ignore="true" placeholder="https://example.com/mcp" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500 block">認証方式</label>
+                    <select id="mcp-custom-auth" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white">
+                        <option value="none">認証なし</option>
+                        <option value="bearer">Bearer トークン</option>
+                        <option value="oauth">OAuth 2.0</option>
+                    </select>
+                </div>
+                <div id="mcp-custom-bearer-wrap" class="hidden">
+                    <label class="text-xs text-gray-500 block">Bearer トークン</label>
+                    <input type="password" id="mcp-custom-bearer" autocomplete="off" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="text-xs text-gray-500 block">説明（任意）</label>
+                    <input type="text" id="mcp-custom-desc" autocomplete="off" data-1p-ignore="true" placeholder="このサーバーの説明" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white">
+                </div>
+            </div>
+            <div class="flex items-center justify-end mt-3 gap-2">
+                <span id="mcp-custom-status" class="text-[10px] text-gray-500"></span>
+                <button type="button" id="mcp-add-server-btn" data-progress-no-spinner="true" class="settings-btn settings-btn-primary" style="min-height:0;padding:6px 14px;font-size:12px;"><i class="fas fa-plug"></i><span>接続テストして追加</span></button>
+            </div>
+            <div class="text-[10px] text-gray-600 mt-2">URLはサーバー側で安全性（SSRF対策）を検査します。内部ネットワーク・ループバック等への接続はできません。</div>
+        </div>
+    </div>
                 </div>
             </div>
             <div class="settings-footer">
                 <button type="button" id="close-settings-btn" data-progress-no-spinner="true" class="settings-btn settings-btn-ghost">キャンセル</button>
                 <button type="button" id="save-settings-btn" class="settings-btn settings-btn-primary"><i class="fas fa-save"></i><span>保存</span></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MCP 変更操作の確認ダイアログ -->
+    <div id="mcp-decision-modal" class="fixed inset-0 bg-gray-900/95 z-[86] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-lg p-6 shadow-2xl border border-amber-500/50 m-4 modal-panel">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-lg font-bold text-amber-300 flex items-center"><i class="fas fa-shield-alt mr-2"></i>外部ツール操作の確認</h2>
+            </div>
+            <div class="text-[12px] text-gray-300 leading-relaxed mb-3">
+                AIが、接続中の外部MCPサーバーで<strong>変更を伴う操作</strong>を実行しようとしています。
+                内容を確認し、よければ「許可」を押してください（時間切れ・キャンセル時は実行されません）。
+            </div>
+            <div class="rounded border border-gray-700 bg-gray-950/70 p-3 space-y-2 text-[12px]">
+                <div><span class="text-gray-500">サーバー:</span> <span id="mcp-decision-server" class="text-white font-bold"></span></div>
+                <div><span class="text-gray-500">ツール:</span> <span id="mcp-decision-tool" class="text-cyan-300 font-mono"></span></div>
+                <div><span class="text-gray-500">入力:</span></div>
+                <pre id="mcp-decision-args" class="text-[11px] text-gray-400 bg-black/30 rounded p-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-all"></pre>
+            </div>
+            <div class="flex justify-end gap-2 mt-4">
+                <button type="button" id="mcp-decision-deny" data-progress-no-spinner="true" class="settings-btn settings-btn-ghost">拒否</button>
+                <button type="button" id="mcp-decision-allow" data-progress-no-spinner="true" class="settings-btn settings-btn-primary" style="background:#b45309;"><i class="fas fa-check"></i><span>許可</span></button>
             </div>
         </div>
     </div>

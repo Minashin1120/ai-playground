@@ -859,6 +859,14 @@
                                 }
                                 continue;
                             }
+                            if (j.type === 'mcp') {
+                                handleMcpStreamEvent(adiv, j.content || {});
+                                continue;
+                            }
+                            if (j.type === 'mcp_decision_request') {
+                                openMcpDecisionModal(j.content || {});
+                                continue;
+                            }
                             if (j.type === 'status') {
                                 markApiAccepted();
                                 const statusText = (j.content === null || j.content === undefined) ? '' : String(j.content);
@@ -1258,6 +1266,14 @@
                                      searchBox.innerHTML = '<i class="fas fa-check-circle text-green-400"></i> Search complete';
                                      setTimeout(() => { if(searchBox) searchBox.remove(); searchBox=null; }, 2000);
                                 }
+                                continue;
+                            }
+                            if (j.type === 'mcp') {
+                                handleMcpStreamEvent(adiv, j.content || {});
+                                continue;
+                            }
+                            if (j.type === 'mcp_decision_request') {
+                                openMcpDecisionModal(j.content || {});
                                 continue;
                             }
                             if (j.type === 'status') {
@@ -1661,3 +1677,141 @@
             initThreadPullToRefresh();
             initGemPullToRefresh();
         };
+
+        /* ================= MCP チャット中イベント（実行カード・確認ダイアログ） ================= */
+        let activeMcpDecision = null;
+        let mcpDecisionModalBound = false;
+
+        const mcpCardIdSelector = (id) => 'mcp_card_' + String(id).replace(/[^A-Za-z0-9_-]/g, '_');
+        const mcpEscHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
+
+        function mcpCardTitle(payload) {
+            return `${mcpEscHtml(payload.server_name || 'MCP')} / ${mcpEscHtml(payload.tool_name || payload.internal_name || '')}`;
+        }
+
+        function handleMcpStreamEvent(adiv, payload) {
+            if (!adiv || !payload || !payload.type) return;
+            const boxId = mcpCardIdSelector(payload.id || ('mcp_' + Date.now()));
+            if (payload.type === 'start') {
+                if (adiv.querySelector('[data-mcp-card="' + boxId + '"]')) return;
+                const html = `<div class="mcp-box mcp-running mb-2" data-mcp-card="${boxId}">
+    <span class="mcp-spinner"></span>
+    <span class="mcp-box-title">${mcpCardTitle(payload)}</span>
+    <span class="mcp-box-sub">実行中...</span>
+</div>`;
+                const search = adiv.querySelector('.search-box');
+                if (search) search.insertAdjacentHTML('afterend', html);
+                else adiv.insertAdjacentHTML('afterbegin', html);
+                return;
+            }
+            if (payload.type === 'result') {
+                let box = adiv.querySelector('[data-mcp-card="' + boxId + '"]');
+                const summary = payload.summary || '';
+                if (!box) {
+                    const html = `<div class="mcp-box mcp-done mb-2" data-mcp-card="${boxId}">
+    <i class="fas fa-check-circle mcp-box-ok"></i>
+    <span class="mcp-box-title">${mcpCardTitle(payload)}</span>
+    <span class="mcp-box-sub">実行しました</span>
+</div>`;
+                    const search = adiv.querySelector('.search-box');
+                    if (search) search.insertAdjacentHTML('afterend', html);
+                    else adiv.insertAdjacentHTML('afterbegin', html);
+                    box = adiv.querySelector('[data-mcp-card="' + boxId + '"]');
+                } else {
+                    box.classList.remove('mcp-running');
+                    box.classList.add('mcp-done');
+                    box.innerHTML = `<i class="fas fa-check-circle mcp-box-ok"></i>
+    <span class="mcp-box-title">${mcpCardTitle(payload)}</span>
+    <span class="mcp-box-sub">実行しました</span>`;
+                }
+                if (summary) {
+                    const note = document.createElement('div');
+                    note.className = 'mcp-box-note';
+                    note.textContent = summary.split('\n')[0].slice(0, 220);
+                    if (box) box.appendChild(note);
+                }
+                return;
+            }
+            if (payload.type === 'error') {
+                let box = adiv.querySelector('[data-mcp-card="' + boxId + '"]');
+                const msg = payload.message || 'MCPツールの実行に失敗しました';
+                if (!box) {
+                    const html = `<div class="mcp-box mcp-error mb-2" data-mcp-card="${boxId}">
+    <i class="fas fa-times-circle mcp-box-err"></i>
+    <span class="mcp-box-title">${mcpCardTitle(payload)}</span>
+    <span class="mcp-box-sub">失敗</span>
+</div>`;
+                    const search = adiv.querySelector('.search-box');
+                    if (search) search.insertAdjacentHTML('afterend', html);
+                    else adiv.insertAdjacentHTML('afterbegin', html);
+                    box = adiv.querySelector('[data-mcp-card="' + boxId + '"]');
+                } else {
+                    box.classList.remove('mcp-running');
+                    box.classList.add('mcp-error');
+                    box.innerHTML = `<i class="fas fa-times-circle mcp-box-err"></i>
+    <span class="mcp-box-title">${mcpCardTitle(payload)}</span>
+    <span class="mcp-box-sub">失敗</span>`;
+                }
+                const note = document.createElement('div');
+                note.className = 'mcp-box-note mcp-box-note-err';
+                note.textContent = String(msg).slice(0, 300);
+                if (box) box.appendChild(note);
+                return;
+            }
+            if (payload.type === 'decision_resolved') {
+                if (activeMcpDecision && activeMcpDecision.id && payload.id && activeMcpDecision.id === payload.id) {
+                    const modal = get('mcp-decision-modal');
+                    if (modal && !modal.classList.contains('hidden')) {
+                        try { hideModal('mcp-decision-modal'); } catch (e) {}
+                    }
+                    activeMcpDecision = null;
+                }
+                return;
+            }
+        }
+
+        function openMcpDecisionModal(payload) {
+            const modal = get('mcp-decision-modal');
+            if (!modal || !payload) return;
+            if (activeMcpDecision && activeMcpDecision.id === payload.id) return;
+            activeMcpDecision = {
+                id: payload.id || null,
+                jobId: currentJobId || null
+            };
+            const serverEl = get('mcp-decision-server');
+            const toolEl = get('mcp-decision-tool');
+            const argsEl = get('mcp-decision-args');
+            if (serverEl) serverEl.textContent = payload.server_name || '不明なサーバー';
+            if (toolEl) toolEl.textContent = payload.tool_name || '';
+            if (argsEl) {
+                let preview = payload.args_preview || '';
+                try {
+                    const parsed = JSON.parse(preview);
+                    preview = JSON.stringify(parsed, null, 2);
+                } catch (e) { /* raw */ }
+                argsEl.textContent = preview;
+            }
+            const allowBtn = get('mcp-decision-allow');
+            const denyBtn = get('mcp-decision-deny');
+            if (allowBtn) allowBtn.onclick = () => submitMcpDecision('allow');
+            if (denyBtn) denyBtn.onclick = () => submitMcpDecision('deny');
+            try { showModal('mcp-decision-modal'); } catch (e) {}
+        }
+
+        async function submitMcpDecision(decision) {
+            const modal = get('mcp-decision-modal');
+            try { if (modal) hideModal('mcp-decision-modal'); } catch (e) {}
+            const jobId = activeMcpDecision ? activeMcpDecision.jobId : null;
+            const id = activeMcpDecision ? activeMcpDecision.id : null;
+            activeMcpDecision = null;
+            if (!jobId) return;
+            try {
+                await apiFetch('/api/mcp/chat/' + encodeURIComponent(jobId) + '/decision', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ decision: decision, id: id })
+                });
+            } catch (e) { /* 失敗してもチャットは継続（タイムアウト=拒否） */ }
+        }

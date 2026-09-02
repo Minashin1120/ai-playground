@@ -1,3 +1,532 @@
+/* ================= MCP（外部モデル連携）設定UI ================= */
+        // 状態
+        let mcpServers = [];
+        let mcpLoaded = false;
+        let mcpOauthPopups = [];
+        const MCP_URLS = {
+            servers: () => '/api/mcp/servers',
+            server: (id) => `/api/mcp/servers/${encodeURIComponent(id)}`,
+            test: (id) => `/api/mcp/servers/${encodeURIComponent(id)}/test`,
+            authStart: (id) => `/api/mcp/servers/${encodeURIComponent(id)}/auth/start`,
+            authDisconnect: (id) => `/api/mcp/servers/${encodeURIComponent(id)}/auth/disconnect`,
+            tools: (id) => `/api/mcp/servers/${encodeURIComponent(id)}/tools`,
+            oauthClient: () => '/api/mcp/oauth-client',
+            permission: (id, tool) => `/api/mcp/servers/${encodeURIComponent(id)}/tools/${encodeURIComponent(tool)}/permission`
+        };
+        const mcpGoogleProviderKey = 'google_workspace';
+
+        const mcpEsc = (s) => {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        };
+        const mcpStatusMsg = (elId, msg, isError) => {
+            const el = get(elId);
+            if (!el) return;
+            el.textContent = msg || '';
+            el.style.color = isError ? '#f87171' : '#9ca3af';
+        };
+
+        function mcpAuthStatusLabel(srv) {
+            if (srv.auth_type === 'none') return '認証不要';
+            if (srv.auth_status === 'connected') return '接続済み';
+            if (srv.auth_status === 'expired') return '期限切れ（再認証）';
+            if (srv.auth_status === 'needs_auth') return '認証が必要';
+            return '未認証';
+        }
+        function mcpConnectionStateLabel(srv) {
+            if (srv.connection_state === 'error') return 'エラー';
+            if (srv.connection_state === 'connected') return '接続OK';
+            if (srv.connection_state === 'needs_auth') return '認証待ち';
+            return '未接続';
+        }
+        function mcpBadgeClass(kind) {
+            if (kind === 'ok' || kind === 'connected') return 'bg-emerald-700/60 text-emerald-100';
+            if (kind === 'error' || kind === 'expired') return 'bg-red-700/60 text-red-100';
+            if (kind === 'auth') return 'bg-amber-600/50 text-amber-100';
+            return 'bg-gray-700 text-gray-300';
+        }
+        function mcpStateBadge(srv) {
+            const label = mcpAuthStatusLabel(srv);
+            const cls = (srv.auth_status === 'connected') ? 'ok'
+                : (srv.auth_status === 'expired') ? 'expired'
+                : (srv.auth_status === 'needs_auth') ? 'auth' : 'neutral';
+            return `<span class="text-[9px] font-bold px-2 py-0.5 rounded-full ${mcpBadgeClass(cls)}">${mcpEsc(label)}</span>`;
+        }
+
+        function mcpOauthProviderLabel(pk) {
+            if (pk === 'google_workspace') return 'Google Workspace';
+            return pk || 'OAuth';
+        }
+
+        async function loadMcpServers(force) {
+            const listEl = get('mcp-server-list');
+            if (!listEl) return;
+            if (!force && mcpLoaded) { renderMcpServers(); return; }
+            mcpStatusMsg('mcp-status-msg', '読み込み中...', false);
+            try {
+                const res = await apiFetch(MCP_URLS.servers());
+                if (!res.ok) {
+                    const d = await res.json().catch(() => ({}));
+                    mcpStatusMsg('mcp-status-msg', d.error || 'MCPサーバー一覧の取得に失敗しました', true);
+                    return;
+                }
+                const data = await res.json();
+                mcpServers = (data && Array.isArray(data.servers)) ? data.servers : [];
+                mcpLoaded = true;
+                renderMcpServers();
+            } catch (e) {
+                mcpStatusMsg('mcp-status-msg', 'MCPサーバー一覧の取得に失敗しました: ' + (e && e.message ? e.message : e), true);
+            }
+        }
+
+        function renderMcpServers() {
+            const listEl = get('mcp-server-list');
+            const countEl = get('mcp-server-count');
+            if (!listEl) return;
+            const count = mcpServers.length;
+            if (countEl) countEl.textContent = `${count}件`;
+            if (!count) {
+                listEl.innerHTML = '<div class="text-[11px] text-gray-600 py-2">まだサーバーがありません。上のカスタム追加フォームから登録するか、Google Workspace の認証をしてください。</div>';
+                mcpStatusMsg('mcp-status-msg', '');
+                return;
+            }
+            const html = mcpServers.map((srv, idx) => mcpServerCard(srv, idx)).join('');
+            listEl.innerHTML = html;
+            mcpStatusMsg('mcp-status-msg', '');
+        }
+
+        function mcpServerCard(srv, idx) {
+            const isPreset = !!srv.is_preset;
+            const isOauth = srv.auth_type === 'oauth';
+            const isBearer = srv.auth_type === 'bearer';
+            const showAuthAction = isOauth || isBearer;
+            const needOauthClient = isOauth && !srv.oauth_client_registered;
+            const toolCount = Number(srv.tool_count || 0);
+            const toolHint = toolCount > 0 ? `${toolCount}ツール` : 'ツール未取得';
+            const badge = mcpStateBadge(srv);
+            const tag = isPreset
+                ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-700/50 text-blue-100">プリセット</span>`
+                : `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-700/50 text-purple-100">カスタム</span>`;
+            const authBlock = mcpAuthBlock(srv);
+            const oauthClientBlock = isOauth ? mcpOauthClientBlock(srv) : '';
+            return `
+<div class="rounded border border-gray-700 bg-gray-950/50 p-3" data-mcp-server="${mcpEsc(srv.slug)}">
+    <div class="flex items-center justify-between gap-2 flex-wrap">
+        <div class="flex items-center gap-2 min-w-0">
+            <i class="fas fa-plug ${srv.enabled ? 'text-cyan-300' : 'text-gray-600'}"></i>
+            <div class="min-w-0">
+                <span class="text-xs font-bold text-white">${mcpEsc(srv.name)}</span>
+                ${tag} ${badge}
+            </div>
+        </div>
+        <div class="flex items-center gap-1 shrink-0">
+            ${showAuthAction ? mcpAuthActionButton(srv) : ''}
+            ${isBearer && srv.auth_status !== 'connected' ? '' : ''}
+            ${!isPreset ? `<button type="button" data-progress-no-spinner="true" class="mcp-mini-btn mcp-danger-btn" data-act="delete" data-id="${srv.id}">削除</button>` : ''}
+            <label class="relative inline-flex items-center cursor-pointer ml-1" title="${srv.enabled ? '無効化' : '有効化'}">
+                <input type="checkbox" class="sr-only peer mcp-enable-toggle" data-id="${srv.id}" ${srv.enabled ? 'checked' : ''}>
+                <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--theme-600)]"></div>
+            </label>
+        </div>
+    </div>
+    <div class="text-[10px] text-gray-500 mt-1 break-all">${mcpEsc(srv.url)}</div>
+    ${srv.description ? `<div class="text-[10px] text-gray-500 mt-0.5">${mcpEsc(srv.description)}</div>` : ''}
+    ${srv.last_error ? `<div class="text-[10px] text-red-400 mt-1">${mcpEsc(srv.last_error)}</div>` : ''}
+    <div class="flex items-center justify-between gap-2 mt-2 flex-wrap">
+        <div class="text-[10px] text-gray-500 flex items-center gap-2">
+            <span class="${toolCount > 0 ? 'text-emerald-300' : 'text-gray-500'}">${toolHint}</span>
+            <button type="button" data-progress-no-spinner="true" class="mcp-mini-btn" data-act="tools" data-id="${srv.id}">ツール一覧</button>
+        </div>
+        <div class="flex items-center gap-1 flex-wrap">
+            <button type="button" data-progress-no-spinner="true" class="mcp-mini-btn" data-act="test" data-id="${srv.id}"><i class="fas fa-plug"></i> 接続テスト</button>
+            <span class="text-[9px] text-gray-600">${mcpEsc(mcpConnectionStateLabel(srv))}</span>
+        </div>
+    </div>
+    ${toolCount > 0 ? `<div class="hidden mt-2" data-mcp-toolbox="${srv.id}"></div>` : `<div class="hidden mt-2" data-mcp-toolbox="${srv.id}"><div class="text-[10px] text-gray-600">接続テスト後にツール一覧が表示されます。</div></div>`}
+    ${oauthClientBlock}
+    ${authBlock}
+</div>`;
+        }
+
+        function mcpAuthActionButton(srv) {
+            if (srv.auth_type === 'bearer') {
+                return '';
+            }
+            if (srv.auth_status === 'connected' || srv.auth_status === 'expired') {
+                return `<button type="button" data-progress-no-spinner="true" class="mcp-mini-btn mcp-auth-btn" data-act="reconnect" data-id="${srv.id}"><i class="fas fa-sync"></i> 再認証</button>
+                        <button type="button" data-progress-no-spinner="true" class="mcp-mini-btn mcp-danger-btn" data-act="disconnect" data-id="${srv.id}"><i class="fas fa-unlink"></i> 接続解除</button>`;
+            }
+            return `<button type="button" data-progress-no-spinner="true" class="mcp-mini-btn mcp-auth-btn" data-act="auth" data-id="${srv.id}"><i class="fas fa-key"></i> 認証する</button>`;
+        }
+
+        // OAuthクライアント情報の編集ブロック（サーバーごと）
+        function mcpOauthClientBlock(srv) {
+            const pk = srv.oauth_provider_key || srv.slug || '';
+            const providerLabel = mcpOauthProviderLabel(pk);
+            if (srv.oauth_client_registered) {
+                return `
+<div class="mt-2 rounded border border-gray-800 bg-black/20 p-2">
+    <div class="text-[10px] text-gray-400 flex items-center justify-between">
+        <span>OAuthクライアント（${mcpEsc(providerLabel)}）: ${mcpEsc(srv.oauth_client_id_masked || '登録済み')}</span>
+        <button type="button" data-progress-no-spinner="true" class="mcp-mini-btn" data-act="edit-oauth" data-id="${srv.id}">変更</button>
+    </div>
+</div>`;
+            }
+            return `
+<div class="mt-2 rounded border border-amber-700/50 bg-amber-950/20 p-2">
+    <div class="text-[10px] text-amber-300 mb-1">${mcpEsc(providerLabel)} の OAuth クライアント情報（Client ID / Secret）が必要です。</div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-1">
+        <input type="text" data-oauth-pk="${mcpEsc(pk)}" data-oauth-role="cid" placeholder="Client ID" autocomplete="off" data-1p-ignore="true" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white">
+        <input type="password" data-oauth-pk="${mcpEsc(pk)}" data-oauth-role="secret" placeholder="Client Secret" autocomplete="off" data-1p-ignore="true" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white">
+    </div>
+    <div class="flex justify-end mt-1">
+        <button type="button" data-progress-no-spinner="true" class="mcp-mini-btn" data-act="save-oauth" data-id="${srv.id}" data-pk="${mcpEsc(pk)}">保存</button>
+    </div>
+</div>`;
+        }
+
+        // 認証ブロック（bearer入力など）
+        function mcpAuthBlock(srv) {
+            if (srv.auth_type === 'bearer') {
+                const hasToken = !!srv.auth_has_token;
+                return `
+<div class="mt-2 rounded border border-gray-800 bg-black/20 p-2">
+    <div class="text-[10px] text-gray-400 mb-1">Bearer トークン ${hasToken ? '<span class="text-emerald-300">（保存済み・********）</span>' : '<span class="text-amber-300">（未設定）</span>'}</div>
+    <div class="flex gap-1">
+        <input type="password" data-bearer-id="${srv.id}" placeholder="Bearer トークン" autocomplete="off" data-1p-ignore="true" class="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white">
+        <button type="button" data-progress-no-spinner="true" class="mcp-mini-btn mcp-auth-btn" data-act="save-bearer" data-id="${srv.id}">保存</button>
+    </div>
+</div>`;
+            }
+            if (srv.auth_type === 'oauth') {
+                const pk = srv.oauth_provider_key || srv.slug || '';
+                const needClient = !srv.oauth_client_registered;
+                return `
+<div class="text-[10px] text-gray-600 mt-1">${needClient ? 'OAuthクライアント情報を保存すると「認証する」が使えます。' : ''}</div>`;
+            }
+            return '';
+        }
+
+        async function mcpToggleEnabled(serverId, enabled) {
+            mcpStatusMsg('mcp-status-msg', enabled ? '有効化しています...' : '無効化しています...', false);
+            try {
+                const res = await apiFetch(MCP_URLS.server(serverId), {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: enabled })
+                });
+                if (!res.ok) {
+                    const d = await res.json().catch(() => ({}));
+                    mcpStatusMsg('mcp-status-msg', d.error || '更新に失敗しました', true);
+                    return;
+                }
+                const data = await res.json();
+                mcpStatusMsg('mcp-status-msg', enabled ? '有効にしました。チャットのモデルへツールが公開されます。' : '無効にしました。', false);
+                loadMcpServers(true);
+            } catch (e) {
+                mcpStatusMsg('mcp-status-msg', '更新に失敗しました: ' + (e && e.message ? e.message : e), true);
+            }
+        }
+
+        async function mcpOpenAuth(serverId) {
+            mcpStatusMsg('mcp-status-msg', '認可URLを準備しています...', false);
+            try {
+                const res = await apiFetch(MCP_URLS.authStart(serverId), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                if (!res.ok) {
+                    const d = await res.json().catch(() => ({}));
+                    if (d.requires_oauth_client) {
+                        mcpStatusMsg('mcp-status-msg', d.error || 'OAuthクライアント情報を先に登録してください。', true);
+                    } else {
+                        mcpStatusMsg('mcp-status-msg', d.error || '認可URLの取得に失敗しました', true);
+                    }
+                    return;
+                }
+                const data = await res.json();
+                if (!data.url) {
+                    mcpStatusMsg('mcp-status-msg', '認可URLが返りませんでした', true);
+                    return;
+                }
+                const pop = window.open(data.url, '_blank', 'width=520,height=680');
+                if (pop) {
+                    mcpOauthPopups.push(pop);
+                    mcpStatusMsg('mcp-status-msg', 'Googleの画面で許可してください。完了後このタブに反映されます。', false);
+                    const poll = window.setInterval(() => {
+                        if (!pop || pop.closed) {
+                            window.clearInterval(poll);
+                            loadMcpServers(true);
+                        }
+                    }, 1200);
+                } else {
+                    mcpStatusMsg('mcp-status-msg', 'ポップアップがブロックされました。', true);
+                }
+            } catch (e) {
+                mcpStatusMsg('mcp-status-msg', '認可URLの取得に失敗しました: ' + (e && e.message ? e.message : e), true);
+            }
+        }
+
+        async function mcpDisconnect(serverId) {
+            if (!window.confirm('このサーバーの認証情報（トークン）を削除して接続を解除しますか？')) return;
+            try {
+                const res = await apiFetch(MCP_URLS.authDisconnect(serverId), {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+                });
+                if (!res.ok) {
+                    const d = await res.json().catch(() => ({}));
+                    mcpStatusMsg('mcp-status-msg', d.error || '接続解除に失敗しました', true);
+                    return;
+                }
+                mcpStatusMsg('mcp-status-msg', '接続を解除しました。', false);
+                loadMcpServers(true);
+            } catch (e) {
+                mcpStatusMsg('mcp-status-msg', '接続解除に失敗しました: ' + (e && e.message ? e.message : e), true);
+            }
+        }
+
+        async function mcpDeleteServer(serverId) {
+            if (!window.confirm('このカスタムMCPサーバーを削除しますか？')) return;
+            try {
+                const res = await apiFetch(MCP_URLS.server(serverId), { method: 'DELETE' });
+                if (!res.ok) {
+                    const d = await res.json().catch(() => ({}));
+                    mcpStatusMsg('mcp-status-msg', d.error || '削除に失敗しました', true);
+                    return;
+                }
+                mcpStatusMsg('mcp-status-msg', '削除しました。', false);
+                loadMcpServers(true);
+            } catch (e) {
+                mcpStatusMsg('mcp-status-msg', '削除に失敗しました: ' + (e && e.message ? e.message : e), true);
+            }
+        }
+
+        async function mcpTestServer(serverId, showTools) {
+            mcpStatusMsg('mcp-status-msg', '接続テスト中...', false);
+            try {
+                const res = await apiFetch(MCP_URLS.test(serverId), {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+                });
+                const d = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    mcpStatusMsg('mcp-status-msg', d.error || '接続テストに失敗しました', true);
+                    return;
+                }
+                if (d.probe && d.probe.message) mcpStatusMsg('mcp-status-msg', d.probe.message, !d.probe.ok);
+                loadMcpServers(true);
+            } catch (e) {
+                mcpStatusMsg('mcp-status-msg', '接続テストに失敗しました: ' + (e && e.message ? e.message : e), true);
+            }
+        }
+
+        async function mcpLoadTools(serverId) {
+            const box = document.querySelector(`[data-mcp-toolbox="${serverId}"]`);
+            if (!box) return;
+            box.classList.remove('hidden');
+            box.innerHTML = '<div class="text-[10px] text-gray-500">読み込み中...</div>';
+            try {
+                const res = await apiFetch(MCP_URLS.tools(serverId));
+                const d = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    box.innerHTML = `<div class="text-[10px] text-red-400">${mcpEsc(d.error || '取得に失敗しました')}</div>`;
+                    return;
+                }
+                const tools = (d && Array.isArray(d.tools)) ? d.tools : [];
+                if (!tools.length) {
+                    box.innerHTML = '<div class="text-[10px] text-gray-600">ツール一覧がありません。「接続テスト」で取得してください。</div>';
+                    return;
+                }
+                const rows = tools.map((t, i) => `
+<div class="flex items-start justify-between gap-2 py-1 border-b border-gray-800 last:border-0">
+    <div class="min-w-0">
+        <div class="text-[11px] text-cyan-200 font-mono">${mcpEsc(t.name)}</div>
+        <div class="text-[10px] text-gray-500 line-clamp-2">${mcpEsc(t.description || '')}</div>
+    </div>
+    <span class="text-[9px] shrink-0 px-1.5 py-0.5 rounded ${t.read_only ? 'bg-emerald-800/40 text-emerald-200' : 'bg-amber-800/40 text-amber-200'}">${t.read_only ? '読み取り' : '変更'}</span>
+</div>`).join('');
+                box.innerHTML = `<div class="rounded border border-gray-800 bg-black/20 p-2">${rows}</div>`;
+            } catch (e) {
+                box.innerHTML = '<div class="text-[10px] text-red-400">取得に失敗しました</div>';
+            }
+        }
+
+        async function mcpSaveOauthClient(providerKey, clientId, clientSecret, fromCardId) {
+            mcpStatusMsg('mcp-status-msg', '保存しています...', false);
+            const body = { provider_key: providerKey, client_id: clientId, client_secret: clientSecret };
+            try {
+                const res = await apiFetch(MCP_URLS.oauthClient(), {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+                });
+                const d = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    mcpStatusMsg('mcp-status-msg', d.error || '保存に失敗しました', true);
+                    return;
+                }
+                mcpStatusMsg('mcp-status-msg', 'OAuthクライアント情報を保存しました。', false);
+                loadMcpServers(true);
+            } catch (e) {
+                mcpStatusMsg('mcp-status-msg', '保存に失敗しました: ' + (e && e.message ? e.message : e), true);
+            }
+        }
+
+        async function mcpAddCustomServer() {
+            const nameEl = get('mcp-custom-name');
+            const urlEl = get('mcp-custom-url');
+            const authEl = get('mcp-custom-auth');
+            const descEl = get('mcp-custom-desc');
+            const bearerEl = get('mcp-custom-bearer');
+            const statusEl = get('mcp-custom-status');
+            const btnEl = get('mcp-add-server-btn');
+            if (!nameEl || !urlEl || !authEl) return;
+            const name = (nameEl.value || '').trim();
+            const url = (urlEl.value || '').trim();
+            const auth = authEl.value || 'none';
+            const desc = descEl ? (descEl.value || '').trim() : '';
+            const bearer = (bearerEl && bearerEl.value || '').trim();
+            if (!name || !url) {
+                if (statusEl) { statusEl.textContent = '表示名とURLは必須です'; statusEl.style.color = '#f87171'; }
+                return;
+            }
+            if (btnEl) btnEl.disabled = true;
+            if (statusEl) { statusEl.textContent = '接続テスト中...'; statusEl.style.color = '#9ca3af'; }
+            const body = { name, url, auth_type: auth, description: desc };
+            if (auth === 'bearer' && bearer) body.bearer_token = bearer;
+            try {
+                const res = await apiFetch(MCP_URLS.servers(), {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+                });
+                const d = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    if (statusEl) { statusEl.textContent = d.error || '追加に失敗しました'; statusEl.style.color = '#f87171'; }
+                    return;
+                }
+                if (statusEl) { statusEl.textContent = (d.probe && d.probe.message) || '追加しました'; statusEl.style.color = (d.probe && d.probe.ok) ? '#34d399' : '#fbbf24'; }
+                nameEl.value = '';
+                urlEl.value = '';
+                if (descEl) descEl.value = '';
+                if (bearerEl) bearerEl.value = '';
+                mcpLoaded = false;
+                loadMcpServers(true);
+            } catch (e) {
+                if (statusEl) { statusEl.textContent = '追加に失敗しました: ' + (e && e.message ? e.message : e); statusEl.style.color = '#f87171'; }
+            } finally {
+                if (btnEl) btnEl.disabled = false;
+            }
+        }
+
+        function bindMcpSettingsUi() {
+            const listEl = get('mcp-server-list');
+            if (!listEl) return;
+            // 追加ボタン
+            const addBtn = get('mcp-add-server-btn');
+            if (addBtn) addBtn.addEventListener('click', mcpAddCustomServer);
+            const authSel = get('mcp-custom-auth');
+            const bearerWrap = get('mcp-custom-bearer-wrap');
+            if (authSel && bearerWrap) {
+                const syncBearer = () => {
+                    bearerWrap.classList.toggle('hidden', authSel.value !== 'bearer');
+                };
+                authSel.addEventListener('change', syncBearer);
+                syncBearer();
+            }
+            // Google連携クライアント情報（上部カード）
+            const saveGoogleBtn = get('mcp-save-google-client-btn');
+            if (saveGoogleBtn) {
+                saveGoogleBtn.addEventListener('click', async () => {
+                    const cidEl = get('mcp-google-client-id');
+                    const secEl = get('mcp-google-client-secret');
+                    const stateEl = get('mcp-google-client-state');
+                    const cid = cidEl ? cidEl.value : '';
+                    const sec = secEl ? secEl.value : '';
+                    if (!cid && !sec) {
+                        if (stateEl) { stateEl.textContent = 'Client ID を入力してください'; stateEl.style.color = '#f87171'; }
+                        return;
+                    }
+                    await mcpSaveOauthClient(mcpGoogleProviderKey, cid || '********', sec || '********', null);
+                });
+            }
+            // 一覧内の操作（イベント委譲）
+            listEl.addEventListener('click', async (ev) => {
+                const btn = ev.target.closest('[data-act]');
+                if (!btn) return;
+                const act = btn.getAttribute('data-act');
+                const id = btn.getAttribute('data-id');
+                if (act === 'test') { ev.preventDefault(); mcpTestServer(id); return; }
+                if (act === 'tools') { ev.preventDefault(); mcpLoadTools(id); return; }
+                if (act === 'auth' || act === 'reconnect') { ev.preventDefault(); mcpOpenAuth(id); return; }
+                if (act === 'disconnect') { ev.preventDefault(); mcpDisconnect(id); return; }
+                if (act === 'delete') { ev.preventDefault(); mcpDeleteServer(id); return; }
+                if (act === 'edit-oauth') {
+                    ev.preventDefault();
+                    const card = btn.closest('[data-mcp-server]');
+                    if (card) {
+                        const pk = btn.getAttribute('data-oauth-pk') || '';
+                        const srv = mcpServers.find(s => String(s.id) === String(id));
+                        const wrap = document.createElement('div');
+                        wrap.className = 'mt-2 rounded border border-amber-700/50 bg-amber-950/20 p-2';
+                        wrap.innerHTML = `
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-1">
+        <input type="text" placeholder="Client ID" autocomplete="off" data-1p-ignore="true" class="mcp-oauth-edit-cid w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white" value="">
+        <input type="password" placeholder="Client Secret" autocomplete="off" data-1p-ignore="true" class="mcp-oauth-edit-sec w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white">
+    </div>
+    <div class="flex justify-end mt-1 gap-1">
+        <button type="button" data-progress-no-spinner="true" class="mcp-mini-btn" data-act="save-oauth" data-id="${id}" data-pk="${mcpEsc((srv && (srv.oauth_provider_key || srv.slug)) || '')}">保存</button>
+    </div>`;
+                        const prev = btn.closest('div');
+                        prev.parentNode.insertBefore(wrap, prev.nextSibling);
+                        btn.remove();
+                    }
+                    return;
+                }
+                if (act === 'save-oauth') {
+                    ev.preventDefault();
+                    const pk = btn.getAttribute('data-pk') || '';
+                    // 上部カード内の入力 or カード内入力 or インライン編集
+                    const scope = btn.closest('[data-mcp-server]') || document;
+                    const cidInputs = scope.querySelectorAll('[data-oauth-role="cid"], .mcp-oauth-edit-cid');
+                    const secInputs = scope.querySelectorAll('[data-oauth-role="secret"], .mcp-oauth-edit-sec');
+                    const cid = cidInputs.length ? cidInputs[cidInputs.length - 1].value : '';
+                    const sec = secInputs.length ? secInputs[secInputs.length - 1].value : '';
+                    if (!cid && !sec) { mcpStatusMsg('mcp-status-msg', 'Client ID を入力してください', true); return; }
+                    mcpSaveOauthClient(pk, cid || '********', sec || '********', id);
+                    return;
+                }
+                if (act === 'save-bearer') {
+                    ev.preventDefault();
+                    const input = document.querySelector(`[data-bearer-id="${id}"]`);
+                    const token = input ? input.value : '';
+                    if (!token || token.trim() === '') { mcpStatusMsg('mcp-status-msg', 'Bearerトークンを入力してください', true); return; }
+                    mcpStatusMsg('mcp-status-msg', '保存しています...', false);
+                    try {
+                        const res = await apiFetch(MCP_URLS.server(id), {
+                            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ bearer_token: token })
+                        });
+                        const d = await res.json().catch(() => ({}));
+                        if (!res.ok) { mcpStatusMsg('mcp-status-msg', d.error || '保存に失敗しました', true); return; }
+                        mcpStatusMsg('mcp-status-msg', 'Bearerトークンを保存しました。', false);
+                        loadMcpServers(true);
+                    } catch (e) {
+                        mcpStatusMsg('mcp-status-msg', '保存に失敗しました', true);
+                    }
+                    return;
+                }
+            });
+            // 有効トグル
+            listEl.addEventListener('change', (ev) => {
+                const t = ev.target.closest('.mcp-enable-toggle');
+                if (!t) return;
+                mcpToggleEnabled(t.getAttribute('data-id'), t.checked);
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => { try { bindMcpSettingsUi(); } catch (e) {} });
+        } else {
+            try { bindMcpSettingsUi(); } catch (e) {}
+        }
 
         function getModelTags(m, group) {
             const tags = [];

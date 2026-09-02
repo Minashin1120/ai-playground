@@ -57,6 +57,7 @@ ALLOWED_GIT_EXACT = {
 ALLOWED_GIT_PREFIXES = (
     "deploy/",
     "LICENSES/",
+    "mcp_service/",
     "scripts/",
     "static/",
     "templates/",

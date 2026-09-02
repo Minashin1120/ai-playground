@@ -762,6 +762,7 @@
                 loadFeedback();
                 bindSessionButtons();
                 loadSessions();
+                try { loadMcpServers(); } catch (e) {}
             };
             const closeSettingsModal = (skipHistory = false) => {
                 snapshotSidebarHistory('settings-close-before');

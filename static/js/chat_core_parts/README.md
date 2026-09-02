@@ -21,7 +21,7 @@
 | `part03_security_token_promptbar.js` | ~1,550 | セキュリティ（polyfill.io等のブロック）、トークン見積もり、プロンプトバー表示、Thinkingレベル、コード折りたたみ、低帯域モード適用 |
 | `part04_minimal_options_thinking.js` | ~1,580 | ミニマル表示のプラスボタンポップアップ、Thinkingスライダー、設定タブ（`TAB_LABELS`）、Botロックオーバーレイ、SWキャッシュモード（`applyCacheMode`）、Turnstile初期化 |
 | `part05_settings_modal.js` | ~1,610 | 設定モーダル本体。モデル定義 `MODELS` 配列、`MODEL_NAME_BY_ID` / `MODEL_TAGS`、音声（TTS/STS）一覧、画像・音声・動画拡張子、スラッシュコマンド定義、ウェルカム画面クイックアクセス |
-| `part06_model_media_prompt_cache.js` | ~490 | モデル一覧描画・Visionモデル選択、PromptCache 制約、ブラウザ高速モードの選択肢制御 |
+| `part06_model_media_prompt_cache.js` | ~1,020 | モデル一覧描画・Visionモデル選択、PromptCache 制約、ブラウザ高速モードの選択肢制御、MCP（外部モデル連携）設定UI（`loadMcpServers` / `renderMcpServers` / `bindMcpSettingsUi`） |
 | `part07_domcontent_initial.js` | ~1,700 | DOMContentLoaded 初期処理（前半）。テーマ初期化、高速モードトグル、アカウントエクスポート/インポート、一時チャットトグル、セッション管理UI |
 | `part08_domcontent_account_transfer.js` | ~1,520 | アカウント移行（エクスポート/インポート/重複修復）続き、管理者スレッド暗号化、自動システムプロンプト設定、テーマ設定バインド、`MODAL_CONFIG`（URLルート↔モーダル対応）と `closeModalById` |
 | `part09_domcontent_popstate_modals.js` | ~1,290 | `popstate` ハンドラ（戻る/進むでモーダル開閉・スレッド復元）、2FA（TOTP/WebAuthn）、リアルタイム音声セッション（Gemini Live・`RealtimeVoiceSession`・音声再生）、フィードバック管理 |

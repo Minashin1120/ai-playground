@@ -1,6 +1,6 @@
 # AI Chat Playground
 
-[![Version](https://img.shields.io/badge/version-V4.8.902-2563eb)](static/changelogs/20260902_v4.8.902.md)
+[![Version](https://img.shields.io/badge/version-V4.8.903-2563eb)](static/changelogs/20260903_v4.8.903.md)
 [![Python](https://img.shields.io/badge/Python-3.11-3776ab)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-f59e0b)](LICENSE)
 
@@ -36,6 +36,7 @@ AI Chat Playground は、複数の生成AIを1つの画面から利用するた�
 - チャットとファイルのE2EE、TOTP、WebAuthn Passkey、セッション管理
 - Cloudflare Turnstile、レート制限、管理者向けBAN・診断機能
 - PWA、オフライン画面、テーマ、低帯域・パフォーマンス設定
+- 外部MCP（Model Context Protocol）サーバー連携（Gmail / Google Drive 等のGoogle Workspace プリセットと、URLを登録するカスタムMCPサーバー）。設定はユーザーごとに「設定 → MCP」タブで管理し、チャット中のモデルが登録済みツールを呼び出せます（変更操作は実行前に確認）。
 
 対応モデルは [MODELS.md](MODELS.md) を参照してください。モデル名、提供状況、価格は変わるため、実際の利用前に各プロバイダーの公式情報も確認してください。
 

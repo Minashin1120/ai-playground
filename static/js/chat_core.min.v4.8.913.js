@@ -2956,20 +2956,21 @@ MODEL_TAGS.includes(n)?n:"all",updateModelTagUi(),renderModelList(get("model-sea
 window.quickStart=e=>{selectModelById(e),get("welcome-screen").classList.add("hidden")};const BROWSER_FAST_DISABLED_OPTIONS=[
 ["enable-search","search-container"],["enable-url-context","url-context-container"],["enable-maps","\
 maps-grounding-container"],["enable-sys-prompt","sys-prompt-option"],["enable-prompt-cache","prompt-\
-cache-container"],["enable-mcp","mcp-container"]];function applyBrowserFastModeRestrictions(){if(!browserFastModeEnabled)
-return;browserFastPreviousOptions||(browserFastPreviousOptions={checks:Object.fromEntries(BROWSER_FAST_DISABLED_OPTIONS.
-map(([n])=>[n,!!(get(n)&&get(n).checked)])),coding:!!codingModeEnabled}),BROWSER_FAST_DISABLED_OPTIONS.
-forEach(([n,i])=>{const s=get(n),o=get(i);s&&(s.checked=!1,s.disabled=!0),o&&o.classList.add("opacit\
-y-50","pointer-events-none")}),codingModeEnabled&&syncCodingModeUi(!1,{persist:!1});const e=get("ena\
-ble-coding-mode"),t=get("coding-mode-container");e&&(e.disabled=!0),t&&t.classList.add("opacity-50",
-"pointer-events-none"),typeof syncMcpAutoSysRows=="function"&&syncMcpAutoSysRows(),refreshMinimalOptionsIfOpen()}
-a(applyBrowserFastModeRestrictions,"applyBrowserFastModeRestrictions");function restoreBrowserFastModeOptions(){
-const e=browserFastPreviousOptions;if(!e)return;BROWSER_FAST_DISABLED_OPTIONS.forEach(([i,s])=>{const o=get(
-i),r=get(s);o&&(o.disabled=!1,e&&e.checks&&Object.prototype.hasOwnProperty.call(e.checks,i)&&(o.checked=
-!!e.checks[i])),r&&r.classList.remove("opacity-50","pointer-events-none")});const t=get("enable-codi\
-ng-mode"),n=get("coding-mode-container");t&&(t.disabled=!1),n&&n.classList.remove("opacity-50","poin\
-ter-events-none"),e&&e.coding&&syncCodingModeUi(!0,{persist:!1}),browserFastPreviousOptions=null,typeof updatePromptCacheUi==
-"function"&&updatePromptCacheUi(),typeof syncMcpAutoSysRows=="function"&&syncMcpAutoSysRows(),refreshMinimalOptionsIfOpen()}
+cache-container"],["enable-mcp","mcp-container"],["enable-file-creation","file-creation-container"]];
+function applyBrowserFastModeRestrictions(){if(!browserFastModeEnabled)return;browserFastPreviousOptions||
+(browserFastPreviousOptions={checks:Object.fromEntries(BROWSER_FAST_DISABLED_OPTIONS.map(([n])=>[n,!!(get(
+n)&&get(n).checked)])),coding:!!codingModeEnabled}),BROWSER_FAST_DISABLED_OPTIONS.forEach(([n,i])=>{
+const s=get(n),o=get(i);s&&(s.checked=!1,s.disabled=!0),o&&o.classList.add("opacity-50","pointer-eve\
+nts-none")}),codingModeEnabled&&syncCodingModeUi(!1,{persist:!1});const e=get("enable-coding-mode"),
+t=get("coding-mode-container");e&&(e.disabled=!0),t&&t.classList.add("opacity-50","pointer-events-no\
+ne"),typeof syncMcpAutoSysRows=="function"&&syncMcpAutoSysRows(),refreshMinimalOptionsIfOpen()}a(applyBrowserFastModeRestrictions,
+"applyBrowserFastModeRestrictions");function restoreBrowserFastModeOptions(){const e=browserFastPreviousOptions;
+if(!e)return;BROWSER_FAST_DISABLED_OPTIONS.forEach(([i,s])=>{const o=get(i),r=get(s);o&&(o.disabled=
+!1,e&&e.checks&&Object.prototype.hasOwnProperty.call(e.checks,i)&&(o.checked=!!e.checks[i])),r&&r.classList.
+remove("opacity-50","pointer-events-none")});const t=get("enable-coding-mode"),n=get("coding-mode-co\
+ntainer");t&&(t.disabled=!1),n&&n.classList.remove("opacity-50","pointer-events-none"),e&&e.coding&&
+syncCodingModeUi(!0,{persist:!1}),browserFastPreviousOptions=null,typeof updatePromptCacheUi=="funct\
+ion"&&updatePromptCacheUi(),typeof syncMcpAutoSysRows=="function"&&syncMcpAutoSysRows(),refreshMinimalOptionsIfOpen()}
 a(restoreBrowserFastModeOptions,"restoreBrowserFastModeOptions");function setBrowserFastModeEnabled(e,t={}){
 browserFastModeEnabled=!!e;const n=get("enable-browser-fast-mode");n&&(n.checked=browserFastModeEnabled);
 const i=get("browser-fast-mode-container");i&&(i.classList.toggle("ring-1",browserFastModeEnabled),i.

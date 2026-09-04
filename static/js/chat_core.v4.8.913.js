@@ -8883,6 +8883,7 @@
             ['enable-sys-prompt', 'sys-prompt-option'],
             ['enable-prompt-cache', 'prompt-cache-container'],
             ['enable-mcp', 'mcp-container'],
+            ['enable-file-creation', 'file-creation-container'],
         ];
 
         function applyBrowserFastModeRestrictions() {

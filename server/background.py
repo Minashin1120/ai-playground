@@ -2718,6 +2718,23 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     # Avoid forcing "minimal" when users disable thinking, because Gemini 3 does not
                     # support fully turning thinking off and defaults are higher per docs.
 
+                    # Gemini 3 supports combining its built-in code execution tool
+                    # with custom function tools. Older Gemini models do not, so
+                    # when File is also enabled we expose the same restricted local
+                    # executor as a custom function instead of sending incompatible
+                    # built-in and custom tools together.
+                    _gemini_python_function_active = bool(
+                        options.get('enable_python')
+                        and options.get('enable_file_creation')
+                        and not is_gemini_3
+                        and not gemini_local_python
+                    )
+                    _gemini_manual_function_tools = bool(
+                        options.get('enable_python')
+                        and options.get('enable_file_creation')
+                        and is_gemini_3
+                        and not gemini_local_python
+                    )
                     _gemini_code_exec_active = False
                     if auto_enable_search:
                         conf['tools'] = [types.Tool(google_search=types.GoogleSearch())]
@@ -2729,21 +2746,51 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         conf['tools'].append(types.Tool(google_maps=types.GoogleMaps()))
                     if options.get('enable_python') and not gemini_local_python:
                         if 'tools' not in conf: conf['tools'] = []
-                        conf['tools'].append(types.Tool(code_execution=types.ToolCodeExecution()))
-                        _gemini_code_exec_active = True
-                        # Agentic View runs Python server-side; give it a longer
-                        # deadline so it doesn't hit 504 DEADLINE_EXCEEDED.
-                        conf['http_options'] = types.HttpOptions(timeout=_GEMINI_AGENTIC_TIMEOUT_MS)
-                        # The sandbox still has its own hard runtime limit (~30s) that
-                        # the request timeout cannot extend, so also guide the model to
-                        # write code that finishes within it (especially for image edits).
-                        if options.get('system_prompt'):
-                            conf['system_instruction'] = (
-                                f"{options.get('system_prompt')}\n\n{GEMINI_CODE_EXECUTION_GUIDANCE}"
+                        if _gemini_python_function_active:
+                            log_force(
+                                "Gemini: using local Python function because File creation "
+                                "is enabled on a pre-Gemini-3 model"
                             )
                         else:
-                            conf['system_instruction'] = GEMINI_CODE_EXECUTION_GUIDANCE
+                            conf['tools'].append(types.Tool(code_execution=types.ToolCodeExecution()))
+                            _gemini_code_exec_active = True
+                            # Agentic View runs Python server-side; give it a longer
+                            # deadline so it doesn't hit 504 DEADLINE_EXCEEDED.
+                            conf['http_options'] = types.HttpOptions(timeout=_GEMINI_AGENTIC_TIMEOUT_MS)
+                            # The sandbox still has its own hard runtime limit (~30s) that
+                            # the request timeout cannot extend, so also guide the model to
+                            # write code that finishes within it (especially for image edits).
+                            if options.get('system_prompt'):
+                                conf['system_instruction'] = (
+                                    f"{options.get('system_prompt')}\n\n{GEMINI_CODE_EXECUTION_GUIDANCE}"
+                                )
+                            else:
+                                conf['system_instruction'] = GEMINI_CODE_EXECUTION_GUIDANCE
                     last_file_tool_error = None
+                    if _gemini_python_function_active:
+                        def _gemini_execute_python_tool(code: str) -> str:
+                            """併用時に使う、アプリ側の制限付きPython実行ツール。"""
+                            nonlocal full_res
+                            safe_output = _sanitize_python_sandbox_output(safe_execute_python(code))
+                            code_md = f"\n```python\n{code}\n```\n"
+                            output_md = f"\n**Output:**\n```\n{safe_output}\n```\n"
+                            full_res += code_md + output_md
+                            full_res += f"\n```pyexec\n{json.dumps({'code': code, 'output': safe_output})}\n```\n"
+                            pub("content", code_md)
+                            pub("content", output_md)
+                            pub(
+                                "python",
+                                {
+                                    "id": f"gem_function_py_{int(time.time()*1000)}_{os.urandom(3).hex()}",
+                                    "code": code,
+                                    "output": safe_output,
+                                },
+                            )
+                            return safe_output
+
+                        _gemini_execute_python_tool.__name__ = "execute_python"
+                        if 'tools' not in conf: conf['tools'] = []
+                        conf['tools'].append(_gemini_execute_python_tool)
                     if options.get('enable_file_creation'):
                         def _gemini_create_file_tool(
                             filename: str,
@@ -2776,8 +2823,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             return _create_file_tool_result_text(result)
 
                         _gemini_create_file_tool.__name__ = "create_file"
-                        if 'tools' not in conf: conf['tools'] = []
-                        conf['tools'].append(_gemini_create_file_tool)
+                        if not _gemini_manual_function_tools:
+                            if 'tools' not in conf: conf['tools'] = []
+                            conf['tools'].append(_gemini_create_file_tool)
 
                         def _gemini_edit_file_tool(
                             source: str,
@@ -2817,12 +2865,36 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             return _create_file_tool_result_text(result, "edit_file", "編集")
 
                         _gemini_edit_file_tool.__name__ = "edit_file"
-                        if 'tools' not in conf: conf['tools'] = []
-                        conf['tools'].append(_gemini_edit_file_tool)
+                        if not _gemini_manual_function_tools:
+                            if 'tools' not in conf: conf['tools'] = []
+                            conf['tools'].append(_gemini_edit_file_tool)
+
+                        if _gemini_manual_function_tools:
+                            create_schema = _build_create_file_tool_schema()['function']
+                            edit_schema = _build_edit_file_tool_schema()['function']
+                            if 'tools' not in conf: conf['tools'] = []
+                            conf['tools'].append(types.Tool(function_declarations=[
+                                {
+                                    "name": create_schema["name"],
+                                    "description": create_schema.get("description", ""),
+                                    "parameters": create_schema.get("parameters", {}),
+                                },
+                                {
+                                    "name": edit_schema["name"],
+                                    "description": edit_schema.get("description", ""),
+                                    "parameters": edit_schema.get("parameters", {}),
+                                },
+                            ]))
+                            # Gemini 3 requires this flag and manual function
+                            # responses to circulate code-execution context.
+                            conf['tool_config'] = types.ToolConfig(
+                                include_server_side_tool_invocations=True
+                            )
 
                     # MCP外部ツール（google-genai の Automatic Function Calling 用の
                     # callable として追加。function_declarations は AFC を無効化するため使わない）
                     _mcp_runtime = None
+                    _gemini_mcp_callables = []
                     if not gemini_local_python:
                         try:
                             _mcp_runtime = _ensure_mcp_env()
@@ -3591,6 +3663,85 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             return str(text_val)
                         return ""
 
+                    def _gemini_manual_function_stream():
+                        """Gemini 3のツール併用でFileのfunction responseを循環させる。"""
+                        request_contents = list(contents)
+                        responses = []
+                        for _tool_round in range(8):
+                            _mark_provider_request_started()
+                            response = g_client.models.generate_content(
+                                model=rm,
+                                contents=request_contents,
+                                config=types.GenerateContentConfig(**conf),
+                            )
+                            responses.append(response)
+                            candidates = getattr(response, "candidates", None) or []
+                            model_content = getattr(candidates[0], "content", None) if candidates else None
+                            parts = getattr(model_content, "parts", None) or []
+                            calls = []
+                            for part in parts:
+                                function_call = getattr(part, "function_call", None)
+                                if not function_call and isinstance(part, dict):
+                                    function_call = part.get("function_call") or part.get("functionCall")
+                                if not function_call:
+                                    continue
+                                if isinstance(function_call, dict):
+                                    call_name = function_call.get("name")
+                                    call_args = function_call.get("args") or function_call.get("arguments") or {}
+                                    call_id = function_call.get("id")
+                                else:
+                                    call_name = getattr(function_call, "name", None)
+                                    call_args = getattr(function_call, "args", None) or getattr(function_call, "arguments", None) or {}
+                                    call_id = getattr(function_call, "id", None)
+                                if call_name in ("create_file", "edit_file"):
+                                    calls.append((call_name, call_args, call_id))
+                            if not calls:
+                                break
+
+                            if model_content is not None:
+                                request_contents.append(model_content)
+                            response_parts = []
+                            for call_name, call_args, call_id in calls:
+                                try:
+                                    if not isinstance(call_args, dict):
+                                        raise ValueError("function arguments must be an object")
+                                    if call_name == "create_file":
+                                        result_text = _gemini_create_file_tool(**call_args)
+                                    else:
+                                        result_text = _gemini_edit_file_tool(**call_args)
+                                except Exception as tool_exc:
+                                    result_text = f"Error executing {call_name}: {tool_exc}"
+                                function_response = types.FunctionResponse(
+                                    name=call_name,
+                                    response={"response": str(result_text or "Tool executed.")},
+                                    id=call_id,
+                                )
+                                response_parts.append(types.Part(function_response=function_response))
+                            request_contents.append(types.Content(role="user", parts=response_parts))
+                        return iter(responses)
+
+                    # Automatic Function Calling is managed by the Python SDK on the
+                    # non-streaming generate_content path. generate_content_stream
+                    # exposes the function-call part but does not complete the AFC
+                    # request/response cycle, which used to leave MCP/File turns empty.
+                    def _gemini_mcp_aware_stream():
+                        if _gemini_manual_function_tools:
+                            return _gemini_manual_function_stream()
+                        if _gemini_mcp_callables or options.get('enable_file_creation'):
+                            _mark_provider_request_started()
+                            log_force(f"STREAM-TRACE: Gemini custom-tool AFC request for {job_id} model={rm}")
+                            response = g_client.models.generate_content(
+                                model=rm,
+                                contents=contents,
+                                config=types.GenerateContentConfig(**conf),
+                            )
+                            return iter((response,))
+                        return g_client.models.generate_content_stream(
+                            model=rm,
+                            contents=contents,
+                            config=types.GenerateContentConfig(**conf),
+                        )
+
                     _mark_provider_request_started()
                     log_force(f"STREAM-TRACE: Gemini stream starting for {job_id} model={rm}")
                     # The streaming generator performs the HTTP request only when the
@@ -3602,11 +3753,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     _gemini_stream_attempts = 0
                     while True:
                         try:
-                            _gemini_stream = g_client.models.generate_content_stream(
-                                model=rm,
-                                contents=contents,
-                                config=types.GenerateContentConfig(**conf),
-                            )
+                            _gemini_stream = _gemini_mcp_aware_stream()
                             _gemini_stream_iter = iter(_gemini_stream)
                             _gemini_first_chunk = next(_gemini_stream_iter)
                             break
@@ -5854,10 +6001,137 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 search_reported = False
                 saw_reasoning_summary_delta = False
                 response_id = None
+                pending_response_mcp_calls = []
                 collected_sources = []
                 seen_source_urls = set()
                 sources_emitted = False
                 final_openai_usage = None
+
+                def _queue_response_mcp_call(call_id, call_name, call_args):
+                    """元ストリームを読み切った後に実行するMCP function callを積む。"""
+                    if not str(call_name or "").startswith("mcp__"):
+                        return
+                    key = (str(call_id or ""), str(call_name or ""))
+                    if any((c["id"], c["name"]) == key for c in pending_response_mcp_calls):
+                        return
+                    pending_response_mcp_calls.append({
+                        "id": call_id,
+                        "name": call_name,
+                        "arguments": call_args,
+                    })
+
+                def _response_item_fields(item):
+                    if isinstance(item, dict):
+                        return (
+                            item.get("type"),
+                            item.get("call_id") or item.get("id"),
+                            item.get("name"),
+                            item.get("arguments"),
+                        )
+                    return (
+                        getattr(item, "type", None),
+                        getattr(item, "call_id", None) or getattr(item, "id", None),
+                        getattr(item, "name", None),
+                        getattr(item, "arguments", None),
+                    )
+
+                def _consume_response_mcp_followup(followup_stream):
+                    """MCP結果を渡したResponses APIの続きのストリームを読む。"""
+                    nonlocal response_id, full_res, thought_accumulated
+                    next_calls = []
+
+                    def _queue_next_call(call_id, call_name, call_args):
+                        if not str(call_name or "").startswith("mcp__"):
+                            return
+                        key = (str(call_id or ""), str(call_name or ""))
+                        if any((c["id"], c["name"]) == key for c in next_calls):
+                            return
+                        next_calls.append({
+                            "id": call_id,
+                            "name": call_name,
+                            "arguments": call_args,
+                        })
+
+                    for followup_chunk in followup_stream:
+                        _latency_mark_once(job_id, "provider_first_chunk_ms")
+                        if check_stop():
+                            break
+                        if isinstance(followup_chunk, dict):
+                            followup_type = followup_chunk.get("type")
+                            followup_response = followup_chunk.get("response")
+                            followup_item = followup_chunk.get("item")
+                            followup_delta = followup_chunk.get("delta")
+                        else:
+                            followup_type = getattr(followup_chunk, "type", None)
+                            followup_response = getattr(followup_chunk, "response", None)
+                            followup_item = getattr(followup_chunk, "item", None)
+                            followup_delta = getattr(followup_chunk, "delta", None)
+
+                        if followup_type == "response.created":
+                            response_id = (
+                                (followup_response.get("id") if isinstance(followup_response, dict) else getattr(followup_response, "id", None))
+                                or response_id
+                            )
+                        elif followup_type == "response.output_text.delta" and followup_delta:
+                            full_res += followup_delta
+                            pub("content", followup_delta)
+                        elif followup_type in ("response.reasoning_text.delta", "response.reasoning_summary_text.delta") and followup_delta:
+                            thought_accumulated += followup_delta
+                            pub("thought", followup_delta)
+                        elif followup_type == "response.output_item.done":
+                            item_type, item_call_id, item_name, item_args = _response_item_fields(followup_item)
+                            if item_type == "function_call":
+                                _queue_next_call(item_call_id, item_name, item_args)
+                        elif followup_type == "response.completed":
+                            response_id = (
+                                (followup_response.get("id") if isinstance(followup_response, dict) else getattr(followup_response, "id", None))
+                                or response_id
+                            )
+                            output_items = (
+                                followup_response.get("output")
+                                if isinstance(followup_response, dict)
+                                else getattr(followup_response, "output", None)
+                            )
+                            for output_item in output_items or []:
+                                item_type, item_call_id, item_name, item_args = _response_item_fields(output_item)
+                                if item_type == "function_call":
+                                    _queue_next_call(item_call_id, item_name, item_args)
+                    return next_calls
+
+                def _execute_response_mcp_call(call):
+                    """MCP callを実行し、Responses APIへ返すfunction_call_outputを作る。"""
+                    nonlocal full_res
+                    call_id = call.get("id")
+                    call_name = call.get("name")
+                    raw_args = call.get("arguments")
+                    try:
+                        args_json = raw_args if isinstance(raw_args, dict) else json.loads(raw_args or "{}")
+                        if not isinstance(args_json, dict):
+                            raise ValueError("arguments must be a JSON object")
+                        if resp_mcp_env is None:
+                            result = f"Error: MCP tools are not available: {call_name}"
+                        else:
+                            mcp_text, mcp_out = resp_mcp_env.execute(call_name, args_json)
+                            result = mcp_text
+                            if mcp_out.get("ok"):
+                                _md = f"\n\n> 🔧 **MCPツール実行:** `{call_name}` を実行しました。\n"
+                                full_res += _md
+                                pub("content", _md)
+                            elif mcp_out.get("rejected"):
+                                _md = f"\n\n> 🚫 **MCPツール実行はユーザーにより拒否されました:** `{call_name}`\n"
+                                full_res += _md
+                                pub("content", _md)
+                        return {
+                            "type": "function_call_output",
+                            "call_id": call_id,
+                            "output": str(result or "Tool executed."),
+                        }
+                    except Exception as exc:
+                        return {
+                            "type": "function_call_output",
+                            "call_id": call_id,
+                            "output": f"Error executing MCP tool: {exc}",
+                        }
 
                 def _add_source(title, url):
                     if not url or url in seen_source_urls:
@@ -6032,7 +6306,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             call_name = getattr(item, 'name', None)
                             call_args = getattr(item, 'arguments', None)
 
-                        if item_type == "function_call" and (call_name in ("execute_python", "create_file", "edit_file") or str(call_name or "").startswith("mcp__")):
+                        # MCPの継続リクエストは、元のResponsesストリームを読み切って
+                        # response.completed を受け取ってから送る。ストリーム途中で
+                        # responses.create を再入すると、ツール後の回答が欠落する。
+                        if item_type == "function_call" and str(call_name or "").startswith("mcp__"):
+                            _queue_response_mcp_call(tool_call_id, call_name, call_args)
+                            continue
+
+                        if item_type == "function_call" and call_name in ("execute_python", "create_file", "edit_file"):
                             try:
                                 args_json = json.loads(call_args or "{}")
                                 if call_name == "create_file":
@@ -6068,25 +6349,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         )
                                         full_res += file_link_md
                                         pub("content", file_link_md)
-                                elif str(call_name or "").startswith("mcp__"):
-                                    if resp_mcp_env is None:
-                                        try:
-                                            resp_mcp_env = _ensure_mcp_env()
-                                        except Exception:
-                                            resp_mcp_env = None
-                                    if resp_mcp_env is None:
-                                        result = f"Error: MCP tools are not available: {call_name}"
-                                    else:
-                                        mcp_text, mcp_out = resp_mcp_env.execute(call_name, args_json)
-                                        result = mcp_text
-                                        if mcp_out.get("ok"):
-                                            _md = f"\n\n> 🔧 **MCPツール実行:** `{call_name}` を実行しました。\n"
-                                            full_res += _md
-                                            pub("content", _md)
-                                        elif mcp_out.get("rejected"):
-                                            _md = f"\n\n> 🚫 **MCPツール実行はユーザーにより拒否されました:** `{call_name}`\n"
-                                            full_res += _md
-                                            pub("content", _md)
                                 else:
                                     code = args_json.get('code', '')
                                     if code:
@@ -6190,12 +6452,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             final_openai_usage = resp_usage
                         if output_items:
                             for item in output_items:
-                                if isinstance(item, dict):
-                                    item_type = item.get('type')
-                                    content_parts = item.get('content')
-                                else:
-                                    item_type = getattr(item, 'type', None)
-                                    content_parts = getattr(item, 'content', None)
+                                item_type, item_call_id, item_name, item_args = _response_item_fields(item)
+                                content_parts = item.get('content') if isinstance(item, dict) else getattr(item, 'content', None)
+                                if item_type == "function_call":
+                                    _queue_response_mcp_call(item_call_id, item_name, item_args)
                                 if item_type == "web_search_call":
                                     _collect_sources_from_web_search_call(item)
                                 if content_parts:
@@ -6242,6 +6502,37 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             appended = _emit_sources_once()
                             if appended:
                                 full_res += appended
+
+                # MCP function callは元のストリーム完了後に結果を返し、回答生成を
+                # 必要な回数だけ継続する。1回だけの継続では、ツール結果を受けた
+                # モデルが別のMCPツールを続けて呼ぶケースで再び無言終了する。
+                for _mcp_round in range(8):
+                    if not pending_response_mcp_calls:
+                        break
+                    if not response_id:
+                        pub("error", "MCPツールの実行後にResponses APIの応答IDを取得できませんでした。")
+                        break
+                    response_tool_outputs = [
+                        _execute_response_mcp_call(call)
+                        for call in pending_response_mcp_calls
+                    ]
+                    pending_response_mcp_calls = []
+                    try:
+                        _mark_provider_request_started()
+                        followup_stream = client.responses.create(
+                            model=model_key,
+                            previous_response_id=response_id,
+                            input=response_tool_outputs,
+                            stream=True,
+                            store=store_flag,
+                        )
+                        pending_response_mcp_calls = _consume_response_mcp_followup(followup_stream)
+                    except Exception as exc:
+                        pub("error", f"MCPツール実行後の回答生成に失敗しました: {exc}")
+                        break
+                else:
+                    if pending_response_mcp_calls:
+                        pub("error", "MCPツール呼び出しが上限回数に達しました。")
 
                 # Fallback: retrieve full response if no reasoning summary surfaced in stream
                 if enable_reasoning and not thought_accumulated and response_id:
@@ -6595,4 +6886,3 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 r.delete(f"mcp_decision:{job_id}")
             except Exception:
                 pass
-

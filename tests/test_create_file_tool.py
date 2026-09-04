@@ -203,6 +203,14 @@ class CreateFileToolTests(unittest.TestCase):
         self.assertIn("conf['tools'].append(_gemini_edit_file_tool)", app_source)
         self.assertIn("options.get('enable_file_creation')", app_source)
 
+    def test_gemini_can_combine_python_and_file_tools(self):
+        app_source = read_app_source()
+        self.assertIn("_gemini_python_function_active", app_source)
+        self.assertIn("and options.get('enable_file_creation')", app_source)
+        self.assertIn("and not is_gemini_3", app_source)
+        self.assertIn("_gemini_execute_python_tool.__name__ = \"execute_python\"", app_source)
+        self.assertIn("if _gemini_mcp_callables or options.get('enable_file_creation'):", app_source)
+
     def test_frontend_wires_enable_file_creation(self):
         js_assets = list((APP_ROOT / "static/js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(js_assets), 1)

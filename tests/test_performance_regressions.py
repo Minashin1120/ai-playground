@@ -197,6 +197,7 @@ class PerformanceRegressionTests(unittest.TestCase):
         disabled_start = source.index("const BROWSER_FAST_DISABLED_OPTIONS = [")
         disabled_block = source[disabled_start: source.index("];", disabled_start)]
         self.assertNotIn("'enable-python'", disabled_block)
+        self.assertIn("'enable-file-creation'", disabled_block)
 
         ineligible = source[
             source.index("function browserFastModeIneligibility(rawText)"):

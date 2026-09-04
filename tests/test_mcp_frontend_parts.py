@@ -69,6 +69,15 @@ class McpFrontendPartsTests(unittest.TestCase):
         for needle in (".mcp-box", ".mcp-spinner", "@keyframes mcpSpin", ".mcp-mini-btn"):
             self.assertIn(needle, css)
 
+    def test_background_injects_mcp_guidance_before_provider_prompt(self):
+        bg = (APP_ROOT / "server" / "background.py").read_text(encoding="utf-8")
+        self.assertIn("guidance_text()", bg)
+        self.assertIn("if is_llm_model and not gemini_local_python:", bg)
+        self.assertIn("and _ensure_mcp_env() is None:", bg)
+        self.assertIn("serialize_chat_completions()", bg)
+        exec_src = (APP_ROOT / "mcp_service" / "execution.py").read_text(encoding="utf-8")
+        self.assertIn("You have Model Context Protocol (MCP) tools connected.", exec_src)
+
     def test_parts_source_is_clean(self):
         # 部品ソースは結合ファイルの一部分として壊れていない（重複定義ガード）
         part06 = (APP_ROOT / "static/js/chat_core_parts" / "chat_core.part06_model_media_prompt_cache.js").read_text(encoding="utf-8")

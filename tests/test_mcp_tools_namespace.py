@@ -49,6 +49,31 @@ class McpToolsConversionTests(unittest.TestCase):
         anth = mcp_tools.to_anthropic_tool("mcp__s__t", tool)
         self.assertEqual(anth["input_schema"]["type"], "object")
 
+    def test_tool_spec_reads_inputSchema_alias(self):
+        spec = mcp_tools.tool_spec_from_sdk_tool({
+            "name": "search_messages",
+            "description": "Search Gmail",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"q": {"type": "string"}},
+                "required": ["q"],
+            },
+        })
+        self.assertEqual(spec["name"], "search_messages")
+        self.assertEqual(spec["input_schema"]["type"], "object")
+        self.assertIn("q", spec["input_schema"]["properties"])
+
+    def test_description_for_model_mentions_mcp_and_server(self):
+        text = mcp_tools.description_for_model(
+            "mcp__google_gmail__search_messages",
+            {"name": "search_messages", "description": "Search inbox"},
+            server_name="Google Gmail",
+            original_name="search_messages",
+        )
+        self.assertIn("Model Context Protocol", text)
+        self.assertIn("Google Gmail", text)
+        self.assertIn("Search inbox", text)
+
     def test_content_blocks_to_text(self):
         out = mcp_tools.content_blocks_to_text({
             "content": [

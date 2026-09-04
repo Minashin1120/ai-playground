@@ -51,40 +51,66 @@ def classify_readonly(tool_name, description=""):
     return False
 
 
+def _as_schema_dict(value):
+    """Pydanticモデル / 別名キー / 素の dict を JSON Schema dict へ揃える。"""
+    if value is None:
+        return None
+    if hasattr(value, "model_dump"):
+        try:
+            dumped = value.model_dump(exclude_none=False)
+            if isinstance(dumped, dict):
+                value = dumped
+        except Exception:
+            pass
+    if isinstance(value, dict):
+        return value
+    return None
+
+
+def _dict_get(raw, *keys):
+    if not isinstance(raw, dict):
+        return None
+    for key in keys:
+        if key in raw and raw[key] is not None:
+            return raw[key]
+    return None
+
+
 def tool_spec_from_sdk_tool(tool):
     """SDKの Tool オブジェクト/辞書から正規化 dict を作る。"""
+    raw = {}
     if hasattr(tool, "model_dump"):
         try:
-            raw = tool.model_dump(exclude_none=False)
+            dumped = tool.model_dump(exclude_none=False)
+            if isinstance(dumped, dict):
+                raw = dumped
         except Exception:
             raw = {}
-    elif isinstance(tool, dict):
+    if not raw and isinstance(tool, dict):
         raw = tool
-    else:
+    if not raw:
         raw = getattr(tool, "__dict__", {}) or {}
-    name = raw.get("name") if isinstance(raw, dict) else getattr(tool, "name", None)
-    title = (
-        raw.get("title")
-        if isinstance(raw, dict)
-        else getattr(tool, "title", None)
+    name = _dict_get(raw, "name")
+    if name is None:
+        name = getattr(tool, "name", None)
+    title = _dict_get(raw, "title")
+    if title is None:
+        title = getattr(tool, "title", None)
+    description = _dict_get(raw, "description")
+    if description is None:
+        description = getattr(tool, "description", None)
+    input_schema = _as_schema_dict(
+        _dict_get(raw, "input_schema", "inputSchema")
     )
-    description = (
-        raw.get("description")
-        if isinstance(raw, dict)
-        else getattr(tool, "description", None)
-    )
-    input_schema = (
-        raw.get("input_schema")
-        if isinstance(raw, dict)
-        else getattr(tool, "input_schema", None)
-    )
+    if input_schema is None:
+        input_schema = _as_schema_dict(
+            getattr(tool, "input_schema", None) or getattr(tool, "inputSchema", None)
+        )
     if isinstance(input_schema, dict) and "type" not in input_schema:
         input_schema = {"type": "object", "properties": input_schema.get("properties") or {}}
-    annotations = (
-        raw.get("annotations")
-        if isinstance(raw, dict)
-        else getattr(tool, "annotations", None)
-    )
+    annotations = _dict_get(raw, "annotations")
+    if annotations is None:
+        annotations = getattr(tool, "annotations", None)
     return {
         "name": name,
         "title": title or "",
@@ -92,6 +118,25 @@ def tool_spec_from_sdk_tool(tool):
         "input_schema": input_schema if isinstance(input_schema, dict) else {"type": "object"},
         "annotations": annotations,
     }
+
+
+def description_for_model(internal_name, tool, *, server_name="", original_name=""):
+    """モデルへ渡すツール説明。MCPであることと接続先サーバーを明示する。"""
+    desc = str((tool or {}).get("description") or "").strip()
+    title = str((tool or {}).get("title") or "").strip()
+    orig = str(original_name or (tool or {}).get("name") or "").strip()
+    server = str(server_name or "").strip()
+    if server:
+        header = f"MCP (Model Context Protocol) tool from '{server}'"
+    else:
+        header = "MCP (Model Context Protocol) tool"
+    if orig and orig != internal_name:
+        header = f"{header}; original name '{orig}'"
+    header = header + "."
+    body = desc or title
+    if body:
+        return f"{header} {body}"
+    return f"{header} Call this when the user needs this connected MCP server."
 
 
 def to_openai_function_schema(internal_name, tool):

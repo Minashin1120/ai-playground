@@ -401,6 +401,11 @@ def handle_oauth_callback(query_args):
         issuer=expected_issuer or state_data.get("issuer"),
     )
     mcp_registry.set_connection_state(user_id, server_id, "connected", commit=True)
+    try:
+        # 認証完了したサーバーはモデルへ公開する（設定のトグルで後から無効化できる）
+        mcp_registry.set_enabled(user_id, server_id, True)
+    except Exception:
+        pass
     srv = mcp_registry.get_server_for_user(user_id, server_id)
     # 認証後に tools/list を再取得してキャッシュへ載せる
     if srv is not None:

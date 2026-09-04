@@ -143,8 +143,13 @@ def _make_callable(runtime, meta, on_result=None):
         return text
 
     _exec.__name__ = meta.internal_name
-    # モデルへ伝える説明（nested構造の補足を含む）
-    doc = meta.description or ""
+    # モデルへ伝える説明（MCPであることと接続先を明示する）
+    doc = mcp_tools.description_for_model(
+        meta.internal_name,
+        {"name": meta.name, "title": meta.title, "description": meta.description},
+        server_name=meta.server_name,
+        original_name=meta.name,
+    )
     if not _FUNC_NAME_RE.match(meta.internal_name):
         # AFC / API が受け付けない名前はスキップ
         return None

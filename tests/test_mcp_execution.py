@@ -99,6 +99,35 @@ class McpExecutionTests(unittest.TestCase):
             rt = McpRuntime(987654, job_id="job_20260101_4")
             self.assertTrue(rt.empty())
 
+    def test_guidance_and_serialize_tell_model_about_mcp(self):
+        from mcp_service.execution import McpRuntime, MCPToolMeta
+        from mcp_service.models import MCPServer
+        with flask_app.app_context():
+            srv = MCPServer.query.filter_by(preset_key="google_gmail").first()
+            rt = McpRuntime(1234, job_id="job_20260101_5", redis_client=MemoryRedis())
+            rt._loaded = True
+            meta = MCPToolMeta(
+                server=srv, server_id=srv.id, server_slug=srv.slug, server_name=srv.name,
+                url=srv.url, internal_name="mcp__google_gmail__search_messages",
+                name="search_messages", title="", description="Search Gmail messages",
+                input_schema={"type": "object", "properties": {"q": {"type": "string"}}},
+                is_read_only=True, confirm_policy="never", allow=True,
+            )
+            rt.servers = [{"server": srv, "tools": [meta]}]
+            rt._by_internal[meta.internal_name] = meta
+            guidance = rt.guidance_text()
+            self.assertIn("Model Context Protocol", guidance)
+            self.assertIn("mcp__google_gmail__search_messages", guidance)
+            self.assertIn(srv.name, guidance)
+            openai = rt.serialize_openai()
+            self.assertEqual(openai[0]["name"], "mcp__google_gmail__search_messages")
+            self.assertIn("Model Context Protocol", openai[0]["description"])
+            self.assertIn("Search Gmail messages", openai[0]["description"])
+            cc = rt.serialize_chat_completions()
+            self.assertIn("Model Context Protocol", cc[0]["function"]["description"])
+            anth = rt.serialize_anthropic()
+            self.assertIn("Model Context Protocol", anth[0]["description"])
+
 
 if __name__ == "__main__":
     unittest.main()

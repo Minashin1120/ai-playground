@@ -1,0 +1,111 @@
+                <div id="gpt-image-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Size</span>
+                        <select id="gpt-image-size" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="1024x1024" selected>1024x1024</option>
+                            <option value="1536x1024">1536x1024</option>
+                            <option value="1024x1536">1024x1536</option>
+                            <option value="auto">Auto</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Quality</span>
+                        <select id="gpt-image-quality" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                            <option value="auto">Auto</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Format</span>
+                        <select id="gpt-image-format" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="jpeg" selected>JPEG</option>
+                            <option value="png">PNG</option>
+                            <option value="webp">WebP</option>
+                        </select>
+                    </div>
+                    <div id="gpt-image-compression-wrap" class="flex items-center gap-2">
+                        <span class="text-gray-400">Compression</span>
+                        <input id="gpt-image-compression" type="number" min="0" max="100" step="1" value="85" class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                    </div>
+                    <span class="text-gray-500">※ GPT-Image のみ有効</span>
+                </div>
+                <div id="gemini-image-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Aspect</span>
+                        <select id="gemini-image-aspect" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="1:1" selected>1:1</option>
+                            <option value="auto">Auto</option>
+                            <option value="1:4">1:4</option>
+                            <option value="1:8">1:8</option>
+                            <option value="2:3">2:3</option>
+                            <option value="3:2">3:2</option>
+                            <option value="3:4">3:4</option>
+                            <option value="4:1">4:1</option>
+                            <option value="4:3">4:3</option>
+                            <option value="4:5">4:5</option>
+                            <option value="5:4">5:4</option>
+                            <option value="8:1">8:1</option>
+                            <option value="9:16">9:16</option>
+                            <option value="16:9">16:9</option>
+                            <option value="21:9">21:9</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Size</span>
+                        <select id="gemini-image-size" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="1K" selected>1K</option>
+                            <option value="2K">2K</option>
+                            <option value="4K">4K</option>
+                        </select>
+                    </div>
+                    <span class="text-gray-500">※ Nano Banana 系のみ有効</span>
+                </div>
+                <div id="grok-image-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Count</span>
+                        <input id="grok-image-count" type="number" min="1" max="10" step="1" value="1" class="w-12 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Aspect</span>
+                        <select id="grok-image-aspect" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="auto">Auto</option>
+                            <option value="1:1" selected>1:1 (Square)</option>
+                            <option value="16:9">16:9 (Landscape)</option>
+                            <option value="9:16">9:16 (Portrait)</option>
+                            <option value="4:3">4:3</option>
+                            <option value="3:4">3:4</option>
+                            <option value="3:2">3:2</option>
+                            <option value="2:3">2:3</option>
+                            <option value="2:1">2:1</option>
+                            <option value="1:2">1:2</option>
+                            <option value="19.5:9">19.5:9</option>
+                            <option value="9:19.5">9:19.5</option>
+                            <option value="20:9">20:9</option>
+                            <option value="9:20">9:20</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Res</span>
+                        <select id="grok-image-resolution" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="1k" selected>1K</option>
+                            <option value="2k">2K</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2 hidden">
+                        <span class="text-gray-400">Quality</span>
+                        <select id="grok-image-quality" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="medium" selected>Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Format</span>
+                        <select id="grok-image-format" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="url" selected>URL</option>
+                            <option value="b64_json">Base64</option>
+                        </select>
+                    </div>
+                    <span class="text-gray-500">※ Grok Imagine</span>
+                </div>

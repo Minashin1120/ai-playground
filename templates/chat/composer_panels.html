@@ -1,0 +1,93 @@
+                <div id="sts-panel" class="hidden px-4 py-3 rounded-lg flex items-center justify-between gap-3">
+                    <div class="flex flex-col gap-2">
+                        <div id="sts-mode-label" class="text-[10px] uppercase tracking-widest text-cyan-300/80">Speech-to-Speech Live</div>
+                        <div id="sts-status" class="text-sm text-gray-200">Tap to speak</div>
+                        <div class="text-[10px] text-gray-400">マイクをタップして開始/停止</div>
+                        <div class="flex flex-wrap gap-3 text-[10px] text-gray-300 mt-1">
+                            <label id="sts-auto-play-wrap" class="flex items-center gap-1 cursor-pointer select-none"><input id="sts-auto-play" type="checkbox" class="accent-cyan-400 w-3 h-3" checked><span>Auto Play</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer select-none"><input id="sts-auto-restart" type="checkbox" class="accent-cyan-400 w-3 h-3" checked><span>Auto Restart</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer select-none" title="音声の無音を検知して自動送信"><input id="sts-auto-send" type="checkbox" class="accent-cyan-400 w-3 h-3"><span>Auto Send</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer select-none" title="無音検出の待機時間（秒）"><span>Silence</span><input id="sts-silence-sec" type="number" min="1" max="10" step="0.5" value="2.5" class="w-12 bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none"><span>s</span></label>
+                        </div>
+                        <div id="sts-options" class="mt-2 flex flex-wrap gap-3 text-[10px] text-gray-300">
+                            <label id="sts-voice-wrap" class="flex items-center gap-1">
+                                <span>Voice</span>
+                                <select id="sts-voice" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none"></select>
+                            </label>
+                            <label id="sts-lang-wrap" class="flex items-center gap-1 hidden">
+                                <span>Target Lang</span>
+                                <select id="sts-target-lang" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none">
+                                    <option value="ja" selected>日本語</option>
+                                    <option value="en">English</option>
+                                    <option value="ko">한국어</option>
+                                    <option value="zh-CN">中文（簡体）</option>
+                                    <option value="zh-TW">中文（繁体）</option>
+                                    <option value="fr">Français</option>
+                                    <option value="de">Deutsch</option>
+                                    <option value="es">Español</option>
+                                    <option value="it">Italiano</option>
+                                    <option value="pt">Português</option>
+                                    <option value="ru">Русский</option>
+                                    <option value="hi">हिन्दी</option>
+                                    <option value="th">ไทย</option>
+                                    <option value="vi">Tiếng Việt</option>
+                                    <option value="id">Bahasa Indonesia</option>
+                                    <option value="ar">العربية</option>
+                                </select>
+                            </label>
+                            <label id="sts-transcribe-wrap" class="flex items-center gap-1 hidden">
+                                <span>Mode</span>
+                                <select id="sts-transcribe-mode" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none">
+                                    <option value="VERBATIM" selected>Verbatim</option>
+                                    <option value="SMART">Smart</option>
+                                </select>
+                            </label>
+                            <label id="sts-custom-vocab-wrap" class="flex items-center gap-1 hidden" title="認識をバイアスする用語（カンマ区切り、最大1,000語）">
+                                <span>Custom Vocab</span>
+                                <input id="sts-custom-vocab" type="text" placeholder="Gemini, Kubernetes, BigQuery" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none w-44">
+                            </label>
+                            <label id="sts-speed-wrap" class="flex items-center gap-1">
+                                <span>Speed</span>
+                                <input id="sts-speed" type="range" min="0.25" max="1.5" step="0.05" value="1" class="accent-cyan-400">
+                                <span id="sts-speed-label" class="text-gray-200 font-mono">1.00x</span>
+                            </label>
+                            <label id="sts-rate-wrap" class="flex items-center gap-1">
+                                <span>Rate In</span>
+                                <select id="sts-rate-in" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none"></select>
+                                <span>Out</span>
+                                <select id="sts-rate-out" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none"></select>
+                            </label>
+                            <label id="sts-thinking-wrap" class="flex items-center gap-1">
+                                <span class="text-purple-300">Thinking</span>
+                                <select id="sts-thinking-level" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none">
+                                    <option value="minimal">Min</option>
+                                    <option value="low">Low</option>
+                                    <option value="medium">Mid</option>
+                                    <option value="high">High</option>
+                                </select>
+                                <label class="flex items-center gap-1 cursor-pointer ml-1" title="思考プロセスをテキストで表示（3.1以降）">
+                                    <input id="sts-include-thoughts" type="checkbox" class="accent-purple-400 w-3 h-3">
+                                    <span>Thoughts</span>
+                                </label>
+                            </label>
+                            <span id="sts-note" class="text-gray-500"></span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-center gap-2">
+                        <button id="sts-mic-btn" class="bg-cyan-600 hover:bg-cyan-500 text-white w-14 h-14 rounded-full flex items-center justify-center text-xl transition"><i class="fas fa-microphone"></i></button>
+                        <button id="sts-cancel-btn" class="text-[10px] px-2 py-1 rounded bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 transition">Cancel</button>
+                    </div>
+                </div>
+                <div id="voice-studio-bar" class="hidden mt-2 px-3 py-2 bg-cyan-900/30 border border-cyan-500/30 rounded-lg text-xs text-cyan-100 flex flex-wrap items-center gap-3">
+                    <i class="fas fa-microphone text-cyan-300"></i>
+                    <span class="min-w-0">この音声モデルは専用の音声スタジオで利用できます。マイクをタップするか、下のボタンで開いて会話します。</span>
+                    <button id="voice-studio-open-btn" data-progress-no-spinner="true" class="ml-auto shrink-0 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-[11px] font-bold btn-hover">音声スタジオを開く</button>
+                </div>
+                <div id="auto-search-banner" class="hidden mb-2 px-3 py-2 bg-yellow-900/30 border border-yellow-600/60 text-yellow-200 text-xs rounded flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2"><i class="fas fa-bolt"></i><span id="auto-search-msg">Xリンクを検出しました。検索ON＋Grok 4 Fast Reasoningに切替します。</span></div>
+                    <div class="flex gap-2 shrink-0 items-center">
+                        <label class="flex items-center gap-1 text-[10px] text-yellow-100/90 select-none"><input type="checkbox" id="auto-search-remember" class="accent-yellow-400 w-3 h-3"><span>次回から尋ねない</span></label>
+                        <button id="auto-search-on-btn" class="px-2 py-1 bg-yellow-600 hover:bg-yellow-500 text-black rounded text-[11px] font-bold btn-hover">検索ONで続行</button>
+                        <button id="auto-search-off-btn" class="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-[11px] btn-hover">検索OFFで回答</button>
+                    </div>
+                </div>

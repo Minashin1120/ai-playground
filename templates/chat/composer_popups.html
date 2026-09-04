@@ -1,0 +1,29 @@
+            <!-- Minimal mode: options popup (opened from the plus button) -->
+            <div id="minimal-options-popup" class="hidden" aria-hidden="true">
+                <div id="minimal-options-backdrop"></div>
+                <div id="minimal-options-panel" role="dialog" aria-label="プロンプトオプション">
+                    <div class="minimal-options-header">
+                        <span class="minimal-options-title"><i class="fas fa-sliders-h mr-1"></i>オプション</span>
+                        <button id="minimal-options-close-btn" type="button" class="minimal-options-close" aria-label="閉じる" title="閉じる"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div id="minimal-options-items" class="minimal-options-items"></div>
+                    <div id="minimal-options-model-section" class="hidden">
+                        <div class="minimal-options-section-title">モデル設定</div>
+                        <div id="minimal-options-model-body" class="minimal-options-model-body"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Minimal mode: temporary thinking level slide bar -->
+            <div id="thinking-slide-bar" class="hidden" aria-hidden="true">
+                <div id="thinking-slide-inner" class="thinking-slide-inner">
+                    <div class="thinking-slide-label-row">
+                        <i class="fas fa-brain text-purple-300"></i>
+                        <span class="thinking-slide-name">Thinking</span>
+                        <span id="thinking-slide-value" class="thinking-slide-value">High</span>
+                        <button id="thinking-slide-close-btn" type="button" class="thinking-slide-close" aria-label="閉じる" title="閉じる"><i class="fas fa-times"></i></button>
+                    </div>
+                    <input id="thinking-slider" type="range" min="0" max="3" step="1" value="3" aria-label="Thinking level">
+                    <div class="thinking-slide-scale"><span>Min</span><span>Low</span><span>Mid</span><span>High</span></div>
+                </div>
+            </div>

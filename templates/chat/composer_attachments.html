@@ -1,0 +1,13 @@
+                <div id="file-preview" class="hidden flex-col gap-2 transition-all duration-300">
+                    <div id="file-preview-thumbs" class="flex flex-wrap gap-2 empty:hidden pl-1"></div>
+                    <div class="px-3 py-2 bg-gray-700/50 rounded text-xs text-blue-300 flex justify-between items-center cursor-pointer hover:bg-gray-700/70 transition" onclick="openUploadModal()">
+                        <span id="file-name" class="truncate"></span>
+                        <div class="flex items-center gap-2">
+                            <button id="clear-file-btn" class="text-gray-400 hover:text-white ml-2" onclick="event.stopPropagation(); resetUploadState();">✕</button>
+                        </div>
+                    </div>
+                    <div id="upload-total-progress" class="hidden h-1 w-full bg-gray-800 rounded-full overflow-hidden">
+                        <div id="upload-total-progress-bar" class="h-full bg-blue-500 transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div id="mask-preview" class="hidden px-3 py-2 bg-gray-700/40 rounded text-[10px] text-amber-200 flex justify-between items-center"><span id="mask-name" class="truncate"></span><button id="clear-mask-btn" class="text-gray-400 hover:text-white ml-2">✕</button></div>

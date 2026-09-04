@@ -1,0 +1,27 @@
+                <!-- Quote Bar -->
+                <div id="quote-bar" class="pointer-events-auto">
+                    <div class="flex items-center gap-2 overflow-hidden flex-1">
+                        <i class="fas fa-quote-left text-blue-400 shrink-0"></i>
+                        <span id="quote-text-display" class="quote-text text-xs"></span>
+                    </div>
+                    <button id="quote-confirm-btn" type="button" title="選択したテキストを引用して送信します"><i class="fas fa-quote-left mr-1"></i>引用する</button>
+                    <button onclick="clearQuote()" class="text-gray-400 hover:text-white ml-2" title="引用を解除"><i class="fas fa-times"></i></button>
+                </div>
+
+                <!-- Coding Mode Target Bar -->
+                <div id="coding-target-bar" class="pointer-events-auto" aria-live="polite">
+                    <div class="flex items-center gap-2 overflow-hidden flex-1">
+                        <i class="fas fa-code text-emerald-300 shrink-0"></i>
+                        <span id="coding-target-text" class="coding-target-text text-xs">最新のコードブロックを自動選択</span>
+                    </div>
+                    <button id="clear-coding-target-btn" type="button" class="text-gray-400 hover:text-white ml-2 hidden" title="明示的な選択を解除して最新コードを使う"><i class="fas fa-times"></i></button>
+                </div>
+
+                <!-- Edit Bar -->
+                <div id="edit-bar" class="hidden edit-bar-animate bg-gray-900/60 border border-gray-700 rounded px-3 py-2 text-xs text-gray-300 items-center justify-between pointer-events-auto">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-pen text-blue-300"></i>
+                        <span>編集中: このメッセージを編集しています</span>
+                    </div>
+                    <button id="cancel-edit-btn" class="text-gray-400 hover:text-white">キャンセル</button>
+                </div>

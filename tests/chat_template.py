@@ -13,10 +13,23 @@ def read_chat_markup():
     Regression tests historically searched a single chat.html.  The live
     template is now split with Jinja includes; this helper keeps those
     assertions working without each test reimplementing include expansion.
+
+    Includes are expanded recursively: chat/ fragments such as composer.html
+    can themselves contain further ``chat/...`` includes (e.g. the
+    ``composer_*.html`` parts).
     """
     main = (_TEMPLATES / "chat.html").read_text(encoding="utf-8")
     chunks = [main]
-    for name in _INCLUDE_RE.findall(main):
-        path = _TEMPLATES / "chat" / name
-        chunks.append(path.read_text(encoding="utf-8"))
+    seen = set()
+
+    def expand(text):
+        for name in _INCLUDE_RE.findall(text):
+            if name in seen:
+                continue
+            seen.add(name)
+            fragment = (_TEMPLATES / "chat" / name).read_text(encoding="utf-8")
+            chunks.append(fragment)
+            expand(fragment)
+
+    expand(main)
     return "\n".join(chunks)

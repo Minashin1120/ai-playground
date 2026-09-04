@@ -1,0 +1,120 @@
+                <div id="xai-chat-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Temp</span><input id="xai-temperature" type="number" min="0" max="2" step="0.1" placeholder="default" class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Top P</span><input id="xai-top-p" type="number" min="0" max="1" step="0.05" placeholder="default" class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Max output</span><input id="xai-max-completion-tokens" type="number" min="1" step="1" placeholder="default" class="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Seed</span><input id="xai-seed" type="number" step="1" placeholder="default" class="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Presence</span><input id="xai-presence-penalty" type="number" min="-2" max="2" step="0.1" placeholder="default" class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Frequency</span><input id="xai-frequency-penalty" type="number" min="-2" max="2" step="0.1" placeholder="default" class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Stop</span><input id="xai-stop" type="text" placeholder="comma separated (max 4)" class="w-40 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Format</span><select id="xai-response-format" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"><option value="text">Text</option><option value="json_object">JSON object</option></select></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Tools</span><select id="xai-tool-choice" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"><option value="auto">Auto</option><option value="none">None</option><option value="required">Required</option></select></div>
+                    <label class="flex items-center gap-1"><input id="xai-parallel-tool-calls" type="checkbox" checked class="accent-blue-400"><span>Parallel tools</span></label>
+                    <label class="flex items-center gap-1"><input id="xai-logprobs" type="checkbox" class="accent-blue-400"><span>Logprobs</span></label>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Top logs</span><input id="xai-top-logprobs" type="number" min="0" max="8" step="1" placeholder="0-8" class="w-14 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <span class="text-gray-500">※ xAI Chat Completions</span>
+                </div>
+                <div id="grok-video-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Duration</span>
+                        <input id="grok-video-duration" type="number" min="1" max="15" step="1" value="5" class="w-12 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                        <span class="text-gray-500">sec</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Aspect</span>
+                        <select id="grok-video-aspect" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="16:9" selected>16:9</option>
+                            <option value="4:3">4:3</option>
+                            <option value="1:1">1:1</option>
+                            <option value="9:16">9:16</option>
+                            <option value="3:4">3:4</option>
+                            <option value="3:2">3:2</option>
+                            <option value="2:3">2:3</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Resolution</span>
+                        <select id="grok-video-resolution" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="720p" selected>720p</option>
+                            <option value="480p">480p</option>
+                            <option value="1080p">1080p</option>
+                        </select>
+                    </div>
+                    <span class="text-gray-500">※ Grok Imagine Video</span>
+                </div>
+                <div id="gemini-video-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div id="gemini-video-duration-wrap" class="flex items-center gap-2">
+                        <span class="text-gray-400">Duration</span>
+                        <input id="gemini-video-duration" type="number" min="1" max="12" step="1" value="8" class="w-12 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                        <span class="text-gray-500">sec</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Aspect</span>
+                        <select id="gemini-video-aspect" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="16:9" selected>16:9</option>
+                            <option value="4:3">4:3</option>
+                            <option value="1:1">1:1</option>
+                            <option value="9:16">9:16</option>
+                            <option value="3:4">3:4</option>
+                            <option value="3:2">3:2</option>
+                            <option value="2:3">2:3</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Resolution</span>
+                        <select id="gemini-video-resolution" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="720p" selected>720p</option>
+                            <option value="1080p">1080p</option>
+                            <option value="4K">4K</option>
+                        </select>
+                    </div>
+                    <span class="text-gray-500">※ 4Kは Veo 3.1 / Gemini Omni 1.1 Flash のみ対応</span>
+                </div>
+                <div id="gemini-music-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <label class="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="music-instrumental" class="accent-fuchsia-400 w-3 h-3"><span>インストゥルメンタル（歌詞なし）</span></label>
+                    <span class="text-gray-500">※ Lyria 3（歌詞・楽曲構造テキストも返却）</span>
+                </div>
+                <div id="lyria-realtime-studio-bar" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-purple-700/50 rounded-lg text-xs text-purple-200 flex flex-wrap items-center gap-3">
+                    <i class="fas fa-music text-purple-300"></i>
+                    <span class="min-w-0">Lyria RealTime はリアルタイム生成スタジオで使えます。プロンプトを入力して送信するとスタジオが開き、生成しながら指示・設定を変更できます。</span>
+                    <button id="lyria-open-studio-btn" data-progress-no-spinner="true" class="ml-auto shrink-0 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-[11px] font-bold btn-hover">スタジオを開く</button>
+                </div>
+                <div id="mistral-ocr-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Table</span>
+                        <select id="ocr-table-format" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="" selected>本文内</option>
+                            <option value="markdown">Markdown</option>
+                            <option value="html">HTML</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Pages</span>
+                        <input id="ocr-pages" type="text" placeholder="0-2 / 0,2-4" class="w-28 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                    </div>
+                    <label class="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="ocr-extract-header" class="accent-orange-400 w-3 h-3"><span>Header</span></label>
+                    <label class="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="ocr-extract-footer" class="accent-orange-400 w-3 h-3"><span>Footer</span></label>
+                    <label class="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="ocr-include-blocks" class="accent-orange-400 w-3 h-3"><span>Blocks</span></label>
+                    <label class="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="ocr-include-images" class="accent-orange-400 w-3 h-3" checked><span>画像抽出</span></label>
+                    <span class="text-gray-500">※ 履歴は送信しません</span>
+                </div>
+                <div id="image-input-limits" class="hidden mt-2 px-3 py-2 bg-gray-900/40 border border-gray-700 rounded-lg text-[10px] text-gray-400"></div>
+                <div id="audio-gen-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-xs text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Voice</span>
+                        <select id="tts-voice" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white outline-none"></select>
+                    </div>
+                    <div id="tts-voice-custom-wrap" class="hidden items-center gap-2">
+                        <span class="text-gray-400">Custom Voice</span>
+                        <input id="tts-voice-custom" type="text" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white outline-none w-48" placeholder="e.g. en-US-Wavenet-D">
+                    </div>
+                    <div id="tts-language-wrap" class="hidden items-center gap-2">
+                        <span class="text-gray-400">Lang</span>
+                        <input id="tts-language" type="text" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white outline-none w-20" placeholder="ja-JP">
+                    </div>
+                    <div id="tts-speed-wrap" class="flex items-center gap-2">
+                        <span class="text-gray-400">Speed</span>
+                        <input id="tts-speed" type="range" min="0.25" max="4" step="0.05" value="1" class="accent-blue-500">
+                        <span id="tts-speed-label" class="text-gray-200 font-mono">1.00x</span>
+                        <span id="tts-speed-note" class="text-gray-500"></span>
+                    </div>
+                </div>

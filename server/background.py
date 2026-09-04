@@ -1825,11 +1825,17 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             # system / system_instruction を組む前にモデルが MCP の存在を知る。
             _mcp_env = None
             _mcp_prompt_injected = False
+            # プロンプトバーのMCPスイッチ（enable_mcp）が OFF の間は、
+            # MCPツールの付与と案内文注入の両方を無効化する。
+            # 値が無い（None）従来リクエストは従来どおり有効扱いにする。
+            _mcp_request_disabled = options.get('enable_mcp') is False
 
             def _ensure_mcp_env():
                 nonlocal _mcp_env, _mcp_prompt_injected
                 if _mcp_env is not None:
                     return _mcp_env
+                if _mcp_request_disabled:
+                    return None
                 from mcp_service.execution import McpRuntime
                 _env = McpRuntime(
                     user_id,
@@ -1848,7 +1854,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if not _mcp_prompt_injected:
                         try:
                             # 案内文は「自動注入システムプロンプト（ユーザー単位）」の
-                            # mcp 項目に従う。OFF なら案内を入れない（ツール定義は別途付与）。
+                            # mcp 項目の文面に従う。項目のオン・オフはプロンプトバーの
+                            # MCPスイッチに連動しており（ここまで到達 = 有効）、
+                            # ここでは全体適用トグルと文面だけを確認する。
                             if _auto_notice_enabled("mcp"):
                                 _mcp_note = _mcp_env.guidance_text(preamble=_auto_notice_text("mcp"))
                                 if _mcp_note:

@@ -995,6 +995,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_user_mcp_enable_columns()
+    except Exception:
+        pass
+    try:
         ensure_user_gemini_backend_columns()
     except Exception:
         pass
@@ -1235,6 +1239,9 @@ with app.app_context():
             try_alter("ALTER TABLE user ADD COLUMN default_enable_search BOOLEAN DEFAULT 0")
         except: pass
         try:
+            try_alter("ALTER TABLE user ADD COLUMN default_enable_mcp BOOLEAN DEFAULT 1")
+        except: pass
+        try:
             try_alter("ALTER TABLE user ADD COLUMN default_enable_url_context BOOLEAN DEFAULT 0")
         except: pass
         try:
@@ -1284,6 +1291,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN last_enable_search BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN last_enable_mcp BOOLEAN DEFAULT 1")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN last_enable_url_context BOOLEAN DEFAULT 0")

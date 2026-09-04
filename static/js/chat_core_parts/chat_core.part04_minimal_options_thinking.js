@@ -184,6 +184,7 @@
                 thinking_budget: d.last_thinking_budget,
                 reasoning_effort: d.last_reasoning_effort,
                 enable_system_prompt: d.last_enable_system_prompt,
+                enable_mcp: d.last_enable_mcp,
                 safety_setting: d.last_safety_setting
             } : {
                 model: d.default_model,
@@ -197,6 +198,7 @@
                 thinking_budget: d.default_thinking_budget,
                 reasoning_effort: d.default_reasoning_effort,
                 enable_system_prompt: d.default_enable_system_prompt,
+                enable_mcp: d.default_enable_mcp,
                 safety_setting: d.default_safety_setting
             };
             const s = (v, fallback) => (v === undefined || v === null || v === "") ? fallback : v;
@@ -211,9 +213,11 @@
             if (get('thinking-budget')) get('thinking-budget').value = s(src.thinking_budget, get('thinking-budget').value || 4096);
             if (get('reasoning-effort')) get('reasoning-effort').value = s(src.reasoning_effort, get('reasoning-effort').value || "medium");
             if (get('enable-sys-prompt')) get('enable-sys-prompt').checked = !!s(src.enable_system_prompt, get('enable-sys-prompt').checked);
+            if (get('enable-mcp')) get('enable-mcp').checked = !!s(src.enable_mcp, get('enable-mcp').checked);
             if (get('safety-setting')) get('safety-setting').value = s(src.safety_setting, get('safety-setting').value || "default");
             chatDefaultsLoaded = true;
             toggleOptions();
+            applyMcpPromptChipUi();
         }
         function setEditUi(active) {
             const bar = get('edit-bar');

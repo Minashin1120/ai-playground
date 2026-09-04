@@ -572,6 +572,7 @@ def chat_stream():
                 pass
             current_user.last_reasoning_effort = (data.get('reasoning_effort') or current_user.last_reasoning_effort or "medium")
             current_user.last_enable_system_prompt = bool(data.get('enable_system_prompt'))
+            current_user.last_enable_mcp = bool(data.get('enable_mcp', True))
             current_user.last_safety_setting = (data.get('safety_setting') or current_user.last_safety_setting or "default")
         t.last_gem_uuid = data.get('gem_uuid')
         safe_db_commit()
@@ -615,6 +616,7 @@ def chat_stream():
         'thinking_budget': data.get('thinking_budget'),
         'reasoning_effort': data.get('reasoning_effort'),
         'enable_system_prompt': data.get('enable_system_prompt'),
+        'enable_mcp': data.get('enable_mcp'),
         'marker_system_prompt': data.get('marker_system_prompt'),
         'safety_setting': data.get('safety_setting'),
         'tts_voice': data.get('tts_voice'),

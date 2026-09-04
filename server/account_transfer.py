@@ -18,11 +18,12 @@ ACCOUNT_SETTING_FIELDS = (
     "default_enable_search", "default_enable_url_context", "default_enable_maps",
     "default_enable_python", "default_enable_file_creation", "default_enable_thinking", "default_thinking_level",
     "default_thinking_budget", "default_reasoning_effort", "default_enable_system_prompt",
+    "default_enable_mcp",
     "default_safety_setting", "default_vision_model", "rich_paste_prompt_default",
     "rich_paste_prompt_use_custom_default", "last_model", "last_enable_search",
     "last_enable_url_context", "last_enable_maps", "last_enable_python",
     "last_enable_file_creation", "last_enable_thinking", "last_thinking_level", "last_thinking_budget",
-    "last_reasoning_effort", "last_enable_system_prompt", "last_safety_setting",
+    "last_reasoning_effort", "last_enable_system_prompt", "last_enable_mcp", "last_safety_setting",
     "enable_latency_metrics", "enable_client_debug_log",
 )
 ACCOUNT_SECRET_FIELDS = (
@@ -37,9 +38,10 @@ ACCOUNT_BOOL_SETTING_FIELDS = frozenset({
     "voice_studio_ui",
     "default_enable_search", "default_enable_url_context", "default_enable_maps",
     "default_enable_python", "default_enable_file_creation", "default_enable_thinking", "default_enable_system_prompt",
+    "default_enable_mcp",
     "rich_paste_prompt_use_custom_default", "last_enable_search", "last_enable_url_context",
     "last_enable_maps", "last_enable_python", "last_enable_file_creation", "last_enable_thinking",
-    "last_enable_system_prompt", "enable_latency_metrics", "enable_client_debug_log",
+    "last_enable_system_prompt", "last_enable_mcp", "enable_latency_metrics", "enable_client_debug_log",
 })
 ACCOUNT_INT_SETTING_FIELDS = frozenset({
     "temp_chat_timeout_seconds", "default_thinking_budget", "last_thinking_budget",
@@ -1910,6 +1912,34 @@ def ensure_user_file_creation_columns():
     except Exception:
         pass
 
+def ensure_user_mcp_enable_columns():
+    """Add the MCP default / last-used toggle columns to the user table.
+
+    The chat request flow reads these columns on every authenticated User SELECT
+    and on every send, so they must exist before any request.  Applied
+    unconditionally at startup (like the other correctness-critical ensure_*
+    migrations) rather than gated behind RUN_SCHEMA_MIGRATIONS.
+    """
+    try:
+        with db.engine.connect() as conn:
+            columns = [
+                ("default_enable_mcp", "ALTER TABLE user ADD COLUMN default_enable_mcp BOOLEAN DEFAULT 1"),
+                ("last_enable_mcp", "ALTER TABLE user ADD COLUMN last_enable_mcp BOOLEAN DEFAULT 1"),
+            ]
+            for column_name, ddl in columns:
+                res = conn.execute(text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA=DATABASE() "
+                    "AND TABLE_NAME='user' "
+                    "AND COLUMN_NAME=:column_name"
+                ), {"column_name": column_name}).scalar()
+                if not res:
+                    conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                    conn.execute(text(ddl))
+            conn.commit()
+    except Exception:
+        pass
+
 def ensure_user_gemini_backend_columns():
     try:
         with db.engine.connect() as conn:
@@ -2900,6 +2930,10 @@ def get_user_auto_system_prompt_notices_config(user):
         default_text = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get(key, "")
         config[key]["enabled"] = _coerce_bool_like(item.get("enabled"), True)
         config[key]["text"] = _normalize_auto_notice_text(item.get("text"), default_text)
+    # MCP のオン・オフはプロンプトバーの MCP スイッチに連動するため、
+    # この設定の「適用」トグルでは制御しない（常に有効扱い。実効は送信時 enable_mcp で決まる）。
+    if "mcp" in config:
+        config["mcp"]["enabled"] = True
     return config
 
 
@@ -2916,6 +2950,10 @@ def set_user_auto_system_prompt_notices_config(user, new_config):
         if "text" in item:
             default_text = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get(key, "")
             current[key]["text"] = _normalize_auto_notice_text(item.get("text"), default_text)
+    # MCP の「適用」は設定画面で変更不可（プロンプトバーの MCP スイッチに連動）。
+    # 保存時も有効扱いで固定し、誤って OFF が保存されないようにする。
+    if "mcp" in current:
+        current["mcp"]["enabled"] = True
     stored = {
         key: {
             "enabled": bool(current[key]["enabled"]),

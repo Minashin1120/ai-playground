@@ -75,9 +75,58 @@
                 mcpServers = (data && Array.isArray(data.servers)) ? data.servers : [];
                 mcpLoaded = true;
                 renderMcpServers();
+                applyMcpPromptChipUi();
             } catch (e) {
                 mcpStatusMsg('mcp-status-msg', 'MCPサーバー一覧の取得に失敗しました: ' + (e && e.message ? e.message : e), true);
             }
+        }
+
+        // 有効（enabled）なMCPサーバーが1つ以上あるか（プロンプトバーMCPチップの表示条件）。
+        function mcpHasEnabledServer() {
+            return (mcpServers || []).some((srv) => !!srv.enabled);
+        }
+
+        // プロンプトバーのMCPスイッチが実効ONか（チップ表示中かつチェックON）。
+        function isMcpEnabledForSend() {
+            const cont = get('mcp-container');
+            if (!cont || cont.classList.contains('hidden')) return false;
+            const chk = get('enable-mcp');
+            return !!chk && chk.checked;
+        }
+
+        // このモデルでMCPツールが利用可能か（バックエンドのテキストLLM付与対象と揃える）。
+        function mcpModelSupported() {
+            try {
+                const m = String((get('model-select') && get('model-select').value) || '').toLowerCase();
+                if (!m) return false;
+                // Claude / Kimi は isLlmModel に含まれないが、バックエンドではMCPを付与する。
+                if (m.includes('claude') || m.startsWith('kimi')) return true;
+                if (typeof isLlmModel === 'function' && isLlmModel()) return true;
+                return false;
+            } catch (e) { return false; }
+        }
+
+        // プロンプトバーのMCPチップ表示/非表示を、現在のモデルとMCP利用可否で更新する。
+        function applyMcpPromptChipUi() {
+            const cont = get('mcp-container');
+            if (!cont) return;
+            const show = mcpModelSupported() && mcpHasEnabledServer();
+            cont.classList.toggle('hidden', !show);
+            syncMcpAutoSysRows();
+            if (typeof refreshMinimalOptionsIfOpen === 'function') {
+                try { refreshMinimalOptionsIfOpen(); } catch (e) {}
+            }
+        }
+
+        // 「自動注入システムプロンプト（ユーザー単位）」のMCP行を読取専用（プロンプトバー連動）に保つ。
+        // 設定モーダル(set)とスレッド設定(thread)の両方に反映する。
+        function syncMcpAutoSysRows() {
+            ['set', 'thread'].forEach((prefix) => {
+                const el = get(`${prefix}-auto-sys-mcp-enabled`);
+                if (!el) return;
+                el.disabled = true;
+                el.checked = isMcpEnabledForSend();
+            });
         }
 
         function renderMcpServers() {
@@ -528,6 +577,22 @@
             try { bindMcpSettingsUi(); } catch (e) {}
         }
 
+        function bindMcpPromptToggle() {
+            const chk = get('enable-mcp');
+            if (!chk) return;
+            chk.addEventListener('change', () => {
+                syncMcpAutoSysRows();
+                if (typeof refreshMinimalOptionsIfOpen === 'function') {
+                    try { refreshMinimalOptionsIfOpen(); } catch (e) {}
+                }
+            });
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => { try { bindMcpPromptToggle(); } catch (e) {} });
+        } else {
+            try { bindMcpPromptToggle(); } catch (e) {}
+        }
+
         function getModelTags(m, group) {
             const tags = [];
             const id = (m.id || '').toLowerCase();
@@ -808,6 +873,7 @@
                 if (get('set-default-file-creation')) get('set-default-file-creation').checked = !!d.default_enable_file_creation;
                 if (get('set-default-thinking')) get('set-default-thinking').checked = !!d.default_enable_thinking;
                 if (get('set-default-sys-prompt')) get('set-default-sys-prompt').checked = !!d.default_enable_system_prompt;
+                if (get('set-default-mcp')) get('set-default-mcp').checked = d.default_enable_mcp !== false;
                 if (get('set-default-thinking-level')) get('set-default-thinking-level').value = d.default_thinking_level || 'high';
                 if (get('set-default-thinking-budget')) get('set-default-thinking-budget').value = d.default_thinking_budget || 4096;
                 if (get('set-default-reasoning-effort')) get('set-default-reasoning-effort').value = d.default_reasoning_effort || 'medium';
@@ -868,6 +934,7 @@
             ['enable-maps', 'maps-grounding-container'],
             ['enable-sys-prompt', 'sys-prompt-option'],
             ['enable-prompt-cache', 'prompt-cache-container'],
+            ['enable-mcp', 'mcp-container'],
         ];
 
         function applyBrowserFastModeRestrictions() {
@@ -892,6 +959,7 @@
             const codingContainer = get('coding-mode-container');
             if (codingCheckbox) codingCheckbox.disabled = true;
             if (codingContainer) codingContainer.classList.add('opacity-50', 'pointer-events-none');
+            if (typeof syncMcpAutoSysRows === 'function') syncMcpAutoSysRows();
             refreshMinimalOptionsIfOpen();
         }
 
@@ -916,6 +984,7 @@
             if (previous && previous.coding) syncCodingModeUi(true, { persist: false });
             browserFastPreviousOptions = null;
             if (typeof updatePromptCacheUi === 'function') updatePromptCacheUi();
+            if (typeof syncMcpAutoSysRows === 'function') syncMcpAutoSysRows();
             refreshMinimalOptionsIfOpen();
         }
 

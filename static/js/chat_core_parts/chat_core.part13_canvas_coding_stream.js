@@ -1075,6 +1075,7 @@
             default_thinking_budget: { label: 'Thinking Budget', tab: 'general', control: 'set-default-thinking-budget' },
             default_reasoning_effort: { label: 'Reasoning Effort', tab: 'general', control: 'set-default-reasoning-effort' },
             default_enable_system_prompt: { label: '既定のSysPrompt', tab: 'general', control: 'set-default-sys-prompt' },
+            default_enable_mcp: { label: '既定のMCP', tab: 'general', control: 'set-default-mcp' },
             default_safety_setting: { label: '既定のSafety', tab: 'general', control: 'set-default-safety' },
             auto_search_on_links: { label: 'Xリンクの自動検索', tab: 'general', control: 'set-auto-search-links' },
             mic_transcribe_mode: { label: 'マイク文字起こし方式', tab: 'general', control: 'set-mic-transcribe-mode' },
@@ -1369,7 +1370,7 @@
             if (activeGem) return 'Gems利用時は通常モードが必要です';
             if (currentQuote || editingMessageId) return '引用・編集時は通常モードが必要です';
             if (codingModeEnabled) return 'Coding Mode利用時は通常モードが必要です';
-            const enabledIds = ['enable-search', 'enable-url-context', 'enable-maps', 'enable-sys-prompt', 'enable-prompt-cache'];
+            const enabledIds = ['enable-search', 'enable-url-context', 'enable-maps', 'enable-sys-prompt', 'enable-prompt-cache', 'enable-mcp'];
             if (enabledIds.some((id) => { const el = get(id); return !!(el && el.checked); })) return '検索・URL参照・システム機能利用時は通常モードが必要です';
             const custom = get('thread-custom-instruction');
             if (custom && String(custom.value || '').trim()) return 'チャット固有指示利用時は通常モードが必要です';

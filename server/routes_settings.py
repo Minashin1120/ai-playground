@@ -85,6 +85,7 @@ def handle_settings():
             'default_thinking_budget': current_user.default_thinking_budget if current_user.default_thinking_budget is not None else 4096,
             'default_reasoning_effort': current_user.default_reasoning_effort or "medium",
             'default_enable_system_prompt': current_user.default_enable_system_prompt,
+            'default_enable_mcp': current_user.default_enable_mcp if current_user.default_enable_mcp is not None else True,
             'default_safety_setting': current_user.default_safety_setting or "default",
             'rich_paste_prompt_default': current_user.rich_paste_prompt_default or "",
             'rich_paste_prompt_use_custom_default': current_user.rich_paste_prompt_use_custom_default if current_user.rich_paste_prompt_use_custom_default is not None else False,
@@ -105,6 +106,7 @@ def handle_settings():
             'minashin_sub': current_user.minashin_sub,
             'minashin_email': current_user.minashin_email,
             'last_enable_system_prompt': current_user.last_enable_system_prompt,
+            'last_enable_mcp': current_user.last_enable_mcp if current_user.last_enable_mcp is not None else True,
             'last_safety_setting': current_user.last_safety_setting or "default",
             'enable_e2ee': current_user.enable_e2ee,
             'migration_status': mig_status,
@@ -231,6 +233,7 @@ def handle_settings():
             pass
     if 'default_reasoning_effort' in d: current_user.default_reasoning_effort = d['default_reasoning_effort'] or "medium"
     if 'default_enable_system_prompt' in d: current_user.default_enable_system_prompt = bool(d['default_enable_system_prompt'])
+    if 'default_enable_mcp' in d: current_user.default_enable_mcp = bool(d['default_enable_mcp'])
     if 'default_safety_setting' in d: current_user.default_safety_setting = d['default_safety_setting'] or "default"
     if 'rich_paste_prompt_default' in d: current_user.rich_paste_prompt_default = d['rich_paste_prompt_default'] or ""
     if 'rich_paste_prompt_use_custom_default' in d: current_user.rich_paste_prompt_use_custom_default = bool(d['rich_paste_prompt_use_custom_default'])
@@ -342,6 +345,7 @@ def _build_ai_settings_tool_schema():
         "default_thinking_budget": {"type": "integer", "description": "Thinking budget (トークン数, 例: 4096)"},
         "default_reasoning_effort": {"type": "string", "description": "Reasoning effort", "enum": sorted(VALID_REASONING_EFFORTS)},
         "default_enable_system_prompt": {"type": "boolean", "description": "既定でシステムプロンプト(ユーザー定義)を使用するか"},
+        "default_enable_mcp": {"type": "boolean", "description": "MCP（外部ツール接続）の既定ON/OFF（プロンプトバーのスイッチに反映）"},
         "default_safety_setting": {"type": "string", "description": "安全設定", "enum": sorted(VALID_SAFETY_SETTINGS)},
         "system_prompt": {"type": "string", "description": "ユーザー個別システムプロンプト本文 (自然言語で詳細指示可)"},
         "system_prompt_enabled": {"type": "boolean", "description": "ユーザー個別システムプロンプトのON/OFF"},

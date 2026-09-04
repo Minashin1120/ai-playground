@@ -401,37 +401,52 @@
                 { key: 'attachment_names', label: '添付ファイル名（LLM入力時）', hint: '利用可能変数: {{attachment_names}} / {{attachment_count}}' },
                 { key: 'mathjax', label: 'MathJax（LaTeX数式）' },
                 { key: 'image_analysis', label: '画像解析（Vision Model指示文）' },
-                { key: 'mcp', label: 'MCP（外部ツール接続）', hint: '利用可能変数: {{mcp_tools}}（接続中のMCPツール一覧が入ります）' }
+                { key: 'mcp', label: 'MCP（外部ツール接続）', hint: '利用可能変数: {{mcp_tools}}（接続中のMCPツール一覧が入ります）', mcpLocked: true }
             ];
             window.buildAutoSystemPromptRows = (prefix, compact = false) => {
                 const textClass = compact
                     ? 'w-full h-14 bg-gray-950 border border-gray-700 rounded p-2 text-[11px] text-gray-200'
                     : 'w-full h-20 bg-gray-950 border border-gray-700 rounded p-2 text-xs text-gray-200';
-                return AUTO_SYS_PROMPT_ITEMS.map((item) => `
+                return AUTO_SYS_PROMPT_ITEMS.map((item) => {
+                    const isMcp = item.mcpLocked === true;
+                    const lockNote = isMcp
+                        ? '<div class="text-[10px] text-cyan-300/70 mt-1">この項目のオン・オフはプロンプトバーのMCPスイッチに連動します（オフ時は案内文の注入とツール付与自体が無効）。文面は編集できます。</div>'
+                        : '';
+                    const enabledInput = isMcp
+                        ? `<input type="checkbox" id="${prefix}-auto-sys-${item.key}-enabled" class="accent-yellow-500 w-3 h-3" disabled>`
+                        : `<input type="checkbox" id="${prefix}-auto-sys-${item.key}-enabled" class="accent-yellow-500 w-3 h-3">`;
+                    return `
                     <div class="rounded border border-gray-700 p-2 bg-gray-950/40">
                         <div class="flex items-center justify-between mb-1">
                             <div class="text-[11px] text-gray-300">${item.label}</div>
-                            <label class="flex items-center gap-1 text-[10px] text-gray-500">
-                                <input type="checkbox" id="${prefix}-auto-sys-${item.key}-enabled" class="accent-yellow-500 w-3 h-3">
+                            <label class="flex items-center gap-1 text-[10px] text-gray-500" ${isMcp ? 'title="プロンプトバーのMCPスイッチに連動します"' : ''}>
+                                ${enabledInput}
                                 <span>適用</span>
                             </label>
                         </div>
                         <textarea id="${prefix}-auto-sys-${item.key}-text" class="${textClass}" placeholder="自動注入文言"></textarea>
                         ${item.hint ? `<div class="text-[10px] text-gray-500 mt-1">${item.hint}</div>` : ''}
+                        ${lockNote}
                     </div>
-                `).join('');
+                `;
+                }).join('');
             };
             window.applyAutoSystemPromptConfigToForm = (prefix, cfg = {}) => {
                 AUTO_SYS_PROMPT_ITEMS.forEach((item) => {
                     const row = cfg && typeof cfg === 'object' ? (cfg[item.key] || {}) : {};
                     const enabledEl = get(`${prefix}-auto-sys-${item.key}-enabled`);
                     const textEl = get(`${prefix}-auto-sys-${item.key}-text`);
-                    if (enabledEl) enabledEl.checked = row.enabled !== false;
+                    if (enabledEl) {
+                        // MCP行は読取専用。オン・オフはプロンプトバーに連動する。
+                        if (item.mcpLocked === true) enabledEl.disabled = true;
+                        else enabledEl.checked = row.enabled !== false;
+                    }
                     if (textEl) {
                         textEl.value = row.text || '';
                         textEl.placeholder = row.default_text || '自動注入文言';
                     }
                 });
+                if (typeof syncMcpAutoSysRows === 'function') syncMcpAutoSysRows();
             };
             const resetAutoSystemPromptConfigToCodeDefaults = (prefix, applyToggleId = null) => {
                 if (applyToggleId) {
@@ -441,20 +456,26 @@
                 AUTO_SYS_PROMPT_ITEMS.forEach((item) => {
                     const enabledEl = get(`${prefix}-auto-sys-${item.key}-enabled`);
                     const textEl = get(`${prefix}-auto-sys-${item.key}-text`);
-                    if (enabledEl) enabledEl.checked = true;
+                    if (enabledEl) {
+                        // MCP行は既定に戻しても適用トグルは変更しない（プロンプトバー連動）。
+                        if (item.mcpLocked !== true) enabledEl.checked = true;
+                        else enabledEl.disabled = true;
+                    }
                     if (textEl) {
                         const defaultText = textEl.placeholder || '';
                         textEl.value = defaultText;
                     }
                 });
+                if (typeof syncMcpAutoSysRows === 'function') syncMcpAutoSysRows();
             };
             const collectAutoSystemPromptConfigFromForm = (prefix) => {
                 const cfg = {};
                 AUTO_SYS_PROMPT_ITEMS.forEach((item) => {
                     const enabledEl = get(`${prefix}-auto-sys-${item.key}-enabled`);
                     const textEl = get(`${prefix}-auto-sys-${item.key}-text`);
+                    // MCPは設定側でオフにできない（常に有効）。保存時も true で固定する。
                     cfg[item.key] = {
-                        enabled: enabledEl ? enabledEl.checked : true,
+                        enabled: item.mcpLocked === true ? true : (enabledEl ? enabledEl.checked : true),
                         text: textEl ? textEl.value : ''
                     };
                 });
@@ -629,6 +650,7 @@
             if(get('set-default-file-creation')) get('set-default-file-creation').checked = !!d.default_enable_file_creation;
             if(get('set-default-thinking')) get('set-default-thinking').checked = !!d.default_enable_thinking;
             if(get('set-default-sys-prompt')) get('set-default-sys-prompt').checked = !!d.default_enable_system_prompt;
+            if(get('set-default-mcp')) get('set-default-mcp').checked = d.default_enable_mcp !== false;
             if(get('set-default-thinking-level')) get('set-default-thinking-level').value = d.default_thinking_level || 'high';
             if(get('set-default-thinking-budget')) get('set-default-thinking-budget').value = d.default_thinking_budget || 4096;
             if(get('set-default-reasoning-effort')) get('set-default-reasoning-effort').value = d.default_reasoning_effort || 'medium';
@@ -935,6 +957,7 @@
                     default_enable_python: get('set-default-python') ? get('set-default-python').checked : false,
                     default_enable_file_creation: get('set-default-file-creation') ? get('set-default-file-creation').checked : false,
                     default_enable_thinking: get('set-default-thinking') ? get('set-default-thinking').checked : false,
+                    default_enable_mcp: get('set-default-mcp') ? get('set-default-mcp').checked : true,
                     default_thinking_level: get('set-default-thinking-level') ? get('set-default-thinking-level').value : null,
                     default_thinking_budget: get('set-default-thinking-budget') ? get('set-default-thinking-budget').value : null,
                     default_reasoning_effort: get('set-default-reasoning-effort') ? get('set-default-reasoning-effort').value : null,

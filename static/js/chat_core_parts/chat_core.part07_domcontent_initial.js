@@ -549,6 +549,7 @@
                 updateImageInputLimits();
                 purgeUnsupportedAttachments(true);
                 refreshMinimalOptionsIfOpen();
+                applyMcpPromptChipUi();
             }
             if (get('model-select')) {
                 get('model-select').addEventListener('change', toggleOptions);
@@ -891,6 +892,7 @@
                     currentVisionModel = d.default_vision_model || 'gemini-3-flash-preview';
                 }
                 applyChatDefaults(d);
+                try { loadMcpServers(); } catch (e) {}
                 if (d && d.theme_color) {
                     applyThemeColor(d.theme_color, true);
                 }
@@ -1309,13 +1311,14 @@
                 default_enable_file_creation: '既定: File',
                 default_enable_thinking: '既定: Thinking', default_thinking_level: '既定: Thinkingレベル',
                 default_thinking_budget: '既定: Thinking budget', default_reasoning_effort: '既定: Reasoning effort',
-                default_enable_system_prompt: '既定: システムプロンプト', default_safety_setting: '既定: 安全設定',
+                default_enable_system_prompt: '既定: システムプロンプト', default_enable_mcp: '既定: MCP',
+                default_safety_setting: '既定: 安全設定',
                 default_vision_model: 'Vision Model', rich_paste_prompt_default: 'リッチ貼り付けプロンプト',
                 rich_paste_prompt_use_custom_default: 'リッチ貼り付けカスタムプロンプト既定',
                 last_model: '直前のモデル', last_enable_search: '直前: Search', last_enable_url_context: '直前: URLコンテキスト',
                 last_enable_maps: '直前: Maps', last_enable_python: '直前: Python', last_enable_file_creation: '直前: File', last_enable_thinking: '直前: Thinking',
                 last_thinking_level: '直前: Thinkingレベル', last_thinking_budget: '直前: Thinking budget',
-                last_reasoning_effort: '直前: Reasoning effort', last_enable_system_prompt: '直前: システムプロンプト',
+                last_reasoning_effort: '直前: Reasoning effort', last_enable_system_prompt: '直前: システムプロンプト', last_enable_mcp: '直前: MCP',
                 last_safety_setting: '直前: 安全設定', enable_latency_metrics: 'レスポンス速度の計測',
                 enable_client_debug_log: 'デバッグログの拡張送信',
             };

@@ -6,7 +6,7 @@ AI_SAFE_EDITABLE_FIELDS = {
     # Default chat behaviors
     'default_model', 'default_enable_search', 'default_enable_url_context', 'default_enable_maps',
     'default_enable_python', 'default_enable_file_creation', 'default_enable_thinking', 'default_thinking_level',
-    'default_thinking_budget', 'default_reasoning_effort', 'default_enable_system_prompt',
+    'default_thinking_budget', 'default_reasoning_effort', 'default_enable_system_prompt', 'default_enable_mcp',
     'default_safety_setting',
     # Vision model for image analysis
     'default_vision_model',
@@ -220,6 +220,9 @@ def _apply_ai_settings_update(current_user, delta):
             elif key == 'default_enable_system_prompt':
                 current_user.default_enable_system_prompt = bool(val)
                 applied[key] = current_user.default_enable_system_prompt
+            elif key == 'default_enable_mcp':
+                current_user.default_enable_mcp = bool(val)
+                applied[key] = current_user.default_enable_mcp
             elif key == 'default_safety_setting':
                 _raw = str(val).strip() if val else ''
                 if _raw in VALID_SAFETY_SETTINGS:

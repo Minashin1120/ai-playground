@@ -1216,6 +1216,7 @@
             { key: 'maps', icon: 'fa-map-location-dot', label: 'Maps', checkboxId: 'enable-maps', containerId: 'maps-grounding-container' },
             { key: 'python', icon: 'fa-code', label: 'Python', checkboxId: 'enable-python', containerId: 'python-container' },
             { key: 'file', icon: 'fa-file-lines', label: 'File', checkboxId: 'enable-file-creation', containerId: 'file-creation-container' },
+            { key: 'mcp', icon: 'fa-plug', label: 'MCP', checkboxId: 'enable-mcp', containerId: 'mcp-container' },
             { key: 'sysprompt', icon: 'fa-terminal', label: 'SysPrompt', checkboxId: 'enable-sys-prompt', containerId: 'sys-prompt-option', gear: true, gearAction: () => { if (window.openThreadModal) window.openThreadModal(); } },
             { key: 'thinking', icon: 'fa-brain', label: 'Thinking', checkboxId: 'enable-thinking', containerId: 'thinking-options', special: 'thinking' },
             { key: 'effort', icon: 'fa-sliders-h', label: 'Effort', containerId: 'reasoning-effort-container', selectId: 'reasoning-effort' },

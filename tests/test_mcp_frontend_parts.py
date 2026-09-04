@@ -80,10 +80,10 @@ class McpFrontendPartsTests(unittest.TestCase):
         self.assertIn("You have Model Context Protocol (MCP) tools connected.", exec_src)
         self.assertIn("{{mcp_tools}}", exec_src)
         # MCP案内文が「自動注入システムプロンプト（ユーザー単位）」の一覧に載っている
-        at = (APP_ROOT / "server" / "account_transfer.py").read_text(encoding="utf-8")
-        self.assertIn('"mcp",', at)
-        self.assertIn('"mcp": "MCP (外部ツール接続)"', at)
-        self.assertIn('"mcp": AUTO_SYSTEM_PROMPT_NOTICE_MCP,', at)
+        request_security = (APP_ROOT / "server" / "request_security.py").read_text(encoding="utf-8")
+        self.assertIn('"mcp",', request_security)
+        self.assertIn('"mcp": "MCP (外部ツール接続)"', request_security)
+        self.assertIn('"mcp": AUTO_SYSTEM_PROMPT_NOTICE_MCP,', request_security)
         js = self._js()
         self.assertIn("{ key: 'mcp', label: 'MCP（外部ツール接続）'", js)
 

@@ -32,13 +32,22 @@
 | `lyria.py` | Lyria RealTime のサーバー側セッション（Google へ WebSocket、ブラウザへ SSE） | リアルタイム音楽 |
 | `realtime.py` | OpenAI Realtime / Grok Voice / Gemini native-audio のサーバー側 STS セッション | リアルタイム音声会話 |
 | `models.py` | SQLAlchemy モデル（`User`, `Thread`, `Message`, `Gem`, セッション、BAN 等）。`mcp_service` のモデルもここで `db` に載せる | カラム追加、ユーザー設定、チャット保存形式 |
-| `account_transfer.py` | アカウント輸出入の形式・ジョブ、重複整理、ボット判定スコアなど移行周辺 | エクスポート、インポート、重複修復 |
+| `account_transfer.py` | アカウント輸出入の形式・ジョブ、設定・秘密情報・スレッド・ファイルの移行処理 | エクスポート、インポート、移行アーカイブ |
+| `request_identity.py` | ユーザー読込、CSRFトークン、接続元情報、チャット遅延トレース | ユーザー識別、CSRF取得、レイテンシ計測 |
+| `account_security.py` | クライアントトークン、関連アカウントBAN・解除、アカウント即時削除 | BAN連鎖、識別子、アカウント削除 |
+| `chat_state.py` | スレッド公開ID、送信の冪等制御、ユーザーセッション作成・失効 | 二重送信防止、スレッド解決、セッション管理 |
+| `app_settings_schema.py` | CSRFコンテキスト、アプリ設定、DBカラム・インデックスの互換更新 | 起動時スキーマ補完、AppSetting、DBインデックス |
+| `temp_chat.py` | 添付参照の正規化・削除、一時チャットの在席・期限切れ監視 | 一時チャット、アップロード追跡、自動削除 |
+| `request_security.py` | 自動システム通知、レスポンスキャッシュ・gzip、メンテナンス、Bot検知・Turnstile | リクエストフック、Bot対策、キャッシュヘッダー |
+| `token_utils.py` | レート制限、モデル別トークン計測、Thinking集計、チャットエラー整形 | トークン数、レート制限、Botスコア評価 |
 | `background.py` | RQ のチャット生成本体、E2EE 移行、Coding Mode、ストリームの Redis 蓄積 | 生成ジョブ、ストリーム、コーディングモード |
 | `routes_pages.py` | `/`, `/c/<id>`, help, changelog, `/api/version`, `sw.js` などページと入口 | 画面ルート、版 API、PWA |
 | `routes_auth.py` | ログイン、Google / Minashin / Passkey、2FA、signup、setup、logout | 認証、SSO、新規登録 |
 | `routes_chat.py` | `/chat_stream`、トークン見積、停止、一時チャット heartbeat、タイトル生成 | 通常のテキストチャット送信 |
 | `routes_realtime.py` | Lyria / Realtime の HTTP+SSE、Gemini STS 保存、`robots.txt` | リアルタイム API の HTTP 面 |
-| `routes_files.py` | ファイル配信、スレッド CRUD、PDF、暗号化スキャン、管理者スレッド | スレッド、ファイル URL、PDF |
+| `routes_files.py` | ファイル・サムネイル配信、スレッド一覧・作成・取得・削除 | ファイル URL、スレッド基本操作 |
+| `rich_paste_pdf.py` | スレッドPDFとリッチペーストPDFの組版・サニタイズ・テーマ処理 | PDF出力、リッチペースト印刷 |
+| `routes_threads_library.py` | 暗号化スキャン、管理者スレッド、スレッド設定、ファイルライブラリ操作 | 暗号化、スレッド設定、ライブラリCRUD |
 | `routes_account.py` | アカウント削除、輸出入ジョブ、重複修復、フィードバック、簡易ログイン | アカウント移行 API |
 | `routes_admin.py` | BAN、ボット検知、Turnstile、速度テスト、管理者のユーザー操作 | 管理、BAN、Turnstile |
 | `routes_settings.py` | `/api/settings`、AI 設定プロンプト、セッション、2FA 設定、Gem、メンテナンス | 設定保存、Gem、セッション |

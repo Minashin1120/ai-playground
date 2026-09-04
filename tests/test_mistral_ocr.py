@@ -3,7 +3,9 @@ import ast
 import re
 import unittest
 
+from tests.chat_template import read_chat_markup
 
+from tests.app_source import read_app_source
 APP_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -20,10 +22,10 @@ def _latest_chat_core_source():
 class MistralOcrRegressionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        cls.app_source = read_app_source()
         cls.js_path = _latest_chat_core_source()
         cls.js_source = cls.js_path.read_text(encoding="utf-8")
-        cls.chat_html = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        cls.chat_html = read_chat_markup()
         cls.setup_html = (APP_ROOT / "templates" / "setup.html").read_text(encoding="utf-8")
 
     def test_backend_registers_mistral_ocr_model_and_provider(self):

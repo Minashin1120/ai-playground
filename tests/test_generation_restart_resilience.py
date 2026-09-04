@@ -3,6 +3,7 @@ import re
 import unittest
 
 
+from tests.app_source import read_app_source
 APP_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -14,7 +15,7 @@ def _current_chat_js():
 
 class GenerationRestartResilienceTests(unittest.TestCase):
     def test_every_server_side_generation_is_dispatched_to_rq(self):
-        source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        source = read_app_source()
         route = source[source.index("def chat_stream():") : source.index("def estimate_prompt_tokens_api():")]
 
         self.assertIn("enqueue_queue.enqueue(", route)
@@ -25,7 +26,7 @@ class GenerationRestartResilienceTests(unittest.TestCase):
         self.assertNotIn("direct-chat-", route)
 
     def test_worker_graceful_shutdown_exceeds_the_job_timeout(self):
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         unit_source = (APP_ROOT / "ai-chat-worker@.service").read_text(encoding="utf-8")
         route = app_source[app_source.index("def chat_stream():") : app_source.index("def estimate_prompt_tokens_api():")]
         job_timeout = int(re.search(r"job_timeout=(\d+)", route).group(1))

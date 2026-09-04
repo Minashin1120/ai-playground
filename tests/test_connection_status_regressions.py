@@ -1,7 +1,9 @@
 from pathlib import Path
 import unittest
 
+from tests.chat_template import read_chat_markup
 
+from tests.app_source import read_app_source
 APP_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -33,7 +35,7 @@ class ConnectionStatusRegressionTests(unittest.TestCase):
         self.assertNotIn("connectionUnstableUntil", source)
 
     def test_heartbeat_logic_lives_in_its_own_module_loaded_before_chat_core(self):
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         chat_core_line = [line for line in template.splitlines() if "chat_core.min." in line and "script src" in line][0]
         monitor_line = [line for line in template.splitlines() if "connection_monitor.min.js" in line and "script src" in line][0]
 
@@ -149,7 +151,7 @@ class ConnectionStatusRegressionTests(unittest.TestCase):
         self.assertIn("await loadMessages(currentThreadId, { preserveDraft: true, silent: true })", source)
 
     def test_server_deduplicates_retried_prompt_submissions(self):
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         route = app_source[app_source.index("def chat_stream():") :]
         route = route[: route.index("@app.route('/api/token_estimate'")]
 
@@ -161,7 +163,7 @@ class ConnectionStatusRegressionTests(unittest.TestCase):
 
     def test_browser_fast_result_save_uses_the_same_resilient_deduped_path(self):
         source = _connection_script()
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         client_save = source[source.index("const saveResponse = await") :]
         client_save = client_save[: client_save.index("const saved = await")]
         server_save = app_source[app_source.index("def save_browser_fast_mode_chat():") :]
@@ -174,7 +176,7 @@ class ConnectionStatusRegressionTests(unittest.TestCase):
         self.assertIn('"code": "submission_in_progress"', server_save)
 
     def test_application_maintenance_response_is_machine_readable(self):
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
 
         self.assertGreaterEqual(app_source.count("X-AI-Maintenance"), 2)
         version_route = app_source[app_source.index("def api_version():") :]

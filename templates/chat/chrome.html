@@ -1,0 +1,51 @@
+    
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div id="flash-msg" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] text-white px-6 py-3 rounded shadow-lg flex items-center gap-3 fade-in">
+          <span>{{ messages[0] }}</span>
+          <button onclick="this.parentElement.remove()" class="text-white/80 hover:text-white"><i class="fas fa-times"></i></button>
+        </div>
+      {% endif %}
+    {% endwith %}
+    <div id="turnstile-container" class="hidden turnstile-box"></div>
+    <div id="offline-banner" role="status" aria-live="polite">
+        <i id="offline-banner-icon" class="fas fa-wifi"></i>
+        <span id="offline-banner-text">サーバーとの通信が切断されています</span>
+    </div>
+    <div id="image-viewer">
+        <button class="viewer-nav prev" data-progress-no-spinner="true" onclick="navImage(-1)"><i class="fas fa-chevron-left"></i></button>
+        <div class="viewer-content">
+            <img id="image-viewer-img" alt="image preview">
+            <div id="image-viewer-meta" class="viewer-meta"></div>
+        </div>
+        <button class="viewer-nav next" data-progress-no-spinner="true" onclick="navImage(1)"><i class="fas fa-chevron-right"></i></button>
+        <div class="viewer-toolbar">
+            <button onclick="downloadCurrentImage()" data-progress-no-spinner="true" title="Download"><i class="fas fa-download"></i></button>
+            <button onclick="copyCurrentImageUrl()" data-progress-no-spinner="true" title="Copy URL"><i class="fas fa-link"></i></button>
+            <button onclick="reuseCurrentImage()" data-progress-no-spinner="true" title="Reuse as Attachment"><i class="fas fa-reply"></i></button>
+            <button onclick="closeImageViewer()" data-progress-no-spinner="true" title="Close"><i class="fas fa-times"></i></button>
+        </div>
+    </div>
+    <div id="file-viewer">
+        <div class="panel">
+            <div class="panel-header">
+                <span id="file-viewer-title">File Preview</span>
+                <button class="close-btn" onclick="closeFileViewer()" aria-label="close"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="file-viewer-body" class="panel-body"></div>
+        </div>
+    </div>
+
+    <!-- Toast Stack -->
+    <div id="toast-stack"></div>
+    
+    <!-- Alpha Bar -->
+    <div id="alpha-bar" class="fixed bottom-0 left-0 right-0 text-[10px] font-bold text-center py-1 z-[60] backdrop-blur-sm shadow-lg">
+        <i class="fas fa-check-circle mr-1"></i> System {{ system_version }} (Stable)    </div>
+
+    <!-- Quote Popover (must NOT have transform/backdrop-filter/fade-in on any ancestor incl. this container: a non-none transform creates a containing block that breaks position:fixed viewport coords set by handleQuotePopover) -->
+    <div id="quote-popover-container" class="absolute -top-12 right-3">
+        <button id="quote-popover"><i class="fas fa-quote-left mr-1"></i> Quote</button>
+    </div>
+    

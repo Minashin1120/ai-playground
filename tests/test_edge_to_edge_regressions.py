@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import unittest
 
+from tests.chat_template import read_chat_markup
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 
@@ -14,7 +15,7 @@ def _current_asset(folder, pattern):
 
 class EdgeToEdgeRegressionTests(unittest.TestCase):
     def test_chat_always_opts_in_to_edge_to_edge(self):
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         # Edge-to-edge (viewport-fit=cover) is applied in every prompt-bar mode,
         # not just the minimal one.
         self.assertIn(
@@ -25,7 +26,7 @@ class EdgeToEdgeRegressionTests(unittest.TestCase):
         self.assertNotIn("user-scalable=no", template)
 
     def test_dead_safe_pb_mechanism_removed(self):
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         css = _current_asset("css", "chat.custom.v4.8.*.css")
         self.assertNotIn("safe-pb", template)
         self.assertNotIn("safe-pb", css)

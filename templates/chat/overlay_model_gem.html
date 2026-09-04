@@ -1,0 +1,57 @@
+    <!-- Model Selector Modal -->
+    <div id="model-modal" class="fixed inset-0 bg-gray-900/95 z-[60] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-hidden">
+        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-0 shadow-2xl border border-gray-700 m-4 flex flex-col min-h-0 max-h-[calc(100dvh-2rem)] modal-panel">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-900/50 flex-shrink-0">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-robot text-blue-400"></i> Select Model</h2>
+                <button onclick="closeModelModal()" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-2 border-b border-gray-700 bg-gray-900/30 flex-shrink-0">
+                <div class="relative">
+                    <i class="fas fa-search absolute left-3 top-2.5 text-gray-500 text-xs"></i>
+                    <input type="text" id="model-search" placeholder="Search models..." class="w-full bg-gray-800 border border-gray-700 rounded pl-9 pr-3 py-2 text-sm text-white focus:border-blue-500 outline-none transition placeholder-gray-600">
+                </div>
+                <div id="model-tag-bar" class="flex flex-wrap gap-2 mt-2 px-1">
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">All</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">OpenAI</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Gemini</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">DeepSeek</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Mistral</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">xAI</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Image</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Audio</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Reasoning</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Fast</button>
+                    <button class="model-tag-btn px-2 py-1 text-[10px] rounded border">Agentic View</button>
+                </div>
+            </div>
+            <div id="model-list-container" class="overflow-y-auto p-4 flex-1 min-h-0 space-y-6">
+                <!-- Models rendered by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Gem Modal -->
+    <div id="gem-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-lg p-6 shadow-2xl border border-gray-700 m-4 flex flex-col modal-panel">
+            <h2 class="text-xl font-bold text-white mb-4" id="gem-modal-title"><i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem</h2>
+            <div class="space-y-4">
+                <div><label class="block text-xs text-gray-400 mb-1">Name</label><input type="text" id="gem-name" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="My Helper"></div>
+                <div><label class="block text-xs text-gray-400 mb-1">Description (Optional)</label><input type="text" id="gem-desc" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="A short description..."></div>
+                <div><label class="block text-xs text-gray-400 mb-1">System Instruction</label><textarea id="gem-inst" class="w-full h-32 bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="You are a helpful assistant..."></textarea></div>
+                <div><label class="block text-xs text-gray-400 mb-1">Default Model (optional)</label><select id="gem-default-model" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm"><option value="">Use current model</option></select></div>
+                
+                <div class="pt-4 border-t border-gray-700">
+                    <label class="block text-xs font-bold text-indigo-400 mb-2 uppercase tracking-wider">Fixed Prompts (Gem specific)</label>
+                    <div id="gem-fixed-prompts-container" class="space-y-2 mb-2">
+                        <!-- Dynamic rows -->
+                    </div>
+                    <button type="button" id="add-gem-fixed-prompt-row" class="text-[10px] bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded transition"><i class="fas fa-plus mr-1"></i>プロンプトを追加</button>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6">
+                <button onclick="closeGemModal()" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+                <button id="save-gem-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-hover">Save Gem</button>
+            </div>
+        </div>
+    </div>
+

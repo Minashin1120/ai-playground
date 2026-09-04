@@ -3,12 +3,13 @@ import re
 import unittest
 
 
+from tests.app_source import read_app_source
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 class Grok4546FamilyRegressionTests(unittest.TestCase):
     def test_family_is_registered_across_backend_and_user_interfaces(self):
-        app_source = (ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         setup_source = (ROOT / "templates" / "setup.html").read_text(encoding="utf-8")
         js_assets = list((ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(js_assets), 1)
@@ -36,7 +37,7 @@ class Grok4546FamilyRegressionTests(unittest.TestCase):
         self.assertIn('("grok-4.5" in model_key_l) or ("grok-4.6" in model_key_l)', app_source)
 
     def test_reasoning_effort_levels_follow_official_docs(self):
-        app_source = (ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         js_assets = list((ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(js_assets), 1)
         js_source = js_assets[0].read_text(encoding="utf-8")

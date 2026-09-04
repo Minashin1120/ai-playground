@@ -1,6 +1,7 @@
 from pathlib import Path
 import unittest
 
+from tests.chat_template import read_chat_markup
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 
@@ -13,7 +14,7 @@ def _current_asset(folder, pattern):
 
 class LibraryRedesignRegressionTests(unittest.TestCase):
     def test_template_has_modern_library_modal_structure(self):
-        template = Path(APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         # Required IDs must remain for the JS to bind behavior.
         for ident in (
             "id=\"lib-modal\"",

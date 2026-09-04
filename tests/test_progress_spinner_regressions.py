@@ -2,6 +2,7 @@ from pathlib import Path
 import unittest
 
 
+from tests.app_source import read_app_source
 APP_ROOT = Path(__file__).resolve().parents[1]
 SPINNER_SOURCE = APP_ROOT / "static" / "js" / "progress_spinner.js"
 
@@ -38,7 +39,7 @@ class ProgressSpinnerRegressionTests(unittest.TestCase):
 
     def test_spinner_cache_version_matches_system_version(self):
         import re
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         m = re.search(r"SYSTEM_VERSION'\]\s*=\s*'(V4\.8\.\d+)'", app_source)
         self.assertIsNotNone(m)
         self.assertIn(f"SYSTEM_VERSION'] = '{m.group(1)}'", app_source)
@@ -121,7 +122,7 @@ class ProgressSpinnerRegressionTests(unittest.TestCase):
         self.assertIn("buildChatErrorBubbleHtml(j.content)", resume_flow)
 
     def test_image_generation_progress_does_not_replace_pending_skeleton(self):
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
 
         self.assertNotIn('pub("content", "**Generating Image (Grok)...**', app_source)
         self.assertNotIn('pub("content", "**Generating Image (OpenAI)...**', app_source)

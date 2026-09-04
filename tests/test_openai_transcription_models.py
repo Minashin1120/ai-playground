@@ -1,13 +1,15 @@
 from pathlib import Path
 import unittest
 
+from tests.chat_template import read_chat_markup
 
+from tests.app_source import read_app_source
 APP_ROOT = Path(__file__).resolve().parents[1]
 
 
 class OpenAITranscriptionModelRegressionTests(unittest.TestCase):
     def test_backend_registers_file_and_realtime_transcription_models(self):
-        source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        source = read_app_source()
 
         self.assertIn('"gpt-transcribe": {"provider": "openai", "mode": "transcription"', source)
         self.assertIn('"gpt-live-transcribe": {"provider": "openai", "mode": "transcription"', source)
@@ -27,7 +29,7 @@ class OpenAITranscriptionModelRegressionTests(unittest.TestCase):
         self.assertRegex(source, r'id:\s*"gpt-live-transcribe"[^}]*name:\s*"GPT Live Transcribe"')
         self.assertIn("stsData.audio_url || stsData.transcription_only", source)
 
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         self.assertIn('value="gpt-transcribe">gpt-transcribe（推奨・高精度）', template)
 
 

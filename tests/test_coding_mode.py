@@ -2,7 +2,9 @@ import os
 from pathlib import Path
 import unittest
 
+from tests.chat_template import read_chat_markup
 
+from tests.app_source import read_app_source
 os.environ.setdefault("FLASK_SECRET_KEY", "coding-mode-test-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/ai-chat-coding-mode-tests.db")
 os.environ.setdefault("REDIS_URL", "redis://127.0.0.1:6399/15")
@@ -161,7 +163,7 @@ class CodingModeTests(unittest.TestCase):
         assets = list((APP_ROOT / "static/js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(assets), 1)
         source = assets[0].read_text(encoding="utf-8")
-        template = (APP_ROOT / "templates/chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
 
         self.assertIn('id="enable-coding-mode"', template)
         self.assertIn('id="coding-target-bar"', template)
@@ -191,7 +193,7 @@ class CodingModeTests(unittest.TestCase):
         self.assertLess(selection_at, prompt_at)
 
     def test_backend_validates_target_before_message_save(self):
-        source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        source = read_app_source()
         route = source[source.index("def chat_stream():"):]
         target_validation_at = route.index("Coding Mode target is required")
         message_save_at = route.index("user_msg = Message(")

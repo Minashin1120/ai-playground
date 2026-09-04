@@ -4,6 +4,7 @@ import re
 import unittest
 
 
+from tests.app_source import read_app_source
 APP_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -28,7 +29,7 @@ def _format_chat_error_content_from_source_contract(error_text, partial_content=
 
 class ChatErrorPersistRegressionTests(unittest.TestCase):
     def test_app_defines_format_and_persist_helpers(self):
-        source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        source = read_app_source()
         self.assertIn("def format_chat_error_content(error_text, partial_content=\"\"):", source)
         self.assertIn('fence = f"```chat_error\\n{err_body}\\n```"', source)
         self.assertIn('err_body = err_body.replace("```", "\'\'\'")', source)
@@ -60,7 +61,7 @@ class ChatErrorPersistRegressionTests(unittest.TestCase):
         self.assertNotIn("```chat_error\nbad ```", out)
 
         # Ensure the live app.py body matches the pure contract used above.
-        source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        source = read_app_source()
         fn = source[source.index("def format_chat_error_content(") :]
         fn = fn[: fn.index("\ndef safe_db_commit(")]
         self.assertIn('err_body.replace("```", "\'\'\'")', fn)
@@ -93,7 +94,7 @@ class ChatErrorPersistRegressionTests(unittest.TestCase):
     def test_version_assets_include_chat_error_support(self):
         assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(assets), 1)
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         ver_m = re.search(r"SYSTEM_VERSION'\] = '(V4\.8\.\d+)'", app_source)
         self.assertIsNotNone(ver_m)
         system_version = ver_m.group(1)

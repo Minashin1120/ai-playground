@@ -4,6 +4,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
+from tests.app_source import read_app_source
 os.environ.setdefault("FLASK_SECRET_KEY", "edit-file-tool-test-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/ai-chat-edit-file-tool-tests.db")
 os.environ.setdefault("REDIS_URL", "redis://127.0.0.1:6399/15")
@@ -640,7 +641,7 @@ class DocxPdfEditToolTests(unittest.TestCase):
         self.assertIn("replace", props["text_edits"]["items"]["properties"])
 
     def test_gemini_edit_tool_accepts_paragraph_and_text_edits(self):
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         idx = app_source.index("def _gemini_edit_file_tool(")
         branch = app_source[idx:idx + 4000]
         self.assertIn("cell_edits: Optional[list[dict]] = None", branch)

@@ -2,8 +2,9 @@ from pathlib import Path
 import unittest
 
 
+from tests.app_source import read_app_source
 APP_ROOT = Path(__file__).resolve().parents[1]
-APP_SOURCE = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+APP_SOURCE = read_app_source()
 
 
 class AiSettingsInspectionRegressionTests(unittest.TestCase):

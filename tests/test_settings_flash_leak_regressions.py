@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest import mock
 
 
+from tests.app_source import read_app_source
 os.environ.setdefault("FLASK_SECRET_KEY", "settings-flash-test-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/ai-chat-settings-flash-tests.db")
 os.environ.setdefault("REDIS_URL", "redis://127.0.0.1:6399/15")
@@ -15,7 +16,7 @@ import app as target
 
 
 APP_ROOT = Path(__file__).resolve().parents[1]
-APP_SOURCE = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+APP_SOURCE = read_app_source()
 CHAT_JS_ASSETS = list((APP_ROOT / "static/js").glob("chat_core.v4.8.*.js"))
 assert len(CHAT_JS_ASSETS) == 1, "Only the latest versioned chat core asset should remain"
 CHAT_JS = CHAT_JS_ASSETS[0].read_text(encoding="utf-8")

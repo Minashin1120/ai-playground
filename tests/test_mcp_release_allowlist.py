@@ -27,10 +27,11 @@ class McpReleaseAllowlistTests(unittest.TestCase):
     def test_allowlist_includes_mcp_service(self):
         module = self._load_common()
         self.assertIn("mcp_service/", module.ALLOWED_GIT_PREFIXES)
+        self.assertIn("server/", module.ALLOWED_GIT_PREFIXES)
 
     def test_mcp_service_files_would_be_allowed(self):
         module = self._load_common()
-        for rel in ("mcp_service/__init__.py", "mcp_service/web.py", "mcp_service/client.py"):
+        for rel in ("mcp_service/__init__.py", "mcp_service/web.py", "mcp_service/client.py", "server/models.py", "server/README.md"):
             with self.subTest(rel=rel):
                 self.assertTrue(module.is_allowed_git_path(rel), f"{rel} should be committable")
 

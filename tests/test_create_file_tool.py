@@ -3,6 +3,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
+from tests.app_source import read_app_source
 os.environ.setdefault("FLASK_SECRET_KEY", "create-file-tool-test-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/ai-chat-create-file-tool-tests.db")
 os.environ.setdefault("REDIS_URL", "redis://127.0.0.1:6399/15")
@@ -169,7 +170,7 @@ class CreateFileToolTests(unittest.TestCase):
         self.assertIn("filename", schema["function"]["parameters"]["required"])
 
     def test_deepseek_branch_registers_create_file_tool(self):
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         deepseek_branch = app_source[
             app_source.index('log_force("Routing: DeepSeek V4 Branch (Chat Completions)")'):
             app_source.index('elif is_kimi:', app_source.index('log_force("Routing: DeepSeek V4 Branch (Chat Completions)")'))
@@ -184,7 +185,7 @@ class CreateFileToolTests(unittest.TestCase):
         self.assertIn("_create_file_tool_result_text(create_result)", deepseek_branch)
 
     def test_responses_api_branch_registers_create_file_tool(self):
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         responses_branch = app_source[
             app_source.index('log_force("Routing: Responses API Branch")'):
             app_source.index('elif is_deepseek:', app_source.index('log_force("Routing: Responses API Branch")'))
@@ -195,7 +196,7 @@ class CreateFileToolTests(unittest.TestCase):
         self.assertIn('call_name in ("execute_python", "create_file", "edit_file")', responses_branch)
 
     def test_gemini_branch_registers_create_file_callable(self):
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         self.assertIn("_gemini_create_file_tool.__name__ = \"create_file\"", app_source)
         self.assertIn("conf['tools'].append(_gemini_create_file_tool)", app_source)
         self.assertIn("_gemini_edit_file_tool.__name__ = \"edit_file\"", app_source)
@@ -210,19 +211,19 @@ class CreateFileToolTests(unittest.TestCase):
         self.assertIn("enable-file-creation", js_source)
 
     def test_options_dict_contains_enable_file_creation(self):
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         self.assertIn("'enable_file_creation': data.get('enable_file_creation')", app_source)
         self.assertIn("current_user.last_enable_file_creation = bool(data.get('enable_file_creation'))", app_source)
 
     def test_db_columns_and_migrations(self):
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         self.assertIn("default_enable_file_creation = db.Column(db.Boolean, default=True)", app_source)
         self.assertIn("last_enable_file_creation = db.Column(db.Boolean, default=True)", app_source)
         self.assertIn("ALTER TABLE user ADD COLUMN default_enable_file_creation BOOLEAN DEFAULT 1", app_source)
         self.assertIn("ALTER TABLE user ADD COLUMN last_enable_file_creation BOOLEAN DEFAULT 1", app_source)
 
     def test_file_creation_columns_are_ensured_at_startup(self):
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         self.assertIn("def ensure_user_file_creation_columns():", app_source)
         self.assertIn("ensure_user_file_creation_columns()", app_source)
         # Must be applied unconditionally at startup (not only under RUN_SCHEMA_MIGRATIONS)

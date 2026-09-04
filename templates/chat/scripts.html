@@ -1,0 +1,308 @@
+    <script>
+        window.CHAT_CONFIG = {
+            initialThemeColor: {{ initial_theme_color|tojson }},
+            initialLiquidGlassEnabled: {{ initial_liquid_glass_enabled|tojson }},
+            initialThreadId: {{ initial_thread_id|default(none)|tojson }},
+            attachmentMaxFiles: Number({{ attachment_max_files|default(30)|tojson }}) || 30,
+            uploadConcurrency: Math.max(1, Number({{ upload_concurrency|default(3)|tojson }}) || 3),
+            enterToSend: {{ 'true' if current_user.is_authenticated and current_user.enter_to_send else 'false' }},
+            autoSearchOnLinks: {{ 'true' if current_user.is_authenticated and current_user.auto_search_on_links else 'false' }},
+            useSwCache: {{ 'true' if current_user.is_authenticated and current_user.use_sw_cache else 'false' }},
+            clearCacheOnVersionUpdate: {{ 'true' if current_user.is_authenticated and current_user.clear_cache_on_version_update else 'false' }},
+            compactPromptMode: {{ 'true' if current_user.is_authenticated and current_user.compact_prompt_mode else 'false' }},
+            minimalPromptMode: {{ 'true' if current_user.is_authenticated and current_user.minimal_prompt_mode else 'false' }},
+            enableLatencyMetrics: {{ 'true' if current_user.is_authenticated and current_user.enable_latency_metrics else 'false' }},
+            appVersion: "{{ app_version }}",
+            botConfig: {{ bot_config|tojson if bot_config is defined else 'null' }},
+            currentUsername: {{ current_user.username|tojson if current_user.is_authenticated else 'null' }},
+            enableE2EE: {{ current_user.enable_e2ee|tojson if current_user.is_authenticated else 'false' }},
+            urls: {
+                handleSettingsQuery: "{{ url_for('handle_settings', _=1) }}",
+                handleSettings: "{{ url_for('handle_settings') }}",
+                estimatePromptTokensApi: "{{ url_for('estimate_prompt_tokens_api') }}",
+                serveFileBase: "{{ url_for('serve_file', filename='') }}",
+                serveFileThumbBase: "{{ url_for('serve_file_thumb', filename='') }}",
+                deleteAccount: "{{ url_for('delete_account') }}",
+                handleThreads: "{{ url_for('handle_threads') }}",
+                transcribe: "{{ url_for('transcribe') }}",
+                handleGems: "{{ url_for('handle_gems') }}",
+                upload: "{{ url_for('upload') }}",
+                chatStream: "{{ url_for('chat_stream') }}",
+                handleThreadItem: "{{ url_for('handle_thread_item', thread_id=0) }}",
+                handleGemItem: "{{ url_for('handle_gem_item', gem_uuid='0') }}",
+                unlinkMinashinAccount: "{{ url_for('unlink_minashin') }}",
+                updateTitle: "{{ url_for('update_title', thread_id=0) }}",
+                deleteMessage: "{{ url_for('delete_message', mid=0) }}",
+                exportThreadPdf: "{{ url_for('export_thread_pdf', thread_id=0) }}",
+                richPastePdfServer: "{{ url_for('rich_paste_pdf') }}",
+                renameLibraryFile: "{{ url_for('rename_library_file') }}",
+                deleteFilesBatch: "{{ url_for('delete_files_batch') }}",
+                getFilesLib: "{{ url_for('get_files_lib') }}"
+            }
+        };
+    </script>
+    <script>
+        (function () {
+            if (!window.CHAT_CONFIG || !window.CHAT_CONFIG.minimalPromptMode) return;
+            document.body.classList.add('minimal-prompt-mode');
+            var btn = document.getElementById('model-selector-btn');
+            var bar = document.getElementById('top-model-bar');
+            if (btn && bar) bar.appendChild(btn);
+            var icon = document.querySelector('#upload-btn i');
+            if (icon) icon.className = 'fas fa-plus';
+        })();
+    </script>
+    <script src="{{ url_for('static', filename='js/connection_monitor.min.js') }}?v={{ app_version }}" defer></script>
+    <script src="{{ url_for('static', filename='js/chat_core.min.' ~ (system_version | lower) ~ '.js') }}?v={{ app_version }}" defer></script>
+    <script src="{{ url_for('static', filename='js/pwa_install.min.js') }}?v={{ app_version }}" defer></script>
+
+<div id="token-detail-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
+  <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4 text-white relative modal-panel">
+    <button onclick="closeTokenDetail()" class="absolute right-3 top-3 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+    <div class="text-sm font-bold text-blue-300" id="token-detail-title">Token Details</div>
+    <div class="mt-3 text-xs text-gray-300 space-y-2">
+      <div class="flex justify-between"><span>Total</span><span id="token-detail-total" class="font-mono">-</span></div>
+      <div class="flex justify-between"><span>In</span><span id="token-detail-in" class="font-mono">-</span></div>
+      <div class="flex justify-between"><span>Out</span><span id="token-detail-out" class="font-mono">-</span></div>
+      <div class="flex justify-between"><span>Content</span><span id="token-detail-content" class="font-mono">-</span></div>
+      <div class="flex justify-between"><span>Thought</span><span id="token-detail-thought" class="font-mono">-</span></div>
+      <div class="flex justify-between"><span>Encryption</span><span id="token-detail-encrypted" class="font-mono">-</span></div>
+    </div>
+  </div>
+</div>
+
+<div id="python-exec-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm p-4 modal-overlay">
+  <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-2xl p-4 text-white relative shadow-2xl modal-panel" role="dialog" aria-modal="true" aria-labelledby="python-exec-modal-title">
+    <button type="button" onclick="closePythonExecDetail()" class="absolute right-3 top-3 text-gray-400 hover:text-white" title="閉じる" aria-label="閉じる"><i class="fas fa-times"></i></button>
+    <div class="text-sm font-bold text-amber-300 pr-8" id="python-exec-modal-title"><i class="fas fa-terminal mr-1.5"></i>Python 実行結果</div>
+    <div class="mt-3 text-xs text-gray-300" id="python-exec-modal-body"></div>
+  </div>
+</div>
+
+<div id="encryption-status-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
+  <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4 text-white relative modal-panel">
+    <button onclick="closeEncryptionModal()" class="absolute right-3 top-3 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+    <div class="text-sm font-bold text-blue-300" id="encryption-status-title">暗号化されています</div>
+    <div class="mt-3 text-xs text-gray-300" id="encryption-status-body">このメッセージはE2EEで暗号化されています。</div>
+    <div id="encryption-status-admin-actions" class="mt-4 hidden space-y-2">
+      <div class="text-[10px] text-cyan-200/80">管理者: このチャット全体のメッセージを変換できます。</div>
+      <button type="button" id="encryption-status-admin-toggle" class="w-full px-3 py-2 text-xs font-bold rounded text-white bg-amber-600 hover:bg-amber-500 btn-hover" data-progress-expected-slow="true">このチャットを復号化</button>
+    </div>
+    <div class="mt-4 flex justify-end gap-2">
+      <button onclick="closeEncryptionModal()" class="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 rounded">閉じる</button>
+      <button onclick="goToEncryptionSettings()" class="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 rounded">設定へ</button>
+    </div>
+  </div>
+</div>
+    <script>
+        (function() {
+            const sidebar = document.getElementById('sidebar');
+            const toggleBtn = document.getElementById('sidebar-toggle-btn');
+            const toggleIcon = document.getElementById('sidebar-toggle-icon');
+            const historyBtn = document.getElementById('history-modal-btn');
+            const threadList = document.getElementById('thread-list');
+            const threadListInModal = document.getElementById('history-modal-thread-list-container');
+            const sidebarContainer = threadList ? threadList.parentElement : null;
+            const historyModal = document.getElementById('history-modal');
+
+            function ensureThreadListParent() {
+                const isModalOpen = historyModal && !historyModal.classList.contains('hidden') && historyModal.style.display !== 'none';
+                const isMobile = window.innerWidth <= 768;
+                
+                if (isModalOpen) {
+                    if (threadList && threadListInModal && threadList.parentElement !== threadListInModal) {
+                        threadListInModal.appendChild(threadList);
+                        threadList.classList.remove('hide-compact');
+                    }
+                } else {
+                    if (threadList && sidebarContainer && threadList.parentElement !== sidebarContainer) {
+                        // Insert before the footer
+                        sidebarContainer.insertBefore(threadList, document.querySelector('.sidebar-footer'));
+                    }
+                    if (threadList) {
+                        if (sidebar.classList.contains('compact') && !isMobile) {
+                            threadList.classList.add('hide-compact');
+                        } else {
+                            threadList.classList.remove('hide-compact');
+                        }
+                    }
+                }
+            }
+
+            window.showHistoryModal = function() {
+                if (threadList && threadListInModal) {
+                    threadListInModal.appendChild(threadList);
+                    threadList.classList.remove('hide-compact');
+                }
+                showModal('history-modal');
+                if (location.pathname !== '/history') {
+                    history.pushState({ modal: 'history' }, '', '/history');
+                }
+            };
+
+            window.closeHistoryModal = function(skipHistory = false) {
+                hideModal('history-modal');
+                if (!skipHistory && location.pathname === '/history') {
+                    history.back();
+                }
+                // Ensure it returns after animation
+                setTimeout(ensureThreadListParent, 310);
+            };
+
+            if (historyBtn) {
+                historyBtn.onclick = () => {
+                    showHistoryModal();
+                };
+            }
+
+            // Sync search box in modal with main search box
+            const historySearchBox = document.getElementById('history-search-box');
+            const mainSearchBox = document.getElementById('search-box');
+            if (historySearchBox && mainSearchBox) {
+                historySearchBox.addEventListener('input', (e) => {
+                    if (e.inputType) {
+                        historySearchBox.dataset.userEdited = '1';
+                        mainSearchBox.dataset.userEdited = '1';
+                    }
+                    mainSearchBox.value = e.target.value;
+                    mainSearchBox.dispatchEvent(new Event('input', { bubbles: true }));
+                });
+            }
+            
+            function updateSidebarState(isCompact) {
+                const isMobile = window.innerWidth <= 768;
+                if (isCompact && !isMobile) {
+                    sidebar.classList.add('compact');
+                    toggleIcon.classList.remove('fa-chevron-left');
+                    toggleIcon.classList.add('fa-chevron-right');
+                    if (threadList) threadList.classList.add('hide-compact');
+                } else {
+                    sidebar.classList.remove('compact');
+                    toggleIcon.classList.remove('fa-chevron-right');
+                    toggleIcon.classList.add('fa-chevron-left');
+                    if (threadList) threadList.classList.remove('hide-compact');
+                }
+                ensureThreadListParent();
+            }
+
+            // Load initial state
+            const isCompactStored = localStorage.getItem('sidebar_compact') === 'true';
+            updateSidebarState(isCompactStored);
+
+            toggleBtn.onclick = () => {
+                const newState = !sidebar.classList.contains('compact');
+                updateSidebarState(newState);
+                localStorage.setItem('sidebar_compact', newState);
+                window.dispatchEvent(new Event('resize'));
+            };
+
+            // Watch for resize/zoom changes
+            let resizeTimer;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(() => {
+                    const isCompact = localStorage.getItem('sidebar_compact') === 'true';
+                    updateSidebarState(isCompact);
+                }, 100);
+            });
+        })();
+    </script>
+
+    <!-- Browser-direct fast mode warning / key modal -->
+    <div id="browser-fast-mode-modal" class="fixed inset-0 bg-gray-900/95 z-[100] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-xl p-6 shadow-2xl border border-amber-500/50 m-4 modal-panel">
+            <div class="flex items-start gap-3 mb-4">
+                <div class="w-10 h-10 rounded-full bg-amber-900/50 flex items-center justify-center text-amber-300 text-lg shrink-0"><i class="fas fa-bolt"></i></div>
+                <div><h2 class="text-lg font-bold text-white">ブラウザ直接送信・高速モード</h2><p class="text-xs text-amber-200 mt-1">速度を優先する代わりに、通常モードの安全性と継続性が一部失われます。</p></div>
+            </div>
+            <div id="browser-fast-mode-warning" class="text-xs text-gray-300 space-y-2 rounded border border-amber-500/30 bg-amber-950/20 p-4 mb-4">
+                <p class="font-bold text-amber-200">有効化前に必ず確認してください</p>
+                <ul class="list-disc pl-5 space-y-1.5 text-gray-300">
+                    <li>選択中モデルに保存されたAPIキー（なければ共通Geminiキー）をサーバーで復号してブラウザへ返します。ブラウザ拡張・XSS・開発者ツールから取得される危険があります。</li>
+                    <li>生成中に再読み込み・タブ終了・通信切断すると、生成と未保存内容は失われ、再接続できません。</li>
+                    <li>回答完了後に画像をサーバーへアップロードして同じ履歴へDB保存するため、後処理に失敗すると回答が履歴へ残りません。</li>
+                    <li>新規・既存チャットのGeminiテキストモデル専用です。選択した会話分岐の履歴を送り、過去画像は新しいものから最大4枚・合計12MBまで再送します。</li>
+                    <li>Python（コード実行）は利用できます。Gemini API側のサンドボックスで実行され、実行結果は回答と一緒に履歴へ保存されます。</li>
+                    <li>検索、URLs、Maps、Gems、SysPrompt、PromptCache、Coding Mode、引用・編集は利用できません。</li>
+                    <li>画像はローカルに一時保持され、Geminiへ直接送信されます。完了まではサイトのサーバーに保存されません。</li>
+                </ul>
+            </div>
+            <div class="rounded border border-gray-600 bg-gray-900/70 px-3 py-2 text-xs text-gray-300">
+                <div class="font-bold text-gray-200">使用するキー</div>
+                <div id="browser-fast-mode-key-description" class="mt-1">選択中モデルのモデル別キー → 共通Geminiキーの順に、サーバーから自動取得します。</div>
+                <div class="mt-1 text-amber-300">共有管理者キー・環境変数キー・Vertex AI認証情報はブラウザへ渡しません。</div>
+            </div>
+            <label id="browser-fast-mode-ignore-row" class="flex items-center gap-2 mt-4 text-xs text-gray-300 cursor-pointer"><input type="checkbox" id="browser-fast-mode-ignore-warning" class="accent-amber-400"><span>今後この警告を表示しない（このブラウザ）</span></label>
+            <div class="flex gap-2 mt-5">
+                <button id="browser-fast-mode-enable-btn" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded font-bold btn-hover"><i class="fas fa-bolt mr-1"></i>理解して有効化</button>
+                <button id="browser-fast-mode-cancel-btn" class="px-4 bg-gray-700 hover:bg-gray-600 text-white rounded btn-hover">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Key Required Modal -->
+    <div id="api-key-required-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-gray-700 m-4 modal-panel">
+            <div class="flex items-start gap-3 mb-4">
+                <div class="w-10 h-10 rounded-full bg-red-900/50 flex items-center justify-center text-red-400 text-lg shrink-0 mt-0.5">
+                    <i class="fas fa-key"></i>
+                </div>
+                <div class="min-w-0">
+                    <h2 class="text-lg font-bold text-white">APIキーが必要です</h2>
+                    <p class="text-xs text-gray-400 mt-1 break-all" id="api-key-modal-model-name"></p>
+                </div>
+            </div>
+            <p class="text-sm text-gray-300 mb-4" id="api-key-modal-desc"></p>
+            <div class="space-y-3">
+                <div>
+                    <label class="text-xs text-gray-500 block mb-1" id="api-key-modal-key-label">API Key</label>
+                    <input type="password" id="api-key-modal-input" class="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white placeholder-gray-500" placeholder="APIキーを入力" autocomplete="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other">
+                </div>
+                <div class="flex flex-col gap-2">
+                    <button id="api-key-modal-save-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-lg text-sm font-bold btn-hover transition-colors">
+                        <i class="fas fa-save mr-1"></i>APIキーを保存して送信
+                    </button>
+                    <button id="api-key-modal-fallback-btn" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm font-bold btn-hover transition-colors">
+                        <i class="fas fa-exchange-alt mr-1"></i>他のモデルに切り替え
+                    </button>
+                    <button id="api-key-modal-cancel-btn" class="w-full bg-transparent hover:bg-gray-700/50 text-gray-400 hover:text-white py-2 rounded-lg text-sm transition-colors">
+                        キャンセル（エラーメッセージを表示）
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        (function () {
+            var dock = document.querySelector('.composer-dock');
+            if (!dock || typeof ResizeObserver === 'undefined') return;
+            var root = document.documentElement;
+            var sidebar = document.getElementById('sidebar');
+            var modals = Array.prototype.slice.call(document.querySelectorAll('[id$="-modal"]'));
+            var isModalVisible = function (modal) {
+                var style = window.getComputedStyle(modal);
+                return !modal.classList.contains('hidden') && style.display !== 'none' && style.visibility !== 'hidden';
+            };
+            var update = function () {
+                var dockStyle = window.getComputedStyle(dock);
+                var rect = dock.getBoundingClientRect();
+                var sideMenuOpen = window.matchMedia('(max-width: 768px)').matches &&
+                    sidebar && sidebar.classList.contains('open');
+                var composerVisible = dockStyle.display !== 'none' &&
+                    dockStyle.visibility !== 'hidden' && rect.width > 0 && rect.height > 0 &&
+                    !modals.some(isModalVisible) && !sideMenuOpen;
+                root.style.setProperty('--composer-h', composerVisible ? Math.ceil(rect.height) + 'px' : '0px');
+            };
+            var ro = new ResizeObserver(update);
+            ro.observe(dock);
+            var modalObserver = new MutationObserver(update);
+            modals.forEach(function (modal) {
+                modalObserver.observe(modal, { attributes: true, attributeFilter: ['class', 'style'] });
+            });
+            if (sidebar) {
+                modalObserver.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+            }
+            window.addEventListener('resize', update);
+            update();
+        })();
+    </script>

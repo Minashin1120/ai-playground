@@ -1,0 +1,168 @@
+    <!-- Lyria RealTime Studio Modal -->
+    <div id="lyria-studio-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-4 sm:p-6 shadow-2xl border border-purple-700/50 m-4 flex flex-col gap-3 modal-panel">
+            <div class="flex items-center justify-between shrink-0">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-music text-purple-300"></i> Lyria RealTime Studio</h2>
+                <div class="flex items-center gap-2">
+                    <button id="lyria-save-btn" data-progress-no-spinner="true" class="hidden px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-bold btn-hover"><i class="fas fa-save mr-1"></i>チャットへ保存</button>
+                    <button id="lyria-studio-close" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div id="lyria-studio-status" class="flex items-center gap-2 text-xs text-gray-300 bg-gray-900/60 border border-gray-700/70 rounded-lg px-3 py-2 shrink-0">
+                <span id="lyria-status-dot" class="w-2 h-2 rounded-full bg-gray-600 inline-block"></span>
+                <span id="lyria-status-text">準備完了</span>
+                <span class="ml-auto font-mono text-gray-400" id="lyria-elapsed">00:00</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+                <div class="flex flex-col gap-3">
+                    <div class="flex items-center justify-between">
+                        <div class="text-xs font-bold text-purple-300 flex items-center gap-1.5"><i class="fas fa-pen"></i> プロンプト（重み付き）</div>
+                        <button id="lyria-add-prompt-btn" data-progress-no-spinner="true" class="text-[10px] px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition btn-hover"><i class="fas fa-plus mr-1"></i>追加</button>
+                    </div>
+                    <div id="lyria-prompt-rows" class="flex flex-col gap-2"></div>
+                    <div class="text-[10px] text-gray-500 leading-relaxed">ジャンル・楽器・雰囲気を詳しく書くと良い結果になります（例: 「minimal techno」「warm acoustic guitar」）。再生中も「適用」で滑らかに変化します。</div>
+                    <button id="lyria-apply-prompts-btn" data-progress-no-spinner="true" class="w-full px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded text-xs font-bold btn-hover"><i class="fas fa-arrow-right mr-1"></i>プロンプトを適用</button>
+                </div>
+                <div class="flex flex-col gap-3">
+                    <div class="text-xs font-bold text-purple-300 flex items-center gap-1.5"><i class="fas fa-sliders-h"></i> 音楽設定</div>
+                    <div class="grid grid-cols-2 gap-2 text-[11px] text-gray-300">
+                        <label class="flex flex-col gap-1">
+                            <span class="flex justify-between"><span>BPM</span><span id="lyria-bpm-label" class="font-mono text-purple-300">120</span></span>
+                            <input id="lyria-bpm" type="range" min="60" max="200" step="1" value="120" class="accent-purple-400">
+                        </label>
+                        <label class="flex flex-col gap-1">
+                            <span class="flex justify-between"><span>ガイダンス</span><span id="lyria-guidance-label" class="font-mono text-purple-300">4.0</span></span>
+                            <input id="lyria-guidance" type="range" min="0" max="6" step="0.1" value="4" class="accent-purple-400">
+                        </label>
+                        <label class="flex flex-col gap-1">
+                            <span class="flex justify-between"><span>密度</span><span id="lyria-density-label" class="font-mono text-purple-300">0.5</span></span>
+                            <input id="lyria-density" type="range" min="0" max="1" step="0.05" value="0.5" class="accent-purple-400">
+                        </label>
+                        <label class="flex flex-col gap-1">
+                            <span class="flex justify-between"><span>明るさ</span><span id="lyria-brightness-label" class="font-mono text-purple-300">0.5</span></span>
+                            <input id="lyria-brightness" type="range" min="0" max="1" step="0.05" value="0.5" class="accent-purple-400">
+                        </label>
+                        <label class="flex flex-col gap-1">
+                            <span class="flex justify-between"><span>温度</span><span id="lyria-temperature-label" class="font-mono text-purple-300">1.1</span></span>
+                            <input id="lyria-temperature" type="range" min="0" max="3" step="0.1" value="1.1" class="accent-purple-400">
+                        </label>
+                        <label class="flex flex-col gap-1">
+                            <span>スケール</span>
+                            <select id="lyria-scale" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[11px] text-white outline-none">
+                                <option value="">自動</option>
+                                <option value="C_MAJOR_A_MINOR">C major / A minor</option>
+                                <option value="D_FLAT_MAJOR_B_FLAT_MINOR">D♭ major / B♭ minor</option>
+                                <option value="D_MAJOR_B_MINOR">D major / B minor</option>
+                                <option value="E_FLAT_MAJOR_C_MINOR">E♭ major / C minor</option>
+                                <option value="E_MAJOR_D_FLAT_MINOR">E major / C♯/D♭ minor</option>
+                                <option value="F_MAJOR_D_MINOR">F major / D minor</option>
+                                <option value="G_FLAT_MAJOR_E_FLAT_MINOR">G♭ major / E♭ minor</option>
+                                <option value="G_MAJOR_E_MINOR">G major / E minor</option>
+                                <option value="A_FLAT_MAJOR_F_MINOR">A♭ major / F minor</option>
+                                <option value="A_MAJOR_G_FLAT_MINOR">A major / F♯/G♭ minor</option>
+                                <option value="B_FLAT_MAJOR_G_MINOR">B♭ major / G minor</option>
+                                <option value="B_MAJOR_A_FLAT_MINOR">B major / G♯/A♭ minor</option>
+                            </select>
+                        </label>
+                        <label class="flex flex-col gap-1">
+                            <span>モード</span>
+                            <select id="lyria-mode" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[11px] text-white outline-none">
+                                <option value="QUALITY">Quality（品質優先）</option>
+                                <option value="DIVERSITY">Diversity（多様性）</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="flex flex-wrap gap-3 text-[11px] text-gray-300">
+                        <label class="flex items-center gap-1 cursor-pointer select-none"><input id="lyria-mute-bass" type="checkbox" class="accent-purple-400 w-3 h-3"><span>ベースをミュート</span></label>
+                        <label class="flex items-center gap-1 cursor-pointer select-none"><input id="lyria-mute-drums" type="checkbox" class="accent-purple-400 w-3 h-3"><span>ドラムをミュート</span></label>
+                        <label class="flex items-center gap-1 cursor-pointer select-none"><input id="lyria-only-bass-drums" type="checkbox" class="accent-purple-400 w-3 h-3"><span>ベースとドラムのみ</span></label>
+                    </div>
+                    <button id="lyria-apply-config-btn" data-progress-no-spinner="true" class="w-full px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs font-bold btn-hover"><i class="fas fa-sliders-h mr-1"></i>設定を適用</button>
+                    <div class="text-[10px] text-gray-500">BPM・スケールの変更はモデルの文脈をリセットするため、次のフレーズで反映されます。</div>
+                </div>
+            </div>
+            <div class="flex items-center justify-center gap-3 pt-1 shrink-0 border-t border-gray-700/50">
+                <button id="lyria-play-btn" data-progress-no-spinner="true" class="w-14 h-14 rounded-full bg-purple-600 hover:bg-purple-500 text-white text-lg flex items-center justify-center shadow-lg btn-hover transition"><i class="fas fa-play"></i></button>
+                <button id="lyria-pause-btn" data-progress-no-spinner="true" disabled class="w-12 h-12 rounded-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white text-base flex items-center justify-center transition btn-hover"><i class="fas fa-pause"></i></button>
+                <button id="lyria-stop-btn" data-progress-no-spinner="true" disabled class="w-12 h-12 rounded-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white text-base flex items-center justify-center transition btn-hover"><i class="fas fa-stop"></i></button>
+                <button id="lyria-reset-btn" data-progress-no-spinner="true" disabled class="w-12 h-12 rounded-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white text-sm flex items-center justify-center transition btn-hover" title="コンテキストをリセット（BPM・スケール変更後）"><i class="fas fa-arrows-rotate"></i></button>
+            </div>
+            <div class="text-[10px] text-gray-500 text-center shrink-0">実験モデル: 楽器のみ・ボーカルなし / 48kHzステレオ / 再生内容は「チャットへ保存」でWAVとして保存できます</div>
+        </div>
+    </div>
+
+    <!-- Voice Studio Modal (WebSocket voice models) -->
+    <div id="voice-studio-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-4 sm:p-6 shadow-2xl border border-cyan-500/30 m-4 flex flex-col gap-3 modal-panel">
+            <div class="flex items-center justify-between shrink-0">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-microphone text-cyan-300"></i> <span id="voice-studio-title">音声スタジオ</span></h2>
+                <button id="voice-studio-close" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="voice-studio-transcript" class="flex flex-col gap-2 overflow-y-auto pr-1 rounded-lg bg-gray-900/40 border border-gray-700/50 p-3 text-xs text-gray-200 leading-relaxed custom-scrollbar">
+                <div class="text-[10px] text-gray-500">会話の文字起こしがここに表示されます。</div>
+            </div>
+            <div id="voice-studio-panel-host" class="shrink-0"></div>
+            <div id="voice-studio-file-host" class="shrink-0 hidden"></div>
+            <div class="text-[10px] text-gray-500 text-center shrink-0 border-t border-gray-700/50 pt-2">マイクをタップして話し始め / もう一度タップで停止。停止後はチャットへ自動保存されます。</div>
+        </div>
+    </div>
+
+    <!-- Marker Modal -->
+    <div id="marker-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[85vh] max-h-none modal-panel">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-highlighter text-yellow-300"></i> 画像編集</h2>
+                <button id="marker-modal-close" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="text-xs text-gray-400 mb-3">マーカー・モザイク・トリミングが可能です。送信時に編集済み画像の確認を促します。</div>
+            <div id="marker-stage" class="marker-stage mb-4">
+                <div id="marker-viewport">
+                    <img id="marker-image" alt="marker target">
+                    <canvas id="marker-canvas"></canvas>
+                    <canvas id="marker-crop-canvas"></canvas>
+                </div>
+            </div>
+            <div id="marker-toolbar" class="flex flex-wrap items-center gap-3 text-xs text-gray-300">
+                <div class="flex items-center gap-2">
+                    <button id="marker-tool-draw" data-progress-no-spinner="true" class="marker-tool-btn px-3 py-1 rounded text-[11px]">マーカー</button>
+                    <button id="marker-tool-mosaic" data-progress-no-spinner="true" class="marker-tool-btn px-3 py-1 rounded text-[11px]">モザイク</button>
+                    <button id="marker-tool-crop" data-progress-no-spinner="true" class="marker-tool-btn px-3 py-1 rounded text-[11px]">トリミング</button>
+                </div>
+                <label class="flex items-center gap-2">
+                    <span class="text-gray-400">太さ</span>
+                    <input id="marker-size" type="range" min="1" max="40" value="16">
+                </label>
+                <label class="flex items-center gap-1">
+                    <span class="text-gray-400">色</span>
+                    <button type="button" class="marker-color-chip" data-marker-color="#ef4444" style="background:#ef4444;" title="赤"></button>
+                    <button type="button" class="marker-color-chip" data-marker-color="#3b82f6" style="background:#3b82f6;" title="青"></button>
+                    <button type="button" class="marker-color-chip" data-marker-color="#111827" style="background:#111827;" title="黒"></button>
+                    <button type="button" class="marker-color-chip active" data-marker-color="#facc15" style="background:#facc15;" title="黄色"></button>
+                    <button type="button" class="marker-color-chip" data-marker-color="#ec4899" style="background:#ec4899;" title="ピンク"></button>
+                </label>
+                <label class="flex items-center gap-1">
+                    <span class="text-gray-400">任意</span>
+                    <input id="marker-color-picker" type="color" value="#facc15" aria-label="マーカー色">
+                </label>
+                <label class="flex items-center gap-2">
+                    <span class="text-gray-400">透明度</span>
+                    <input id="marker-opacity" type="range" min="0.1" max="100" step="0.1" value="60">
+                    <input id="marker-opacity-number" type="number" min="0.1" max="100" step="0.1" value="60" aria-label="マーカー透明度(%)">
+                    <span id="marker-opacity-value">60%</span>
+                </label>
+                <label class="flex items-center gap-2 text-[10px] text-gray-400">
+                    <input type="checkbox" id="marker-attach-original" class="accent-yellow-400 w-3 h-3">
+                    <span>元画像も添付</span>
+                </label>
+                <span id="marker-tool-hint" class="text-[10px] text-gray-500">マーカー（色・透明度変更可） / 二本指で拡大</span>
+                <div class="ml-auto flex items-center gap-2">
+                    <button id="marker-view-reset" data-progress-no-spinner="true" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white btn-hover">位置/倍率リセット</button>
+                    <button id="marker-crop-reset" data-progress-no-spinner="true" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white btn-hover hidden">トリミングリセット</button>
+                    <button id="marker-undo" data-progress-no-spinner="true" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white btn-hover">戻す</button>
+                    <button id="marker-clear" data-progress-no-spinner="true" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white btn-hover">消去</button>
+                    <button id="marker-save" class="px-4 py-1 rounded bg-yellow-500 hover:bg-yellow-400 text-black font-bold btn-hover">保存して反映</button>
+                </div>
+            </div>
+        </div>
+    </div>
+

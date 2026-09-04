@@ -59,6 +59,7 @@ ALLOWED_GIT_PREFIXES = (
     "LICENSES/",
     "mcp_service/",
     "scripts/",
+    "server/",
     "static/",
     "templates/",
     "tests/",

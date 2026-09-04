@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch
 
 
+from tests.app_source import read_app_source
 os.environ.setdefault("FLASK_SECRET_KEY", "deepseek-python-tool-test-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/ai-chat-deepseek-python-tool-tests.db")
 os.environ.setdefault("REDIS_URL", "redis://127.0.0.1:6399/15")
@@ -98,7 +99,7 @@ class DeepSeekPythonToolTests(unittest.TestCase):
         js_assets = list((APP_ROOT / "static/js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(js_assets), 1)
         js_source = js_assets[0].read_text(encoding="utf-8")
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         deepseek_branch = app_source[
             app_source.index('log_force("Routing: DeepSeek V4 Branch (Chat Completions)")'):
             app_source.index('elif is_kimi:', app_source.index('log_force("Routing: DeepSeek V4 Branch (Chat Completions)")'))

@@ -7,6 +7,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tests.chat_template import read_chat_markup
+from tests.app_source import read_app_source
 os.environ.setdefault("FLASK_SECRET_KEY", "performance-test-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/ai-chat-performance-tests.db")
 os.environ.setdefault("REDIS_URL", "redis://127.0.0.1:6399/15")
@@ -73,7 +75,7 @@ class PerformanceRegressionTests(unittest.TestCase):
         response.close()
 
     def test_server_upload_paths_do_not_reencode_images(self):
-        source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        source = read_app_source()
         upload_source = source[source.index("def upload():"):source.index("def upload_init():")]
         complete_source = source[source.index("def upload_complete():"):source.index("def get_storage_usage():")]
         self.assertNotIn("Image.open", upload_source)
@@ -85,7 +87,7 @@ class PerformanceRegressionTests(unittest.TestCase):
         chat_files = list((APP_ROOT / "static/js").glob("chat_core.v*.js"))
         self.assertEqual(len(chat_files), 1)
         source = chat_files[0].read_text(encoding="utf-8")
-        template = (APP_ROOT / "templates/chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         self.assertIn("convertImageFormatOnly", source)
         self.assertIn("quality: 1", source)
         self.assertIn("imageFilenameForMime", source)
@@ -109,7 +111,7 @@ class PerformanceRegressionTests(unittest.TestCase):
                 target.app.config["UPLOAD_FOLDER"] = old_root
 
     def test_gemini_small_images_are_inlined_before_files_api_fallback(self):
-        source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        source = read_app_source()
         image_branch = source[
             source.index("if mime.startswith('image/'):"):
             source.index("if mime.startswith('audio/'):", source.index("if mime.startswith('image/'):"))
@@ -120,7 +122,7 @@ class PerformanceRegressionTests(unittest.TestCase):
         self.assertIn("types.Part.from_bytes", image_branch)
 
     def test_small_images_remain_eligible_for_the_fast_queue(self):
-        source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        source = read_app_source()
         route = source[source.index("def chat_stream():"):source.index("def estimate_prompt_tokens_api():")]
         self.assertIn("low_latency_image_attachments = _is_low_latency_image_attachment_set", route)
         self.assertEqual(route.count("(no_attachments or low_latency_image_attachments)"), 1)
@@ -131,7 +133,7 @@ class PerformanceRegressionTests(unittest.TestCase):
         chat_files = list((APP_ROOT / "static/js").glob("chat_core.v*.js"))
         self.assertEqual(len(chat_files), 1)
         source = chat_files[0].read_text(encoding="utf-8")
-        template = (APP_ROOT / "templates/chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         fast_source = source[
             source.index("async function sendBrowserFastMessage"):
             source.index("async function sendMessage()")
@@ -190,7 +192,7 @@ class PerformanceRegressionTests(unittest.TestCase):
         chat_files = list((APP_ROOT / "static/js").glob("chat_core.v*.js"))
         self.assertEqual(len(chat_files), 1)
         source = chat_files[0].read_text(encoding="utf-8")
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
 
         disabled_start = source.index("const BROWSER_FAST_DISABLED_OPTIONS = [")
         disabled_block = source[disabled_start: source.index("];", disabled_start)]
@@ -276,7 +278,7 @@ class PerformanceRegressionTests(unittest.TestCase):
         chat_files = list((APP_ROOT / "static/js").glob("chat_core.v*.js"))
         self.assertEqual(len(chat_files), 1)
         source = chat_files[0].read_text(encoding="utf-8")
-        template = (APP_ROOT / "templates/chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         custom_css_files = list((APP_ROOT / "static/css").glob("chat.custom.v*.css"))
         self.assertEqual(len(custom_css_files), 1)
         custom_css = custom_css_files[0].read_text(encoding="utf-8")
@@ -301,7 +303,7 @@ class PerformanceRegressionTests(unittest.TestCase):
         self.assertIn("html.performance-lite-mode .slide-in-animate", custom_css)
 
     def test_chat_page_serves_minified_core_assets_and_keeps_readable_sources(self):
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         match = re.search(r"SYSTEM_VERSION'\]\s*=\s*'V(\d+\.\d+\.\d+)'", app_source)
         self.assertIsNotNone(match)
         version = f"v{match.group(1)}"
@@ -309,7 +311,7 @@ class PerformanceRegressionTests(unittest.TestCase):
         min_js = APP_ROOT / f"static/js/chat_core.min.{version}.js"
         source_css = APP_ROOT / f"static/css/chat.custom.{version}.css"
         min_css = APP_ROOT / f"static/css/chat.custom.min.{version}.css"
-        template = (APP_ROOT / "templates/chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
 
         self.assertTrue(source_js.is_file())
         self.assertTrue(min_js.is_file())
@@ -332,7 +334,7 @@ class PerformanceRegressionTests(unittest.TestCase):
                 self.assertNotIn("cdnjs.cloudflare.com/ajax/libs/font-awesome", source)
                 self.assertNotIn("all.min.css", source)
                 self.assertNotIn("family=Noto+Sans+JP:wght@300;400;500;600;700", source)
-        chat = (APP_ROOT / "templates/chat.html").read_text(encoding="utf-8")
+        chat = read_chat_markup()
         self.assertIn("icon_css.html", chat)
         self.assertIn("web_fonts.html", chat)
         icon_include = (APP_ROOT / "templates/icon_css.html").read_text(encoding="utf-8")
@@ -362,7 +364,7 @@ if __name__ == "__main__":
         cascade by source order. If the inline theme <style> appears first, the
         main stylesheet's :root default overrides it and JS has to re-apply the
         theme during script load, forcing a full-page style/layout recalc."""
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         theme_style_pos = template.index('id="initial-theme-vars"')
         custom_css_pos = template.index("chat.custom.")
         self.assertGreater(

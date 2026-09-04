@@ -1,6 +1,7 @@
 from pathlib import Path
 import unittest
 
+from tests.chat_template import read_chat_markup
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 
@@ -102,7 +103,7 @@ class ImageViewerSwipeRegressionTests(unittest.TestCase):
         self.assertIn("#image-viewer .viewer-adjacent,", css)
 
     def test_chat_template_viewer_structure(self):
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
 
         self.assertIn('<div id="image-viewer">', template)
         self.assertIn('<img id="image-viewer-img" alt="image preview">', template)

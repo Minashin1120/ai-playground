@@ -51,6 +51,7 @@ class ReleaseCommonTests(unittest.TestCase):
         blocked = COMMON.classify_git_paths(
             [
                 "app.py",
+                "server/models.py",
                 "scripts/verify_changes.sh",
                 "引き継ぎ資料.txt",
                 "secret.key",
@@ -62,6 +63,7 @@ class ReleaseCommonTests(unittest.TestCase):
             ]
         )
         self.assertIn("app.py", blocked["allowed"])
+        self.assertIn("server/models.py", blocked["allowed"])
         self.assertIn("scripts/verify_changes.sh", blocked["allowed"])
         self.assertIn("引き継ぎ資料.txt", blocked["blocked"])
         self.assertIn("secret.key", blocked["blocked"])

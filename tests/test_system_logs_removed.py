@@ -1,7 +1,9 @@
 from pathlib import Path
 import unittest
 
+from tests.chat_template import read_chat_markup
 
+from tests.app_source import read_app_source
 APP_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -13,10 +15,10 @@ def _current_asset(folder, pattern):
 
 class SystemLogsRemovedRegressionTests(unittest.TestCase):
     def test_system_logs_ui_and_backend_are_removed(self):
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         script = _current_asset("js", "chat_core.v4.8.*.js")
         css = _current_asset("css", "chat.custom.v4.8.*.css")
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
 
         self.assertNotIn('id="debug-console"', template)
         self.assertNotIn("System Logs", template)

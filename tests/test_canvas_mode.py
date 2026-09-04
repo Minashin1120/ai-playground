@@ -1,6 +1,7 @@
 from pathlib import Path
 import unittest
 
+from tests.chat_template import read_chat_markup
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 
@@ -12,7 +13,7 @@ class CanvasModeRegressionTests(unittest.TestCase):
         if len(assets) != 1:
             raise AssertionError(f"expected one versioned chat JS asset, got {assets}")
         cls.source = assets[0].read_text(encoding="utf-8")
-        cls.template = (APP_ROOT / "templates/chat.html").read_text(encoding="utf-8")
+        cls.template = read_chat_markup()
 
     def test_default_canvas_source_is_the_last_code_block(self):
         self.assertIn("let nextIndex = blocks.length - 1;", self.source)

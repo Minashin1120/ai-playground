@@ -2,6 +2,7 @@ from pathlib import Path
 import re
 import unittest
 
+from tests.chat_template import read_chat_markup
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 
@@ -27,7 +28,7 @@ class SettingsTabsRegressionTests(unittest.TestCase):
     ]
 
     def test_settings_tabs_exist_in_template_and_js(self):
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         js = _current_asset("js", "chat_core.v4.8.*.js")
 
         for tab_id in self.EXPECTED_TABS:
@@ -47,7 +48,7 @@ class SettingsTabsRegressionTests(unittest.TestCase):
         self.assertIn("account: 'アカウント'", labels_block)
 
     def test_settings_sections_are_categorized(self):
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         start = template.index('id="settings-modal"')
         end = template.index('id="gemini-local-python-modal"')
         modal = template[start:end]
@@ -104,7 +105,7 @@ class SettingsTabsRegressionTests(unittest.TestCase):
         self.assertNotIn('id="google-link-status"', security)
 
     def test_admin_security_blocks_remain_guarded(self):
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         start = template.index('id="tab-security"')
         end = template.index('id="tab-2fa"')
         security = template[start:end]
@@ -118,7 +119,7 @@ class SettingsTabsRegressionTests(unittest.TestCase):
         self.assertIn("{% if is_admin %}", before)
 
     def test_settings_tabs_have_edge_arrows_and_wheel_scroll(self):
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         js = _current_asset("js", "chat_core.v4.8.*.js")
         css = _current_asset("css", "chat.custom.v4.8.*.css")
 

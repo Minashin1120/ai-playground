@@ -1,7 +1,9 @@
 from pathlib import Path
 import unittest
 
+from tests.chat_template import read_chat_markup
 
+from tests.app_source import read_app_source
 APP_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -14,8 +16,8 @@ def _current_asset(folder, pattern):
 class ModalPerformanceRegressionTests(unittest.TestCase):
     def test_message_detail_modals_follow_browser_history(self):
         source = _current_asset("js", "chat_core.v4.8.*.js")
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        template = read_chat_markup()
+        app_source = read_app_source()
 
         self.assertIn(
             "'/token-details': { id: 'token-detail-modal', open: () => showTokenDetailModal() }",
@@ -45,7 +47,7 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
     def test_hidden_conditional_composer_controls_override_component_display(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")
         script = _current_asset("js", "chat_core.v4.8.*.js")
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
 
         self.assertIn(
             ".composer-opt.hidden,\n.composer-tool-btn.hidden {\n    display: none !important;\n}",
@@ -74,7 +76,7 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
 
     def test_browser_fast_mode_modal_is_fixed_above_home_content(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         modal_css = source[source.index("#browser-fast-mode-modal {") :]
         modal_css = modal_css[: modal_css.index("}")]
 
@@ -138,7 +140,7 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertNotIn("overscroll-behavior: contain", model_list_css)
         self.assertNotIn("content-visibility", model_list_css)
 
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         modal_open = template[template.index('<div id="model-modal"') :]
         modal_open = modal_open[: modal_open.index(">") + 1]
         self.assertIn("overflow-hidden", modal_open)
@@ -153,7 +155,7 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
 
     def test_settings_search_icon_stays_out_of_the_typing_area(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
 
         self.assertIn("settings-search-icon", template)
         self.assertIn("settings-search-box", template)
@@ -164,7 +166,7 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
     def test_standard_blur_is_restored_until_performance_cookie_disables_it(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")
         script = _current_asset("js", "chat_core.v4.8.*.js")
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         standard_css = source[source.index("V4.8.681 — adaptive standard-mode blur fallback") :]
 
         self.assertNotIn("pointer: coarse", standard_css)
@@ -225,7 +227,7 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
     def test_lite_mode_is_a_second_tier_after_the_blur_fallback(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")
         script = _current_asset("js", "chat_core.v4.8.*.js")
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         lite_css = source[source.index("V4.8.683 — adaptive lite mode") :]
 
         self.assertIn("html.performance-lite-mode body:not(.liquid-glass-mode) *", lite_css)
@@ -390,7 +392,7 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
 
     def test_settings_open_does_not_reload_or_clear_thread_search(self):
         script = _current_asset("js", "chat_core.v4.8.*.js")
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         search_handler = script[script.index("get('search-box').addEventListener('input'"):]
         search_handler = search_handler[: search_handler.index("if (get('mobile-new-chat-btn')")]
         self.assertIn("isSettingsModalOpen()", search_handler)
@@ -429,7 +431,7 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("bottom: calc(var(--composer-h, 0px) + 64px) !important;", spinner_block)
         self.assertIn("bottom: calc(var(--composer-h, 0px) + 16px) !important;", spinner_block)
 
-        chat_html = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        chat_html = read_chat_markup()
         self.assertIn("querySelector('.composer-dock')", chat_html)
         self.assertIn("--composer-h", chat_html)
         self.assertIn("new ResizeObserver(update)", chat_html)
@@ -460,7 +462,7 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         # the button was pushed off-screen again. Neither the container nor any of
         # its ancestors may carry a transform/backdrop-filter (incl. via CSS
         # animation), otherwise position:fixed viewport coordinates break.
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         container_start = template.index('<div id="quote-popover-container"')
         container_open = container_start + template[container_start:].index(">")
         container_tag = template[container_start : container_open + 1]
@@ -487,7 +489,7 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         # V4.8.737: on mobile (<=768px) the floating popover is hidden behind the
         # native selection UI, so the selected text is shown as a one-line preview
         # in the composer bar (#quote-bar) and applied via #quote-confirm-btn.
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         bar_start = template.index('<div id="quote-bar"')
         bar_end = template.index("Coding Mode Target Bar", bar_start)
         bar = template[bar_start:bar_end]

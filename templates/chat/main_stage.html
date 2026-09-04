@@ -1,0 +1,98 @@
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col w-full relative min-w-0">
+        <header class="main-chrome-header bg-gray-800 border-b border-gray-700 px-3 py-2.5 shadow-md flex justify-between items-center gap-2 shrink-0 md:hidden"><button id="menu-btn" class="text-gray-300 p-2 shrink-0"><i class="fas fa-bars text-xl"></i></button><div class="min-w-0 flex-1"><div id="mobile-chat-temporary-label" class="hidden text-[9px] text-amber-200/50 leading-none mb-0.5">一時チャット</div><div class="flex items-center gap-1.5 min-w-0"><span id="mobile-chat-title" class="font-bold text-sm truncate">AI Playground</span><span id="mobile-chat-ttl" class="hidden shrink-0 text-[9px] text-amber-200 border border-amber-500/40 rounded px-1 py-0.5 leading-none"></span></div></div><div class="flex items-center shrink-0"><button id="mobile-new-chat-btn" data-bot-ignore-click="true" class="text-blue-400 font-bold text-xl p-2">+</button><button onclick="exportCurrentThreadPdf()" class="text-gray-400 hover:text-red-300 p-2 rounded btn-hover" title="PDF出力"><i class="fas fa-file-pdf text-xs"></i></button></div></header>
+        <div id="top-model-bar" class="hidden shrink-0 items-center justify-center px-3 py-1.5 border-b border-gray-700" aria-label="モデル選択"></div>
+        {% if easy_login_used %}
+        <div class="bg-red-900/30 border-b border-red-700 text-red-200 text-xs px-4 py-2 flex items-center gap-2">
+            <i class="fas fa-exclamation-triangle"></i>
+            簡易ログインでログインしました。安全のため、再ログイン時は通常のパスワードと2FAをご利用ください。
+        </div>
+        {% endif %}
+        <div id="total-token-bar" class="hidden bg-gray-900/70 border-b border-gray-700 text-slate-200 text-xs px-4 py-1.5 flex items-center gap-2">
+            <i class="fas fa-coins text-amber-300"></i>
+            <div class="flex flex-wrap items-center gap-3">
+                <span id="total-token-count">Total: 0 tokens</span>
+                <span id="total-token-count-all-branches" class="hidden">All branches: 0 tokens</span>
+            </div>
+        </div>
+        <div class="flex-1 overflow-hidden relative">
+            <div id="conversation-stage" class="h-full w-full flex min-w-0">
+                <div id="chat-stage" class="relative flex-1 min-w-0 overflow-hidden">
+                    <div id="chat-container" class="absolute inset-0 overflow-y-auto px-4 py-5 sm:px-6 space-y-5"></div>
+                    <button id="scroll-to-bottom-btn" type="button" class="chat-scroll-to-bottom hidden" aria-label="一番下まで移動して自動スクロールを再開" title="一番下まで移動">
+                        <i class="fas fa-arrow-down" aria-hidden="true"></i>
+                        <span>一番下へ</span>
+                    </button>
+                    <div id="welcome-screen" class="absolute inset-0 flex flex-col items-center justify-center text-gray-500 space-y-5 z-10 fade-in">
+                        <div id="welcome-default-content" class="flex flex-col items-center justify-center space-y-5 w-full">
+                            <h2 class="text-2xl font-bold flex items-center gap-2.5 slide-in-animate tracking-tight" style="animation-delay: 0.05s"><i class="fas fa-gem"></i> AI Gems & Chat</h2>
+                            <p class="welcome-subtitle text-sm text-gray-400/90 slide-in-animate -mt-2" style="animation-delay: 0.07s">使いたいモデルを選んで、すぐに会話を始められます</p>
+                            <div id="welcome-quick-start" class="welcome-grid grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl px-4" aria-label="最近実装したモデルへのクイックアクセス"></div>
+                        </div>
+                        <div id="welcome-temporary-content" class="hidden max-w-md px-4">
+                            <div class="rounded-xl border border-amber-500/50 bg-amber-900/20 p-4 text-left">
+                                <div class="text-amber-300 text-sm font-bold flex items-center gap-2"><i class="fas fa-user-secret"></i> 一時チャットモード</div>
+                                <div id="temporary-chat-welcome-desc" class="text-xs text-amber-100/90 mt-2 leading-relaxed"></div>
+                                <div class="mt-3 flex justify-end">
+                                    <button type="button" onclick="openTemporaryChatSettings()" class="px-3 py-1.5 rounded border border-amber-400/50 bg-amber-950/30 text-amber-200 hover:bg-amber-900/40 text-[11px] font-bold transition btn-hover">
+                                        <i class="fas fa-cog mr-1"></i>一時チャット設定
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <aside id="canvas-panel" class="hidden flex-col">
+                    <div class="p-3 border-b border-gray-700/70 bg-gray-950/90">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <div class="text-[10px] uppercase tracking-[0.24em] text-cyan-300/80">Canvas</div>
+                                <div id="canvas-panel-title" class="text-sm font-bold text-white truncate">Canvasで表示中</div>
+                            </div>
+                            <div class="flex items-center gap-1 shrink-0">
+                                <button id="canvas-panel-copy-btn" data-progress-no-spinner="true" class="px-2 py-1 text-[10px] rounded bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 btn-hover">Copy</button>
+                                <button id="canvas-panel-clear-btn" data-progress-no-spinner="true" class="px-2 py-1 text-[10px] rounded bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 btn-hover">Clear</button>
+                                <button id="canvas-panel-close-btn" data-progress-no-spinner="true" class="px-2 py-1 text-[10px] rounded bg-red-700/80 hover:bg-red-600 text-white border border-red-500/40 btn-hover" title="Canvasを閉じる">×</button>
+                            </div>
+                        </div>
+                        <div id="canvas-panel-status" class="mt-1 text-[10px] text-gray-400">コードブロックを待機中</div>
+                        <div id="canvas-panel-tabs" class="mt-3 flex gap-2 md:hidden">
+                            <button type="button" data-canvas-panel-view="preview" class="canvas-panel-tab flex-1 px-3 py-2 rounded-lg border border-cyan-500/30 bg-cyan-900/20 text-cyan-100 text-[11px] font-semibold">Live Preview</button>
+                            <button type="button" data-canvas-panel-view="blocks" class="canvas-panel-tab flex-1 px-3 py-2 rounded-lg border border-gray-700 bg-gray-800 text-gray-300 text-[11px] font-semibold">Blocks</button>
+                            <button type="button" data-canvas-panel-view="source" class="canvas-panel-tab flex-1 px-3 py-2 rounded-lg border border-gray-700 bg-gray-800 text-gray-300 text-[11px] font-semibold">Source</button>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-h-0 p-3 flex flex-col gap-3 overflow-hidden">
+                        <div id="canvas-preview-shell" data-canvas-section="preview" class="flex-1 min-h-0 rounded-xl border border-cyan-500/20 bg-gray-950/70 overflow-hidden flex flex-col">
+                            <div class="flex items-center justify-between px-3 py-2 border-b border-cyan-500/10 bg-cyan-900/10">
+                                <span class="text-[10px] uppercase tracking-[0.18em] text-cyan-300">Live Preview</span>
+                                <span id="canvas-preview-lang" class="text-[10px] text-gray-400">idle</span>
+                            </div>
+                            <iframe id="canvas-preview-frame" sandbox="allow-scripts allow-forms allow-modals allow-popups" class="w-full flex-1 min-h-0 bg-white border-0"></iframe>
+                            <div id="canvas-preview-empty" class="hidden flex flex-1 items-center justify-center p-6 text-center text-sm text-gray-400">
+                                Canvasで表示中
+                            </div>
+                        </div>
+                        <div id="canvas-block-shell" data-canvas-section="blocks" class="rounded-xl border border-gray-700 bg-gray-950/80 overflow-hidden flex flex-col min-h-0">
+                            <div class="flex items-center justify-between px-3 py-2 border-b border-gray-700/70 bg-gray-900/70">
+                                <span class="text-[10px] uppercase tracking-[0.18em] text-gray-400">Blocks</span>
+                                <span id="canvas-block-count" class="text-[10px] text-cyan-200">0</span>
+                            </div>
+                            <div id="canvas-block-list" class="canvas-block-list p-2" tabindex="0"></div>
+                        </div>
+                        <div id="canvas-source-shell" data-canvas-section="source" class="rounded-xl border border-gray-700 bg-gray-950/80 overflow-hidden flex flex-col min-h-0">
+                            <div class="flex items-center justify-between px-3 py-2 border-b border-gray-700/70 bg-gray-900/70">
+                                <span class="text-[10px] uppercase tracking-[0.18em] text-gray-400">Source</span>
+                                <select id="canvas-source-select" class="max-w-[65%] rounded border border-gray-700 bg-gray-900 px-2 py-1 text-[10px] text-cyan-200" aria-label="Canvasのソースコードブロック">
+                                    <option value="">-</option>
+                                </select>
+                            </div>
+                            <div id="canvas-source-scroll" class="flex-1 min-h-0 overflow-auto" tabindex="0">
+                                <pre class="p-3 text-[11px] leading-5 text-gray-200"><code id="canvas-code-text" class="font-mono whitespace-pre-wrap break-words"></code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+

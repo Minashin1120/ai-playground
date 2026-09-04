@@ -2,9 +2,10 @@ from pathlib import Path
 import re
 import unittest
 
+from tests.app_source import read_app_source
 
 APP_ROOT = Path(__file__).resolve().parents[1]
-APP_SOURCE = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+APP_SOURCE = read_app_source()
 CHAT_JS_ASSETS = list((APP_ROOT / "static/js").glob("chat_core.v4.8.*.js"))
 assert len(CHAT_JS_ASSETS) == 1, "Only the latest versioned chat core asset should remain"
 CHAT_JS = CHAT_JS_ASSETS[0].read_text(encoding="utf-8")

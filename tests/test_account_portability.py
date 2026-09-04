@@ -9,7 +9,9 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
+from tests.chat_template import read_chat_markup
 
+from tests.app_source import read_app_source
 os.environ.setdefault("FLASK_SECRET_KEY", "account-portability-test-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/ai-chat-account-portability-tests.db")
 os.environ.setdefault("REDIS_URL", "redis://127.0.0.1:6399/15")
@@ -727,8 +729,7 @@ class AccountPortabilityTests(unittest.TestCase):
         self.assertEqual(len(js_assets), 1)
         with open(js_assets[0], encoding="utf-8") as handle:
             source = handle.read()
-        with open(os.path.join(root, "templates", "chat.html"), encoding="utf-8") as handle:
-            template = handle.read()
+        template = read_chat_markup()
         self.assertNotIn("await res.blob()", source)
         self.assertNotIn("frame.src = `/api/account/export?job_id=", source)
         self.assertIn("apiFetch('/api/account/export'", source)
@@ -766,8 +767,7 @@ class AccountPortabilityTests(unittest.TestCase):
 
     def test_export_job_uses_generous_timeout_for_large_accounts(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "app.py"), encoding="utf-8") as handle:
-            app_source = handle.read()
+        app_source = read_app_source()
         match = re.search(r"ACCOUNT_EXPORT_JOB_TIMEOUT_SECONDS = (\d+)", app_source)
         self.assertIsNotNone(match)
         self.assertGreaterEqual(int(match.group(1)), 3600)
@@ -776,8 +776,7 @@ class AccountPortabilityTests(unittest.TestCase):
 
     def test_encrypted_export_files_are_streamed_without_media_cache(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "app.py"), encoding="utf-8") as handle:
-            app_source = handle.read()
+        app_source = read_app_source()
         section_start = app_source.index("def _write_account_export_file(")
         section_end = app_source.index("\ndef ", section_start + 1)
         section = app_source[section_start:section_end]
@@ -832,8 +831,7 @@ class AccountPortabilityTests(unittest.TestCase):
 
     def test_import_progress_is_overall_and_continuous_after_upload(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "app.py"), encoding="utf-8") as handle:
-            app_source = handle.read()
+        app_source = read_app_source()
         section = app_source[app_source.index("def import_account_data(") :]
         fixed = [36, 38, 57, 59, 93, 95, 98]
         self.assertEqual(sorted(fixed), fixed)
@@ -853,8 +851,7 @@ class AccountPortabilityTests(unittest.TestCase):
 
     def test_import_progress_starts_after_upload_phase(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "app.py"), encoding="utf-8") as handle:
-            app_source = handle.read()
+        app_source = read_app_source()
         section = app_source[app_source.index("def import_account_data(") :]
         first = re.search(r"_account_transfer_checkpoint\([^,]+,[^,]+,\s*(\d+), \"validating\"", section)
         self.assertIsNotNone(first)
@@ -1259,8 +1256,7 @@ class AccountPortabilityTests(unittest.TestCase):
         self.assertEqual(len(js_assets), 1)
         with open(js_assets[0], encoding="utf-8") as handle:
             source = handle.read()
-        with open(os.path.join(root, "templates", "chat.html"), encoding="utf-8") as handle:
-            template = handle.read()
+        template = read_chat_markup()
         self.assertIn("/api/account/dedupe/preview", source)
         self.assertIn("/api/account/dedupe/execute", source)
         self.assertIn("重複データは見つかりませんでした", source)

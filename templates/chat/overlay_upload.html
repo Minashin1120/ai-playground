@@ -1,0 +1,133 @@
+    <!-- Drop Overlay -->
+    <div id="drop-overlay" class="fixed inset-0 z-50 hidden items-center justify-center text-center text-white text-lg font-bold">
+        <div class="bg-gray-900/80 px-6 py-4 rounded-lg border border-blue-500/60">
+            <i class="fas fa-cloud-upload-alt mr-2 text-blue-400"></i>ファイルをドロップしてアップロード
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="upload-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[80vh] max-h-none modal-panel h-fit">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-paperclip text-blue-400"></i> ファイルアップロード</h2>
+                <button id="upload-modal-close" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="upload-dropzone" class="rounded-lg p-6 text-center text-sm text-gray-300 mb-4">
+                <div class="text-base font-bold text-blue-200 mb-1">ドラッグ＆ドロップ</div>
+                <div class="text-xs text-gray-400">または下のボタンから選択</div>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
+                <button id="upload-select-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-bold btn-hover">ファイルを選択</button>
+                <button id="upload-camera-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-sm font-bold btn-hover">カメラで撮影</button>
+                <button id="upload-photo-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded text-sm font-bold btn-hover" title="写真/動画を選択">写真</button>
+                <button id="upload-lib-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">ライブラリから選択</button>
+                <button id="upload-clear-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">リストをクリア</button>
+            </div>
+            <div id="vision-model-info" class="hidden mb-3 p-2 bg-gray-900/50 rounded border border-gray-700 flex items-center justify-between">
+                <div>
+                    <div class="text-[10px] text-gray-400">Vision Model（画像解析用）</div>
+                    <div id="vision-model-display" class="text-xs text-gray-200 font-medium">未選択</div>
+                </div>
+                <button id="vision-model-change-btn" class="text-[10px] px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition">変更</button>
+            </div>
+            <div class="flex items-center justify-between mb-2">
+                <div class="text-xs text-gray-400">進行状況 <span id="upload-modal-status-text"></span></div>
+                <div id="upload-modal-total-progress" class="hidden h-1.5 w-32 bg-gray-900 rounded-full overflow-hidden">
+                    <div id="upload-modal-total-progress-bar" class="h-full bg-blue-500 transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+            <div id="upload-list" class="overflow-y-auto space-y-2 pr-1" style="max-height: 40vh;"></div>
+        </div>
+    </div>
+
+    <div id="rich-paste-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-[calc(100%-2rem)] sm:w-full max-w-4xl p-4 sm:p-6 shadow-2xl border border-gray-700 m-4 sm:m-8 flex flex-col max-h-[92dvh] lg:max-h-[90vh] modal-panel overflow-hidden">
+            <div class="flex items-center justify-between mb-3 shrink-0">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-paste text-amber-400"></i> リッチ貼り付け → PDF → Markdown</h2>
+                <button id="rich-paste-modal-close" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)] gap-6 min-h-0 flex-1 overflow-y-auto lg:overflow-hidden custom-scrollbar">
+                <div class="flex flex-col gap-4 min-h-0 lg:overflow-y-auto overflow-visible pr-2 custom-scrollbar lg:border-r lg:border-gray-700/50 lg:pr-6">
+                    <div class="rounded-lg border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-xs text-amber-100/90 leading-relaxed shrink-0">
+                        Word、記事、ブラウザのリッチテキストをここに貼り付けると、内容は画面に出さずに内部保持します。必要なら別タブで確認し、PDF化してモデルに送れます。
+                    </div>
+                    <div class="flex flex-wrap gap-2 shrink-0">
+                        <button id="rich-paste-import-btn" data-progress-no-spinner="true" class="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded text-sm font-bold btn-hover">クリップボードを取り込み</button>
+                        <button id="rich-paste-preview-btn" data-progress-no-spinner="true" class="px-3 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded text-sm font-bold btn-hover">別タブで確認</button>
+                        <button id="rich-paste-focus-btn" data-progress-no-spinner="true" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">貼り付け欄へ移動</button>
+                        <button id="rich-paste-clear-btn" data-progress-no-spinner="true" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">内容をクリア</button>
+                    </div>
+                    <div id="rich-paste-status" class="text-[11px] text-gray-400 min-h-[1rem] shrink-0">まだ内容がありません。</div>
+                    <textarea id="rich-paste-capture" aria-hidden="true" tabindex="-1"></textarea>
+                    <div id="rich-paste-storage" aria-hidden="true"></div>
+                </div>
+                <div class="flex flex-col gap-4 min-h-0 lg:overflow-y-auto overflow-visible pr-2 custom-scrollbar">
+                    <div class="rounded-lg border border-gray-700 bg-gray-900/60 p-4 shrink-0">
+                        <div class="text-xs font-bold text-gray-200 mb-2">モデルへの指示</div>
+                        <textarea id="rich-paste-prompt" rows="8" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-sm text-white outline-none resize-none leading-6" placeholder="モデルへの指示を入力...">このPDFをMarkdown形式に変換し、コードブロックに書き出してください。</textarea>
+                        <label class="mt-3 flex items-center gap-2 text-xs text-gray-300">
+                            <input id="rich-paste-use-default" type="checkbox" class="accent-amber-500 w-4 h-4">
+                            <span>このプロンプトをこのユーザーの既定値として保存する</span>
+                        </label>
+                        <label class="mt-2 flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+                            <input id="rich-paste-download-only" type="checkbox" class="accent-blue-500 w-4 h-4">
+                            <span class="font-bold text-blue-400">ダウンロードのみ（プロンプトとして送信しない）</span>
+                        </label>
+                        <div class="text-[11px] text-gray-500 mt-1">オンにすると、PDF生成後にローカルへ保存し、チャットへの添付・送信は行いません。</div>
+                    </div>
+                    <div class="rounded-lg border border-gray-700 bg-gray-900/60 p-4 text-xs text-gray-400 leading-6 space-y-2 shrink-0">
+                        <div class="text-gray-200 font-bold">使い方</div>
+                        <div>1. この欄にコピーした内容を貼り付けます。</div>
+                        <div>2. 必要なら指示文を調整します。</div>
+                        <div>3. 「PDF化して送信」を押すと、一時PDFを作成して現在のモデルへ添付します。</div>
+                    </div>
+                    <div id="rich-paste-progress-container" class="hidden mb-4 mt-2">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <span class="text-xs text-amber-400 font-bold flex items-center gap-2">
+                                <i class="fas fa-spinner fa-spin"></i> <span id="rich-paste-progress-label">PDF生成中...</span>
+                            </span>
+                            <div class="flex items-center gap-3">
+                                <span id="rich-paste-progress-text" class="text-xs text-gray-300 font-mono font-bold">0%</span>
+                                <button id="rich-paste-cancel-btn" class="text-[10px] text-red-400 hover:text-red-300 font-bold border border-red-900/50 px-1.5 py-0.5 rounded bg-red-900/10 transition btn-hover">キャンセル</button>
+                            </div>
+                        </div>
+                        <div class="h-2 w-full bg-gray-950 rounded-full overflow-hidden border border-gray-800 shadow-inner">
+                            <div id="rich-paste-progress-bar" class="h-full transition-all duration-300" style="width: 0%; background-color: #f59e0b; box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);"></div>
+                        </div>
+                    </div>
+                    <div class="mt-auto pt-2 flex flex-col gap-2 shrink-0">
+                        <button id="rich-paste-send-btn" data-progress-no-spinner="true" class="w-full px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold btn-hover">PDF化して送信</button>
+                        {% if is_admin %}
+                        <button id="rich-paste-send-server-btn" data-progress-no-spinner="true" class="w-full px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold btn-hover">サーバー側でPDF化して送信</button>
+                        {% endif %}
+                        <button id="rich-paste-close-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-bold btn-hover">閉じる</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Camera Capture Modal -->
+    <div id="camera-capture-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto" style="z-index:60;">
+        <div class="bg-gray-800 rounded-lg w-full max-w-xl p-4 shadow-2xl border border-gray-700 m-4 flex flex-col gap-3 modal-panel">
+            <div class="flex items-center justify-between">
+                <h2 class="text-base font-bold text-white flex items-center gap-2"><i class="fas fa-camera text-emerald-400"></i> カメラ撮影</h2>
+                <button id="camera-modal-close" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="rounded-lg border border-gray-700 bg-black overflow-hidden">
+                <video id="camera-video" class="w-full h-auto block" autoplay playsinline muted></video>
+                <canvas id="camera-canvas" class="hidden"></canvas>
+            </div>
+            <div id="camera-status" class="text-xs text-gray-400 min-h-[1rem]">カメラを起動中...</div>
+            <div id="camera-capture-preview-list" class="hidden rounded-lg border border-gray-700/80 bg-gray-900/70 p-2 grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-32 overflow-y-auto"></div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <button id="camera-capture-btn" data-progress-no-spinner="true" disabled class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded text-sm font-bold btn-hover">撮影</button>
+                <button id="camera-attach-btn" data-progress-no-spinner="true" disabled class="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded text-sm font-bold btn-hover">添付 (0)</button>
+                <button id="camera-switch-btn" data-progress-no-spinner="true" disabled class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white rounded text-sm font-bold btn-hover">カメラ切替</button>
+                <button id="camera-clear-btn" data-progress-no-spinner="true" disabled class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white rounded text-sm font-bold btn-hover">撮影分をクリア</button>
+                <button id="camera-fallback-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">写真/動画を選択</button>
+            </div>
+            <div class="text-[11px] text-gray-500">複数枚撮影してから「添付」でまとめて追加できます。HTTPS または localhost でカメラ起動に対応します。</div>
+        </div>
+    </div>
+

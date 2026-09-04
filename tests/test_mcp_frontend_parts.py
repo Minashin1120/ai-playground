@@ -1,6 +1,7 @@
 from pathlib import Path
 import unittest
 
+from tests.chat_template import read_chat_markup
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 
@@ -18,7 +19,7 @@ class McpFrontendPartsTests(unittest.TestCase):
         return _current_asset("js", "chat_core.v4.8.*.js").read_text(encoding="utf-8")
 
     def _template(self):
-        return (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        return read_chat_markup()
 
     def _css(self):
         return _current_asset("css", "chat.custom.v4.8.*.css").read_text(encoding="utf-8")

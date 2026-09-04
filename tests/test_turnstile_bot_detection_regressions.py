@@ -5,7 +5,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tests.chat_template import read_chat_markup
 
+from tests.app_source import read_app_source
 os.environ.setdefault("FLASK_SECRET_KEY", "turnstile-test-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/ai-chat-turnstile-tests.db")
 os.environ.setdefault("REDIS_URL", "redis://127.0.0.1:6398/15")
@@ -444,7 +446,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         self.assertIn("もう一度送信してください", source)
 
     def test_server_defines_api_level_turnstile_gate(self):
-        source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        source = read_app_source()
         self.assertIn("def _bot_turnstile_gate(token=None):", source)
         self.assertIn("def bot_turnstile_verify():", source)
         self.assertIn("'turnstile_required'", source)
@@ -744,7 +746,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         source = assets[0].read_text(encoding="utf-8")
         self.assertIn("data-bot-ignore-click", source)
         self.assertIn("#new-chat-btn", source)
-        html = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        html = read_chat_markup()
         self.assertIn('id="new-chat-btn" data-bot-ignore-click="true"', html)
         self.assertIn('id="mobile-new-chat-btn" data-bot-ignore-click="true"', html)
 
@@ -1125,7 +1127,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         # ロック画面はAPIリクエスト時にサーバーから取得した残り時間でカウントダウン
         self.assertIn("applyBotLockFromServer", source)
         # サーバーにロック状態取得エンドポイントが定義されている
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         self.assertIn("/api/bot/lock-status", app_source)
 
     def test_js_detects_synthetic_events(self):
@@ -1176,14 +1178,14 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
 
     def test_bot_telemetry_server_rejects_untrusted_flag(self):
         # サーバー側 /api/bot-telemetry が untrusted_input を処理する
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         self.assertIn("data.get('untrusted_input')", app_source)
         self.assertIn("_apply_bot_ban(\"Synthetic (script-injected) input events detected\")", app_source)
 
     def test_lock_gate_allows_bot_telemetry_and_turnstile_verify(self):
         # アカウントロック中でもボット検出テレメトリ／Turnstile検証は到達できる
         # （ロック中に合成イベント等を送ってもBANへ進めるため）
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         # _BOT_LOCK_GATE_WHITELIST 内に両エンドポイントがあること
         whitelist_start = app_source.index("_BOT_LOCK_GATE_WHITELIST = {")
         whitelist = app_source[whitelist_start: whitelist_start + 800]

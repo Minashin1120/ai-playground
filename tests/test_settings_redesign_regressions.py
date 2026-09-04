@@ -1,6 +1,7 @@
 from pathlib import Path
 import unittest
 
+from tests.chat_template import read_chat_markup
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 
@@ -13,7 +14,7 @@ def _current_asset(folder, pattern):
 
 class SettingsRedesignRegressionTests(unittest.TestCase):
     def test_template_has_modern_settings_modal_structure(self):
-        template = Path(APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         start = template.index('id="settings-modal"')
         end = template.index('id="gemini-local-python-modal"')
         modal = template[start:end]
@@ -76,7 +77,7 @@ class SettingsRedesignRegressionTests(unittest.TestCase):
 
     def test_settings_body_can_scroll_inside_fixed_panel(self):
         css = _current_asset("css", "chat.custom.v4.8.*.css")
-        template = Path(APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         start = template.index('id="settings-modal"')
         overlay = template[start: template.index(">", start) + 1]
         self.assertNotIn("overflow-y-auto", overlay)
@@ -105,7 +106,7 @@ class SettingsRedesignRegressionTests(unittest.TestCase):
         self.assertIn("e2eeCurrent !== e2eeLoaded", script)
 
     def test_import_settings_confirmation_ui_is_present(self):
-        template = Path(APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         for ident in (
             'id="settings-confirmation-modal"',
             'id="settings-confirmation-list"',

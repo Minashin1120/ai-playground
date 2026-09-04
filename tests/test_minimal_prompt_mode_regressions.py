@@ -1,7 +1,9 @@
 from pathlib import Path
 import unittest
 
+from tests.chat_template import read_chat_markup
 
+from tests.app_source import read_app_source
 APP_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -13,7 +15,7 @@ def _current_asset(folder, pattern):
 
 class MinimalPromptModeRegressionTests(unittest.TestCase):
     def test_settings_offer_minimal_prompt_mode(self):
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         self.assertIn('id="set-minimal-prompt-mode"', template)
         self.assertIn('id="set-prompt-bar-mode-normal"', template)
         self.assertIn('id="set-compact-prompt-mode"', template)
@@ -44,7 +46,7 @@ class MinimalPromptModeRegressionTests(unittest.TestCase):
         self.assertIn("display: none !important;", css)
 
     def test_backend_persists_minimal_prompt_mode(self):
-        app_source = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = read_app_source()
         self.assertIn("minimal_prompt_mode = db.Column(db.Boolean, default=False)", app_source)
         self.assertIn("'minimal_prompt_mode'", app_source)
         self.assertIn("ensure_user_minimal_prompt_mode_column", app_source)
@@ -52,7 +54,7 @@ class MinimalPromptModeRegressionTests(unittest.TestCase):
         self.assertIn("プロンプトバーをミニマル表示", app_source)
 
     def test_plus_button_options_popup_markup_exists(self):
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         self.assertIn('id="minimal-options-popup"', template)
         self.assertIn('id="minimal-options-backdrop"', template)
         self.assertIn('id="minimal-options-panel"', template)
@@ -65,7 +67,7 @@ class MinimalPromptModeRegressionTests(unittest.TestCase):
         self.assertIn('id="thinking-slide-close-btn"', template)
 
     def test_option_wrappers_have_ids_for_popup_reference(self):
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         self.assertIn('id="safety-option"', template)
         self.assertIn('id="compression-option"', template)
 

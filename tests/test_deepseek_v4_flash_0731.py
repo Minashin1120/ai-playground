@@ -3,13 +3,14 @@ import unittest
 from pathlib import Path
 
 
+from tests.app_source import read_app_source
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class DeepSeekV4Flash0731Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.app_source = (ROOT / "app.py").read_text(encoding="utf-8")
+        cls.app_source = read_app_source()
         js_assets = list((ROOT / "static/js").glob("chat_core.v4.8.*.js"))
         assert len(js_assets) == 1, "Only the latest versioned chat core asset should remain"
         cls.js_source = js_assets[0].read_text(encoding="utf-8")

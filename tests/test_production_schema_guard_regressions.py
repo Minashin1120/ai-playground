@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 
+from tests.app_source import read_app_source
 os.environ.setdefault("FLASK_SECRET_KEY", "schema-guard-test-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/ai-chat-schema-guard-tests.db")
 os.environ.setdefault("REDIS_URL", "redis://127.0.0.1:6399/15")
@@ -13,7 +14,7 @@ import app as target
 
 
 ROOT = Path(__file__).resolve().parents[1]
-APP_SOURCE = (ROOT / "app.py").read_text(encoding="utf-8")
+APP_SOURCE = read_app_source()
 VERIFY_SCRIPT = (ROOT / "scripts" / "verify_changes.sh").read_text(encoding="utf-8")
 CONFTEST = (ROOT / "tests" / "conftest.py").read_text(encoding="utf-8")
 

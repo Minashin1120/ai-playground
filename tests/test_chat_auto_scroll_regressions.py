@@ -1,6 +1,7 @@
 from pathlib import Path
 import unittest
 
+from tests.chat_template import read_chat_markup
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 
@@ -128,7 +129,7 @@ class ChatAutoScrollRegressionTests(unittest.TestCase):
         self.assertIn("renderThreadTree({ silent, keepScroll: silent })", loader)
 
     def test_resume_button_is_wired_and_accessible(self):
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         css = next((APP_ROOT / "static" / "css").glob("chat.custom.v4.8.*.css")).read_text(encoding="utf-8")
         source = _chat_core_source()
 

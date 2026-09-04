@@ -1,0 +1,251 @@
+    <!-- History Modal -->
+    <div id="history-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
+        <div class="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 m-4 flex flex-col modal-panel overflow-hidden">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center shrink-0">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fas fa-history text-blue-400"></i> チャット履歴
+                </h2>
+                <button onclick="closeHistoryModal()" class="text-gray-400 hover:text-white transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-3 border-b border-gray-700 shrink-0">
+                <div class="relative">
+                    <form class="history-search-form" role="search" autocomplete="off" action="#" method="get" onsubmit="return false;"><input type="search" id="history-search-box" name="thread-filter-modal" placeholder="履歴を検索..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="search" enterkeyhint="search" aria-label="履歴を検索" role="searchbox" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other" data-protonpass-ignore="true" readonly class="w-full bg-gray-900 border border-gray-600 rounded px-4 py-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none transition"></form>
+                    <i class="fas fa-search absolute right-3 top-2.5 text-gray-500"></i>
+                </div>
+            </div>
+            <div id="history-modal-thread-list-container" class="flex-1 overflow-hidden flex flex-col">
+                <!-- Thread list will be moved here when modal is open -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Thread Settings Modal -->
+    <div id="thread-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[90vh] max-h-none overflow-hidden modal-panel">
+            <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <i class="fas fa-comment-dots text-green-400"></i> Chat Instructions
+            </h2>
+            <div class="space-y-4 flex-1 overflow-y-auto thread-modal-body">
+                <div>
+                    <label class="text-xs text-gray-400 block mb-1">このチャット専用のシステムプロンプト</label>
+                    <textarea id="thread-custom-instruction" class="w-full h-48 bg-gray-900 border border-gray-600 rounded p-3 text-sm text-white focus:ring-1 focus:ring-green-500 outline-none" placeholder="このチャットだけで有効にしたい指示（役割や出力形式など）を入力してください..."></textarea>
+                    <div class="text-[10px] text-gray-500 mt-2">
+                        ※ 全体システムプロンプトが有効な場合はその後に追加されます。SysPromptのON/OFFに関わらず、このチャット専用の指示は適用されます。
+                    </div>
+                </div>
+                <div class="flex items-center justify-between py-2 px-1 bg-gray-900/50 rounded border border-gray-700/50">
+                    <label class="text-[11px] text-gray-300">全体プロンプトをこのチャットに含める</label>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="thread-include-global-instruction" class="sr-only peer" checked>
+                        <div class="w-8 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                </div>
+                <div class="border-t border-gray-700 pt-4">
+                    <div class="text-xs text-gray-400 mb-2">全体システムプロンプト（参照のみ）</div>
+                    <div class="space-y-2 mb-4">
+                        <textarea id="thread-app-global-sys-prompt-preview" readonly class="w-full h-20 bg-gray-950 border border-gray-700 rounded p-2 text-xs text-gray-200" placeholder="全体システムプロンプト"></textarea>
+                        <div id="thread-app-global-sys-prompt-preview-status" class="text-[10px] text-gray-500"></div>
+                    </div>
+                    <div class="text-xs text-gray-400 mb-2">ユーザー設定のシステムプロンプト（この歯車からも編集可能）</div>
+                    <div class="space-y-3">
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-[11px] text-gray-500">ユーザーシステムプロンプト</label>
+                                <label class="flex items-center gap-1 text-[10px] text-gray-500">
+                                    <input type="checkbox" id="thread-global-sys-prompt-enabled" class="accent-green-500 w-3 h-3">
+                                    <span>有効</span>
+                                </label>
+                            </div>
+                            <textarea id="thread-global-sys-prompt" class="w-full h-24 bg-gray-900 border border-gray-600 rounded p-2 text-xs text-white" placeholder="自分だけに適用する指示"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6 shrink-0">
+                <button onclick="closeThreadModal()" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white transition">キャンセル</button>
+                <button id="save-thread-settings-btn" class="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded font-bold btn-modern">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compression Settings Modal -->
+    <div id="compression-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[90vh] max-h-none overflow-hidden modal-panel">
+            <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <i class="fas fa-compress-alt text-blue-400"></i> 画像・圧縮詳細設定
+            </h2>
+            <div class="space-y-6 flex-1 overflow-y-auto pr-2">
+                <!-- Client-side Compression Section -->
+                <div class="space-y-4">
+                    <h3 class="text-sm font-bold text-blue-300 border-l-2 border-blue-500 pl-2">添付画像のクライアント側圧縮</h3>
+                    <div class="grid grid-cols-1 gap-4">
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">出力形式 (変換)</label>
+                            <select id="compression-output-type" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none">
+                                <option value="original">元形式を維持 (自動)</option>
+                                <option value="image/jpeg">JPEG に変換</option>
+                                <option value="image/png">PNG に変換</option>
+                                <option value="image/webp">WebP に変換 (推奨)</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-2 mt-1">
+                            <input type="checkbox" id="compression-format-only" class="accent-blue-500 w-4 h-4">
+                            <label for="compression-format-only" class="text-xs text-gray-300 cursor-pointer select-none">形式変換のみ (品質100・リサイズ無効)</label>
+                        </div>
+                        <div id="compression-size-wrap" class="transition-opacity">
+                            <label class="text-xs text-gray-400 block mb-1">最大ファイルサイズ (MB)</label>
+                            <input type="number" id="compression-max-size" step="0.1" min="0.1" max="10" value="1.0" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none disabled:opacity-50">
+                        </div>
+                        <div id="compression-dim-wrap" class="transition-opacity">
+                            <label class="text-xs text-gray-400 block mb-1">最大幅/高さ (px)</label>
+                            <input type="number" id="compression-max-dim" step="128" min="256" max="8192" value="1920" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none disabled:opacity-50">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GPT Image Generation Section -->
+                <div id="modal-gpt-image-options" class="space-y-4 border-t border-gray-700 pt-4">
+                    <h3 class="text-sm font-bold text-green-300 border-l-2 border-green-500 pl-2">GPT Image 生成設定</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">Size</label>
+                            <select id="modal-gpt-image-size" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
+                                <option value="1024x1024">1024x1024</option>
+                                <option value="1536x1024">1536x1024</option>
+                                <option value="1024x1536">1024x1536</option>
+                                <option value="auto">Auto</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">Quality</label>
+                            <select id="modal-gpt-image-quality" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                                <option value="auto">Auto</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">Format</label>
+                            <select id="modal-gpt-image-format" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
+                                <option value="jpeg">JPEG</option>
+                                <option value="png">PNG</option>
+                                <option value="webp">WebP</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">Compression (%)</label>
+                            <input id="modal-gpt-image-compression" type="number" min="0" max="100" step="1" value="85" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gemini Image Generation Section -->
+                <div id="modal-gemini-image-options" class="space-y-4 border-t border-gray-700 pt-4">
+                    <h3 class="text-sm font-bold text-blue-300 border-l-2 border-blue-500 pl-2">Gemini (Nano Banana) 生成設定</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">Aspect</label>
+                            <select id="modal-gemini-image-aspect" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
+                                <option value="1:1">1:1</option>
+                                <option value="auto">Auto</option>
+                                <option value="1:4">1:4</option>
+                                <option value="1:8">1:8</option>
+                                <option value="2:3">2:3</option>
+                                <option value="3:2">3:2</option>
+                                <option value="3:4">3:4</option>
+                                <option value="4:1">4:1</option>
+                                <option value="4:3">4:3</option>
+                                <option value="4:5">4:5</option>
+                                <option value="5:4">5:4</option>
+                                <option value="8:1">8:1</option>
+                                <option value="9:16">9:16</option>
+                                <option value="16:9">16:9</option>
+                                <option value="21:9">21:9</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">Size</label>
+                            <select id="modal-gemini-image-size" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
+                                <option value="1K">1K</option>
+                                <option value="2K">2K</option>
+                                <option value="4K">4K</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Grok Image Generation Section -->
+                <div id="modal-grok-image-options" class="space-y-4 border-t border-gray-700 pt-4">
+                    <h3 class="text-sm font-bold text-orange-400 border-l-2 border-orange-500 pl-2">Grok (Imagine) 生成設定</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">Aspect</label>
+                            <select id="modal-grok-image-aspect" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
+                                <option value="auto">Auto</option>
+                                <option value="1:1">1:1 (Square)</option>
+                                <option value="16:9">16:9 (Landscape)</option>
+                                <option value="9:16">9:16 (Portrait)</option>
+                                <option value="4:3">4:3</option>
+                                <option value="3:4">3:4</option>
+                                <option value="3:2">3:2</option>
+                                <option value="2:3">2:3</option>
+                                <option value="2:1">2:1</option>
+                                <option value="1:2">1:2</option>
+                                <option value="19.5:9">19.5:9</option>
+                                <option value="9:19.5">9:19.5</option>
+                                <option value="20:9">20:9</option>
+                                <option value="9:20">9:20</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">Resolution</label>
+                            <select id="modal-grok-image-resolution" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
+                                <option value="1k">1K</option>
+                                <option value="2k">2K</option>
+                            </select>
+                        </div>
+                        <div class="hidden">
+                            <label class="text-xs text-gray-400 block mb-1">Quality</label>
+                            <select id="modal-grok-image-quality" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
+                                <option value="medium">Medium</option>
+                                <option value="low">Low</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="modal-mistral-ocr-options" class="space-y-4 border-t border-gray-700 pt-4 hidden">
+                    <h3 class="text-sm font-bold text-orange-300 border-l-2 border-orange-400 pl-2">Mistral OCR 4 設定</h3>
+                    <p class="text-[11px] text-gray-400">会話履歴・Search・Python・Canvas は使いません。添付した文書または公開URLだけを OCR します。</p>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">Table format</label>
+                            <select id="modal-ocr-table-format" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
+                                <option value="">本文内 Markdown</option>
+                                <option value="markdown">Markdown（別フィールド）</option>
+                                <option value="html">HTML（別フィールド）</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">Pages（0始まり）</label>
+                            <input id="modal-ocr-pages" type="text" placeholder="0-2 または 0,2-4" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-4 text-xs text-gray-300">
+                        <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="modal-ocr-extract-header" class="accent-orange-400"><span>ヘッダー抽出</span></label>
+                        <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="modal-ocr-extract-footer" class="accent-orange-400"><span>フッター抽出</span></label>
+                        <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="modal-ocr-include-blocks" class="accent-orange-400"><span>構造ブロック</span></label>
+                        <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="modal-ocr-include-images" class="accent-orange-400" checked><span>画像抽出</span></label>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6 shrink-0 pt-4 border-t border-gray-700">
+                <button onclick="closeCompressionModal()" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white transition">閉じる</button>
+                <button id="save-compression-settings-btn" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-modern">保存</button>
+            </div>
+        </div>
+    </div>
+

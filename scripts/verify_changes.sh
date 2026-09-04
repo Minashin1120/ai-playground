@@ -80,6 +80,9 @@ for src in "${JS_SOURCES[@]}"; do
 done
 
 PY_SOURCES=(app.py worker.py scripts/_release_common.py)
+while IFS= read -r -d '' py; do
+    PY_SOURCES+=("$py")
+done < <(find server -name '*.py' -print0 | sort -z)
 run_logged "python syntax" "$PYTHON" -m py_compile "${PY_SOURCES[@]}"
 
 if [[ "$SKIP_TESTS" -eq 0 ]]; then

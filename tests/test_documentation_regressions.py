@@ -34,7 +34,9 @@ class DocumentationRegressionTests(unittest.TestCase):
             "static/pwa/README.md",
             "static/vendor/README.md",
             "templates/README.md",
+            "templates/chat/README.md",
             "tests/README.md",
+            "server/README.md",
         )
         for relative in required:
             with self.subTest(relative=relative):
@@ -81,7 +83,7 @@ class DocumentationRegressionTests(unittest.TestCase):
 
     def test_public_documents_exclude_internal_coordination_notes(self):
         documents = list(ROOT.glob("*.md"))
-        for directory in ("deploy", "scripts", "static", "templates", "tests"):
+        for directory in ("deploy", "scripts", "server", "static", "templates", "tests"):
             documents.extend((ROOT / directory).rglob("*.md"))
 
         forbidden = (
@@ -109,6 +111,26 @@ class DocumentationRegressionTests(unittest.TestCase):
         for changelog in (ROOT / "static/changelogs").glob("*.md"):
             with self.subTest(changelog=changelog.name):
                 self.assertNotIn("minashin1120.com", changelog.read_text(encoding="utf-8"))
+
+    def test_server_parts_match_app_loader(self):
+        app_source = (ROOT / "app.py").read_text(encoding="utf-8")
+        match = re.search(r"_SERVER_PARTS\s*=\s*\[(.*?)\]", app_source, re.S)
+        self.assertIsNotNone(match)
+        names = re.findall(r'"([^"]+\.py)"', match.group(1))
+        self.assertGreater(len(names), 10)
+        for name in names:
+            with self.subTest(part=name):
+                self.assertTrue((ROOT / "server" / name).is_file())
+        self.assertIn("_exec_server_part", app_source)
+        self.assertIn("SYSTEM_VERSION", app_source)
+
+    def test_chat_includes_exist(self):
+        chat = (ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        includes = re.findall(r"\{%\s*include\s+'chat/([^']+)'\s*%\}", chat)
+        self.assertGreater(len(includes), 5)
+        for name in includes:
+            with self.subTest(fragment=name):
+                self.assertTrue((ROOT / "templates" / "chat" / name).is_file())
 
 
 if __name__ == "__main__":

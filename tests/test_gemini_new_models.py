@@ -1,9 +1,11 @@
 from pathlib import Path
 import unittest
 
+from tests.chat_template import read_chat_markup
 
+from tests.app_source import read_app_source
 APP_ROOT = Path(__file__).resolve().parents[1]
-APP_SOURCE = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+APP_SOURCE = read_app_source()
 CHAT_JS_ASSETS = list((APP_ROOT / "static/js").glob("chat_core.v4.8.*.js"))
 assert len(CHAT_JS_ASSETS) == 1, "Only the latest versioned chat core asset should remain"
 CHAT_JS = CHAT_JS_ASSETS[0].read_text(encoding="utf-8")
@@ -121,8 +123,8 @@ class GeminiNewModelsRegressionTests(unittest.TestCase):
         self.assertIn("isGeminiEmbeddingModel", CHAT_JS)
 
     def test_gemini_video_and_music_options_ui_exist(self):
-        self.assertIn('id="gemini-video-options"', (APP_ROOT / "templates/chat.html").read_text(encoding="utf-8"))
-        self.assertIn('id="gemini-music-options"', (APP_ROOT / "templates/chat.html").read_text(encoding="utf-8"))
+        self.assertIn('id="gemini-video-options"', read_chat_markup())
+        self.assertIn('id="gemini-music-options"', read_chat_markup())
         self.assertIn("updateGeminiVideoUi", CHAT_JS)
         self.assertIn("updateGeminiMusicUi", CHAT_JS)
 

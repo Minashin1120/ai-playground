@@ -7,7 +7,9 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
+from tests.chat_template import read_chat_markup
 
+from tests.app_source import read_app_source
 os.environ.setdefault("FLASK_SECRET_KEY", "setup-import-test-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/ai-chat-setup-import-tests.db")
 os.environ.setdefault("REDIS_URL", "redis://127.0.0.1:6399/15")
@@ -361,8 +363,7 @@ class SetupImportRegressionTests(unittest.TestCase):
 
     def test_setup_post_enqueues_migration_only_with_unencrypted_data(self):
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "app.py"), encoding="utf-8") as handle:
-            source = handle.read()
+        source = read_app_source()
         self.assertIn("def _user_has_unencrypted_data(user):", source)
         self.assertIn("task_queue.enqueue(migrate_e2ee_task, current_user.id, True)", source)
 
@@ -390,8 +391,7 @@ class SetupImportRegressionTests(unittest.TestCase):
 
     def test_settings_import_handles_storage_limit_file_selection(self):
         root = Path(__file__).resolve().parents[1]
-        with open(root / "templates" / "chat.html", encoding="utf-8") as handle:
-            chat_template = handle.read()
+        chat_template = read_chat_markup()
         js_assets = list((root / "static" / "js").glob("chat_core.v4.8.*.js"))
         self.assertEqual(len(js_assets), 1)
         js_source = js_assets[0].read_text(encoding="utf-8")

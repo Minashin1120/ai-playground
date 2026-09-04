@@ -1,6 +1,7 @@
 from pathlib import Path
 import unittest
 
+from tests.chat_template import read_chat_markup
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 
@@ -13,7 +14,7 @@ def _current_asset(folder, pattern):
 
 class PullToRefreshRegressionTests(unittest.TestCase):
     def test_thread_indicator_element_exists_in_thread_list(self):
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         thread_list = template[template.index('id="thread-list"') :]
         thread_list = thread_list[: thread_list.index("</div>", thread_list.index('id="scroll-sentinel"'))]
 
@@ -23,7 +24,7 @@ class PullToRefreshRegressionTests(unittest.TestCase):
         self.assertIn("ptr-pull-label", thread_list)
 
     def test_gem_indicator_element_exists_in_gem_list(self):
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         gem_list = template[template.index('id="gem-list"') :]
         gem_list = gem_list[: gem_list.index('</div></div>')]
 

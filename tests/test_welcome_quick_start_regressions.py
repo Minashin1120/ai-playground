@@ -2,6 +2,7 @@ import pathlib
 import re
 import unittest
 
+from tests.chat_template import read_chat_markup
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
@@ -12,7 +13,7 @@ class WelcomeQuickStartRegressionTests(unittest.TestCase):
         return assets[0].read_text(encoding="utf-8")
 
     def test_welcome_buttons_are_dynamic_and_limited_to_five_recent_models(self):
-        chat = (ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        chat = read_chat_markup()
         js = self._js()
 
         self.assertIn('id="welcome-quick-start"', chat)

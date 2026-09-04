@@ -1,11 +1,13 @@
 from pathlib import Path
 import unittest
 
+from tests.chat_template import read_chat_markup
 
+from tests.app_source import read_app_source
 ROOT = Path(__file__).resolve().parents[1]
-APP = (ROOT / "app.py").read_text(encoding="utf-8")
+APP = read_app_source()
 JS = next((ROOT / "static/js").glob("chat_core.v4.8.*.js")).read_text(encoding="utf-8")
-HTML = (ROOT / "templates/chat.html").read_text(encoding="utf-8")
+HTML = read_chat_markup()
 SETUP = (ROOT / "templates/setup.html").read_text(encoding="utf-8")
 
 

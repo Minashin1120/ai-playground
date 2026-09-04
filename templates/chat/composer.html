@@ -1,0 +1,523 @@
+        <div class="composer-dock bg-gray-800 border-t border-gray-700 px-3 pt-2 pb-2.5 shrink-0 z-10">
+            <div class="composer-shell max-w-3xl mx-auto space-y-1.5 relative">
+                <!-- Quote Bar -->
+                <div id="quote-bar" class="pointer-events-auto">
+                    <div class="flex items-center gap-2 overflow-hidden flex-1">
+                        <i class="fas fa-quote-left text-blue-400 shrink-0"></i>
+                        <span id="quote-text-display" class="quote-text text-xs"></span>
+                    </div>
+                    <button id="quote-confirm-btn" type="button" title="選択したテキストを引用して送信します"><i class="fas fa-quote-left mr-1"></i>引用する</button>
+                    <button onclick="clearQuote()" class="text-gray-400 hover:text-white ml-2" title="引用を解除"><i class="fas fa-times"></i></button>
+                </div>
+
+                <!-- Coding Mode Target Bar -->
+                <div id="coding-target-bar" class="pointer-events-auto" aria-live="polite">
+                    <div class="flex items-center gap-2 overflow-hidden flex-1">
+                        <i class="fas fa-code text-emerald-300 shrink-0"></i>
+                        <span id="coding-target-text" class="coding-target-text text-xs">最新のコードブロックを自動選択</span>
+                    </div>
+                    <button id="clear-coding-target-btn" type="button" class="text-gray-400 hover:text-white ml-2 hidden" title="明示的な選択を解除して最新コードを使う"><i class="fas fa-times"></i></button>
+                </div>
+
+                <!-- Edit Bar -->
+                <div id="edit-bar" class="hidden edit-bar-animate bg-gray-900/60 border border-gray-700 rounded px-3 py-2 text-xs text-gray-300 items-center justify-between pointer-events-auto">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-pen text-blue-300"></i>
+                        <span>編集中: このメッセージを編集しています</span>
+                    </div>
+                    <button id="cancel-edit-btn" class="text-gray-400 hover:text-white">キャンセル</button>
+                </div>
+
+                <div id="prompt-controls-row" class="composer-controls flex flex-wrap items-center text-xs text-gray-400 gap-1.5">
+                    <div id="prompt-primary-controls" class="flex items-center gap-1.5 min-w-0 flex-wrap">
+                        <input type="hidden" id="model-select" value="gemini-3.6-flash">
+                        <button id="model-selector-btn" onclick="openModelModal()" class="bg-gray-700 border border-gray-600 rounded-full px-2.5 py-1 text-white text-xs hover:bg-gray-600 transition flex items-center gap-1.5 max-w-[180px] truncate">
+                            <i class="fas fa-robot text-blue-400"></i>
+                            <span id="model-selector-text">Gemini 3.6 Flash</span>
+                            <i class="fas fa-chevron-down text-[10px] text-gray-400 ml-auto"></i>
+                        </button>
+                        <label id="canvas-mode-container" class="composer-chip flex items-center gap-1 cursor-pointer select-none px-2 py-0.5 rounded-full border border-cyan-500/30 bg-cyan-900/15 text-cyan-200" title="コードブロックを右側のCanvasでプレビューします">
+                            <input type="checkbox" id="enable-canvas-mode" class="accent-cyan-400 w-3 h-3">
+                            <span>Canvas</span>
+                        </label>
+                        <label id="coding-mode-container" class="composer-chip flex items-center gap-1 cursor-pointer select-none px-2 py-0.5 rounded-full border border-emerald-500/30 bg-emerald-900/15 text-emerald-200" title="既存コードの変更行だけをモデルに生成させ、完成コードへ安全に反映します">
+                            <input type="checkbox" id="enable-coding-mode" class="accent-emerald-400 w-3 h-3">
+                            <span>Coding</span>
+                        </label>
+                        <label id="browser-fast-mode-container" class="composer-chip flex items-center gap-1 cursor-pointer select-none px-2 py-0.5 rounded-full border border-amber-500/40 bg-amber-900/20 text-amber-200" title="新規Geminiチャットをブラウザから直接送信します">
+                            <input type="checkbox" id="enable-browser-fast-mode" class="accent-amber-400 w-3 h-3">
+                            <span>高速</span>
+                        </label>
+                        <button id="prompt-controls-toggle-btn" type="button" aria-expanded="false" class="hidden bg-gray-700 border border-gray-600 rounded-full px-2 py-0.5 text-[10px] text-gray-200 hover:bg-gray-600 transition items-center gap-1 btn-hover" title="詳細設定を表示/非表示">
+                            <span id="prompt-controls-toggle-text">詳細</span>
+                            <i id="prompt-controls-toggle-icon" class="fas fa-chevron-down text-[10px]"></i>
+                        </button>
+                    </div>
+                    <div id="prompt-details-controls">
+                        <div class="prompt-details-inner flex items-center gap-1 flex-wrap min-w-0">
+                        <div id="standard-chat-controls" class="composer-detail-chips flex gap-1 items-center flex-wrap">
+                        <label id="search-container" class="composer-opt flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="enable-search" class="accent-blue-500 w-3 h-3"><span>Search</span></label>
+                        <label id="url-context-container" class="composer-opt flex items-center gap-1 cursor-pointer select-none hidden"><input type="checkbox" id="enable-url-context" class="accent-indigo-500 w-3 h-3"><span>URLs</span></label>
+                        <label id="maps-grounding-container" class="composer-opt flex items-center gap-1 cursor-pointer select-none hidden" title="Gemini 3系で利用可能"><input type="checkbox" id="enable-maps" class="accent-emerald-500 w-3 h-3"><span>Maps</span></label>
+                        <label id="python-container" class="composer-opt flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="enable-python" class="accent-yellow-500 w-3 h-3" checked><span class="text-yellow-200">Python</span></label>
+                        <label id="file-creation-container" class="composer-opt flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="enable-file-creation" class="accent-orange-500 w-3 h-3" checked><span class="text-orange-300">File</span></label>
+                        <div id="sys-prompt-option" class="composer-opt flex items-center gap-0.5 select-none">
+                            <label class="flex items-center gap-1 cursor-pointer">
+                                <input type="checkbox" id="enable-sys-prompt" class="accent-green-500 w-3 h-3">
+                                <span class="text-green-300">SysPrompt</span>
+                            </label>
+                            <button type="button" onclick="openThreadModal()" class="text-gray-500 hover:text-green-400 transition p-1" title="Chat Settings">
+                                <i class="fas fa-cog text-[10px]"></i>
+                            </button>
+                        </div>
+                        <div id="thinking-options" class="composer-opt composer-opt-group flex items-center gap-1.5 hidden">
+                            <label class="flex items-center gap-1 cursor-pointer select-none">
+                                <input type="checkbox" id="enable-thinking" class="accent-purple-500 w-3 h-3">
+                                <span class="text-purple-300">Thinking</span>
+                            </label>
+                            <select id="thinking-level" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none">
+                                <option value="minimal">Min</option>
+                                <option value="low">Low</option>
+                                <option value="medium">Mid</option>
+                                <option value="high" selected>High</option>
+                            </select>
+                            <label class="text-[10px] text-purple-300/80">Budget</label>
+                            <input id="thinking-budget" type="number" min="0" max="32768" step="256" value="4096" class="w-20 bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-[10px] text-white outline-none" title="Gemini 2.5のみ有効（tokens）">
+                        </div>
+                        <div id="reasoning-effort-container" class="composer-opt composer-opt-group hidden flex items-center gap-1"><span class="text-gray-400">Effort:</span><select id="reasoning-effort" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="none">None</option><option value="low">Low</option><option value="medium" selected>Med</option><option value="high">High</option><option value="xhigh">XHigh</option><option value="max">Max</option></select></div>
+                        <div id="safety-option" class="composer-opt composer-opt-group flex items-center gap-1"><span class="text-gray-400">Safety:</span><select id="safety-setting" class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option value="default">Default</option><option value="none" class="text-red-300">None</option></select></div>
+                        <div id="prompt-cache-container" class="composer-opt flex items-center gap-0.5 select-none">
+                            <label class="flex items-center gap-1 cursor-pointer" title="プロンプトキャッシュを有効化（同一APIプロバイダ内のモデルのみ切替可）">
+                                <input type="checkbox" id="enable-prompt-cache" class="accent-teal-500 w-3 h-3">
+                                <span class="text-teal-300 text-[10px]">PromptCache</span>
+                            </label>
+                        </div>
+                        <div id="compression-option" class="composer-opt flex items-center gap-0.5 select-none">
+                            <label class="flex items-center gap-1 cursor-pointer" title="Client-side Compression">
+                                <input type="checkbox" id="enable-compression" class="accent-blue-500 w-3 h-3" checked>
+                                <span class="text-gray-400 text-[10px]">Compress</span>
+                            </label>
+                            <button type="button" onclick="openCompressionModal()" class="text-gray-500 hover:text-blue-400 transition p-1" title="Compression Settings">
+                                <i class="fas fa-cog text-[10px]"></i>
+                            </button>
+                        </div>
+                        </div>
+                        <div id="temporary-chat-controls" class="flex items-center gap-1">
+                            <label id="temporary-chat-container" class="composer-opt flex items-center gap-1 cursor-pointer select-none" title="切断後にこのチャットとアップロード添付を自動削除"><input type="checkbox" id="enable-temporary-chat" class="accent-amber-500 w-3 h-3"><span class="text-amber-300 text-[10px]">一時チャット</span></label>
+                            <button type="button" onclick="openTemporaryChatSettings()" class="text-[10px] text-amber-300 hover:text-amber-200 border border-amber-500/40 rounded px-1.5 py-0.5 transition btn-hover" title="一時チャット設定を開く">
+                                設定
+                            </button>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="file-preview" class="hidden flex-col gap-2 transition-all duration-300">
+                    <div id="file-preview-thumbs" class="flex flex-wrap gap-2 empty:hidden pl-1"></div>
+                    <div class="px-3 py-2 bg-gray-700/50 rounded text-xs text-blue-300 flex justify-between items-center cursor-pointer hover:bg-gray-700/70 transition" onclick="openUploadModal()">
+                        <span id="file-name" class="truncate"></span>
+                        <div class="flex items-center gap-2">
+                            <button id="clear-file-btn" class="text-gray-400 hover:text-white ml-2" onclick="event.stopPropagation(); resetUploadState();">✕</button>
+                        </div>
+                    </div>
+                    <div id="upload-total-progress" class="hidden h-1 w-full bg-gray-800 rounded-full overflow-hidden">
+                        <div id="upload-total-progress-bar" class="h-full bg-blue-500 transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div id="mask-preview" class="hidden px-3 py-2 bg-gray-700/40 rounded text-[10px] text-amber-200 flex justify-between items-center"><span id="mask-name" class="truncate"></span><button id="clear-mask-btn" class="text-gray-400 hover:text-white ml-2">✕</button></div>
+                <div id="gpt-image-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Size</span>
+                        <select id="gpt-image-size" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="1024x1024" selected>1024x1024</option>
+                            <option value="1536x1024">1536x1024</option>
+                            <option value="1024x1536">1024x1536</option>
+                            <option value="auto">Auto</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Quality</span>
+                        <select id="gpt-image-quality" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                            <option value="auto">Auto</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Format</span>
+                        <select id="gpt-image-format" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="jpeg" selected>JPEG</option>
+                            <option value="png">PNG</option>
+                            <option value="webp">WebP</option>
+                        </select>
+                    </div>
+                    <div id="gpt-image-compression-wrap" class="flex items-center gap-2">
+                        <span class="text-gray-400">Compression</span>
+                        <input id="gpt-image-compression" type="number" min="0" max="100" step="1" value="85" class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                    </div>
+                    <span class="text-gray-500">※ GPT-Image のみ有効</span>
+                </div>
+                <div id="gemini-image-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Aspect</span>
+                        <select id="gemini-image-aspect" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="1:1" selected>1:1</option>
+                            <option value="auto">Auto</option>
+                            <option value="1:4">1:4</option>
+                            <option value="1:8">1:8</option>
+                            <option value="2:3">2:3</option>
+                            <option value="3:2">3:2</option>
+                            <option value="3:4">3:4</option>
+                            <option value="4:1">4:1</option>
+                            <option value="4:3">4:3</option>
+                            <option value="4:5">4:5</option>
+                            <option value="5:4">5:4</option>
+                            <option value="8:1">8:1</option>
+                            <option value="9:16">9:16</option>
+                            <option value="16:9">16:9</option>
+                            <option value="21:9">21:9</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Size</span>
+                        <select id="gemini-image-size" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="1K" selected>1K</option>
+                            <option value="2K">2K</option>
+                            <option value="4K">4K</option>
+                        </select>
+                    </div>
+                    <span class="text-gray-500">※ Nano Banana 系のみ有効</span>
+                </div>
+                <div id="grok-image-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Count</span>
+                        <input id="grok-image-count" type="number" min="1" max="10" step="1" value="1" class="w-12 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Aspect</span>
+                        <select id="grok-image-aspect" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="auto">Auto</option>
+                            <option value="1:1" selected>1:1 (Square)</option>
+                            <option value="16:9">16:9 (Landscape)</option>
+                            <option value="9:16">9:16 (Portrait)</option>
+                            <option value="4:3">4:3</option>
+                            <option value="3:4">3:4</option>
+                            <option value="3:2">3:2</option>
+                            <option value="2:3">2:3</option>
+                            <option value="2:1">2:1</option>
+                            <option value="1:2">1:2</option>
+                            <option value="19.5:9">19.5:9</option>
+                            <option value="9:19.5">9:19.5</option>
+                            <option value="20:9">20:9</option>
+                            <option value="9:20">9:20</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Res</span>
+                        <select id="grok-image-resolution" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="1k" selected>1K</option>
+                            <option value="2k">2K</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2 hidden">
+                        <span class="text-gray-400">Quality</span>
+                        <select id="grok-image-quality" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="medium" selected>Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Format</span>
+                        <select id="grok-image-format" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="url" selected>URL</option>
+                            <option value="b64_json">Base64</option>
+                        </select>
+                    </div>
+                    <span class="text-gray-500">※ Grok Imagine</span>
+                </div>
+                <div id="xai-chat-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Temp</span><input id="xai-temperature" type="number" min="0" max="2" step="0.1" placeholder="default" class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Top P</span><input id="xai-top-p" type="number" min="0" max="1" step="0.05" placeholder="default" class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Max output</span><input id="xai-max-completion-tokens" type="number" min="1" step="1" placeholder="default" class="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Seed</span><input id="xai-seed" type="number" step="1" placeholder="default" class="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Presence</span><input id="xai-presence-penalty" type="number" min="-2" max="2" step="0.1" placeholder="default" class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Frequency</span><input id="xai-frequency-penalty" type="number" min="-2" max="2" step="0.1" placeholder="default" class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Stop</span><input id="xai-stop" type="text" placeholder="comma separated (max 4)" class="w-40 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Format</span><select id="xai-response-format" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"><option value="text">Text</option><option value="json_object">JSON object</option></select></div>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Tools</span><select id="xai-tool-choice" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"><option value="auto">Auto</option><option value="none">None</option><option value="required">Required</option></select></div>
+                    <label class="flex items-center gap-1"><input id="xai-parallel-tool-calls" type="checkbox" checked class="accent-blue-400"><span>Parallel tools</span></label>
+                    <label class="flex items-center gap-1"><input id="xai-logprobs" type="checkbox" class="accent-blue-400"><span>Logprobs</span></label>
+                    <div class="flex items-center gap-2"><span class="text-gray-400">Top logs</span><input id="xai-top-logprobs" type="number" min="0" max="8" step="1" placeholder="0-8" class="w-14 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></div>
+                    <span class="text-gray-500">※ xAI Chat Completions</span>
+                </div>
+                <div id="grok-video-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Duration</span>
+                        <input id="grok-video-duration" type="number" min="1" max="15" step="1" value="5" class="w-12 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                        <span class="text-gray-500">sec</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Aspect</span>
+                        <select id="grok-video-aspect" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="16:9" selected>16:9</option>
+                            <option value="4:3">4:3</option>
+                            <option value="1:1">1:1</option>
+                            <option value="9:16">9:16</option>
+                            <option value="3:4">3:4</option>
+                            <option value="3:2">3:2</option>
+                            <option value="2:3">2:3</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Resolution</span>
+                        <select id="grok-video-resolution" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="720p" selected>720p</option>
+                            <option value="480p">480p</option>
+                            <option value="1080p">1080p</option>
+                        </select>
+                    </div>
+                    <span class="text-gray-500">※ Grok Imagine Video</span>
+                </div>
+                <div id="gemini-video-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div id="gemini-video-duration-wrap" class="flex items-center gap-2">
+                        <span class="text-gray-400">Duration</span>
+                        <input id="gemini-video-duration" type="number" min="1" max="12" step="1" value="8" class="w-12 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                        <span class="text-gray-500">sec</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Aspect</span>
+                        <select id="gemini-video-aspect" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="16:9" selected>16:9</option>
+                            <option value="4:3">4:3</option>
+                            <option value="1:1">1:1</option>
+                            <option value="9:16">9:16</option>
+                            <option value="3:4">3:4</option>
+                            <option value="3:2">3:2</option>
+                            <option value="2:3">2:3</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Resolution</span>
+                        <select id="gemini-video-resolution" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="720p" selected>720p</option>
+                            <option value="1080p">1080p</option>
+                            <option value="4K">4K</option>
+                        </select>
+                    </div>
+                    <span class="text-gray-500">※ 4Kは Veo 3.1 / Gemini Omni 1.1 Flash のみ対応</span>
+                </div>
+                <div id="gemini-music-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <label class="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="music-instrumental" class="accent-fuchsia-400 w-3 h-3"><span>インストゥルメンタル（歌詞なし）</span></label>
+                    <span class="text-gray-500">※ Lyria 3（歌詞・楽曲構造テキストも返却）</span>
+                </div>
+                <div id="lyria-realtime-studio-bar" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-purple-700/50 rounded-lg text-xs text-purple-200 flex flex-wrap items-center gap-3">
+                    <i class="fas fa-music text-purple-300"></i>
+                    <span class="min-w-0">Lyria RealTime はリアルタイム生成スタジオで使えます。プロンプトを入力して送信するとスタジオが開き、生成しながら指示・設定を変更できます。</span>
+                    <button id="lyria-open-studio-btn" data-progress-no-spinner="true" class="ml-auto shrink-0 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-[11px] font-bold btn-hover">スタジオを開く</button>
+                </div>
+                <div id="mistral-ocr-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Table</span>
+                        <select id="ocr-table-format" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="" selected>本文内</option>
+                            <option value="markdown">Markdown</option>
+                            <option value="html">HTML</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Pages</span>
+                        <input id="ocr-pages" type="text" placeholder="0-2 / 0,2-4" class="w-28 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                    </div>
+                    <label class="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="ocr-extract-header" class="accent-orange-400 w-3 h-3"><span>Header</span></label>
+                    <label class="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="ocr-extract-footer" class="accent-orange-400 w-3 h-3"><span>Footer</span></label>
+                    <label class="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="ocr-include-blocks" class="accent-orange-400 w-3 h-3"><span>Blocks</span></label>
+                    <label class="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="ocr-include-images" class="accent-orange-400 w-3 h-3" checked><span>画像抽出</span></label>
+                    <span class="text-gray-500">※ 履歴は送信しません</span>
+                </div>
+                <div id="image-input-limits" class="hidden mt-2 px-3 py-2 bg-gray-900/40 border border-gray-700 rounded-lg text-[10px] text-gray-400"></div>
+                <div id="audio-gen-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-xs text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Voice</span>
+                        <select id="tts-voice" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white outline-none"></select>
+                    </div>
+                    <div id="tts-voice-custom-wrap" class="hidden items-center gap-2">
+                        <span class="text-gray-400">Custom Voice</span>
+                        <input id="tts-voice-custom" type="text" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white outline-none w-48" placeholder="e.g. en-US-Wavenet-D">
+                    </div>
+                    <div id="tts-language-wrap" class="hidden items-center gap-2">
+                        <span class="text-gray-400">Lang</span>
+                        <input id="tts-language" type="text" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white outline-none w-20" placeholder="ja-JP">
+                    </div>
+                    <div id="tts-speed-wrap" class="flex items-center gap-2">
+                        <span class="text-gray-400">Speed</span>
+                        <input id="tts-speed" type="range" min="0.25" max="4" step="0.05" value="1" class="accent-blue-500">
+                        <span id="tts-speed-label" class="text-gray-200 font-mono">1.00x</span>
+                        <span id="tts-speed-note" class="text-gray-500"></span>
+                    </div>
+                </div>
+                <div id="sts-panel" class="hidden px-4 py-3 rounded-lg flex items-center justify-between gap-3">
+                    <div class="flex flex-col gap-2">
+                        <div id="sts-mode-label" class="text-[10px] uppercase tracking-widest text-cyan-300/80">Speech-to-Speech Live</div>
+                        <div id="sts-status" class="text-sm text-gray-200">Tap to speak</div>
+                        <div class="text-[10px] text-gray-400">マイクをタップして開始/停止</div>
+                        <div class="flex flex-wrap gap-3 text-[10px] text-gray-300 mt-1">
+                            <label id="sts-auto-play-wrap" class="flex items-center gap-1 cursor-pointer select-none"><input id="sts-auto-play" type="checkbox" class="accent-cyan-400 w-3 h-3" checked><span>Auto Play</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer select-none"><input id="sts-auto-restart" type="checkbox" class="accent-cyan-400 w-3 h-3" checked><span>Auto Restart</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer select-none" title="音声の無音を検知して自動送信"><input id="sts-auto-send" type="checkbox" class="accent-cyan-400 w-3 h-3"><span>Auto Send</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer select-none" title="無音検出の待機時間（秒）"><span>Silence</span><input id="sts-silence-sec" type="number" min="1" max="10" step="0.5" value="2.5" class="w-12 bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none"><span>s</span></label>
+                        </div>
+                        <div id="sts-options" class="mt-2 flex flex-wrap gap-3 text-[10px] text-gray-300">
+                            <label id="sts-voice-wrap" class="flex items-center gap-1">
+                                <span>Voice</span>
+                                <select id="sts-voice" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none"></select>
+                            </label>
+                            <label id="sts-lang-wrap" class="flex items-center gap-1 hidden">
+                                <span>Target Lang</span>
+                                <select id="sts-target-lang" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none">
+                                    <option value="ja" selected>日本語</option>
+                                    <option value="en">English</option>
+                                    <option value="ko">한국어</option>
+                                    <option value="zh-CN">中文（簡体）</option>
+                                    <option value="zh-TW">中文（繁体）</option>
+                                    <option value="fr">Français</option>
+                                    <option value="de">Deutsch</option>
+                                    <option value="es">Español</option>
+                                    <option value="it">Italiano</option>
+                                    <option value="pt">Português</option>
+                                    <option value="ru">Русский</option>
+                                    <option value="hi">हिन्दी</option>
+                                    <option value="th">ไทย</option>
+                                    <option value="vi">Tiếng Việt</option>
+                                    <option value="id">Bahasa Indonesia</option>
+                                    <option value="ar">العربية</option>
+                                </select>
+                            </label>
+                            <label id="sts-transcribe-wrap" class="flex items-center gap-1 hidden">
+                                <span>Mode</span>
+                                <select id="sts-transcribe-mode" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none">
+                                    <option value="VERBATIM" selected>Verbatim</option>
+                                    <option value="SMART">Smart</option>
+                                </select>
+                            </label>
+                            <label id="sts-custom-vocab-wrap" class="flex items-center gap-1 hidden" title="認識をバイアスする用語（カンマ区切り、最大1,000語）">
+                                <span>Custom Vocab</span>
+                                <input id="sts-custom-vocab" type="text" placeholder="Gemini, Kubernetes, BigQuery" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none w-44">
+                            </label>
+                            <label id="sts-speed-wrap" class="flex items-center gap-1">
+                                <span>Speed</span>
+                                <input id="sts-speed" type="range" min="0.25" max="1.5" step="0.05" value="1" class="accent-cyan-400">
+                                <span id="sts-speed-label" class="text-gray-200 font-mono">1.00x</span>
+                            </label>
+                            <label id="sts-rate-wrap" class="flex items-center gap-1">
+                                <span>Rate In</span>
+                                <select id="sts-rate-in" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none"></select>
+                                <span>Out</span>
+                                <select id="sts-rate-out" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none"></select>
+                            </label>
+                            <label id="sts-thinking-wrap" class="flex items-center gap-1">
+                                <span class="text-purple-300">Thinking</span>
+                                <select id="sts-thinking-level" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none">
+                                    <option value="minimal">Min</option>
+                                    <option value="low">Low</option>
+                                    <option value="medium">Mid</option>
+                                    <option value="high">High</option>
+                                </select>
+                                <label class="flex items-center gap-1 cursor-pointer ml-1" title="思考プロセスをテキストで表示（3.1以降）">
+                                    <input id="sts-include-thoughts" type="checkbox" class="accent-purple-400 w-3 h-3">
+                                    <span>Thoughts</span>
+                                </label>
+                            </label>
+                            <span id="sts-note" class="text-gray-500"></span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-center gap-2">
+                        <button id="sts-mic-btn" class="bg-cyan-600 hover:bg-cyan-500 text-white w-14 h-14 rounded-full flex items-center justify-center text-xl transition"><i class="fas fa-microphone"></i></button>
+                        <button id="sts-cancel-btn" class="text-[10px] px-2 py-1 rounded bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 transition">Cancel</button>
+                    </div>
+                </div>
+                <div id="voice-studio-bar" class="hidden mt-2 px-3 py-2 bg-cyan-900/30 border border-cyan-500/30 rounded-lg text-xs text-cyan-100 flex flex-wrap items-center gap-3">
+                    <i class="fas fa-microphone text-cyan-300"></i>
+                    <span class="min-w-0">この音声モデルは専用の音声スタジオで利用できます。マイクをタップするか、下のボタンで開いて会話します。</span>
+                    <button id="voice-studio-open-btn" data-progress-no-spinner="true" class="ml-auto shrink-0 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-[11px] font-bold btn-hover">音声スタジオを開く</button>
+                </div>
+                <div id="auto-search-banner" class="hidden mb-2 px-3 py-2 bg-yellow-900/30 border border-yellow-600/60 text-yellow-200 text-xs rounded flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2"><i class="fas fa-bolt"></i><span id="auto-search-msg">Xリンクを検出しました。検索ON＋Grok 4 Fast Reasoningに切替します。</span></div>
+                    <div class="flex gap-2 shrink-0 items-center">
+                        <label class="flex items-center gap-1 text-[10px] text-yellow-100/90 select-none"><input type="checkbox" id="auto-search-remember" class="accent-yellow-400 w-3 h-3"><span>次回から尋ねない</span></label>
+                        <button id="auto-search-on-btn" class="px-2 py-1 bg-yellow-600 hover:bg-yellow-500 text-black rounded text-[11px] font-bold btn-hover">検索ONで続行</button>
+                        <button id="auto-search-off-btn" class="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-[11px] btn-hover">検索OFFで回答</button>
+                    </div>
+                </div>
+                <div id="input-container" class="relative">
+                <div id="fixed-prompts-bar" class="hidden mb-2 flex gap-2 overflow-x-auto no-scrollbar select-none bg-transparent pb-1"></div>
+                <div id="gem-active-indicator" class="hidden mb-2 p-2 bg-blue-900/40 text-blue-200 text-xs rounded-lg border border-blue-700/50 flex items-center gap-2 fade-in animate-fadeIn">
+                    <i class="fas fa-gem"></i> Using Gem: <span id="active-gem-name" class="font-bold"></span>
+                    <button onclick="clearActiveGem()" class="ml-auto hover:text-white px-2">×</button>
+                </div>
+
+                <!-- Slash command pending indicator (shows when a /command has been selected) -->
+                <div id="slash-command-indicator" class="hidden mb-2 p-1.5 bg-purple-900/40 text-purple-200 text-xs rounded-lg border border-purple-700/50 flex items-center gap-2 fade-in animate-fadeIn">
+                    <i class="fas fa-terminal"></i>
+                    <span>コマンドモード:</span>
+                    <span id="slash-command-name" class="font-mono font-bold"></span>
+                    <button id="slash-command-cancel-btn" class="ml-auto hover:text-white px-2 text-purple-300" title="キャンセル (Esc)">×</button>
+                </div>
+                <div id="chat-upload-status" class="hidden mb-2 p-2 bg-gray-800/80 rounded-lg border border-gray-700 backdrop-blur-sm animate-fadeIn"></div>
+                <div id="input-row" class="composer-input-row flex gap-1.5 items-end"><input type="file" id="file-input" class="hidden" multiple><input type="file" id="photo-input" class="hidden" accept="image/*,video/*" multiple><input type="file" id="mask-input" class="hidden" accept="image/*"><div class="composer-input-shell flex flex-1 items-end gap-1 min-w-0"><button id="upload-btn" data-progress-no-spinner="true" class="composer-tool-btn bg-gray-700 hover:bg-gray-600 p-2.5 rounded-xl text-gray-300 transition shrink-0 btn-hover" title="Upload"><i class="fas fa-paperclip"></i></button><button id="rich-paste-btn" data-progress-no-spinner="true" class="composer-tool-btn bg-amber-600 hover:bg-amber-500 p-2.5 rounded-xl text-white transition shrink-0 btn-hover" title="リッチ貼り付け → PDF化"><i class="fas fa-paste"></i></button><button id="mask-btn" data-progress-no-spinner="true" class="composer-tool-btn hidden bg-gray-700 hover:bg-gray-600 p-2.5 rounded-xl text-gray-300 transition shrink-0 btn-hover" title="Mask (GPT-Image)"><i class="fas fa-mask"></i></button><button id="mic-btn" data-progress-no-spinner="true" class="composer-tool-btn bg-gray-700 hover:bg-gray-600 p-2.5 rounded-xl text-gray-300 transition shrink-0 btn-hover" title="Voice Input"><i class="fas fa-microphone"></i></button><textarea id="prompt-input" rows="1" class="flex-1 bg-transparent border-none rounded-xl px-2.5 py-2.5 focus:ring-0 outline-none resize-none text-white transition text-sm sm:text-base" placeholder="Ctrl + Enter で送信..." style="min-height: 42px; max-height: 150px;"></textarea><button id="send-btn" class="composer-send-btn bg-blue-600 hover:bg-blue-500 p-2.5 rounded-xl text-white font-bold disabled:opacity-50 transition shadow-lg w-11 h-[42px] flex justify-center items-center shrink-0 btn-hover"><i class="fas fa-paper-plane"></i></button></div></div>
+                <div id="mic-recording-indicator" class="hidden mt-1 px-1 flex items-center gap-2 text-[11px] text-red-300">
+                    <span id="mic-recording-text" class="shrink-0">録音中…</span>
+                    <div id="mic-waveform" class="h-4 w-28 sm:w-36 flex items-end rounded border px-1 overflow-hidden" style="gap: 2px; padding-top: 2px; padding-bottom: 2px; background: rgba(69, 10, 10, 0.25); border-color: rgba(185, 28, 28, 0.3);" aria-hidden="true"></div>
+                </div>
+                <div id="prompt-token-estimate" class="hidden mt-1 px-1 text-[10px] text-gray-400"></div>
+
+                <!-- Slash command suggestions (command palette style, triggered by /) -->
+                <div id="slash-command-suggestions" class="hidden fixed z-[80] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl overflow-hidden text-sm min-w-[280px] max-w-[400px]">
+                    <div class="px-3 py-1.5 text-[10px] text-gray-500 border-b border-gray-700 flex items-center gap-2">
+                        <span>コマンド</span>
+                        <span class="ml-auto text-gray-600">↑↓ 選択 / Enter 確定 / Esc 閉じる</span>
+                    </div>
+                    <div id="slash-command-list" class="overflow-y-auto py-1" style="max-height: 260px;"></div>
+                </div>
+
+                <!-- Gem suggestions (triggered by @) -->
+                <div id="gem-suggestions" class="hidden fixed z-[80] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl overflow-hidden text-sm min-w-[200px] max-w-[320px]">
+                    <div class="px-3 py-1.5 text-[10px] text-gray-500 border-b border-gray-700 flex items-center gap-2">
+                        <span>Gem</span>
+                        <span class="ml-auto text-gray-600">↑↓ 選択 / Enter 確定 / Esc 閉じる</span>
+                    </div>
+                    <div id="gem-suggestions-list" class="overflow-y-auto py-1" style="max-height: 260px;"></div>
+                </div>
+            </div>
+
+            <!-- Minimal mode: options popup (opened from the plus button) -->
+            <div id="minimal-options-popup" class="hidden" aria-hidden="true">
+                <div id="minimal-options-backdrop"></div>
+                <div id="minimal-options-panel" role="dialog" aria-label="プロンプトオプション">
+                    <div class="minimal-options-header">
+                        <span class="minimal-options-title"><i class="fas fa-sliders-h mr-1"></i>オプション</span>
+                        <button id="minimal-options-close-btn" type="button" class="minimal-options-close" aria-label="閉じる" title="閉じる"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div id="minimal-options-items" class="minimal-options-items"></div>
+                    <div id="minimal-options-model-section" class="hidden">
+                        <div class="minimal-options-section-title">モデル設定</div>
+                        <div id="minimal-options-model-body" class="minimal-options-model-body"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Minimal mode: temporary thinking level slide bar -->
+            <div id="thinking-slide-bar" class="hidden" aria-hidden="true">
+                <div id="thinking-slide-inner" class="thinking-slide-inner">
+                    <div class="thinking-slide-label-row">
+                        <i class="fas fa-brain text-purple-300"></i>
+                        <span class="thinking-slide-name">Thinking</span>
+                        <span id="thinking-slide-value" class="thinking-slide-value">High</span>
+                        <button id="thinking-slide-close-btn" type="button" class="thinking-slide-close" aria-label="閉じる" title="閉じる"><i class="fas fa-times"></i></button>
+                    </div>
+                    <input id="thinking-slider" type="range" min="0" max="3" step="1" value="3" aria-label="Thinking level">
+                    <div class="thinking-slide-scale"><span>Min</span><span>Low</span><span>Mid</span><span>High</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    

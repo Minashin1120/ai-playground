@@ -9,6 +9,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.chat_template import read_chat_markup
+from tests.app_source import read_app_source
 APP_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -47,7 +49,7 @@ class PythonExecUiRegressionTests(unittest.TestCase):
         self.assertIn("return '';", pyexec_block)
 
     def test_chat_template_and_css_include_python_exec_modal(self):
-        template = (APP_ROOT / "templates" / "chat.html").read_text(encoding="utf-8")
+        template = read_chat_markup()
         css = _current_custom_css().read_text(encoding="utf-8")
         self.assertIn('id="python-exec-modal"', template)
         self.assertIn('id="python-exec-modal-body"', template)
@@ -56,7 +58,7 @@ class PythonExecUiRegressionTests(unittest.TestCase):
         modal_open = modal_open[: modal_open.index(">") + 1]
         self.assertIn("modal-overlay", modal_open)
         self.assertNotIn("onclick=", modal_open)
-        self.assertIn("@app.route('/python-execution')", (APP_ROOT / "app.py").read_text(encoding="utf-8"))
+        self.assertIn("@app.route('/python-execution')", read_app_source())
         self.assertIn(".python-exec-btn", css)
         self.assertIn("#python-exec-modal-body", css)
 
@@ -112,7 +114,7 @@ console.log('OK');
         self.assertIn("OK", proc.stdout)
 
     def test_system_version_assets_exist_for_current_release(self):
-        app_py = (APP_ROOT / "app.py").read_text(encoding="utf-8")
+        app_py = read_app_source()
         m = re.search(r"SYSTEM_VERSION'\]\s*=\s*'V(4\.8\.\d+)'", app_py)
         self.assertIsNotNone(m)
         ver = m.group(1).lower()

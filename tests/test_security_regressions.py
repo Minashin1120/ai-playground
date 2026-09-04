@@ -13,7 +13,9 @@ from unittest import mock
 from sqlalchemy.dialects import mysql
 from sqlalchemy.schema import CreateTable
 
+from tests.chat_template import read_chat_markup
 
+from tests.app_source import read_app_source
 os.environ.setdefault("FLASK_SECRET_KEY", "security-test-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/ai-chat-security-tests.db")
 os.environ.setdefault("REDIS_URL", "redis://127.0.0.1:6399/15")
@@ -734,8 +736,7 @@ class SecurityRegressionTests(unittest.TestCase):
         script_path = os.path.join(root, "static", "js", f"chat_core.{script_version}.js")
         with open(script_path, encoding="utf-8") as script_file:
             script = script_file.read()
-        with open(os.path.join(root, "templates", "chat.html"), encoding="utf-8") as template_file:
-            template = template_file.read()
+        template = read_chat_markup()
         self.assertIn('${escapeHtml(t.title || "No Title")}', script)
         self.assertIn('${escapeHtml(g.name)}', script)
         # Stream/history errors are rendered via buildChatErrorBubbleHtml (escapeHtml).
@@ -1018,7 +1019,7 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("このチャットを復号化", js)
         self.assertIn("このチャットを再暗号化", js)
 
-        html = (root / "templates" / "chat.html").read_text(encoding="utf-8")
+        html = read_chat_markup()
         self.assertIn('id="encryption-status-admin-actions"', html)
         self.assertIn('id="encryption-status-admin-toggle"', html)
         self.assertIn('id="admin-enc-card"', html)
@@ -1046,8 +1047,7 @@ class SecurityRegressionTests(unittest.TestCase):
         # ユーザー名で既存アカウントへ紐付けしない。これにより、他ユーザーのメールアドレスを
         # ユーザー名として先に登録してGoogleログインを乗っ取る経路を遮断する。
         root = os.path.dirname(os.path.dirname(__file__))
-        with open(os.path.join(root, "app.py"), encoding="utf-8") as src_file:
-            source = src_file.read()
+        source = read_app_source()
         self.assertNotIn("User.username == email", source)
         self.assertIn("def _resolve_or_create_google_user", source)
         self.assertIn("filter_by(google_email=email)", source)

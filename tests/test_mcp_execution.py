@@ -128,6 +128,31 @@ class McpExecutionTests(unittest.TestCase):
             anth = rt.serialize_anthropic()
             self.assertIn("Model Context Protocol", anth[0]["description"])
 
+    def test_guidance_text_uses_editable_preamble_and_expands_token(self):
+        from mcp_service.execution import McpRuntime, MCPToolMeta
+        from mcp_service.models import MCPServer
+        with flask_app.app_context():
+            srv = MCPServer.query.filter_by(preset_key="google_gmail").first()
+            rt = McpRuntime(1234, job_id="job_20260101_6", redis_client=MemoryRedis())
+            rt._loaded = True
+            meta = MCPToolMeta(
+                server=srv, server_id=srv.id, server_slug=srv.slug, server_name=srv.name,
+                url=srv.url, internal_name="mcp__google_gmail__search_messages",
+                name="search_messages", title="", description="Search Gmail messages",
+                input_schema={"type": "object", "properties": {"q": {"type": "string"}}},
+                is_read_only=True, confirm_policy="never", allow=True,
+            )
+            rt.servers = [{"server": srv, "tools": [meta]}]
+            rt._by_internal[meta.internal_name] = meta
+            expanded = rt.guidance_text(preamble="カスタム案内:\n{{mcp_tools}}")
+            self.assertIn("カスタム案内:", expanded)
+            self.assertIn("mcp__google_gmail__search_messages", expanded)
+            self.assertNotIn("{{mcp_tools}}", expanded)
+            appended = rt.guidance_text(preamble="自由記述のみ")
+            self.assertIn("自由記述のみ", appended)
+            self.assertIn("Connected MCP tools:", appended)
+            self.assertIn(srv.name, appended)
+
 
 if __name__ == "__main__":
     unittest.main()

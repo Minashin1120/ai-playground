@@ -11064,7 +11064,8 @@
                 { key: 'marker', label: 'Marker編集時' },
                 { key: 'attachment_names', label: '添付ファイル名（LLM入力時）', hint: '利用可能変数: {{attachment_names}} / {{attachment_count}}' },
                 { key: 'mathjax', label: 'MathJax（LaTeX数式）' },
-                { key: 'image_analysis', label: '画像解析（Vision Model指示文）' }
+                { key: 'image_analysis', label: '画像解析（Vision Model指示文）' },
+                { key: 'mcp', label: 'MCP（外部ツール接続）', hint: '利用可能変数: {{mcp_tools}}（接続中のMCPツール一覧が入ります）' }
             ];
             window.buildAutoSystemPromptRows = (prefix, compact = false) => {
                 const textClass = compact

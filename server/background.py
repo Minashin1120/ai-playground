@@ -1847,14 +1847,17 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     log_force(f"MCP enabled: {len(_mcp_env.tool_metas())} tools across {len(_mcp_env.servers)} servers")
                     if not _mcp_prompt_injected:
                         try:
-                            _mcp_note = _mcp_env.guidance_text()
-                            if _mcp_note:
-                                _cur_sys = options.get('system_prompt') or ""
-                                if "Model Context Protocol" not in str(_cur_sys):
-                                    options['system_prompt'] = (
-                                        f"{_mcp_note}\n\n{_cur_sys}".strip() if str(_cur_sys).strip() else _mcp_note
-                                    )
-                                _mcp_prompt_injected = True
+                            # 案内文は「自動注入システムプロンプト（ユーザー単位）」の
+                            # mcp 項目に従う。OFF なら案内を入れない（ツール定義は別途付与）。
+                            if _auto_notice_enabled("mcp"):
+                                _mcp_note = _mcp_env.guidance_text(preamble=_auto_notice_text("mcp"))
+                                if _mcp_note:
+                                    _cur_sys = options.get('system_prompt') or ""
+                                    if "Model Context Protocol" not in str(_cur_sys):
+                                        options['system_prompt'] = (
+                                            f"{_mcp_note}\n\n{_cur_sys}".strip() if str(_cur_sys).strip() else _mcp_note
+                                        )
+                            _mcp_prompt_injected = True
                         except Exception as _mcp_note_exc:
                             log_force(f"MCP system prompt inject failed: {_mcp_note_exc}")
                 return _mcp_env

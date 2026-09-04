@@ -71,12 +71,21 @@ class McpFrontendPartsTests(unittest.TestCase):
 
     def test_background_injects_mcp_guidance_before_provider_prompt(self):
         bg = (APP_ROOT / "server" / "background.py").read_text(encoding="utf-8")
-        self.assertIn("guidance_text()", bg)
+        self.assertIn("guidance_text(preamble=", bg)
+        self.assertIn('_auto_notice_enabled("mcp")', bg)
         self.assertIn("if is_llm_model and not gemini_local_python:", bg)
         self.assertIn("and _ensure_mcp_env() is None:", bg)
         self.assertIn("serialize_chat_completions()", bg)
         exec_src = (APP_ROOT / "mcp_service" / "execution.py").read_text(encoding="utf-8")
         self.assertIn("You have Model Context Protocol (MCP) tools connected.", exec_src)
+        self.assertIn("{{mcp_tools}}", exec_src)
+        # MCP案内文が「自動注入システムプロンプト（ユーザー単位）」の一覧に載っている
+        at = (APP_ROOT / "server" / "account_transfer.py").read_text(encoding="utf-8")
+        self.assertIn('"mcp",', at)
+        self.assertIn('"mcp": "MCP (外部ツール接続)"', at)
+        self.assertIn('"mcp": AUTO_SYSTEM_PROMPT_NOTICE_MCP,', at)
+        js = self._js()
+        self.assertIn("{ key: 'mcp', label: 'MCP（外部ツール接続）'", js)
 
     def test_parts_source_is_clean(self):
         # 部品ソースは結合ファイルの一部分として壊れていない（重複定義ガード）

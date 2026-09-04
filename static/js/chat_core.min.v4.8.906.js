@@ -3705,10 +3705,12 @@ ver:bg-gray-600 text-white px-2 py-1 rounded text-[10px] font-bold btn-hover">\u
 OpenAI/xAI Responses\uFF09"},{key:"marker",label:"Marker\u7DE8\u96C6\u6642"},{key:"attachment_names",
 label:"\u6DFB\u4ED8\u30D5\u30A1\u30A4\u30EB\u540D\uFF08LLM\u5165\u529B\u6642\uFF09",hint:"\u5229\u7528\u53EF\u80FD\u5909\u6570: {{\
 attachment_names}} / {{attachment_count}}"},{key:"mathjax",label:"MathJax\uFF08LaTeX\u6570\u5F0F\uFF09"},
-{key:"image_analysis",label:"\u753B\u50CF\u89E3\u6790\uFF08Vision Model\u6307\u793A\u6587\uFF09"}];window.
-buildAutoSystemPromptRows=(c,d=!1)=>{const m=d?"w-full h-14 bg-gray-950 border border-gray-700 round\
-ed p-2 text-[11px] text-gray-200":"w-full h-20 bg-gray-950 border border-gray-700 rounded p-2 text-x\
-s text-gray-200";return nn.map(f=>`
+{key:"image_analysis",label:"\u753B\u50CF\u89E3\u6790\uFF08Vision Model\u6307\u793A\u6587\uFF09"},{key:"\
+mcp",label:"MCP\uFF08\u5916\u90E8\u30C4\u30FC\u30EB\u63A5\u7D9A\uFF09",hint:"\u5229\u7528\u53EF\u80FD\u5909\u6570: {{mcp_tools}}\uFF08\u63A5\
+\u7D9A\u4E2D\u306EMCP\u30C4\u30FC\u30EB\u4E00\u89A7\u304C\u5165\u308A\u307E\u3059\uFF09"}];window.buildAutoSystemPromptRows=
+(c,d=!1)=>{const m=d?"w-full h-14 bg-gray-950 border border-gray-700 rounded p-2 text-[11px] text-gr\
+ay-200":"w-full h-20 bg-gray-950 border border-gray-700 rounded p-2 text-xs text-gray-200";return nn.
+map(f=>`
                     <div class="rounded border border-gray-700 p-2 bg-gray-950/40">
                         <div class="flex items-center justify-between mb-1">
                             <div class="text-[11px] text-gray-300">${f.label}</div>

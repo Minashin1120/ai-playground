@@ -5150,6 +5150,15 @@ body.minimal-prompt-mode #welcome-screen {
     padding-bottom: calc(var(--composer-h, 0px) + 1rem);
 }
 
+/* Desktop has no system navigation bar to supply a safe-area inset, so give
+   the minimal prompt bar explicit clearance from the window's bottom edge
+   (mobile widths rely on the safe-area rules above). */
+@media (min-width: 769px) {
+    body.minimal-prompt-mode .composer-dock {
+        padding-bottom: 1.25rem;
+    }
+}
+
 /* Minimal mode: hide model-specific option panels inline (they move into
    the plus-button popup instead). sts-panel replaces the whole input row,
    so it stays inline. Scoped to direct children of the composer shell so

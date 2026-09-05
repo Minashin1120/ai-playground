@@ -236,19 +236,19 @@
                     if (e.key === 'ArrowDown') {
                         e.preventDefault();
                         slashSelectedIndex = Math.min(slashSelectedIndex + 1, visibleSlashCommands(lastSlashFilter || '').length - 1);
-                        showSlashCommandSuggestions(extractSlashCommandToken(input.value));
+                        showSlashCommandSuggestions(slashCommandSuggestionFilter(extractSlashCommandToken(input.value), input.value));
                         return;
                     }
                     if (e.key === 'ArrowUp') {
                         e.preventDefault();
                         slashSelectedIndex = Math.max(slashSelectedIndex - 1, 0);
-                        showSlashCommandSuggestions(extractSlashCommandToken(input.value));
+                        showSlashCommandSuggestions(slashCommandSuggestionFilter(extractSlashCommandToken(input.value), input.value));
                         return;
                     }
                     if (e.key === 'Enter') {
                         e.preventDefault();
                         // Pick the currently highlighted (or first)
-                        const filtered = visibleSlashCommands(extractSlashCommandToken(input.value));
+                        const filtered = visibleSlashCommands(slashCommandSuggestionFilter(extractSlashCommandToken(input.value), input.value));
                         if (filtered[slashSelectedIndex]) {
                             selectSlashCommand(filtered[slashSelectedIndex].id);
                         } else if (filtered.length > 0) {
@@ -363,7 +363,7 @@
                         if (slashSuggestionsVisible) hideSlashCommandSuggestions();
                         lastSlashFilter = null;
                     } else if (val.startsWith('/')) {
-                        const filter = extractSlashCommandToken(val);
+                        const filter = slashCommandSuggestionFilter(extractSlashCommandToken(val), this.value);
                         // The command is only committed by pressing Enter or
                         // clicking a palette item, never while typing. Also,
                         // rebuild the list only when the command name being

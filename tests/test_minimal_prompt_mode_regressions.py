@@ -155,6 +155,17 @@ class MinimalPromptModeRegressionTests(unittest.TestCase):
         self.assertIn("item.special === 'thinking'", script)
         self.assertIn("directMinimalCommand", script)
 
+    def test_thinking_slash_command_suggests_and_applies_levels(self):
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        self.assertIn("id: 'thinking', label: '/thinking'", script)
+        self.assertIn("requiresArgument: true", script)
+        for level in ("off", "min", "low", "mid", "high"):
+            self.assertIn(f"label: '/thinking {level}'", script)
+            self.assertIn(f"presetArgument: '{level}'", script)
+        self.assertIn("function slashCommandSuggestionFilter", script)
+        self.assertIn("/^\\/thinking(\\s+.*)$/i", script)
+        self.assertIn("command.presetArgument || argument", script)
+
     def test_thinking_row_works_when_checkbox_disabled(self):
         # Gemini 3.x forces thinking on and disables the checkbox, so the
         # Thinking row must not be treated as disabled: tapping it opens the

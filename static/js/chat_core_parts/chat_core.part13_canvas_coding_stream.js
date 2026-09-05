@@ -930,6 +930,13 @@
             });
         }
 
+        function slashCommandSuggestionFilter(token, value) {
+            if (String(token || '').toLowerCase() !== 'thinking') return token;
+            const trimmed = String(value || '').trimStart();
+            const match = trimmed.match(/^\/thinking(\s+.*)$/i);
+            return match ? `thinking${match[1]}`.toLowerCase() : token;
+        }
+
         function parseSlashToggleArgument(argument) {
             const value = String(argument || '').trim().toLowerCase();
             if (!value || value === 'toggle' || value === '切替' || value === '切り替え') return null;
@@ -955,7 +962,7 @@
                 return true;
             }
 
-            const rawArgument = String(argument || '').trim();
+            const rawArgument = String(command.presetArgument || argument || '').trim();
             if (item.selectId) {
                 if (!rawArgument) {
                     showToast(`使い方: ${command.label} ${command.id === 'effort' ? 'none / low / medium / high / xhigh / max' : 'default / none'}`, 'info');

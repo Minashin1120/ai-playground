@@ -7429,7 +7429,12 @@
             { id: 'file', label: '/file', description: 'Fileを切り替える（on / off）', icon: 'fa-file-lines', kind: 'minimal', itemKey: 'file' },
             { id: 'mcp', label: '/mcp', description: 'MCPを切り替える（on / off）', icon: 'fa-plug', kind: 'minimal', itemKey: 'mcp' },
             { id: 'sysprompt', label: '/sysprompt', description: 'SysPromptを切り替える（on / off）', icon: 'fa-terminal', kind: 'minimal', itemKey: 'sysprompt' },
-            { id: 'thinking', label: '/thinking', description: 'Thinkingを切替・調整（off / min / low / mid / high）', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking' },
+            { id: 'thinking', label: '/thinking', description: 'Thinkingの値を選択（off / min / low / mid / high）', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', requiresArgument: true, argumentHint: 'Thinkingを入力（off / min / low / mid / high）...' },
+            { id: 'thinking-off', label: '/thinking off', description: 'ThinkingをOFFにする', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', presetArgument: 'off' },
+            { id: 'thinking-min', label: '/thinking min', description: 'ThinkingをMinにする', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', presetArgument: 'min' },
+            { id: 'thinking-low', label: '/thinking low', description: 'ThinkingをLowにする', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', presetArgument: 'low' },
+            { id: 'thinking-mid', label: '/thinking mid', description: 'ThinkingをMidにする', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', presetArgument: 'mid' },
+            { id: 'thinking-high', label: '/thinking high', description: 'ThinkingをHighにする', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', presetArgument: 'high' },
             { id: 'effort', label: '/effort', description: 'Effortを調整', icon: 'fa-sliders-h', kind: 'minimal', itemKey: 'effort', requiresArgument: true, argumentHint: 'Effortを入力（none / low / medium / high / xhigh / max）...' },
             { id: 'safety', label: '/safety', description: 'Safetyを調整', icon: 'fa-shield-halved', kind: 'minimal', itemKey: 'safety', requiresArgument: true, argumentHint: 'Safetyを入力（default / none）...' },
             { id: 'promptcache', label: '/promptcache', description: 'PromptCacheを切り替える（on / off）', icon: 'fa-database', kind: 'minimal', itemKey: 'promptcache' },
@@ -12698,19 +12703,19 @@
                     if (e.key === 'ArrowDown') {
                         e.preventDefault();
                         slashSelectedIndex = Math.min(slashSelectedIndex + 1, visibleSlashCommands(lastSlashFilter || '').length - 1);
-                        showSlashCommandSuggestions(extractSlashCommandToken(input.value));
+                        showSlashCommandSuggestions(slashCommandSuggestionFilter(extractSlashCommandToken(input.value), input.value));
                         return;
                     }
                     if (e.key === 'ArrowUp') {
                         e.preventDefault();
                         slashSelectedIndex = Math.max(slashSelectedIndex - 1, 0);
-                        showSlashCommandSuggestions(extractSlashCommandToken(input.value));
+                        showSlashCommandSuggestions(slashCommandSuggestionFilter(extractSlashCommandToken(input.value), input.value));
                         return;
                     }
                     if (e.key === 'Enter') {
                         e.preventDefault();
                         // Pick the currently highlighted (or first)
-                        const filtered = visibleSlashCommands(extractSlashCommandToken(input.value));
+                        const filtered = visibleSlashCommands(slashCommandSuggestionFilter(extractSlashCommandToken(input.value), input.value));
                         if (filtered[slashSelectedIndex]) {
                             selectSlashCommand(filtered[slashSelectedIndex].id);
                         } else if (filtered.length > 0) {
@@ -12825,7 +12830,7 @@
                         if (slashSuggestionsVisible) hideSlashCommandSuggestions();
                         lastSlashFilter = null;
                     } else if (val.startsWith('/')) {
-                        const filter = extractSlashCommandToken(val);
+                        const filter = slashCommandSuggestionFilter(extractSlashCommandToken(val), this.value);
                         // The command is only committed by pressing Enter or
                         // clicking a palette item, never while typing. Also,
                         // rebuild the list only when the command name being
@@ -19092,6 +19097,13 @@
             });
         }
 
+        function slashCommandSuggestionFilter(token, value) {
+            if (String(token || '').toLowerCase() !== 'thinking') return token;
+            const trimmed = String(value || '').trimStart();
+            const match = trimmed.match(/^\/thinking(\s+.*)$/i);
+            return match ? `thinking${match[1]}`.toLowerCase() : token;
+        }
+
         function parseSlashToggleArgument(argument) {
             const value = String(argument || '').trim().toLowerCase();
             if (!value || value === 'toggle' || value === '切替' || value === '切り替え') return null;
@@ -19117,7 +19129,7 @@
                 return true;
             }
 
-            const rawArgument = String(argument || '').trim();
+            const rawArgument = String(command.presetArgument || argument || '').trim();
             if (item.selectId) {
                 if (!rawArgument) {
                     showToast(`使い方: ${command.label} ${command.id === 'effort' ? 'none / low / medium / high / xhigh / max' : 'default / none'}`, 'info');

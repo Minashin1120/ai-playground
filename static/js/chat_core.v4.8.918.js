@@ -8640,6 +8640,76 @@
             });
         }
 
+        function getModelCapabilitySearchTerms(m) {
+            const model = String(m.id || '').toLowerCase();
+            const terms = [];
+            const isDeepSeek = model.includes('deepseek');
+            const isTts = model.includes('tts');
+            const isOcr = model.startsWith('mistral-ocr');
+            const isNonTextModel = isTts || isOcr || model.includes('transcribe') || model.includes('realtime')
+                || model.includes('voice-agent') || model.includes('native-audio') || model.includes('live')
+                || model.includes('image') || model.includes('video') || model.startsWith('veo-')
+                || model.includes('omni-flash') || model.startsWith('lyria-') || model.includes('embedding');
+            const isLlm = !isNonTextModel && (
+                model.includes('gpt') || model.includes('gemini') || model.includes('grok') || isDeepSeek
+                || model.startsWith('deep-research-') || model.startsWith('antigravity-')
+            );
+            const add = (...values) => values.forEach(value => terms.push(value, value.replace(/-/g, ' ')));
+
+            if (model.includes('gemini-3.1-flash-image') || model.includes('gemini-3-pro-image') || model.includes('gemini-2.5-flash-image')) {
+                add('image generation', 'image editing');
+            }
+            if (model === 'gemini-3.1-flash-lite-image') {
+                add('thinking', '思考', 'minimal', 'high', 'thinking level');
+            } else if (model === 'gemini-3.1-flash-image') {
+                add('thinking', '思考', 'minimal', 'high', 'thinking level');
+            } else if (model.includes('gemini') && !isNonTextModel) {
+                add('thinking', '思考', 'thinking level');
+                if (model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') {
+                    add('low', 'medium', 'high');
+                } else if (model === 'gemini-3.6-flash') {
+                    add('medium', 'high');
+                } else if (model === 'gemini-3.5-flash-lite') {
+                    add('minimal', 'medium', 'high');
+                } else if (model.includes('flash')) {
+                    add('minimal', 'low', 'medium', 'high');
+                } else {
+                    add('low', 'high');
+                }
+            }
+
+            if (isDeepSeek) {
+                add('thinking', '思考', 'reasoning', '推論', 'reasoning effort', 'high');
+                if (model !== 'deepseek-v4-pro') add('low');
+                if (model.includes('v4-flash')) add('none', 'max');
+            }
+
+            const supportsReasoningEffort = isLlm && (
+                model.includes('gpt-5') || model.includes('o1') || model.includes('o3')
+                || model.includes('grok-4.3') || model.includes('grok-4.5') || model.includes('grok-4.6')
+                || model.includes('grok-4.20-0309-reasoning') || model.includes('grok-build')
+                || model.includes('multi-agent') || (model.includes('gpt') && !isTts)
+            );
+            if (supportsReasoningEffort) {
+                add('reasoning', '推論', 'reasoning effort', 'low', 'high');
+                const isGpt56Model = model === 'gpt-5.6' || model.startsWith('gpt-5.6-');
+                const isGrok46 = model.includes('grok-4.6');
+                const supportsMedium = model.includes('grok-4.3') || model.includes('grok-4.5') || isGrok46
+                    || model.includes('grok-4.20-0309-reasoning') || model.includes('grok-build')
+                    || model.includes('multi-agent') || model.includes('gpt-5') || model.includes('o1') || model.includes('o3');
+                const supportsNone = model.includes('grok-4.3') || model.includes('grok-build')
+                    || model.includes('gpt-5') || isDeepSeek;
+                if (supportsMedium) add('medium');
+                if (supportsNone) add('none');
+                if (isGpt56Model || isDeepSeek) add('max');
+                if (isGrok46 || model.includes('multi-agent') || isGpt56Model) add('xhigh');
+            }
+
+            if (model.includes('claude')) add('thinking', '思考', 'thinking budget', 'budget');
+            if (m.agenticView) add('agentic view');
+            return [...new Set(terms)];
+        }
+
         const modelListGroups = [];
         let modelListBanner = null;
         let modelListEmpty = null;
@@ -8696,7 +8766,7 @@
                     return {
                         model: m,
                         button: item,
-                        searchText: `${m.name} ${m.id} ${apiModelName} ${m.agenticView ? 'agentic view' : ''}`.toLowerCase(),
+                        searchText: `${m.name} ${m.id} ${apiModelName} ${m.agenticView ? 'agentic view' : ''} ${group.category} ${getModelTags(m, group).join(' ')} ${getModelCapabilitySearchTerms(m).join(' ')}`.toLowerCase(),
                         provider: getModelApiProvider(m.id),
                         tags: new Set(getModelTags(m, group)),
                     };

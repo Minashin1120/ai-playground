@@ -2849,13 +2849,36 @@ n.push("agentic view"),n}a(getModelTags,"getModelTags");function updateModelTagU
 el-tag-bar");if(!e)return;e.querySelectorAll(".model-tag-btn").forEach(n=>{const i=n.innerText.trim().
 toLowerCase(),s=(i==="all"?"all":i)===activeModelTag;n.className=`model-tag-btn px-2 py-1 text-[10px\
 ] rounded border transition ${s?"bg-blue-600/20 border-blue-500 text-blue-300":"bg-gray-800 border-g\
-ray-700 text-gray-300 hover:border-gray-500"}`})}a(updateModelTagUi,"updateModelTagUi");const modelListGroups=[];
-let modelListBanner=null,modelListEmpty=null,modelListBuilt=!1,modelListAnimated=!1,modelListRenderFrame=0;
-function buildModelList(){const e=get("model-list-container");!e||modelListBuilt||(e.innerHTML="",modelListBanner=
-document.createElement("div"),modelListBanner.className="hidden mb-4 px-3 py-2 rounded-lg border bor\
-der-teal-500/40 bg-teal-900/20 text-[11px] text-teal-200",e.appendChild(modelListBanner),MODELS.forEach(
-t=>{const n=t.items.filter(r=>!r.deprecated);if(!n.length)return;const i=document.createElement("sec\
-tion");i.className="model-list-group",i.innerHTML=`
+ray-700 text-gray-300 hover:border-gray-500"}`})}a(updateModelTagUi,"updateModelTagUi");function getModelCapabilitySearchTerms(e){
+const t=String(e.id||"").toLowerCase(),n=[],i=t.includes("deepseek"),s=t.includes("tts"),o=t.startsWith(
+"mistral-ocr"),r=s||o||t.includes("transcribe")||t.includes("realtime")||t.includes("voice-agent")||
+t.includes("native-audio")||t.includes("live")||t.includes("image")||t.includes("video")||t.startsWith(
+"veo-")||t.includes("omni-flash")||t.startsWith("lyria-")||t.includes("embedding"),l=!r&&(t.includes(
+"gpt")||t.includes("gemini")||t.includes("grok")||i||t.startsWith("deep-research-")||t.startsWith("a\
+ntigravity-")),u=a((...h)=>h.forEach(g=>n.push(g,g.replace(/-/g," "))),"add");if((t.includes("gemini\
+-3.1-flash-image")||t.includes("gemini-3-pro-image")||t.includes("gemini-2.5-flash-image"))&&u("imag\
+e generation","image editing"),t==="gemini-3.1-flash-lite-image"||t==="gemini-3.1-flash-image"?u("th\
+inking","\u601D\u8003","minimal","high","thinking level"):t.includes("gemini")&&!r&&(u("thinking","\u601D\
+\u8003","thinking level"),t==="gemini-3.8-flash"||t==="gemini-3.7-flash"?u("low","medium","high"):t===
+"gemini-3.6-flash"?u("medium","high"):t==="gemini-3.5-flash-lite"?u("minimal","medium","high"):t.includes(
+"flash")?u("minimal","low","medium","high"):u("low","high")),i&&(u("thinking","\u601D\u8003","reason\
+ing","\u63A8\u8AD6","reasoning effort","high"),t!=="deepseek-v4-pro"&&u("low"),t.includes("v4-flash")&&
+u("none","max")),l&&(t.includes("gpt-5")||t.includes("o1")||t.includes("o3")||t.includes("grok-4.3")||
+t.includes("grok-4.5")||t.includes("grok-4.6")||t.includes("grok-4.20-0309-reasoning")||t.includes("\
+grok-build")||t.includes("multi-agent")||t.includes("gpt")&&!s)){u("reasoning","\u63A8\u8AD6","reaso\
+ning effort","low","high");const h=t==="gpt-5.6"||t.startsWith("gpt-5.6-"),g=t.includes("grok-4.6"),
+v=t.includes("grok-4.3")||t.includes("grok-4.5")||g||t.includes("grok-4.20-0309-reasoning")||t.includes(
+"grok-build")||t.includes("multi-agent")||t.includes("gpt-5")||t.includes("o1")||t.includes("o3"),b=t.
+includes("grok-4.3")||t.includes("grok-build")||t.includes("gpt-5")||i;v&&u("medium"),b&&u("none"),(h||
+i)&&u("max"),(g||t.includes("multi-agent")||h)&&u("xhigh")}return t.includes("claude")&&u("thinking",
+"\u601D\u8003","thinking budget","budget"),e.agenticView&&u("agentic view"),[...new Set(n)]}a(getModelCapabilitySearchTerms,
+"getModelCapabilitySearchTerms");const modelListGroups=[];let modelListBanner=null,modelListEmpty=null,
+modelListBuilt=!1,modelListAnimated=!1,modelListRenderFrame=0;function buildModelList(){const e=get(
+"model-list-container");!e||modelListBuilt||(e.innerHTML="",modelListBanner=document.createElement("\
+div"),modelListBanner.className="hidden mb-4 px-3 py-2 rounded-lg border border-teal-500/40 bg-teal-\
+900/20 text-[11px] text-teal-200",e.appendChild(modelListBanner),MODELS.forEach(t=>{const n=t.items.
+filter(r=>!r.deprecated);if(!n.length)return;const i=document.createElement("section");i.className="\
+model-list-group",i.innerHTML=`
                     <div class="flex items-center gap-2 mb-3 px-2">
                         <i class="${t.icon}"></i>
                         <div>
@@ -2887,23 +2910,24 @@ hrink-0 mt-0.5"></i>
                         ${h}
                         ${g}
                     `,s.appendChild(l),{model:r,button:l,searchText:`${r.name} ${r.id} ${u} ${r.agenticView?
-"agentic view":""}`.toLowerCase(),provider:getModelApiProvider(r.id),tags:new Set(getModelTags(r,t))}});
-modelListGroups.push({element:i,entries:o}),e.appendChild(i)}),modelListEmpty=document.createElement(
-"div"),modelListEmpty.className="hidden text-center text-gray-500 py-8",e.appendChild(modelListEmpty),
-modelListBuilt=!0)}a(buildModelList,"buildModelList");function updateModelButtonSelection(e,t){const n=t===
-e.model.id;if(e.button.dataset.selected===(n?"1":"0"))return;e.button.dataset.selected=n?"1":"0",e.button.
-classList.toggle("bg-blue-600/20",n),e.button.classList.toggle("border-blue-500",n),e.button.classList.
-toggle("ring-1",n),e.button.classList.toggle("ring-blue-500",n),e.button.classList.toggle("bg-gray-8\
-00",!n),e.button.classList.toggle("border-gray-700",!n),e.button.classList.toggle("hover:border-gray\
--500",!n),e.button.classList.toggle("hover:bg-gray-750",!n);const i=e.button.querySelector(".model-s\
-elected-icon");i&&i.classList.toggle("hidden",!n)}a(updateModelButtonSelection,"updateModelButtonSel\
-ection");function renderModelList(e="",t={}){const n=get("model-list-container");if(!n)return;buildModelList();
-const i=e.toLowerCase(),s=window._visionPickerActive?null:getPromptCacheLockedProvider(),o=s?PROVIDER_LABELS[s]||
-s:"",r=get("model-select")?get("model-select").value:"";let l=0;modelListBanner.classList.toggle("hi\
-dden",!s),s&&(modelListBanner.innerHTML=`<i class="fas fa-database mr-1.5"></i>PromptCache \u6709\u52B9\u4E2D: <str\
-ong>${o}</strong> \u306E\u30E2\u30C7\u30EB\u306E\u307F\u9078\u629E\u3067\u304D\u307E\u3059\uFF08\u4ED6API\u3078\u306E\u5207\u66FF\u306F\u4E0D\u53EF\uFF09`),
-modelListGroups.forEach(u=>{let p=0;u.entries.forEach(h=>{const g=h.searchText.includes(i)&&(!s||h.provider===
-s)&&(activeModelTag==="all"||h.tags.has(activeModelTag));h.button.classList.toggle("hidden",!g),updateModelButtonSelection(
+"agentic view":""} ${t.category} ${getModelTags(r,t).join(" ")} ${getModelCapabilitySearchTerms(r).join(
+" ")}`.toLowerCase(),provider:getModelApiProvider(r.id),tags:new Set(getModelTags(r,t))}});modelListGroups.
+push({element:i,entries:o}),e.appendChild(i)}),modelListEmpty=document.createElement("div"),modelListEmpty.
+className="hidden text-center text-gray-500 py-8",e.appendChild(modelListEmpty),modelListBuilt=!0)}a(
+buildModelList,"buildModelList");function updateModelButtonSelection(e,t){const n=t===e.model.id;if(e.
+button.dataset.selected===(n?"1":"0"))return;e.button.dataset.selected=n?"1":"0",e.button.classList.
+toggle("bg-blue-600/20",n),e.button.classList.toggle("border-blue-500",n),e.button.classList.toggle(
+"ring-1",n),e.button.classList.toggle("ring-blue-500",n),e.button.classList.toggle("bg-gray-800",!n),
+e.button.classList.toggle("border-gray-700",!n),e.button.classList.toggle("hover:border-gray-500",!n),
+e.button.classList.toggle("hover:bg-gray-750",!n);const i=e.button.querySelector(".model-selected-ic\
+on");i&&i.classList.toggle("hidden",!n)}a(updateModelButtonSelection,"updateModelButtonSelection");function renderModelList(e="",t={}){
+const n=get("model-list-container");if(!n)return;buildModelList();const i=e.toLowerCase(),s=window._visionPickerActive?
+null:getPromptCacheLockedProvider(),o=s?PROVIDER_LABELS[s]||s:"",r=get("model-select")?get("model-se\
+lect").value:"";let l=0;modelListBanner.classList.toggle("hidden",!s),s&&(modelListBanner.innerHTML=
+`<i class="fas fa-database mr-1.5"></i>PromptCache \u6709\u52B9\u4E2D: <strong>${o}</strong> \u306E\u30E2\u30C7\u30EB\u306E\u307F\u9078\
+\u629E\u3067\u304D\u307E\u3059\uFF08\u4ED6API\u3078\u306E\u5207\u66FF\u306F\u4E0D\u53EF\uFF09`),modelListGroups.
+forEach(u=>{let p=0;u.entries.forEach(h=>{const g=h.searchText.includes(i)&&(!s||h.provider===s)&&(activeModelTag===
+"all"||h.tags.has(activeModelTag));h.button.classList.toggle("hidden",!g),updateModelButtonSelection(
 h,r),g&&(p+=1)}),u.element.classList.toggle("hidden",p===0),l+=p}),modelListEmpty.classList.toggle("\
 hidden",l!==0),l===0&&(modelListEmpty.textContent=s?`No ${o} models found.`:"No models found."),t.animate&&
 !modelListAnimated&&(modelListAnimated=!0,n.classList.add("model-list-animate"))}a(renderModelList,"\

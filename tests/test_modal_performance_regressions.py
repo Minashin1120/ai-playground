@@ -95,9 +95,13 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("scheduleModelListRender(e.target.value)", source)
         self.assertIn("const apiModelName = String(m.apiId || m.id || '').trim()", source)
         self.assertIn("API model:</span>${escapeHtml(apiModelName)}", source)
+        self.assertIn("function getModelCapabilitySearchTerms(m)", source)
+        self.assertIn("add('low', 'medium', 'high')", source)
         self.assertIn(
             "`${m.name} ${m.id} ${apiModelName} "
-            "${m.agenticView ? 'agentic view' : ''}`.toLowerCase()",
+            "${m.agenticView ? 'agentic view' : ''} ${group.category} "
+            "${getModelTags(m, group).join(' ')} "
+            "${getModelCapabilitySearchTerms(m).join(' ')}`.toLowerCase()",
             source,
         )
 

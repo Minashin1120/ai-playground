@@ -1063,7 +1063,7 @@
         };
 
         let activeModelTag = 'all';
-        const MODEL_TAGS = ['all','openai','gemini','deepseek','xai','image','audio','reasoning','fast','agentic view'];
+        const MODEL_TAGS = ['all','openai','gemini','anthropic','kimi','deepseek','mistral','xai','image','video','audio','music','transcription','ocr','reasoning','fast','agent','agentic view'];
 
         // Slash command system (extensible command palette triggered by / in prompt bar)
         const SLASH_COMMANDS = [

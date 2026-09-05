@@ -660,21 +660,60 @@
             if (cat.includes('image') || id.includes('image') || name.includes('image') || desc.includes('image')) tags.push('image');
             if (
                 cat.includes('audio') ||
+                cat.includes('music') ||
+                cat.includes('transcription') ||
                 cat.includes('speech') ||
                 id.includes('tts') ||
+                id.includes('transcri') ||
                 name.includes('tts') ||
+                name.includes('transcri') ||
+                name.includes('voice') ||
                 desc.includes('tts') ||
                 id.includes('realtime') ||
                 id.includes('live') ||
                 id.includes('voice-agent') ||
                 id.includes('native-audio') ||
                 name.includes('audio') ||
-                desc.includes('audio')
+                desc.includes('audio') ||
+                desc.includes('speech-to-text')
             ) tags.push('audio');
             if (id.includes('reasoning') || name.includes('reasoning') || desc.includes('reasoning')) tags.push('reasoning');
             if ((cat.includes('deepseek') || id.includes('deepseek') || name.includes('deepseek')) && !tags.includes('reasoning')) tags.push('reasoning');
             if (id.includes('fast') || name.includes('fast') || desc.includes('fast') || cat.includes('fast')) tags.push('fast');
             if ((id.includes('deepseek-v4-flash') || (cat.includes('deepseek') && name.includes('flash'))) && !tags.includes('fast')) tags.push('fast');
+            if (cat.includes('anthropic') || id.includes('claude') || name.includes('claude') || desc.includes('anthropic')) tags.push('anthropic');
+            if (cat.includes('kimi') || id.includes('kimi') || name.includes('kimi') || desc.includes('moonshot')) tags.push('kimi');
+            if (
+                cat.includes('video') ||
+                id.includes('video') ||
+                id.startsWith('veo-') ||
+                id.includes('omni-') ||
+                name.includes('video') ||
+                desc.includes('video')
+            ) tags.push('video');
+            if (
+                cat.includes('music') ||
+                id.startsWith('lyria-') ||
+                name.includes('music') ||
+                desc.includes('music') ||
+                desc.includes('song')
+            ) tags.push('music');
+            if (
+                cat.includes('transcription') ||
+                id.includes('transcri') ||
+                name.includes('transcri') ||
+                desc.includes('transcription') ||
+                desc.includes('speech-to-text')
+            ) tags.push('transcription');
+            if (cat.includes('ocr') || id.includes('ocr') || name.includes('ocr') || desc.includes('ocr')) tags.push('ocr');
+            if (
+                cat.includes('agent') ||
+                id.includes('agent') ||
+                name.includes('agent') ||
+                desc.includes('agentic') ||
+                desc.includes('computer use') ||
+                desc.includes('deep research')
+            ) tags.push('agent');
             if (m.agenticView) tags.push('agentic view');
             return tags;
         }

@@ -110,6 +110,26 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertNotIn("container.innerHTML = ''", renderer)
         self.assertNotIn("document.createElement('button')", renderer)
 
+    def test_model_tag_filters_cover_current_model_families(self):
+        source = _current_asset("js", "chat_core.v4.8.*.js")
+        template = read_chat_markup()
+
+        tag_labels = {
+            "anthropic": "Anthropic",
+            "kimi": "Kimi",
+            "video": "Video",
+            "music": "Music",
+            "transcription": "Transcription",
+            "ocr": "OCR",
+            "agent": "Agent",
+        }
+        for tag, label in tag_labels.items():
+            self.assertIn(f"'{tag}'", source)
+            self.assertIn(f">{label}</button>", template)
+        self.assertIn("cat.includes('anthropic')", source)
+        self.assertIn("cat.includes('transcription')", source)
+        self.assertIn("cat.includes('ocr')", source)
+
     def test_modal_open_does_not_force_synchronous_layout(self):
         source = _current_asset("js", "chat_core.v4.8.*.js")
         helper = source[source.index("const showModal = (id) => {") :]

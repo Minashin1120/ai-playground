@@ -332,8 +332,24 @@
                     get('prompt-input').style.height = 'auto';
 
                     await runAiSettingsCommand(instruction, modelForCmd);
+                } else if (executeMinimalSlashCommand(cmd, instruction)) {
+                    get('prompt-input').value = '';
+                    get('prompt-input').style.height = 'auto';
+                    hidePendingSlashCommandIndicator();
+                } else {
+                    get('prompt-input').focus();
                 }
                 return; // Do not treat as normal message
+            }
+
+            const directMinimalCommand = rawText.trim().match(/^\/([a-z][\w-]*)(?:\s+(.*))?$/i);
+            if (directMinimalCommand && minimalPromptMode && MINIMAL_SLASH_COMMANDS.some((command) => command.id === directMinimalCommand[1].toLowerCase())) {
+                if (executeMinimalSlashCommand(directMinimalCommand[1].toLowerCase(), directMinimalCommand[2] || '')) {
+                    hideSlashCommandSuggestions();
+                    get('prompt-input').value = '';
+                    get('prompt-input').style.height = 'auto';
+                }
+                return;
             }
 
             if (browserFastModeEnabled) {

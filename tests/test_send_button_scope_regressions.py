@@ -58,21 +58,23 @@ class SendButtonScopeRegressionTests(unittest.TestCase):
         self.assertIn("isLyriaRealtimeModel", MIN_JS)
         # A top-level const declaration of the helper must exist.  esbuild merges
         # adjacent const declarations, so the helper appears as
-        # `...,isLyriaRealtimeModel=a(...,"isLyriaRealtimeModel")` without a
-        # repeated `const` keyword.
+        # `...,isLyriaRealtimeModel=<name>(...,"isLyriaRealtimeModel")` without
+        # a repeated `const` keyword. The wrapper helper's minified name changes
+        # as the bundle changes, so do not pin it to a specific short name.
+        wrapper = r"[A-Za-z_$][\w$]*"
         self.assertRegex(
             MIN_JS,
-            r"(?:const|,)\s*isLyriaRealtimeModel=a\(",
+            rf"(?:const|,)\s*isLyriaRealtimeModel={wrapper}\(",
             "minified bundle must declare isLyriaRealtimeModel as a top-level const",
         )
         self.assertRegex(
             MIN_JS,
-            r"(?:const|,)\s*isGeminiRealtimeMusicModel=a\(",
+            rf"(?:const|,)\s*isGeminiRealtimeMusicModel={wrapper}\(",
             "minified bundle must declare isGeminiRealtimeMusicModel as a top-level const",
         )
         # The sendMessage usage must be a call against the declared helper, and the
         # declaration must appear before the sendMessage function in the bundle.
-        decl_pos = MIN_JS.index("isLyriaRealtimeModel=a(")
+        decl_pos = re.search(rf"isLyriaRealtimeModel={wrapper}\(", MIN_JS).start()
         send_pos = MIN_JS.index("async function sendMessage")
         self.assertLess(decl_pos, send_pos)
 
@@ -83,7 +85,7 @@ class SendButtonScopeRegressionTests(unittest.TestCase):
         # Assert there is exactly one declaration and no stray second reference
         # that is unbound (i.e. every occurrence belongs to the declaration chain
         # or a call that the top-level const satisfies).
-        decl_count = len(re.findall(r"isLyriaRealtimeModel=a\(", MIN_JS))
+        decl_count = len(re.findall(r"isLyriaRealtimeModel=[A-Za-z_$][\w$]*\(", MIN_JS))
         self.assertEqual(decl_count, 1)
 
 

@@ -138,6 +138,23 @@ class MinimalPromptModeRegressionTests(unittest.TestCase):
         self.assertIn("item.action === 'button'", script)
         self.assertIn("if (button) button.click();", script)
 
+    def test_minimal_mode_plus_menu_items_have_slash_commands(self):
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        for command in (
+            "options", "attach", "voice", "paste", "canvas", "coding",
+            "fast", "search", "urls", "maps", "python", "file", "mcp",
+            "sysprompt", "thinking", "effort", "safety", "promptcache",
+            "compress", "tempchat",
+        ):
+            self.assertIn(f"id: '{command}'", script)
+        self.assertIn("function visibleSlashCommands", script)
+        self.assertIn("command.kind === 'minimal' && !minimalPromptMode", script)
+        self.assertIn("function executeMinimalSlashCommand", script)
+        self.assertIn("parseSlashToggleArgument", script)
+        self.assertIn("item.selectId", script)
+        self.assertIn("item.special === 'thinking'", script)
+        self.assertIn("directMinimalCommand", script)
+
     def test_thinking_row_works_when_checkbox_disabled(self):
         # Gemini 3.x forces thinking on and disables the checkbox, so the
         # Thinking row must not be treated as disabled: tapping it opens the

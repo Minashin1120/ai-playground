@@ -235,7 +235,7 @@
                     const box = get('slash-command-suggestions');
                     if (e.key === 'ArrowDown') {
                         e.preventDefault();
-                        slashSelectedIndex = Math.min(slashSelectedIndex + 1, SLASH_COMMANDS.length - 1);
+                        slashSelectedIndex = Math.min(slashSelectedIndex + 1, visibleSlashCommands(lastSlashFilter || '').length - 1);
                         showSlashCommandSuggestions(extractSlashCommandToken(input.value));
                         return;
                     }
@@ -248,9 +248,7 @@
                     if (e.key === 'Enter') {
                         e.preventDefault();
                         // Pick the currently highlighted (or first)
-                        const filtered = SLASH_COMMANDS.filter(c =>
-                            c.label.toLowerCase().includes((extractSlashCommandToken(input.value) || '').toLowerCase())
-                        );
+                        const filtered = visibleSlashCommands(extractSlashCommandToken(input.value));
                         if (filtered[slashSelectedIndex]) {
                             selectSlashCommand(filtered[slashSelectedIndex].id);
                         } else if (filtered.length > 0) {

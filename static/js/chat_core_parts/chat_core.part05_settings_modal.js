@@ -1066,6 +1066,28 @@
         const MODEL_TAGS = ['all','openai','gemini','anthropic','kimi','deepseek','mistral','xai','image','video','audio','music','transcription','ocr','reasoning','fast','agent','agentic view'];
 
         // Slash command system (extensible command palette triggered by / in prompt bar)
+        const MINIMAL_SLASH_COMMANDS = [
+            { id: 'options', label: '/options', description: '＋メニューを開く', icon: 'fa-plus', kind: 'minimal', action: 'options' },
+            { id: 'attach', label: '/attach', description: 'ファイル添付を開く', icon: 'fa-paperclip', kind: 'minimal', itemKey: 'attach' },
+            { id: 'voice', label: '/voice', description: 'Voice Inputを開始・停止', icon: 'fa-microphone', kind: 'minimal', itemKey: 'voice-input' },
+            { id: 'paste', label: '/paste', description: 'リッチ貼り付けを開く', icon: 'fa-paste', kind: 'minimal', itemKey: 'rich-paste' },
+            { id: 'canvas', label: '/canvas', description: 'Canvasを切り替える（on / off）', icon: 'fa-window-restore', kind: 'minimal', itemKey: 'canvas' },
+            { id: 'coding', label: '/coding', description: 'Codingを切り替える（on / off）', icon: 'fa-code-branch', kind: 'minimal', itemKey: 'coding' },
+            { id: 'fast', label: '/fast', description: '高速モードを切り替える（on / off）', icon: 'fa-bolt', kind: 'minimal', itemKey: 'fast' },
+            { id: 'search', label: '/search', description: 'Searchを切り替える（on / off）', icon: 'fa-search', kind: 'minimal', itemKey: 'search' },
+            { id: 'urls', label: '/urls', description: 'URLsを切り替える（on / off）', icon: 'fa-link', kind: 'minimal', itemKey: 'urls' },
+            { id: 'maps', label: '/maps', description: 'Mapsを切り替える（on / off）', icon: 'fa-map-location-dot', kind: 'minimal', itemKey: 'maps' },
+            { id: 'python', label: '/python', description: 'Pythonを切り替える（on / off）', icon: 'fa-code', kind: 'minimal', itemKey: 'python' },
+            { id: 'file', label: '/file', description: 'Fileを切り替える（on / off）', icon: 'fa-file-lines', kind: 'minimal', itemKey: 'file' },
+            { id: 'mcp', label: '/mcp', description: 'MCPを切り替える（on / off）', icon: 'fa-plug', kind: 'minimal', itemKey: 'mcp' },
+            { id: 'sysprompt', label: '/sysprompt', description: 'SysPromptを切り替える（on / off）', icon: 'fa-terminal', kind: 'minimal', itemKey: 'sysprompt' },
+            { id: 'thinking', label: '/thinking', description: 'Thinkingを切替・調整（off / min / low / mid / high）', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking' },
+            { id: 'effort', label: '/effort', description: 'Effortを調整', icon: 'fa-sliders-h', kind: 'minimal', itemKey: 'effort', requiresArgument: true, argumentHint: 'Effortを入力（none / low / medium / high / xhigh / max）...' },
+            { id: 'safety', label: '/safety', description: 'Safetyを調整', icon: 'fa-shield-halved', kind: 'minimal', itemKey: 'safety', requiresArgument: true, argumentHint: 'Safetyを入力（default / none）...' },
+            { id: 'promptcache', label: '/promptcache', description: 'PromptCacheを切り替える（on / off）', icon: 'fa-database', kind: 'minimal', itemKey: 'promptcache' },
+            { id: 'compress', label: '/compress', description: 'Compressを切り替える（on / off）', icon: 'fa-compress-alt', kind: 'minimal', itemKey: 'compress' },
+            { id: 'tempchat', label: '/tempchat', description: '一時チャットを切り替える（on / off）', icon: 'fa-hourglass-half', kind: 'minimal', itemKey: 'tempchat' }
+        ];
         const SLASH_COMMANDS = [
             {
                 id: 'settings',
@@ -1073,8 +1095,8 @@
                 description: 'AIで自然言語を使って設定を変更（現在選択中のモデルを使用）',
                 icon: 'fa-cog',
                 example: 'デフォルトモデルを gemini-2.5-flash に変更して thinking をオンに'
-            }
-            // 将来コマンドをここに追加予定
+            },
+            ...MINIMAL_SLASH_COMMANDS
         ];
         let slashSuggestionsVisible = false;
         let slashSelectedIndex = 0;

@@ -921,6 +921,104 @@
         }
 
         // === Slash command palette helpers ===
+        function visibleSlashCommands(filter = '') {
+            const normalized = String(filter || '').toLowerCase();
+            return SLASH_COMMANDS.filter((command) => {
+                if (command.kind === 'minimal' && !minimalPromptMode) return false;
+                return command.label.toLowerCase().includes(normalized)
+                    || command.description.toLowerCase().includes(normalized);
+            });
+        }
+
+        function parseSlashToggleArgument(argument) {
+            const value = String(argument || '').trim().toLowerCase();
+            if (!value || value === 'toggle' || value === '切替' || value === '切り替え') return null;
+            if (['on', 'true', '1', 'オン', '有効'].includes(value)) return true;
+            if (['off', 'false', '0', 'オフ', '無効'].includes(value)) return false;
+            return undefined;
+        }
+
+        function executeMinimalSlashCommand(commandId, argument = '') {
+            const command = MINIMAL_SLASH_COMMANDS.find((item) => item.id === commandId);
+            if (!command || !minimalPromptMode) return false;
+            if (command.action === 'options') {
+                openMinimalOptions();
+                return true;
+            }
+            const item = MINIMAL_POPUP_ITEMS.find((candidate) => candidate.key === command.itemKey);
+            if (!item || !minimalOptionVisible(item)) {
+                showToast(`/${commandId} は現在のモデルでは利用できません`, 'warning');
+                return true;
+            }
+            if (minimalOptionDisabled(item) && item.special !== 'thinking') {
+                showToast(`/${commandId} は現在変更できません`, 'warning');
+                return true;
+            }
+
+            const rawArgument = String(argument || '').trim();
+            if (item.selectId) {
+                if (!rawArgument) {
+                    showToast(`使い方: ${command.label} ${command.id === 'effort' ? 'none / low / medium / high / xhigh / max' : 'default / none'}`, 'info');
+                    return false;
+                }
+                const select = get(item.selectId);
+                const normalized = rawArgument.toLowerCase();
+                const option = select ? Array.from(select.options).find((candidate) =>
+                    candidate.value.toLowerCase() === normalized || candidate.textContent.trim().toLowerCase() === normalized
+                ) : null;
+                if (!select || !option) {
+                    showToast(`${command.label}: 指定値「${rawArgument}」は利用できません`, 'warning');
+                    return false;
+                }
+                select.value = option.value;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                refreshMinimalOptionItems();
+                showToast(`${item.label}: ${option.textContent.trim()}`, 'success');
+                return true;
+            }
+
+            if (item.special === 'thinking' && rawArgument) {
+                const normalized = rawArgument.toLowerCase();
+                const levelAliases = { min: 'minimal', minimal: 'minimal', low: 'low', mid: 'medium', medium: 'medium', high: 'high' };
+                const desired = parseSlashToggleArgument(rawArgument);
+                const checkbox = get(item.checkboxId);
+                if (Object.prototype.hasOwnProperty.call(levelAliases, normalized)) {
+                    if (checkbox && !checkbox.checked && !checkbox.disabled) {
+                        checkbox.checked = true;
+                        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    const level = get('thinking-level');
+                    if (level) {
+                        level.value = levelAliases[normalized];
+                        level.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    refreshMinimalOptionItems();
+                    showToast(`Thinking: ${normalized}`, 'success');
+                    return true;
+                }
+                if (desired === undefined) {
+                    showToast('使い方: /thinking on / off / min / low / mid / high', 'info');
+                    return false;
+                }
+            }
+
+            if (item.checkboxId && rawArgument) {
+                const desired = parseSlashToggleArgument(rawArgument);
+                if (desired === undefined) {
+                    showToast(`使い方: ${command.label} on / off`, 'info');
+                    return false;
+                }
+                const checkbox = get(item.checkboxId);
+                if (desired !== null && checkbox && checkbox.checked === desired) {
+                    showToast(`${item.label}: ${desired ? 'ON' : 'OFF'}`, 'info');
+                    return true;
+                }
+            }
+
+            handleMinimalOptionClick(item);
+            return true;
+        }
+
         // Extract the leading slash command token (Latin word chars) from the
         // input, so text typed right after the command name without a space
         // (e.g. "/settingsデフォルトモデルを...") does not prevent the palette
@@ -955,9 +1053,9 @@
             // Give contextual guidance via placeholder
             const input = get('prompt-input');
             if (input) {
-                if (cmdId === 'settings') {
+                if (cmd) {
                     input.dataset.originalPlaceholder = input.placeholder;
-                    input.placeholder = '設定変更の指示を入力（例: デフォルトモデルをgemini-2.5-flashに変更）...';
+                    input.placeholder = cmd.argumentHint || '設定変更の指示を入力（例: デフォルトモデルをgemini-2.5-flashに変更）...';
                 }
             }
         }
@@ -976,8 +1074,9 @@
                 delete input.dataset.originalPlaceholder;
             }
 
+            const wasSettingsCommand = pendingSlashCommand === 'settings';
             pendingSlashCommand = null;
-            clearAiSettingsConversation();
+            if (wasSettingsCommand) clearAiSettingsConversation();
         }
 
         function showSlashCommandSuggestions(filter = '') {
@@ -986,15 +1085,13 @@
             const inputRow = get('input-row');
             if (!box || !listEl || !inputRow) return;
 
-            const f = filter.toLowerCase();
-            const filtered = SLASH_COMMANDS.filter(c =>
-                c.label.toLowerCase().includes(f) || c.description.toLowerCase().includes(f)
-            );
+            const filtered = visibleSlashCommands(filter);
 
             if (filtered.length === 0) {
                 hideSlashCommandSuggestions();
                 return;
             }
+            slashSelectedIndex = Math.min(slashSelectedIndex, filtered.length - 1);
 
             listEl.innerHTML = '';
             filtered.forEach((cmd, idx) => {
@@ -1086,6 +1183,15 @@
             }
 
             hideSlashCommandSuggestions();
+            const command = SLASH_COMMANDS.find((candidate) => candidate.id === cmdId);
+            const argument = input.value.trim();
+            if (command && command.kind === 'minimal' && (!command.requiresArgument || argument)) {
+                input.value = '';
+                executeMinimalSlashCommand(cmdId, argument);
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.focus();
+                return;
+            }
             pendingSlashCommand = cmdId;
 
             // Show visual feedback that we are now in command argument mode

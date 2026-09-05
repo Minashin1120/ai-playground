@@ -127,6 +127,17 @@ class MinimalPromptModeRegressionTests(unittest.TestCase):
         css = _current_asset("css", "chat.custom.v4.8.*.css")
         self.assertIn(".minimal-option-item.action-upload", css)
 
+    def test_minimal_mode_voice_and_rich_paste_in_plus_popup(self):
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        self.assertIn("key: 'voice-input'", script)
+        self.assertIn("label: 'Voice Input'", script)
+        self.assertIn("buttonId: 'mic-btn'", script)
+        self.assertIn("key: 'rich-paste'", script)
+        self.assertIn("label: 'リッチ貼り付け'", script)
+        self.assertIn("buttonId: 'rich-paste-btn'", script)
+        self.assertIn("item.action === 'button'", script)
+        self.assertIn("if (button) button.click();", script)
+
     def test_thinking_row_works_when_checkbox_disabled(self):
         # Gemini 3.x forces thinking on and disables the checkbox, so the
         # Thinking row must not be treated as disabled: tapping it opens the

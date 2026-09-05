@@ -4406,6 +4406,8 @@
         ];
         const MINIMAL_POPUP_ITEMS = [
             { key: 'attach', icon: 'fa-paperclip', label: 'ファイルを添付', action: 'upload' },
+            { key: 'voice-input', icon: 'fa-microphone', label: 'Voice Input', action: 'button', buttonId: 'mic-btn' },
+            { key: 'rich-paste', icon: 'fa-paste', label: 'リッチ貼り付け', action: 'button', buttonId: 'rich-paste-btn' },
             { key: 'canvas', icon: 'fa-window-restore', label: 'Canvas', checkboxId: 'enable-canvas-mode', containerId: 'canvas-mode-container' },
             { key: 'coding', icon: 'fa-code-branch', label: 'Coding', checkboxId: 'enable-coding-mode', containerId: 'coding-mode-container' },
             { key: 'fast', icon: 'fa-bolt', label: '高速', checkboxId: 'enable-browser-fast-mode', containerId: 'browser-fast-mode-container' },
@@ -4556,6 +4558,12 @@
             if (item.action === 'upload') {
                 closeMinimalOptions();
                 openUploadModal();
+                return;
+            }
+            if (item.action === 'button') {
+                const button = get(item.buttonId);
+                closeMinimalOptions();
+                if (button) button.click();
                 return;
             }
             if (item.special === 'thinking') {

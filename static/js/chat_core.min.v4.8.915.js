@@ -2136,66 +2136,69 @@ name:"Veo 3.1 Fast",desc:"Low-cost, fast video generation from the Veo 3.1 famil
  (720p), $0.12/sec (1080p)"},{id:"veo-3.1-lite-generate-preview",implementedAt:"2026-08-25",implementedRank:8519,
 name:"Veo 3.1 Lite",desc:"High-efficiency, developer-first video generation (no 4K).",price:"$0.05/s\
 ec (720p), $0.08/sec (1080p)"}]},{category:"Gemini Music Generation",icon:"fas fa-music text-fuchsia\
--400",description:"Lyria music generation models",items:[{id:"lyria-3-pro-preview",implementedAt:"20\
-26-08-25",implementedRank:8518,quickEmoji:"\u{1F3B5}",name:"Lyria 3 Pro",desc:"Flagship music genera\
-tion for full-length songs with structural coherence.",price:"$0.08 / song"},{id:"lyria-3-clip-previ\
-ew",implementedAt:"2026-08-25",implementedRank:8517,quickEmoji:"\u{1F3B6}",name:"Lyria 3 Clip",desc:"\
-Short musical clips, loops, and previews (30 seconds).",price:"$0.04 / song"},{id:"lyria-realtime-ex\
-p",implementedAt:"2026-08-25",implementedRank:8516,name:"Lyria RealTime",desc:"Experimental realtime\
- music generation with deep melodic control.",price:"Experimental (no vocals)"}]},{category:"Gemini \
-Transcription",icon:"fas fa-microphone text-teal-400",description:"Gemini speech-to-text transcripti\
-on models",items:[{id:"gemini-3.5-transcribe",implementedAt:"2026-08-27",implementedRank:8621,quickEmoji:"\
-\u{1F399}\uFE0F",name:"Gemini 3.5 Transcribe",desc:"Audio-file speech-to-text with language detectio\
-n, speaker diarization, word timestamps, and smart formatting (audio file up to 1 hour).",price:"In \
-$2.00/1M (audio), Out $12.00/1M (text)"},{id:"gemini-3.5-transcribe-live",implementedAt:"2026-08-27",
-implementedRank:8622,quickEmoji:"\u{1F534}",name:"Gemini 3.5 Transcribe Live",desc:"Real-time low-la\
-tency streaming speech-to-text over the Live API (microphone input, sessions up to 10 minutes).",price:"\
-In $3.50/1M (audio), Out $21.00/1M (text)"}]},{category:"OpenAI Image Gen",icon:"fas fa-paint-brush \
-text-purple-400",description:"GPT Image models",items:[{id:"gpt-image-2",implementedAt:"2026-04-30",
-implementedRank:4680,name:"GPT Image 2",desc:"State-of-the-art image generation and editing.",price:"\
-Text In $5/1M; Image In $8/1M; Image Out $30/1M"},{id:"gpt-image-1.5",implementedAt:"2026-03-13",implementedRank:3410,
-name:"GPT Image 1.5",desc:"Previous-generation flagship image model.",price:"Text In $5/1M, Text Out\
- $10/1M; Image Out $32/1M"},{id:"gpt-image-1",implementedAt:"2026-03-13",implementedRank:3411,name:"\
-GPT Image 1",desc:"Standard quality.",price:"Text In $5/1M; Image Out $40/1M"},{id:"gpt-image-1-mini",
-implementedAt:"2026-03-13",implementedRank:3412,name:"GPT Image 1 Mini",desc:"Faster, lower resoluti\
-on.",price:"Text In $2/1M; Image In $2.50/1M; Image Out $8/1M"}]},{category:"OpenAI GPT",icon:"fas f\
-a-brain text-green-400",description:"OpenAI's flagship models",items:[{id:"gpt-5.6-sol",implementedAt:"\
-2026-07-31",implementedRank:6550,quickEmoji:"\u2600\uFE0F",name:"GPT-5.6 Sol",desc:"Frontier reasoni\
-ng model for complex professional work with 1.05M context.",price:"In $5.00/1M, Cached $0.50/1M, Out\
- $30.00/1M (over 272K: In $10.00, Out $45.00)"},{id:"gpt-5.6-terra",implementedAt:"2026-07-31",implementedRank:6560,
-quickEmoji:"\u{1F30D}",name:"GPT-5.6 Terra",desc:"Balanced intelligence and cost for everyday work w\
-ith 1.05M context.",price:"In $2.00/1M, Cached $0.20/1M, Out $12.00/1M (over 272K: In $4.00, Out $18\
-.00)"},{id:"gpt-5.6-luna",implementedAt:"2026-07-31",implementedRank:6561,quickEmoji:"\u{1F319}",name:"\
-GPT-5.6 Luna",desc:"Cost-efficient model for high-volume workloads with 1.05M context.",price:"In $0\
-.20/1M, Cached $0.02/1M, Out $1.20/1M (over 272K: In $0.40, Out $1.80)"},{id:"gpt-4o",implementedAt:"\
-2026-06-04",implementedRank:5820,name:"GPT-4o",desc:"Multimodal flagship model.",price:"In $2.50/1M,\
- Out $10.00/1M"},{id:"gpt-4o-mini",implementedAt:"2026-06-04",implementedRank:5821,name:"GPT-4o mini",
-desc:"Fast, low-cost model.",price:"In $0.15/1M, Out $0.60/1M"},{id:"gpt-5.5",implementedAt:"2026-04\
--26",implementedRank:4500,name:"GPT-5.5",desc:"Experimental OpenAI model ID for accounts with access\
-.",price:"In $5.00/1M, Out $30.00/1M"},{id:"gpt-5.5-mini",implementedAt:"2026-04-26",implementedRank:4501,
-name:"GPT-5.5 mini",desc:"Smaller and more cost-efficient GPT-5.5 tier.",price:"Pricing not publicly\
- listed"},{id:"gpt-5.5-nano",implementedAt:"2026-04-26",implementedRank:4502,name:"GPT-5.5 nano",desc:"\
-Smallest and fastest GPT-5.5 tier.",price:"Pricing not publicly listed"},{id:"gpt-5.5-pro",implementedAt:"\
-2026-04-26",implementedRank:4503,name:"GPT-5.5 Pro",desc:"Higher-capacity GPT-5.5 tier for accounts \
-with access.",price:"In $30.00/1M, Out $180.00/1M"},{id:"gpt-5.4",implementedAt:"2026-03-08",implementedRank:3150,
-name:"GPT-5.4",desc:"Experimental OpenAI model ID for accounts with access.",price:"In $2.50/1M, Out\
- $15.00/1M"},{id:"gpt-5.4-mini",implementedAt:"2026-03-08",implementedRank:3151,name:"GPT-5.4 mini",
-desc:"Smaller and more cost-efficient GPT-5.4 tier.",price:"In $0.75/1M, Out $4.50/1M"},{id:"gpt-5.4\
--nano",implementedAt:"2026-03-08",implementedRank:3152,name:"GPT-5.4 nano",desc:"Smallest and fastes\
-t GPT-5.4 tier.",price:"In $0.20/1M, Out $1.25/1M"},{id:"gpt-5.4-pro",implementedAt:"2026-03-08",implementedRank:3153,
-name:"GPT-5.4 Pro",desc:"Higher-capacity GPT-5.4 tier for accounts with access.",price:"In $30.00/1M\
-, Out $180.00/1M"},{id:"gpt-5.2",implementedAt:"2026-02-15",implementedRank:200,name:"GPT-5.2 (Respo\
-nses API)",desc:"Most capable reasoning model.",price:"In $1.75/1M, Out $14.00/1M"},{id:"gpt-5-searc\
-h-api",implementedAt:"2026-02-02",implementedRank:740,name:"GPT-5 Search (API)",desc:"Search-optimiz\
-ed model (Chat Completions).",price:"Model rates + Web search $10/1k calls"},{id:"gpt-5.1",implementedAt:"\
-2026-02-05",implementedRank:200,name:"GPT-5.1",desc:"High intelligence.",price:"In $1.25/1M, Out $10\
-.00/1M"},{id:"gpt-5-mini",implementedAt:"2026-02-02",implementedRank:770,name:"GPT-5 mini",desc:"Sma\
-ll and efficient.",price:"In $0.25/1M, Out $2.00/1M"}]},{category:"DeepSeek V4",icon:"fas fa-bolt te\
-xt-cyan-400",description:"DeepSeek's OpenAI-compatible text models",items:[{id:"deepseek-v4-flash-vi\
-sion-exp",implementedAt:"2026-08-23",implementedRank:8260,quickEmoji:"\u{1F441}\uFE0F",name:"DeepSee\
-k V4 Flash Vision Exp",desc:"Experimental V4 Flash with native image input (JPEG/PNG/GIF/WebP), 1M c\
-ontext, up to 384K output, thinking, tools, and JSON output.",price:"In $0.007/1M (hit), $0.22/1M (m\
-iss), Out $0.66/1M (off-peak)"},{id:"deepseek-v4-flash-0731",implementedAt:"2026-07-31",implementedRank:6610,
+-400",description:"Lyria music generation models",items:[{id:"lyria-3.5",implementedAt:"2026-09-05",
+implementedRank:9050,quickEmoji:"\u{1F3BC}",name:"Lyria 3.5",desc:"Full-length song generation from \
+text or images with vocals, lyrics, and structured arrangements.",price:"See Google AI pricing"},{id:"\
+lyria-3-pro-preview",implementedAt:"2026-08-25",implementedRank:8518,quickEmoji:"\u{1F3B5}",name:"Ly\
+ria 3 Pro",desc:"Flagship music generation for full-length songs with structural coherence.",price:"\
+$0.08 / song"},{id:"lyria-3-clip-preview",implementedAt:"2026-08-25",implementedRank:8517,quickEmoji:"\
+\u{1F3B6}",name:"Lyria 3 Clip",desc:"Short musical clips, loops, and previews (30 seconds).",price:"\
+$0.04 / song"},{id:"lyria-realtime-exp",implementedAt:"2026-08-25",implementedRank:8516,name:"Lyria \
+RealTime",desc:"Experimental realtime music generation with deep melodic control.",price:"Experiment\
+al (no vocals)"}]},{category:"Gemini Transcription",icon:"fas fa-microphone text-teal-400",description:"\
+Gemini speech-to-text transcription models",items:[{id:"gemini-3.5-transcribe",implementedAt:"2026-0\
+8-27",implementedRank:8621,quickEmoji:"\u{1F399}\uFE0F",name:"Gemini 3.5 Transcribe",desc:"Audio-fil\
+e speech-to-text with language detection, speaker diarization, word timestamps, and smart formatting\
+ (audio file up to 1 hour).",price:"In $2.00/1M (audio), Out $12.00/1M (text)"},{id:"gemini-3.5-tran\
+scribe-live",implementedAt:"2026-08-27",implementedRank:8622,quickEmoji:"\u{1F534}",name:"Gemini 3.5\
+ Transcribe Live",desc:"Real-time low-latency streaming speech-to-text over the Live API (microphone\
+ input, sessions up to 10 minutes).",price:"In $3.50/1M (audio), Out $21.00/1M (text)"}]},{category:"\
+OpenAI Image Gen",icon:"fas fa-paint-brush text-purple-400",description:"GPT Image models",items:[{id:"\
+gpt-image-2",implementedAt:"2026-04-30",implementedRank:4680,name:"GPT Image 2",desc:"State-of-the-a\
+rt image generation and editing.",price:"Text In $5/1M; Image In $8/1M; Image Out $30/1M"},{id:"gpt-\
+image-1.5",implementedAt:"2026-03-13",implementedRank:3410,name:"GPT Image 1.5",desc:"Previous-gener\
+ation flagship image model.",price:"Text In $5/1M, Text Out $10/1M; Image Out $32/1M"},{id:"gpt-imag\
+e-1",implementedAt:"2026-03-13",implementedRank:3411,name:"GPT Image 1",desc:"Standard quality.",price:"\
+Text In $5/1M; Image Out $40/1M"},{id:"gpt-image-1-mini",implementedAt:"2026-03-13",implementedRank:3412,
+name:"GPT Image 1 Mini",desc:"Faster, lower resolution.",price:"Text In $2/1M; Image In $2.50/1M; Im\
+age Out $8/1M"}]},{category:"OpenAI GPT",icon:"fas fa-brain text-green-400",description:"OpenAI's fl\
+agship models",items:[{id:"gpt-5.6-sol",implementedAt:"2026-07-31",implementedRank:6550,quickEmoji:"\
+\u2600\uFE0F",name:"GPT-5.6 Sol",desc:"Frontier reasoning model for complex professional work with 1\
+.05M context.",price:"In $5.00/1M, Cached $0.50/1M, Out $30.00/1M (over 272K: In $10.00, Out $45.00)"},
+{id:"gpt-5.6-terra",implementedAt:"2026-07-31",implementedRank:6560,quickEmoji:"\u{1F30D}",name:"GPT\
+-5.6 Terra",desc:"Balanced intelligence and cost for everyday work with 1.05M context.",price:"In $2\
+.00/1M, Cached $0.20/1M, Out $12.00/1M (over 272K: In $4.00, Out $18.00)"},{id:"gpt-5.6-luna",implementedAt:"\
+2026-07-31",implementedRank:6561,quickEmoji:"\u{1F319}",name:"GPT-5.6 Luna",desc:"Cost-efficient mod\
+el for high-volume workloads with 1.05M context.",price:"In $0.20/1M, Cached $0.02/1M, Out $1.20/1M \
+(over 272K: In $0.40, Out $1.80)"},{id:"gpt-4o",implementedAt:"2026-06-04",implementedRank:5820,name:"\
+GPT-4o",desc:"Multimodal flagship model.",price:"In $2.50/1M, Out $10.00/1M"},{id:"gpt-4o-mini",implementedAt:"\
+2026-06-04",implementedRank:5821,name:"GPT-4o mini",desc:"Fast, low-cost model.",price:"In $0.15/1M,\
+ Out $0.60/1M"},{id:"gpt-5.5",implementedAt:"2026-04-26",implementedRank:4500,name:"GPT-5.5",desc:"E\
+xperimental OpenAI model ID for accounts with access.",price:"In $5.00/1M, Out $30.00/1M"},{id:"gpt-\
+5.5-mini",implementedAt:"2026-04-26",implementedRank:4501,name:"GPT-5.5 mini",desc:"Smaller and more\
+ cost-efficient GPT-5.5 tier.",price:"Pricing not publicly listed"},{id:"gpt-5.5-nano",implementedAt:"\
+2026-04-26",implementedRank:4502,name:"GPT-5.5 nano",desc:"Smallest and fastest GPT-5.5 tier.",price:"\
+Pricing not publicly listed"},{id:"gpt-5.5-pro",implementedAt:"2026-04-26",implementedRank:4503,name:"\
+GPT-5.5 Pro",desc:"Higher-capacity GPT-5.5 tier for accounts with access.",price:"In $30.00/1M, Out \
+$180.00/1M"},{id:"gpt-5.4",implementedAt:"2026-03-08",implementedRank:3150,name:"GPT-5.4",desc:"Expe\
+rimental OpenAI model ID for accounts with access.",price:"In $2.50/1M, Out $15.00/1M"},{id:"gpt-5.4\
+-mini",implementedAt:"2026-03-08",implementedRank:3151,name:"GPT-5.4 mini",desc:"Smaller and more co\
+st-efficient GPT-5.4 tier.",price:"In $0.75/1M, Out $4.50/1M"},{id:"gpt-5.4-nano",implementedAt:"202\
+6-03-08",implementedRank:3152,name:"GPT-5.4 nano",desc:"Smallest and fastest GPT-5.4 tier.",price:"I\
+n $0.20/1M, Out $1.25/1M"},{id:"gpt-5.4-pro",implementedAt:"2026-03-08",implementedRank:3153,name:"G\
+PT-5.4 Pro",desc:"Higher-capacity GPT-5.4 tier for accounts with access.",price:"In $30.00/1M, Out $\
+180.00/1M"},{id:"gpt-5.2",implementedAt:"2026-02-15",implementedRank:200,name:"GPT-5.2 (Responses AP\
+I)",desc:"Most capable reasoning model.",price:"In $1.75/1M, Out $14.00/1M"},{id:"gpt-5-search-api",
+implementedAt:"2026-02-02",implementedRank:740,name:"GPT-5 Search (API)",desc:"Search-optimized mode\
+l (Chat Completions).",price:"Model rates + Web search $10/1k calls"},{id:"gpt-5.1",implementedAt:"2\
+026-02-05",implementedRank:200,name:"GPT-5.1",desc:"High intelligence.",price:"In $1.25/1M, Out $10.\
+00/1M"},{id:"gpt-5-mini",implementedAt:"2026-02-02",implementedRank:770,name:"GPT-5 mini",desc:"Smal\
+l and efficient.",price:"In $0.25/1M, Out $2.00/1M"}]},{category:"DeepSeek V4",icon:"fas fa-bolt tex\
+t-cyan-400",description:"DeepSeek's OpenAI-compatible text models",items:[{id:"deepseek-v4-flash-vis\
+ion-exp",implementedAt:"2026-08-23",implementedRank:8260,quickEmoji:"\u{1F441}\uFE0F",name:"DeepSeek\
+ V4 Flash Vision Exp",desc:"Experimental V4 Flash with native image input (JPEG/PNG/GIF/WebP), 1M co\
+ntext, up to 384K output, thinking, tools, and JSON output.",price:"In $0.007/1M (hit), $0.22/1M (mi\
+ss), Out $0.66/1M (off-peak)"},{id:"deepseek-v4-flash-0731",implementedAt:"2026-07-31",implementedRank:6610,
 quickEmoji:"\u26A1",apiId:"deepseek-v4-flash",name:"DeepSeek V4 Flash",desc:"Official V4 Flash relea\
 se with 1M context, up to 384K output, thinking, tools, and JSON output.",price:"In $0.0028/1M (hit)\
 , $0.14/1M (miss), Out $0.28/1M"},{id:"deepseek-v4-flash",implementedAt:"2026-04-26",implementedRank:4510,

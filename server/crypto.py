@@ -220,7 +220,7 @@ ALL_VALID_MODEL_IDS = {
     # Gemini Video Generation
     "gemini-omni-1.1-flash", "gemini-omni-flash", "veo-3.1-generate-preview", "veo-3.1-fast-generate-preview", "veo-3.1-lite-generate-preview",
     # Gemini Music Generation
-    "lyria-3-pro-preview", "lyria-3-clip-preview", "lyria-realtime-exp",
+    "lyria-3.5", "lyria-3-pro-preview", "lyria-3-clip-preview", "lyria-realtime-exp",
     # Gemini Agent / Specialized
     "gemini-robotics-er-2-preview", "deep-research-preview-04-2026", "deep-research-max-preview-04-2026",
     "antigravity-preview-05-2026", "gemini-2.5-computer-use-preview-10-2025", "gemini-embedding-2",
@@ -259,4 +259,3 @@ ALL_VALID_MODEL_IDS = {
     # Mistral Document OCR
     "mistral-ocr-4-0",
 }
-

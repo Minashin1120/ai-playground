@@ -27,6 +27,7 @@ class GeminiNewModelsRegressionTests(unittest.TestCase):
         "veo-3.1-lite-generate-preview",
     )
     MUSIC_MODELS = (
+        "lyria-3.5",
         "lyria-3-pro-preview",
         "lyria-3-clip-preview",
         "lyria-realtime-exp",
@@ -64,6 +65,7 @@ class GeminiNewModelsRegressionTests(unittest.TestCase):
             "veo-3.1-generate-preview",
             "veo-3.1-fast-generate-preview",
             "veo-3.1-lite-generate-preview",
+            "lyria-3.5",
             "lyria-3-pro-preview",
             "lyria-3-clip-preview",
             "deep-research-preview-04-2026",

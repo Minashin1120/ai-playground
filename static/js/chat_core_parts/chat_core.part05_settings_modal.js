@@ -668,6 +668,7 @@
                 icon: "fas fa-music text-fuchsia-400",
                 description: "Lyria music generation models",
                 items: [
+                    { id: "lyria-3.5", implementedAt: "2026-09-05", implementedRank: 9050, quickEmoji: "🎼", name: "Lyria 3.5", desc: "Full-length song generation from text or images with vocals, lyrics, and structured arrangements.", price: "See Google AI pricing" },
                     { id: "lyria-3-pro-preview", implementedAt: "2026-08-25", implementedRank: 8518, quickEmoji: "🎵", name: "Lyria 3 Pro", desc: "Flagship music generation for full-length songs with structural coherence.", price: "$0.08 / song" },
                     { id: "lyria-3-clip-preview", implementedAt: "2026-08-25", implementedRank: 8517, quickEmoji: "🎶", name: "Lyria 3 Clip", desc: "Short musical clips, loops, and previews (30 seconds).", price: "$0.04 / song" },
                     { id: "lyria-realtime-exp", implementedAt: "2026-08-25", implementedRank: 8516, name: "Lyria RealTime", desc: "Experimental realtime music generation with deep melodic control.", price: "Experimental (no vocals)" }

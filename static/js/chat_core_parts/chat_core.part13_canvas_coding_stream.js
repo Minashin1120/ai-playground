@@ -206,6 +206,38 @@
             return { text: cleaned, executions };
         }
 
+        function extractMcpExecutionNotesFromContent(rawText) {
+            const source = normalizeMarkdownNewlines(rawText);
+            const notes = [];
+            if (!source) return { text: '', notes };
+
+            const keptLines = [];
+            source.split('\n').forEach((line) => {
+                // MCP execution notices are emitted as one Markdown blockquote
+                // line. Keep them out of the streamed prose so they can be
+                // rendered together after the answer text.
+                if (/^>\s*(?:🔧|🚫)\s*\*\*MCPツール実行(?:[:：]|は|（)/.test(line)) {
+                    notes.push(line.trim());
+                } else {
+                    keptLines.push(line);
+                }
+            });
+
+            const cleaned = keptLines.join('\n')
+                .replace(/[ \t]+\n/g, '\n')
+                .replace(/\n{3,}/g, '\n\n')
+                .replace(/^\n+/, '')
+                .replace(/\n+$/, '');
+            return { text: cleaned, notes };
+        }
+
+        function appendMcpExecutionNotes(text, notes) {
+            const body = String(text || '').trim();
+            const items = Array.isArray(notes) ? notes.filter(Boolean) : [];
+            if (!items.length) return body;
+            return body ? `${body}\n\n${items.join('\n')}` : items.join('\n');
+        }
+
         function buildPythonExecDetailBoxHtml(ex, index, total) {
             const codeRaw = ex && ex.code != null ? String(ex.code) : '';
             const outputRaw = ex && ex.output != null ? String(ex.output) : '';
@@ -273,7 +305,9 @@
         window.closePythonExecDetail = closePythonExecDetail;
 
         function buildAiMarkdownHtml(text) {
-            const canvasData = canvasModeEnabled ? parseCanvasMarkdown(text) : { renderText: text || '', blocks: [], primaryBlock: null, rawText: String(text || '') };
+            const mcpExtract = extractMcpExecutionNotesFromContent(text);
+            const displayText = appendMcpExecutionNotes(mcpExtract.text, mcpExtract.notes);
+            const canvasData = canvasModeEnabled ? parseCanvasMarkdown(displayText) : { renderText: displayText, blocks: [], primaryBlock: null, rawText: displayText };
             if (canvasModeEnabled) {
                 updateCanvasPreviewState(canvasData);
                 refreshCanvasPreviewPanel();
@@ -290,7 +324,9 @@
         }
         function renderAiMarkdownInto(container, text, opts = {}) {
             if (!container) return;
-            const canvasData = canvasModeEnabled ? parseCanvasMarkdown(text) : { renderText: text || '', blocks: [], primaryBlock: null, rawText: String(text || '') };
+            const mcpExtract = extractMcpExecutionNotesFromContent(text);
+            const displayText = appendMcpExecutionNotes(mcpExtract.text, mcpExtract.notes);
+            const canvasData = canvasModeEnabled ? parseCanvasMarkdown(displayText) : { renderText: displayText, blocks: [], primaryBlock: null, rawText: displayText };
             if (canvasModeEnabled) {
                 updateCanvasPreviewState(canvasData);
                 refreshCanvasPreviewPanel();
@@ -461,7 +497,7 @@
                 // User message: RAW TEXT DISPLAY (Preserve whitespace, no markdown)
                 contentHtml = `<div class="content-area whitespace-pre-wrap font-sans text-sm break-words">${escapeHtml(text||'')}</div>`;
             } else {
-                // AI message: Markdown Rendered (Python tool runs stripped; open via footer button)
+                // AI message: Markdown rendered with tool notices grouped after the prose.
                 contentHtml = buildAiMarkdownHtml(displayText);
                 // Ensure content-area class is present if not already in buildAiMarkdownHtml
                 if (!contentHtml.includes('content-area')) {

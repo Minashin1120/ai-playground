@@ -203,8 +203,29 @@ def ensure_user_rows(user_id):
     servers = m.MCPServer.query.filter(
         (m.MCPServer.is_preset.is_(True)) | (m.MCPServer.owner_user_id == user_id)
     ).all()
-    for srv in servers:
-        ensure_user_connection(user_id, srv.id)
+    server_ids = [srv.id for srv in servers]
+    if server_ids:
+        existing = m.MCPUserConnection.query.filter(
+            m.MCPUserConnection.user_id == user_id,
+            m.MCPUserConnection.server_id.in_(server_ids),
+        ).all()
+        existing_ids = {row.server_id for row in existing}
+        missing = [server_id for server_id in server_ids if server_id not in existing_ids]
+        if missing:
+            for server_id in missing:
+                db.session.add(m.MCPUserConnection(
+                    user_id=user_id,
+                    server_id=server_id,
+                    is_enabled=False,
+                    connection_state="none",
+                ))
+            try:
+                # A single commit is substantially faster than one commit per
+                # preset, especially on remote databases during the first load.
+                db.session.commit()
+            except sa_exc.IntegrityError:
+                # Another request may have created the same rows concurrently.
+                db.session.rollback()
     db.session.expire_all()
     return True
 

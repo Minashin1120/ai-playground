@@ -2,6 +2,7 @@
         // 状態
         let mcpServers = [];
         let mcpLoaded = false;
+        let mcpLoadPromise = null;
         let mcpOauthPopups = [];
         const MCP_URLS = {
             servers: () => '/api/mcp/servers',
@@ -62,23 +63,37 @@
         async function loadMcpServers(force) {
             const listEl = get('mcp-server-list');
             if (!listEl) return;
+            // Settings can be opened while the initial preload is still running.
+            // Share that request so opening the modal never starts a second slow
+            // request (and so the prompt-bar state has one source of truth).
+            if (mcpLoadPromise) {
+                await mcpLoadPromise;
+                if (!force) return;
+            }
             if (!force && mcpLoaded) { renderMcpServers(); return; }
             mcpStatusMsg('mcp-status-msg', '読み込み中...', false);
-            try {
-                const res = await apiFetch(MCP_URLS.servers());
-                if (!res.ok) {
-                    const d = await res.json().catch(() => ({}));
-                    mcpStatusMsg('mcp-status-msg', d.error || 'MCPサーバー一覧の取得に失敗しました', true);
-                    return;
+            let request;
+            request = (async () => {
+                try {
+                    const res = await apiFetch(MCP_URLS.servers());
+                    if (!res.ok) {
+                        const d = await res.json().catch(() => ({}));
+                        mcpStatusMsg('mcp-status-msg', d.error || 'MCPサーバー一覧の取得に失敗しました', true);
+                        return;
+                    }
+                    const data = await res.json();
+                    mcpServers = (data && Array.isArray(data.servers)) ? data.servers : [];
+                    mcpLoaded = true;
+                    renderMcpServers();
+                    applyMcpPromptChipUi();
+                } catch (e) {
+                    mcpStatusMsg('mcp-status-msg', 'MCPサーバー一覧の取得に失敗しました: ' + (e && e.message ? e.message : e), true);
+                } finally {
+                    if (mcpLoadPromise === request) mcpLoadPromise = null;
                 }
-                const data = await res.json();
-                mcpServers = (data && Array.isArray(data.servers)) ? data.servers : [];
-                mcpLoaded = true;
-                renderMcpServers();
-                applyMcpPromptChipUi();
-            } catch (e) {
-                mcpStatusMsg('mcp-status-msg', 'MCPサーバー一覧の取得に失敗しました: ' + (e && e.message ? e.message : e), true);
-            }
+            })();
+            mcpLoadPromise = request;
+            await request;
         }
 
         // 有効（enabled）なMCPサーバーが1つ以上あるか（プロンプトバーMCPチップの表示条件）。
@@ -571,10 +586,17 @@
             });
         }
 
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => { try { bindMcpSettingsUi(); } catch (e) {} });
-        } else {
+        const initMcpUi = () => {
             try { bindMcpSettingsUi(); } catch (e) {}
+            // Load MCP metadata as part of chat initialization.  The settings
+            // modal is hidden by default, so waiting for it to open made the
+            // prompt-bar MCP switch appear late or not at all.
+            try { loadMcpServers(); } catch (e) {}
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initMcpUi, { once: true });
+        } else {
+            initMcpUi();
         }
 
         function bindMcpPromptToggle() {

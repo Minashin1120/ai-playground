@@ -1692,23 +1692,38 @@
             return `${mcpEscHtml(payload.server_name || 'MCP')} / ${mcpEscHtml(payload.tool_name || payload.internal_name || '')}`;
         }
 
+        function getMcpExecutionList(adiv) {
+            if (!adiv) return null;
+            let list = adiv.querySelector('.mcp-execution-list');
+            if (!list) {
+                list = document.createElement('div');
+                list.className = 'mcp-execution-list mt-3';
+                list.setAttribute('aria-label', 'MCPツール実行');
+                // Keep all MCP cards after the answer content, just like the
+                // Python execution details are kept out of the prose body.
+                adiv.appendChild(list);
+            }
+            return list;
+        }
+
         function handleMcpStreamEvent(adiv, payload) {
             if (!adiv || !payload || !payload.type) return;
+            const needsExecutionList = ['start', 'result', 'error'].includes(payload.type);
+            const list = needsExecutionList ? getMcpExecutionList(adiv) : null;
+            if (needsExecutionList && !list) return;
             const boxId = mcpCardIdSelector(payload.id || ('mcp_' + Date.now()));
             if (payload.type === 'start') {
-                if (adiv.querySelector('[data-mcp-card="' + boxId + '"]')) return;
+                if (list.querySelector('[data-mcp-card="' + boxId + '"]')) return;
                 const html = `<div class="mcp-box mcp-running mb-2" data-mcp-card="${boxId}">
     <span class="mcp-spinner"></span>
     <span class="mcp-box-title">${mcpCardTitle(payload)}</span>
     <span class="mcp-box-sub">実行中...</span>
 </div>`;
-                const search = adiv.querySelector('.search-box');
-                if (search) search.insertAdjacentHTML('afterend', html);
-                else adiv.insertAdjacentHTML('afterbegin', html);
+                list.insertAdjacentHTML('beforeend', html);
                 return;
             }
             if (payload.type === 'result') {
-                let box = adiv.querySelector('[data-mcp-card="' + boxId + '"]');
+                let box = list.querySelector('[data-mcp-card="' + boxId + '"]');
                 const summary = payload.summary || '';
                 if (!box) {
                     const html = `<div class="mcp-box mcp-done mb-2" data-mcp-card="${boxId}">
@@ -1716,10 +1731,8 @@
     <span class="mcp-box-title">${mcpCardTitle(payload)}</span>
     <span class="mcp-box-sub">実行しました</span>
 </div>`;
-                    const search = adiv.querySelector('.search-box');
-                    if (search) search.insertAdjacentHTML('afterend', html);
-                    else adiv.insertAdjacentHTML('afterbegin', html);
-                    box = adiv.querySelector('[data-mcp-card="' + boxId + '"]');
+                    list.insertAdjacentHTML('beforeend', html);
+                    box = list.querySelector('[data-mcp-card="' + boxId + '"]');
                 } else {
                     box.classList.remove('mcp-running');
                     box.classList.add('mcp-done');
@@ -1736,7 +1749,7 @@
                 return;
             }
             if (payload.type === 'error') {
-                let box = adiv.querySelector('[data-mcp-card="' + boxId + '"]');
+                let box = list.querySelector('[data-mcp-card="' + boxId + '"]');
                 const msg = payload.message || 'MCPツールの実行に失敗しました';
                 if (!box) {
                     const html = `<div class="mcp-box mcp-error mb-2" data-mcp-card="${boxId}">
@@ -1744,10 +1757,8 @@
     <span class="mcp-box-title">${mcpCardTitle(payload)}</span>
     <span class="mcp-box-sub">失敗</span>
 </div>`;
-                    const search = adiv.querySelector('.search-box');
-                    if (search) search.insertAdjacentHTML('afterend', html);
-                    else adiv.insertAdjacentHTML('afterbegin', html);
-                    box = adiv.querySelector('[data-mcp-card="' + boxId + '"]');
+                    list.insertAdjacentHTML('beforeend', html);
+                    box = list.querySelector('[data-mcp-card="' + boxId + '"]');
                 } else {
                     box.classList.remove('mcp-running');
                     box.classList.add('mcp-error');

@@ -7950,6 +7950,7 @@
         // 状態
         let mcpServers = [];
         let mcpLoaded = false;
+        let mcpLoadPromise = null;
         let mcpOauthPopups = [];
         const MCP_URLS = {
             servers: () => '/api/mcp/servers',
@@ -8010,23 +8011,37 @@
         async function loadMcpServers(force) {
             const listEl = get('mcp-server-list');
             if (!listEl) return;
+            // Settings can be opened while the initial preload is still running.
+            // Share that request so opening the modal never starts a second slow
+            // request (and so the prompt-bar state has one source of truth).
+            if (mcpLoadPromise) {
+                await mcpLoadPromise;
+                if (!force) return;
+            }
             if (!force && mcpLoaded) { renderMcpServers(); return; }
             mcpStatusMsg('mcp-status-msg', '読み込み中...', false);
-            try {
-                const res = await apiFetch(MCP_URLS.servers());
-                if (!res.ok) {
-                    const d = await res.json().catch(() => ({}));
-                    mcpStatusMsg('mcp-status-msg', d.error || 'MCPサーバー一覧の取得に失敗しました', true);
-                    return;
+            let request;
+            request = (async () => {
+                try {
+                    const res = await apiFetch(MCP_URLS.servers());
+                    if (!res.ok) {
+                        const d = await res.json().catch(() => ({}));
+                        mcpStatusMsg('mcp-status-msg', d.error || 'MCPサーバー一覧の取得に失敗しました', true);
+                        return;
+                    }
+                    const data = await res.json();
+                    mcpServers = (data && Array.isArray(data.servers)) ? data.servers : [];
+                    mcpLoaded = true;
+                    renderMcpServers();
+                    applyMcpPromptChipUi();
+                } catch (e) {
+                    mcpStatusMsg('mcp-status-msg', 'MCPサーバー一覧の取得に失敗しました: ' + (e && e.message ? e.message : e), true);
+                } finally {
+                    if (mcpLoadPromise === request) mcpLoadPromise = null;
                 }
-                const data = await res.json();
-                mcpServers = (data && Array.isArray(data.servers)) ? data.servers : [];
-                mcpLoaded = true;
-                renderMcpServers();
-                applyMcpPromptChipUi();
-            } catch (e) {
-                mcpStatusMsg('mcp-status-msg', 'MCPサーバー一覧の取得に失敗しました: ' + (e && e.message ? e.message : e), true);
-            }
+            })();
+            mcpLoadPromise = request;
+            await request;
         }
 
         // 有効（enabled）なMCPサーバーが1つ以上あるか（プロンプトバーMCPチップの表示条件）。
@@ -8519,10 +8534,17 @@
             });
         }
 
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => { try { bindMcpSettingsUi(); } catch (e) {} });
-        } else {
+        const initMcpUi = () => {
             try { bindMcpSettingsUi(); } catch (e) {}
+            // Load MCP metadata as part of chat initialization.  The settings
+            // modal is hidden by default, so waiting for it to open made the
+            // prompt-bar MCP switch appear late or not at all.
+            try { loadMcpServers(); } catch (e) {}
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initMcpUi, { once: true });
+        } else {
+            initMcpUi();
         }
 
         function bindMcpPromptToggle() {
@@ -18198,6 +18220,38 @@
             return { text: cleaned, executions };
         }
 
+        function extractMcpExecutionNotesFromContent(rawText) {
+            const source = normalizeMarkdownNewlines(rawText);
+            const notes = [];
+            if (!source) return { text: '', notes };
+
+            const keptLines = [];
+            source.split('\n').forEach((line) => {
+                // MCP execution notices are emitted as one Markdown blockquote
+                // line. Keep them out of the streamed prose so they can be
+                // rendered together after the answer text.
+                if (/^>\s*(?:🔧|🚫)\s*\*\*MCPツール実行(?:[:：]|は|（)/.test(line)) {
+                    notes.push(line.trim());
+                } else {
+                    keptLines.push(line);
+                }
+            });
+
+            const cleaned = keptLines.join('\n')
+                .replace(/[ \t]+\n/g, '\n')
+                .replace(/\n{3,}/g, '\n\n')
+                .replace(/^\n+/, '')
+                .replace(/\n+$/, '');
+            return { text: cleaned, notes };
+        }
+
+        function appendMcpExecutionNotes(text, notes) {
+            const body = String(text || '').trim();
+            const items = Array.isArray(notes) ? notes.filter(Boolean) : [];
+            if (!items.length) return body;
+            return body ? `${body}\n\n${items.join('\n')}` : items.join('\n');
+        }
+
         function buildPythonExecDetailBoxHtml(ex, index, total) {
             const codeRaw = ex && ex.code != null ? String(ex.code) : '';
             const outputRaw = ex && ex.output != null ? String(ex.output) : '';
@@ -18265,7 +18319,9 @@
         window.closePythonExecDetail = closePythonExecDetail;
 
         function buildAiMarkdownHtml(text) {
-            const canvasData = canvasModeEnabled ? parseCanvasMarkdown(text) : { renderText: text || '', blocks: [], primaryBlock: null, rawText: String(text || '') };
+            const mcpExtract = extractMcpExecutionNotesFromContent(text);
+            const displayText = appendMcpExecutionNotes(mcpExtract.text, mcpExtract.notes);
+            const canvasData = canvasModeEnabled ? parseCanvasMarkdown(displayText) : { renderText: displayText, blocks: [], primaryBlock: null, rawText: displayText };
             if (canvasModeEnabled) {
                 updateCanvasPreviewState(canvasData);
                 refreshCanvasPreviewPanel();
@@ -18282,7 +18338,9 @@
         }
         function renderAiMarkdownInto(container, text, opts = {}) {
             if (!container) return;
-            const canvasData = canvasModeEnabled ? parseCanvasMarkdown(text) : { renderText: text || '', blocks: [], primaryBlock: null, rawText: String(text || '') };
+            const mcpExtract = extractMcpExecutionNotesFromContent(text);
+            const displayText = appendMcpExecutionNotes(mcpExtract.text, mcpExtract.notes);
+            const canvasData = canvasModeEnabled ? parseCanvasMarkdown(displayText) : { renderText: displayText, blocks: [], primaryBlock: null, rawText: displayText };
             if (canvasModeEnabled) {
                 updateCanvasPreviewState(canvasData);
                 refreshCanvasPreviewPanel();
@@ -18453,7 +18511,7 @@
                 // User message: RAW TEXT DISPLAY (Preserve whitespace, no markdown)
                 contentHtml = `<div class="content-area whitespace-pre-wrap font-sans text-sm break-words">${escapeHtml(text||'')}</div>`;
             } else {
-                // AI message: Markdown Rendered (Python tool runs stripped; open via footer button)
+                // AI message: Markdown rendered with tool notices grouped after the prose.
                 contentHtml = buildAiMarkdownHtml(displayText);
                 // Ensure content-area class is present if not already in buildAiMarkdownHtml
                 if (!contentHtml.includes('content-area')) {
@@ -21170,23 +21228,38 @@
             return `${mcpEscHtml(payload.server_name || 'MCP')} / ${mcpEscHtml(payload.tool_name || payload.internal_name || '')}`;
         }
 
+        function getMcpExecutionList(adiv) {
+            if (!adiv) return null;
+            let list = adiv.querySelector('.mcp-execution-list');
+            if (!list) {
+                list = document.createElement('div');
+                list.className = 'mcp-execution-list mt-3';
+                list.setAttribute('aria-label', 'MCPツール実行');
+                // Keep all MCP cards after the answer content, just like the
+                // Python execution details are kept out of the prose body.
+                adiv.appendChild(list);
+            }
+            return list;
+        }
+
         function handleMcpStreamEvent(adiv, payload) {
             if (!adiv || !payload || !payload.type) return;
+            const needsExecutionList = ['start', 'result', 'error'].includes(payload.type);
+            const list = needsExecutionList ? getMcpExecutionList(adiv) : null;
+            if (needsExecutionList && !list) return;
             const boxId = mcpCardIdSelector(payload.id || ('mcp_' + Date.now()));
             if (payload.type === 'start') {
-                if (adiv.querySelector('[data-mcp-card="' + boxId + '"]')) return;
+                if (list.querySelector('[data-mcp-card="' + boxId + '"]')) return;
                 const html = `<div class="mcp-box mcp-running mb-2" data-mcp-card="${boxId}">
     <span class="mcp-spinner"></span>
     <span class="mcp-box-title">${mcpCardTitle(payload)}</span>
     <span class="mcp-box-sub">実行中...</span>
 </div>`;
-                const search = adiv.querySelector('.search-box');
-                if (search) search.insertAdjacentHTML('afterend', html);
-                else adiv.insertAdjacentHTML('afterbegin', html);
+                list.insertAdjacentHTML('beforeend', html);
                 return;
             }
             if (payload.type === 'result') {
-                let box = adiv.querySelector('[data-mcp-card="' + boxId + '"]');
+                let box = list.querySelector('[data-mcp-card="' + boxId + '"]');
                 const summary = payload.summary || '';
                 if (!box) {
                     const html = `<div class="mcp-box mcp-done mb-2" data-mcp-card="${boxId}">
@@ -21194,10 +21267,8 @@
     <span class="mcp-box-title">${mcpCardTitle(payload)}</span>
     <span class="mcp-box-sub">実行しました</span>
 </div>`;
-                    const search = adiv.querySelector('.search-box');
-                    if (search) search.insertAdjacentHTML('afterend', html);
-                    else adiv.insertAdjacentHTML('afterbegin', html);
-                    box = adiv.querySelector('[data-mcp-card="' + boxId + '"]');
+                    list.insertAdjacentHTML('beforeend', html);
+                    box = list.querySelector('[data-mcp-card="' + boxId + '"]');
                 } else {
                     box.classList.remove('mcp-running');
                     box.classList.add('mcp-done');
@@ -21214,7 +21285,7 @@
                 return;
             }
             if (payload.type === 'error') {
-                let box = adiv.querySelector('[data-mcp-card="' + boxId + '"]');
+                let box = list.querySelector('[data-mcp-card="' + boxId + '"]');
                 const msg = payload.message || 'MCPツールの実行に失敗しました';
                 if (!box) {
                     const html = `<div class="mcp-box mcp-error mb-2" data-mcp-card="${boxId}">
@@ -21222,10 +21293,8 @@
     <span class="mcp-box-title">${mcpCardTitle(payload)}</span>
     <span class="mcp-box-sub">失敗</span>
 </div>`;
-                    const search = adiv.querySelector('.search-box');
-                    if (search) search.insertAdjacentHTML('afterend', html);
-                    else adiv.insertAdjacentHTML('afterbegin', html);
-                    box = adiv.querySelector('[data-mcp-card="' + boxId + '"]');
+                    list.insertAdjacentHTML('beforeend', html);
+                    box = list.querySelector('[data-mcp-card="' + boxId + '"]');
                 } else {
                     box.classList.remove('mcp-running');
                     box.classList.add('mcp-error');

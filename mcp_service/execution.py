@@ -12,6 +12,7 @@ import logging
 import threading
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
 from . import config
@@ -120,12 +121,13 @@ class McpRuntime:
         cred = mcp_registry.get_credential(self.user_id, srv.id)
         return bool(cred and cred.access_token_enc)
 
-    def _fetch_server_tools(self, srv):
+    def _fetch_server_tools(self, srv, headers=None):
         cached = mcp_registry.get_cached_tools(self.user_id, srv.id)
         if cached is not None:
             return cached
         try:
-            headers = mcp_registry.headers_for_server(self.user_id, srv)
+            if headers is None:
+                headers = mcp_registry.headers_for_server(self.user_id, srv)
             tools = mcp_client.fetch_tools(
                 srv.url, headers=headers,
                 read_timeout=config.MCP_READ_TIMEOUT_SECONDS,
@@ -154,16 +156,52 @@ class McpRuntime:
             conn_servers = conn_servers[: config.MCP_MAX_ENABLED_SERVERS]
         total_tools = 0
         used = set()
+        pending = []
         for srv in conn_servers:
             if srv.id in used:
                 continue
             used.add(srv.id)
             if not self._auth_ok(srv):
                 continue
+            # Read credentials in the request thread.  The actual network
+            # discovery can then run concurrently without touching the
+            # request-scoped SQLAlchemy session from worker threads.
+            cached = mcp_registry.get_cached_tools(self.user_id, srv.id)
+            if cached is not None:
+                pending.append((srv, cached))
+                continue
             try:
-                raw_tools = self._fetch_server_tools(srv)
-            except Exception:
-                raw_tools = None
+                headers = mcp_registry.headers_for_server(self.user_id, srv)
+            except Exception as exc:
+                self._dbg(f"MCP credentials failed for {srv.slug}: {exc}")
+                pending.append((srv, None))
+                continue
+            pending.append((srv, headers))
+
+        fetched = {}
+        network = [(srv, headers) for srv, headers in pending if isinstance(headers, dict)]
+        if len(network) <= 1:
+            for srv, headers in network:
+                try:
+                    fetched[srv.id] = self._fetch_server_tools(srv, headers=headers)
+                except Exception:
+                    fetched[srv.id] = None
+        else:
+            workers = min(len(network), config.MCP_MAX_ENABLED_SERVERS)
+            with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="mcp-discovery") as pool:
+                futures = {
+                    pool.submit(self._fetch_server_tools, srv, headers): srv
+                    for srv, headers in network
+                }
+                for future in as_completed(futures):
+                    srv = futures[future]
+                    try:
+                        fetched[srv.id] = future.result()
+                    except Exception as exc:
+                        self._dbg(f"MCP discovery failed for {srv.slug}: {exc}")
+
+        for srv, cached_or_headers in pending:
+            raw_tools = cached_or_headers if isinstance(cached_or_headers, list) else fetched.get(srv.id)
             if not raw_tools:
                 continue
             metas = []

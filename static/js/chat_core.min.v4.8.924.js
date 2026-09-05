@@ -2418,25 +2418,25 @@ icon:"fa-file-lines",kind:"minimal",itemKey:"file"},{id:"mcp",label:"/mcp",descr
  / off\uFF09",icon:"fa-plug",kind:"minimal",itemKey:"mcp"},{id:"sysprompt",label:"/sysprompt",description:"\
 SysPrompt\u3092\u5207\u308A\u66FF\u3048\u308B\uFF08on / off\uFF09",icon:"fa-terminal",kind:"minimal",
 itemKey:"sysprompt"},{id:"thinking",label:"/thinking",description:"Thinking\u306E\u5024\u3092\u9078\u629E\uFF08off / min / low / m\
-id / high\uFF09",icon:"fa-brain",kind:"minimal",itemKey:"thinking",requiresArgument:!0,argumentHint:"\
-Thinking\u3092\u5165\u529B\uFF08off / min / low / mid / high\uFF09..."},{id:"thinking-off",label:"/t\
-hinking off",description:"Thinking\u3092OFF\u306B\u3059\u308B",icon:"fa-brain",kind:"minimal",itemKey:"\
-thinking",presetArgument:"off"},{id:"thinking-min",label:"/thinking min",description:"Thinking\u3092Min\u306B\u3059\
-\u308B",icon:"fa-brain",kind:"minimal",itemKey:"thinking",presetArgument:"min"},{id:"thinking-low",label:"\
-/thinking low",description:"Thinking\u3092Low\u306B\u3059\u308B",icon:"fa-brain",kind:"minimal",itemKey:"\
-thinking",presetArgument:"low"},{id:"thinking-mid",label:"/thinking mid",description:"Thinking\u3092Mid\u306B\u3059\
-\u308B",icon:"fa-brain",kind:"minimal",itemKey:"thinking",presetArgument:"mid"},{id:"thinking-high",
-label:"/thinking high",description:"Thinking\u3092High\u306B\u3059\u308B",icon:"fa-brain",kind:"mini\
-mal",itemKey:"thinking",presetArgument:"high"},{id:"effort",label:"/effort",description:"Effort\u3092\u8ABF\u6574",
-icon:"fa-sliders-h",kind:"minimal",itemKey:"effort",requiresArgument:!0,argumentHint:"Effort\u3092\u5165\u529B\uFF08none\
- / low / medium / high / xhigh / max\uFF09..."},{id:"safety",label:"/safety",description:"Safety\u3092\u8ABF\u6574",
-icon:"fa-shield-halved",kind:"minimal",itemKey:"safety",requiresArgument:!0,argumentHint:"Safety\u3092\u5165\u529B\uFF08\
-default / none\uFF09..."},{id:"promptcache",label:"/promptcache",description:"PromptCache\u3092\u5207\u308A\u66FF\u3048\u308B\uFF08on /\
- off\uFF09",icon:"fa-database",kind:"minimal",itemKey:"promptcache"},{id:"compress",label:"/compress",
-description:"Compress\u3092\u5207\u308A\u66FF\u3048\u308B\uFF08on / off\uFF09",icon:"fa-compress-alt",
-kind:"minimal",itemKey:"compress"},{id:"tempchat",label:"/tempchat",description:"\u4E00\u6642\u30C1\u30E3\u30C3\u30C8\u3092\u5207\u308A\u66FF\u3048\u308B\uFF08on / o\
-ff\uFF09",icon:"fa-hourglass-half",kind:"minimal",itemKey:"tempchat"}],SLASH_COMMANDS=[{id:"settings",
-label:"/settings",description:"AI\u3067\u81EA\u7136\u8A00\u8A9E\u3092\u4F7F\u3063\u3066\u8A2D\u5B9A\u3092\u5909\u66F4\uFF08\u73FE\u5728\u9078\u629E\u4E2D\u306E\u30E2\u30C7\u30EB\u3092\u4F7F\u7528\uFF09",
+id / high\uFF09",icon:"fa-brain",kind:"minimal",itemKey:"thinking",requiresArgument:!0,autocompleteArgument:!0},
+{id:"thinking-off",label:"/thinking off",description:"Thinking\u3092OFF\u306B\u3059\u308B",icon:"fa-\
+brain",kind:"minimal",itemKey:"thinking",presetArgument:"off"},{id:"thinking-min",label:"/thinking m\
+in",description:"Thinking\u3092Min\u306B\u3059\u308B",icon:"fa-brain",kind:"minimal",itemKey:"thinki\
+ng",presetArgument:"min"},{id:"thinking-low",label:"/thinking low",description:"Thinking\u3092Low\u306B\u3059\u308B",
+icon:"fa-brain",kind:"minimal",itemKey:"thinking",presetArgument:"low"},{id:"thinking-mid",label:"/t\
+hinking mid",description:"Thinking\u3092Mid\u306B\u3059\u308B",icon:"fa-brain",kind:"minimal",itemKey:"\
+thinking",presetArgument:"mid"},{id:"thinking-high",label:"/thinking high",description:"Thinking\u3092Hig\
+h\u306B\u3059\u308B",icon:"fa-brain",kind:"minimal",itemKey:"thinking",presetArgument:"high"},{id:"e\
+ffort",label:"/effort",description:"Effort\u3092\u8ABF\u6574",icon:"fa-sliders-h",kind:"minimal",itemKey:"\
+effort",requiresArgument:!0,argumentHint:"Effort\u3092\u5165\u529B\uFF08none / low / medium / high / xhigh / max\uFF09..."},
+{id:"safety",label:"/safety",description:"Safety\u3092\u8ABF\u6574",icon:"fa-shield-halved",kind:"mi\
+nimal",itemKey:"safety",requiresArgument:!0,argumentHint:"Safety\u3092\u5165\u529B\uFF08default / none\uFF09..."},
+{id:"promptcache",label:"/promptcache",description:"PromptCache\u3092\u5207\u308A\u66FF\u3048\u308B\uFF08on / off\uFF09",
+icon:"fa-database",kind:"minimal",itemKey:"promptcache"},{id:"compress",label:"/compress",description:"\
+Compress\u3092\u5207\u308A\u66FF\u3048\u308B\uFF08on / off\uFF09",icon:"fa-compress-alt",kind:"minim\
+al",itemKey:"compress"},{id:"tempchat",label:"/tempchat",description:"\u4E00\u6642\u30C1\u30E3\u30C3\u30C8\u3092\u5207\u308A\u66FF\u3048\u308B\uFF08on / off\uFF09",
+icon:"fa-hourglass-half",kind:"minimal",itemKey:"tempchat"}],SLASH_COMMANDS=[{id:"settings",label:"/\
+settings",description:"AI\u3067\u81EA\u7136\u8A00\u8A9E\u3092\u4F7F\u3063\u3066\u8A2D\u5B9A\u3092\u5909\u66F4\uFF08\u73FE\u5728\u9078\u629E\u4E2D\u306E\u30E2\u30C7\u30EB\u3092\u4F7F\u7528\uFF09",
 icon:"fa-cog",example:"\u30C7\u30D5\u30A9\u30EB\u30C8\u30E2\u30C7\u30EB\u3092 gemini-2.5-flash \u306B\u5909\u66F4\u3057\u3066 thinking \u3092\u30AA\u30F3\u306B"},
 ...MINIMAL_SLASH_COMMANDS];let slashSuggestionsVisible=!1,slashSelectedIndex=0,lastSlashFilter=null,
 pendingSlashCommand=null;const AI_SETTINGS_CONVERSATION_KEY=`ai-settings-conversation:${typeof CHAT_CONFIG!=
@@ -6140,25 +6140,27 @@ n.style.maxHeight=`${v}px`}t.classList.remove("hidden"),slashSuggestionsVisible=
 const n=t.value,i=extractSlashCommandToken(n);if(i!==null){const r=String(n||"").trimStart();t.value=
 r.substring(1+i.length).trimStart()}else{const r=n.lastIndexOf("/");r!==-1?t.value=n.substring(0,r).
 trimEnd():t.value=""}hideSlashCommandSuggestions();const s=SLASH_COMMANDS.find(r=>r.id===e),a=t.value.
-trim();if(s&&s.kind==="minimal"&&(!s.requiresArgument||a)){t.value="",executeMinimalSlashCommand(e,a),
-t.dispatchEvent(new Event("input",{bubbles:!0})),t.focus();return}pendingSlashCommand=e,showPendingSlashCommandIndicator(
-e),t.focus(),t.dispatchEvent(new Event("input",{bubbles:!0}))}o(selectSlashCommand,"selectSlashComma\
-nd");const AI_SETTING_JUMP_TARGETS={default_model:{label:"\u65E2\u5B9A\u306E\u30E2\u30C7\u30EB",tab:"\
-general",control:"set-default-model"},default_vision_model:{label:"Vision Model",tab:"general",control:"\
-set-default-vision-model"},use_last_chat_settings:{label:"\u524D\u56DE\u306E\u8A2D\u5B9A\u3092\u7D99\u7D9A",
-tab:"general",control:"set-use-last-settings"},default_enable_search:{label:"\u65E2\u5B9A\u306ESearch",
-tab:"general",control:"set-default-search"},default_enable_url_context:{label:"\u65E2\u5B9A\u306EURLs",
-tab:"general",control:"set-default-url-context"},default_enable_maps:{label:"\u65E2\u5B9A\u306EMaps",
-tab:"general",control:"set-default-maps"},default_enable_python:{label:"\u65E2\u5B9A\u306EPython",tab:"\
-general",control:"set-default-python"},default_enable_file_creation:{label:"\u65E2\u5B9A\u306EFile",
-tab:"general",control:"set-default-file-creation"},default_enable_thinking:{label:"\u65E2\u5B9A\u306EThinking",
-tab:"general",control:"set-default-thinking"},default_thinking_level:{label:"Thinking Level",tab:"ge\
-neral",control:"set-default-thinking-level"},default_thinking_budget:{label:"Thinking Budget",tab:"g\
-eneral",control:"set-default-thinking-budget"},default_reasoning_effort:{label:"Reasoning Effort",tab:"\
-general",control:"set-default-reasoning-effort"},default_enable_system_prompt:{label:"\u65E2\u5B9A\u306ESysPrompt",
-tab:"general",control:"set-default-sys-prompt"},default_enable_mcp:{label:"\u65E2\u5B9A\u306EMCP",tab:"\
-general",control:"set-default-mcp"},default_safety_setting:{label:"\u65E2\u5B9A\u306ESafety",tab:"ge\
-neral",control:"set-default-safety"},auto_search_on_links:{label:"X\u30EA\u30F3\u30AF\u306E\u81EA\u52D5\u691C\u7D22",
+trim();if(s&&s.autocompleteArgument&&!a){t.value=`${s.label} `,slashSelectedIndex=0,lastSlashFilter=
+null,t.dispatchEvent(new Event("input",{bubbles:!0})),t.focus();return}if(s&&s.kind==="minimal"&&(!s.
+requiresArgument||a)){t.value="",executeMinimalSlashCommand(e,a),t.dispatchEvent(new Event("input",{
+bubbles:!0})),t.focus();return}pendingSlashCommand=e,showPendingSlashCommandIndicator(e),t.focus(),t.
+dispatchEvent(new Event("input",{bubbles:!0}))}o(selectSlashCommand,"selectSlashCommand");const AI_SETTING_JUMP_TARGETS={
+default_model:{label:"\u65E2\u5B9A\u306E\u30E2\u30C7\u30EB",tab:"general",control:"set-default-model"},
+default_vision_model:{label:"Vision Model",tab:"general",control:"set-default-vision-model"},use_last_chat_settings:{
+label:"\u524D\u56DE\u306E\u8A2D\u5B9A\u3092\u7D99\u7D9A",tab:"general",control:"set-use-last-setting\
+s"},default_enable_search:{label:"\u65E2\u5B9A\u306ESearch",tab:"general",control:"set-default-searc\
+h"},default_enable_url_context:{label:"\u65E2\u5B9A\u306EURLs",tab:"general",control:"set-default-ur\
+l-context"},default_enable_maps:{label:"\u65E2\u5B9A\u306EMaps",tab:"general",control:"set-default-m\
+aps"},default_enable_python:{label:"\u65E2\u5B9A\u306EPython",tab:"general",control:"set-default-pyt\
+hon"},default_enable_file_creation:{label:"\u65E2\u5B9A\u306EFile",tab:"general",control:"set-defaul\
+t-file-creation"},default_enable_thinking:{label:"\u65E2\u5B9A\u306EThinking",tab:"general",control:"\
+set-default-thinking"},default_thinking_level:{label:"Thinking Level",tab:"general",control:"set-def\
+ault-thinking-level"},default_thinking_budget:{label:"Thinking Budget",tab:"general",control:"set-de\
+fault-thinking-budget"},default_reasoning_effort:{label:"Reasoning Effort",tab:"general",control:"se\
+t-default-reasoning-effort"},default_enable_system_prompt:{label:"\u65E2\u5B9A\u306ESysPrompt",tab:"\
+general",control:"set-default-sys-prompt"},default_enable_mcp:{label:"\u65E2\u5B9A\u306EMCP",tab:"ge\
+neral",control:"set-default-mcp"},default_safety_setting:{label:"\u65E2\u5B9A\u306ESafety",tab:"gene\
+ral",control:"set-default-safety"},auto_search_on_links:{label:"X\u30EA\u30F3\u30AF\u306E\u81EA\u52D5\u691C\u7D22",
 tab:"general",control:"set-auto-search-links"},mic_transcribe_mode:{label:"\u30DE\u30A4\u30AF\u6587\u5B57\u8D77\u3053\u3057\u65B9\u5F0F",
 tab:"general",control:"set-mic-transcribe-mode"},stt_model:{label:"STT\u30E2\u30C7\u30EB",tab:"gener\
 al",control:"set-stt-model"},llm_transcribe_prompt:{label:"LLM\u6587\u5B57\u8D77\u3053\u3057\u30D7\u30ED\u30F3\u30D7\u30C8",

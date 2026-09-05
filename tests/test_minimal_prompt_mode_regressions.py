@@ -159,12 +159,15 @@ class MinimalPromptModeRegressionTests(unittest.TestCase):
         script = _current_asset("js", "chat_core.v4.8.*.js")
         self.assertIn("id: 'thinking', label: '/thinking'", script)
         self.assertIn("requiresArgument: true", script)
+        self.assertIn("autocompleteArgument: true", script)
         for level in ("off", "min", "low", "mid", "high"):
             self.assertIn(f"label: '/thinking {level}'", script)
             self.assertIn(f"presetArgument: '{level}'", script)
         self.assertIn("function slashCommandSuggestionFilter", script)
         self.assertIn("/^\\/thinking(\\s+.*)$/i", script)
         self.assertIn("command.presetArgument || argument", script)
+        self.assertIn("input.value = `${command.label} `", script)
+        self.assertIn("command.autocompleteArgument && !argument", script)
 
     def test_thinking_row_works_when_checkbox_disabled(self):
         # Gemini 3.x forces thinking on and disables the checkbox, so the

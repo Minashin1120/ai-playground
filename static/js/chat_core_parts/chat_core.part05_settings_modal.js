@@ -1081,7 +1081,7 @@
             { id: 'file', label: '/file', description: 'Fileを切り替える（on / off）', icon: 'fa-file-lines', kind: 'minimal', itemKey: 'file' },
             { id: 'mcp', label: '/mcp', description: 'MCPを切り替える（on / off）', icon: 'fa-plug', kind: 'minimal', itemKey: 'mcp' },
             { id: 'sysprompt', label: '/sysprompt', description: 'SysPromptを切り替える（on / off）', icon: 'fa-terminal', kind: 'minimal', itemKey: 'sysprompt' },
-            { id: 'thinking', label: '/thinking', description: 'Thinkingの値を選択（off / min / low / mid / high）', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', requiresArgument: true, argumentHint: 'Thinkingを入力（off / min / low / mid / high）...' },
+            { id: 'thinking', label: '/thinking', description: 'Thinkingの値を選択（off / min / low / mid / high）', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', requiresArgument: true, autocompleteArgument: true },
             { id: 'thinking-off', label: '/thinking off', description: 'ThinkingをOFFにする', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', presetArgument: 'off' },
             { id: 'thinking-min', label: '/thinking min', description: 'ThinkingをMinにする', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', presetArgument: 'min' },
             { id: 'thinking-low', label: '/thinking low', description: 'ThinkingをLowにする', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', presetArgument: 'low' },

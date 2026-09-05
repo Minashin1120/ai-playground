@@ -1192,6 +1192,14 @@
             hideSlashCommandSuggestions();
             const command = SLASH_COMMANDS.find((candidate) => candidate.id === cmdId);
             const argument = input.value.trim();
+            if (command && command.autocompleteArgument && !argument) {
+                input.value = `${command.label} `;
+                slashSelectedIndex = 0;
+                lastSlashFilter = null;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.focus();
+                return;
+            }
             if (command && command.kind === 'minimal' && (!command.requiresArgument || argument)) {
                 input.value = '';
                 executeMinimalSlashCommand(cmdId, argument);

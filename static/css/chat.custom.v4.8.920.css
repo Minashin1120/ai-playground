@@ -959,6 +959,8 @@
         .lib-btn-accent:hover:not(:disabled) { background: rgba(var(--theme-rgb), 0.28); border-color: rgba(var(--theme-rgb), 0.6); color: #eafffb; }
         .lib-btn-danger { background: rgba(249,112,141,0.12); border-color: rgba(249,112,141,0.35); color: #ffd2db; }
         .lib-btn-danger:hover:not(:disabled) { background: rgba(249,112,141,0.22); border-color: rgba(249,112,141,0.55); color: #ffe4ea; }
+        .lib-filter-btn.is-active { background: rgba(250,204,21,0.16); border-color: rgba(250,204,21,0.48); color: #fde68a; }
+        .lib-filter-btn.is-active:hover:not(:disabled) { background: rgba(250,204,21,0.24); border-color: rgba(250,204,21,0.65); }
 
         .lib-grid { padding: 20px 22px; }
         #lib-grid.lib-grid-responsive {
@@ -1111,6 +1113,10 @@
         .lib-action-circle:hover { transform: translateY(-1px); border-color: rgba(var(--theme-rgb), 0.45); }
         .lib-action-circle.lib-del { color: var(--danger); }
         .lib-action-circle.lib-del:hover { background: rgba(249,112,141,0.18); border-color: rgba(249,112,141,0.5); }
+        .lib-action-circle.lib-favorite-btn { color: #cbd5e1; }
+        .lib-action-circle.lib-favorite-btn:hover,
+        .lib-action-circle.lib-favorite-btn.is-favorite { color: #facc15; background: rgba(250,204,21,0.16); border-color: rgba(250,204,21,0.48); }
+        .lib-action-circle.lib-favorite-btn:disabled { opacity: 0.55; cursor: wait; }
 
         /* Library empty states */
         .lib-empty-state {
@@ -1969,6 +1975,7 @@
         @media (max-width: 768px) {
             #lib-modal.lib-selecting #lib-grid .lib-open-btn,
             #lib-modal.lib-selecting #lib-grid .lib-del-btn,
+            #lib-modal.lib-selecting #lib-grid .lib-favorite-btn,
             #lib-modal.lib-selecting #lib-grid a[download] {
                 display: none !important;
             }

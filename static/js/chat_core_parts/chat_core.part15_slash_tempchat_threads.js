@@ -1316,12 +1316,22 @@
             const q = lib.searchQuery || (get('lib-search') ? get('lib-search').value : '') || '';
             return String(q).trim().toLocaleLowerCase();
         }
+        function updateLibFavoriteFilterUi() {
+            const btn = get('lib-favorite-filter-btn');
+            if (!btn) return;
+            const active = !!lib.favoritesOnly;
+            btn.classList.toggle('is-active', active);
+            btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+            const icon = btn.querySelector('i');
+            if (icon) icon.className = active ? 'fas fa-star' : 'far fa-star';
+        }
         function fileNameForSearch(item) {
             return String((item && item.filename) || '').toLocaleLowerCase();
         }
         function renderLibraryGrid() {
             const grid = get('lib-grid');
             if (!grid) return;
+            updateLibFavoriteFilterUi();
             grid.innerHTML = '';
             if (!lib.files || !lib.files.length) {
                 grid.innerHTML = '<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas fa-folder"></i></div><p class="lib-empty-title">ファイルがまだありません</p><p class="lib-empty-sub">アップロードしたファイルがここに表示されます。</p></div>';
@@ -1331,14 +1341,20 @@
             }
             const ordered = sortLibraryFiles(lib.files);
             const q = getLibSearchQuery();
-            const filtered = q ? ordered.filter((f) => fileNameForSearch(f).includes(q)) : ordered;
+            const filtered = ordered.filter((f) => {
+                if (lib.favoritesOnly && !f.is_favorite) return false;
+                return !q || fileNameForSearch(f).includes(q);
+            });
             const countEl = get('lib-total-count');
             if (countEl) {
-                if (q) countEl.innerText = `${filtered.length} / ${lib.files.length} files`;
+                if (q || lib.favoritesOnly) countEl.innerText = `${filtered.length} / ${lib.files.length} files`;
                 else countEl.innerText = `${lib.files.length} files`;
             }
             if (!filtered.length) {
-                grid.innerHTML = '<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas fa-search"></i></div><p class="lib-empty-title">一致するファイルがありません</p><p class="lib-empty-sub">検索条件や並び順を変更してください。</p></div>';
+                const icon = lib.favoritesOnly && !q ? 'fa-star' : 'fa-search';
+                const title = lib.favoritesOnly && !q ? 'お気に入りがありません' : '一致するファイルがありません';
+                const sub = lib.favoritesOnly && !q ? 'ファイルの星ボタンからお気に入りに追加できます。' : '検索条件や並び順を変更してください。';
+                grid.innerHTML = `<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas ${icon}"></i></div><p class="lib-empty-title">${title}</p><p class="lib-empty-sub">${sub}</p></div>`;
                 return;
             }
             let idx = 0;

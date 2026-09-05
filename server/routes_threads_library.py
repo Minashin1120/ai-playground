@@ -199,6 +199,11 @@ def delete_message(mid):
 def get_files_lib():
     try:
         label_map = _get_user_file_label_map(current_user.id)
+        favorite_paths = {
+            row.rel_path for row in FileCache.query.filter_by(
+                user_id=current_user.id, provider="favorite"
+            ).all() if row.rel_path
+        }
         msgs = Message.query.join(Thread).filter(Thread.user_id == current_user.id, Message.image_url != None).order_by(Message.timestamp.desc()).all()
         files = []
         seen = set()
@@ -231,6 +236,7 @@ def get_files_lib():
                             'thumbnail_url': url_for('serve_file_thumb', filename=norm) if ext in image_exts else None,
                             'type': 'image' if ext in image_exts else 'file',
                             'ext': ext,
+                            'is_favorite': norm in favorite_paths,
                             'ts': msg_ts
                         })
         # Include uploaded files that are not yet attached to any message
@@ -265,10 +271,46 @@ def get_files_lib():
                     'thumbnail_url': url_for('serve_file_thumb', filename=rel_path) if ext in image_exts else None,
                     'type': 'image' if ext in image_exts else 'file',
                     'ext': ext,
+                    'is_favorite': rel_path in favorite_paths,
                     'ts': ts
                 })
         return jsonify(files)
     except: return jsonify([])
+
+
+@app.route('/api/files/favorite', methods=['POST'])
+@login_required
+def toggle_file_favorite():
+    data = request.get_json(silent=True) or {}
+    rel_path = _normalize_upload_ref(data.get('filepath') or data.get('path'))
+    if not rel_path:
+        return jsonify({'error': 'invalid filepath'}), 400
+    if rel_path.startswith('..') or os.path.isabs(rel_path) or not rel_path.startswith(f'{current_user.id}/'):
+        return jsonify({'error': 'forbidden'}), 403
+    info = _get_file_disk_info(rel_path)
+    if not info or not info.get('exists'):
+        return jsonify({'error': 'file not found'}), 404
+    try:
+        favorite = FileCache.query.filter_by(
+            user_id=current_user.id, rel_path=rel_path, provider='favorite'
+        ).order_by(FileCache.id.desc()).first()
+        if favorite:
+            db.session.delete(favorite)
+            is_favorite = False
+        else:
+            _upsert_file_cache(
+                current_user.id,
+                rel_path,
+                'favorite',
+                state='ready',
+                last_error=None,
+            )
+            is_favorite = True
+        safe_db_commit()
+        return jsonify({'status': 'ok', 'filepath': rel_path, 'is_favorite': is_favorite})
+    except Exception:
+        db.session.rollback()
+        return jsonify({'error': 'favorite update failed'}), 500
 
 
 @app.route('/api/files/delete', methods=['POST'])
@@ -319,4 +361,3 @@ def rename_library_file():
         return jsonify({'status': 'ok', 'filepath': rel_path, 'filename': display_name, 'original_filename': base_name})
     except Exception:
         return jsonify({'error': 'rename failed'}), 500
-

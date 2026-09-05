@@ -4,8 +4,9 @@
             const q = getLibSearchQuery();
             const filtered = q ? ordered.filter((x) => fileNameForSearch(x).includes(q)) : ordered;
             const images = filtered.filter((x) => x.type === 'image');
-            if (!images.length) return;
-            const items = images.map((x) => ({
+            const visibleImages = lib.favoritesOnly ? images.filter((x) => x.is_favorite) : images;
+            if (!visibleImages.length) return;
+            const items = visibleImages.map((x) => ({
                 url: x.url,
                 filename: x.filename || x.original_filename || x.url.split('/').pop(),
                 element: null
@@ -35,7 +36,10 @@
                 ? `<img src="${escapeHtml(thumbSrc)}" alt="${escapeHtml(f.filename)}" loading="lazy" decoding="async" class="library-thumb-media">`
                 : `<div class="library-thumb-file"><div class="lib-file-icon"><i class="fas ${libraryFileIcon(extName)}"></i></div><span class="lib-file-badge">${escapeHtml(extName ? extName.toUpperCase() : 'FILE')}</span></div>`;
             const overlay = `<div class="lib-overlay"><a href="${escapeHtml(f.url)}" download="${escapeHtml(f.filename)}" class="lib-overlay-btn" onclick="event.stopPropagation()" title="ダウンロード"><i class="fas fa-download"></i></a></div>`;
-            const actions = `<div class="lib-thumb-actions"><button class="lib-open-btn lib-action-circle" title="開く"><i class="fas fa-eye"></i></button><button class="lib-del-btn lib-action-circle lib-del" title="削除"><i class="fas fa-trash"></i></button></div>`;
+            const favoriteClass = f.is_favorite ? ' is-favorite' : '';
+            const favoriteIcon = f.is_favorite ? 'fas fa-star' : 'far fa-star';
+            const favoriteLabel = f.is_favorite ? 'お気に入りから外す' : 'お気に入りに追加';
+            const actions = `<div class="lib-thumb-actions"><button class="lib-favorite-btn lib-action-circle${favoriteClass}" title="${favoriteLabel}" aria-label="${favoriteLabel}" aria-pressed="${f.is_favorite ? 'true' : 'false'}"><i class="${favoriteIcon}"></i></button><button class="lib-open-btn lib-action-circle" title="開く"><i class="fas fa-eye"></i></button><button class="lib-del-btn lib-action-circle lib-del" title="削除"><i class="fas fa-trash"></i></button></div>`;
             const bar = `<div class="lib-thumb-bar"><span class="lib-thumb-name" title="${escapeHtml(f.filename)}">${escapeHtml(f.filename)}</span></div>`;
             el.innerHTML = `<div class="lib-thumb-media-wrap">${media}</div>${overlay}${actions}${bar}`;
             el.onclick = () => {
@@ -67,6 +71,28 @@
                 delBtn.onclick = async (e) => {
                     e.stopPropagation();
                     await deleteSingleLibraryFile(f.filepath, el);
+                };
+            }
+            const favoriteBtn = el.querySelector('.lib-favorite-btn');
+            if (favoriteBtn) {
+                favoriteBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    favoriteBtn.disabled = true;
+                    try {
+                        const r = await apiFetch(CHAT_CONFIG.urls.toggleFileFavorite, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({filepath: f.filepath})
+                        });
+                        const d = await r.json().catch(() => ({}));
+                        if (!r.ok || typeof d.is_favorite !== 'boolean') throw new Error(d.error || 'favorite update failed');
+                        f.is_favorite = d.is_favorite;
+                        renderLibraryGrid();
+                        showToast(d.is_favorite ? 'お気に入りに追加しました' : 'お気に入りから外しました', 'success');
+                    } catch (err) {
+                        showToast('お気に入りの更新に失敗しました', 'error', true);
+                        favoriteBtn.disabled = false;
+                    }
                 };
             }
             return el;
@@ -193,7 +219,7 @@
                     const ext = (filename.split('.').pop() || '').toLowerCase();
                     const type = ['png','jpg','jpeg','webp','gif'].includes(ext) ? 'image' : 'file';
                     const thumbUrl = type === 'image' ? (thumbBase + fp) : null;
-                    files.unshift({ filename, original_filename: filename, filepath: fp, url: base + fp, thumbnail_url: thumbUrl, type, ext, ts: Math.floor(Date.now() / 1000) });
+                    files.unshift({ filename, original_filename: filename, filepath: fp, url: base + fp, thumbnail_url: thumbUrl, type, ext, is_favorite: false, ts: Math.floor(Date.now() / 1000) });
                     seenPaths.add(fp);
                 });
             } catch (e) {}

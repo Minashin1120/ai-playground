@@ -1275,6 +1275,14 @@
                 renderLibraryGrid();
             };
         }
+        if (get('lib-favorite-filter-btn')) {
+            lib.favoritesOnly = localStorage.getItem(LIB_FAVORITES_ONLY_KEY) === 'true';
+            get('lib-favorite-filter-btn').onclick = () => {
+                lib.favoritesOnly = !lib.favoritesOnly;
+                localStorage.setItem(LIB_FAVORITES_ONLY_KEY, String(lib.favoritesOnly));
+                renderLibraryGrid();
+            };
+        }
             if (get('add-gem-fixed-prompt-row')) {
                 get('add-gem-fixed-prompt-row').onclick = () => addGemFixedPromptRow();
             }

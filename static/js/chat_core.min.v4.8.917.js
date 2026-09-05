@@ -2074,26 +2074,29 @@ e.classList.remove("show"))},get("quote-confirm-btn").onclick=()=>{if(!quotePrev
 quotePreviewText,quotePreviewText="",get("quote-bar").classList.remove("preview"),get("prompt-input").
 focus(),schedulePromptTokenEstimate()},window.clearQuote=()=>{currentQuote="",quotePreviewText="";const e=get(
 "quote-bar");e.classList.remove("preview"),e.classList.remove("visible"),get("quote-text-display").innerText=
-"",schedulePromptTokenEstimate()};const MODELS=[{category:"Gemini 3.7 / 3.6 / 3.5",icon:"fas fa-star\
- text-yellow-400",description:"Google's latest multimodal models",items:[{id:"gemini-3.7-flash",implementedAt:"\
-2026-08-14",implementedRank:8e3,quickEmoji:"\u26A1",name:"Gemini 3.7 Flash",desc:"Most capable Flash\
- model for complex coding, agentic workflows, and multimodal tasks.",price:"In $0.75/1M, Out $3.75/1\
-M (introductory)",agenticView:!0},{id:"gemini-3.6-flash",implementedAt:"2026-07-30",implementedRank:6411,
-quickEmoji:"\u26A1",name:"Gemini 3.6 Flash",desc:"Latest Flash model for agentic, coding, and multim\
-odal tasks.",price:"In $1.50/1M, Out $7.50/1M",agenticView:!0},{id:"gemini-3.5-flash",implementedAt:"\
-2026-06-13",implementedRank:5900,quickEmoji:"\u2728",name:"Gemini 3.5 Flash",desc:"Most intelligent \
-Gemini 3.5 model built for speed.",price:"In $1.50/1M, Out $9.00/1M",agenticView:!0},{id:"gemini-3.5\
--flash-lite",implementedAt:"2026-07-30",implementedRank:6410,quickEmoji:"\u{1F680}",name:"Gemini 3.5\
- Flash-Lite",desc:"Fastest, lowest-cost Gemini 3.5 model for high-throughput execution.",price:"In $\
-0.30/1M, Out $2.50/1M",agenticView:!0}]},{category:"Gemini 3.1 / Previous",icon:"fas fa-star text-ye\
-llow-400",description:"Previous Gemini 3.x generation models",items:[{id:"gemini-3.1-flash-lite",implementedAt:"\
-2026-07-30",implementedRank:6440,quickEmoji:"\u{1F4A8}",name:"Gemini 3.1 Flash-Lite",desc:"Stable, c\
-ost-efficient model for high-volume lightweight tasks.",price:"In $0.25/1M, Out $1.50/1M",agenticView:!0},
-{id:"gemini-3.1-pro-preview",implementedAt:"2026-02-20",implementedRank:2430,name:"Gemini 3.1 Pro",desc:"\
-Next-gen native multimodal model.",price:"In $2.00/1M, Out $12.00/1M (\u2264200k)"},{id:"gemini-3.1-\
-flash-lite-preview",implementedAt:"2026-03-04",implementedRank:3e3,name:"Gemini 3.1 Flash-Lite Previ\
-ew",desc:"Retired preview model retained for chat history compatibility.",price:"In $0.25/1M, Out $1\
-.50/1M",deprecated:!0},{id:"gemini-3-flash-preview",implementedAt:"2026-06-13",implementedRank:5930,
+"",schedulePromptTokenEstimate()};const MODELS=[{category:"Gemini 3.8 / 3.7 / 3.6 / 3.5",icon:"fas f\
+a-star text-yellow-400",description:"Google's latest multimodal models",items:[{id:"gemini-3.8-flash",
+implementedAt:"2026-09-05",implementedRank:9160,quickEmoji:"\u26A1",name:"Gemini 3.8 Flash",desc:"Mo\
+st intelligent Flash model for long-horizon software engineering, autonomous agents, and complex ent\
+erprise workflows.",price:"In $0.75/1M, Out $3.75/1M (through 2026-12-31)",agenticView:!0},{id:"gemi\
+ni-3.7-flash",implementedAt:"2026-08-14",implementedRank:8e3,quickEmoji:"\u26A1",name:"Gemini 3.7 Fl\
+ash",desc:"Most capable Flash model for complex coding, agentic workflows, and multimodal tasks.",price:"\
+In $0.75/1M, Out $3.75/1M (introductory)",agenticView:!0},{id:"gemini-3.6-flash",implementedAt:"2026\
+-07-30",implementedRank:6411,quickEmoji:"\u26A1",name:"Gemini 3.6 Flash",desc:"Latest Flash model fo\
+r agentic, coding, and multimodal tasks.",price:"In $1.50/1M, Out $7.50/1M",agenticView:!0},{id:"gem\
+ini-3.5-flash",implementedAt:"2026-06-13",implementedRank:5900,quickEmoji:"\u2728",name:"Gemini 3.5 \
+Flash",desc:"Most intelligent Gemini 3.5 model built for speed.",price:"In $1.50/1M, Out $9.00/1M",agenticView:!0},
+{id:"gemini-3.5-flash-lite",implementedAt:"2026-07-30",implementedRank:6410,quickEmoji:"\u{1F680}",name:"\
+Gemini 3.5 Flash-Lite",desc:"Fastest, lowest-cost Gemini 3.5 model for high-throughput execution.",price:"\
+In $0.30/1M, Out $2.50/1M",agenticView:!0}]},{category:"Gemini 3.1 / Previous",icon:"fas fa-star tex\
+t-yellow-400",description:"Previous Gemini 3.x generation models",items:[{id:"gemini-3.1-flash-lite",
+implementedAt:"2026-07-30",implementedRank:6440,quickEmoji:"\u{1F4A8}",name:"Gemini 3.1 Flash-Lite",
+desc:"Stable, cost-efficient model for high-volume lightweight tasks.",price:"In $0.25/1M, Out $1.50\
+/1M",agenticView:!0},{id:"gemini-3.1-pro-preview",implementedAt:"2026-02-20",implementedRank:2430,name:"\
+Gemini 3.1 Pro",desc:"Next-gen native multimodal model.",price:"In $2.00/1M, Out $12.00/1M (\u2264200k)"},
+{id:"gemini-3.1-flash-lite-preview",implementedAt:"2026-03-04",implementedRank:3e3,name:"Gemini 3.1 \
+Flash-Lite Preview",desc:"Retired preview model retained for chat history compatibility.",price:"In \
+$0.25/1M, Out $1.50/1M",deprecated:!0},{id:"gemini-3-flash-preview",implementedAt:"2026-06-13",implementedRank:5930,
 name:"Gemini 3.0 Flash",desc:"Fastest and most cost-efficient.",price:"In $0.50/1M, Out $3.00/1M"},{
 id:"gemini-3-pro-preview",implementedAt:"2026-01-15",implementedRank:100,name:"Gemini 3.0 Pro",desc:"\
 Shut down by Google (March 2026). Retained for chat history compatibility.",price:"In $2.00/1M, Out \
@@ -3134,37 +3137,38 @@ city-50","pointer-events-none"));else if(rt)I&&ne&&(ne.checked=!1,I.classList.ad
 G&&G.classList.remove("hidden","opacity-50","pointer-events-none");const ue=d.includes("gemini-3");I&&
 (ue?I.classList.remove("hidden","opacity-50","pointer-events-none"):(ne&&(ne.checked=!1),I.classList.
 add("hidden","opacity-50","pointer-events-none")));const Ee=d.includes("flash");Array.from(S.options).
-forEach(we=>{d==="gemini-3.7-flash"?we.disabled=!["low","medium","high"].includes(we.value):d==="gem\
-ini-3.6-flash"?we.disabled=!["medium","high"].includes(we.value):d==="gemini-3.5-flash-lite"?we.disabled=
-!["minimal","medium","high"].includes(we.value):["minimal","medium"].includes(we.value)?we.disabled=
-!Ee:we.disabled=!1}),d==="gemini-3.7-flash"&&!["low","medium","high"].includes(S.value)||d==="gemini\
--3.6-flash"&&!["medium","high"].includes(S.value)?S.value="medium":d==="gemini-3.5-flash-lite"&&!["m\
-inimal","medium","high"].includes(S.value)?S.value="minimal":!Ee&&["minimal","medium"].includes(S.value)&&
-(S.value="high"),ue?_&&(_.checked=!0,_.disabled=!0):_&&(_.disabled=!1),M&&d.includes("gemini-2.5")&&
-(M.disabled=!1,M.classList.remove("opacity-50")),M&&!d.includes("gemini-2.5")&&(M.disabled=!0,M.classList.
-add("opacity-50"))}if(isLlmModel()&&(m.includes("gpt-5")||m.includes("o1")||m.includes("o3")||m.includes(
-"grok-4.3")||m.includes("grok-4.5")||m.includes("grok-4.6")||m.includes("grok-4.20-0309-reasoning")||
-m.includes("grok-build")||m.includes("multi-agent")||m.includes("gpt")&&!m.includes("tts")))k.classList.
-remove("hidden"),P&&P.classList.remove("opacity-50","pointer-events-none");else if(f){k.classList.remove(
-"hidden");const ue=get("vision-model-info");if(ue&&ue.classList.toggle("hidden",m==="deepseek-v4-fla\
-sh-vision-exp"),B&&(B.checked=!1,B.disabled=!0),P&&P.classList.add("opacity-50","pointer-events-none"),
-G){const Ee=get("enable-url-context");Ee&&(Ee.checked=!1),G.classList.add("opacity-50","pointer-even\
-ts-none")}I&&ne&&(ne.checked=!1,I.classList.add("opacity-50","pointer-events-none"))}else Pe||(P&&P.
-classList.remove("opacity-50","pointer-events-none"),I&&ne&&(ne.checked=!1,I.classList.add("hidden",
-"opacity-50","pointer-events-none")));Ae?ye&&ye.classList.add("opacity-50","pointer-events-none"):(ye&&
-ye.classList.remove("opacity-50","pointer-events-none"),(!rt||Ye)&&!d.includes("gpt-image")&&(A.disabled=
-!1,U.classList.remove("opacity-50"))),(rt&&!Ye||d.includes("gpt-image")||isGrokImageModel()||isGrokVideoModel()||
-Pe)&&A&&U&&(A.checked=!1,A.disabled=!0,U.classList.add("opacity-50")),ye&&(isLlmModel()?(ye.classList.
-remove("hidden"),J.disabled=!1):(J.checked=!1,J.disabled=!0,ye.classList.add("hidden"))),ve?(B&&(B.checked=
-!0,B.disabled=!0),P&&P.classList.add("opacity-50","pointer-events-none"),ye&&(J.checked=!1,J.disabled=
-!0,ye.classList.add("opacity-50","pointer-events-none"))):B&&!d.includes("tts")&&!Pe&&!f&&!We&&(B.disabled=
-!1);const le=get("mask-btn");le&&(isGptImageModel()?le.classList.remove("hidden"):(le.classList.add(
-"hidden"),currentMaskImage=null,updateMaskPreview())),updateTtsUi(),updateStsUi(),updateStsOptions(),
-o(),r(),l(),u(),p(),h(),g(),v(),b(),purgeUnsupportedAttachments(!0),refreshMinimalOptionsIfOpen(),applyMcpPromptChipUi()}
-a(w,"toggleOptions"),get("model-select")&&(get("model-select").addEventListener("change",w),get("mod\
-el-select").addEventListener("change",()=>schedulePromptTokenEstimate(!0))),bindPromptCacheControls(),
-w(),minimalPromptMode?setMinimalPromptMode(!0):setCompactPromptMode(compactPromptMode,!0),renderWelcomeQuickStart();
-const x=get("enable-canvas-mode");x&&(x.checked=canvasModeEnabled,x.addEventListener("change",()=>syncCanvasModeUi(
+forEach(we=>{d==="gemini-3.8-flash"||d==="gemini-3.7-flash"?we.disabled=!["low","medium","high"].includes(
+we.value):d==="gemini-3.6-flash"?we.disabled=!["medium","high"].includes(we.value):d==="gemini-3.5-f\
+lash-lite"?we.disabled=!["minimal","medium","high"].includes(we.value):["minimal","medium"].includes(
+we.value)?we.disabled=!Ee:we.disabled=!1}),(d==="gemini-3.8-flash"||d==="gemini-3.7-flash")&&!["low",
+"medium","high"].includes(S.value)||d==="gemini-3.6-flash"&&!["medium","high"].includes(S.value)?S.value=
+"medium":d==="gemini-3.5-flash-lite"&&!["minimal","medium","high"].includes(S.value)?S.value="minima\
+l":!Ee&&["minimal","medium"].includes(S.value)&&(S.value="high"),ue?_&&(_.checked=!0,_.disabled=!0):
+_&&(_.disabled=!1),M&&d.includes("gemini-2.5")&&(M.disabled=!1,M.classList.remove("opacity-50")),M&&
+!d.includes("gemini-2.5")&&(M.disabled=!0,M.classList.add("opacity-50"))}if(isLlmModel()&&(m.includes(
+"gpt-5")||m.includes("o1")||m.includes("o3")||m.includes("grok-4.3")||m.includes("grok-4.5")||m.includes(
+"grok-4.6")||m.includes("grok-4.20-0309-reasoning")||m.includes("grok-build")||m.includes("multi-age\
+nt")||m.includes("gpt")&&!m.includes("tts")))k.classList.remove("hidden"),P&&P.classList.remove("opa\
+city-50","pointer-events-none");else if(f){k.classList.remove("hidden");const ue=get("vision-model-i\
+nfo");if(ue&&ue.classList.toggle("hidden",m==="deepseek-v4-flash-vision-exp"),B&&(B.checked=!1,B.disabled=
+!0),P&&P.classList.add("opacity-50","pointer-events-none"),G){const Ee=get("enable-url-context");Ee&&
+(Ee.checked=!1),G.classList.add("opacity-50","pointer-events-none")}I&&ne&&(ne.checked=!1,I.classList.
+add("opacity-50","pointer-events-none"))}else Pe||(P&&P.classList.remove("opacity-50","pointer-event\
+s-none"),I&&ne&&(ne.checked=!1,I.classList.add("hidden","opacity-50","pointer-events-none")));Ae?ye&&
+ye.classList.add("opacity-50","pointer-events-none"):(ye&&ye.classList.remove("opacity-50","pointer-\
+events-none"),(!rt||Ye)&&!d.includes("gpt-image")&&(A.disabled=!1,U.classList.remove("opacity-50"))),
+(rt&&!Ye||d.includes("gpt-image")||isGrokImageModel()||isGrokVideoModel()||Pe)&&A&&U&&(A.checked=!1,
+A.disabled=!0,U.classList.add("opacity-50")),ye&&(isLlmModel()?(ye.classList.remove("hidden"),J.disabled=
+!1):(J.checked=!1,J.disabled=!0,ye.classList.add("hidden"))),ve?(B&&(B.checked=!0,B.disabled=!0),P&&
+P.classList.add("opacity-50","pointer-events-none"),ye&&(J.checked=!1,J.disabled=!0,ye.classList.add(
+"opacity-50","pointer-events-none"))):B&&!d.includes("tts")&&!Pe&&!f&&!We&&(B.disabled=!1);const le=get(
+"mask-btn");le&&(isGptImageModel()?le.classList.remove("hidden"):(le.classList.add("hidden"),currentMaskImage=
+null,updateMaskPreview())),updateTtsUi(),updateStsUi(),updateStsOptions(),o(),r(),l(),u(),p(),h(),g(),
+v(),b(),purgeUnsupportedAttachments(!0),refreshMinimalOptionsIfOpen(),applyMcpPromptChipUi()}a(w,"to\
+ggleOptions"),get("model-select")&&(get("model-select").addEventListener("change",w),get("model-sele\
+ct").addEventListener("change",()=>schedulePromptTokenEstimate(!0))),bindPromptCacheControls(),w(),minimalPromptMode?
+setMinimalPromptMode(!0):setCompactPromptMode(compactPromptMode,!0),renderWelcomeQuickStart();const x=get(
+"enable-canvas-mode");x&&(x.checked=canvasModeEnabled,x.addEventListener("change",()=>syncCanvasModeUi(
 x.checked))),syncCanvasModeUi(canvasModeEnabled,{persist:!1,skipReset:!1});const L=get("enable-codin\
 g-mode");L&&(L.checked=codingModeEnabled,L.addEventListener("change",()=>syncCodingModeUi(L.checked))),
 get("clear-coding-target-btn")&&get("clear-coding-target-btn").addEventListener("click",()=>{codingTargetSelection=

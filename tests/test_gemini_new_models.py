@@ -98,7 +98,7 @@ class GeminiNewModelsRegressionTests(unittest.TestCase):
         self.assertIn('img_model = "gemini-3-pro-image"', route[:500])
 
     def test_gemini_25_pro_routes_before_flash_catch_all(self):
-        route = APP_SOURCE[APP_SOURCE.index('if "gemini-3.7-flash" in model_key'):]
+        route = APP_SOURCE[APP_SOURCE.index('if "gemini-3.8-flash" in model_key'):]
         self.assertLess(
             route.index('elif "gemini-2.5-pro" in model_key'),
             route.index('elif "gemini-2.5" in model_key'),

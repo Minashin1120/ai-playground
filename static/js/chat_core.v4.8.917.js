@@ -6945,10 +6945,11 @@
 
         const MODELS = [
             {
-                category: "Gemini 3.7 / 3.6 / 3.5",
+                category: "Gemini 3.8 / 3.7 / 3.6 / 3.5",
                 icon: "fas fa-star text-yellow-400",
                 description: "Google's latest multimodal models",
                 items: [
+                    { id: "gemini-3.8-flash", implementedAt: "2026-09-05", implementedRank: 9160, quickEmoji: "⚡", name: "Gemini 3.8 Flash", desc: "Most intelligent Flash model for long-horizon software engineering, autonomous agents, and complex enterprise workflows.", price: "In $0.75/1M, Out $3.75/1M (through 2026-12-31)", agenticView: true },
                     { id: "gemini-3.7-flash", implementedAt: "2026-08-14", implementedRank: 8000, quickEmoji: "⚡", name: "Gemini 3.7 Flash", desc: "Most capable Flash model for complex coding, agentic workflows, and multimodal tasks.", price: "In $0.75/1M, Out $3.75/1M (introductory)", agenticView: true },
                     { id: "gemini-3.6-flash", implementedAt: "2026-07-30", implementedRank: 6411, quickEmoji: "⚡", name: "Gemini 3.6 Flash", desc: "Latest Flash model for agentic, coding, and multimodal tasks.", price: "In $1.50/1M, Out $7.50/1M", agenticView: true },
                     { id: "gemini-3.5-flash", implementedAt: "2026-06-13", implementedRank: 5900, quickEmoji: "✨", name: "Gemini 3.5 Flash", desc: "Most intelligent Gemini 3.5 model built for speed.", price: "In $1.50/1M, Out $9.00/1M", agenticView: true },
@@ -9480,7 +9481,7 @@
                     }
                     const isFlash = model.includes('flash');
                     Array.from(thinkLvl.options).forEach(opt => {
-                        if (model === 'gemini-3.7-flash') {
+                        if (model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') {
                             opt.disabled = !['low', 'medium', 'high'].includes(opt.value);
                         } else if (model === 'gemini-3.6-flash') {
                             opt.disabled = !['medium', 'high'].includes(opt.value);
@@ -9492,7 +9493,7 @@
                             opt.disabled = false;
                         }
                     });
-                    if (model === 'gemini-3.7-flash' && !['low', 'medium', 'high'].includes(thinkLvl.value)) {
+                    if ((model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') && !['low', 'medium', 'high'].includes(thinkLvl.value)) {
                         thinkLvl.value = 'medium';
                     } else if (model === 'gemini-3.6-flash' && !['medium', 'high'].includes(thinkLvl.value)) {
                         thinkLvl.value = 'medium';

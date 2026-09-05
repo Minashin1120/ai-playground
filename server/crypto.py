@@ -207,8 +207,8 @@ XAI_PCM_RATES = {8000, 16000, 22050, 24000, 32000, 44100, 48000}
 # Used to validate AI-suggested model IDs in settings updates.
 # Includes deprecated models since existing threads may still reference them.
 ALL_VALID_MODEL_IDS = {
-    # Gemini 3.7 / 3.6 / 3.5
-    "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite",
+    # Gemini 3.8 / 3.7 / 3.6 / 3.5
+    "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite",
     # Gemini 3.1 / previous Gemini 3.x
     "gemini-3.1-flash-lite", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview",
     "gemini-3-flash-preview", "gemini-3-pro-preview",

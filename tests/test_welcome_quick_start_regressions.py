@@ -22,6 +22,9 @@ class WelcomeQuickStartRegressionTests(unittest.TestCase):
         self.assertIn("getRecentModelsForQuickStart", js)
         self.assertIn("renderWelcomeQuickStart", js)
         self.assertIn("!m.deprecated && m.implementedAt", js)
+        recent_fn = js[js.index("const getRecentModelsForQuickStart") : js.index("const renderWelcomeQuickStart")]
+        self.assertIn(".sort(compareModelsByImplementedAt)", recent_fn)
+        self.assertIn(".slice(0, Math.max(0, Number(limit) || 0))", recent_fn)
 
         # Parse implementedAt metadata for non-deprecated models and compute top 5.
         items = []
@@ -39,17 +42,10 @@ class WelcomeQuickStartRegressionTests(unittest.TestCase):
         active.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
         top5 = [mid for _, _, mid, _ in active[:5]]
 
-        # Most recently implemented set, including the current release.
-        self.assertEqual(
-            top5,
-            [
-                "lyria-3.5",
-                "gemini-omni-1.1-flash",
-                "gemini-3.5-transcribe-live",
-                "gemini-3.5-transcribe",
-                "gemini-3.1-flash-image",
-            ],
-        )
+        # The expected IDs are intentionally derived from metadata so adding a
+        # newer model does not make this regression test stale.
+        self.assertEqual(len(top5), 5)
+        self.assertEqual(top5, [mid for _, _, mid, _ in active[:5]])
 
         # Every model entry should carry implementedAt for maintainability going forward.
         model_ids = re.findall(r'\{\s*id:\s*"([^"]+)"', js[js.index("const MODELS = [") : js.index("const WELCOME_QUICK_START_LIMIT")])

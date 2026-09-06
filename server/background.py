@@ -5260,7 +5260,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             for saved_message in saved_tool_context:
                                 if isinstance(saved_message, dict) and saved_message.get("role") in {"assistant", "tool"}:
                                     messages.append(saved_message)
-                        elif deepseek_native_vision and m.get('image_url'):
+                        # DeepSeek accepts image content in user messages only.  Rebuilding
+                        # assistant/system history entries with image_url blocks causes a
+                        # provider-side 400 even when the current request is valid.
+                        elif deepseek_native_vision and m.get('role') == 'user' and m.get('image_url'):
                             try:
                                 ds_content_parts = [{"type": "text", "text": m['content'] or ""}]
                                 ds_msg_images, ds_history_img_bytes = _load_message_history_images(

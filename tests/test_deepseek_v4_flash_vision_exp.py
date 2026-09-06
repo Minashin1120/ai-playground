@@ -35,6 +35,7 @@ class DeepSeekV4FlashVisionExpTests(unittest.TestCase):
         # History images are rebuilt as OpenAI-compatible image_url content blocks.
         self.assertIn('"type": "image_url"', build)
         self.assertIn('_load_message_history_images(', build)
+        self.assertIn("m.get('role') == 'user' and m.get('image_url')", build)
         # Image-only sends must not be rejected as empty requests.
         self.assertIn('if not user_text.strip() and deepseek_user_content is None:', build)
         # The text-only vision-analysis fallback stays intact for other DeepSeek models.

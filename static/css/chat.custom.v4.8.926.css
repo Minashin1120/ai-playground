@@ -5542,3 +5542,307 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
         @keyframes mcpSpin { to { transform: rotate(360deg); } }
         .settings-card .mcp-enabled-note { font-size: 10px; color: #6b7280; }
         #mcp-server-list .mcp-enable-toggle:disabled + div { opacity: 0.5; }
+
+/* ═══════════════════════════════════════════════════════════
+   V4.8.925 — Prompt bar visual refresh
+   Normal and compact modes only; minimal mode keeps its own surface.
+   ═══════════════════════════════════════════════════════════ */
+
+body:not(.minimal-prompt-mode) .composer-dock {
+    position: relative;
+    isolation: isolate;
+    padding-top: 0.7rem !important;
+    background:
+        radial-gradient(70% 120% at 50% 115%, rgba(var(--theme-rgb), 0.10), transparent 68%),
+        linear-gradient(180deg, rgba(9, 14, 27, 0.88), rgba(5, 8, 17, 0.97)) !important;
+    border-top: 1px solid rgba(148, 163, 184, 0.13) !important;
+    box-shadow: 0 -18px 42px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+body:not(.minimal-prompt-mode) .composer-dock::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    left: max(1.25rem, calc(50% - 26rem));
+    right: max(1.25rem, calc(50% - 26rem));
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgba(var(--theme-rgb), 0.62), transparent);
+    opacity: 0.8;
+}
+
+body:not(.minimal-prompt-mode) .composer-shell {
+    max-width: 52rem;
+    z-index: 1;
+}
+
+body:not(.minimal-prompt-mode) #prompt-controls-row {
+    column-gap: 0.45rem;
+    row-gap: 0.45rem;
+    padding: 0.05rem 0.18rem 0.1rem;
+    color: #9aa6ba;
+}
+
+body:not(.minimal-prompt-mode) #prompt-primary-controls {
+    gap: 0.4rem;
+}
+
+body:not(.minimal-prompt-mode) #model-selector-btn {
+    min-height: 2rem;
+    max-width: min(260px, 62vw);
+    padding: 0.38rem 0.72rem !important;
+    background:
+        linear-gradient(135deg, rgba(var(--theme-rgb), 0.14), rgba(13, 20, 38, 0.78)) !important;
+    border-color: rgba(var(--theme-rgb), 0.24) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 4px 14px rgba(0, 0, 0, 0.14);
+    transition: transform 0.2s var(--ease-out), border-color 0.2s var(--ease-standard), background 0.2s var(--ease-standard), box-shadow 0.2s var(--ease-standard);
+}
+
+body:not(.minimal-prompt-mode) #model-selector-btn:hover {
+    transform: translateY(-1px);
+    border-color: rgba(var(--theme-rgb), 0.52) !important;
+    background:
+        linear-gradient(135deg, rgba(var(--theme-rgb), 0.22), rgba(16, 25, 48, 0.86)) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 20px rgba(var(--theme-rgb), 0.12);
+}
+
+body:not(.minimal-prompt-mode) #model-selector-btn .fa-robot {
+    color: var(--theme-300) !important;
+    filter: drop-shadow(0 0 7px rgba(var(--theme-rgb), 0.38));
+}
+
+body:not(.minimal-prompt-mode) .composer-chip {
+    min-height: 1.9rem;
+    padding: 0.32rem 0.62rem;
+    border-color: rgba(148, 163, 184, 0.16);
+    background: rgba(14, 22, 41, 0.58);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+body:not(.minimal-prompt-mode) .composer-chip:hover {
+    border-color: rgba(148, 163, 184, 0.32);
+    background: rgba(22, 33, 58, 0.78);
+}
+
+body:not(.minimal-prompt-mode) .composer-chip:has(input:focus-visible),
+body:not(.minimal-prompt-mode) .composer-opt:has(input:focus-visible),
+body:not(.minimal-prompt-mode) .composer-opt:has(select:focus-visible) {
+    outline: 2px solid rgba(var(--theme-rgb), 0.52);
+    outline-offset: 2px;
+}
+
+body:not(.minimal-prompt-mode) #prompt-details-controls {
+    margin-top: 0.08rem;
+    padding-top: 0.42rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.11);
+}
+
+body:not(.minimal-prompt-mode) #prompt-details-controls .prompt-details-inner {
+    gap: 0.38rem;
+}
+
+body:not(.minimal-prompt-mode) .composer-opt {
+    min-height: 1.8rem;
+    padding: 0.28rem 0.58rem;
+    border-color: rgba(148, 163, 184, 0.14);
+    background: rgba(10, 16, 31, 0.52);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+body:not(.minimal-prompt-mode) .composer-opt:has(input:checked),
+body:not(.minimal-prompt-mode) .composer-opt:has(label input:checked) {
+    border-color: rgba(var(--theme-rgb), 0.34);
+    background: rgba(var(--theme-rgb), 0.105);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 3px 10px rgba(var(--theme-rgb), 0.06);
+}
+
+body:not(.minimal-prompt-mode) #prompt-controls-toggle-btn {
+    min-height: 1.9rem;
+    padding: 0.32rem 0.68rem !important;
+    border-color: rgba(var(--theme-rgb), 0.27) !important;
+    background: rgba(var(--theme-rgb), 0.10) !important;
+    color: var(--theme-200) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+body:not(.minimal-prompt-mode) #prompt-controls-toggle-btn:hover {
+    background: rgba(var(--theme-rgb), 0.18) !important;
+    border-color: rgba(var(--theme-rgb), 0.46) !important;
+    transform: translateY(-1px);
+}
+
+body:not(.minimal-prompt-mode) #input-row {
+    margin-top: 0.08rem;
+}
+
+body:not(.minimal-prompt-mode) .composer-input-shell {
+    min-height: 3.15rem;
+    padding: 0.4rem 0.42rem 0.4rem 0.38rem;
+    border-radius: 20px;
+    background:
+        linear-gradient(135deg, rgba(21, 31, 55, 0.82), rgba(7, 12, 25, 0.93)) !important;
+    border-color: rgba(148, 163, 184, 0.18);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.075),
+        inset 0 0 0 1px rgba(var(--theme-rgb), 0.025),
+        0 12px 30px rgba(0, 0, 0, 0.24);
+}
+
+body:not(.minimal-prompt-mode) .composer-input-shell:focus-within {
+    border-color: rgba(var(--theme-rgb), 0.62);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.10),
+        0 0 0 3px rgba(var(--theme-rgb), 0.12),
+        0 16px 36px rgba(0, 0, 0, 0.28),
+        0 0 28px rgba(var(--theme-rgb), 0.08);
+}
+
+body:not(.minimal-prompt-mode) #prompt-input {
+    min-height: 2.35rem !important;
+    padding-inline: 0.65rem !important;
+    color: #f4f7fb;
+    letter-spacing: 0.005em;
+}
+
+body:not(.minimal-prompt-mode) #prompt-input::placeholder {
+    color: #7f8da4;
+}
+
+body:not(.minimal-prompt-mode) .composer-tool-btn {
+    width: 2.38rem;
+    height: 2.38rem;
+    border-radius: 13px !important;
+    color: #a9b5c7 !important;
+    transition: background 0.18s var(--ease-standard), border-color 0.18s var(--ease-standard), color 0.18s var(--ease-standard), transform 0.18s var(--ease-out);
+}
+
+body:not(.minimal-prompt-mode) .composer-tool-btn:hover {
+    transform: translateY(-1px);
+    background: rgba(var(--theme-rgb), 0.12) !important;
+    border-color: rgba(var(--theme-rgb), 0.18);
+    color: var(--theme-200) !important;
+}
+
+body:not(.minimal-prompt-mode) #rich-paste-btn.composer-tool-btn {
+    color: #fbbf24 !important;
+}
+
+body:not(.minimal-prompt-mode) #rich-paste-btn.composer-tool-btn:hover {
+    background: rgba(245, 158, 11, 0.14) !important;
+    border-color: rgba(245, 158, 11, 0.26);
+    color: #fde68a !important;
+}
+
+body:not(.minimal-prompt-mode) #send-btn.composer-send-btn,
+body:not(.minimal-prompt-mode) #send-btn {
+    width: 2.55rem !important;
+    height: 2.55rem !important;
+    min-width: 2.55rem;
+    border-radius: 15px !important;
+    background:
+        radial-gradient(circle at 32% 18%, rgba(255, 255, 255, 0.26), transparent 30%),
+        linear-gradient(145deg, var(--theme-500), var(--theme-700)) !important;
+    border: 1px solid rgba(var(--theme-rgb), 0.48) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 20px rgba(var(--theme-rgb), 0.20) !important;
+    transition: transform 0.18s var(--ease-out), filter 0.18s var(--ease-standard), box-shadow 0.18s var(--ease-standard);
+}
+
+body:not(.minimal-prompt-mode) #send-btn.composer-send-btn:hover,
+body:not(.minimal-prompt-mode) #send-btn:hover {
+    transform: translateY(-1px) scale(1.02);
+    filter: brightness(1.08) saturate(1.05);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 11px 24px rgba(var(--theme-rgb), 0.30) !important;
+}
+
+body:not(.minimal-prompt-mode) #send-btn.composer-send-btn:active,
+body:not(.minimal-prompt-mode) #send-btn:active {
+    transform: translateY(0) scale(0.97);
+}
+
+/* Compact mode becomes a single, intentional control rail. */
+body:not(.minimal-prompt-mode) #prompt-controls-row.compact-collapsed {
+    padding: 0.28rem 0.38rem;
+    border: 1px solid rgba(148, 163, 184, 0.13);
+    border-radius: 15px;
+    background: linear-gradient(90deg, rgba(14, 22, 41, 0.72), rgba(9, 15, 29, 0.52));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body:not(.minimal-prompt-mode) #prompt-controls-row.compact-collapsed #prompt-primary-controls {
+    flex: 1 1 auto;
+    margin-inline: 0;
+}
+
+body:not(.minimal-prompt-mode) #prompt-controls-row.compact-collapsed #model-selector-btn {
+    min-height: 1.9rem;
+    max-width: min(280px, 64vw);
+}
+
+body:not(.minimal-prompt-mode) #prompt-controls-row.compact-collapsed .composer-chip {
+    min-height: 1.85rem;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+body:not(.minimal-prompt-mode).liquid-glass-mode .composer-dock {
+    background:
+        radial-gradient(70% 120% at 50% 115%, rgba(var(--theme-rgb), 0.10), transparent 68%),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.105), rgba(13, 25, 48, 0.42)) !important;
+}
+
+body:not(.minimal-prompt-mode).liquid-glass-mode .composer-input-shell {
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.115), rgba(10, 20, 40, 0.34)) !important;
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+@media (max-width: 640px) {
+    body:not(.minimal-prompt-mode) .composer-dock {
+        padding-top: 0.5rem !important;
+    }
+
+    body:not(.minimal-prompt-mode) .composer-dock::before {
+        left: 1rem;
+        right: 1rem;
+    }
+
+    body:not(.minimal-prompt-mode) #prompt-controls-row {
+        padding-inline: 0;
+    }
+
+    body:not(.minimal-prompt-mode) .composer-input-shell {
+        min-height: 2.9rem;
+        border-radius: 17px;
+        padding: 0.28rem;
+    }
+
+    body:not(.minimal-prompt-mode) .composer-tool-btn {
+        width: 2.18rem;
+        height: 2.18rem;
+        border-radius: 11px !important;
+    }
+
+    body:not(.minimal-prompt-mode) #send-btn.composer-send-btn,
+    body:not(.minimal-prompt-mode) #send-btn {
+        width: 2.28rem !important;
+        height: 2.28rem !important;
+        min-width: 2.28rem;
+        border-radius: 13px !important;
+    }
+
+    body:not(.minimal-prompt-mode) #prompt-input {
+        padding-inline: 0.42rem !important;
+    }
+
+    body:not(.minimal-prompt-mode) #prompt-controls-row.compact-collapsed {
+        padding: 0.22rem;
+        border-radius: 13px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body:not(.minimal-prompt-mode) #model-selector-btn:hover,
+    body:not(.minimal-prompt-mode) #prompt-controls-toggle-btn:hover,
+    body:not(.minimal-prompt-mode) .composer-tool-btn:hover,
+    body:not(.minimal-prompt-mode) #send-btn:hover {
+        transform: none;
+    }
+}

@@ -95,6 +95,12 @@
     }
 
     function setUnavailable(mode, message = '') {
+        // A failed request only establishes that this server is unreachable.
+        // Reserve the Internet-offline message for the browser's offline state.
+        if (mode === 'offline' && navigator.onLine !== false) {
+            mode = 'unstable';
+            message = 'このサイトへの通信が完了しませんでした。接続を再確認しています';
+        }
         connectionConsecutiveSlow = 0;
         connectionStatus = mode;
         setConnectionBanner(mode, message);

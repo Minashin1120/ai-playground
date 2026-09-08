@@ -6,6 +6,7 @@
 
     const DISPLAY_DELAY_MS = 400;
     const FORM_FALLBACK_MS = 15000;
+    const API_READ_TIMEOUT_MS = 30000;
     const DEFAULT_SPINNER_TEXT = '通信中...';
     const PHASE_LABELS = Object.freeze({
         communicating: DEFAULT_SPINNER_TEXT,
@@ -377,13 +378,47 @@
         }
 
         window.fetch = function () {
+            const args = Array.from(arguments);
             const details = getFetchDetails(arguments);
             const tracked = shouldTrackRequest(details.url, details.disabled);
             const label = requestSpinnerLabel(details.url, details.method);
-            const finish = tracked ? startOperation({ label }) : null;
+            const operationFinish = tracked ? startOperation({ label }) : null;
+            let timeoutId = null;
+            let callerSignal = null;
+            let onAbort = null;
+            let controller = null;
+            let boundedRead = false;
+            try {
+                const url = new URL(details.url, window.location.href);
+                boundedRead = !details.disabled && !isPassiveRequest(details.url)
+                    && url.origin === window.location.origin && url.pathname.startsWith('/api/')
+                    && /^(GET|HEAD)$/i.test(details.method);
+            } catch (_) {}
+            const finish = operationFinish || boundedRead ? function () {
+                if (timeoutId !== null) window.clearTimeout(timeoutId);
+                if (callerSignal && onAbort) callerSignal.removeEventListener('abort', onAbort);
+                if (operationFinish) operationFinish();
+            } : null;
+            if (finish) finish.setLabel = function (value) {
+                if (operationFinish) operationFinish.setLabel(value);
+            };
+            if (boundedRead) {
+                controller = new AbortController();
+                callerSignal = (args[1] && args[1].signal) || (args[0] && args[0].signal);
+                onAbort = function () { controller.abort(); finish(); };
+                if (callerSignal) {
+                    if (callerSignal.aborted) onAbort();
+                    else callerSignal.addEventListener('abort', onAbort, { once: true });
+                }
+                args[1] = Object.assign({}, args[1] || {}, { signal: controller.signal });
+                timeoutId = window.setTimeout(function () {
+                    controller.abort();
+                    finish();
+                }, API_READ_TIMEOUT_MS);
+            }
             let result;
             try {
-                result = originalFetch.apply(window, arguments);
+                result = originalFetch.apply(window, args);
             } catch (error) {
                 if (finish) finish();
                 throw error;

@@ -1334,13 +1334,20 @@
         function fileNameForSearch(item) {
             return String((item && item.filename) || '').toLocaleLowerCase();
         }
-        function renderLibraryGrid() {
+        function renderLibraryGrid(appendFiles = null) {
             const grid = get('lib-grid');
             if (!grid) return;
             updateLibFavoriteFilterUi();
             updateLibraryLoadMoreUi();
-            grid.innerHTML = '';
+            const isAppend = Array.isArray(appendFiles);
+            if (isAppend) {
+                const emptyState = grid.querySelector('.lib-empty-state');
+                if (emptyState) emptyState.remove();
+            } else {
+                grid.innerHTML = '';
+            }
             if (!lib.files || !lib.files.length) {
+                if (isAppend) return;
                 grid.innerHTML = '<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas fa-folder"></i></div><p class="lib-empty-title">ファイルがまだありません</p><p class="lib-empty-sub">アップロードしたファイルがここに表示されます。</p></div>';
                 const countEl = get('lib-total-count');
                 if (countEl) countEl.innerText = "0 files";
@@ -1359,6 +1366,7 @@
                 else countEl.innerText = `${totalCount} files`;
             }
             if (!filtered.length) {
+                if (isAppend) return;
                 const icon = lib.favoritesOnly && !q ? 'fa-star' : 'fa-search';
                 const title = lib.favoritesOnly && !q ? 'お気に入りがありません' : '一致するファイルがありません';
                 const sub = lib.favoritesOnly && !q ? 'ファイルの星ボタンからお気に入りに追加できます。' : '検索条件や並び順を変更してください。';
@@ -1366,7 +1374,13 @@
                 return;
             }
             let idx = 0;
-            filtered.forEach((f) => {
+            const itemsToRender = isAppend
+                ? sortLibraryFiles(appendFiles).filter((f) => {
+                    if (lib.favoritesOnly && !f.is_favorite) return false;
+                    return !q || fileNameForSearch(f).includes(q);
+                })
+                : filtered;
+            itemsToRender.forEach((f) => {
                 try {
                     const el = renderLibraryItem(f, idx++);
                     grid.appendChild(el);

@@ -30,6 +30,9 @@ class LibraryRedesignRegressionTests(unittest.TestCase):
         self.assertIn("limit: '120'", script)
         self.assertIn("offset: String(offset)", script)
         self.assertIn("loadLibraryFiles(true)", script)
+        self.assertIn("function renderLibraryGrid(appendFiles = null)", script)
+        self.assertIn("const isAppend = Array.isArray(appendFiles)", script)
+        self.assertIn("renderLibraryGrid(loadMore ? appendedFiles : null)", script)
         self.assertIn('id="lib-load-more-btn"', read_chat_markup())
 
     def test_template_has_modern_library_modal_structure(self):

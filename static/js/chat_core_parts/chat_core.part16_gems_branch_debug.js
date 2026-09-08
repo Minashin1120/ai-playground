@@ -288,13 +288,14 @@
                 });
             } catch (e) {}
             try {
-                if (grid && !loadMore) grid.innerHTML = '';
                 if (!lib.selected) lib.selected = new Set();
                 if (!loadMore) lib.selected.clear();
                 const pageFiles = files.filter(f => f && f.filepath && f.url);
+                let appendedFiles = [];
                 if (loadMore) {
                     const existing = new Set(lib.files.map(f => f.filepath));
-                    lib.files.push(...pageFiles.filter(f => !existing.has(f.filepath)));
+                    appendedFiles = pageFiles.filter(f => !existing.has(f.filepath));
+                    lib.files.push(...appendedFiles);
                 } else {
                     lib.files = pageFiles;
                 }
@@ -304,7 +305,7 @@
                 lib.fileSet = new Set(lib.files.map(f => f.filepath));
                 if (!lib.totalCount) lib.totalCount = lib.files.length;
                 window.updateLibSelectionUi();
-                renderLibraryGrid();
+                renderLibraryGrid(loadMore ? appendedFiles : null);
             } catch (e) {
                 lastErr = lastErr || e;
             }

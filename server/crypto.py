@@ -225,7 +225,7 @@ ALL_VALID_MODEL_IDS = {
     "gemini-robotics-er-2-preview", "deep-research-preview-04-2026", "deep-research-max-preview-04-2026",
     "antigravity-preview-05-2026", "gemini-2.5-computer-use-preview-10-2025", "gemini-embedding-2",
     # OpenAI Image Gen
-    "gpt-image-2", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini",
+    "gpt-image-2.5-sunburst", "gpt-image-2.5-flare", "gpt-image-2", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini",
     # OpenAI GPT
     "gpt-4o", "gpt-4o-mini",
     "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",

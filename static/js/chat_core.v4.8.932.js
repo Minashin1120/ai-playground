@@ -7052,6 +7052,8 @@
                 icon: "fas fa-paint-brush text-purple-400",
                 description: "GPT Image models",
                 items: [
+                    { id: "gpt-image-2.5-sunburst", implementedAt: "2026-09-09", implementedRank: 9320, quickEmoji: "🌞", name: "GPT-Image-2.5 Sunburst", desc: "Most capable image generation and editing with precision-focused quality.", price: "Text In $5/1M; Image In $8/1M; Image Out $30/1M" },
+                    { id: "gpt-image-2.5-flare", implementedAt: "2026-09-09", implementedRank: 9321, quickEmoji: "🔥", name: "GPT-Image-2.5 Flare", desc: "Fast, high-quality everyday image generation and editing.", price: "Text In $5/1M; Image In $8/1M; Image Out $30/1M" },
                     { id: "gpt-image-2", implementedAt: "2026-04-30", implementedRank: 4680, name: "GPT Image 2", desc: "State-of-the-art image generation and editing.", price: "Text In $5/1M; Image In $8/1M; Image Out $30/1M" },
                     { id: "gpt-image-1.5", implementedAt: "2026-03-13", implementedRank: 3410, name: "GPT Image 1.5", desc: "Previous-generation flagship image model.", price: "Text In $5/1M, Text Out $10/1M; Image Out $32/1M" },
                     { id: "gpt-image-1", implementedAt: "2026-03-13", implementedRank: 3411, name: "GPT Image 1", desc: "Standard quality.", price: "Text In $5/1M; Image Out $40/1M" },

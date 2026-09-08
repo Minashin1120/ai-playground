@@ -4867,7 +4867,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         v = str(val).strip()
                         return v if v in allowed else None
                     size_opt = _pick_image_opt(options.get('image_size'), {"auto", "1024x1024", "1536x1024", "1024x1536"}) or _OPENAI_IMAGE_DEFAULT_SIZE
-                    quality_opt = _pick_image_opt(options.get('image_quality'), {"auto", "low", "medium", "high"}) or _OPENAI_IMAGE_DEFAULT_QUALITY
+                    gpt_image_25_models = {"gpt-image-2.5-sunburst", "gpt-image-2.5-flare"}
+                    quality_values = {"auto", "low", "medium", "high"}
+                    if model_key.lower() in gpt_image_25_models:
+                        quality_values.update({"xhigh", "max"})
+                    quality_opt = _pick_image_opt(options.get('image_quality'), quality_values) or _OPENAI_IMAGE_DEFAULT_QUALITY
                     format_opt = _pick_image_opt(options.get('image_format'), {"png", "jpeg", "webp"}) or _OPENAI_IMAGE_OUTPUT_FORMAT
                     comp_opt = None
                     try:

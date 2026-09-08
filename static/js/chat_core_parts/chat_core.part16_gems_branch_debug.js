@@ -184,6 +184,57 @@
                 showToast("削除に失敗しました", "error", true);
             }
         }
+        function closeFileUsageModal() {
+            hideModal('lib-usage-modal');
+        }
+        window.closeFileUsageModal = closeFileUsageModal;
+        async function showSelectedFileUsage() {
+            if (!lib.selected || lib.selected.size !== 1) return;
+            const filepath = Array.from(lib.selected)[0];
+            const item = (lib.files || []).find((f) => f && f.filepath === filepath);
+            const title = get('lib-usage-title');
+            const list = get('lib-usage-list');
+            if (!list) return;
+            if (title) title.textContent = (item && (item.filename || item.original_filename)) || filepath.split('/').pop() || filepath;
+            list.innerHTML = '<div class="text-sm text-gray-400 text-center py-8"><i class="fas fa-spinner fa-spin mr-2"></i>読み込み中…</div>';
+            showModal('lib-usage-modal');
+            try {
+                const url = new URL(CHAT_CONFIG.urls.getFileUsageChats, window.location.origin);
+                url.searchParams.set('filepath', filepath);
+                const r = await apiFetch(url.toString(), { cache: 'no-store', headers: { 'Accept': 'application/json' } });
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+                const chats = Array.isArray(data.chats) ? data.chats : [];
+                if (!chats.length) {
+                    list.innerHTML = '<div class="text-sm text-gray-400 text-center py-8"><i class="fas fa-comment-dots text-xl mb-2 block"></i>このファイルを使用しているチャットはありません。</div>';
+                    return;
+                }
+                list.innerHTML = '';
+                chats.forEach((chat) => {
+                    const row = document.createElement('div');
+                    row.className = 'flex items-center gap-3 rounded-lg border border-gray-700 bg-gray-800/70 p-3';
+                    const updated = chat.updated_at ? new Date(chat.updated_at).toLocaleString() : '';
+                    row.innerHTML = `<div class="min-w-0 flex-1"><div class="text-sm text-gray-200 truncate" title="${escapeHtml(chat.title || '')}">${escapeHtml(chat.title || '新しいチャット')}</div><div class="text-[11px] text-gray-500 mt-1">${escapeHtml(updated)}</div></div><button type="button" class="lib-action-btn lib-btn-accent shrink-0"><i class="fas fa-folder"></i><span>開く</span></button>`;
+                    const openBtn = row.querySelector('button');
+                    if (openBtn) {
+                        openBtn.onclick = async () => {
+                            closeFileUsageModal();
+                            if (window.closeLibModal) window.closeLibModal(true);
+                            await loadMessages(String(chat.id));
+                        };
+                    }
+                    list.appendChild(row);
+                });
+                if (data.has_more) {
+                    const note = document.createElement('p');
+                    note.className = 'text-[11px] text-gray-500 text-center pt-2';
+                    note.textContent = '表示できるチャットは最大100件です。';
+                    list.appendChild(note);
+                }
+            } catch (e) {
+                list.innerHTML = '<div class="text-sm text-red-300 text-center py-8"><i class="fas fa-exclamation-triangle mr-2"></i>使用チャットの取得に失敗しました。</div>';
+            }
+        }
         async function loadLibraryFiles(loadMore = false) {
             const grid = get('lib-grid');
             const loadMoreBtn = get('lib-load-more-btn');

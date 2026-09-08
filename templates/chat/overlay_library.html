@@ -40,6 +40,7 @@
                         <button id="lib-attach-btn" class="lib-action-btn lib-btn-accent" disabled><i class="fas fa-paperclip"></i><span>添付</span></button>
                         <button id="lib-download-btn" class="lib-action-btn" disabled><i class="fas fa-download"></i><span>ダウンロード</span></button>
                         <button id="lib-rename-btn" class="lib-action-btn" disabled><i class="fas fa-pen"></i><span>名前変更</span></button>
+                        <button id="lib-usage-btn" class="lib-action-btn" disabled><i class="fas fa-comment-dots"></i><span>使用チャット</span></button>
                         <button id="lib-del-btn" class="lib-action-btn lib-btn-danger" disabled><i class="fas fa-trash"></i><span>削除</span></button>
                     </div>
                 </div>
@@ -52,6 +53,20 @@
                     <i class="fas fa-chevron-down"></i><span>さらに読み込む</span>
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- File usage modal -->
+    <div id="lib-usage-modal" class="fixed inset-0 z-[60] hidden items-center justify-center modal-overlay">
+        <div class="bg-gray-900 rounded-xl w-full max-w-xl max-h-[80vh] p-5 m-4 shadow-2xl border border-gray-700 modal-panel flex flex-col">
+            <div class="flex items-center justify-between gap-3 border-b border-gray-700 pb-3 mb-3">
+                <div class="min-w-0">
+                    <h2 class="text-base font-bold text-white flex items-center gap-2"><i class="fas fa-comment-dots text-cyan-300"></i>使用されているチャット</h2>
+                    <p id="lib-usage-title" class="text-xs text-gray-400 truncate mt-1"></p>
+                </div>
+                <button type="button" class="lib-close-btn shrink-0" onclick="closeFileUsageModal()" title="閉じる"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="lib-usage-list" class="overflow-y-auto space-y-2 min-h-0"></div>
         </div>
     </div>
     

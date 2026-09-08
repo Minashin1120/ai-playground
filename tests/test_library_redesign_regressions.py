@@ -45,6 +45,8 @@ class LibraryRedesignRegressionTests(unittest.TestCase):
             "id=\"lib-download-btn\"",
             "id=\"lib-rename-btn\"",
             "id=\"lib-del-btn\"",
+            "id=\"lib-usage-btn\"",
+            "id=\"lib-usage-modal\"",
         ):
             self.assertIn(ident, template, f"Missing library element: {ident}")
         # The redesigned modal must use the modern design-system classes.
@@ -91,6 +93,19 @@ class LibraryRedesignRegressionTests(unittest.TestCase):
         self.assertIn("const setLibBtnLabel = (btn, label)", script)
         self.assertIn("setLibBtnLabel(delBtn, count ? `削除 (${count})` : \"削除\")", script)
         self.assertNotIn("delBtn.innerText =", script)
+        self.assertIn("async function showSelectedFileUsage()", script)
+        self.assertIn("getFileUsageChats", script)
+        self.assertIn("loadMessages(String(chat.id))", script)
+
+    def test_file_usage_api_reads_only_attachment_columns_and_caps_results(self):
+        route = (APP_ROOT / "server" / "routes_threads_library.py").read_text(encoding="utf-8")
+        endpoint = route[route.index("def get_file_usage_chats") : route.index("@app.route('/api/files/favorite'")]
+        self.assertIn("db.session.query(Message.thread_id, Message.image_url)", endpoint)
+        self.assertIn("Message.image_url.contains(rel_path)", endpoint)
+        self.assertIn("len(matched_thread_ids) >= 101", endpoint)
+        self.assertIn("matched_thread_ids = matched_thread_ids[:100]", endpoint)
+        self.assertNotIn("Message.content", endpoint)
+        self.assertNotIn("Message.thought_data", endpoint)
 
     def test_css_avoids_expensive_per_card_backdrop_filters(self):
         css = _current_asset("css", "chat.custom.v4.8.*.css")

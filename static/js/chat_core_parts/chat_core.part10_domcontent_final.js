@@ -1216,6 +1216,7 @@
             const downloadBtn = get('lib-download-btn');
             const attachBtn = get('lib-attach-btn');
             const renameBtn = get('lib-rename-btn');
+            const usageBtn = get('lib-usage-btn');
             if (delBtn) {
                 delBtn.disabled = count === 0;
                 setLibBtnLabel(delBtn, count ? `削除 (${count})` : "削除");
@@ -1231,6 +1232,10 @@
             if (renameBtn) {
                 renameBtn.disabled = count !== 1;
                 setLibBtnLabel(renameBtn, "名前変更");
+            }
+            if (usageBtn) {
+                usageBtn.disabled = count !== 1;
+                setLibBtnLabel(usageBtn, "使用チャット");
             }
             if (lib.modal) {
                 const isMobile = window.matchMedia('(max-width: 768px)').matches;
@@ -1259,6 +1264,7 @@
         if (get('lib-download-btn')) get('lib-download-btn').onclick = () => downloadSelectedLibraryFiles();
         if (get('lib-attach-btn')) get('lib-attach-btn').onclick = () => attachSelectedLibraryFiles();
         if (get('lib-rename-btn')) get('lib-rename-btn').onclick = () => renameSelectedLibraryFile();
+        if (get('lib-usage-btn')) get('lib-usage-btn').onclick = () => showSelectedFileUsage();
         if (get('upload-lib-btn')) get('upload-lib-btn').onclick = () => openLibModal(true);
         if (get('lib-search')) {
             let librarySearchTimer = null;

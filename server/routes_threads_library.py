@@ -322,6 +322,69 @@ def get_files_lib():
         return jsonify({'error': 'library_load_failed', 'files': [], 'total': 0, 'has_more': False}), 500
 
 
+@app.route('/api/files/usage', methods=['GET'])
+@login_required
+def get_file_usage_chats():
+    """List chats that reference one library file without loading message bodies."""
+    try:
+        rel_path = _normalize_upload_ref(request.args.get('filepath') or request.args.get('path'))
+        if not rel_path:
+            return jsonify({'error': 'invalid filepath'}), 400
+        if not rel_path.startswith(f'{current_user.id}/'):
+            return jsonify({'error': 'forbidden'}), 403
+        info = _get_file_disk_info(rel_path)
+        if not info or not info.get('exists'):
+            return jsonify({'error': 'file not found'}), 404
+
+        matched_thread_ids = []
+        seen_thread_ids = set()
+        # image_url is the attachment reference column and is not encrypted.
+        # Select only the two small columns and stop after the bounded result
+        # set; large message body columns are intentionally never selected.
+        message_query = db.session.query(Message.thread_id, Message.image_url).join(
+            Thread, Message.thread_id == Thread.id
+        ).filter(
+            Thread.user_id == current_user.id,
+            Message.image_url.contains(rel_path),
+        ).order_by(Message.id.desc()).yield_per(500)
+        has_more = False
+        for thread_id, raw_refs in message_query:
+            if thread_id in seen_thread_ids:
+                continue
+            refs = _iter_message_attachment_refs(raw_refs)
+            if not any(_normalize_upload_ref(ref) == rel_path for ref in refs):
+                continue
+            seen_thread_ids.add(thread_id)
+            matched_thread_ids.append(thread_id)
+            if len(matched_thread_ids) >= 101:
+                break
+
+        has_more = len(matched_thread_ids) > 100
+        matched_thread_ids = matched_thread_ids[:100]
+        threads = []
+        if matched_thread_ids:
+            thread_query = Thread.query.with_entities(
+                Thread.id, Thread.public_id, Thread.title, Thread.updated_at
+            ).filter(
+                Thread.user_id == current_user.id,
+                Thread.id.in_(matched_thread_ids),
+            ).order_by(Thread.updated_at.desc(), Thread.id.desc())
+            for thread_id, public_id, title, updated_at in thread_query:
+                threads.append({
+                    'id': public_id or thread_id,
+                    'title': title or '新しいチャット',
+                    'updated_at': updated_at.isoformat() if updated_at else None,
+                })
+        return jsonify({
+            'filepath': rel_path,
+            'chats': threads,
+            'has_more': has_more,
+        })
+    except Exception as exc:
+        log_force(f'get_file_usage_chats failed: {exc}')
+        return jsonify({'error': 'file_usage_lookup_failed'}), 500
+
+
 @app.route('/api/files/favorite', methods=['POST'])
 @login_required
 def toggle_file_favorite():

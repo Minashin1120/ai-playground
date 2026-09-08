@@ -42,7 +42,7 @@
         };
     </script>
     {% include 'web_fonts.html' %}
-    <script src="{{ url_for('static', filename='js/progress_spinner.min.js', v='4.8.734') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/progress_spinner.min.js') }}?v={{ app_version }}" defer></script>
     {% if bot_config and bot_config.turnstileSiteKey %}
     <script>
         window.__turnstileApiLoaded = false;

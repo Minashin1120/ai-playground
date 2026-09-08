@@ -1222,12 +1222,27 @@
             syncRichPastePromptPreferencesUi(userSettingsSnapshot, options);
             return userSettingsSnapshot;
         };
+        const SETTINGS_LOAD_TIMEOUT_MS = 15000;
+        const fetchSettingsSnapshot = async () => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), SETTINGS_LOAD_TIMEOUT_MS);
+            try {
+                const response = await apiFetch(CHAT_CONFIG.urls.handleSettingsQuery, {
+                    cache: 'no-store',
+                    signal: controller.signal
+                });
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const data = await response.json();
+                if (!data || typeof data !== 'object') throw new Error('Invalid settings response');
+                return cacheUserSettings(data);
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        };
         const ensureUserSettingsSnapshot = async () => {
             if (userSettingsSnapshot) return userSettingsSnapshot;
             if (!userSettingsSnapshotPromise) {
-                userSettingsSnapshotPromise = apiFetch(CHAT_CONFIG.urls.handleSettingsQuery)
-                    .then((r) => r.json())
-                    .then((d) => cacheUserSettings(d))
+                userSettingsSnapshotPromise = fetchSettingsSnapshot()
                     .catch(() => null)
                     .finally(() => {
                         userSettingsSnapshotPromise = null;

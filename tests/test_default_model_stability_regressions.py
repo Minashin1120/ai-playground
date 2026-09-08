@@ -36,6 +36,14 @@ class DefaultModelStabilityRegressionTests(unittest.TestCase):
             opener.index("populateDefaultModelOptions()"),
         )
 
+    def test_settings_snapshot_has_a_bounded_request_and_is_reused_by_modal(self):
+        snapshot = CHAT_JS[CHAT_JS.index("const SETTINGS_LOAD_TIMEOUT_MS") : CHAT_JS.index("const closeSettingsModal")]
+        self.assertIn("const SETTINGS_LOAD_TIMEOUT_MS = 15000;", snapshot)
+        self.assertIn("controller.abort()", snapshot)
+        self.assertIn("clearTimeout(timeoutId)", snapshot)
+        self.assertIn("const settingsData = await ensureUserSettingsSnapshot();", snapshot)
+        self.assertNotIn("apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).then(r=>r.json()).then(d=>{", snapshot)
+
 
 if __name__ == "__main__":
     unittest.main()

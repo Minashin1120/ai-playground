@@ -6,7 +6,7 @@
     <title>Account Banned</title>
     <meta name="csrf-token" content="{{ csrf_token }}">
     {% include 'pwa_meta.html' %}
-    <script src="{{ url_for('static', filename='js/progress_spinner.min.js', v='4.8.734') }}"></script>
+    <script src="{{ url_for('static', filename='js/progress_spinner.min.js') }}?v={{ app_version }}"></script>
     <script src="{{ url_for('static', filename='js/pwa_install.min.js') }}?v={{ app_version }}" defer></script>
     {% include 'web_fonts.html' %}
     <style>

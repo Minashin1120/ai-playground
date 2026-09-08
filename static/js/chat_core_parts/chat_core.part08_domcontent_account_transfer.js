@@ -737,7 +737,8 @@
                 settingsModalLoaded = false;
                 setSettingsSaveEnabled(false);
                 snapshotSidebarHistory('settings-open-before');
-                await ensureUserSettingsSnapshot();
+                const settingsData = await ensureUserSettingsSnapshot();
+                if (settingsData) populateSettingsFormFromData(settingsData);
                 const searchEl = get('search-box');
                 const preservedThreadSearch = searchEl ? searchEl.value : '';
                 clearTimeout(searchTimeout);
@@ -771,17 +772,16 @@
                 }
                     refreshBanAppealSummary(true);
                     loadBanAppeals();
-                    apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).then(r=>r.json()).then(d=>{
-                        populateSettingsFormFromData(d);
-                    }).catch(() => {
-                    // The saved settings could not be loaded.  Keep the form
+                if (!settingsData) {
+                    // The saved settings could not be loaded. Keep the form
                     // uneditable so a save cannot overwrite settings with default
                     // values (previously this silently toggled E2EE and other
-                    // fields).  Closing and reopening the modal retries the load.
+                    // fields). The bounded request above also guarantees that a
+                    // network stall cannot leave this state indefinitely.
                     settingsModalLoaded = false;
                     setSettingsSaveEnabled(false);
                     showToast('設定の読み込みに失敗しました。閉じて再度開いてください', 'error', true);
-                });
+                }
                 loadFeedback();
                 bindSessionButtons();
                 loadSessions();

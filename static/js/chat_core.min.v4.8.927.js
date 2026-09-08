@@ -393,10 +393,14 @@ if(t)return t}return RICH_PASTE_DEFAULT_PROMPT},"getRichPasteEffectivePrompt"),s
 s&&(s.checked=!!(e&&e.rich_paste_prompt_use_custom_default)),i&&!richPastePromptPreferenceSyncing&&!n&&
 (i.value=getRichPasteEffectivePrompt(e))},"syncRichPastePromptPreferencesUi"),cacheUserSettings=o((e,t={})=>(userSettingsSnapshot=
 e||null,syncRichPastePromptPreferencesUi(userSettingsSnapshot,t),userSettingsSnapshot),"cacheUserSet\
-tings"),ensureUserSettingsSnapshot=o(async()=>userSettingsSnapshot||(userSettingsSnapshotPromise||(userSettingsSnapshotPromise=
-apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).then(e=>e.json()).then(e=>cacheUserSettings(e)).catch(
-()=>null).finally(()=>{userSettingsSnapshotPromise=null})),await userSettingsSnapshotPromise),"ensur\
-eUserSettingsSnapshot"),saveRichPastePromptPreferences=o(async()=>{const e=getRichPastePrompt(),t=getRichPasteUseDefaultCheckbox();
+tings"),SETTINGS_LOAD_TIMEOUT_MS=15e3,fetchSettingsSnapshot=o(async()=>{const e=new AbortController,
+t=setTimeout(()=>e.abort(),SETTINGS_LOAD_TIMEOUT_MS);try{const n=await apiFetch(CHAT_CONFIG.urls.handleSettingsQuery,
+{cache:"no-store",signal:e.signal});if(!n.ok)throw new Error("HTTP "+n.status);const i=await n.json();
+if(!i||typeof i!="object")throw new Error("Invalid settings response");return cacheUserSettings(i)}finally{
+clearTimeout(t)}},"fetchSettingsSnapshot"),ensureUserSettingsSnapshot=o(async()=>userSettingsSnapshot||
+(userSettingsSnapshotPromise||(userSettingsSnapshotPromise=fetchSettingsSnapshot().catch(()=>null).finally(
+()=>{userSettingsSnapshotPromise=null})),await userSettingsSnapshotPromise),"ensureUserSettingsSnaps\
+hot"),saveRichPastePromptPreferences=o(async()=>{const e=getRichPastePrompt(),t=getRichPasteUseDefaultCheckbox();
 if(!e||!t)return;const n={rich_paste_prompt_default:e.value||"",rich_paste_prompt_use_custom_default:!!t.
 checked};try{await apiFetch(CHAT_CONFIG.urls.handleSettings,{method:"POST",headers:{"Content-Type":"\
 application/json"},body:JSON.stringify(n)}),cacheUserSettings(Object.assign({},userSettingsSnapshot||
@@ -3366,45 +3370,45 @@ return;(await apiFetch("/api/sessions/revoke_others",{method:"POST"})).ok?await 
 \u6557\u3057\u307E\u3057\u305F","error",!0)});const m=get("session-revoke-all-btn");m&&(m.onclick=async()=>{
 if(!confirm("\u5168\u30BB\u30C3\u30B7\u30E7\u30F3\u3092\u5F37\u5236\u30ED\u30B0\u30A2\u30A6\u30C8\u3057\u307E\u3059\u3002\u3088\u308D\u3057\u3044\u3067\u3059\u304B\uFF1F"))
 return;(await apiFetch("/api/sessions/revoke_all",{method:"POST"})).ok?location.href="/login":showToast(
-"\u64CD\u4F5C\u306B\u5931\u6557\u3057\u307E\u3057\u305F","error",!0)})},"bindSessionButtons");if(apiFetch(
-CHAT_CONFIG.urls.handleSettingsQuery).then(c=>c.json()).then(c=>{cacheUserSettings(c),c&&(currentVisionModel=
-c.default_vision_model||"gemini-3-flash-preview"),applyChatDefaults(c);try{loadMcpServers()}catch{}c&&
-c.theme_color&&applyThemeColor(c.theme_color,!0),c&&Object.prototype.hasOwnProperty.call(c,"minimal_\
-prompt_mode")&&c.minimal_prompt_mode?setMinimalPromptMode(!0):c&&Object.prototype.hasOwnProperty.call(
-c,"compact_prompt_mode")&&setCompactPromptMode(!!c.compact_prompt_mode),get("set-client-debug-log")&&
-syncClientDebugLogToggle(c.enable_client_debug_log===!0,"settings sync");const d=get("enable-sys-pro\
-mpt");d&&c&&c.system_prompt&&String(c.system_prompt).trim()&&(!d.disabled&&!c.default_enable_system_prompt&&
-!c.use_last_chat_settings&&(d.checked=!0),w())}).catch(()=>{}),installAdminSidebarDebugObserver(),isAdminSidebarDebugEnabled())
-try{nativeConsoleInfo(ADMIN_SIDEBAR_DEBUG_PREFIX,"enabled. Open the browser DevTools Console (F12). \
-After reproducing, run copyAdminSidebarDebug() and paste the result.")}catch{}snapshotSidebarHistory(
-"page-init"),loadThreads(),loadGems(),get("send-btn").onclick=()=>{isStopMode?stopGeneration():sendMessage()},
-get("new-chat-btn").onclick=()=>startNewChat(),bindUploadButton(),bindMinimalOptionsEvents();const U=get(
-"vision-model-change-btn");U&&(U.onclick=()=>_openVisionModelSelector());const Q=get("compression-fo\
-rmat-only");Q&&(Q.onchange=()=>{const c=Q.checked,d=get("compression-max-size"),m=get("compression-m\
-ax-dim");d&&(d.disabled=c),m&&(m.disabled=c);const f=get("compression-size-wrap"),y=get("compression\
--dim-wrap");f&&(f.style.opacity=c?"0.4":"1"),y&&(y.style.opacity=c?"0.4":"1")});const ue=o(()=>{const c=get(
-"enable-temporary-chat");!c||c.dataset.bound==="1"||(c.dataset.bound="1",c.checked=!!temporaryChatEnabled,
-c.onchange=async()=>{const d=temporaryChatEnabled;await applyTemporaryChatSetting(c.checked)||(setTemporaryChatUiState(
-d),ensureTemporaryChatHeartbeat(!1))})},"bindTemporaryChatToggle");ue(),document.addEventListener("v\
-isibilitychange",()=>{document.visibilityState==="visible"&&ensureTemporaryChatHeartbeat(!0)}),window.
-addEventListener("focus",()=>{ensureTemporaryChatHeartbeat(!0)}),window.addEventListener("beforeunlo\
-ad",()=>{stopTemporaryChatHeartbeat(),stopCameraCaptureStream()});const ae=get("storage-usage-refres\
-h");ae&&(ae.onclick=()=>loadStorageUsage());let ce=null;const _e=o(()=>{const c=new Uint8Array(16);return window.
-crypto.getRandomValues(c),Array.from(c,d=>d.toString(16).padStart(2,"0")).join("")},"createAccountTr\
-ansferId"),X=o((c={})=>{const d=get("account-transfer-progress"),m=get("account-transfer-progress-ba\
-r"),f=get("account-transfer-progress-percent"),y=get("account-transfer-progress-text"),k=get("accoun\
-t-transfer-progress-detail"),_=Math.max(0,Math.min(100,Number(c.progress)||0));if(d&&d.classList.remove(
-"hidden"),m&&(m.style.width=`${_}%`),f&&(f.textContent=`${Math.round(_)}%`),y&&(y.textContent=c.message||
-"\u51E6\u7406\u72B6\u6CC1\u3092\u78BA\u8A8D\u3057\u3066\u3044\u307E\u3059"),k){const M={queued:"\u9806\u756A\u5F85\u3061",
-preparing:"\u30C7\u30FC\u30BF\u3092\u6E96\u5099\u4E2D",exporting_files:"\u30D5\u30A1\u30A4\u30EB\u3092\u66F8\u304D\u51FA\u3057\u4E2D",
-finalizing:"\u6700\u7D42\u51E6\u7406\u4E2D",ready:"\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u6E96\u5099\u5B8C\u4E86",
-downloading:"\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u4E2D",uploading:"ZIP\u3092\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u4E2D",
-validating:"ZIP\u3092\u691C\u8A3C\u4E2D",validating_files:"\u30D5\u30A1\u30A4\u30EB\u60C5\u5831\u3092\u691C\u8A3C\u4E2D",
-reading_files:"\u30D5\u30A1\u30A4\u30EB\u3092\u8AAD\u307F\u8FBC\u307F\u4E2D",importing_settings:"\u8A2D\u5B9A\u3092\
-\u53CD\u6620\u4E2D",importing_credentials:"\u8A8D\u8A3C\u60C5\u5831\u3092\u53CD\u6620\u4E2D",importing_gems:"\
-Gem\u3092\u8FFD\u52A0\u4E2D",saving_files:"\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u4E2D",importing_chats:"\
-\u30C1\u30E3\u30C3\u30C8\u5C65\u6B74\u3092\u8FFD\u52A0\u4E2D",importing_feedback:"\u30D5\u30A3\u30FC\u30C9\u30D0\u30C3\u30AF\u3092\u8FFD\u52A0\u4E2D",
-importing_diagnostics:"\u8A3A\u65AD\u30C7\u30FC\u30BF\u3092\u8FFD\u52A0\u4E2D",cancelling:"\u30AD\u30E3\u30F3\u30BB\u30EB\u51E6\u7406\u4E2D",
+"\u64CD\u4F5C\u306B\u5931\u6557\u3057\u307E\u3057\u305F","error",!0)})},"bindSessionButtons");if(ensureUserSettingsSnapshot().
+then(c=>{c&&(currentVisionModel=c.default_vision_model||"gemini-3-flash-preview"),applyChatDefaults(
+c);try{loadMcpServers()}catch{}c&&c.theme_color&&applyThemeColor(c.theme_color,!0),c&&Object.prototype.
+hasOwnProperty.call(c,"minimal_prompt_mode")&&c.minimal_prompt_mode?setMinimalPromptMode(!0):c&&Object.
+prototype.hasOwnProperty.call(c,"compact_prompt_mode")&&setCompactPromptMode(!!c.compact_prompt_mode),
+get("set-client-debug-log")&&syncClientDebugLogToggle(c.enable_client_debug_log===!0,"settings sync");
+const d=get("enable-sys-prompt");d&&c&&c.system_prompt&&String(c.system_prompt).trim()&&(!d.disabled&&
+!c.default_enable_system_prompt&&!c.use_last_chat_settings&&(d.checked=!0),w())}).catch(()=>{}),installAdminSidebarDebugObserver(),
+isAdminSidebarDebugEnabled())try{nativeConsoleInfo(ADMIN_SIDEBAR_DEBUG_PREFIX,"enabled. Open the bro\
+wser DevTools Console (F12). After reproducing, run copyAdminSidebarDebug() and paste the result.")}catch{}
+snapshotSidebarHistory("page-init"),loadThreads(),loadGems(),get("send-btn").onclick=()=>{isStopMode?
+stopGeneration():sendMessage()},get("new-chat-btn").onclick=()=>startNewChat(),bindUploadButton(),bindMinimalOptionsEvents();
+const U=get("vision-model-change-btn");U&&(U.onclick=()=>_openVisionModelSelector());const Q=get("co\
+mpression-format-only");Q&&(Q.onchange=()=>{const c=Q.checked,d=get("compression-max-size"),m=get("c\
+ompression-max-dim");d&&(d.disabled=c),m&&(m.disabled=c);const f=get("compression-size-wrap"),y=get(
+"compression-dim-wrap");f&&(f.style.opacity=c?"0.4":"1"),y&&(y.style.opacity=c?"0.4":"1")});const ue=o(
+()=>{const c=get("enable-temporary-chat");!c||c.dataset.bound==="1"||(c.dataset.bound="1",c.checked=
+!!temporaryChatEnabled,c.onchange=async()=>{const d=temporaryChatEnabled;await applyTemporaryChatSetting(
+c.checked)||(setTemporaryChatUiState(d),ensureTemporaryChatHeartbeat(!1))})},"bindTemporaryChatToggl\
+e");ue(),document.addEventListener("visibilitychange",()=>{document.visibilityState==="visible"&&ensureTemporaryChatHeartbeat(
+!0)}),window.addEventListener("focus",()=>{ensureTemporaryChatHeartbeat(!0)}),window.addEventListener(
+"beforeunload",()=>{stopTemporaryChatHeartbeat(),stopCameraCaptureStream()});const ae=get("storage-u\
+sage-refresh");ae&&(ae.onclick=()=>loadStorageUsage());let ce=null;const _e=o(()=>{const c=new Uint8Array(
+16);return window.crypto.getRandomValues(c),Array.from(c,d=>d.toString(16).padStart(2,"0")).join("")},
+"createAccountTransferId"),X=o((c={})=>{const d=get("account-transfer-progress"),m=get("account-tran\
+sfer-progress-bar"),f=get("account-transfer-progress-percent"),y=get("account-transfer-progress-text"),
+k=get("account-transfer-progress-detail"),_=Math.max(0,Math.min(100,Number(c.progress)||0));if(d&&d.
+classList.remove("hidden"),m&&(m.style.width=`${_}%`),f&&(f.textContent=`${Math.round(_)}%`),y&&(y.textContent=
+c.message||"\u51E6\u7406\u72B6\u6CC1\u3092\u78BA\u8A8D\u3057\u3066\u3044\u307E\u3059"),k){const M={queued:"\
+\u9806\u756A\u5F85\u3061",preparing:"\u30C7\u30FC\u30BF\u3092\u6E96\u5099\u4E2D",exporting_files:"\u30D5\u30A1\
+\u30A4\u30EB\u3092\u66F8\u304D\u51FA\u3057\u4E2D",finalizing:"\u6700\u7D42\u51E6\u7406\u4E2D",ready:"\
+\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u6E96\u5099\u5B8C\u4E86",downloading:"\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u4E2D",
+uploading:"ZIP\u3092\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u4E2D",validating:"ZIP\u3092\u691C\u8A3C\u4E2D",
+validating_files:"\u30D5\u30A1\u30A4\u30EB\u60C5\u5831\u3092\u691C\u8A3C\u4E2D",reading_files:"\u30D5\u30A1\u30A4\u30EB\u3092\
+\u8AAD\u307F\u8FBC\u307F\u4E2D",importing_settings:"\u8A2D\u5B9A\u3092\u53CD\u6620\u4E2D",importing_credentials:"\
+\u8A8D\u8A3C\u60C5\u5831\u3092\u53CD\u6620\u4E2D",importing_gems:"Gem\u3092\u8FFD\u52A0\u4E2D",saving_files:"\
+\u30D5\u30A1\u30A4\u30EB\u3092\u4FDD\u5B58\u4E2D",importing_chats:"\u30C1\u30E3\u30C3\u30C8\u5C65\u6B74\u3092\u8FFD\u52A0\u4E2D",
+importing_feedback:"\u30D5\u30A3\u30FC\u30C9\u30D0\u30C3\u30AF\u3092\u8FFD\u52A0\u4E2D",importing_diagnostics:"\
+\u8A3A\u65AD\u30C7\u30FC\u30BF\u3092\u8FFD\u52A0\u4E2D",cancelling:"\u30AD\u30E3\u30F3\u30BB\u30EB\u51E6\u7406\u4E2D",
 cancelled:"\u30AD\u30E3\u30F3\u30BB\u30EB\u6E08\u307F",expired:"\u4FDD\u5B58\u671F\u9650\u5207\u308C",
 completed:"\u5B8C\u4E86",failed:"\u5931\u6557"};k.textContent=M[c.phase]||"\u51E6\u7406\u72B6\u6CC1\u3092\u78BA\u8A8D\u3057\u3066\u3044\u307E\u3059\u3002"}
 const S=get("account-transfer-cancel-btn");S&&S.classList.toggle("hidden",["ready","completed","fail\
@@ -3971,18 +3975,17 @@ const A=parseInt(I[0]||"0",10),V=parseInt(I[1]||"0",10);P&&(P.innerText=`${A} / 
 width=`${Math.min(100,Math.floor(A/V*100))}%`)}}else B.classList.add("hidden"),z&&(z.style.width="0%"),
 P&&(P.innerText="");settingsModalLoaded=!0,setSettingsSaveEnabled(!0)},"populateSettingsFormFromData");
 window.openSettingsModal=async()=>{settingsModalLoaded=!1,setSettingsSaveEnabled(!1),snapshotSidebarHistory(
-"settings-open-before"),await ensureUserSettingsSnapshot();const c=get("search-box"),d=c?c.value:"";
-clearTimeout(searchTimeout);const m=get("settings-search");if(m&&(m.value=""),filterSettings(),ei(),
-ti(),showModal("settings-modal"),refreshSettingsTabsScroll(),requestAnimationFrame(()=>refreshSettingsTabsScroll()),
-restoreThreadSearchValue(d,"restored-search-box-open"),revealPersistentSidebarLists(),snapshotSidebarHistory(
-"settings-open-after"),[50,200,400,800].forEach(f=>{setTimeout(()=>{restoreThreadSearchValue(d,"rest\
-ored-search-box-"+f+"ms"),snapshotSidebarHistory("settings-open-later-"+f+"ms")},f)}),syncAdaptiveBlurSettingsUi(),
+"settings-open-before");const c=await ensureUserSettingsSnapshot();c&&$n(c);const d=get("search-box"),
+m=d?d.value:"";clearTimeout(searchTimeout);const f=get("settings-search");if(f&&(f.value=""),filterSettings(),
+ei(),ti(),showModal("settings-modal"),refreshSettingsTabsScroll(),requestAnimationFrame(()=>refreshSettingsTabsScroll()),
+restoreThreadSearchValue(m,"restored-search-box-open"),revealPersistentSidebarLists(),snapshotSidebarHistory(
+"settings-open-after"),[50,200,400,800].forEach(y=>{setTimeout(()=>{restoreThreadSearchValue(m,"rest\
+ored-search-box-"+y+"ms"),snapshotSidebarHistory("settings-open-later-"+y+"ms")},y)}),syncAdaptiveBlurSettingsUi(),
 loadStorageUsage(),loadSiteCacheUsage(),R(),An(),typeof window.__loadAdminEncThreads=="function")try{
 window.__loadAdminEncThreads()}catch{}location.pathname!=="/settings"&&history.pushState({modal:"set\
-tings",from:location.pathname},"","/settings"),Ge(!0),Ue(),apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).
-then(f=>f.json()).then(f=>{$n(f)}).catch(()=>{settingsModalLoaded=!1,setSettingsSaveEnabled(!1),showToast(
-"\u8A2D\u5B9A\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002\u9589\u3058\u3066\u518D\u5EA6\u958B\u3044\u3066\u304F\u3060\u3055\u3044",
-"error",!0)}),vn(),N(),he();try{loadMcpServers()}catch{}};const Rt=o((c=!1)=>{snapshotSidebarHistory(
+tings",from:location.pathname},"","/settings"),Ge(!0),Ue(),c||(settingsModalLoaded=!1,setSettingsSaveEnabled(
+!1),showToast("\u8A2D\u5B9A\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002\u9589\u3058\u3066\u518D\u5EA6\u958B\u3044\u3066\u304F\u3060\u3055\u3044",
+"error",!0)),vn(),N(),he();try{loadMcpServers()}catch{}};const Rt=o((c=!1)=>{snapshotSidebarHistory(
 "settings-close-before"),hideModal("settings-modal"),revealPersistentSidebarLists(),snapshotSidebarHistory(
 "settings-close-after"),setTimeout(()=>snapshotSidebarHistory("settings-close-later-300ms"),300),!c&&
 location.pathname==="/settings"&&history.back()},"closeSettingsModal"),ni=o(()=>{const c=get("set-th\

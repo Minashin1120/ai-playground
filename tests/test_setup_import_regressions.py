@@ -473,7 +473,7 @@ class SetupImportRegressionTests(unittest.TestCase):
         self.assertIn("`設定 ${imported.settings || 0}件`", js_source)
         self.assertIn("`API認証 ${imported.api_credentials || 0}件`", js_source)
         # openSettingsModal must delegate its population to the shared helper.
-        self.assertIn("apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).then(r=>r.json()).then(d=>{", js_source)
+        self.assertIn("const settingsData = await ensureUserSettingsSnapshot();", js_source)
         refresh_index = js_source.index("const refreshSettingsFormAfterImport")
         finish_index = js_source.index("const finishImportSuccess")
         self.assertLess(

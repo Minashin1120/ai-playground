@@ -37,15 +37,10 @@ class ProgressSpinnerRegressionTests(unittest.TestCase):
         self.assertIn("suppressCurrentInteraction", source)
         self.assertIn("data-progress-no-spinner", source)
 
-    def test_spinner_cache_version_matches_system_version(self):
-        import re
-        app_source = read_app_source()
-        m = re.search(r"SYSTEM_VERSION'\]\s*=\s*'(V4\.8\.\d+)'", app_source)
-        self.assertIsNotNone(m)
-        self.assertIn(f"SYSTEM_VERSION'] = '{m.group(1)}'", app_source)
+    def test_spinner_cache_version_follows_app_version(self):
         for name in ("chat", "login", "signup", "verify_2fa", "setup", "landing", "banned"):
             template = (APP_ROOT / "templates" / f"{name}.html").read_text(encoding="utf-8")
-            self.assertIn("filename='js/progress_spinner.min.js', v='4.8.734'", template)
+            self.assertIn("filename='js/progress_spinner.min.js') }}?v={{ app_version }}", template)
 
     def test_chat_streams_remain_tracked_until_body_consumption_finishes(self):
         assets = list((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))

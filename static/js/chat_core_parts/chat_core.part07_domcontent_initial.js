@@ -886,8 +886,7 @@
                     }
                 };
             };
-            apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).then(r => r.json()).then(d => {
-                cacheUserSettings(d);
+            ensureUserSettingsSnapshot().then(d => {
                 if (d) {
                     currentVisionModel = d.default_vision_model || 'gemini-3-flash-preview';
                 }

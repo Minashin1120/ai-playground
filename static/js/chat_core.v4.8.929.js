@@ -2982,7 +2982,7 @@
         const suppressedPendingJobIds = new Set();
         const pendingStreamReconnectJobs = new Set();
         let editingMessageId = null; // Track message being edited
-        const messageStore = {}, lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), attachMode: false, searchQuery: '', favoritesOnly: false };
+        const messageStore = {}, lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), attachMode: false, searchQuery: '', favoritesOnly: false, totalCount: 0, hasMore: false, loading: false, nextOffset: 0 };
         const LIB_SORT_KEY = 'lib_sort_order';
         const LIB_FAVORITES_ONLY_KEY = 'lib_favorites_only';
         let threadPage = 1, threadLoading = false, hasMoreThreads = true;
@@ -15028,9 +15028,11 @@
         if (get('lib-rename-btn')) get('lib-rename-btn').onclick = () => renameSelectedLibraryFile();
         if (get('upload-lib-btn')) get('upload-lib-btn').onclick = () => openLibModal(true);
         if (get('lib-search')) {
+            let librarySearchTimer = null;
             get('lib-search').oninput = () => {
                 lib.searchQuery = (get('lib-search').value || '').trim();
-                renderLibraryGrid();
+                if (librarySearchTimer) clearTimeout(librarySearchTimer);
+                librarySearchTimer = setTimeout(() => loadLibraryFiles(), 250);
             };
         }
         if (get('lib-sort')) {
@@ -15039,7 +15041,7 @@
             get('lib-sort').onchange = () => {
                 const v = get('lib-sort').value || 'newest';
                 localStorage.setItem(LIB_SORT_KEY, v);
-                renderLibraryGrid();
+                loadLibraryFiles();
             };
         }
         if (get('lib-favorite-filter-btn')) {
@@ -15047,9 +15049,10 @@
             get('lib-favorite-filter-btn').onclick = () => {
                 lib.favoritesOnly = !lib.favoritesOnly;
                 localStorage.setItem(LIB_FAVORITES_ONLY_KEY, String(lib.favoritesOnly));
-                renderLibraryGrid();
+                loadLibraryFiles();
             };
         }
+        if (get('lib-load-more-btn')) get('lib-load-more-btn').onclick = () => loadLibraryFiles(true);
             if (get('add-gem-fixed-prompt-row')) {
                 get('add-gem-fixed-prompt-row').onclick = () => addGemFixedPromptRow();
             }
@@ -22985,6 +22988,12 @@
             const q = lib.searchQuery || (get('lib-search') ? get('lib-search').value : '') || '';
             return String(q).trim().toLocaleLowerCase();
         }
+        function updateLibraryLoadMoreUi() {
+            const btn = get('lib-load-more-btn');
+            if (!btn) return;
+            btn.hidden = !lib.hasMore || !!lib.loading;
+            btn.disabled = !!lib.loading;
+        }
         function updateLibFavoriteFilterUi() {
             const btn = get('lib-favorite-filter-btn');
             if (!btn) return;
@@ -23001,6 +23010,7 @@
             const grid = get('lib-grid');
             if (!grid) return;
             updateLibFavoriteFilterUi();
+            updateLibraryLoadMoreUi();
             grid.innerHTML = '';
             if (!lib.files || !lib.files.length) {
                 grid.innerHTML = '<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas fa-folder"></i></div><p class="lib-empty-title">ファイルがまだありません</p><p class="lib-empty-sub">アップロードしたファイルがここに表示されます。</p></div>';
@@ -23016,8 +23026,9 @@
             });
             const countEl = get('lib-total-count');
             if (countEl) {
-                if (q || lib.favoritesOnly) countEl.innerText = `${filtered.length} / ${lib.files.length} files`;
-                else countEl.innerText = `${lib.files.length} files`;
+                const totalCount = Number(lib.totalCount) || lib.files.length;
+                if (lib.hasMore || q || lib.favoritesOnly) countEl.innerText = `${lib.files.length} / ${totalCount} files`;
+                else countEl.innerText = `${totalCount} files`;
             }
             if (!filtered.length) {
                 const icon = lib.favoritesOnly && !q ? 'fa-star' : 'fa-search';
@@ -23222,30 +23233,43 @@
                 showToast("削除に失敗しました", "error", true);
             }
         }
-        async function loadLibraryFiles() {
+        async function loadLibraryFiles(loadMore = false) {
             const grid = get('lib-grid');
-            renderLibrarySkeleton(grid);
-            let files = null;
+            const loadMoreBtn = get('lib-load-more-btn');
+            if (lib.loading) return;
+            lib.loading = true;
+            if (!loadMore) {
+                lib.nextOffset = 0;
+                lib.totalCount = 0;
+                lib.hasMore = false;
+            }
+            if (!loadMore) renderLibrarySkeleton(grid);
             let lastErr = null;
             const baseUrl = CHAT_CONFIG.urls.getFilesLib;
-            for (let i = 0; i < 2; i++) {
-                try {
-                    const url = i === 0 ? baseUrl : (baseUrl + (baseUrl.includes('?') ? '&' : '?') + 't=' + Date.now());
-                    const r = await apiFetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json' } });
-                    if (!r.ok) throw new Error('HTTP ' + r.status);
-                    const raw = await r.text();
-                    let parsed = [];
-                    try { parsed = JSON.parse(raw); } catch (e) { parsed = []; }
-                    if (Array.isArray(parsed)) {
-                        files = parsed;
-                        lastErr = null;
-                        break;
-                    }
-                } catch (e) {
-                    lastErr = e;
-                }
+            let payload = null;
+            try {
+                const sort = getLibSortOrder();
+                const query = getLibSearchQuery();
+                const offset = loadMore ? lib.nextOffset : 0;
+                const params = new URLSearchParams({
+                    limit: '120',
+                    offset: String(offset),
+                    sort,
+                    q: query,
+                    favorites_only: lib.favoritesOnly ? '1' : '0'
+                });
+                const r = await apiFetch(baseUrl + '?' + params.toString(), { cache: 'no-store', headers: { 'Accept': 'application/json' } });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                payload = await r.json();
+            } catch (e) {
+                lastErr = e;
             }
-            if (!Array.isArray(files)) files = [];
+            let files = Array.isArray(payload) ? payload : (payload && Array.isArray(payload.files) ? payload.files : []);
+            if (payload && !Array.isArray(payload)) {
+                lib.totalCount = Number(payload.total) || 0;
+                lib.hasMore = !!payload.has_more;
+                lib.nextOffset = (Number(payload.offset) || 0) + (Number(payload.limit) || files.length);
+            }
             try {
                 const base = FILE_BASE_URL;
                 const thumbBase = FILE_THUMB_BASE_URL;
@@ -23262,14 +23286,21 @@
                 });
             } catch (e) {}
             try {
-                if (grid) grid.innerHTML = '';
+                if (grid && !loadMore) grid.innerHTML = '';
                 if (!lib.selected) lib.selected = new Set();
-                lib.selected.clear();
-                lib.files = files.filter(f => f && f.filepath && f.url);
+                if (!loadMore) lib.selected.clear();
+                const pageFiles = files.filter(f => f && f.filepath && f.url);
+                if (loadMore) {
+                    const existing = new Set(lib.files.map(f => f.filepath));
+                    lib.files.push(...pageFiles.filter(f => !existing.has(f.filepath)));
+                } else {
+                    lib.files = pageFiles;
+                }
                 lib.files.forEach((f) => {
                     if (f && f.filepath) setAttachmentNameForPath(f.filepath, f.filename || f.original_filename || '');
                 });
                 lib.fileSet = new Set(lib.files.map(f => f.filepath));
+                if (!lib.totalCount) lib.totalCount = lib.files.length;
                 window.updateLibSelectionUi();
                 renderLibraryGrid();
             } catch (e) {
@@ -23278,6 +23309,11 @@
             if (lastErr && grid) {
                 console.error('Library load failed:', lastErr);
                 grid.innerHTML = '<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas fa-exclamation-triangle"></i></div><p class="lib-empty-title">ライブラリの読み込みに失敗しました</p><p class="lib-empty-sub">通信状況を確認して時間をおいて再度お試しください。</p></div>';
+            }
+            lib.loading = false;
+            if (loadMoreBtn) {
+                loadMoreBtn.disabled = false;
+                loadMoreBtn.hidden = !lib.hasMore || !!lastErr;
             }
         }
         async function deleteSelectedFiles() {

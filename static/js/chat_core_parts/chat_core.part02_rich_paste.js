@@ -1389,7 +1389,7 @@
         const suppressedPendingJobIds = new Set();
         const pendingStreamReconnectJobs = new Set();
         let editingMessageId = null; // Track message being edited
-        const messageStore = {}, lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), attachMode: false, searchQuery: '', favoritesOnly: false };
+        const messageStore = {}, lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), attachMode: false, searchQuery: '', favoritesOnly: false, totalCount: 0, hasMore: false, loading: false, nextOffset: 0 };
         const LIB_SORT_KEY = 'lib_sort_order';
         const LIB_FAVORITES_ONLY_KEY = 'lib_favorites_only';
         let threadPage = 1, threadLoading = false, hasMoreThreads = true;

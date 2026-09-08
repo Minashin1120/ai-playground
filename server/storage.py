@@ -754,13 +754,15 @@ def _get_user_file_label_map(user_id):
     if not user_id:
         return labels
     try:
-        rows = FileCache.query.filter_by(user_id=user_id, provider="label").all()
+        rows = FileCache.query.with_entities(
+            FileCache.rel_path, FileCache.file_uri
+        ).filter_by(user_id=user_id, provider="label").yield_per(500)
     except Exception:
         rows = []
     for row in rows:
         try:
-            rel = (row.rel_path or "").strip()
-            name = _sanitize_file_display_name(row.file_uri or "")
+            rel = (row[0] or "").strip()
+            name = _sanitize_file_display_name(row[1] or "")
             if rel and name:
                 labels[rel] = name
         except Exception:
@@ -918,5 +920,4 @@ KEY_FILE = os.path.join(os.path.dirname(__file__), 'secret.key')
 # encrypted with an older key remains readable.  This is what makes a live key
 # rotation safe: during a transition both the old and the new key decrypt.
 _KEY_RING = []
-
 

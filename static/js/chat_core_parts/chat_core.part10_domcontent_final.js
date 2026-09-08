@@ -1261,9 +1261,11 @@
         if (get('lib-rename-btn')) get('lib-rename-btn').onclick = () => renameSelectedLibraryFile();
         if (get('upload-lib-btn')) get('upload-lib-btn').onclick = () => openLibModal(true);
         if (get('lib-search')) {
+            let librarySearchTimer = null;
             get('lib-search').oninput = () => {
                 lib.searchQuery = (get('lib-search').value || '').trim();
-                renderLibraryGrid();
+                if (librarySearchTimer) clearTimeout(librarySearchTimer);
+                librarySearchTimer = setTimeout(() => loadLibraryFiles(), 250);
             };
         }
         if (get('lib-sort')) {
@@ -1272,7 +1274,7 @@
             get('lib-sort').onchange = () => {
                 const v = get('lib-sort').value || 'newest';
                 localStorage.setItem(LIB_SORT_KEY, v);
-                renderLibraryGrid();
+                loadLibraryFiles();
             };
         }
         if (get('lib-favorite-filter-btn')) {
@@ -1280,9 +1282,10 @@
             get('lib-favorite-filter-btn').onclick = () => {
                 lib.favoritesOnly = !lib.favoritesOnly;
                 localStorage.setItem(LIB_FAVORITES_ONLY_KEY, String(lib.favoritesOnly));
-                renderLibraryGrid();
+                loadLibraryFiles();
             };
         }
+        if (get('lib-load-more-btn')) get('lib-load-more-btn').onclick = () => loadLibraryFiles(true);
             if (get('add-gem-fixed-prompt-row')) {
                 get('add-gem-fixed-prompt-row').onclick = () => addGemFixedPromptRow();
             }

@@ -1,3 +1,6 @@
+import heapq
+
+
 @app.route('/api/encryption_scan', methods=['GET'])
 @login_required
 def encryption_scan():
@@ -194,88 +197,129 @@ def delete_message(mid):
     safe_db_commit()
     return jsonify({'status': 'ok'})
 
+class _LibraryHeapEntry:
+    """Keep the worst selected item at the heap root."""
+
+    __slots__ = ('key', 'item', 'reverse')
+
+    def __init__(self, key, item, reverse):
+        self.key = key
+        self.item = item
+        self.reverse = reverse
+
+    def __lt__(self, other):
+        if self.reverse:
+            return self.key < other.key
+        return self.key > other.key
+
+
+def _library_sort_spec(sort_order, item):
+    filename = str(item.get('filename') or '').casefold()
+    filepath = str(item.get('filepath') or '')
+    timestamp = int(item.get('ts') or 0)
+    if sort_order == 'oldest':
+        return (timestamp, filename, filepath), False
+    if sort_order == 'name_asc':
+        return (filename, -timestamp, filepath), False
+    if sort_order == 'name_desc':
+        return (filename, -timestamp, filepath), True
+    return (timestamp, filename, filepath), True
+
+
+def _library_item_is_better(candidate, current, reverse):
+    return candidate > current if reverse else candidate < current
+
+
 @app.route('/api/files', methods=['GET'])
 @login_required
 def get_files_lib():
+    """Return a bounded page without loading the account's messages."""
     try:
+        limit = max(1, min(request.args.get('limit', 120, type=int) or 120, 120))
+        offset = max(0, min(request.args.get('offset', 0, type=int) or 0, 10_000))
+        sort_order = (request.args.get('sort') or 'newest').strip().lower()
+        if sort_order not in {'newest', 'oldest', 'name_asc', 'name_desc'}:
+            sort_order = 'newest'
+        search = (request.args.get('q') or '').strip().casefold()
+        favorites_only = str(request.args.get('favorites_only', '')).lower() in {'1', 'true', 'yes', 'on'}
+
         label_map = _get_user_file_label_map(current_user.id)
-        favorite_paths = {
-            row.rel_path for row in FileCache.query.filter_by(
-                user_id=current_user.id, provider="favorite"
-            ).all() if row.rel_path
-        }
-        msgs = Message.query.join(Thread).filter(Thread.user_id == current_user.id, Message.image_url != None).order_by(Message.timestamp.desc()).all()
-        files = []
-        seen = set()
-        image_exts = {'png','jpg','jpeg','webp','gif'}
-        for m in msgs:
-            if not m.image_url: continue
-            try:
-                l = json.loads(m.image_url)
-                if not isinstance(l, list): l = [m.image_url]
-            except: l = [m.image_url]
-            msg_ts = None
-            try:
-                msg_ts = int(m.timestamp.timestamp())
-            except:
-                msg_ts = None
-            for p in l:
-                norm = _normalize_upload_ref(p)
-                if norm and norm not in seen:
-                    fp = os.path.join(app.config['UPLOAD_FOLDER'], norm)
-                    if os.path.exists(fp) or os.path.exists(fp + '.enc'):
-                        seen.add(norm)
-                        ext = os.path.splitext(norm)[1].lower().replace('.', '')
-                        base_name = os.path.basename(norm)
-                        display_name = label_map.get(norm) or base_name
-                        files.append({
+        favorite_paths = set()
+        favorite_query = FileCache.query.with_entities(FileCache.rel_path).filter_by(
+            user_id=current_user.id, provider='favorite'
+        ).yield_per(500)
+        for (rel_path,) in favorite_query:
+            if rel_path:
+                favorite_paths.add(rel_path)
+
+        # Keep only the requested page window in memory while scandir streams
+        # directory entries.  This bounds both ORM and Python allocations.
+        page_window = offset + limit
+        selected = []
+        total = 0
+        image_exts = {'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg', 'heic'}
+        upload_root = app.config['UPLOAD_FOLDER']
+        user_dir = os.path.join(upload_root, str(current_user.id))
+        if os.path.isdir(user_dir) and _path_is_within(upload_root, user_dir):
+            with os.scandir(user_dir) as entries:
+                for entry in entries:
+                    try:
+                        if not entry.is_file(follow_symlinks=False):
+                            continue
+                        name = entry.name
+                        if not name or name.startswith('.'):
+                            continue
+                        if name.endswith('.enc'):
+                            base_name = name[:-4]
+                            if not base_name or os.path.exists(os.path.join(user_dir, base_name)):
+                                continue
+                        else:
+                            base_name = name
+                        rel_path = f'{current_user.id}/{base_name}'
+                        display_name = label_map.get(rel_path) or base_name
+                        if search and search not in display_name.casefold():
+                            continue
+                        is_favorite = rel_path in favorite_paths
+                        if favorites_only and not is_favorite:
+                            continue
+                        try:
+                            timestamp = int(entry.stat(follow_symlinks=False).st_mtime)
+                        except Exception:
+                            timestamp = 0
+                        ext = os.path.splitext(base_name)[1].lower().lstrip('.')
+                        item = {
                             'filename': display_name,
                             'original_filename': base_name,
-                            'filepath': norm,
-                            'url': url_for('serve_file', filename=norm),
-                            'thumbnail_url': url_for('serve_file_thumb', filename=norm) if ext in image_exts else None,
+                            'filepath': rel_path,
+                            'url': url_for('serve_file', filename=rel_path),
+                            'thumbnail_url': url_for('serve_file_thumb', filename=rel_path) if ext in image_exts else None,
                             'type': 'image' if ext in image_exts else 'file',
                             'ext': ext,
-                            'is_favorite': norm in favorite_paths,
-                            'ts': msg_ts
-                        })
-        # Include uploaded files that are not yet attached to any message
-        ud = os.path.join(app.config['UPLOAD_FOLDER'], str(current_user.id))
-        if os.path.isdir(ud):
-            for entry in os.scandir(ud):
-                if not entry.is_file():
-                    continue
-                name = entry.name
-                if name.startswith('.'):
-                    continue
-                is_enc = name.endswith('.enc')
-                base_name = name[:-4] if is_enc else name
-                if not base_name:
-                    continue
-                rel_path = f"{current_user.id}/{base_name}"
-                if rel_path in seen:
-                    continue
-                ext = os.path.splitext(base_name)[1].lower().replace('.', '')
-                seen.add(rel_path)
-                ts = None
-                try:
-                    ts = int(entry.stat().st_mtime)
-                except:
-                    ts = None
-                display_name = label_map.get(rel_path) or os.path.basename(rel_path)
-                files.append({
-                    'filename': display_name,
-                    'original_filename': os.path.basename(rel_path),
-                    'filepath': rel_path,
-                    'url': url_for('serve_file', filename=rel_path),
-                    'thumbnail_url': url_for('serve_file_thumb', filename=rel_path) if ext in image_exts else None,
-                    'type': 'image' if ext in image_exts else 'file',
-                    'ext': ext,
-                    'is_favorite': rel_path in favorite_paths,
-                    'ts': ts
-                })
-        return jsonify(files)
-    except: return jsonify([])
+                            'is_favorite': is_favorite,
+                            'ts': timestamp,
+                        }
+                        total += 1
+                        key, reverse = _library_sort_spec(sort_order, item)
+                        heap_entry = _LibraryHeapEntry(key, item, reverse)
+                        if len(selected) < page_window:
+                            heapq.heappush(selected, heap_entry)
+                        elif _library_item_is_better(key, selected[0].key, reverse):
+                            heapq.heapreplace(selected, heap_entry)
+                    except (OSError, ValueError):
+                        continue
+
+        selected.sort(key=lambda entry: entry.key, reverse=selected[0].reverse if selected else False)
+        page_items = [entry.item for entry in selected[offset:offset + limit]]
+        return jsonify({
+            'files': page_items,
+            'total': total,
+            'offset': offset,
+            'limit': limit,
+            'has_more': total > offset + len(page_items),
+        })
+    except Exception as exc:
+        log_force(f'get_files_lib failed: {exc}')
+        return jsonify({'error': 'library_load_failed', 'files': [], 'total': 0, 'has_more': False}), 500
 
 
 @app.route('/api/files/favorite', methods=['POST'])

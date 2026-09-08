@@ -983,25 +983,25 @@ baseImageData:null},markerView={scale:1,offsetX:0,offsetY:0,minScale:1,maxScale:
 loadedGems=[],currentJobId=null,currentThreadPending=null,currentVisionModel=null,activeStreamingBubbleId=null,
 manualStopContext=null,manualStopSeq=0,isStopMode=!1;const suppressedPendingJobIds=new Set,pendingStreamReconnectJobs=new Set;
 let editingMessageId=null;const messageStore={},lib={modal:get("lib-modal"),grid:get("lib-grid"),files:[],
-selected:new Set,attachMode:!1,searchQuery:"",favoritesOnly:!1},LIB_SORT_KEY="lib_sort_order",LIB_FAVORITES_ONLY_KEY="\
-lib_favorites_only";let threadPage=1,threadLoading=!1,hasMoreThreads=!0,threadObserver=null,currentQuote="",
-currentThreadTitle=null,temporaryChatEnabled=!1,temporaryChatTimeoutSeconds=TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS,
-tempChatExpiresAtMs=null,tempChatHeartbeatTimer=null,tempChatHeartbeatIntervalMs=0,tempChatHeartbeatInFlight=!1,
-tempChatHeaderTicker=null,enterToSend=CHAT_CONFIG.enterToSend,autoSearchOnLinks=CHAT_CONFIG.autoSearchOnLinks,
-useSwCache=CHAT_CONFIG.useSwCache,compactPromptMode=CHAT_CONFIG.compactPromptMode,minimalPromptMode=!!CHAT_CONFIG.
-minimalPromptMode,voiceStudioUiEnabled=!0;const CANVAS_MODE_STORAGE_KEY="canvas_mode_enabled_v1",CODING_MODE_STORAGE_KEY="\
-coding_mode_enabled_v1";let canvasModeEnabled=!1,codingModeEnabled=!1,codingModeEffective=!1,codingTargetSelection=null;
-const canvasPreviewState={blocks:[],rawText:"",renderText:"",selectedIndex:-1,selectedKey:"",selectionMode:"\
-auto",mobileView:"preview",sourceScrollTop:0,sourceScrollLeft:0,frameScrollX:0,frameScrollY:0,frameRenderToken:0,
-panelAnimationToken:0,panelHideTimer:null,viewAnimationToken:0,viewAnimationTimer:null,lastCanvasData:null};
-try{canvasModeEnabled=localStorage.getItem(CANVAS_MODE_STORAGE_KEY)==="true"}catch{canvasModeEnabled=
-!1}try{codingModeEnabled=localStorage.getItem(CODING_MODE_STORAGE_KEY)==="true"}catch{codingModeEnabled=
-!1}let enableLatencyMetrics=CHAT_CONFIG.enableLatencyMetrics,promptControlsExpanded=!1;const appVersion=CHAT_CONFIG.
-appVersion,botConfig=CHAT_CONFIG.botConfig,isAdminUser=botConfig&&botConfig.isAdmin,currentUsername=CHAT_CONFIG.
-currentUsername;let turnstileWidgetId=null,turnstileToken=null,turnstilePending=!1,botDetectionVerified=!1,
-botDetectionGatePromise=null,botDetectionOverlayShown=!1,botDetectionDialogWidgetId=null,sendButtonSpamTimestamps=[],
-chatDefaultsLoaded=!1,modelApiKeyMap={};const THREAD_INITIAL_MESSAGE_LIMIT=50,THREAD_OLDER_PAGE_SIZE=50,
-LOW_BANDWIDTH_INITIAL_MESSAGE_LIMIT=40,LOW_BANDWIDTH_OLDER_PAGE_SIZE=60,LOW_BANDWIDTH_MODE_STORAGE_KEY="\
+selected:new Set,attachMode:!1,searchQuery:"",favoritesOnly:!1,totalCount:0,hasMore:!1,loading:!1,nextOffset:0},
+LIB_SORT_KEY="lib_sort_order",LIB_FAVORITES_ONLY_KEY="lib_favorites_only";let threadPage=1,threadLoading=!1,
+hasMoreThreads=!0,threadObserver=null,currentQuote="",currentThreadTitle=null,temporaryChatEnabled=!1,
+temporaryChatTimeoutSeconds=TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS,tempChatExpiresAtMs=null,tempChatHeartbeatTimer=null,
+tempChatHeartbeatIntervalMs=0,tempChatHeartbeatInFlight=!1,tempChatHeaderTicker=null,enterToSend=CHAT_CONFIG.
+enterToSend,autoSearchOnLinks=CHAT_CONFIG.autoSearchOnLinks,useSwCache=CHAT_CONFIG.useSwCache,compactPromptMode=CHAT_CONFIG.
+compactPromptMode,minimalPromptMode=!!CHAT_CONFIG.minimalPromptMode,voiceStudioUiEnabled=!0;const CANVAS_MODE_STORAGE_KEY="\
+canvas_mode_enabled_v1",CODING_MODE_STORAGE_KEY="coding_mode_enabled_v1";let canvasModeEnabled=!1,codingModeEnabled=!1,
+codingModeEffective=!1,codingTargetSelection=null;const canvasPreviewState={blocks:[],rawText:"",renderText:"",
+selectedIndex:-1,selectedKey:"",selectionMode:"auto",mobileView:"preview",sourceScrollTop:0,sourceScrollLeft:0,
+frameScrollX:0,frameScrollY:0,frameRenderToken:0,panelAnimationToken:0,panelHideTimer:null,viewAnimationToken:0,
+viewAnimationTimer:null,lastCanvasData:null};try{canvasModeEnabled=localStorage.getItem(CANVAS_MODE_STORAGE_KEY)===
+"true"}catch{canvasModeEnabled=!1}try{codingModeEnabled=localStorage.getItem(CODING_MODE_STORAGE_KEY)===
+"true"}catch{codingModeEnabled=!1}let enableLatencyMetrics=CHAT_CONFIG.enableLatencyMetrics,promptControlsExpanded=!1;
+const appVersion=CHAT_CONFIG.appVersion,botConfig=CHAT_CONFIG.botConfig,isAdminUser=botConfig&&botConfig.
+isAdmin,currentUsername=CHAT_CONFIG.currentUsername;let turnstileWidgetId=null,turnstileToken=null,turnstilePending=!1,
+botDetectionVerified=!1,botDetectionGatePromise=null,botDetectionOverlayShown=!1,botDetectionDialogWidgetId=null,
+sendButtonSpamTimestamps=[],chatDefaultsLoaded=!1,modelApiKeyMap={};const THREAD_INITIAL_MESSAGE_LIMIT=50,
+THREAD_OLDER_PAGE_SIZE=50,LOW_BANDWIDTH_INITIAL_MESSAGE_LIMIT=40,LOW_BANDWIDTH_OLDER_PAGE_SIZE=60,LOW_BANDWIDTH_MODE_STORAGE_KEY="\
 low_bandwidth_mode_pref_v1",LOW_BANDWIDTH_DECORATION_VISIBILITY_THRESHOLD=.02,MATHJAX_SRC="https://c\
 dn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js",HLJS_JS_SRC="https://cdnjs.cloudflare.com/ajax/libs/\
 highlight.js/11.9.0/highlight.min.js",HLJS_CSS_SRC="https://cdnjs.cloudflare.com/ajax/libs/highlight\
@@ -4894,23 +4894,24 @@ location.pathname==="/library"&&history.back()},get("lib-btn").onclick=()=>Jn(!1
 onclick=deleteSelectedFiles,get("lib-download-btn")&&(get("lib-download-btn").onclick=()=>downloadSelectedLibraryFiles()),
 get("lib-attach-btn")&&(get("lib-attach-btn").onclick=()=>attachSelectedLibraryFiles()),get("lib-ren\
 ame-btn")&&(get("lib-rename-btn").onclick=()=>renameSelectedLibraryFile()),get("upload-lib-btn")&&(get(
-"upload-lib-btn").onclick=()=>Jn(!0)),get("lib-search")&&(get("lib-search").oninput=()=>{lib.searchQuery=
-(get("lib-search").value||"").trim(),renderLibraryGrid()}),get("lib-sort")){const c=localStorage.getItem(
-LIB_SORT_KEY)||"newest";get("lib-sort").value=c,get("lib-sort").onchange=()=>{const d=get("lib-sort").
-value||"newest";localStorage.setItem(LIB_SORT_KEY,d),renderLibraryGrid()}}get("lib-favorite-filter-b\
-tn")&&(lib.favoritesOnly=localStorage.getItem(LIB_FAVORITES_ONLY_KEY)==="true",get("lib-favorite-fil\
-ter-btn").onclick=()=>{lib.favoritesOnly=!lib.favoritesOnly,localStorage.setItem(LIB_FAVORITES_ONLY_KEY,
-String(lib.favoritesOnly)),renderLibraryGrid()}),get("add-gem-fixed-prompt-row")&&(get("add-gem-fixe\
-d-prompt-row").onclick=()=>addGemFixedPromptRow());const li=o(()=>{editingGemUuid=null,get("gem-moda\
-l-title").innerHTML='<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem',get("save-gem-btn").
-innerText="Create Gem",showModal("gem-modal"),get("gem-name").value="",get("gem-desc").value="",get(
-"gem-inst").value="",get("gem-default-model").value="",get("gem-fixed-prompts-container")&&(get("gem\
--fixed-prompts-container").innerHTML=""),location.pathname!=="/gem"&&history.pushState({modal:"gem"},
-"","/gem")},"openGemModal");window.closeGemModal=(c=!1)=>{hideModal("gem-modal"),!c&&location.pathname===
-"/gem"&&history.back()},get("add-gem-btn").onclick=()=>li(),get("save-gem-btn").onclick=async()=>{const c=get(
-"gem-name").value,d=get("gem-desc").value,m=get("gem-inst").value,f=collectGemFixedPrompts();if(c&&m){
-const y=editingGemUuid?"PUT":"POST",k=editingGemUuid?`/api/gems/${editingGemUuid}`:CHAT_CONFIG.urls.
-handleGems;await apiFetch(k,{method:y,headers:{"Content-Type":"application/json"},body:JSON.stringify(
+"upload-lib-btn").onclick=()=>Jn(!0)),get("lib-search")){let c=null;get("lib-search").oninput=()=>{lib.
+searchQuery=(get("lib-search").value||"").trim(),c&&clearTimeout(c),c=setTimeout(()=>loadLibraryFiles(),
+250)}}if(get("lib-sort")){const c=localStorage.getItem(LIB_SORT_KEY)||"newest";get("lib-sort").value=
+c,get("lib-sort").onchange=()=>{const d=get("lib-sort").value||"newest";localStorage.setItem(LIB_SORT_KEY,
+d),loadLibraryFiles()}}get("lib-favorite-filter-btn")&&(lib.favoritesOnly=localStorage.getItem(LIB_FAVORITES_ONLY_KEY)===
+"true",get("lib-favorite-filter-btn").onclick=()=>{lib.favoritesOnly=!lib.favoritesOnly,localStorage.
+setItem(LIB_FAVORITES_ONLY_KEY,String(lib.favoritesOnly)),loadLibraryFiles()}),get("lib-load-more-bt\
+n")&&(get("lib-load-more-btn").onclick=()=>loadLibraryFiles(!0)),get("add-gem-fixed-prompt-row")&&(get(
+"add-gem-fixed-prompt-row").onclick=()=>addGemFixedPromptRow());const li=o(()=>{editingGemUuid=null,
+get("gem-modal-title").innerHTML='<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem',get("\
+save-gem-btn").innerText="Create Gem",showModal("gem-modal"),get("gem-name").value="",get("gem-desc").
+value="",get("gem-inst").value="",get("gem-default-model").value="",get("gem-fixed-prompts-container")&&
+(get("gem-fixed-prompts-container").innerHTML=""),location.pathname!=="/gem"&&history.pushState({modal:"\
+gem"},"","/gem")},"openGemModal");window.closeGemModal=(c=!1)=>{hideModal("gem-modal"),!c&&location.
+pathname==="/gem"&&history.back()},get("add-gem-btn").onclick=()=>li(),get("save-gem-btn").onclick=async()=>{
+const c=get("gem-name").value,d=get("gem-desc").value,m=get("gem-inst").value,f=collectGemFixedPrompts();
+if(c&&m){const y=editingGemUuid?"PUT":"POST",k=editingGemUuid?`/api/gems/${editingGemUuid}`:CHAT_CONFIG.
+urls.handleGems;await apiFetch(k,{method:y,headers:{"Content-Type":"application/json"},body:JSON.stringify(
 {name:c,description:d,instruction:m,fixed_prompts:f,default_model:get("gem-default-model").value||null})}),
 window.closeGemModal(),loadGems(),editingGemUuid&&activeGem&&activeGem.uuid===editingGemUuid&&(activeGem.
 name=c,activeGem.instruction=m,activeGem.fixed_prompts=f,applyActiveGem(activeGem))}else alert("Name\
@@ -7341,19 +7342,21 @@ p.ts)||0),"tsAsc");return t==="name_asc"?n.sort((u,p)=>s(u,p)||r(u,p)):t==="name
 u,p)||r(u,p)):t==="oldest"?n.sort((u,p)=>l(u,p)||s(u,p)):n.sort((u,p)=>r(u,p)||s(u,p)),n}o(sortLibraryFiles,
 "sortLibraryFiles");function getLibSearchQuery(){const e=lib.searchQuery||(get("lib-search")?get("li\
 b-search").value:"")||"";return String(e).trim().toLocaleLowerCase()}o(getLibSearchQuery,"getLibSear\
-chQuery");function updateLibFavoriteFilterUi(){const e=get("lib-favorite-filter-btn");if(!e)return;const t=!!lib.
-favoritesOnly;e.classList.toggle("is-active",t),e.setAttribute("aria-pressed",t?"true":"false");const n=e.
-querySelector("i");n&&(n.className=t?"fas fa-star":"far fa-star")}o(updateLibFavoriteFilterUi,"updat\
-eLibFavoriteFilterUi");function fileNameForSearch(e){return String(e&&e.filename||"").toLocaleLowerCase()}
-o(fileNameForSearch,"fileNameForSearch");function renderLibraryGrid(){const e=get("lib-grid");if(!e)
-return;if(updateLibFavoriteFilterUi(),e.innerHTML="",!lib.files||!lib.files.length){e.innerHTML='<di\
-v class="lib-empty-state"><div class="lib-empty-icon"><i class="fas fa-folder"></i></div><p class="l\
-ib-empty-title">\u30D5\u30A1\u30A4\u30EB\u304C\u307E\u3060\u3042\u308A\u307E\u305B\u3093</p><p class="lib-empty-sub">\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u3057\u305F\u30D5\u30A1\u30A4\u30EB\u304C\u3053\u3053\u306B\u8868\u793A\u3055\u308C\u307E\u3059\u3002</p></div>';
+chQuery");function updateLibraryLoadMoreUi(){const e=get("lib-load-more-btn");e&&(e.hidden=!lib.hasMore||
+!!lib.loading,e.disabled=!!lib.loading)}o(updateLibraryLoadMoreUi,"updateLibraryLoadMoreUi");function updateLibFavoriteFilterUi(){
+const e=get("lib-favorite-filter-btn");if(!e)return;const t=!!lib.favoritesOnly;e.classList.toggle("\
+is-active",t),e.setAttribute("aria-pressed",t?"true":"false");const n=e.querySelector("i");n&&(n.className=
+t?"fas fa-star":"far fa-star")}o(updateLibFavoriteFilterUi,"updateLibFavoriteFilterUi");function fileNameForSearch(e){
+return String(e&&e.filename||"").toLocaleLowerCase()}o(fileNameForSearch,"fileNameForSearch");function renderLibraryGrid(){
+const e=get("lib-grid");if(!e)return;if(updateLibFavoriteFilterUi(),updateLibraryLoadMoreUi(),e.innerHTML=
+"",!lib.files||!lib.files.length){e.innerHTML='<div class="lib-empty-state"><div class="lib-empty-ic\
+on"><i class="fas fa-folder"></i></div><p class="lib-empty-title">\u30D5\u30A1\u30A4\u30EB\u304C\u307E\u3060\u3042\u308A\u307E\u305B\u3093</p><p class="lib-empt\
+y-sub">\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u3057\u305F\u30D5\u30A1\u30A4\u30EB\u304C\u3053\u3053\u306B\u8868\u793A\u3055\u308C\u307E\u3059\u3002</p></div>';
 const r=get("lib-total-count");r&&(r.innerText="0 files");return}const t=sortLibraryFiles(lib.files),
 n=getLibSearchQuery(),i=t.filter(r=>lib.favoritesOnly&&!r.is_favorite?!1:!n||fileNameForSearch(r).includes(
-n)),s=get("lib-total-count");if(s&&(n||lib.favoritesOnly?s.innerText=`${i.length} / ${lib.files.length}\
- files`:s.innerText=`${lib.files.length} files`),!i.length){const r=lib.favoritesOnly&&!n?"fa-star":
-"fa-search",l=lib.favoritesOnly&&!n?"\u304A\u6C17\u306B\u5165\u308A\u304C\u3042\u308A\u307E\u305B\u3093":
+n)),s=get("lib-total-count");if(s){const r=Number(lib.totalCount)||lib.files.length;lib.hasMore||n||
+lib.favoritesOnly?s.innerText=`${lib.files.length} / ${r} files`:s.innerText=`${r} files`}if(!i.length){
+const r=lib.favoritesOnly&&!n?"fa-star":"fa-search",l=lib.favoritesOnly&&!n?"\u304A\u6C17\u306B\u5165\u308A\u304C\u3042\u308A\u307E\u305B\u3093":
 "\u4E00\u81F4\u3059\u308B\u30D5\u30A1\u30A4\u30EB\u304C\u3042\u308A\u307E\u305B\u3093",u=lib.favoritesOnly&&
 !n?"\u30D5\u30A1\u30A4\u30EB\u306E\u661F\u30DC\u30BF\u30F3\u304B\u3089\u304A\u6C17\u306B\u5165\u308A\u306B\u8FFD\u52A0\u3067\u304D\u307E\u3059\u3002":
 "\u691C\u7D22\u6761\u4EF6\u3084\u4E26\u3073\u9806\u3092\u5909\u66F4\u3057\u3066\u304F\u3060\u3055\u3044\u3002";
@@ -7423,34 +7426,40 @@ try{await apiFetch(CHAT_CONFIG.urls.deleteFilesBatch,{method:"POST",headers:{"Co
 tion/json"},body:JSON.stringify({filenames:[e]})}),t&&t.parentNode&&t.remove(),lib.files&&(lib.files=
 lib.files.filter(n=>n.filepath!==e)),lib.fileSet&&lib.fileSet.delete(e),lib.selected.delete(e),renderLibraryGrid(),
 window.updateLibSelectionUi()}catch{showToast("\u524A\u9664\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
-"error",!0)}}o(deleteSingleLibraryFile,"deleteSingleLibraryFile");async function loadLibraryFiles(){
-const e=get("lib-grid");renderLibrarySkeleton(e);let t=null,n=null;const i=CHAT_CONFIG.urls.getFilesLib;
-for(let s=0;s<2;s++)try{const a=s===0?i:i+(i.includes("?")?"&":"?")+"t="+Date.now(),r=await apiFetch(
-a,{cache:"no-store",headers:{Accept:"application/json"}});if(!r.ok)throw new Error("HTTP "+r.status);
-const l=await r.text();let u=[];try{u=JSON.parse(l)}catch{u=[]}if(Array.isArray(u)){t=u,n=null;break}}catch(a){
-n=a}Array.isArray(t)||(t=[]);try{const s=FILE_BASE_URL,a=FILE_THUMB_BASE_URL,r=new Set(t.map(u=>u&&u.
-filepath).filter(Boolean));(Array.isArray(currentImageUrls)?currentImageUrls:[]).forEach(u=>{if(!u||
-r.has(u))return;const p=getAttachmentNameForPath(u)||u.split("/").pop()||u,h=(p.split(".").pop()||"").
-toLowerCase(),g=["png","jpg","jpeg","webp","gif"].includes(h)?"image":"file",v=g==="image"?a+u:null;
-t.unshift({filename:p,original_filename:p,filepath:u,url:s+u,thumbnail_url:v,type:g,ext:h,is_favorite:!1,
-ts:Math.floor(Date.now()/1e3)}),r.add(u)})}catch{}try{e&&(e.innerHTML=""),lib.selected||(lib.selected=
-new Set),lib.selected.clear(),lib.files=t.filter(s=>s&&s.filepath&&s.url),lib.files.forEach(s=>{s&&s.
-filepath&&setAttachmentNameForPath(s.filepath,s.filename||s.original_filename||"")}),lib.fileSet=new Set(
-lib.files.map(s=>s.filepath)),window.updateLibSelectionUi(),renderLibraryGrid()}catch(s){n=n||s}n&&e&&
-(console.error("Library load failed:",n),e.innerHTML='<div class="lib-empty-state"><div class="lib-e\
-mpty-icon"><i class="fas fa-exclamation-triangle"></i></div><p class="lib-empty-title">\u30E9\u30A4\u30D6\u30E9\u30EA\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\
-\u3057\u307E\u3057\u305F</p><p class="lib-empty-sub">\u901A\u4FE1\u72B6\u6CC1\u3092\u78BA\u8A8D\u3057\u3066\u6642\u9593\u3092\u304A\u3044\u3066\u518D\u5EA6\u304A\u8A66\u3057\u304F\u3060\u3055\u3044\u3002</p></div>')}
-o(loadLibraryFiles,"loadLibraryFiles");async function deleteSelectedFiles(){if(confirm("\u524A\u9664\u3057\u307E\u3059\u304B\uFF1F"))
-try{await apiFetch(CHAT_CONFIG.urls.deleteFilesBatch,{method:"POST",headers:{"Content-Type":"applica\
-tion/json"},body:JSON.stringify({filenames:Array.from(lib.selected)})}),loadLibraryFiles()}catch{alert(
-"\u524A\u9664\u30A8\u30E9\u30FC")}}o(deleteSelectedFiles,"deleteSelectedFiles");function attachSelectedLibraryFiles(){
-if(!lib.selected.size)return;const e=getModelMediaSupport(get("model-select").value);let t=0,n=0;if(Array.
-from(lib.selected).forEach(s=>{const a=isAudioPath(s),r=isVideoPath(s);if(a&&!e.audio||r&&!e.video){
-a&&(t+=1),r&&(n+=1);return}const l=normalizeAttachmentPath(s);if(!l)return;const u=(lib.files||[]).find(
-p=>p&&p.filepath===s);u&&u.filename&&setAttachmentNameForPath(l,u.filename),currentImageUrls.includes(
-l)||currentImageUrls.push(l),setAttachmentSourceForPath(l,"library")}),syncUploadRowsFromCurrent(),updateFilePreview(),
-lib.selected.clear(),window.updateLibSelectionUi(),window.closeLibModal(),t||n){const s=[];t&&s.push(
-`${t}\u4EF6\u306E\u97F3\u58F0`),n&&s.push(`${n}\u4EF6\u306E\u52D5\u753B`),showToast(`\u3053\u306E\u30E2\u30C7\u30EB\u306F${s.
+"error",!0)}}o(deleteSingleLibraryFile,"deleteSingleLibraryFile");async function loadLibraryFiles(e=!1){
+const t=get("lib-grid"),n=get("lib-load-more-btn");if(lib.loading)return;lib.loading=!0,e||(lib.nextOffset=
+0,lib.totalCount=0,lib.hasMore=!1),e||renderLibrarySkeleton(t);let i=null;const s=CHAT_CONFIG.urls.getFilesLib;
+let a=null;try{const l=getLibSortOrder(),u=getLibSearchQuery(),p=e?lib.nextOffset:0,h=new URLSearchParams(
+{limit:"120",offset:String(p),sort:l,q:u,favorites_only:lib.favoritesOnly?"1":"0"}),g=await apiFetch(
+s+"?"+h.toString(),{cache:"no-store",headers:{Accept:"application/json"}});if(!g.ok)throw new Error(
+"HTTP "+g.status);a=await g.json()}catch(l){i=l}let r=Array.isArray(a)?a:a&&Array.isArray(a.files)?a.
+files:[];a&&!Array.isArray(a)&&(lib.totalCount=Number(a.total)||0,lib.hasMore=!!a.has_more,lib.nextOffset=
+(Number(a.offset)||0)+(Number(a.limit)||r.length));try{const l=FILE_BASE_URL,u=FILE_THUMB_BASE_URL,p=new Set(
+r.map(g=>g&&g.filepath).filter(Boolean));(Array.isArray(currentImageUrls)?currentImageUrls:[]).forEach(
+g=>{if(!g||p.has(g))return;const v=getAttachmentNameForPath(g)||g.split("/").pop()||g,b=(v.split(".").
+pop()||"").toLowerCase(),w=["png","jpg","jpeg","webp","gif"].includes(b)?"image":"file",x=w==="image"?
+u+g:null;r.unshift({filename:v,original_filename:v,filepath:g,url:l+g,thumbnail_url:x,type:w,ext:b,is_favorite:!1,
+ts:Math.floor(Date.now()/1e3)}),p.add(g)})}catch{}try{t&&!e&&(t.innerHTML=""),lib.selected||(lib.selected=
+new Set),e||lib.selected.clear();const l=r.filter(u=>u&&u.filepath&&u.url);if(e){const u=new Set(lib.
+files.map(p=>p.filepath));lib.files.push(...l.filter(p=>!u.has(p.filepath)))}else lib.files=l;lib.files.
+forEach(u=>{u&&u.filepath&&setAttachmentNameForPath(u.filepath,u.filename||u.original_filename||"")}),
+lib.fileSet=new Set(lib.files.map(u=>u.filepath)),lib.totalCount||(lib.totalCount=lib.files.length),
+window.updateLibSelectionUi(),renderLibraryGrid()}catch(l){i=i||l}i&&t&&(console.error("Library load\
+ failed:",i),t.innerHTML='<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas fa-\
+exclamation-triangle"></i></div><p class="lib-empty-title">\u30E9\u30A4\u30D6\u30E9\u30EA\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F</p><p class="lib-empty-\
+sub">\u901A\u4FE1\u72B6\u6CC1\u3092\u78BA\u8A8D\u3057\u3066\u6642\u9593\u3092\u304A\u3044\u3066\u518D\u5EA6\u304A\u8A66\u3057\u304F\u3060\u3055\u3044\u3002</p></div>'),
+lib.loading=!1,n&&(n.disabled=!1,n.hidden=!lib.hasMore||!!i)}o(loadLibraryFiles,"loadLibraryFiles");
+async function deleteSelectedFiles(){if(confirm("\u524A\u9664\u3057\u307E\u3059\u304B\uFF1F"))try{await apiFetch(
+CHAT_CONFIG.urls.deleteFilesBatch,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.
+stringify({filenames:Array.from(lib.selected)})}),loadLibraryFiles()}catch{alert("\u524A\u9664\u30A8\u30E9\u30FC")}}
+o(deleteSelectedFiles,"deleteSelectedFiles");function attachSelectedLibraryFiles(){if(!lib.selected.
+size)return;const e=getModelMediaSupport(get("model-select").value);let t=0,n=0;if(Array.from(lib.selected).
+forEach(s=>{const a=isAudioPath(s),r=isVideoPath(s);if(a&&!e.audio||r&&!e.video){a&&(t+=1),r&&(n+=1);
+return}const l=normalizeAttachmentPath(s);if(!l)return;const u=(lib.files||[]).find(p=>p&&p.filepath===
+s);u&&u.filename&&setAttachmentNameForPath(l,u.filename),currentImageUrls.includes(l)||currentImageUrls.
+push(l),setAttachmentSourceForPath(l,"library")}),syncUploadRowsFromCurrent(),updateFilePreview(),lib.
+selected.clear(),window.updateLibSelectionUi(),window.closeLibModal(),t||n){const s=[];t&&s.push(`${t}\
+\u4EF6\u306E\u97F3\u58F0`),n&&s.push(`${n}\u4EF6\u306E\u52D5\u753B`),showToast(`\u3053\u306E\u30E2\u30C7\u30EB\u306F${s.
 join("\u30FB")}\u5165\u529B\u306B\u975E\u5BFE\u5FDC\u306E\u305F\u3081\u9664\u5916\u3057\u307E\u3057\u305F`,
 "error",!0)}else showToast("\u30E9\u30A4\u30D6\u30E9\u30EA\u304B\u3089\u6DFB\u4ED8\u3057\u307E\u3057\u305F",
 "success")}o(attachSelectedLibraryFiles,"attachSelectedLibraryFiles");function downloadSelectedLibraryFiles(){

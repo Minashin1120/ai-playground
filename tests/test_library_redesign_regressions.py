@@ -13,6 +13,25 @@ def _current_asset(folder, pattern):
 
 
 class LibraryRedesignRegressionTests(unittest.TestCase):
+    def test_library_api_uses_bounded_disk_pages(self):
+        route = (APP_ROOT / "server" / "routes_threads_library.py").read_text(encoding="utf-8")
+        endpoint = route[route.index("def get_files_lib") : route.index("@app.route('/api/files/favorite'")]
+        # Opening the library must not materialize the account's large message
+        # payloads or return an unbounded JSON array.
+        self.assertNotIn("Message.query", endpoint)
+        self.assertIn("os.scandir", endpoint)
+        self.assertIn("'files': page_items", endpoint)
+        self.assertIn("'has_more':", endpoint)
+        self.assertIn("yield_per(500)", endpoint)
+
+    def test_library_client_loads_pages_instead_of_retrying_full_list(self):
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        self.assertIn("async function loadLibraryFiles(loadMore = false)", script)
+        self.assertIn("limit: '120'", script)
+        self.assertIn("offset: String(offset)", script)
+        self.assertIn("loadLibraryFiles(true)", script)
+        self.assertIn('id="lib-load-more-btn"', read_chat_markup())
+
     def test_template_has_modern_library_modal_structure(self):
         template = read_chat_markup()
         # Required IDs must remain for the JS to bind behavior.

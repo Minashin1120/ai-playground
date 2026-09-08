@@ -1316,6 +1316,12 @@
             const q = lib.searchQuery || (get('lib-search') ? get('lib-search').value : '') || '';
             return String(q).trim().toLocaleLowerCase();
         }
+        function updateLibraryLoadMoreUi() {
+            const btn = get('lib-load-more-btn');
+            if (!btn) return;
+            btn.hidden = !lib.hasMore || !!lib.loading;
+            btn.disabled = !!lib.loading;
+        }
         function updateLibFavoriteFilterUi() {
             const btn = get('lib-favorite-filter-btn');
             if (!btn) return;
@@ -1332,6 +1338,7 @@
             const grid = get('lib-grid');
             if (!grid) return;
             updateLibFavoriteFilterUi();
+            updateLibraryLoadMoreUi();
             grid.innerHTML = '';
             if (!lib.files || !lib.files.length) {
                 grid.innerHTML = '<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas fa-folder"></i></div><p class="lib-empty-title">ファイルがまだありません</p><p class="lib-empty-sub">アップロードしたファイルがここに表示されます。</p></div>';
@@ -1347,8 +1354,9 @@
             });
             const countEl = get('lib-total-count');
             if (countEl) {
-                if (q || lib.favoritesOnly) countEl.innerText = `${filtered.length} / ${lib.files.length} files`;
-                else countEl.innerText = `${lib.files.length} files`;
+                const totalCount = Number(lib.totalCount) || lib.files.length;
+                if (lib.hasMore || q || lib.favoritesOnly) countEl.innerText = `${lib.files.length} / ${totalCount} files`;
+                else countEl.innerText = `${totalCount} files`;
             }
             if (!filtered.length) {
                 const icon = lib.favoritesOnly && !q ? 'fa-star' : 'fa-search';

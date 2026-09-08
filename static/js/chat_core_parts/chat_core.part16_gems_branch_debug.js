@@ -184,30 +184,43 @@
                 showToast("削除に失敗しました", "error", true);
             }
         }
-        async function loadLibraryFiles() {
+        async function loadLibraryFiles(loadMore = false) {
             const grid = get('lib-grid');
-            renderLibrarySkeleton(grid);
-            let files = null;
+            const loadMoreBtn = get('lib-load-more-btn');
+            if (lib.loading) return;
+            lib.loading = true;
+            if (!loadMore) {
+                lib.nextOffset = 0;
+                lib.totalCount = 0;
+                lib.hasMore = false;
+            }
+            if (!loadMore) renderLibrarySkeleton(grid);
             let lastErr = null;
             const baseUrl = CHAT_CONFIG.urls.getFilesLib;
-            for (let i = 0; i < 2; i++) {
-                try {
-                    const url = i === 0 ? baseUrl : (baseUrl + (baseUrl.includes('?') ? '&' : '?') + 't=' + Date.now());
-                    const r = await apiFetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json' } });
-                    if (!r.ok) throw new Error('HTTP ' + r.status);
-                    const raw = await r.text();
-                    let parsed = [];
-                    try { parsed = JSON.parse(raw); } catch (e) { parsed = []; }
-                    if (Array.isArray(parsed)) {
-                        files = parsed;
-                        lastErr = null;
-                        break;
-                    }
-                } catch (e) {
-                    lastErr = e;
-                }
+            let payload = null;
+            try {
+                const sort = getLibSortOrder();
+                const query = getLibSearchQuery();
+                const offset = loadMore ? lib.nextOffset : 0;
+                const params = new URLSearchParams({
+                    limit: '120',
+                    offset: String(offset),
+                    sort,
+                    q: query,
+                    favorites_only: lib.favoritesOnly ? '1' : '0'
+                });
+                const r = await apiFetch(baseUrl + '?' + params.toString(), { cache: 'no-store', headers: { 'Accept': 'application/json' } });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                payload = await r.json();
+            } catch (e) {
+                lastErr = e;
             }
-            if (!Array.isArray(files)) files = [];
+            let files = Array.isArray(payload) ? payload : (payload && Array.isArray(payload.files) ? payload.files : []);
+            if (payload && !Array.isArray(payload)) {
+                lib.totalCount = Number(payload.total) || 0;
+                lib.hasMore = !!payload.has_more;
+                lib.nextOffset = (Number(payload.offset) || 0) + (Number(payload.limit) || files.length);
+            }
             try {
                 const base = FILE_BASE_URL;
                 const thumbBase = FILE_THUMB_BASE_URL;
@@ -224,14 +237,21 @@
                 });
             } catch (e) {}
             try {
-                if (grid) grid.innerHTML = '';
+                if (grid && !loadMore) grid.innerHTML = '';
                 if (!lib.selected) lib.selected = new Set();
-                lib.selected.clear();
-                lib.files = files.filter(f => f && f.filepath && f.url);
+                if (!loadMore) lib.selected.clear();
+                const pageFiles = files.filter(f => f && f.filepath && f.url);
+                if (loadMore) {
+                    const existing = new Set(lib.files.map(f => f.filepath));
+                    lib.files.push(...pageFiles.filter(f => !existing.has(f.filepath)));
+                } else {
+                    lib.files = pageFiles;
+                }
                 lib.files.forEach((f) => {
                     if (f && f.filepath) setAttachmentNameForPath(f.filepath, f.filename || f.original_filename || '');
                 });
                 lib.fileSet = new Set(lib.files.map(f => f.filepath));
+                if (!lib.totalCount) lib.totalCount = lib.files.length;
                 window.updateLibSelectionUi();
                 renderLibraryGrid();
             } catch (e) {
@@ -240,6 +260,11 @@
             if (lastErr && grid) {
                 console.error('Library load failed:', lastErr);
                 grid.innerHTML = '<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas fa-exclamation-triangle"></i></div><p class="lib-empty-title">ライブラリの読み込みに失敗しました</p><p class="lib-empty-sub">通信状況を確認して時間をおいて再度お試しください。</p></div>';
+            }
+            lib.loading = false;
+            if (loadMoreBtn) {
+                loadMoreBtn.disabled = false;
+                loadMoreBtn.hidden = !lib.hasMore || !!lastErr;
             }
         }
         async function deleteSelectedFiles() {

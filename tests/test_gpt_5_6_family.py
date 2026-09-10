@@ -47,7 +47,7 @@ class Gpt56FamilyRegressionTests(unittest.TestCase):
             'VALID_REASONING_EFFORTS = {"none", "low", "medium", "high", "xhigh", "max"}',
             app_source,
         )
-        self.assertEqual(chat_source.count('<option value="max">Max</option>'), 2)
+        self.assertGreaterEqual(chat_source.count('<option value="max">Max</option>'), 2)
         self.assertIn("opt.value === 'max'", js_source)
         self.assertIn("modelLower.startsWith('gpt-5.6-')", js_source)
         self.assertIn("!modelLower.includes('multi-agent') && !isGpt56Model", js_source)

@@ -239,6 +239,7 @@
             const grid = get('lib-grid');
             const loadMoreBtn = get('lib-load-more-btn');
             if (lib.loading) return;
+            if (loadMore && !lib.hasMore) return;
             lib.loading = true;
             if (!loadMore) {
                 lib.nextOffset = 0;
@@ -249,12 +250,13 @@
             let lastErr = null;
             const baseUrl = CHAT_CONFIG.urls.getFilesLib;
             let payload = null;
+            let requestSucceeded = false;
             try {
                 const sort = getLibSortOrder();
                 const query = getLibSearchQuery();
                 const offset = loadMore ? lib.nextOffset : 0;
                 const params = new URLSearchParams({
-                    limit: '120',
+                    limit: String(LIBRARY_PAGE_SIZE),
                     offset: String(offset),
                     sort,
                     q: query,
@@ -263,8 +265,23 @@
                 const r = await apiFetch(baseUrl + '?' + params.toString(), { cache: 'no-store', headers: { 'Accept': 'application/json' } });
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 payload = await r.json();
+                requestSucceeded = true;
             } catch (e) {
                 lastErr = e;
+            }
+            if (!requestSucceeded) {
+                console.error('Library load failed:', lastErr);
+                if (!loadMore && grid) {
+                    grid.innerHTML = '<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas fa-exclamation-triangle"></i></div><p class="lib-empty-title">ライブラリの読み込みに失敗しました</p><p class="lib-empty-sub">通信状況を確認して時間をおいて再度お試しください。</p></div>';
+                } else if (loadMore) {
+                    showToast('追加読み込みに失敗しました。もう一度お試しください。', 'error', true);
+                }
+                lib.loading = false;
+                if (loadMoreBtn) {
+                    loadMoreBtn.disabled = false;
+                    loadMoreBtn.hidden = !lib.hasMore;
+                }
+                return;
             }
             let files = Array.isArray(payload) ? payload : (payload && Array.isArray(payload.files) ? payload.files : []);
             if (payload && !Array.isArray(payload)) {
@@ -276,8 +293,9 @@
                 const base = FILE_BASE_URL;
                 const thumbBase = FILE_THUMB_BASE_URL;
                 const seenPaths = new Set(files.map(f => f && f.filepath).filter(Boolean));
-                const extra = Array.isArray(currentImageUrls) ? currentImageUrls : [];
+                const extra = !loadMore && Array.isArray(currentImageUrls) ? currentImageUrls : [];
                 extra.forEach((fp) => {
+                    if (files.length >= LIBRARY_PAGE_SIZE) return;
                     if (!fp || seenPaths.has(fp)) return;
                     const filename = getAttachmentNameForPath(fp) || (fp.split('/').pop() || fp);
                     const ext = (filename.split('.').pop() || '').toLowerCase();
@@ -311,12 +329,16 @@
             }
             if (lastErr && grid) {
                 console.error('Library load failed:', lastErr);
-                grid.innerHTML = '<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas fa-exclamation-triangle"></i></div><p class="lib-empty-title">ライブラリの読み込みに失敗しました</p><p class="lib-empty-sub">通信状況を確認して時間をおいて再度お試しください。</p></div>';
+                if (loadMore) {
+                    showToast('追加読み込みに失敗しました。もう一度お試しください。', 'error', true);
+                } else {
+                    grid.innerHTML = '<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas fa-exclamation-triangle"></i></div><p class="lib-empty-title">ライブラリの読み込みに失敗しました</p><p class="lib-empty-sub">通信状況を確認して時間をおいて再度お試しください。</p></div>';
+                }
             }
             lib.loading = false;
             if (loadMoreBtn) {
                 loadMoreBtn.disabled = false;
-                loadMoreBtn.hidden = !lib.hasMore || !!lastErr;
+                loadMoreBtn.hidden = !lib.hasMore;
             }
         }
         async function deleteSelectedFiles() {

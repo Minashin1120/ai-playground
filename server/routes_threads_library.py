@@ -235,7 +235,7 @@ def _library_item_is_better(candidate, current, reverse):
 def get_files_lib():
     """Return a bounded page without loading the account's messages."""
     try:
-        limit = max(1, min(request.args.get('limit', 120, type=int) or 120, 120))
+        limit = max(1, min(request.args.get('limit', 40, type=int) or 40, 40))
         offset = max(0, min(request.args.get('offset', 0, type=int) or 0, 10_000))
         sort_order = (request.args.get('sort') or 'newest').strip().lower()
         if sort_order not in {'newest', 'oldest', 'name_asc', 'name_desc'}:

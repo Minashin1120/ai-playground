@@ -2,6 +2,8 @@
 Description=Gunicorn service for AI Chat Playground
 After=network-online.target mariadb.service redis-server.service
 Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=10
 
 [Service]
 Type=simple
@@ -18,6 +20,9 @@ ExecStart=/opt/ai-playground/venv/bin/gunicorn --timeout 600 --graceful-timeout 
 Restart=always
 RestartSec=5
 TimeoutStopSec=30
+# If a Gunicorn worker exhausts the host memory budget, stop the unit as a
+# whole so Restart=always brings the web service back with a clean worker set.
+OOMPolicy=stop
 PrivateTmp=true
 NoNewPrivileges=true
 

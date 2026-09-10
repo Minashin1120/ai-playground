@@ -64,6 +64,10 @@ class DocumentationRegressionTests(unittest.TestCase):
 
         self.assertIn("127.0.0.1:3111", web_unit)
         self.assertIn("EnvironmentFile=/opt/ai-playground/.env", web_unit)
+        self.assertIn("Restart=always", web_unit)
+        self.assertIn("RestartSec=5", web_unit)
+        self.assertIn("OOMPolicy=stop", web_unit)
+        self.assertIn("StartLimitBurst=10", web_unit)
         self.assertIn('Environment="WORKER_INSTANCE=%i"', worker_unit)
         self.assertIn("TimeoutStopSec=660", worker_unit)
         self.assertIn("ProxyPreserveHost On", apache)

@@ -41,6 +41,13 @@
                 if (filename) box.setAttribute('data-file-name', String(filename));
                 return box;
             };
+            const buildBusyWarning = (filename) => {
+                const box = document.createElement('div');
+                box.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;min-height:80px;text-align:center;padding:8px;gap:4px;';
+                box.innerHTML = '<i class="fas fa-hourglass-half" style="font-size:16px;color:#93c5fd"></i><div style="font-size:9px;color:#bfdbfe;font-weight:700;line-height:1.3">一時的に混雑しています<br>時間をおいて再読み込みしてください</div>';
+                if (filename) box.setAttribute('data-file-name', String(filename));
+                return box;
+            };
             const fullFileUrl = (u) => String(u || '').split('?')[0].replace('/files/thumb/', '/files/');
             document.addEventListener('error', (e) => {
                 const el = e.target;
@@ -55,6 +62,10 @@
                     const replacement = buildWarning(filename, !!keyMismatch);
                     try { el.replaceWith(replacement); } catch (_) { /* detached */ }
                 };
+                const showBusyWarning = () => {
+                    const replacement = buildBusyWarning(filename);
+                    try { el.replaceWith(replacement); } catch (_) { /* detached */ }
+                };
                 const retryLoad = (url, retryCount) => {
                     const fresh = el.cloneNode(false);
                     fresh.setAttribute('data-file-retry', String(retryCount));
@@ -63,6 +74,7 @@
                     try { el.replaceWith(fresh); } catch (_) { /* detached */ }
                 };
                 const handleStatus = (status) => {
+                    if (status === 429 || status === 503) { showBusyWarning(); return; }
                     if (status === 409) { showWarning(true); return; }
                     if (status === 404 || status === 410 || status === 403) { showWarning(false); return; }
                     // The file is still served, or the failure is transient.  Retry
@@ -83,11 +95,7 @@
                     // Network error: treat as transient, retry.
                     const retryCount = parseInt((el.getAttribute && el.getAttribute('data-file-retry')) || '0', 10);
                     if (retryCount < MAX_FILE_RETRIES) { retryLoad(src, retryCount + 1); return; }
-                    if (src.includes('/files/thumb/') && !el.getAttribute('data-file-fallback')) {
-                        el.setAttribute('data-file-fallback', '1');
-                        retryLoad(fullFileUrl(src), 0);
-                        return;
-                    }
+                    if (src.includes('/files/thumb/')) { showBusyWarning(); return; }
                     showWarning(false);
                 });
             }, true);

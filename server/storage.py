@@ -376,6 +376,10 @@ _MEDIA_BYTES_CACHE_SIZE = 0
 _THUMBNAIL_BYTES_CACHE_LOCK = threading.Lock()
 _THUMBNAIL_BYTES_CACHE = OrderedDict()
 _THUMBNAIL_BYTES_CACHE_SIZE = 0
+_THUMBNAIL_GENERATION_SEMAPHORE = threading.BoundedSemaphore(1)
+_THUMBNAIL_GENERATION_REDIS_KEY = 'ai_chat:thumbnail_generation'
+_THUMBNAIL_GENERATION_REDIS_TTL = 120
+_THUMBNAIL_GENERATION_WAIT_SECONDS = 15
 _TOKEN_FILE_TOKENS_CACHE_MAX = max(0, _env_int("TOKEN_FILE_TOKENS_CACHE_MAX", 512))
 _TOKEN_FILE_TOKENS_CACHE_LOCK = threading.Lock()
 _TOKEN_FILE_TOKENS_CACHE = OrderedDict()
@@ -490,6 +494,47 @@ def _thumbnail_bytes_cache_evict_path(rel_path):
         rel_path,
         _THUMBNAIL_BYTES_CACHE_SIZE,
     )
+
+
+def _acquire_thumbnail_generation_slot():
+    """Limit expensive image decoding across threads and Gunicorn workers."""
+    if not _THUMBNAIL_GENERATION_SEMAPHORE.acquire(timeout=_THUMBNAIL_GENERATION_WAIT_SECONDS):
+        return False
+
+    token = secrets.token_urlsafe(24)
+    deadline = time.monotonic() + _THUMBNAIL_GENERATION_WAIT_SECONDS
+    try:
+        while time.monotonic() < deadline:
+            try:
+                if redis_conn.set(
+                    _THUMBNAIL_GENERATION_REDIS_KEY,
+                    token,
+                    nx=True,
+                    ex=_THUMBNAIL_GENERATION_REDIS_TTL,
+                ):
+                    return token
+            except Exception:
+                # Redis is normally available, but keep thumbnails usable with
+                # the per-worker semaphore if the lock service is unavailable.
+                return None
+            time.sleep(0.1)
+    except Exception:
+        pass
+
+    _THUMBNAIL_GENERATION_SEMAPHORE.release()
+    return False
+
+
+def _release_thumbnail_generation_slot(token):
+    try:
+        if token:
+            current = redis_conn.get(_THUMBNAIL_GENERATION_REDIS_KEY)
+            if current in (token, token.encode('utf-8')):
+                redis_conn.delete(_THUMBNAIL_GENERATION_REDIS_KEY)
+    except Exception:
+        pass
+    finally:
+        _THUMBNAIL_GENERATION_SEMAPHORE.release()
 
 
 def _token_file_tokens_cache_get(key):
@@ -920,4 +965,3 @@ KEY_FILE = os.path.join(os.path.dirname(__file__), 'secret.key')
 # encrypted with an older key remains readable.  This is what makes a live key
 # rotation safe: during a transition both the old and the new key decrypt.
 _KEY_RING = []
-

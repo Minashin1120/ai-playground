@@ -112,6 +112,13 @@ async function dispatch(img, statuses) {
   await dispatch(img, [409]);
   if (!img.replacedWith || !String(img.replacedWith.innerHTML).includes('暗号キー')) fail(40, '409 must show key-mismatch warning');
 
+  // 503 (thumbnail generation is busy) => show a temporary busy warning and
+  // never fall back to the original full-size file.
+  img = new FakeImg('/files/thumb/1/d.png');
+  await dispatch(img, [503]);
+  if (!img.replacedWith || !String(img.replacedWith.innerHTML).includes('一時的に混雑しています')) fail(50, '503 must show a busy warning');
+  if (String(img.replacedWith.innerHTML).includes('ファイルがありません')) fail(51, '503 must not show a missing-file warning');
+
   console.log('OK');
 })().catch((e) => { console.error('UNCAUGHT ' + (e && e.stack || e)); process.exit(99); });
 """

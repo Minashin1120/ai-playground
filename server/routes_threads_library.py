@@ -1,6 +1,58 @@
 import heapq
 
 
+_LIBRARY_SCAN_REDIS_KEY = 'ai_chat:library_scan'
+_LIBRARY_SCAN_REDIS_TTL = 60
+_LIBRARY_SCAN_FALLBACK_LOCK = threading.Lock()
+
+
+def _acquire_library_scan_lock():
+    token = secrets.token_urlsafe(24)
+    try:
+        if redis_conn.set(_LIBRARY_SCAN_REDIS_KEY, token, nx=True, ex=_LIBRARY_SCAN_REDIS_TTL):
+            return ('redis', token)
+        return None
+    except Exception:
+        # Keep the endpoint available if Redis is temporarily unavailable, but
+        # still serialize scans within this worker process.
+        if _LIBRARY_SCAN_FALLBACK_LOCK.acquire(blocking=False):
+            return ('local', None)
+        return None
+
+
+def _release_library_scan_lock(lock):
+    if not lock:
+        return
+    kind, token = lock
+    try:
+        if kind == 'redis' and token:
+            current = redis_conn.get(_LIBRARY_SCAN_REDIS_KEY)
+            if current in (token, token.encode('utf-8')):
+                redis_conn.delete(_LIBRARY_SCAN_REDIS_KEY)
+    except Exception:
+        pass
+    finally:
+        if kind == 'local':
+            _LIBRARY_SCAN_FALLBACK_LOCK.release()
+
+
+def _library_scan_guard(view):
+    def guarded(*args, **kwargs):
+        lock = _acquire_library_scan_lock()
+        if not lock:
+            response = jsonify({'error': 'library_busy', 'retry_after': 2})
+            response.status_code = 429
+            response.headers['Retry-After'] = '2'
+            response.headers['Cache-Control'] = 'no-store'
+            return response
+        try:
+            return view(*args, **kwargs)
+        finally:
+            _release_library_scan_lock(lock)
+    guarded.__name__ = view.__name__
+    return guarded
+
+
 @app.route('/api/encryption_scan', methods=['GET'])
 @login_required
 def encryption_scan():
@@ -232,6 +284,7 @@ def _library_item_is_better(candidate, current, reverse):
 
 @app.route('/api/files', methods=['GET'])
 @login_required
+@_library_scan_guard
 def get_files_lib():
     """Return a bounded page without loading the account's messages."""
     try:

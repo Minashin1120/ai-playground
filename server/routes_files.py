@@ -30,29 +30,42 @@ def serve_file_thumb(filename):
 
     thumb_bytes = _thumbnail_bytes_cache_get(cache_key)
     if thumb_bytes is None:
-        data = _load_user_file_bytes(actual_rel_path, info)
-        if data is None:
-            # A file present on disk that the current key cannot decrypt is a
-            # key-mismatch (unrecoverable) case, not a missing file.
-            if info and info.get("exists"):
-                return _unreadable_file_http_response(filename, is_thumb=True)
-            abort(404)
+        generation_token = _acquire_thumbnail_generation_slot()
+        if generation_token is False:
+            return Response(
+                status=503,
+                headers={"Retry-After": "2", "Cache-Control": "no-store"},
+            )
         try:
-            with Image.open(BytesIO(data)) as im:
-                if hasattr(Image, "Resampling"):
-                    resample_lanczos = Image.Resampling.LANCZOS
-                else:
-                    resample_lanczos = Image.LANCZOS
-                if im.mode not in ("RGB", "RGBA"):
-                    im = im.convert("RGB")
-                im.thumbnail((_THUMBNAIL_SIZE, _THUMBNAIL_SIZE), resample=resample_lanczos)
-                buf = BytesIO()
-                im.save(buf, format="WEBP", quality=_THUMBNAIL_QUALITY, method=4)
-                thumb_bytes = buf.getvalue()
-        except Exception as e:
-            log_force(f"Thumbnail generation failed for {actual_rel_path}: {e}")
-            return redirect(url_for('serve_file', filename=filename))
-        _thumbnail_bytes_cache_put(cache_key, thumb_bytes)
+            # Another request may have generated this exact thumbnail while we
+            # waited for the slot, so always check the cache again first.
+            thumb_bytes = _thumbnail_bytes_cache_get(cache_key)
+            if thumb_bytes is None:
+                data = _load_user_file_bytes(actual_rel_path, info)
+                if data is None:
+                    # A file present on disk that the current key cannot decrypt is a
+                    # key-mismatch (unrecoverable) case, not a missing file.
+                    if info and info.get("exists"):
+                        return _unreadable_file_http_response(filename, is_thumb=True)
+                    abort(404)
+                try:
+                    with Image.open(BytesIO(data)) as im:
+                        if hasattr(Image, "Resampling"):
+                            resample_lanczos = Image.Resampling.LANCZOS
+                        else:
+                            resample_lanczos = Image.LANCZOS
+                        if im.mode not in ("RGB", "RGBA"):
+                            im = im.convert("RGB")
+                        im.thumbnail((_THUMBNAIL_SIZE, _THUMBNAIL_SIZE), resample=resample_lanczos)
+                        buf = BytesIO()
+                        im.save(buf, format="WEBP", quality=_THUMBNAIL_QUALITY, method=4)
+                        thumb_bytes = buf.getvalue()
+                except Exception as e:
+                    log_force(f"Thumbnail generation failed for {actual_rel_path}: {e}")
+                    return redirect(url_for('serve_file', filename=filename))
+                _thumbnail_bytes_cache_put(cache_key, thumb_bytes)
+        finally:
+            _release_thumbnail_generation_slot(generation_token)
 
     resp = send_file(BytesIO(thumb_bytes), mimetype="image/webp")
     return _add_thumb_cache_headers(resp, etag=etag)
@@ -310,4 +323,3 @@ def handle_thread_item(thread_id):
     except Exception:
         pass
     return jsonify({'status': 'deleted'})
-

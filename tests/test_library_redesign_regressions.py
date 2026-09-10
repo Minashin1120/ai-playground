@@ -23,6 +23,13 @@ class LibraryRedesignRegressionTests(unittest.TestCase):
         self.assertIn("'files': page_items", endpoint)
         self.assertIn("'has_more':", endpoint)
         self.assertIn("yield_per(500)", endpoint)
+        self.assertIn("status_code = 429", route)
+        self.assertIn("Retry-After", route)
+        storage = (APP_ROOT / "server" / "storage.py").read_text(encoding="utf-8")
+        files_route = (APP_ROOT / "server" / "routes_files.py").read_text(encoding="utf-8")
+        self.assertIn("threading.BoundedSemaphore(1)", storage)
+        self.assertIn("ai_chat:thumbnail_generation", storage)
+        self.assertIn("status=503", files_route)
 
     def test_library_client_loads_pages_instead_of_retrying_full_list(self):
         script = _current_asset("js", "chat_core.v4.8.*.js")

@@ -20996,6 +20996,7 @@
                 // Full reload to establish new tree structure. Errors are persisted
                 // server-side as assistant messages (```chat_error), so reload keeps them visible.
                 await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
+                if (p.batch_mode) refreshGeminiBatchStatus();
                 if (!hadError && codingModeEnabled) {
                     codingTargetSelection = null;
                     syncCodingModeUi(true, { persist: false });
@@ -21795,8 +21796,8 @@
                 const response = await apiFetch('/api/gemini/batch/status');
                 if (!response.ok) return;
                 const data = await response.json().catch(() => ({}));
-                const changedIds = new Set((data.changed_thread_ids || []).map((id) => String(id)));
-                if (currentThreadId && changedIds.has(String(currentThreadId))) {
+                const t = new Set((data.active || []).map((j) => String(j.thread_id)));
+                if (currentThreadId && t.has(String(currentThreadId))) {
                     await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
                 }
                 if (Array.isArray(data.completed) && data.completed.length) {

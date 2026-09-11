@@ -22,9 +22,9 @@ replace("/files/thumb/","/files/"),"fullFileUrl");document.addEventListener("err
 if(!l||l.tagName!=="IMG")return;const d=l.currentSrc||l.src||"";if(!t(d))return;r.stopImmediatePropagation(),
 r.preventDefault();const p=String(d).split("?")[0],g=l.getAttribute("data-viewer-filename")||p.split(
 "/").pop(),h=o(x=>{const L=i(g,!!x);try{l.replaceWith(L)}catch{}},"showWarning"),v=o(()=>{const x=s(
-g);try{l.replaceWith(x)}catch{}},"showBusyWarning"),b=o((x,L)=>{const T=l.cloneNode(!1);T.setAttribute(
-"data-file-retry",String(L));const $=x+(x.includes("?")?"&":"?")+"retry="+Date.now()+"_"+L;T.setAttribute(
-"src",$);try{l.replaceWith(T)}catch{}},"retryLoad"),w=o(x=>{if(x===429||x===503){v();return}if(x===409){
+g);try{l.replaceWith(x)}catch{}},"showBusyWarning"),b=o((x,L)=>{const C=l.cloneNode(!1);C.setAttribute(
+"data-file-retry",String(L));const $=x+(x.includes("?")?"&":"?")+"retry="+Date.now()+"_"+L;C.setAttribute(
+"src",$);try{l.replaceWith(C)}catch{}},"retryLoad"),w=o(x=>{if(x===429||x===503){v();return}if(x===409){
 h(!0);return}if(x===404||x===410||x===403){h(!1);return}const L=parseInt(l.getAttribute&&l.getAttribute(
 "data-file-retry")||"0",10);if(L<2){b(d,L+1);return}if(d.includes("/files/thumb/")&&!l.getAttribute(
 "data-file-fallback")){l.setAttribute("data-file-fallback","1"),b(a(d),0);return}h(!1)},"handleStatu\
@@ -836,9 +836,9 @@ nd); font-weight: bold; }
                 </div>
             `,document.body.appendChild(h),await waitForRichPasteMedia(h,4e3),i(15);try{const v=new p(
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),b=v.internal.pageSize.getWidth(),w=v.internal.
-pageSize.getHeight(),x=794,L=Math.floor(w/b*x),T=h.scrollHeight||h.offsetHeight;let $=0,j=!0;const J=Math.
-ceil(T/L);let X=0;for(;$<T;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
-"Aborted","AbortError");const P=Math.min(L,T-$),Y=(await new Promise((pe,ke)=>{const te=setTimeout(()=>ke(
+pageSize.getHeight(),x=794,L=Math.floor(w/b*x),C=h.scrollHeight||h.offsetHeight;let $=0,j=!0;const J=Math.
+ceil(C/L);let X=0;for(;$<C;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
+"Aborted","AbortError");const P=Math.min(L,C-$),Y=(await new Promise((pe,ke)=>{const te=setTimeout(()=>ke(
 new Error("PDF chunk rendering timed out")),12e4);g(h,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:l.
 background,logging:!1,imageTimeout:5e3,x:0,y:$,width:x,height:P,windowWidth:x,scrollX:0,scrollY:0,signal:richPasteAbortController?
 richPasteAbortController.signal:void 0,onclone:o(se=>{prepareRichPastePdfClone(se,l);const W=se.querySelector(
@@ -1793,14 +1793,14 @@ clickTimes=e.clickTimes.filter(w=>b-w<=2e3),e.fastClicks>=4&&p(!0)},"recordClick
 !1){e.untrustedInput=!0,p(!0);return}const b=performance.now();e.keys+=1,e.lastKeyTs&&b-e.lastKeyTs<
 50&&(e.fastKeys+=1),e.lastKeyTs=b,e.keyTimes.push(b),e.keyTimes=e.keyTimes.filter(w=>b-w<=2e3)},"rec\
 ordKey"),r=o(v=>{const b=performance.now();if(!(b-e.lastMoveSample<80)){if(e.lastMoveSample=b,e.moves+=
-1,e.lastMove){const w=v.clientX-e.lastMove.x,x=v.clientY-e.lastMove.y,L=b-e.lastMove.t;if(L>0){const T=Math.
-sqrt(w*w+x*x)/(L/1e3);e.speedMax=Math.max(e.speedMax,T),e.speedSum+=T,e.speedSamples+=1}}e.lastMove=
+1,e.lastMove){const w=v.clientX-e.lastMove.x,x=v.clientY-e.lastMove.y,L=b-e.lastMove.t;if(L>0){const C=Math.
+sqrt(w*w+x*x)/(L/1e3);e.speedMax=Math.max(e.speedMax,C),e.speedSum+=C,e.speedSamples+=1}}e.lastMove=
 {x:v.clientX,y:v.clientY,t:b}}},"recordMove"),l=o(()=>{const v=Math.max(1,performance.now()-e.windowStart),
-b=e.clickTimes.length,w=e.keyTimes.length,x=e.speedSamples?e.speedSum/e.speedSamples:0;let L=0,T=1;if(e.
+b=e.clickTimes.length,w=e.keyTimes.length,x=e.speedSamples?e.speedSum/e.speedSamples:0;let L=0,C=1;if(e.
 clickIntervals.length>=3){const $=e.clickIntervals.reduce((J,X)=>J+X,0)/e.clickIntervals.length,j=e.
-clickIntervals.reduce((J,X)=>J+Math.pow(X-$,2),0)/e.clickIntervals.length;L=$,T=$>0?Math.sqrt(j)/$:1}
+clickIntervals.reduce((J,X)=>J+Math.pow(X-$,2),0)/e.clickIntervals.length;L=$,C=$>0?Math.sqrt(j)/$:1}
 return{window_ms:Math.round(v),clicks:e.clicks,keys:e.keys,moves:e.moves,fast_clicks:e.fastClicks,fast_keys:e.
-fastKeys,untrusted_input:!!e.untrustedInput,click_burst:b,key_burst:w,avg_click_ms:L,click_cv:T,event_rate:(e.
+fastKeys,untrusted_input:!!e.untrustedInput,click_burst:b,key_burst:w,avg_click_ms:L,click_cv:C,event_rate:(e.
 clicks+e.keys+e.moves)/(v/1e3),pointer_speed_max:e.speedMax,pointer_speed_avg:x}},"computeStats"),d=o(
 v=>v.fast_clicks>=4||v.fast_keys>=8||v.click_burst>=8||v.key_burst>=14||v.event_rate>=20||v.avg_click_ms>
 0&&v.avg_click_ms<160&&v.click_cv<.08,"isSuspicious"),p=o(async(v=!1,b={})=>{if(!e.enabled)return;const w=performance.
@@ -1808,8 +1808,8 @@ now();if(!v&&w-e.lastSend<3e3)return;e.lastSend=w;const x=l();if(!(!b.forceRepor
 moves===0&&!x.untrusted_input)&&!(!v&&!x.untrusted_input&&!d(x))){x.turnstile_token=await getTurnstileToken(),
 botConfig&&botConfig.turnstileSiteKey&&!x.turnstile_token&&!botDetectionVerified&&botDetectionOverlayShown&&
 (x.turnstile_failed=!0,x.challenged=!0);try{const L=await apiFetch("/api/bot-telemetry",{method:"POS\
-T",headers:{"Content-Type":"application/json"},body:JSON.stringify(x)});if(L.status===403){let T=null;
-try{T=await L.json()}catch{}if(T&&T.error==="banned"){showToast("\u30DC\u30C3\u30C8\u5224\u5B9A\u306B\u3088\u308ABAN\u3055\u308C\u307E\u3057\u305F\u3002",
+T",headers:{"Content-Type":"application/json"},body:JSON.stringify(x)});if(L.status===403){let C=null;
+try{C=await L.json()}catch{}if(C&&C.error==="banned"){showToast("\u30DC\u30C3\u30C8\u5224\u5B9A\u306B\u3088\u308ABAN\u3055\u308C\u307E\u3057\u305F\u3002",
 "error",!0),setTimeout(()=>{location.href="/banned"},800);return}}}catch{}resetTurnstileToken(),n()}},
 "send");return{start:o(()=>{t(),e.enabled&&(typeof window.PointerEvent!="undefined"?document.addEventListener(
 "pointerdown",s,!0):document.addEventListener("click",s,!0),document.addEventListener("keydown",a,!0),
@@ -1935,8 +1935,8 @@ a=setTimeout(()=>{const w=o(()=>{l&&(g(l*14,!1),r=requestAnimationFrame(w))},"st
 w)},280)},"startHold");if(e.addEventListener("pointermove",b=>{b.pointerType!=="touch"&&d(b.clientX)}),
 e.addEventListener("pointerenter",b=>{b.pointerType!=="touch"&&d(b.clientX)}),e.addEventListener("po\
 interleave",b=>{b.pointerType!=="touch"&&(h(),p())}),e.addEventListener("wheel",b=>{const w=getSettingsTabsMaxScroll(
-t);if(w<=2)return;const L=Math.abs(b.deltaY)>=Math.abs(b.deltaX)?b.deltaY:b.deltaX;if(!L)return;const T=Math.
-max(0,Math.min(w,t.scrollLeft+L));T!==t.scrollLeft&&(b.preventDefault(),t.scrollLeft=T,syncSettingsTabsOverflow())},
+t);if(w<=2)return;const L=Math.abs(b.deltaY)>=Math.abs(b.deltaX)?b.deltaY:b.deltaX;if(!L)return;const C=Math.
+max(0,Math.min(w,t.scrollLeft+L));C!==t.scrollLeft&&(b.preventDefault(),t.scrollLeft=C,syncSettingsTabsOverflow())},
 {passive:!1}),n.addEventListener("pointerdown",b=>{b.button!=null&&b.button!==0||(b.preventDefault(),
 v(-1))}),i.addEventListener("pointerdown",b=>{b.button!=null&&b.button!==0||(b.preventDefault(),v(1))}),
 n.addEventListener("click",b=>{b.preventDefault(),b.stopPropagation()}),i.addEventListener("click",b=>{
@@ -2573,8 +2573,8 @@ return;const e=get("model-select").value||"",t=getStsProvider(e),n=get("sts-voic
 -play-wrap"),b=get("sts-mode-label"),w=isTranscriptionModel()||isGeminiLiveTranscribeModel(),x=get("\
 sts-lang-wrap");if(w){b&&(b.textContent="Realtime Speech-to-Text"),h&&h.classList.add("hidden"),v&&v.
 classList.add("hidden"),i&&i.classList.add("hidden"),r&&r.classList.add("hidden"),p&&p.classList.add(
-"hidden"),x&&x.classList.add("hidden");const L=get("sts-transcribe-wrap"),T=get("sts-custom-vocab-wr\
-ap");L&&L.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),T&&T.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),
+"hidden"),x&&x.classList.add("hidden");const L=get("sts-transcribe-wrap"),C=get("sts-custom-vocab-wr\
+ap");L&&L.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),C&&C.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),
 g&&(g.textContent=isGeminiLiveTranscribeModel()?"\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u4F4E\u9045\u5EF6\u6587\u5B57\u8D77\u3053\u3057\uFF0816kHz PCM / \u6700\u592710\u5206\uFF09":
 e==="gpt-live-transcribe"?"\u4F4E\u9045\u5EF6\u30E9\u30A4\u30D6\u6587\u5B57\u8D77\u3053\u3057\uFF0824kHz PCM\uFF09":
 "\u9AD8\u7CBE\u5EA6\u306A\u30B3\u30DF\u30C3\u30C8\u5358\u4F4D\u306E\u6587\u5B57\u8D77\u3053\u3057\uFF0824kHz PCM\uFF09")}else
@@ -3273,8 +3273,8 @@ o(x,"toggleOptions"),get("model-select")&&(get("model-select").addEventListener(
 el-select").addEventListener("change",()=>schedulePromptTokenEstimate(!0))),bindPromptCacheControls(),
 x(),minimalPromptMode?setMinimalPromptMode(!0):setCompactPromptMode(compactPromptMode,!0),renderWelcomeQuickStart();
 const L=get("enable-canvas-mode");L&&(L.checked=canvasModeEnabled,L.addEventListener("change",()=>syncCanvasModeUi(
-L.checked))),syncCanvasModeUi(canvasModeEnabled,{persist:!1,skipReset:!1});const T=get("enable-codin\
-g-mode");T&&(T.checked=codingModeEnabled,T.addEventListener("change",()=>syncCodingModeUi(T.checked))),
+L.checked))),syncCanvasModeUi(canvasModeEnabled,{persist:!1,skipReset:!1});const C=get("enable-codin\
+g-mode");C&&(C.checked=codingModeEnabled,C.addEventListener("change",()=>syncCodingModeUi(C.checked))),
 get("clear-coding-target-btn")&&get("clear-coding-target-btn").addEventListener("click",()=>{codingTargetSelection=
 null,syncCodingModeUi(codingModeEnabled,{persist:!1}),showToast("\u6700\u65B0\u306E\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3092\u81EA\u52D5\u9078\u629E\u3057\u307E\u3059",
 "info",!1)}),syncCodingModeUi(codingModeEnabled,{persist:!1}),get("canvas-panel-close-btn")&&get("ca\
@@ -3447,7 +3447,7 @@ c.unreadable_count)}\u4EF6\u3092\u5FA9\u65E7\u7528\u3068\u3057\u3066\u53CE\u9332
 if(f){const M=c.expires_at?new Date(c.expires_at):null;f.textContent=M&&!Number.isNaN(M.getTime())?`\
 \u4FDD\u5B58\u671F\u9650\uFF1A${M.toLocaleString()}\uFF08\u671F\u9650\u5F8C\u306B\u81EA\u52D5\u524A\u9664\uFF09`:
 "\u5B8C\u6210\u304B\u30891\u6642\u9593\u5F8C\u306B\u81EA\u52D5\u524A\u9664\u3055\u308C\u307E\u3059\u3002"}
-y&&(y.href=c.download_url)},"renderAccountExportAvailability"),C=o(async c=>{for(;pe===c&&!c.stopped;){
+y&&(y.href=c.download_url)},"renderAccountExportAvailability"),T=o(async c=>{for(;pe===c&&!c.stopped;){
 try{const u=await apiFetch(`/api/account/transfer/${c.id}`,manualSpinnerRequestOptions({cache:"no-st\
 ore"})),m=await u.json().catch(()=>({}));if(u.ok&&(m.state!=="pending"&&te(m),["ready","completed","\
 failed","cancelled","expired"].includes(m.state)))return m}catch{}await new Promise(u=>setTimeout(u,
@@ -3459,7 +3459,7 @@ showToast(u.message||"\u30A8\u30AF\u30B9\u30DD\u30FC\u30C8\u306B\u5931\u6557\u30
 ount/export/latest",manualSpinnerRequestOptions({cache:"no-store"})),u=await c.json().catch(()=>({}));
 if(!c.ok)return;if(W(u),u.state==="ready"){te(u);return}if(["failed","cancelled","expired"].includes(
 u.state)){te(u);return}if(!["queued","running","cancelling"].includes(u.state)||!u.job_id||pe&&pe.id===
-u.job_id||pe)return;const m={id:u.job_id,type:"export",stopped:!1,restored:!0};pe=m,se(!0),te(u);const f=await C(
+u.job_id||pe)return;const m={id:u.job_id,type:"export",stopped:!1,restored:!0};pe=m,se(!0),te(u);const f=await T(
 m);f&&R(m,f,!0)}catch{}},"refreshLatestAccountExport"),K=o(c=>{pe===c&&(pe=null),c.stopped=!0,se(!1)},
 "finishAccountTransfer"),Z=get("account-transfer-cancel-btn");Z&&(Z.onclick=async()=>{const c=pe;if(!(!c||
 c.stopped)){c.cancelRequested=!0,Z.disabled=!0,te({progress:0,phase:"cancelling",message:"\u30AD\u30E3\u30F3\u30BB\u30EB\u3057\u3066\u3044\u307E\u3059"});
@@ -3475,7 +3475,7 @@ m.error==="export_in_progress"&&m.job_id)c.id=m.job_id;else if(!u.ok)throw new E
 _limit"?"\u30A8\u30AF\u30B9\u30DD\u30FC\u30C8\u56DE\u6570\u306E\u4E0A\u9650\u306B\u9054\u3057\u307E\u3057\u305F":
 m.error||"\u30A8\u30AF\u30B9\u30DD\u30FC\u30C8\u3092\u958B\u59CB\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F");
 te({progress:0,phase:"queued",message:"\u30D0\u30C3\u30AF\u30B0\u30E9\u30A6\u30F3\u30C9\u3067\u30A8\u30AF\u30B9\u30DD\u30FC\u30C8\u3057\u3066\u3044\u307E\u3059"});
-const f=await C(c);!c.cancelRequested&&f&&R(c,f,!0)}catch(u){const m=u&&u.message?u.message:"\u30A8\u30AF\u30B9\u30DD\u30FC\u30C8\u3092\
+const f=await T(c);!c.cancelRequested&&f&&R(c,f,!0)}catch(u){const m=u&&u.message?u.message:"\u30A8\u30AF\u30B9\u30DD\u30FC\u30C8\u3092\
 \u958B\u59CB\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F";te({progress:0,phase:"failed",message:m}),
 showToast(m,"error",!0),K(c)}});const Q=get("account-export-download-btn");Q&&Q.addEventListener("cl\
 ick",async c=>{const u=Q.getAttribute("href");if(!(!u||u==="#")){c.preventDefault();try{const m=await apiFetch(
@@ -3624,7 +3624,7 @@ if(ge.state==="running"){const re=await Promise.race([ne.catch(()=>null),new Pro
 "cancelled","expired"].includes(re.state)?new Error(re.message||"\u30A4\u30F3\u30DD\u30FC\u30C8\u306B\u5931\u6557\u3057\u307E\u3057\u305F"):
 new Error("\u30A4\u30F3\u30DD\u30FC\u30C8\u51E6\u7406\u304C\u30B5\u30FC\u30D0\u30FC\u5074\u3067\u7D99\u7D9A\u4E2D\u3067\u3059\u3002\u3057\u3070\u3089\u304F\u3057\u3066\u304B\u3089\u30DA\u30FC\u30B8\u3092\u518D\u8AAD\u307F\u8FBC\u307F\u3057\u3066\u78BA\u8A8D\u3057\u3066\u304F\u3060\u3055\u3044")}
 return{status:"unknown"}},"settleUnreadableImport");for(;!Ve;){I.stopped=!0,await ne.catch(()=>null),
-I.stopped=!1,ne=C(I);let ge;try{ge=await apiFetch("/api/account/import",manualSpinnerRequestOptions(
+I.stopped=!1,ne=T(I);let ge;try{ge=await apiFetch("/api/account/import",manualSpinnerRequestOptions(
 {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({upload_id:I.uploadId,
 categories:f.join(","),job_id:I.id,selected_files:Oe,restore_inplace:k,confirm_settings:M||S}),signal:I.
 controller.signal}))}catch(De){if(I.cancelRequested||De&&De.name==="AbortError")throw De;const it=await dt();
@@ -4966,22 +4966,22 @@ n")){const u=c.target.closest(".canvas-preview-btn");previewCanvasCodeFromButton
 loadMessages(currentThreadId):schedulePromptTokenEstimate(!0)});function updateFilePreview(){const e=get(
 "file-preview"),t=get("file-name"),n=get("upload-total-progress"),i=get("upload-total-progress-bar"),
 s=get("file-preview-thumbs"),a=get("upload-modal-status-text"),r=get("upload-modal-total-progress"),
-l=get("upload-modal-total-progress-bar");if(!e||!t)return;if(s){const T=document.querySelectorAll("#\
-upload-list .upload-row");s.innerHTML="",T.forEach(($,j)=>{const J=$.getAttribute("data-local-url"),
+l=get("upload-modal-total-progress-bar");if(!e||!t)return;if(s){const C=document.querySelectorAll("#\
+upload-list .upload-row");s.innerHTML="",C.forEach(($,j)=>{const J=$.getAttribute("data-local-url"),
 X=$.getAttribute("data-filename"),Te=$.querySelector("img.upload-preview")!==null;let P;if(Te){let q=J;
 if(!q&&X){const Y=X.replace(/^\d+\//,"");q=buildAttachmentPreviewUrl(Y)}q&&(P=document.createElement(
 "img"),P.src=q,P.className="thumb-item shadow-sm",P.dataset.viewerSrc=q,P.dataset.viewerFilename=X||
 q.split("/").pop(),P.onclick=function(Y){Y.preventDefault(),openImageViewer(this.dataset.viewerSrc,"\
 .thumb-item")},P.onerror=function(){this.parentElement.replaceChild(d("ERR"),this)})}P||(P=d("FILE")),
-P.style.animationDelay=`${j*32}ms`,s.appendChild(P)}),T.length>0?s.classList.remove("hidden"):s.classList.
-add("hidden")}function d(T){const $=document.createElement("div");return $.className="thumb-item bg-\
+P.style.animationDelay=`${j*32}ms`,s.appendChild(P)}),C.length>0?s.classList.remove("hidden"):s.classList.
+add("hidden")}function d(C){const $=document.createElement("div");return $.className="thumb-item bg-\
 gray-800 flex items-center justify-center text-gray-500 text-[9px] shadow-sm font-bold",$.innerText=
-T,$}o(d,"createFileThumb");const p=collectImageUrlsForSend(),g=uploadProgressState.total,h=uploadProgressState.
+C,$}o(d,"createFileThumb");const p=collectImageUrlsForSend(),g=uploadProgressState.total,h=uploadProgressState.
 completed,v=uploadProgressState.active;g===0&&(e.classList.add("hidden"),n&&n.classList.add("hidden"),
 r&&r.classList.add("hidden"),s&&s.classList.add("hidden"));const b=get("send-btn"),w=get("mic-btn"),
 x=get("mask-btn"),L=isStopMode;if(v>0?(b&&(b.disabled=!0),w&&(w.disabled=!0),x&&(x.disabled=!0)):L||
-(b&&(b.disabled=!1),w&&(w.disabled=!1),x&&(x.disabled=!1)),v>0){const T=`Preparing... (${h}/${g})`;e.
-classList.remove("hidden"),t.innerText=T,a&&(a.innerText=`(${h}/${g})`);let $=h*100,j=0;for(let Te in uploadProgressState.
+(b&&(b.disabled=!1),w&&(w.disabled=!1),x&&(x.disabled=!1)),v>0){const C=`Preparing... (${h}/${g})`;e.
+classList.remove("hidden"),t.innerText=C,a&&(a.innerText=`(${h}/${g})`);let $=h*100,j=0;for(let Te in uploadProgressState.
 perFilePct)$+=uploadProgressState.perFilePct[Te],j++;const J=g>0?$/(g*100)*100:0,X=`${Math.min(100,J)}\
 %`;n&&i&&(n.classList.remove("hidden"),i.style.width=X),r&&l&&(r.classList.remove("hidden"),l.style.
 width=X)}else a&&(a.innerText=""),r&&r.classList.add("hidden"),p.length>0?(e.classList.remove("hidde\
@@ -5031,7 +5031,7 @@ r-stage"),t=get("marker-viewport");if(!e||!t)return;const n=Math.max(1,e.clientW
 1,e.clientHeight||0),s=Math.max(1,t.offsetWidth||t.clientWidth||0),a=Math.max(1,t.offsetHeight||t.clientHeight||
 0);if(n<=1||i<=1||s<=1||a<=1)return;const r=(n-s)/2,l=(i-a)/2,d=s*markerView.scale,p=a*markerView.scale,
 g=Math.min(n*.45,Math.max(24,n*.12)),h=Math.min(i*.45,Math.max(24,i*.12)),v=g-r-d,b=n-g-r,w=h-l-p,x=i-
-h-l,L=o((T,$,j)=>Number.isFinite(T)?$>j?($+j)/2:Math.min(j,Math.max($,T)):0,"clampOffset");markerView.
+h-l,L=o((C,$,j)=>Number.isFinite(C)?$>j?($+j)/2:Math.min(j,Math.max($,C)):0,"clampOffset");markerView.
 offsetX=L(markerView.offsetX,v,b),markerView.offsetY=L(markerView.offsetY,w,x)}o(clampMarkerViewOffset,
 "clampMarkerViewOffset");function applyMarkerTransform(){const e=get("marker-viewport");e&&(clampMarkerViewOffset(),
 e.style.transform=`translate(${markerView.offsetX}px, ${markerView.offsetY}px) scale(${markerView.scale}\
@@ -5294,8 +5294,8 @@ rder border-gray-700 rounded px-2 py-1">\u524A\u9664</button>
                     <div style="width:100%"></div>
                 </div>
             `;const x=h.querySelector(".upload-preview");x&&(x.onclick=()=>openFileViewer(d,getRowAttachmentName(
-h)||a));const L=h.querySelector(".upload-send-name");L&&(L.onclick=()=>promptRowAttachmentName(h));const T=h.
-querySelector(".upload-remove");T&&(T.onclick=()=>{uploadCancelTokens.add(g),browserFastLocalFiles.delete(
+h)||a));const L=h.querySelector(".upload-send-name");L&&(L.onclick=()=>promptRowAttachmentName(h));const C=h.
+querySelector(".upload-remove");C&&(C.onclick=()=>{uploadCancelTokens.add(g),browserFastLocalFiles.delete(
 g),decrementUploadTotal(g);const j=h.getAttribute("data-filename");j&&(currentImageUrls=currentImageUrls.
 filter(J=>J!==j)),setRowMarkerState(h,!1),h.remove(),updateFilePreview(),i.children.length===0&&(i.innerHTML=
 '<div class="text-xs text-gray-500">\u307E\u3060\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u304C\u3042\u308A\u307E\u305B\u3093\u3002</div>')});
@@ -5352,12 +5352,12 @@ stringify({filename:e.name,size:e.size})}),s=await i.json();if(!i.ok){const h=s&
 \u30D7\u30ED\u30FC\u30C9\u306B\u5931\u6557\u3057\u307E\u3057\u305F";return t&&t.status&&(t.status.textContent=
 "\u5931\u6557"),showToast(h,"error",!0),!1}const a=s.upload_id,r=s.chunk_size||10*1024*1024,l=Math.ceil(
 e.size/r);for(let h=0;h<l;h++){const v=h*r,b=Math.min(e.size,v+r),w=e.slice(v,b);if(!await new Promise(
-L=>{const T=new XMLHttpRequest;T.open("POST","/upload/chunk",!0),T.setRequestHeader("X-CSRF-Token",csrfToken),
-T.upload.onprogress=j=>{if(j.lengthComputable&&t&&t.bar){const J=v+j.loaded,X=Math.min(100,Math.floor(
+L=>{const C=new XMLHttpRequest;C.open("POST","/upload/chunk",!0),C.setRequestHeader("X-CSRF-Token",csrfToken),
+C.upload.onprogress=j=>{if(j.lengthComputable&&t&&t.bar){const J=v+j.loaded,X=Math.min(100,Math.floor(
 J/e.size*100));t.bar.style.width=`${X}%`,t.status&&(t.status.textContent=`${X}%`),t.uploadId&&updateGlobalUploadProgress(
-t.uploadId,X)}window.ConnectionMonitor&&window.ConnectionMonitor.reportActivity()},T.onload=()=>{T.status>=
-200&&T.status<300?L(!0):L(!1)},T.onerror=()=>L(!1);const $=new FormData;$.append("upload_id",a),$.append(
-"index",String(h)),$.append("total",String(l)),$.append("chunk",w,e.name),T.send($)}))return t&&t.status&&
+t.uploadId,X)}window.ConnectionMonitor&&window.ConnectionMonitor.reportActivity()},C.onload=()=>{C.status>=
+200&&C.status<300?L(!0):L(!1)},C.onerror=()=>L(!1);const $=new FormData;$.append("upload_id",a),$.append(
+"index",String(h)),$.append("total",String(l)),$.append("chunk",w,e.name),C.send($)}))return t&&t.status&&
 (t.status.textContent="\u5931\u6557"),showToast("\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0),!1}t&&t.status&&(t.status.textContent="\u51E6\u7406\u4E2D...");const d=await apiFetch("/\
 upload/complete",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken},
@@ -5438,81 +5438,81 @@ const e=get("marker-canvas");if(!e)return;const t=e.getContext("2d");t&&t.clearR
 markerState.hasStroke=!1,markerState.mosaicRects=[],markerState.mosaicPreviewRect=null,renderCropOverlay(),
 saveMarkerHistory()}o(clearMarkerCanvas,"clearMarkerCanvas");function initMarkerCanvas(){const e=get(
 "marker-canvas");if(!e)return;const t=e.getContext("2d"),n=get("marker-size"),i=new Map;let s=!1,a=0,
-r=markerView.scale,l={x:0,y:0},d={x:0,y:0},p=[],g=16,h="",v=null,b=null,w=null,x=null,L=!1,T=null;const $=o(
-C=>{const R=e.getBoundingClientRect(),G=(C.clientX-R.left)*(e.width/R.width),K=(C.clientY-R.top)*(e.
-height/R.height);return{x:G,y:K}},"getPoint"),j=o((C,R)=>({x:(C.x+R.x)/2,y:(C.y+R.y)/2}),"getMid"),J=o(
-(C,R)=>Math.hypot(C.x-R.x,C.y-R.y),"getDist");let X=!1;const Te=o(()=>{v||(v=document.createElement(
+r=markerView.scale,l={x:0,y:0},d={x:0,y:0},p=[],g=16,h="",v=null,b=null,w=null,x=null,L=!1,C=null;const $=o(
+T=>{const R=e.getBoundingClientRect(),G=(T.clientX-R.left)*(e.width/R.width),K=(T.clientY-R.top)*(e.
+height/R.height);return{x:G,y:K}},"getPoint"),j=o((T,R)=>({x:(T.x+R.x)/2,y:(T.y+R.y)/2}),"getMid"),J=o(
+(T,R)=>Math.hypot(T.x-R.x,T.y-R.y),"getDist");let X=!1;const Te=o(()=>{v||(v=document.createElement(
 "canvas"),b=v.getContext("2d")),w||(w=document.createElement("canvas"),x=w.getContext("2d")),(v.width!==
 e.width||v.height!==e.height)&&(v.width=e.width,v.height=e.height),(w.width!==e.width||w.height!==e.
-height)&&(w.width=e.width,w.height=e.height)},"ensureDrawBuffers"),P=o(()=>{if(!t||!v||!w)return;const C=Math.
+height)&&(w.width=e.width,w.height=e.height)},"ensureDrawBuffers"),P=o(()=>{if(!t||!v||!w)return;const T=Math.
 max(MARKER_OPACITY_MIN_ALPHA,Math.min(1,Number(markerState.opacity)||.6));t.clearRect(0,0,e.width,e.
-height),t.drawImage(v,0,0),t.save(),t.globalAlpha=C,t.drawImage(w,0,0),t.restore()},"renderDrawPrevi\
+height),t.drawImage(v,0,0),t.save(),t.globalAlpha=T,t.drawImage(w,0,0),t.restore()},"renderDrawPrevi\
 ew"),q=o(()=>{x&&(x.strokeStyle=h,x.fillStyle=h,x.lineWidth=g,x.lineCap="round",x.lineJoin="round")},
-"applyMarkerBrush"),Y=o(C=>{if(!C)return!1;if(p.length===0)return p.push(C),!0;const R=p[p.length-1],
-G=C.x-R.x,K=C.y-R.y,Z=Math.hypot(G,K),ye=Math.max(.35,g*.04);if(Z<ye)return!1;const Q=Math.max(1,g*.25),
+"applyMarkerBrush"),Y=o(T=>{if(!T)return!1;if(p.length===0)return p.push(T),!0;const R=p[p.length-1],
+G=T.x-R.x,K=T.y-R.y,Z=Math.hypot(G,K),ye=Math.max(.35,g*.04);if(Z<ye)return!1;const Q=Math.max(1,g*.25),
 le=Math.max(1,Math.ceil(Z/Q));for(let U=1;U<=le;U++){const fe=U/le;p.push({x:R.x+G*fe,y:R.y+K*fe})}return!0},
 "appendStrokePoint"),de=o(()=>{if(x&&(x.clearRect(0,0,w.width,w.height),p.length!==0)){if(q(),p.length===
-1){const C=p[0];x.beginPath(),x.arc(C.x,C.y,g/2,0,Math.PI*2),x.fill();return}if(x.beginPath(),x.moveTo(
+1){const T=p[0];x.beginPath(),x.arc(T.x,T.y,g/2,0,Math.PI*2),x.fill();return}if(x.beginPath(),x.moveTo(
 p[0].x,p[0].y),p.length===2)x.lineTo(p[1].x,p[1].y);else{for(let G=1;G<p.length-2;G++){const K=p[G],
-Z=p[G+1],ye=j(K,Z);x.quadraticCurveTo(K.x,K.y,ye.x,ye.y)}const C=p[p.length-2],R=p[p.length-1];x.quadraticCurveTo(
-C.x,C.y,R.x,R.y)}x.stroke()}},"renderStrokeLayer"),oe=o((C,R)=>{if(!C||!R)return null;const G=Math.min(
-C.x,R.x),K=Math.min(C.y,R.y),Z=Math.abs(C.x-R.x),ye=Math.abs(C.y-R.y);return{x:G,y:K,w:Z,h:ye}},"nor\
-malizeMosaicRect"),xe=o(C=>{const R=n?Number(n.value||16):16,G=Math.max(6,Math.floor(R)),K=Math.floor(
-G/2);return{x:C.x-K,y:C.y-K,w:G,h:G}},"buildMosaicRectFromPoint"),pe=o(()=>{const C=document.createElement(
-"canvas");C.width=e.width,C.height=e.height;const R=C.getContext("2d");if(!R)return null;markerState.
+Z=p[G+1],ye=j(K,Z);x.quadraticCurveTo(K.x,K.y,ye.x,ye.y)}const T=p[p.length-2],R=p[p.length-1];x.quadraticCurveTo(
+T.x,T.y,R.x,R.y)}x.stroke()}},"renderStrokeLayer"),oe=o((T,R)=>{if(!T||!R)return null;const G=Math.min(
+T.x,R.x),K=Math.min(T.y,R.y),Z=Math.abs(T.x-R.x),ye=Math.abs(T.y-R.y);return{x:G,y:K,w:Z,h:ye}},"nor\
+malizeMosaicRect"),xe=o(T=>{const R=n?Number(n.value||16):16,G=Math.max(6,Math.floor(R)),K=Math.floor(
+G/2);return{x:T.x-K,y:T.y-K,w:G,h:G}},"buildMosaicRectFromPoint"),pe=o(()=>{const T=document.createElement(
+"canvas");T.width=e.width,T.height=e.height;const R=T.getContext("2d");if(!R)return null;markerState.
 baseCanvas&&R.drawImage(markerState.baseCanvas,0,0),R.drawImage(e,0,0);try{return R.getImageData(0,0,
-e.width,e.height)}catch{return null}},"getMosaicSourceImageData"),ke=o(C=>{if(!t||!C)return!1;const R=pe();
+e.width,e.height)}catch{return null}},"getMosaicSourceImageData"),ke=o(T=>{if(!t||!T)return!1;const R=pe();
 if(!R)return!1;const G=n?Number(n.value||16):16,K=Math.max(4,Math.floor(G/2)),Z=Math.max(0,Math.floor(
-C.x)),ye=Math.max(0,Math.floor(C.y)),Q=Math.min(e.width,Math.ceil(C.x+C.w)),le=Math.min(e.height,Math.
-ceil(C.y+C.h));if(Q<=Z||le<=ye)return!1;for(let U=ye;U<le;U+=K)for(let fe=Z;fe<Q;fe+=K){const et=Math.
+T.x)),ye=Math.max(0,Math.floor(T.y)),Q=Math.min(e.width,Math.ceil(T.x+T.w)),le=Math.min(e.height,Math.
+ceil(T.y+T.h));if(Q<=Z||le<=ye)return!1;for(let U=ye;U<le;U+=K)for(let fe=Z;fe<Q;fe+=K){const et=Math.
 min(K,Q-fe),Ce=Math.min(K,le-U),tt=Math.min(e.width-1,Math.max(0,fe+Math.floor(et/2))),Ke=(Math.min(
 e.height-1,Math.max(0,U+Math.floor(Ce/2)))*e.width+tt)*4,ot=R.data[Ke],xt=R.data[Ke+1],gt=R.data[Ke+
-2];t.fillStyle=`rgb(${ot},${xt},${gt})`,t.fillRect(fe,U,et,Ce)}return!0},"applyMosaicRect"),te=o(C=>{
-if(!t)return;if(i.set(C.pointerId,{x:C.clientX,y:C.clientY}),i.size>=2){const G=Array.from(i.values()),
-K=G[0],Z=G[1];s=!0,X=!1,p=[],L=!1,T=null,markerState.mosaicPreviewRect=null,a=J(K,Z)||1,r=markerView.
+2];t.fillStyle=`rgb(${ot},${xt},${gt})`,t.fillRect(fe,U,et,Ce)}return!0},"applyMosaicRect"),te=o(T=>{
+if(!t)return;if(i.set(T.pointerId,{x:T.clientX,y:T.clientY}),i.size>=2){const G=Array.from(i.values()),
+K=G[0],Z=G[1];s=!0,X=!1,p=[],L=!1,C=null,markerState.mosaicPreviewRect=null,a=J(K,Z)||1,r=markerView.
 scale,l={x:markerView.offsetX,y:markerView.offsetY},d=j(K,Z),renderCropOverlay(),e.setPointerCapture&&
-e.setPointerCapture(C.pointerId),C.preventDefault();return}if(s||markerState.mode==="crop")return;X=
-!0;const R=$(C);if(markerState.mode==="mosaic")L=!0,T=R,markerState.mosaicPreviewRect=xe(R),renderCropOverlay();else{
+e.setPointerCapture(T.pointerId),T.preventDefault();return}if(s||markerState.mode==="crop")return;X=
+!0;const R=$(T);if(markerState.mode==="mosaic")L=!0,C=R,markerState.mosaicPreviewRect=xe(R),renderCropOverlay();else{
 if(Te(),!b||!x)return;b.clearRect(0,0,v.width,v.height),b.drawImage(e,0,0),x.clearRect(0,0,w.width,w.
 height),g=n?Number(n.value||16):16,h=normalizeMarkerHexColor(markerState.colorHex),p=[],Y(R),de(),markerState.
-hasStroke=!0,P()}e.setPointerCapture&&e.setPointerCapture(C.pointerId),C.preventDefault()},"start"),
-se=o(C=>{if(i.has(C.pointerId)&&i.set(C.pointerId,{x:C.clientX,y:C.clientY}),s&&i.size>=2){const G=Array.
+hasStroke=!0,P()}e.setPointerCapture&&e.setPointerCapture(T.pointerId),T.preventDefault()},"start"),
+se=o(T=>{if(i.has(T.pointerId)&&i.set(T.pointerId,{x:T.clientX,y:T.clientY}),s&&i.size>=2){const G=Array.
 from(i.values()),K=G[0],Z=G[1],ye=j(K,Z),Q=J(K,Z)||1,le=r*(Q/a);markerView.scale=Math.min(markerView.
 maxScale,Math.max(markerView.minScale,le)),markerView.offsetX=l.x+(ye.x-d.x),markerView.offsetY=l.y+
-(ye.y-d.y),applyMarkerTransform(),C.preventDefault();return}if(!X||!t)return;const R=$(C);if(markerState.
-mode==="mosaic"){if(!L||!T)return;markerState.mosaicPreviewRect=oe(T,R)||xe(R),renderCropOverlay()}else
-Y(R)&&(de(),P());C.preventDefault()},"move"),W=o(C=>{const R=X;if(i.delete(C.pointerId),i.size<2&&(s=
+(ye.y-d.y),applyMarkerTransform(),T.preventDefault();return}if(!X||!t)return;const R=$(T);if(markerState.
+mode==="mosaic"){if(!L||!C)return;markerState.mosaicPreviewRect=oe(C,R)||xe(R),renderCropOverlay()}else
+Y(R)&&(de(),P());T.preventDefault()},"move"),W=o(T=>{const R=X;if(i.delete(T.pointerId),i.size<2&&(s=
 !1),i.size===0){if(X=!1,R&&t&&markerState.mode==="draw"&&p.length>0&&(de(),P()),R&&markerState.mode===
-"mosaic"&&T){const G=$(C);let K=oe(T,G);(!K||K.w<2||K.h<2)&&(K=xe(T)),ke(K)&&(markerState.hasStroke=
-!0,markerState.mosaicRects.push(K))}p=[],L=!1,T=null,markerState.mosaicPreviewRect=null,renderCropOverlay(),
-R&&saveMarkerHistory()}e.releasePointerCapture&&e.releasePointerCapture(C.pointerId),C.preventDefault()},
+"mosaic"&&C){const G=$(T);let K=oe(C,G);(!K||K.w<2||K.h<2)&&(K=xe(C)),ke(K)&&(markerState.hasStroke=
+!0,markerState.mosaicRects.push(K))}p=[],L=!1,C=null,markerState.mosaicPreviewRect=null,renderCropOverlay(),
+R&&saveMarkerHistory()}e.releasePointerCapture&&e.releasePointerCapture(T.pointerId),T.preventDefault()},
 "end");e.addEventListener("pointerdown",te),e.addEventListener("pointermove",se),e.addEventListener(
 "pointerup",W),e.addEventListener("pointercancel",W)}o(initMarkerCanvas,"initMarkerCanvas");function initCropCanvas(){
 const e=get("marker-crop-canvas");if(!e)return;const t=e.getContext("2d"),n=new Map;let i=!1,s=null,
 a=null,r=null,l=!1,d=0,p=markerView.scale,g={x:0,y:0},h={x:0,y:0};const v=8,b=14,w=o((P,q,Y)=>Math.min(
 Y,Math.max(q,P)),"clamp"),x=o(P=>{const q=e.getBoundingClientRect(),Y=(P.clientX-q.left)*(e.width/q.
 width),de=(P.clientY-q.top)*(e.height/q.height);return{x:Y,y:de}},"getPoint"),L=o((P,q)=>({x:(P.x+q.
-x)/2,y:(P.y+q.y)/2}),"getMid"),T=o((P,q)=>Math.hypot(P.x-q.x,P.y-q.y),"getDist"),$=o(()=>(markerState.
+x)/2,y:(P.y+q.y)/2}),"getMid"),C=o((P,q)=>Math.hypot(P.x-q.x,P.y-q.y),"getDist"),$=o(()=>(markerState.
 cropRect||resetCropRectToFull(),markerState.cropRect),"ensureCropRect"),j=o((P,q)=>{if(!q)return"mov\
 e";const Y=q.x,de=q.y,oe=q.x+q.w,xe=q.y+q.h,pe=Math.abs(P.x-Y)<=b,ke=Math.abs(P.x-oe)<=b,te=Math.abs(
 P.y-de)<=b,se=Math.abs(P.y-xe)<=b;if(pe&&te)return"nw";if(ke&&te)return"ne";if(pe&&se)return"sw";if(ke&&
 se)return"se";if(te)return"n";if(se)return"s";if(pe)return"w";if(ke)return"e";if(P.x>Y+b&&P.x<oe-b&&
-P.y>de+b&&P.y<xe-b)return"move";const C=P.x<Y?"left":P.x>oe?"right":null,R=P.y<de?"top":P.y>xe?"bott\
-om":null;if(C&&R){if(C==="left"&&R==="top")return"nw";if(C==="right"&&R==="top")return"ne";if(C==="l\
-eft"&&R==="bottom")return"sw";if(C==="right"&&R==="bottom")return"se"}return C?C==="left"?"w":"e":R?
+P.y>de+b&&P.y<xe-b)return"move";const T=P.x<Y?"left":P.x>oe?"right":null,R=P.y<de?"top":P.y>xe?"bott\
+om":null;if(T&&R){if(T==="left"&&R==="top")return"nw";if(T==="right"&&R==="top")return"ne";if(T==="l\
+eft"&&R==="bottom")return"sw";if(T==="right"&&R==="bottom")return"se"}return T?T==="left"?"w":"e":R?
 R==="top"?"n":"s":"move"},"hitTest"),J=o(P=>{if(markerState.mode!=="crop")return;if(n.set(P.pointerId,
 {x:P.clientX,y:P.clientY}),n.size>=2){const de=Array.from(n.values()),oe=de[0],xe=de[1];l=!0,i=!1,d=
-T(oe,xe)||1,p=markerView.scale,g={x:markerView.offsetX,y:markerView.offsetY},h=L(oe,xe),e.setPointerCapture&&
+C(oe,xe)||1,p=markerView.scale,g={x:markerView.offsetX,y:markerView.offsetY},h=L(oe,xe),e.setPointerCapture&&
 e.setPointerCapture(P.pointerId),P.preventDefault();return}if(l)return;i=!0;const q=x(P),Y=$();a=j(q,
 Y),s=q,r=Y?{x:Y.x,y:Y.y,w:Y.w,h:Y.h}:null,renderCropOverlay(),e.setPointerCapture&&e.setPointerCapture(
 P.pointerId),P.preventDefault()},"start"),X=o(P=>{if(markerState.mode!=="crop")return;if(n.has(P.pointerId)&&
-n.set(P.pointerId,{x:P.clientX,y:P.clientY}),l&&n.size>=2){const C=Array.from(n.values()),R=C[0],G=C[1],
-K=L(R,G),Z=T(R,G)||1,ye=p*(Z/d);markerView.scale=Math.min(markerView.maxScale,Math.max(markerView.minScale,
+n.set(P.pointerId,{x:P.clientX,y:P.clientY}),l&&n.size>=2){const T=Array.from(n.values()),R=T[0],G=T[1],
+K=L(R,G),Z=C(R,G)||1,ye=p*(Z/d);markerView.scale=Math.min(markerView.maxScale,Math.max(markerView.minScale,
 ye)),markerView.offsetX=g.x+(K.x-h.x),markerView.offsetY=g.y+(K.y-h.y),applyMarkerTransform(),renderCropOverlay(),
 P.preventDefault();return}if(!i||!s||!r)return;const q=x(P),Y=e.width,de=e.height,oe={x:r.x,y:r.y,w:r.
-w,h:r.h},xe=r.x+r.w,pe=r.y+r.h,ke=o(()=>{const C=w(q.x,0,xe-v);oe.x=C,oe.w=xe-C},"applyW"),te=o(()=>{
-oe.w=w(q.x-r.x,v,Y-r.x)},"applyE"),se=o(()=>{const C=w(q.y,0,pe-v);oe.y=C,oe.h=pe-C},"applyN"),W=o(()=>{
-oe.h=w(q.y-r.y,v,de-r.y)},"applyS");switch(a){case"move":{const C=q.x-s.x,R=q.y-s.y;oe.x=w(r.x+C,0,Y-
+w,h:r.h},xe=r.x+r.w,pe=r.y+r.h,ke=o(()=>{const T=w(q.x,0,xe-v);oe.x=T,oe.w=xe-T},"applyW"),te=o(()=>{
+oe.w=w(q.x-r.x,v,Y-r.x)},"applyE"),se=o(()=>{const T=w(q.y,0,pe-v);oe.y=T,oe.h=pe-T},"applyN"),W=o(()=>{
+oe.h=w(q.y-r.y,v,de-r.y)},"applyS");switch(a){case"move":{const T=q.x-s.x,R=q.y-s.y;oe.x=w(r.x+T,0,Y-
 r.w),oe.y=w(r.y+R,0,de-r.h);break}case"w":ke();break;case"e":te();break;case"n":se();break;case"s":W();
 break;case"nw":se(),ke();break;case"ne":se(),te();break;case"sw":W(),ke();break;case"se":W(),te();break;default:
 break}oe.x=w(oe.x,0,Y-oe.w),oe.y=w(oe.y,0,de-oe.h),markerState.cropRect=oe,renderCropOverlay(),P.preventDefault()},
@@ -5525,9 +5525,9 @@ terup",Te),e.addEventListener("pointercancel",Te),e.addEventListener("pointerlea
 i.checked?"1":"");let s=document.createElement("canvas");const a=markerState.naturalWidth||t.naturalWidth||
 n.width,r=markerState.naturalHeight||t.naturalHeight||n.height;s.width=a,s.height=r;const l=s.getContext(
 "2d");if(!l)return;if(l.drawImage(t,0,0,a,r),l.drawImage(n,0,0,a,r),markerState.cropRect){const L=a/
-n.width,T=r/n.height,$=Math.max(0,Math.floor(markerState.cropRect.x*L)),j=Math.max(0,Math.floor(markerState.
-cropRect.y*T)),J=Math.min(a,Math.max(1,Math.floor(markerState.cropRect.w*L))),X=Math.min(r,Math.max(
-1,Math.floor(markerState.cropRect.h*T))),Te=document.createElement("canvas");Te.width=J,Te.height=X;
+n.width,C=r/n.height,$=Math.max(0,Math.floor(markerState.cropRect.x*L)),j=Math.max(0,Math.floor(markerState.
+cropRect.y*C)),J=Math.min(a,Math.max(1,Math.floor(markerState.cropRect.w*L))),X=Math.min(r,Math.max(
+1,Math.floor(markerState.cropRect.h*C))),Te=document.createElement("canvas");Te.width=J,Te.height=X;
 const P=Te.getContext("2d");P&&(P.drawImage(s,$,j,J,X,0,0,J,X),s=Te)}const d=await new Promise(L=>s.
 toBlob(L,"image/png",.92));if(!d){showToast("\u7DE8\u96C6\u753B\u50CF\u306E\u751F\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0);return}const g=(markerState.filename||"marked.png").replace(/\.[^/.]+$/,""),h=new File([
@@ -5573,14 +5573,14 @@ active--,!1;const b=addUploadRow(h);updateFilePreview(),v=b.uploadId,uploadProgr
 b,x),b&&b.status&&(b.status.textContent="\u97F3\u58F0\u306E\u307F")):(b&&b.status&&(b.status.textContent=
 "\u62BD\u51FA\u5931\u6557: \u52D5\u753B\u9001\u4FE1"),showToast("\u97F3\u58F0\u62BD\u51FA\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002\u52D5\u753B\u306E\u307E\u307E\u9001\u4FE1\u3057\u307E\u3059\u3002",
 "error",!0))}if(get("enable-compression").checked&&h.type.startsWith("image/"))try{const x=getCompressionOutputType();
-if(getCompressionFormatOnly())w=await convertImageFormatOnly(h,x);else{const T={maxSizeMB:getCompressionMaxSizeMB(),
-maxWidthOrHeight:getCompressionMaxDim(),useWebWorker:!0};x&&x!=="original"&&(T.fileType=x),await ensureImageCompression();
-const $=await window.imageCompression(h,T),j=new File([$],imageFilenameForMime(h.name,$.type||(x!=="\
+if(getCompressionFormatOnly())w=await convertImageFormatOnly(h,x);else{const C={maxSizeMB:getCompressionMaxSizeMB(),
+maxWidthOrHeight:getCompressionMaxDim(),useWebWorker:!0};x&&x!=="original"&&(C.fileType=x),await ensureImageCompression();
+const $=await window.imageCompression(h,C),j=new File([$],imageFilenameForMime(h.name,$.type||(x!=="\
 original"?x:h.type)),{type:$.type||h.type,lastModified:h.lastModified||Date.now()});j.size>h.size?(showToast(
 `\u5727\u7E2E\u5F8C\u306B\u30B5\u30A4\u30BA\u304C\u5897\u52A0\u3057\u307E\u3057\u305F: ${formatBytes(
 h.size)} -> ${formatBytes(j.size)}\uFF08\u5143\u30D5\u30A1\u30A4\u30EB\u3092\u4F7F\u7528\uFF09`,"war\
 ning",!0),w=h):w=j}w!==h&&updateUploadRowFile(b,w)}catch{}if(browserFastModeEnabled){const x=Array.from(
-browserFastLocalFiles.values()).reduce((L,T)=>L+Number(T.file&&T.file.size||0),0);return browserFastLocalFiles.
+browserFastLocalFiles.values()).reduce((L,C)=>L+Number(C.file&&C.file.size||0),0);return browserFastLocalFiles.
 size>=BROWSER_FAST_MAX_IMAGES||x+w.size>BROWSER_FAST_MAX_BYTES?(b&&b.status&&(b.status.textContent="\
 \u4E0A\u9650\u8D85\u904E"),b&&b.row&&b.row.remove(),showToast("\u9AD8\u901F\u30E2\u30FC\u30C9\u306E\u753B\u50CF\u306F4\u679A\u30FB\u5408\u8A0812MB\u307E\u3067\u3067\u3059",
 "error",!0),!1):(browserFastLocalFiles.set(b.uploadId,{file:w,rowObj:b}),b.status&&(b.status.textContent=
@@ -5942,12 +5942,12 @@ a.renderText),wrapRenderedSvgBoxes(e),queueMessageDecorations(e,a.renderText)}o(
 e.querySelectorAll("svg").forEach(t=>{if(!t||!t.parentNode||t.closest(".svg-render-box")||t.closest(
 "pre, code, .code-wrapper, .thought-container"))return;const n=document.createElement("span");n.className=
 "svg-render-box",t.parentNode.insertBefore(n,t),n.appendChild(t)})}o(wrapRenderedSvgBoxes,"wrapRende\
-redSvgBoxes");function renderMessage(e,t,n,i,s,a,r=null,l=!0,d=null,p=null,g=null,h=null,v=null,b=null,w=null,x=null,L=!0,T=null,$=null,j=null){
+redSvgBoxes");function renderMessage(e,t,n,i,s,a,r=null,l=!0,d=null,p=null,g=null,h=null,v=null,b=null,w=null,x=null,L=!0,C=null,$=null,j=null){
 const J=t==="user",X=J?"bg-blue-600":"bg-gray-700",Te=J?"justify-end":"justify-start";messageStore[e]=
 n;const P=!J&&n?extractPythonExecutionsFromContent(n):{text:n||"",executions:[]},q=J?n:P.text;let Y=p;
 if(Y==null){const Q=g!=null?Number(g):0,le=h!=null?Number(h):0;(g!=null||h!=null)&&(Y=Q+le)}messageMeta[e]=
 {tokens_in:g,tokens_out:h,tokens_total:Y,tokens_content:b,tokens_thought:w,is_encrypted:v,role:t,model:a,
-parent_id:T,quote_text:d,image_url:i,gem_name:$,batch_job:j,python_executions:J?[]:P.executions||[]};
+parent_id:C,quote_text:d,image_url:i,gem_name:$,batch_job:j,python_executions:J?[]:P.executions||[]};
 let de="";d&&(de=`<div class="mb-2 p-2 bg-black/20 rounded border-l-4 border-blue-400 text-xs text-g\
 ray-300 italic truncate max-w-full"><i class="fas fa-quote-left mr-1 opacity-50"></i>${escapeHtml(d)}\
 </div>`);let oe="";if(s&&!J){let Q="";try{Q=JSON.parse(s).text||""}catch{Q=s}Q&&(oe=`<div class="tho\
@@ -5985,18 +5985,18 @@ const Q=P.executions.length,le=Q>1?`Python \xD7${Q}`:"Python";te.push(`<button t
 python-exec-btn" onclick="openPythonExecDetail('${e}')" title="Python\u5B9F\u884C\u7D50\u679C\u3092\u8868\u793A" aria-label="Python\u5B9F\u884C\u7D50\u679C\
 \u3092\u8868\u793A"><i class="fas fa-terminal"></i><span>${le}</span></button>`)}const W=te.length?`\
 <div class="text-[10px] text-slate-300/90 mt-2 text-right font-mono message-footer-meta">${te.join("\
- \u2022 ")}</div>`:"";let C;const R=!J&&j?(()=>{const Q=String(j.state||"").toUpperCase(),le=j.status_text||
+ \u2022 ")}</div>`:"";let T;const R=!J&&j?(()=>{const Q=String(j.state||"").toUpperCase(),le=j.status_text||
 (Q==="JOB_STATE_SUCCEEDED"?"Batch\u51E6\u7406\u304C\u5B8C\u4E86\u3057\u307E\u3057\u305F":Q==="JOB_ST\
 ATE_FAILED"?"Batch\u51E6\u7406\u306B\u5931\u6557\u3057\u307E\u3057\u305F":"Batch API\u3067\u51E6\u7406\u4E2D\u3067\u3059");
 return`<div class="batch-status-card mb-3 rounded-lg border ${Q==="JOB_STATE_FAILED"||Q==="JOB_STATE\
 _CANCELLED"||Q==="JOB_STATE_EXPIRED"?"border-red-400/40 bg-red-950/30 text-red-100":Q==="JOB_STATE_S\
 UCCEEDED"?"border-emerald-400/40 bg-emerald-950/30 text-emerald-100":"border-violet-400/40 bg-violet\
 -950/30 text-violet-100"} px-3 py-2 text-xs"><div class="font-semibold"><i class="fas fa-layer-group\
- mr-1"></i>Gemini Batch</div><div class="mt-1 opacity-90">${escapeHtml(le)}</div></div>`})():"";J?C=
+ mr-1"></i>Gemini Batch</div><div class="mt-1 opacity-90">${escapeHtml(le)}</div></div>`})():"";J?T=
 `<div class="content-area whitespace-pre-wrap font-sans text-sm break-words">${escapeHtml(n||"")}</d\
-iv>`:(C=R+(q&&String(q).trim()?buildAiMarkdownHtml(q):j?'<div class="content-area prose prose-invert\
+iv>`:(T=R+(q&&String(q).trim()?buildAiMarkdownHtml(q):j?'<div class="content-area prose prose-invert\
  text-sm break-words text-gray-300">\u56DE\u7B54\u3092\u6E96\u5099\u3057\u3066\u3044\u307E\u3059\u2026</div>':
-buildAiMarkdownHtml(q)),C.includes("content-area")||(C=C.replace("prose ","content-area prose ")));let G="";
+buildAiMarkdownHtml(q)),T.includes("content-area")||(T=T.replace("prose ","content-area prose ")));let G="";
 if(r){const Q=r.siblings[r.current-2],le=r.siblings[r.current];G=`
                     <div class="flex items-center gap-2 text-[10px] text-gray-400 mt-1 select-none">\
 
@@ -6008,7 +6008,7 @@ if(r){const Q=r.siblings[r.current-2],le=r.siblings[r.current];G=`
                     </div>
                 `}const K=l?"fade-in":"",Z=document.createElement("div");Z.className=`flex ${Te} mb-\
 4 ${K} relative message-group group`,Z.id=`msg-${e}`,Z.innerHTML=`<div class="message-bubble ${X} te\
-xt-white p-4 rounded-2xl shadow-md relative">${ke}${de}${oe}${C}${xe}${G}${W}</div>`;const ye=x||get(
+xt-white p-4 rounded-2xl shadow-md relative">${ke}${de}${oe}${T}${xe}${G}${W}</div>`;const ye=x||get(
 "chat-container");return ye&&(ye.appendChild(Z),L&&scrollToBottom(),J||(queueMessageDecorations(Z,q),
 syncCodingTargetButtons(Z),syncCodingModeUi(codingModeEnabled,{persist:!1}))),Z}o(renderMessage,"ren\
 derMessage");function showTokenDetailModal(e=null){if(location.pathname!=="/token-details"){const t={
@@ -6254,10 +6254,10 @@ forEach(([h,v])=>{const b=AI_SETTING_JUMP_TARGETS[h]||{label:h},w=document.creat
 type="button",w.className="w-full flex items-center gap-3 rounded-xl border border-white/10 bg-black\
 /20 px-3 py-2.5 text-left hover:bg-black/30 hover:border-blue-400/40 transition ai-settings-result-i\
 tem";const x=document.createElement("span");x.className="min-w-0 flex-1";const L=document.createElement(
-"span");L.className="block text-xs font-bold text-blue-200",L.textContent=b.label;const T=document.createElement(
-"span");T.className="block mt-0.5 text-[11px] text-gray-300 break-words",T.textContent=formatAiSettingValue(
+"span");L.className="block text-xs font-bold text-blue-200",L.textContent=b.label;const C=document.createElement(
+"span");C.className="block mt-0.5 text-[11px] text-gray-300 break-words",C.textContent=formatAiSettingValue(
 v);const $=document.createElement("i");$.className="fas fa-arrow-up-right-from-square text-[10px] te\
-xt-blue-300 shrink-0",x.appendChild(L),x.appendChild(T),w.appendChild(x),w.appendChild($),w.addEventListener(
+xt-blue-300 shrink-0",x.appendChild(L),x.appendChild(C),w.appendChild(x),w.appendChild($),w.addEventListener(
 "click",()=>openAiSettingJumpTarget(h)),p.appendChild(w)});const g=d.querySelector(".message-footer-\
 meta");g?d.insertBefore(p,g):d.appendChild(p),scrollToBottom()}o(renderAiSettingsResultBubble,"rende\
 rAiSettingsResultBubble");async function runAiSettingsCommand(e,t){pendingSlashCommand!=="settings"&&
@@ -6383,7 +6383,7 @@ get("chat-container").insertAdjacentHTML("beforeend",`<div class="flex justify-s
 div id="${p}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded\
 -tl-none shadow-md relative">${buildPendingSkeletonHtml(t,"Gemini\u3078\u76F4\u63A5\u9001\u4FE1\u4E2D...")}\
 </div></div>`);const g=get(p);activeStreamingBubbleId=p,setSendBtnToStopMode(),resumeChatAutoScroll(),
-abortController=new AbortController;let h="",v="";const b=[];let w=null,x=null,L=!1;const T={},$=[];
+abortController=new AbortController;let h="",v="";const b=[];let w=null,x=null,L=!1;const C={},$=[];
 let j=null,J="";const X=window.ProgressSpinner?window.ProgressSpinner.startFlow("browserFast"):null;
 let Te=!1;try{const P=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
 t)}:streamGenerateContent?alt=sse`,manualSpinnerRequestOptions({method:"POST",headers:{"Content-Type":"\
@@ -6393,25 +6393,25 @@ se.error.message:`Gemini API HTTP ${P.status}`)}window.ConnectionMonitor&&(Te=!0
 operationStarted()),X&&X.setPhase("waiting"),get("prompt-input").value="",get("prompt-input").style.
 height="auto";const q=P.body.getReader(),Y=new TextDecoder;let de="";const oe=o(se=>{const W=se.split(
 /\r?\n/).filter(G=>G.startsWith("data:")).map(G=>G.slice(5).trim()).join("");if(!W||W==="[DONE]")return;
-const C=JSON.parse(W);if(C.error)throw new Error(C.error.message||"Gemini API error");if((Array.isArray(
-C.candidates)?C.candidates:[]).forEach(G=>{(G&&G.content&&Array.isArray(G.content.parts)?G.content.parts:
+const T=JSON.parse(W);if(T.error)throw new Error(T.error.message||"Gemini API error");if((Array.isArray(
+T.candidates)?T.candidates:[]).forEach(G=>{(G&&G.content&&Array.isArray(G.content.parts)?G.content.parts:
 []).forEach(Z=>{if(Z&&typeof Z.thoughtSignature=="string"&&!b.includes(Z.thoughtSignature)&&b.push(Z.
 thoughtSignature),Z&&Z.executableCode&&typeof Z.executableCode.code=="string"){const Q=Z.executableCode.
 code;h+=`
 \`\`\`python
 ${Q}
 \`\`\`
-`,j=`browserFastPy_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,J=Q,T[j]||(g.insertAdjacentHTML(
-"afterbegin",browserFastPythonBoxHtml(j)),T[j]=g.querySelector(`[data-py-id="${j}"]`)),updateBrowserFastPythonBox(
-T[j],"code",Q);return}if(Z&&Z.codeExecutionResult&&typeof Z.codeExecutionResult.output=="string"){const Q=Z.
+`,j=`browserFastPy_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,J=Q,C[j]||(g.insertAdjacentHTML(
+"afterbegin",browserFastPythonBoxHtml(j)),C[j]=g.querySelector(`[data-py-id="${j}"]`)),updateBrowserFastPythonBox(
+C[j],"code",Q);return}if(Z&&Z.codeExecutionResult&&typeof Z.codeExecutionResult.output=="string"){const Q=Z.
 codeExecutionResult.output;h+=`
 **Output:**
 \`\`\`
 ${Q}
 \`\`\`
 `;const le=j||`browserFastPy_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;$.push({code:J||
-"",output:Q}),T[le]||(g.insertAdjacentHTML("afterbegin",browserFastPythonBoxHtml(le)),T[le]=g.querySelector(
-`[data-py-id="${le}"]`)),updateBrowserFastPythonBox(T[le],"output",Q);return}const ye=typeof Z.text==
+"",output:Q}),C[le]||(g.insertAdjacentHTML("afterbegin",browserFastPythonBoxHtml(le)),C[le]=g.querySelector(
+`[data-py-id="${le}"]`)),updateBrowserFastPythonBox(C[le],"output",Q);return}const ye=typeof Z.text==
 "string"?Z.text:"";ye&&(Z.thought===!0?v+=ye:h+=ye)})}),!L&&(h||v)){beginPendingToStreamTransition(g);
 const G=g.querySelector(".content-area");G&&G.remove(),L=!0}v&&(x||(g.insertAdjacentHTML("afterbegin",
 '<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class=\
@@ -6419,8 +6419,8 @@ const G=g.querySelector(".content-area");G&&G.remove(),L=!0}v&&(x||(g.insertAdja
 x=g.querySelector(".thought-content")),x.textContent=v),h&&(w||(w=document.createElement("div"),w.className=
 "content-area prose prose-invert text-sm break-words",g.appendChild(w)),renderAiMarkdownInto(w,h,{incrementalMath:!0})),
 scrollToBottom()},"consumeEvent");for(;;){const{done:se,value:W}=await q.read();if(se)break;window.ConnectionMonitor&&
-window.ConnectionMonitor.reportActivity(),X&&X.setPhase("receiving"),de+=Y.decode(W,{stream:!0});const C=de.
-split(/\r?\n\r?\n/);de=C.pop()||"",C.forEach(oe)}if(de+=Y.decode(),de.trim()&&oe(de),!h.trim())throw new Error(
+window.ConnectionMonitor.reportActivity(),X&&X.setPhase("receiving"),de+=Y.decode(W,{stream:!0});const T=de.
+split(/\r?\n\r?\n/);de=T.pop()||"",T.forEach(oe)}if(de+=Y.decode(),de.trim()&&oe(de),!h.trim())throw new Error(
 "Gemini\u304B\u3089\u56DE\u7B54\u672C\u6587\u304C\u8FD4\u3055\u308C\u307E\u305B\u3093\u3067\u3057\u305F");
 w&&renderAiMarkdownInto(w,h,{incrementalMath:!0}),x&&x.classList.add("collapsed"),$.length&&(h+=$.map(
 se=>`
@@ -6518,16 +6518,16 @@ const nt=ae.length?ae[ae.length-1]:null;if(w=codingTargetSelection?x[0]:nt||x[x.
 test(Fe)){showToast("Coding Mode\u3067\u306F\u30C6\u30AD\u30B9\u30C8\u751F\u6210\u30E2\u30C7\u30EB\u3092\u9078\u629E\u3057\u3066\u304F\u3060\u3055\u3044",
 "error",!0);return}}}const L=codingModeEnabled&&codingModeEffective;sendClientDebugLog("info",`Promp\
 t send start: model=${get("model-select").value} thread=${currentThreadId||"-"} text_len=${t.length}\
- attachments=${a.length} search=${get("enable-search").checked}`);const T=t,$=hasMarkerHint()?MARKER_HINT_TEXT:
+ attachments=${a.length} search=${get("enable-search").checked}`);const C=t,$=hasMarkerHint()?MARKER_HINT_TEXT:
 null;if(isGptImageModel()&&currentMaskImage&&a.length===0){showToast("Mask \u306F\u753B\u50CF\u5165\u529B\u304C\u5FC5\u8981\u3067\u3059",
 "error",!0);return}const j=editingMessageId,J=currentParentId,X=j!=null;j&&(editingMessageId=null,setEditUi(
 !1)),playSendAnimation(),get("welcome-screen").classList.add("hidden");const Te=[],P=o(N=>{if(N==null)
 return;let ae=document.getElementById(`msg-${N}`);for(;ae;)ae.classList&&ae.classList.contains("mess\
 age-group")&&(Te.push({node:ae,prevDisplay:ae.style.display}),ae.style.display="none"),ae=ae.nextElementSibling},
 "hideRenderedBranchFrom"),q=o(()=>{Te.forEach(({node:N,prevDisplay:ae})=>{N&&(N.style.display=ae||"")}),
-Te.length=0},"restoreHiddenBranch");j&&P(j);const Y=Date.now(),de=renderMessage(Y,"user",T,JSON.stringify(
+Te.length=0},"restoreHiddenBranch");j&&P(j);const Y=Date.now(),de=renderMessage(Y,"user",C,JSON.stringify(
 a),null,null,null,!0,currentQuote,null,null,null,null,null,null,null,!0,J,activeGem?activeGem.name:null);
-let oe=!1;const xe=/(https?:\/\/)?(x\.com|twitter\.com)\//i,pe=xe.test(T||"")||xe.test(currentQuote||
+let oe=!1;const xe=/(https?:\/\/)?(x\.com|twitter\.com)\//i,pe=xe.test(C||"")||xe.test(currentQuote||
 ""),ke="grok-4-fast-reasoning",te=o(()=>{get("enable-search").checked=!0,get("model-select").value!==
 ke&&selectModelById(ke)},"applyXLinkAuto");if(pe&&!isMistralOcrModel()&&!get("enable-search").checked)
 if(autoSearchOnLinks)te();else{const N=get("auto-search-banner"),ae=get("auto-search-on-btn"),_e=get(
@@ -6537,8 +6537,8 @@ null,je(nt)},"cleanup");ae.onclick=()=>He("enable"),_e.onclick=()=>He("disable")
 "enable"?(te(),Me&&Me.checked&&(autoSearchOnLinks=!0,await apiFetch(CHAT_CONFIG.urls.handleSettings,
 {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({auto_search_on_links:!0})}))):
 oe=!0}))}const se=String(get("reasoning-effort").value||"").toLowerCase(),W=String(get("model-select").
-value||"").toLowerCase().includes("deepseek")&&se==="none",C={client_request_id:createClientRequestId(),
-thread_id:currentThreadId,message:T,model:get("model-select").value,image_urls:a,image_items:s,uploaded_image_urls:r,
+value||"").toLowerCase().includes("deepseek")&&se==="none",T={client_request_id:createClientRequestId(),
+thread_id:currentThreadId,message:C,model:get("model-select").value,image_urls:a,image_items:s,uploaded_image_urls:r,
 temporary_chat:temporaryChatEnabled,enable_search:get("enable-search").checked,enable_url_context:get(
 "enable-url-context")?get("enable-url-context").checked:!1,enable_maps:get("enable-maps")?get("enabl\
 e-maps").checked:!1,enable_python:get("enable-python").checked,enable_mcp:isMcpEnabledForSend(),enable_file_creation:get(
@@ -6589,12 +6589,12 @@ coding_mode:L,coding_target:L?{id:w.candidate_id,code:w.prompt_source?null:w.cod
 "text",key:w.key||null,message_id:w.message_id||null,source:w.prompt_source?"prompt":"history",explicit:w.
 explicit===!0}:null,coding_candidates:L?x.map(N=>({id:N.candidate_id,source:N.prompt_source?"prompt":
 "history",prompt_index:N.prompt_source?N.prompt_index:null,code:N.prompt_source?null:N.code,language:N.
-language||"text",explicit:N.explicit===!0})):[],batch_mode:i};e&&(C.turnstile_token=e);const R=get("\
-thread-custom-instruction");R&&(C.thread_custom_instruction=R.value||""),activeGem?(C.system_prompt=
-activeGem.instruction,C.enable_system_prompt=!0,C.gem_uuid=activeGem.uuid):C.gem_uuid=null,setSendBtnToStopMode();
-const G="ai-"+Date.now(),K=String(C.model||"").toLowerCase(),Z=!!C.enable_thinking||!!se&&se!=="none",
+language||"text",explicit:N.explicit===!0})):[],batch_mode:i};e&&(T.turnstile_token=e);const R=get("\
+thread-custom-instruction");R&&(T.thread_custom_instruction=R.value||""),activeGem?(T.system_prompt=
+activeGem.instruction,T.enable_system_prompt=!0,T.gem_uuid=activeGem.uuid):T.gem_uuid=null,setSendBtnToStopMode();
+const G="ai-"+Date.now(),K=String(T.model||"").toLowerCase(),Z=!!T.enable_thinking||!!se&&se!=="none",
 ye=K.includes("gemini")||K.includes("o1")||K.includes("o3")||K.includes("gpt-5")||K.includes("reason\
-ing")&&!K.includes("non-reasoning"),Q=Z&&ye;let le=buildPendingSkeletonHtml(C.model,"API\u306B\u9001\u4FE1\u4E2D...");
+ing")&&!K.includes("non-reasoning"),Q=Z&&ye;let le=buildPendingSkeletonHtml(T.model,"API\u306B\u9001\u4FE1\u4E2D...");
 get("chat-container").insertAdjacentHTML("beforeend",`<div class="flex justify-start mb-4 fade-in"><\
 div id="${G}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded\
 -tl-none shadow-md relative">${le}</div></div>`),resumeChatAutoScroll();const U=get(G);activeStreamingBubbleId=
@@ -6609,15 +6609,15 @@ abortController=new AbortController;const Ce=currentThreadId,tt=nowPerfMs(),ut=D
 ot=!1,xt=!1,gt=null,kt=null,rt=null,Pt=currentThreadId!=null&&currentThreadId!==""?String(currentThreadId):
 null;const Ot=o((N,ae)=>{if(!ae||N==="status"&&Ke||N==="thought"&&ot||N==="content"&&xt)return;const _e=Math.
 max(0,nowPerfMs()-tt);N==="status"?gt=_e:N==="thought"?kt=_e:N==="content"&&(rt=_e),reportFirstTokenLatency(
-{latency_seconds:_e/1e3,latency_ms:_e,thread_id:Pt||currentThreadId,job_id:currentJobId,model:C.model,
+{latency_seconds:_e/1e3,latency_ms:_e,thread_id:Pt||currentThreadId,job_id:currentJobId,model:T.model,
 first_event_type:N,client_sent_at_ms:ut}),N==="status"?Ke=!0:N==="thought"?ot=!0:N==="content"&&(xt=
 !0)},"maybeReportFirstEventLatency"),at=window.ProgressSpinner?window.ProgressSpinner.startFlow("cha\
-t"):null;let pt=!1,_t=!1,St=null,mt=null,zt=!1;try{C.thread_id&&activeGem&&(threadGemMap[C.thread_id]=
+t"):null;let pt=!1,_t=!1,St=null,mt=null,zt=!1;try{T.thread_id&&activeGem&&(threadGemMap[T.thread_id]=
 activeGem,pendingGemForNewThread=null);const N=await fetchChatStreamWithUnavailableRetry(CHAT_CONFIG.
 urls.chatStream,manualSpinnerRequestOptions({method:"POST",headers:{"Content-Type":"application/json"},
-body:JSON.stringify(C),signal:abortController.signal}),U);if(sendClientDebugLog("info",`Prompt strea\
+body:JSON.stringify(T),signal:abortController.signal}),U);if(sendClientDebugLog("info",`Prompt strea\
 m response status: ${N.status}`),!N.ok){const Le=await N.json().catch(()=>({})),Re=new Error(Le.error||
-`HTTP ${N.status}`);throw Re.serverCode=Le.code||null,Re.serverModel=Le.model||C.model,Re.acceptedJobId=
+`HTTP ${N.status}`);throw Re.serverCode=Le.code||null,Re.serverModel=Le.model||T.model,Re.acceptedJobId=
 Le.job_id||null,Re.acceptedThreadId=Le.thread_id||null,Re}pt=!0,window.ConnectionMonitor&&(zt=!0,window.
 ConnectionMonitor.operationStarted()),at&&at.setPhase("waiting"),get("prompt-input").value="",get("p\
 rompt-input").style.height="auto",schedulePromptTokenEstimate(!0),codingModeEnabled&&syncCodingModeUi(
@@ -6625,7 +6625,7 @@ rompt-input").style.height="auto",schedulePromptTokenEstimate(!0),codingModeEnab
 ".content-area");if(Le&&Le.getAttribute("data-api-accepted")!=="1"&&(Le.setAttribute("data-api-accep\
 ted","1"),!updatePendingSkeletonStatus(U,"\u63A5\u7D9A\u5B8C\u4E86\u3002\u30E2\u30C7\u30EB\u5FDC\u7B54\u3092\u5F85\u6A5F\u4E2D...",
 "\u30AD\u30E5\u30FC\u5F85\u6A5F\u3084\u521D\u671F\u5316\u4E2D\u306E\u53EF\u80FD\u6027\u304C\u3042\u308A\u307E\u3059"))){
-Le.outerHTML=buildPendingSkeletonHtml(C.model,"\u63A5\u7D9A\u5B8C\u4E86\u3002\u30E2\u30C7\u30EB\u5FDC\u7B54\u3092\u5F85\u6A5F\u4E2D...");
+Le.outerHTML=buildPendingSkeletonHtml(T.model,"\u63A5\u7D9A\u5B8C\u4E86\u3002\u30E2\u30C7\u30EB\u5FDC\u7B54\u3092\u5F85\u6A5F\u4E2D...");
 const Re=U.querySelector(".content-area");Re&&Re.setAttribute("data-api-accepted","1"),updatePendingSkeletonStatus(
 U,"\u63A5\u7D9A\u5B8C\u4E86\u3002\u30E2\u30C7\u30EB\u5FDC\u7B54\u3092\u5F85\u6A5F\u4E2D...","\u30AD\u30E5\u30FC\u5F85\u6A5F\u3084\u521D\
 \u671F\u5316\u4E2D\u306E\u53EF\u80FD\u6027\u304C\u3042\u308A\u307E\u3059")}},"markApiAccepted");ae();
@@ -6646,7 +6646,7 @@ U,ce.content||{});continue}if(ce.type==="mcp_decision_request"){openMcpDecisionM
 continue}if(ce.type==="status"){ae();const be=ce.content===null||ce.content===void 0?"":String(ce.content);
 if(Ot("status",!!be),Fe&&U){const Ge=be||"\u30E2\u30C7\u30EB\u51E6\u7406\u4E2D...";if(!updatePendingSkeletonStatus(
 U,Ge,"\u5FDC\u7B54\u958B\u59CB\u307E\u3067\u306E\u9032\u6357\u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059")){
-const Ue=U.querySelector(".content-area");Ue&&(Ue.outerHTML=buildPendingSkeletonHtml(C.model,Ge),updatePendingSkeletonStatus(
+const Ue=U.querySelector(".content-area");Ue&&(Ue.outerHTML=buildPendingSkeletonHtml(T.model,Ge),updatePendingSkeletonStatus(
 U,Ge,"\u5FDC\u7B54\u958B\u59CB\u307E\u3067\u306E\u9032\u6357\u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059"))}}
 Q&&et(be||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D...");continue}if(Fe){beginPendingToStreamTransition(
 U);const be=U.querySelector(".content-area");be&&(be.innerHTML=""),Fe=!1}if(ce.type==="coding_diff")
@@ -6692,7 +6692,7 @@ Ne);renderAiMarkdownInto(Ne,He,{incrementalMath:!0}),applyCodeCollapse(Ne,ce,!0)
 if(at&&at(),Ne){const Le=snapshotCodeCollapse(Ne);renderAiMarkdownInto(Ne,He,{incrementalMath:!0}),applyCodeCollapse(
 Ne,Le,!0)}if(scrollToBottom(),vibrateHelper([100,50,100]),U)if(queueHighlight(U,He),enableLatencyMetrics){
 const Le=nowPerfMs()-tt;reportFirstTokenLatency({is_total:!0,latency_seconds:Le/1e3,latency_ms:Le,thread_id:Pt||
-currentThreadId,job_id:currentJobId,model:C.model,client_sent_at_ms:ut,client_done_at_ms:Date.now()});
+currentThreadId,job_id:currentJobId,model:T.model,client_sent_at_ms:ut,client_done_at_ms:Date.now()});
 let Re='<div class="mt-2 pt-2 border-t border-gray-700/30 flex flex-col gap-1 items-end opacity-70 t\
 ext-[10px] font-mono text-gray-400">',Xe=null;gt!==null&&(Xe=gt),kt!==null&&(Xe===null||kt<Xe)&&(Xe=
 kt),rt!==null&&(Xe===null||rt<Xe)&&(Xe=rt),Xe!==null&&(Re+=`<div>Initial: ${(Xe/1e3).toFixed(2)}s</d\
@@ -6703,24 +6703,25 @@ get("model-select").value)}</div>`,Re+="</div>",U.insertAdjacentHTML("beforeend"
 "beforeend",`<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">${escapeHtml(get("m\
 odel-select").value)}</div>`);editingMessageId=null,setEditUi(!1),U&&U.querySelectorAll(".thought-co\
 ntent").forEach(Re=>Re.classList.add("collapsed")),await loadMessages(currentThreadId,{preserveDraft:!0,
-silent:!0}),!Vt&&codingModeEnabled&&(codingTargetSelection=null,syncCodingModeUi(!0,{persist:!1})),userAutoScroll&&
-scrollToBottom(),document.querySelectorAll(".message-group").length<=2||!currentThreadTitle||currentThreadTitle===
-"New Chat"||currentThreadTitle==="No Title"?apiFetch("/api/generate_title",{method:"POST",headers:{"\
-Content-Type":"application/json"},body:JSON.stringify({thread_id:currentThreadId,model_id:get("model\
--select").value})}).then(Le=>Le.json()).then(Le=>{Le.title&&(document.title=Le.title+" - AI Chat",setCurrentChatHeaderTitle(
-Le.title),loadThreads())}):loadThreads(!1)}catch(N){let ae=!1;const _e=N.name==="AbortError"&&isManualStopAbortForThread(
-Ce);if(N.name==="AbortError"&&!_e&&(ae=await syncThreadAfterAbortedStream(Ce,{retries:2,retryDelayMs:180,
-notifyOnFailure:!0})),sendClientDebugLog("error",`Prompt send error: ${N.message}`),!pt){de&&de.remove();
-const Me=U&&U.closest(".fade-in");Me&&Me.remove(),delete messageStore[Y],delete messageMeta[Y]}if(N.
-serverCode==="request_already_accepted"&&N.acceptedJobId&&N.acceptedThreadId)pt=!0,St={job_id:N.acceptedJobId,
-thread_id:String(N.acceptedThreadId),model:C.model},get("prompt-input").value="",get("prompt-input").
-style.height="auto",resetUploadState(),clearQuote();else if(pt&&!_e)mt={job_id:normalizeJobIdForUi(currentJobId),
-thread_id:currentThreadId!=null?String(currentThreadId):null,model:C.model},window.ConnectionMonitor.
-setUnavailable("offline"),showToast("\u56DE\u7B54\u3078\u306E\u63A5\u7D9A\u304C\u5207\u308C\u307E\u3057\u305F\u3002\u30D0\u30C3\u30AF\u30B0\u30E9\u30A6\u30F3\u30C9\u51E6\u7406\u3078\u81EA\u52D5\u518D\u63A5\u7D9A\u3057\u307E\u3059\u3002",
+silent:!0}),T.batch_mode&&refreshGeminiBatchStatus(),!Vt&&codingModeEnabled&&(codingTargetSelection=
+null,syncCodingModeUi(!0,{persist:!1})),userAutoScroll&&scrollToBottom(),document.querySelectorAll("\
+.message-group").length<=2||!currentThreadTitle||currentThreadTitle==="New Chat"||currentThreadTitle===
+"No Title"?apiFetch("/api/generate_title",{method:"POST",headers:{"Content-Type":"application/json"},
+body:JSON.stringify({thread_id:currentThreadId,model_id:get("model-select").value})}).then(Le=>Le.json()).
+then(Le=>{Le.title&&(document.title=Le.title+" - AI Chat",setCurrentChatHeaderTitle(Le.title),loadThreads())}):
+loadThreads(!1)}catch(N){let ae=!1;const _e=N.name==="AbortError"&&isManualStopAbortForThread(Ce);if(N.
+name==="AbortError"&&!_e&&(ae=await syncThreadAfterAbortedStream(Ce,{retries:2,retryDelayMs:180,notifyOnFailure:!0})),
+sendClientDebugLog("error",`Prompt send error: ${N.message}`),!pt){de&&de.remove();const Me=U&&U.closest(
+".fade-in");Me&&Me.remove(),delete messageStore[Y],delete messageMeta[Y]}if(N.serverCode==="request_\
+already_accepted"&&N.acceptedJobId&&N.acceptedThreadId)pt=!0,St={job_id:N.acceptedJobId,thread_id:String(
+N.acceptedThreadId),model:T.model},get("prompt-input").value="",get("prompt-input").style.height="au\
+to",resetUploadState(),clearQuote();else if(pt&&!_e)mt={job_id:normalizeJobIdForUi(currentJobId),thread_id:currentThreadId!=
+null?String(currentThreadId):null,model:T.model},window.ConnectionMonitor.setUnavailable("offline"),
+showToast("\u56DE\u7B54\u3078\u306E\u63A5\u7D9A\u304C\u5207\u308C\u307E\u3057\u305F\u3002\u30D0\u30C3\u30AF\u30B0\u30E9\u30A6\u30F3\u30C9\u51E6\u7406\u3078\u81EA\u52D5\u518D\u63A5\u7D9A\u3057\u307E\u3059\u3002",
 "warning",!1);else if(N.serverCode==="turnstile_required"){const Me=await getTurnstileToken();Me?(await verifyTurnstileOnServer(
 Me,!0),showToast("\u5B89\u5168\u6027\u306E\u78BA\u8A8D\u3092\u5B8C\u4E86\u3057\u307E\u3057\u305F\u3002\u3082\u3046\u4E00\u5EA6\u9001\u4FE1\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
 "warning",!1)):showToast("\u5B89\u5168\u6027\u306E\u78BA\u8A8D\u3092\u5B8C\u4E86\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F\u3002\u3057\u3070\u3089\u304F\u5F85\u3063\u3066\u304B\u3089\u518D\u9001\u4FE1\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
-"error",!0)}else if(N.serverCode==="api_key_missing"){const Me=N.serverModel||C.model,je=await showApiKeyRequiredModalAsync(
+"error",!0)}else if(N.serverCode==="api_key_missing"){const Me=N.serverModel||T.model,je=await showApiKeyRequiredModalAsync(
 Me);je==="set"?_t=!0:je==="switch"?showModal("model-modal"):showToast(N.message||`${getModelNameById(
 Me)} \u306EAPI\u30AD\u30FC\u304C\u8A2D\u5B9A\u3055\u308C\u3066\u3044\u307E\u305B\u3093`,"error",!0)}else if(N.
 name!=="AbortError"){const Me="Connection Error: "+N.message;showToast(Me,"error",!0)}j&&!ae&&q()}finally{
@@ -6746,7 +6747,7 @@ ght-container"><div class="thought-header thinking-shimmer" onclick="toggleThink
 a-placeholder="1"></div></div>'),d=s.querySelector(".thought-content")),d&&(d.setAttribute("data-pla\
 ceholder","1"),d.textContent=q||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D..."),d),
 "ensureThoughtPlaceholder");l&&p("\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D...");
-let g="",h="",v="",b=!0,w=null,x=null,L=null,T=!1;const $={};let j=0,J=!1;const X=window.ProgressSpinner?
+let g="",h="",v="",b=!0,w=null,x=null,L=null,C=!1;const $={};let j=0,J=!1;const X=window.ProgressSpinner?
 window.ProgressSpinner.startFlow("chatResume"):null;let Te=!1,P=!1;try{const q=await apiFetch("/chat\
 _stream_resume",manualSpinnerRequestOptions({method:"POST",headers:{"Content-Type":"application/json"},
 body:JSON.stringify({thread_id:currentThreadId,job_id:t,turnstile_token:botTurnstileTokenForRequest()}),
@@ -6762,26 +6763,26 @@ job_id"){currentJobId=W.content||t;continue}if(W.type==="search_status"){W.conte
 classList.remove("animate-pulse"),L.innerHTML='<i class="fas fa-check-circle text-green-400"></i> Se\
 arch complete',setTimeout(()=>{L&&L.remove(),L=null},2e3));continue}if(W.type==="mcp"){handleMcpStreamEvent(
 s,W.content||{});continue}if(W.type==="mcp_decision_request"){openMcpDecisionModal(W.content||{});continue}
-if(W.type==="status"){const C=W.content===null||W.content===void 0?"":String(W.content);if(b&&s){const R=C||
+if(W.type==="status"){const T=W.content===null||W.content===void 0?"":String(W.content);if(b&&s){const R=T||
 "\u30E2\u30C7\u30EB\u51E6\u7406\u4E2D...";if(!updatePendingSkeletonStatus(s,R,"\u5FDC\u7B54\u958B\u59CB\u307E\u3067\u306E\u9032\u6357\u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059")){
 const G=s.querySelector(".content-area");G&&(G.outerHTML=buildPendingSkeletonHtml(i,R),updatePendingSkeletonStatus(
 s,R,"\u5FDC\u7B54\u958B\u59CB\u307E\u3067\u306E\u9032\u6357\u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059"))}}
-l&&p(C||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D...");continue}if(b){beginPendingToStreamTransition(
-s);const C=s.querySelector(".content-area");C&&(C.innerHTML=""),b=!1}if(W.type==="coding_diff")appendCodingLiveDiff(
+l&&p(T||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D...");continue}if(b){beginPendingToStreamTransition(
+s);const T=s.querySelector(".content-area");T&&(T.innerHTML=""),b=!1}if(W.type==="coding_diff")appendCodingLiveDiff(
 s,W.content||{});else if(W.type==="thought"){if(w||(w=s.querySelector(".thought-content")),v+=W.content,
-!w){const C='<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this\
+!w){const T='<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this\
 )"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"><\
-/div></div>';L?L.insertAdjacentHTML("afterend",C):s.insertAdjacentHTML("afterbegin",C),w=s.querySelector(
+/div></div>';L?L.insertAdjacentHTML("afterend",T):s.insertAdjacentHTML("afterbegin",T),w=s.querySelector(
 ".thought-content")}if(w&&w.getAttribute("data-placeholder")==="1"){if(w.textContent="",w.removeAttribute(
-"data-placeholder"),w){const C=w.parentElement.querySelector(".thought-header");C&&C.classList.remove(
+"data-placeholder"),w){const T=w.parentElement.querySelector(".thought-header");T&&T.classList.remove(
 "thinking-shimmer")}v=W.content}w.classList.remove("collapsed"),te=!0}else if(W.type==="image_analys\
-is"){const C=W.content===null||W.content===void 0?"":String(W.content);if(!s)continue;let R=s.querySelector(
+is"){const T=W.content===null||W.content===void 0?"":String(W.content);if(!s)continue;let R=s.querySelector(
 ".image-analysis-box");if(!R){const K='<div class="image-analysis-box mb-2 p-2 bg-blue-900/20 border\
  border-blue-500/30 rounded"><div class="text-[10px] text-blue-300 font-medium mb-1"><i class="fas f\
 a-image mr-1"></i>Image Analysis</div><div class="image-analysis-text text-[11px] text-gray-300"></d\
 iv></div>';L?L.insertAdjacentHTML("afterend",K):s.insertAdjacentHTML("afterbegin",K),R=s.querySelector(
-".image-analysis-box")}const G=R.querySelector(".image-analysis-text");G&&(G.textContent=C)}else if(W.
-type==="python"){const C=W.content||{},R=C.id||`py_${Date.now()}`;if(!$[R]){const K=`<div class="cod\
+".image-analysis-box")}const G=R.querySelector(".image-analysis-text");G&&(G.textContent=T)}else if(W.
+type==="python"){const T=W.content||{},R=T.id||`py_${Date.now()}`;if(!$[R]){const K=`<div class="cod\
 e-wrapper python-box collapsed" data-py-id="${R}" data-collapsed="true" data-code-key="${R}"><div cl\
 ass="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</span><di\
 v class="code-actions"><button class="code-toggle" aria-expanded="false" title="\u5C55\u958B" aria-label="\u5C55\u958B">\
@@ -6792,16 +6793,16 @@ utton></div></div><div class="code-body"><div class="python-section"><div class=
 /div><pre><code class="hljs language-python python-code"></code></pre></div><div class="python-secti\
 on"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output"><\
 /code></pre></div></div></div>`;L?L.insertAdjacentHTML("afterend",K):s.insertAdjacentHTML("afterbegi\
-n",K),$[R]=s.querySelector(`[data-py-id="${R}"]`)}const G=$[R];if(G){if(C.code!==void 0){const K=C.code==
-null?"":String(C.code),Z=G.querySelector(".python-code");Z&&(Z.textContent=K,Z.removeAttribute("data\
+n",K),$[R]=s.querySelector(`[data-py-id="${R}"]`)}const G=$[R];if(G){if(T.code!==void 0){const K=T.code==
+null?"":String(T.code),Z=G.querySelector(".python-code");Z&&(Z.textContent=K,Z.removeAttribute("data\
 -highlighted"),queueHighlight(G,K));const ye=G.querySelector('.copy-btn[data-copy="code"]');ye&&ye.setAttribute(
-"data-code",encodeURIComponent(K).replace(/'/g,"%27"))}if(C.output!==void 0){const K=C.output==null?
-"":String(C.output),Z=G.querySelector(".python-output");Z&&(Z.textContent=K);const ye=G.querySelector(
+"data-code",encodeURIComponent(K).replace(/'/g,"%27"))}if(T.output!==void 0){const K=T.output==null?
+"":String(T.output),Z=G.querySelector(".python-output");Z&&(Z.textContent=K);const ye=G.querySelector(
 '.copy-btn[data-copy="output"]');ye&&ye.setAttribute("data-code",encodeURIComponent(K).replace(/'/g,
-"%27"))}}}else if(W.type==="content"){const C=W.content===null||W.content===void 0?"":String(W.content);
-h+=C,/[`~]/.test(C)&&activateDeferredCodingModeFromStream(h),x||(x=s.querySelector(".content-area")||
+"%27"))}}}else if(W.type==="content"){const T=W.content===null||W.content===void 0?"":String(W.content);
+h+=T,/[`~]/.test(T)&&activateDeferredCodingModeFromStream(h),x||(x=s.querySelector(".content-area")||
 document.createElement("div"),x.className="prose prose-invert text-sm break-words",s.contains(x)||s.
-appendChild(x)),ke=!0}else if(W.type==="error"){T=!0,J=!0,s.insertAdjacentHTML("beforeend",buildChatErrorBubbleHtml(
+appendChild(x)),ke=!0}else if(W.type==="error"){C=!0,J=!0,s.insertAdjacentHTML("beforeend",buildChatErrorBubbleHtml(
 W.content)),showToast(W.content||"Unknown error","error",!0);break}}catch{}if(te&&w&&(w.textContent=
 v,userAutoScroll&&(w.scrollTop=w.scrollHeight)),ke&&x){const se=Date.now();if(se-j>100){const W=snapshotCodeCollapse(
 x);renderAiMarkdownInto(x,h,{incrementalMath:!0}),applyCodeCollapse(x,W,!0),j=se}}scrollToBottom()}if(X&&
@@ -6849,17 +6850,17 @@ hasMoreThreads&&threadPage++,snapshotSidebarHistory("loadThreads-rendered count=
 d to load threads:",t),snapshotSidebarHistory("loadThreads-error")}finally{threadLoading=!1,updateThreadHighlighting(),
 snapshotSidebarHistory("loadThreads-finally")}}o(loadThreads,"loadThreads");function initPullToRefresh(e,t){
 const n=get(e);if(!n)return;const i=`${e}-pull-indicator`,s=60,a=88,r=52,l=.5,d=8;let p=0,g=!1,h=0,v=null;
-const b=o(()=>get(i),"indicatorEl"),w=o(()=>{const T=b();return T?T.querySelector(".ptr-pull-label"):
-null},"labelEl"),x=o(T=>{const $=b();if(!$)return;$.style.height=Math.min(T,a)+"px",$.classList.toggle(
-"active",T>2),$.classList.toggle("pull-ready",T>=s);const j=w();j&&(j.textContent=T>=s?"\u96E2\u3057\u3066\u66F4\u65B0":
-"\u5F15\u3063\u5F35\u3063\u3066\u66F4\u65B0")},"applyPullUI"),L=o(()=>{const T=b();T&&(T.style.height=
-"0px",T.classList.remove("active","pull-ready","refreshing"),T.classList.remove("dragging"))},"reset\
-PullUI");n.addEventListener("touchstart",T=>{if(v){g=!1;return}if(n.scrollTop>0){g=!1;return}const $=T.
-touches[0];$&&(p=$.clientY,h=0,g=!0)},{passive:!0}),n.addEventListener("touchmove",T=>{if(!g||v)return;
-if(n.scrollTop>0){g=!1;return}const $=T.touches[0];if(!$)return;const j=$.clientY-p;if(j<=0){h>0&&(h=
+const b=o(()=>get(i),"indicatorEl"),w=o(()=>{const C=b();return C?C.querySelector(".ptr-pull-label"):
+null},"labelEl"),x=o(C=>{const $=b();if(!$)return;$.style.height=Math.min(C,a)+"px",$.classList.toggle(
+"active",C>2),$.classList.toggle("pull-ready",C>=s);const j=w();j&&(j.textContent=C>=s?"\u96E2\u3057\u3066\u66F4\u65B0":
+"\u5F15\u3063\u5F35\u3063\u3066\u66F4\u65B0")},"applyPullUI"),L=o(()=>{const C=b();C&&(C.style.height=
+"0px",C.classList.remove("active","pull-ready","refreshing"),C.classList.remove("dragging"))},"reset\
+PullUI");n.addEventListener("touchstart",C=>{if(v){g=!1;return}if(n.scrollTop>0){g=!1;return}const $=C.
+touches[0];$&&(p=$.clientY,h=0,g=!0)},{passive:!0}),n.addEventListener("touchmove",C=>{if(!g||v)return;
+if(n.scrollTop>0){g=!1;return}const $=C.touches[0];if(!$)return;const j=$.clientY-p;if(j<=0){h>0&&(h=
 0,x(0)),g=!1;return}const J=b();J&&!J.classList.contains("dragging")&&J.classList.add("dragging"),h=
-Math.min(j*l,a),x(h),j>=d&&T.preventDefault()},{passive:!1}),n.addEventListener("touchend",()=>{if(!g||
-(g=!1,v))return;const T=b();T&&T.classList.remove("dragging");const $=h>=s;if(h=0,!$){L();return}let j;
+Math.min(j*l,a),x(h),j>=d&&C.preventDefault()},{passive:!1}),n.addEventListener("touchend",()=>{if(!g||
+(g=!1,v))return;const C=b();C&&C.classList.remove("dragging");const $=h>=s;if(h=0,!$){L();return}let j;
 try{j=t()}catch{j=null}const J=b();if(J){J.classList.add("refreshing"),J.style.height=r+"px";const X=J.
 querySelector(".ptr-pull-label");X&&(X.textContent="\u66F4\u65B0\u4E2D...")}j&&typeof j.then=="funct\
 ion"?(v=j,j.catch(()=>{}).finally(()=>{v=null,L()})):(v=Promise.resolve(),setTimeout(()=>{v=null,L()},
@@ -6930,7 +6931,7 @@ i&&(i.onclick=async()=>{t.classList.add("hidden"),geminiBatchBannerThreadId&&awa
 const a=get("batch-notification-close");a&&(a.onclick=()=>t.classList.add("hidden"))}o(showGeminiBatchCompletionBanner,
 "showGeminiBatchCompletionBanner");async function refreshGeminiBatchStatus(){if(!geminiBatchStatusPollBusy){
 geminiBatchStatusPollBusy=!0;try{const e=await apiFetch("/api/gemini/batch/status");if(!e.ok)return;
-const t=await e.json().catch(()=>({})),n=new Set((t.changed_thread_ids||[]).map(i=>String(i)));currentThreadId&&
+const t=await e.json().catch(()=>({})),n=new Set((t.active||[]).map(i=>String(i.thread_id)));currentThreadId&&
 n.has(String(currentThreadId))&&await loadMessages(currentThreadId,{preserveDraft:!0,silent:!0}),Array.
 isArray(t.completed)&&t.completed.length&&(showGeminiBatchCompletionBanner(t.completed),loadThreads(
 !1))}catch{}finally{geminiBatchStatusPollBusy=!1}}}o(refreshGeminiBatchStatus,"refreshGeminiBatchSta\
@@ -6990,13 +6991,13 @@ w=loadingOlderMessages?"disabled":"",x=document.createElement("div");x.className
 x.innerHTML=`<button id="load-older-messages-btn" class="px-3 py-1.5 text-xs rounded border border-g\
 ray-600 text-gray-200 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed" onclick="lo\
 adOlderMessages()" ${w}><i class="fas fa-clock-rotate-left mr-1"></i>${b}</button>`,h.appendChild(x)}
-l.forEach(b=>{const w=b.parent_id?r[b.parent_id]:null,x=w?w.childrenIds:allMessages.filter(T=>!T.parent_id).
-map(T=>T.id),L=x.length>1?{current:x.indexOf(b.id)+1,total:x.length,siblings:x}:null;renderMessage(b.
+l.forEach(b=>{const w=b.parent_id?r[b.parent_id]:null,x=w?w.childrenIds:allMessages.filter(C=>!C.parent_id).
+map(C=>C.id),L=x.length>1?{current:x.indexOf(b.id)+1,total:x.length,siblings:x}:null;renderMessage(b.
 id,b.role,b.content,b.image_url,b.thought_data,b.model,L,n,b.quote_text,b.tokens,b.tokens_in,b.tokens_out,
 b.is_encrypted,b.tokens_content,b.tokens_thought,h,!1,b.parent_id,b.gem_name,b.batch_job)});const v=currentThreadPending;
-if(v&&!isPendingJobSuppressed(v.job_id)){const b=v.message_id,w=new Set(l.map(T=>T.id)),x=l.length?l[l.
-length-1]:null;if(b&&w.has(b)&&currentLeafId===b||!b&&x&&x.role==="user"){const T=v.job_id?`pending-${v.
-job_id}`:null;renderPendingMessage(h,n,!1,T,v.model||null)}}if(s.appendChild(h),updateTotalTokenBar(
+if(v&&!isPendingJobSuppressed(v.job_id)){const b=v.message_id,w=new Set(l.map(C=>C.id)),x=l.length?l[l.
+length-1]:null;if(b&&w.has(b)&&currentLeafId===b||!b&&x&&x.role==="user"){const C=v.job_id?`pending-${v.
+job_id}`:null;renderPendingMessage(h,n,!1,C,v.model||null)}}if(s.appendChild(h),updateTotalTokenBar(
 p.tokens_total,p,g),currentParentId=currentLeafId,i&&a!==null?restoreThreadTreeScroll(s,a):scrollToBottom(),
 lowBandwidthMode)queueMessageDecorations(s,s&&s.textContent||"");else if(queueHighlight(s),l.length){
 const b=l[l.length-1]&&l[l.length-1].content;queueMathTypeset(s,b)}}o(renderThreadTree,"renderThread\
@@ -7229,11 +7230,11 @@ role==="user",g=d.quote_text?`<div class="quote"><strong>Quote</strong><br>${esc
 </div>`:"",h=d.thought_text?`<div class="thought">${escapeHtml(d.thought_text)}</div>`:"",v=p?`<div \
 class="content" style="white-space: pre-wrap;">${escapeHtml(d.content||"")}</div>`:`<div class="cont\
 ent">${sanitizeMarkdownHtml(d.content||"")}</div>`,b=buildPdfMessageAttachments(d),w=b.length?`<div \
-class="attachments">${b.map(T=>T.isImage?`<div class="attachment"><img src="${pdfEscapeAttr(T.previewUrl)}\
-" alt="${pdfEscapeAttr(T.filename)}"><div class="file-caption">${pdfEscapeAttr(T.filename)}</div></d\
-iv>`:`<div class="attachment"><a class="file" href="${pdfEscapeAttr(T.url)}" target="_blank" rel="no\
+class="attachments">${b.map(C=>C.isImage?`<div class="attachment"><img src="${pdfEscapeAttr(C.previewUrl)}\
+" alt="${pdfEscapeAttr(C.filename)}"><div class="file-caption">${pdfEscapeAttr(C.filename)}</div></d\
+iv>`:`<div class="attachment"><a class="file" href="${pdfEscapeAttr(C.url)}" target="_blank" rel="no\
 referrer noopener"><span class="file-icon">\u{1F4C4}</span><span><span class="file-name">${pdfEscapeAttr(
-T.filename)}</span><span class="file-source">${pdfEscapeAttr(T.source)}</span></span></a></div>`).join(
+C.filename)}</span><span class="file-source">${pdfEscapeAttr(C.source)}</span></span></a></div>`).join(
 "")}</div>`:"",x=[];d.model&&!p&&x.push(d.model),d.tokens!==null&&d.tokens!==void 0&&x.push(`tokens:${d.
 tokens}`),d.tokens_in!==null&&d.tokens_in!==void 0&&x.push(`in:${d.tokens_in}`),d.tokens_out!==null&&
 d.tokens_out!==void 0&&x.push(`out:${d.tokens_out}`),d.tokens_thought!==null&&d.tokens_thought!==void 0&&
@@ -7366,14 +7367,14 @@ e)&&(activePdfPrintFrame=null);try{a.parentNode&&a.parentNode.removeChild(a)}cat
 ()=>{activePdfPrintFrame===a&&(console.log("PDF print cleanup fallback triggered"),l())},6e4),a.onload=
 async()=>{try{const g=a.contentDocument,h=a.contentWindow;if(!g||!h){l(),showToast("PDF\u5370\u5237\u30E2\u30FC\u30C0\u30EB\u306E\u6E96\u5099\u306B\u5931\u6557\u3057\
 \u307E\u3057\u305F","error",!0);return}if(t.update(40),(Array.isArray(s&&s.messages)?s.messages:[]).
-some(T=>maybeNeedsMathJax(T.content)||maybeNeedsMathJax(T.thought_text))&&(h.MathJax={tex:{inlineMath:[
+some(C=>maybeNeedsMathJax(C.content)||maybeNeedsMathJax(C.thought_text))&&(h.MathJax={tex:{inlineMath:[
 ["\\(","\\)"],["$","$"]],displayMath:[["$$","$$"],["\\[","\\]"]],processEscapes:!0},options:{ignoreHtmlClass:"\
 tex2jax_ignore|mathjax_ignore",processHtmlClass:"tex2jax_process|mathjax_process"},startup:{typeset:!1}}),
 t.update(50),g.fonts&&g.fonts.ready)try{await g.fonts.ready}catch{}t.update(60);const w=Array.from(g.
-images||[]),x=Promise.all(w.map(T=>T.complete?Promise.resolve():new Promise($=>{T.addEventListener("\
-load",$,{once:!0}),T.addEventListener("error",$,{once:!0})})));if(await Promise.race([x,new Promise(
-T=>setTimeout(T,5e3))]),t.update(80),g.getElementById("MathJax-script")){let T=0;for(;T<100&&(!h.MathJax||
-typeof h.MathJax.typesetPromise!="function");)await new Promise($=>setTimeout($,50)),T++;if(h.MathJax&&
+images||[]),x=Promise.all(w.map(C=>C.complete?Promise.resolve():new Promise($=>{C.addEventListener("\
+load",$,{once:!0}),C.addEventListener("error",$,{once:!0})})));if(await Promise.race([x,new Promise(
+C=>setTimeout(C,5e3))]),t.update(80),g.getElementById("MathJax-script")){let C=0;for(;C<100&&(!h.MathJax||
+typeof h.MathJax.typesetPromise!="function");)await new Promise($=>setTimeout($,50)),C++;if(h.MathJax&&
 typeof h.MathJax.typesetPromise=="function")try{await h.MathJax.typesetPromise()}catch($){console.error(
 "PDF MathJax typeset failed",$)}}t.update(95),setTimeout(()=>{try{h.focus(),h.addEventListener("afte\
 rprint",()=>{l()},{once:!0}),t.update(100),setTimeout(()=>{t&&t.remove()},1e3),h.print()}catch{l(),showToast(
@@ -7449,8 +7450,8 @@ e.url,e.filename)}});const b=n.querySelector(".lib-del-btn");b&&(b.onclick=async
 await deleteSingleLibraryFile(e.filepath,n)});const w=n.querySelector(".lib-favorite-btn");return w&&
 (w.onclick=async x=>{x.stopPropagation(),w.disabled=!0;try{const L=await apiFetch(CHAT_CONFIG.urls.toggleFileFavorite,
 {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({filepath:e.filepath})}),
-T=await L.json().catch(()=>({}));if(!L.ok||typeof T.is_favorite!="boolean")throw new Error(T.error||
-"favorite update failed");e.is_favorite=T.is_favorite,renderLibraryGrid(),showToast(T.is_favorite?"\u304A\
+C=await L.json().catch(()=>({}));if(!L.ok||typeof C.is_favorite!="boolean")throw new Error(C.error||
+"favorite update failed");e.is_favorite=C.is_favorite,renderLibraryGrid(),showToast(C.is_favorite?"\u304A\
 \u6C17\u306B\u5165\u308A\u306B\u8FFD\u52A0\u3057\u307E\u3057\u305F":"\u304A\u6C17\u306B\u5165\u308A\u304B\u3089\u5916\u3057\u307E\u3057\u305F",
 "success")}catch{showToast("\u304A\u6C17\u306B\u5165\u308A\u306E\u66F4\u65B0\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0),w.disabled=!1}}),n}o(renderLibraryItem,"renderLibraryItem");function renderLibrarySkeleton(e){

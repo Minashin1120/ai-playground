@@ -35,8 +35,8 @@
                 const response = await apiFetch('/api/gemini/batch/status');
                 if (!response.ok) return;
                 const data = await response.json().catch(() => ({}));
-                const changedIds = new Set((data.changed_thread_ids || []).map((id) => String(id)));
-                if (currentThreadId && changedIds.has(String(currentThreadId))) {
+                const t = new Set((data.active || []).map((j) => String(j.thread_id)));
+                if (currentThreadId && t.has(String(currentThreadId))) {
                     await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
                 }
                 if (Array.isArray(data.completed) && data.completed.length) {

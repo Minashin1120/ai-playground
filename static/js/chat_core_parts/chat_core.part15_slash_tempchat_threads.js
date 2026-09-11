@@ -5,6 +5,51 @@
             initPullToRefreshAll();
         }
 
+        let geminiBatchStatusPollBusy = false;
+        let geminiBatchBannerThreadId = null;
+        function showGeminiBatchCompletionBanner(completed) {
+            const banner = get('batch-notification-banner');
+            const text = get('batch-notification-text');
+            const open = get('batch-notification-open');
+            if (!banner || !text || !completed || !completed.length) return;
+            const first = completed[0];
+            geminiBatchBannerThreadId = first.thread_id;
+            text.textContent = completed.length === 1
+                ? `${first.model || 'Gemini'} のBatch処理が完了しました。`
+                : `${completed.length}件のGemini Batch処理が完了しました。`;
+            banner.classList.remove('hidden');
+            if (open) {
+                open.onclick = async () => {
+                    banner.classList.add('hidden');
+                    if (geminiBatchBannerThreadId) await loadMessages(geminiBatchBannerThreadId);
+                };
+            }
+            const close = get('batch-notification-close');
+            if (close) close.onclick = () => banner.classList.add('hidden');
+        }
+
+        async function refreshGeminiBatchStatus() {
+            if (geminiBatchStatusPollBusy) return;
+            geminiBatchStatusPollBusy = true;
+            try {
+                const response = await apiFetch('/api/gemini/batch/status');
+                if (!response.ok) return;
+                const data = await response.json().catch(() => ({}));
+                const changedIds = new Set((data.changed_thread_ids || []).map((id) => String(id)));
+                if (currentThreadId && changedIds.has(String(currentThreadId))) {
+                    await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
+                }
+                if (Array.isArray(data.completed) && data.completed.length) {
+                    showGeminiBatchCompletionBanner(data.completed);
+                    loadThreads(false);
+                }
+            } catch (error) {
+                // Background polling is best-effort; the normal chat UI remains usable.
+            } finally {
+                geminiBatchStatusPollBusy = false;
+            }
+        }
+
         async function toggleBookmark(e, tid) {
             if (e) e.stopPropagation();
             await apiFetch(`/api/threads/${tid}/bookmark`, {method:'POST'});
@@ -271,7 +316,8 @@
                     fragment,
                     false,
                     m.parent_id,
-                    m.gem_name
+                    m.gem_name,
+                    m.batch_job
                 );
             });
             const pending = currentThreadPending;

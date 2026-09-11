@@ -367,7 +367,7 @@
                 frame.appendChild(svg);
             });
         }
-        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, gemName = null) {
+        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, gemName = null, batchInfo = null) {
             const isUser = role === 'user';
             const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
             const align = isUser ? 'justify-end' : 'justify-start';
@@ -395,6 +395,7 @@
                 quote_text: quoteText,
                 image_url: imgUrl,
                 gem_name: gemName,
+                batch_job: batchInfo,
                 python_executions: isUser ? [] : (pythonExtract.executions || [])
             };
 
@@ -493,12 +494,27 @@
             const mHtml = footerParts.length ? `<div class="text-[10px] text-slate-300/90 mt-2 text-right font-mono message-footer-meta">${footerParts.join(' • ')}</div>` : '';
 
             let contentHtml;
+            const batchStatusHtml = (!isUser && batchInfo) ? (() => {
+                const state = String(batchInfo.state || '').toUpperCase();
+                const statusText = batchInfo.status_text || (
+                    state === 'JOB_STATE_SUCCEEDED' ? 'Batch処理が完了しました' :
+                    state === 'JOB_STATE_FAILED' ? 'Batch処理に失敗しました' : 'Batch APIで処理中です'
+                );
+                const tone = state === 'JOB_STATE_FAILED' || state === 'JOB_STATE_CANCELLED' || state === 'JOB_STATE_EXPIRED'
+                    ? 'border-red-400/40 bg-red-950/30 text-red-100'
+                    : state === 'JOB_STATE_SUCCEEDED'
+                        ? 'border-emerald-400/40 bg-emerald-950/30 text-emerald-100'
+                        : 'border-violet-400/40 bg-violet-950/30 text-violet-100';
+                return `<div class="batch-status-card mb-3 rounded-lg border ${tone} px-3 py-2 text-xs"><div class="font-semibold"><i class="fas fa-layer-group mr-1"></i>Gemini Batch</div><div class="mt-1 opacity-90">${escapeHtml(statusText)}</div></div>`;
+            })() : '';
             if (isUser) {
                 // User message: RAW TEXT DISPLAY (Preserve whitespace, no markdown)
                 contentHtml = `<div class="content-area whitespace-pre-wrap font-sans text-sm break-words">${escapeHtml(text||'')}</div>`;
             } else {
                 // AI message: Markdown rendered with tool notices grouped after the prose.
-                contentHtml = buildAiMarkdownHtml(displayText);
+                contentHtml = batchStatusHtml + (displayText && String(displayText).trim()
+                    ? buildAiMarkdownHtml(displayText)
+                    : (batchInfo ? '<div class="content-area prose prose-invert text-sm break-words text-gray-300">回答を準備しています…</div>' : buildAiMarkdownHtml(displayText)));
                 // Ensure content-area class is present if not already in buildAiMarkdownHtml
                 if (!contentHtml.includes('content-area')) {
                     contentHtml = contentHtml.replace('prose ', 'content-area prose ');

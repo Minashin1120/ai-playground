@@ -562,6 +562,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
         channel = f"ai_chat:channel:{job_id}"
         r = redis.from_url(REDIS_URL)
         _latency_mark_once(job_id, "worker_started_ms")
+        batch_mode = bool(options.get('batch_mode'))
+        if batch_mode:
+            # Batch API requests are declarative. Disable interactive tools and
+            # tool-calling options before building the GenerateContentRequest.
+            for _batch_option in (
+                'enable_search', 'enable_url_context', 'enable_maps',
+                'enable_python', 'enable_file_creation', 'enable_mcp',
+            ):
+                options[_batch_option] = False
         coding_stream_buffer = ""
         coding_stream_target_id = None
         coding_stream_code = None
@@ -823,6 +832,59 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
         def _mark_provider_request_started():
             _latency_mark_once(job_id, "provider_request_started_ms")
+
+        def _submit_gemini_batch(provider_model, request_contents, config_kwargs):
+            """Submit one inline GenerateContentRequest and persist its provider name."""
+            row = GeminiBatchJob.query.filter_by(job_id=job_id, user_id=user_id).first()
+            if not row:
+                raise RuntimeError('Gemini Batchジョブの記録が見つかりません')
+            row.state = 'JOB_STATE_RUNNING'
+            row.status_text = 'Batch APIへ送信中です'
+            safe_db_commit()
+            request = {'contents': _batch_json_value(request_contents)}
+            if config_kwargs:
+                request['config'] = _batch_json_value(types.GenerateContentConfig(**config_kwargs))
+            request_size = len(json.dumps(request, ensure_ascii=False).encode('utf-8'))
+            if request_size > 20 * 1024 * 1024:
+                raise ValueError('Batch APIのインライン入力上限（20MiB）を超えています')
+            provider_job = g_client.batches.create(
+                model=provider_model,
+                src=[request],
+                config={'display_name': f'ai-chat-{job_id[-24:]}'},
+            )
+            provider_name = (
+                getattr(provider_job, 'name', None)
+                or (provider_job.get('name') if isinstance(provider_job, dict) else None)
+            )
+            if not provider_name:
+                raise RuntimeError('Gemini Batch APIからジョブ名が返されませんでした')
+            row.provider_job_name = str(provider_name)
+            row.state = str(
+                getattr(getattr(provider_job, 'state', None), 'name', None)
+                or getattr(provider_job, 'state', None)
+                or (provider_job.get('state') if isinstance(provider_job, dict) else None)
+                or 'JOB_STATE_PENDING'
+            ).upper()
+            row.status_text = _batch_state_label(row.state)
+            db.session.add(row)
+            safe_db_commit()
+            pub('status', row.status_text)
+            pub('done', 'BATCH_ACCEPTED')
+            return True
+
+        def _persist_batch_failure(error_text):
+            row = GeminiBatchJob.query.filter_by(job_id=job_id, user_id=user_id).first()
+            if row:
+                row.state = 'JOB_STATE_FAILED'
+                row.error = str(error_text or 'Gemini Batch APIへの送信に失敗しました')[:4000]
+                row.status_text = _batch_state_label(row.state)
+                row.completed_at = datetime.utcnow()
+            assistant = Message.query.filter_by(id=getattr(row, 'assistant_message_id', None)).first() if row else None
+            if assistant:
+                content = f'**{row.status_text}**\n\n{row.error}'
+                assistant.content = encrypt_val(content) if assistant.is_encrypted else content
+            safe_db_commit()
+            pub('done', 'BATCH_FAILED')
         
         def _decode_text_bytes(raw):
             return _decode_text_bytes_for_prompt(raw)
@@ -2597,6 +2659,19 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             if ref:
                                 history_image_refs_included.add(ref)
 
+                        if batch_mode:
+                            _mark_provider_request_started()
+                            try:
+                                _submit_gemini_batch(
+                                    img_model,
+                                    [*gemini_image_parts, types.Part(text=img_prompt)],
+                                    config_kwargs,
+                                )
+                            except Exception as batch_error:
+                                logger.exception('Gemini Image Batch submission failed')
+                                _persist_batch_failure(str(batch_error))
+                            return
+
                         resp = g_client.models.generate_content(
                             model=img_model,
                             contents=[
@@ -3542,10 +3617,22 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         curr_parts.insert(1, types.Part(text=name_block))
 
                     if pending_file_error:
-                        pub("error", pending_file_error)
+                        if batch_mode:
+                            _persist_batch_failure(pending_file_error)
+                        else:
+                            pub("error", pending_file_error)
                         return
 
                     contents.append(types.Content(role='user', parts=curr_parts))
+
+                    if batch_mode:
+                        _mark_provider_request_started()
+                        try:
+                            _submit_gemini_batch(rm, contents, conf)
+                        except Exception as batch_error:
+                            logger.exception('Gemini Batch submission failed')
+                            _persist_batch_failure(str(batch_error))
+                        return
 
                     grounding_chunks = None
                     grounding_supports = None
@@ -6877,7 +6964,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     err_msg = _format_gemini_runtime_error(e, gemini_backend_mode)
             except Exception:
                 pass
-            pub("error", err_msg)
+            if batch_mode:
+                try:
+                    _persist_batch_failure(err_msg)
+                except Exception:
+                    logger.exception("Failed to persist Gemini Batch error")
+            else:
+                pub("error", err_msg)
         finally:
             _latency_mark_once(job_id, "worker_done_ms")
             r.delete(f"stop_job:{job_id}")

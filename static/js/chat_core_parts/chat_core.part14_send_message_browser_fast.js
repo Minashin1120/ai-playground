@@ -352,7 +352,16 @@
                 return;
             }
 
+            const batchModeRequested = !!(get('enable-batch-mode') && get('enable-batch-mode').checked);
+            if (batchModeRequested && codingModeEnabled) {
+                showToast('Batch APIではCoding Modeを利用できません。Batchを解除するかCodingを解除してください。', 'warning', true);
+                return;
+            }
+
             if (browserFastModeEnabled) {
+                if (batchModeRequested) {
+                    setBrowserFastModeEnabled(false);
+                } else {
                 const reason = browserFastModeIneligibility(rawText);
                 if (!reason) {
                     try {
@@ -369,6 +378,7 @@
                 }
                 setBrowserFastModeEnabled(false);
                 return sendMessage();
+                }
             }
 
             // Save to prompt history
@@ -682,7 +692,8 @@
                     code: candidate.prompt_source ? null : candidate.code,
                     language: candidate.language || 'text',
                     explicit: candidate.explicit === true
-                })) : []
+                })) : [],
+                batch_mode: batchModeRequested
             };
             if (botTurnstileToken) p.turnstile_token = botTurnstileToken;
             const threadCustomInstructionEl = get('thread-custom-instruction');

@@ -219,6 +219,13 @@ def handle_thread_item(thread_id):
             ms = Message.query.filter_by(thread_id=t.id).order_by(Message.timestamp, Message.id).all()
             if ms:
                 oldest_loaded_id = ms[0].id
+        batch_by_assistant = {}
+        try:
+            batch_rows = GeminiBatchJob.query.filter_by(thread_id=t.id).all()
+            batch_by_assistant = {row.assistant_message_id: row for row in batch_rows}
+        except Exception:
+            # The startup schema migration may still be completing on a fresh install.
+            batch_by_assistant = {}
         res = []
         for m in ms:
             cnt = decrypt_val(m.content) if m.is_encrypted else m.content
@@ -256,6 +263,7 @@ def handle_thread_item(thread_id):
                 token_in = token_in if token_in is not None else legacy_token_in
                 token_out = token_out if token_out is not None else legacy_token_out
                 token_total = legacy_token_total
+            batch_row = batch_by_assistant.get(m.id)
             res.append({
                 'id': m.id, 
                 'role': m.role, 
@@ -272,7 +280,14 @@ def handle_thread_item(thread_id):
                 'quote_text': m.quote_text,
                 'parent_id': m.parent_id,
                 'gem_uuid': m.gem_uuid,
-                'gem_name': m.gem_name
+                'gem_name': m.gem_name,
+                'batch_job': ({
+                    'job_id': batch_row.job_id,
+                    'state': batch_row.state,
+                    'status_text': batch_row.status_text,
+                    'error': batch_row.error,
+                    'model': batch_row.model,
+                } if batch_row else None)
             })
         payload = {
             'messages': res,

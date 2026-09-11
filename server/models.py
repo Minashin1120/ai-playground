@@ -148,6 +148,7 @@ class Thread(db.Model):
     # imports instead of relying on the globally-unique public_id.
     import_signature = db.Column(db.String(64), nullable=True, index=True)
     messages = db.relationship('Message', backref='thread', cascade="all, delete-orphan", lazy=True)
+    batch_jobs = db.relationship('GeminiBatchJob', back_populates='thread', cascade="all, delete-orphan", lazy=True)
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -169,6 +170,26 @@ class Message(db.Model):
     gem_name = db.Column(db.String(100), nullable=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('message.id'), nullable=True)
     children = db.relationship('Message', backref=db.backref('parent', remote_side=[id]), lazy=True)
+
+class GeminiBatchJob(db.Model):
+    """Application state for an asynchronous Gemini Batch API request."""
+    __tablename__ = 'gemini_batch_job'
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(db.String(96), unique=True, nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    thread_id = db.Column(db.Integer, db.ForeignKey('thread.id'), nullable=False, index=True)
+    user_message_id = db.Column(db.Integer, nullable=False, index=True)
+    assistant_message_id = db.Column(db.Integer, nullable=False, index=True)
+    provider_job_name = db.Column(db.String(255), unique=True, nullable=True)
+    model = db.Column(db.String(80), nullable=False)
+    state = db.Column(db.String(40), nullable=False, default='JOB_STATE_QUEUED', index=True)
+    status_text = db.Column(db.String(255), nullable=True)
+    error = db.Column(db.Text, nullable=True)
+    notified_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    thread = db.relationship('Thread', back_populates='batch_jobs', foreign_keys=[thread_id], lazy='joined')
 
 class FileCache(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -323,4 +344,3 @@ class ChatLatencyTrace(db.Model):
 # MCP外部連携（mcp_service）のモデル定義を db.create_all() より前に登録する。
 # mcp_service は app/mcp_service に置き、PyPI の公式 mcp SDK との名前衝突を避けている。
 from mcp_service import models as _mcp_models  # noqa: E402,F401
-

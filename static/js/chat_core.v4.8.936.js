@@ -4435,6 +4435,7 @@
             { key: 'canvas', icon: 'fa-window-restore', label: 'Canvas', checkboxId: 'enable-canvas-mode', containerId: 'canvas-mode-container' },
             { key: 'coding', icon: 'fa-code-branch', label: 'Coding', checkboxId: 'enable-coding-mode', containerId: 'coding-mode-container' },
             { key: 'fast', icon: 'fa-bolt', label: '高速', checkboxId: 'enable-browser-fast-mode', containerId: 'browser-fast-mode-container' },
+            { key: 'batch', icon: 'fa-layer-group', label: 'Batch', checkboxId: 'enable-batch-mode', containerId: 'batch-mode-container' },
             { key: 'search', icon: 'fa-search', label: 'Search', checkboxId: 'enable-search', containerId: 'search-container' },
             { key: 'urls', icon: 'fa-link', label: 'URLs', checkboxId: 'enable-url-context', containerId: 'url-context-container' },
             { key: 'maps', icon: 'fa-map-location-dot', label: 'Maps', checkboxId: 'enable-maps', containerId: 'maps-grounding-container' },
@@ -9132,6 +9133,24 @@
             refreshMinimalOptionsIfOpen();
         }
 
+        function isGeminiBatchModelKey(model) {
+            const m = String(model || '').trim().toLowerCase();
+            if (!m.startsWith('gemini-')) return false;
+            return !/(embedding|video|veo|music|lyria|native-audio|tts|live|transcribe|agent|deep-research|robotics|computer-use)/.test(m);
+        }
+
+        function updateGeminiBatchUi(model) {
+            const container = get('batch-mode-container');
+            const checkbox = get('enable-batch-mode');
+            if (!container || !checkbox) return;
+            const supported = isGeminiBatchModelKey(model);
+            container.classList.toggle('hidden', !supported);
+            checkbox.disabled = !supported || browserFastModeEnabled;
+            if (!supported) checkbox.checked = false;
+            container.classList.toggle('ring-1', supported && checkbox.checked);
+            container.classList.toggle('ring-violet-300', supported && checkbox.checked);
+        }
+
         function setBrowserFastModeEnabled(enabled, opts = {}) {
             browserFastModeEnabled = !!enabled;
             const toggle = get('enable-browser-fast-mode');
@@ -9148,6 +9167,7 @@
             }
             if (browserFastModeEnabled) applyBrowserFastModeRestrictions();
             else if (opts.restoreOptions !== false) restoreBrowserFastModeOptions();
+            updateGeminiBatchUi(get('model-select') ? get('model-select').value : '');
         }
 
         function openBrowserFastModeModal(showWarning = true) {
@@ -9238,8 +9258,27 @@
             if (fastToggle) {
                 fastToggle.checked = false;
                 fastToggle.onchange = () => {
-                    if (fastToggle.checked) requestBrowserFastModeEnable();
+                    if (fastToggle.checked) {
+                        const batchToggle = get('enable-batch-mode');
+                        if (batchToggle && batchToggle.checked) batchToggle.checked = false;
+                        requestBrowserFastModeEnable();
+                    }
                     else setBrowserFastModeEnabled(false);
+                };
+            }
+            const batchToggle = get('enable-batch-mode');
+            if (batchToggle) {
+                batchToggle.onchange = () => {
+                    if (batchToggle.checked) {
+                        if (browserFastModeEnabled) setBrowserFastModeEnabled(false);
+                        const codingToggle = get('enable-coding-mode');
+                        if (codingToggle && codingToggle.checked) {
+                            codingToggle.checked = false;
+                            if (typeof syncCodingModeUi === 'function') syncCodingModeUi(false);
+                            showToast('Batch APIではCoding Modeを利用できないため解除しました', 'warning', true);
+                        }
+                    }
+                    updateGeminiBatchUi(get('model-select') ? get('model-select').value : '');
                 };
             }
             const fastModelSelect = get('model-select');
@@ -9773,6 +9812,7 @@
                 updateGrokVideoUi();
                 updateGeminiVideoUi();
                 updateGeminiMusicUi();
+                updateGeminiBatchUi(model);
                 updateXaiChatUi();
                 updateMistralOcrUi();
                 updateImageInputLimits();
@@ -10146,6 +10186,10 @@
             }
             snapshotSidebarHistory('page-init');
             loadThreads(); loadGems();
+            if (typeof refreshGeminiBatchStatus === 'function') {
+                refreshGeminiBatchStatus();
+                setInterval(refreshGeminiBatchStatus, 30000);
+            }
 
             get('send-btn').onclick = () => { if (isStopMode) stopGeneration(); else sendMessage(); };
             get('new-chat-btn').onclick = () => startNewChat();
@@ -18568,7 +18612,7 @@
                 frame.appendChild(svg);
             });
         }
-        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, gemName = null) {
+        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, gemName = null, batchInfo = null) {
             const isUser = role === 'user';
             const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
             const align = isUser ? 'justify-end' : 'justify-start';
@@ -18596,6 +18640,7 @@
                 quote_text: quoteText,
                 image_url: imgUrl,
                 gem_name: gemName,
+                batch_job: batchInfo,
                 python_executions: isUser ? [] : (pythonExtract.executions || [])
             };
 
@@ -18694,12 +18739,27 @@
             const mHtml = footerParts.length ? `<div class="text-[10px] text-slate-300/90 mt-2 text-right font-mono message-footer-meta">${footerParts.join(' • ')}</div>` : '';
 
             let contentHtml;
+            const batchStatusHtml = (!isUser && batchInfo) ? (() => {
+                const state = String(batchInfo.state || '').toUpperCase();
+                const statusText = batchInfo.status_text || (
+                    state === 'JOB_STATE_SUCCEEDED' ? 'Batch処理が完了しました' :
+                    state === 'JOB_STATE_FAILED' ? 'Batch処理に失敗しました' : 'Batch APIで処理中です'
+                );
+                const tone = state === 'JOB_STATE_FAILED' || state === 'JOB_STATE_CANCELLED' || state === 'JOB_STATE_EXPIRED'
+                    ? 'border-red-400/40 bg-red-950/30 text-red-100'
+                    : state === 'JOB_STATE_SUCCEEDED'
+                        ? 'border-emerald-400/40 bg-emerald-950/30 text-emerald-100'
+                        : 'border-violet-400/40 bg-violet-950/30 text-violet-100';
+                return `<div class="batch-status-card mb-3 rounded-lg border ${tone} px-3 py-2 text-xs"><div class="font-semibold"><i class="fas fa-layer-group mr-1"></i>Gemini Batch</div><div class="mt-1 opacity-90">${escapeHtml(statusText)}</div></div>`;
+            })() : '';
             if (isUser) {
                 // User message: RAW TEXT DISPLAY (Preserve whitespace, no markdown)
                 contentHtml = `<div class="content-area whitespace-pre-wrap font-sans text-sm break-words">${escapeHtml(text||'')}</div>`;
             } else {
                 // AI message: Markdown rendered with tool notices grouped after the prose.
-                contentHtml = buildAiMarkdownHtml(displayText);
+                contentHtml = batchStatusHtml + (displayText && String(displayText).trim()
+                    ? buildAiMarkdownHtml(displayText)
+                    : (batchInfo ? '<div class="content-area prose prose-invert text-sm break-words text-gray-300">回答を準備しています…</div>' : buildAiMarkdownHtml(displayText)));
                 // Ensure content-area class is present if not already in buildAiMarkdownHtml
                 if (!contentHtml.includes('content-area')) {
                     contentHtml = contentHtml.replace('prose ', 'content-area prose ');
@@ -20196,7 +20256,16 @@
                 return;
             }
 
+            const batchModeRequested = !!(get('enable-batch-mode') && get('enable-batch-mode').checked);
+            if (batchModeRequested && codingModeEnabled) {
+                showToast('Batch APIではCoding Modeを利用できません。Batchを解除するかCodingを解除してください。', 'warning', true);
+                return;
+            }
+
             if (browserFastModeEnabled) {
+                if (batchModeRequested) {
+                    setBrowserFastModeEnabled(false);
+                } else {
                 const reason = browserFastModeIneligibility(rawText);
                 if (!reason) {
                     try {
@@ -20213,6 +20282,7 @@
                 }
                 setBrowserFastModeEnabled(false);
                 return sendMessage();
+                }
             }
 
             // Save to prompt history
@@ -20526,7 +20596,8 @@
                     code: candidate.prompt_source ? null : candidate.code,
                     language: candidate.language || 'text',
                     explicit: candidate.explicit === true
-                })) : []
+                })) : [],
+                batch_mode: batchModeRequested
             };
             if (botTurnstileToken) p.turnstile_token = botTurnstileToken;
             const threadCustomInstructionEl = get('thread-custom-instruction');
@@ -21694,6 +21765,51 @@
             initPullToRefreshAll();
         }
 
+        let geminiBatchStatusPollBusy = false;
+        let geminiBatchBannerThreadId = null;
+        function showGeminiBatchCompletionBanner(completed) {
+            const banner = get('batch-notification-banner');
+            const text = get('batch-notification-text');
+            const open = get('batch-notification-open');
+            if (!banner || !text || !completed || !completed.length) return;
+            const first = completed[0];
+            geminiBatchBannerThreadId = first.thread_id;
+            text.textContent = completed.length === 1
+                ? `${first.model || 'Gemini'} のBatch処理が完了しました。`
+                : `${completed.length}件のGemini Batch処理が完了しました。`;
+            banner.classList.remove('hidden');
+            if (open) {
+                open.onclick = async () => {
+                    banner.classList.add('hidden');
+                    if (geminiBatchBannerThreadId) await loadMessages(geminiBatchBannerThreadId);
+                };
+            }
+            const close = get('batch-notification-close');
+            if (close) close.onclick = () => banner.classList.add('hidden');
+        }
+
+        async function refreshGeminiBatchStatus() {
+            if (geminiBatchStatusPollBusy) return;
+            geminiBatchStatusPollBusy = true;
+            try {
+                const response = await apiFetch('/api/gemini/batch/status');
+                if (!response.ok) return;
+                const data = await response.json().catch(() => ({}));
+                const changedIds = new Set((data.changed_thread_ids || []).map((id) => String(id)));
+                if (currentThreadId && changedIds.has(String(currentThreadId))) {
+                    await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
+                }
+                if (Array.isArray(data.completed) && data.completed.length) {
+                    showGeminiBatchCompletionBanner(data.completed);
+                    loadThreads(false);
+                }
+            } catch (error) {
+                // Background polling is best-effort; the normal chat UI remains usable.
+            } finally {
+                geminiBatchStatusPollBusy = false;
+            }
+        }
+
         async function toggleBookmark(e, tid) {
             if (e) e.stopPropagation();
             await apiFetch(`/api/threads/${tid}/bookmark`, {method:'POST'});
@@ -21960,7 +22076,8 @@
                     fragment,
                     false,
                     m.parent_id,
-                    m.gem_name
+                    m.gem_name,
+                    m.batch_job
                 );
             });
             const pending = currentThreadPending;

@@ -10,6 +10,63 @@ def _is_browser_fast_mode_model(model_key):
         and not any(marker in model_l for marker in ('image', 'native-audio', 'tts', 'live'))
     )
 
+def _is_gemini_batch_model(model_key):
+    """Gemini API models whose generateContent endpoint supports Batch API."""
+    model_l = str(model_key or '').strip().lower()
+    if not (model_l.startswith('gemini-') and model_key in ALL_VALID_MODEL_IDS):
+        return False
+    return not any(marker in model_l for marker in (
+        'embedding', 'video', 'veo', 'music', 'lyria', 'native-audio',
+        'tts', 'live', 'transcribe', 'agent', 'deep-research', 'robotics',
+        'computer-use'
+    ))
+
+def _batch_json_value(value):
+    """Convert google-genai Pydantic objects to REST/SDK JSON safely."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, (bytes, bytearray)):
+        return base64.b64encode(bytes(value)).decode('ascii')
+    if isinstance(value, dict):
+        return {str(k): _batch_json_value(v) for k, v in value.items() if v is not None}
+    if isinstance(value, (list, tuple)):
+        return [_batch_json_value(v) for v in value]
+    for method_name in ('model_dump', 'to_dict'):
+        method = getattr(value, method_name, None)
+        if callable(method):
+            try:
+                dumped = method(mode='json', by_alias=True, exclude_none=True)
+            except TypeError:
+                try:
+                    dumped = method(by_alias=True, exclude_none=True)
+                except TypeError:
+                    dumped = method()
+            return _batch_json_value(dumped)
+    return str(value)
+
+def _batch_field(value, *names):
+    if isinstance(value, dict):
+        for name in names:
+            if name in value:
+                return value.get(name)
+    for name in names:
+        current = getattr(value, name, None)
+        if current is not None:
+            return current
+    return None
+
+def _batch_state_label(state):
+    labels = {
+        'JOB_STATE_QUEUED': 'Batch APIへの送信待ちです',
+        'JOB_STATE_PENDING': 'Batch APIに送信済みです。処理待機中です',
+        'JOB_STATE_RUNNING': 'Batch APIで処理中です',
+        'JOB_STATE_SUCCEEDED': 'Batch処理が完了しました',
+        'JOB_STATE_FAILED': 'Batch処理に失敗しました',
+        'JOB_STATE_CANCELLED': 'Batch処理がキャンセルされました',
+        'JOB_STATE_EXPIRED': 'Batch処理の有効期限が切れました',
+    }
+    return labels.get(str(state or '').upper(), 'Batch処理の状態を確認中です')
+
 def _get_browser_fast_mode_user_key(user, model_key):
     """Return only a key owned by this user; never disclose admin/env fallback keys."""
     model_key_value = _get_model_specific_api_key(user, model_key)
@@ -341,6 +398,11 @@ def chat_stream():
     model_key = str(data.get('model') or '').strip()
     if model_key not in ALL_VALID_MODEL_IDS:
         return jsonify({'error': 'Invalid model'}), 400
+    batch_mode = bool(data.get('batch_mode'))
+    if batch_mode and not _is_gemini_batch_model(model_key):
+        return jsonify({
+            'error': 'Batch APIは Gemini API の generateContent 対応モデル（テキスト／画像）で利用できます。動画・音声・埋め込み等では利用できません。'
+        }), 400
     coding_mode = data.get('coding_mode') is True
     coding_target = data.get('coding_target')
     coding_candidates = []
@@ -408,6 +470,12 @@ def chat_stream():
             "model": model_key,
             "provider": resolved_auth.get("provider"),
         }), 400
+    if batch_mode:
+        gemini_runtime = resolved_auth.get('gemini_runtime') or {}
+        if gemini_runtime.get('backend') == 'vertex_ai':
+            return jsonify({'error': 'Batch APIは現在 Gemini API モードでのみ利用できます。Vertex AI モードを切り替えてください。'}), 400
+        if coding_mode:
+            return jsonify({'error': 'Batch APIではCoding Modeを利用できません。'}), 400
     for bounded_key in ('quote_text', 'system_prompt', 'marker_system_prompt', 'thread_custom_instruction'):
         bounded_value = data.get(bounded_key)
         if bounded_value is not None and len(str(bounded_value)) > 100_000:
@@ -555,6 +623,34 @@ def chat_stream():
             gem_name=gem_name_val
         )
         db.session.add(user_msg)
+        assistant_batch_msg = None
+        if batch_mode:
+            db.session.flush()
+            assistant_batch_msg = Message(
+                thread=t,
+                role='assistant',
+                content='',
+                model=model_key,
+                is_encrypted=user_config['enable_e2ee'],
+                parent_id=user_msg.id,
+                tokens=0,
+                tokens_out=0,
+                tokens_thought=0,
+                gem_uuid=gem_uuid_val,
+                gem_name=gem_name_val,
+            )
+            db.session.add(assistant_batch_msg)
+            db.session.flush()
+            db.session.add(GeminiBatchJob(
+                job_id=job_id,
+                user_id=current_user.id,
+                thread_id=t.id,
+                user_message_id=user_msg.id,
+                assistant_message_id=assistant_batch_msg.id,
+                model=model_key,
+                state='JOB_STATE_QUEUED',
+                status_text='Batch APIへ送信する準備中です',
+            ))
         if current_user.use_last_chat_settings:
             current_user.last_model = data.get('model')
             current_user.last_enable_search = bool(data.get('enable_search'))
@@ -668,8 +764,9 @@ def chat_stream():
             'prompt_cache_key': None,
             'coding_mode': coding_mode,
             'coding_target': coding_target if coding_mode else None,
-            'coding_candidates': coding_candidates if coding_mode else [],
-        }
+        'coding_candidates': coding_candidates if coding_mode else [],
+        'batch_mode': batch_mode,
+    }
     # Persist prompt-cache flags on the thread (provider locked while enabled)
     try:
         if enable_pc_request:
@@ -732,19 +829,20 @@ def chat_stream():
         at_front=(queue_name == _CHAT_FAST_QUEUE_NAME)
     )
     _latency_mark_once(job_id, "route_dispatch_ms")
-    try:
-        redis_conn.setex(
-            f"pending_job:{current_user.id}:{thread_id}",
-            600,
-            json.dumps({
-                "job_id": job_id,
-                "message_id": user_msg.id,
-                "created_at": int(time.time()),
-                "model": data.get('model')
-            })
-        )
-    except Exception:
-        pass
+    if not batch_mode:
+        try:
+            redis_conn.setex(
+                f"pending_job:{current_user.id}:{thread_id}",
+                600,
+                json.dumps({
+                    "job_id": job_id,
+                    "message_id": user_msg.id,
+                    "created_at": int(time.time()),
+                    "model": data.get('model')
+                })
+            )
+        except Exception:
+            pass
     try:
         if queue_name == _CHAT_FAST_QUEUE_NAME:
             redis_conn.setex(f"stream_acc:{job_id}:status", 600, "高速キューに投入しました。優先ワーカー待機中です...")
@@ -764,6 +862,18 @@ def chat_stream():
         user_msg.id,
         model_key,
     )
+
+    if batch_mode:
+        def generate_batch_ack():
+            if thread_stream_id:
+                yield json.dumps({'type': 'thread_id', 'content': thread_stream_id}) + '\n'
+            yield json.dumps({'type': 'job_id', 'content': job_id}) + '\n'
+            yield json.dumps({'type': 'status', 'content': 'Batch APIへ送信する準備中です'}) + '\n'
+            yield json.dumps({'type': 'done', 'content': 'BATCH_ACCEPTED'}) + '\n'
+        resp = Response(stream_with_context(generate_batch_ack()), mimetype='application/x-ndjson')
+        resp.headers['Cache-Control'] = 'no-cache, no-transform'
+        resp.headers['X-Accel-Buffering'] = 'no'
+        return resp
 
     def generate():
         pubsub = redis_conn.pubsub()
@@ -836,6 +946,170 @@ def chat_stream():
     resp.headers['Cache-Control'] = 'no-cache, no-transform'
     resp.headers['X-Accel-Buffering'] = 'no'
     return resp
+
+
+@app.route('/api/gemini/batch/status', methods=['GET'])
+@login_required
+def gemini_batch_status_api():
+    """Refresh the user's Gemini Batch jobs and return banner-worthy completions."""
+    rows = GeminiBatchJob.query.filter_by(user_id=current_user.id).filter(
+        GeminiBatchJob.notified_at.is_(None) | ~GeminiBatchJob.state.in_({
+            'JOB_STATE_SUCCEEDED', 'JOB_STATE_FAILED',
+            'JOB_STATE_CANCELLED', 'JOB_STATE_EXPIRED'
+        })
+    ).order_by(GeminiBatchJob.created_at.asc()).limit(50).all()
+    terminal_states = {
+        'JOB_STATE_SUCCEEDED', 'JOB_STATE_FAILED',
+        'JOB_STATE_CANCELLED', 'JOB_STATE_EXPIRED'
+    }
+    changed_thread_ids = set()
+    completed = []
+    active = []
+
+    def _set_message_payload(message, content, thought=None, image_refs=None, tokens_out=None, tokens_thought=0):
+        is_enc = bool(message.is_encrypted)
+        message.content = encrypt_val(content) if is_enc else content
+        if thought:
+            thought_payload = json.dumps({'text': thought}, ensure_ascii=False)
+            message.thought_data = encrypt_val(thought_payload) if is_enc else thought_payload
+        message.image_url = json.dumps(image_refs, ensure_ascii=False) if image_refs else None
+        if tokens_out is not None:
+            message.tokens_out = int(tokens_out or 0)
+            message.tokens = sum_token_counts(None, message.tokens_out)
+        message.tokens_thought = int(tokens_thought or 0)
+
+    def _terminal_message(row, state, error_text=None, response_payload=None):
+        message = Message.query.filter_by(
+            id=row.assistant_message_id, thread_id=row.thread_id
+        ).first()
+        if not message:
+            return
+        if state == 'JOB_STATE_SUCCEEDED':
+            response = _batch_field(response_payload, 'response') or response_payload or {}
+            candidates = _batch_field(response, 'candidates') or []
+            candidate = candidates[0] if candidates else {}
+            content_obj = _batch_field(candidate, 'content') or {}
+            parts = _batch_field(content_obj, 'parts') or []
+            text_parts = []
+            thought_parts = []
+            image_refs = []
+            for part in parts:
+                part_text = _batch_field(part, 'text')
+                if part_text:
+                    if _batch_field(part, 'thought') is True:
+                        thought_parts.append(str(part_text))
+                    else:
+                        text_parts.append(str(part_text))
+                inline_data = _batch_field(part, 'inlineData', 'inline_data')
+                if inline_data:
+                    raw_data = _batch_field(inline_data, 'data')
+                    mime = str(_batch_field(inline_data, 'mimeType', 'mime_type') or 'image/png')
+                    if raw_data:
+                        try:
+                            if isinstance(raw_data, str):
+                                raw_data = raw_data.split(',', 1)[-1]
+                                raw_data = _decode_base64_limited(raw_data, 50 * 1024 * 1024)
+                            ext = {'image/jpeg': 'jpg', 'image/webp': 'webp'}.get(mime, 'png')
+                            filename = f"batch_{int(time.time())}_{secrets.token_hex(5)}.{ext}"
+                            _save_user_generated_bytes(current_user.id, raw_data, filename, bool(message.is_encrypted))
+                            image_refs.append(f"{current_user.id}/{filename}")
+                        except Exception as image_error:
+                            logger.warning('Gemini Batch image save failed: %s', image_error)
+            content = ''.join(text_parts).strip()
+            if image_refs:
+                content = (content + '\n\n' if content else '') + '\n'.join(
+                    f'![Image](/files/{ref})' for ref in image_refs
+                )
+            if not content:
+                content = 'Batch処理が完了しましたが、回答本文はありませんでした。'
+            usage = _batch_field(response, 'usageMetadata', 'usage_metadata') or {}
+            tokens_out = _batch_field(usage, 'candidatesTokenCount', 'candidates_token_count')
+            tokens_thought = _batch_field(usage, 'thoughtsTokenCount', 'thoughts_token_count') or 0
+            _set_message_payload(
+                message, content,
+                '\n'.join(thought_parts).strip() or None,
+                image_refs,
+                tokens_out,
+                tokens_thought,
+            )
+        else:
+            detail = str(error_text or _batch_state_label(state))[:4000]
+            _set_message_payload(message, f'**{_batch_state_label(state)}**\n\n{detail}')
+
+    for row in rows:
+        public_thread_id = getattr(getattr(row, 'thread', None), 'public_id', None) or str(row.thread_id)
+        old_state = row.state
+        old_status = row.status_text
+        state = str(row.state or 'JOB_STATE_QUEUED').upper()
+        provider_payload = None
+        if row.provider_job_name and state not in terminal_states:
+            try:
+                resolved = _resolve_chat_model_auth(current_user, row.model)
+                runtime = resolved.get('gemini_runtime') or {}
+                api_key = resolved.get('api_key') or runtime.get('api_key')
+                if not api_key or runtime.get('backend') == 'vertex_ai':
+                    raise RuntimeError('Gemini APIキーまたは Gemini API モードを確認してください')
+                provider_url = f"https://generativelanguage.googleapis.com/v1beta/{row.provider_job_name.lstrip('/')}"
+                provider_response = requests.get(
+                    provider_url,
+                    headers={'x-goog-api-key': str(api_key)},
+                    timeout=30,
+                )
+                provider_payload = provider_response.json() if provider_response.content else {}
+                if not provider_response.ok:
+                    raise RuntimeError(
+                        _batch_field(_batch_field(provider_payload, 'error') or {}, 'message')
+                        or f'Gemini Batch API HTTP {provider_response.status_code}'
+                    )
+                state = str(_batch_field(provider_payload, 'state') or state).upper()
+                row.state = state
+                row.status_text = _batch_state_label(state)
+                if state in terminal_states:
+                    row.completed_at = row.completed_at or datetime.utcnow()
+                    if state == 'JOB_STATE_SUCCEEDED':
+                        dest = _batch_field(provider_payload, 'dest') or {}
+                        responses = _batch_field(dest, 'inlinedResponses', 'inlined_responses') or []
+                        if responses:
+                            _terminal_message(row, state, response_payload=responses[0])
+                        else:
+                            _terminal_message(row, state, error_text='Batch APIから回答データが返されませんでした')
+                    else:
+                        error_obj = _batch_field(provider_payload, 'error') or {}
+                        _terminal_message(row, state, error_text=_batch_field(error_obj, 'message') or row.status_text)
+            except Exception as poll_error:
+                logger.warning('Gemini Batch status poll failed for %s: %s', row.job_id, poll_error)
+                row.status_text = 'Batch APIの状態を再確認しています'
+        if row.state != old_state or row.status_text != old_status:
+            changed_thread_ids.add(str(public_thread_id))
+        state = str(row.state or '').upper()
+        if state in terminal_states:
+            if row.notified_at is None:
+                row.notified_at = datetime.utcnow()
+                completed.append({
+                    'job_id': row.job_id,
+                    'thread_id': public_thread_id,
+                    'model': row.model,
+                    'state': state,
+                    'status_text': row.status_text or _batch_state_label(state),
+                })
+        else:
+            active.append({
+                'job_id': row.job_id,
+                'thread_id': public_thread_id,
+                'model': row.model,
+                'state': state,
+                'status_text': row.status_text or _batch_state_label(state),
+            })
+    try:
+        safe_db_commit()
+    except Exception:
+        db.session.rollback()
+        logger.exception('Gemini Batch status commit failed')
+    return jsonify({
+        'active': active,
+        'completed': completed,
+        'changed_thread_ids': list(changed_thread_ids),
+    })
 
 
 @app.route('/api/token_estimate', methods=['POST'])
@@ -1245,4 +1519,3 @@ def generate_title_api():
         return jsonify({'status': 'ok', 'title': title})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-

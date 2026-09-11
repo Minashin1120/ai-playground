@@ -9,8 +9,27 @@
             if (fastToggle) {
                 fastToggle.checked = false;
                 fastToggle.onchange = () => {
-                    if (fastToggle.checked) requestBrowserFastModeEnable();
+                    if (fastToggle.checked) {
+                        const batchToggle = get('enable-batch-mode');
+                        if (batchToggle && batchToggle.checked) batchToggle.checked = false;
+                        requestBrowserFastModeEnable();
+                    }
                     else setBrowserFastModeEnabled(false);
+                };
+            }
+            const batchToggle = get('enable-batch-mode');
+            if (batchToggle) {
+                batchToggle.onchange = () => {
+                    if (batchToggle.checked) {
+                        if (browserFastModeEnabled) setBrowserFastModeEnabled(false);
+                        const codingToggle = get('enable-coding-mode');
+                        if (codingToggle && codingToggle.checked) {
+                            codingToggle.checked = false;
+                            if (typeof syncCodingModeUi === 'function') syncCodingModeUi(false);
+                            showToast('Batch APIではCoding Modeを利用できないため解除しました', 'warning', true);
+                        }
+                    }
+                    updateGeminiBatchUi(get('model-select') ? get('model-select').value : '');
                 };
             }
             const fastModelSelect = get('model-select');
@@ -544,6 +563,7 @@
                 updateGrokVideoUi();
                 updateGeminiVideoUi();
                 updateGeminiMusicUi();
+                updateGeminiBatchUi(model);
                 updateXaiChatUi();
                 updateMistralOcrUi();
                 updateImageInputLimits();
@@ -917,6 +937,10 @@
             }
             snapshotSidebarHistory('page-init');
             loadThreads(); loadGems();
+            if (typeof refreshGeminiBatchStatus === 'function') {
+                refreshGeminiBatchStatus();
+                setInterval(refreshGeminiBatchStatus, 30000);
+            }
 
             get('send-btn').onclick = () => { if (isStopMode) stopGeneration(); else sendMessage(); };
             get('new-chat-btn').onclick = () => startNewChat();

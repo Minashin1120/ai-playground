@@ -4702,7 +4702,7 @@
                 popup.setAttribute('aria-hidden', 'true');
                 setTimeout(() => {
                     if (!minimalOptionsOpen) popup.classList.add('hidden');
-                }, 320);
+                }, 400);
             }
             restoreModelPanelsFromPopup();
             hideThinkingSlider();

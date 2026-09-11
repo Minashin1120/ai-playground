@@ -5222,9 +5222,13 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
     -webkit-backdrop-filter: blur(20px) saturate(150%);
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
     overflow: hidden;
-    transform: translateY(18px);
+    /* Align the expansion point with the minimal-mode plus button below. */
+    transform-origin: 1.5rem calc(100% + 0.7rem);
+    transform: translateY(10px) scale(0.9);
     opacity: 0;
-    transition: transform 0.3s var(--ease-out), opacity 0.25s var(--ease-standard);
+    filter: blur(4px);
+    will-change: transform, opacity, filter;
+    transition: transform 0.38s var(--ease-out), opacity 0.28s var(--ease-standard), filter 0.32s var(--ease-standard);
 }
 #minimal-options-popup.minimal-options-open #minimal-options-backdrop {
     opacity: 1;
@@ -5232,6 +5236,7 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
 #minimal-options-popup.minimal-options-open #minimal-options-panel {
     transform: translateY(0);
     opacity: 1;
+    filter: blur(0);
 }
 #minimal-options-panel.dragging {
     transition: opacity 0.25s var(--ease-standard);

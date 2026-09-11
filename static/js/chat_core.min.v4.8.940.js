@@ -1509,7 +1509,7 @@ const e=get("minimal-options-popup");if(!e)return;const t=get("minimal-options-p
 e.classList.add("minimal-options-open")}o(openMinimalOptions,"openMinimalOptions");function closeMinimalOptions(){
 if(!minimalOptionsOpen)return;minimalOptionsOpen=!1;const e=get("minimal-options-popup");e&&(e.classList.
 remove("minimal-options-open"),e.setAttribute("aria-hidden","true"),setTimeout(()=>{minimalOptionsOpen||
-e.classList.add("hidden")},320)),restoreModelPanelsFromPopup(),hideThinkingSlider()}o(closeMinimalOptions,
+e.classList.add("hidden")},400)),restoreModelPanelsFromPopup(),hideThinkingSlider()}o(closeMinimalOptions,
 "closeMinimalOptions");function toggleMinimalOptions(){minimalOptionsOpen?closeMinimalOptions():openMinimalOptions()}
 o(toggleMinimalOptions,"toggleMinimalOptions");function refreshMinimalOptionsIfOpen(){minimalOptionsOpen&&
 (renderMinimalOptionItems(),refreshMinimalModelSection())}o(refreshMinimalOptionsIfOpen,"refreshMini\

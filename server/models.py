@@ -172,7 +172,7 @@ class Message(db.Model):
     children = db.relationship('Message', backref=db.backref('parent', remote_side=[id]), lazy=True)
 
 class GeminiBatchJob(db.Model):
-    """Application state for an asynchronous Gemini Batch API request."""
+    """Application state for an asynchronous provider Batch API request."""
     __tablename__ = 'gemini_batch_job'
     id = db.Column(db.Integer, primary_key=True)
     job_id = db.Column(db.String(96), unique=True, nullable=False, index=True)
@@ -181,6 +181,9 @@ class GeminiBatchJob(db.Model):
     user_message_id = db.Column(db.Integer, nullable=False, index=True)
     assistant_message_id = db.Column(db.Integer, nullable=False, index=True)
     provider_job_name = db.Column(db.String(255), unique=True, nullable=True)
+    provider = db.Column(db.String(24), nullable=False, default='gemini')
+    output_file_id = db.Column(db.String(255), nullable=True)
+    error_file_id = db.Column(db.String(255), nullable=True)
     model = db.Column(db.String(80), nullable=False)
     state = db.Column(db.String(40), nullable=False, default='JOB_STATE_QUEUED', index=True)
     status_text = db.Column(db.String(255), nullable=True)

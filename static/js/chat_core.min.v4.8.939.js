@@ -3072,19 +3072,19 @@ remove("opacity-50","pointer-events-none")});const t=get("enable-coding-mode"),n
 ntainer");t&&(t.disabled=!1),n&&n.classList.remove("opacity-50","pointer-events-none"),e&&e.coding&&
 syncCodingModeUi(!0,{persist:!1}),browserFastPreviousOptions=null,typeof updatePromptCacheUi=="funct\
 ion"&&updatePromptCacheUi(),typeof syncMcpAutoSysRows=="function"&&syncMcpAutoSysRows(),refreshMinimalOptionsIfOpen()}
-o(restoreBrowserFastModeOptions,"restoreBrowserFastModeOptions");function isGeminiBatchModelKey(e){const t=String(
-e||"").trim().toLowerCase();return t.startsWith("gemini-")?!/(embedding|video|veo|music|lyria|native-audio|tts|live|transcribe|agent|deep-research|robotics|computer-use)/.
-test(t):!1}o(isGeminiBatchModelKey,"isGeminiBatchModelKey");function updateGeminiBatchUi(e){const t=get(
-"batch-mode-container"),n=get("enable-batch-mode");if(!t||!n)return;const i=isGeminiBatchModelKey(e);
-t.classList.toggle("hidden",!i),n.disabled=!i||browserFastModeEnabled,i||(n.checked=!1),t.classList.
-toggle("ring-1",i&&n.checked),t.classList.toggle("ring-violet-300",i&&n.checked)}o(updateGeminiBatchUi,
-"updateGeminiBatchUi");function setBrowserFastModeEnabled(e,t={}){browserFastModeEnabled=!!e;const n=get(
-"enable-browser-fast-mode");n&&(n.checked=browserFastModeEnabled);const i=get("browser-fast-mode-con\
-tainer");i&&(i.classList.toggle("ring-1",browserFastModeEnabled),i.classList.toggle("ring-amber-300",
-browserFastModeEnabled)),!browserFastModeEnabled&&t.clearKey!==!1&&(browserFastApiKey="",browserFastApiKeyModel=
-"",browserFastBootstrap=null),browserFastModeEnabled?applyBrowserFastModeRestrictions():t.restoreOptions!==
-!1&&restoreBrowserFastModeOptions(),updateGeminiBatchUi(get("model-select")?get("model-select").value:
-"")}o(setBrowserFastModeEnabled,"setBrowserFastModeEnabled");function openBrowserFastModeModal(e=!0){
+o(restoreBrowserFastModeOptions,"restoreBrowserFastModeOptions");function isBatchModelKey(e){const t=String(
+e||"").trim().toLowerCase();return t.startsWith("gpt-")?!/(image|audio|tts|transcribe|realtime|search)/.
+test(t):t.startsWith("gemini-")?!/(embedding|video|veo|music|lyria|native-audio|tts|live|transcribe|agent|deep-research|robotics|computer-use)/.
+test(t):!1}o(isBatchModelKey,"isBatchModelKey");function updateBatchUi(e){const t=get("batch-mode-co\
+ntainer"),n=get("enable-batch-mode");if(!t||!n)return;const i=isBatchModelKey(e);t.classList.toggle(
+"hidden",!i),n.disabled=!i||browserFastModeEnabled,i||(n.checked=!1),t.classList.toggle("ring-1",i&&
+n.checked),t.classList.toggle("ring-violet-300",i&&n.checked)}o(updateBatchUi,"updateBatchUi");function setBrowserFastModeEnabled(e,t={}){
+browserFastModeEnabled=!!e;const n=get("enable-browser-fast-mode");n&&(n.checked=browserFastModeEnabled);
+const i=get("browser-fast-mode-container");i&&(i.classList.toggle("ring-1",browserFastModeEnabled),i.
+classList.toggle("ring-amber-300",browserFastModeEnabled)),!browserFastModeEnabled&&t.clearKey!==!1&&
+(browserFastApiKey="",browserFastApiKeyModel="",browserFastBootstrap=null),browserFastModeEnabled?applyBrowserFastModeRestrictions():
+t.restoreOptions!==!1&&restoreBrowserFastModeOptions(),updateBatchUi(get("model-select")?get("model-\
+select").value:"")}o(setBrowserFastModeEnabled,"setBrowserFastModeEnabled");function openBrowserFastModeModal(e=!0){
 const t=get("browser-fast-mode-warning"),n=get("browser-fast-mode-ignore-row");t&&t.classList.toggle(
 "hidden",!e),n&&n.classList.toggle("hidden",!e);const i=get("browser-fast-mode-key-description"),s=String(
 get("model-select")?get("model-select").value:"Gemini");i&&(i.textContent=`${s} \u306E\u30E2\u30C7\u30EB\u5225\u30AD\u30FC \u2192 \u5171\u901AGemini\u30AD\u30FC\
@@ -3119,11 +3119,11 @@ if(e.checked){const c=get("enable-batch-mode");c&&c.checked&&(c.checked=!1),requ
 setBrowserFastModeEnabled(!1)});const t=get("enable-batch-mode");t&&(t.onchange=()=>{if(t.checked){browserFastModeEnabled&&
 setBrowserFastModeEnabled(!1);const c=get("enable-coding-mode");c&&c.checked&&(c.checked=!1,typeof syncCodingModeUi==
 "function"&&syncCodingModeUi(!1),showToast("Batch API\u3067\u306FCoding Mode\u3092\u5229\u7528\u3067\u304D\u306A\u3044\u305F\u3081\u89E3\u9664\u3057\u307E\u3057\u305F",
-"warning",!0))}updateGeminiBatchUi(get("model-select")?get("model-select").value:"")});const n=get("\
-model-select");n&&n.addEventListener("change",()=>{setTimeout(()=>{if(!browserFastModeEnabled)return;
-const c=String(n.value||"").toLowerCase();browserFastApiKey="",browserFastApiKeyModel="",browserFastBootstrap=
-null,!c.startsWith("gemini-")||/(image|native-audio|tts|live)/.test(c)?(setBrowserFastModeEnabled(!1),
-n.dispatchEvent(new Event("change")),showToast("\u5BFE\u8C61\u5916\u30E2\u30C7\u30EB\u3092\u9078\u629E\u3057\u305F\u305F\u3081\u9AD8\u901F\u30E2\u30FC\u30C9\u3092\u89E3\u9664\u3057\u307E\u3057\u305F",
+"warning",!0))}updateBatchUi(get("model-select")?get("model-select").value:"")});const n=get("model-\
+select");n&&n.addEventListener("change",()=>{setTimeout(()=>{if(!browserFastModeEnabled)return;const c=String(
+n.value||"").toLowerCase();browserFastApiKey="",browserFastApiKeyModel="",browserFastBootstrap=null,
+!c.startsWith("gemini-")||/(image|native-audio|tts|live)/.test(c)?(setBrowserFastModeEnabled(!1),n.dispatchEvent(
+new Event("change")),showToast("\u5BFE\u8C61\u5916\u30E2\u30C7\u30EB\u3092\u9078\u629E\u3057\u305F\u305F\u3081\u9AD8\u901F\u30E2\u30FC\u30C9\u3092\u89E3\u9664\u3057\u307E\u3057\u305F",
 "warning",!0)):applyBrowserFastModeRestrictions()},0)});const i=get("browser-fast-mode-enable-btn");
 i&&(i.onclick=async()=>{const c=i.innerHTML;i.disabled=!0,i.innerHTML='<i class="fas fa-spinner fa-s\
 pin mr-1"></i>\u4FDD\u5B58\u6E08\u307F\u30AD\u30FC\u3092\u53D6\u5F97\u4E2D...';try{await fetchBrowserFastBootstrap(
@@ -3267,7 +3267,7 @@ A.disabled=!0,H.classList.add("opacity-50")),ve&&(isLlmModel()?(ve.classList.rem
 I.classList.add("opacity-50","pointer-events-none"),ve&&(V.checked=!1,V.disabled=!0,ve.classList.add(
 "opacity-50","pointer-events-none"))):B&&!u.includes("tts")&&!Oe&&!f&&!Ve&&(B.disabled=!1);const re=get(
 "mask-btn");re&&(isGptImageModel()?re.classList.remove("hidden"):(re.classList.add("hidden"),currentMaskImage=
-null,updateMaskPreview())),updateTtsUi(),updateStsUi(),updateStsOptions(),r(),l(),d(),p(),g(),h(),updateGeminiBatchUi(
+null,updateMaskPreview())),updateTtsUi(),updateStsUi(),updateStsOptions(),r(),l(),d(),p(),g(),h(),updateBatchUi(
 u),v(),b(),w(),purgeUnsupportedAttachments(!0),refreshMinimalOptionsIfOpen(),applyMcpPromptChipUi()}
 o(x,"toggleOptions"),get("model-select")&&(get("model-select").addEventListener("change",x),get("mod\
 el-select").addEventListener("change",()=>schedulePromptTokenEstimate(!0))),bindPromptCacheControls(),
@@ -5992,10 +5992,10 @@ return`<div class="batch-status-card mb-3 rounded-lg border ${Q==="JOB_STATE_FAI
 _CANCELLED"||Q==="JOB_STATE_EXPIRED"?"border-red-400/40 bg-red-950/30 text-red-100":Q==="JOB_STATE_S\
 UCCEEDED"?"border-emerald-400/40 bg-emerald-950/30 text-emerald-100":"border-violet-400/40 bg-violet\
 -950/30 text-violet-100"} px-3 py-2 text-xs"><div class="font-semibold"><i class="fas fa-layer-group\
- mr-1"></i>Gemini Batch</div><div class="mt-1 opacity-90">${escapeHtml(le)}</div></div>`})():"";J?T=
-`<div class="content-area whitespace-pre-wrap font-sans text-sm break-words">${escapeHtml(n||"")}</d\
-iv>`:(T=R+(q&&String(q).trim()?buildAiMarkdownHtml(q):j?'<div class="content-area prose prose-invert\
- text-sm break-words text-gray-300">\u56DE\u7B54\u3092\u6E96\u5099\u3057\u3066\u3044\u307E\u3059\u2026</div>':
+ mr-1"></i>Batch</div><div class="mt-1 opacity-90">${escapeHtml(le)}</div></div>`})():"";J?T=`<div c\
+lass="content-area whitespace-pre-wrap font-sans text-sm break-words">${escapeHtml(n||"")}</div>`:(T=
+R+(q&&String(q).trim()?buildAiMarkdownHtml(q):j?'<div class="content-area prose prose-invert text-sm\
+ break-words text-gray-300">\u56DE\u7B54\u3092\u6E96\u5099\u3057\u3066\u3044\u307E\u3059\u2026</div>':
 buildAiMarkdownHtml(q)),T.includes("content-area")||(T=T.replace("prose ","content-area prose ")));let G="";
 if(r){const Q=r.siblings[r.current-2],le=r.siblings[r.current];G=`
                     <div class="flex items-center gap-2 text-[10px] text-gray-400 mt-1 select-none">\
@@ -6924,50 +6924,50 @@ id:i})})}catch{}}o(submitMcpDecision,"submitMcpDecision"),document.readyState===
 "DOMContentLoaded",initPullToRefreshAll,{once:!0}):initPullToRefreshAll();let geminiBatchStatusPollBusy=!1,
 geminiBatchBannerThreadId=null;function showGeminiBatchCompletionBanner(e){const t=get("batch-notifi\
 cation-banner"),n=get("batch-notification-text"),i=get("batch-notification-open");if(!t||!n||!e||!e.
-length)return;const s=e[0];geminiBatchBannerThreadId=s.thread_id,n.textContent=e.length===1?`${s.model||
-"Gemini"} \u306EBatch\u51E6\u7406\u304C\u5B8C\u4E86\u3057\u307E\u3057\u305F\u3002`:`${e.length}\u4EF6\u306EGem\
-ini Batch\u51E6\u7406\u304C\u5B8C\u4E86\u3057\u307E\u3057\u305F\u3002`,t.classList.remove("hidden"),
-i&&(i.onclick=async()=>{t.classList.add("hidden"),geminiBatchBannerThreadId&&await loadMessages(geminiBatchBannerThreadId)});
-const a=get("batch-notification-close");a&&(a.onclick=()=>t.classList.add("hidden"))}o(showGeminiBatchCompletionBanner,
-"showGeminiBatchCompletionBanner");async function refreshGeminiBatchStatus(){if(!geminiBatchStatusPollBusy){
-geminiBatchStatusPollBusy=!0;try{const e=await apiFetch("/api/gemini/batch/status");if(!e.ok)return;
-const t=await e.json().catch(()=>({})),n=new Set((t.active||[]).map(i=>String(i.thread_id)));currentThreadId&&
-n.has(String(currentThreadId))&&await loadMessages(currentThreadId,{preserveDraft:!0,silent:!0}),Array.
-isArray(t.completed)&&t.completed.length&&(showGeminiBatchCompletionBanner(t.completed),loadThreads(
-!1))}catch{}finally{geminiBatchStatusPollBusy=!1}}}o(refreshGeminiBatchStatus,"refreshGeminiBatchSta\
-tus");async function toggleBookmark(e,t){e&&e.stopPropagation(),await apiFetch(`/api/threads/${t}/bo\
-okmark`,{method:"POST"}),loadThreads()}o(toggleBookmark,"toggleBookmark");async function loadMessages(e,t={}){
-const n=++threadLoadSequence;window.closeHistoryModal&&window.closeHistoryModal();const i=!!t.preserveDraft,
-s=!!t.silent;s||resumeChatAutoScroll({scroll:!1});const a=s?snapshotCodeCollapseByMessage(get("chat-\
-container")):null;let r="",l="",d=[];if(i){const p=get("prompt-input");r=p?p.value:"",l=p?p.style.height:
-"",d=currentImageUrls?currentImageUrls.slice():[],editingMessageId=null,setEditUi(!1)}else cancelEdit();
-currentThreadId=e!=null?String(e):e,t.skipHistory||history.pushState({},"","/c/"+e),updateThreadHighlighting(),
-syncActiveGemForThread(currentThreadId),get("welcome-screen").classList.add("hidden"),s||(get("chat-\
-container").innerHTML=buildChatLoadingSkeletonHtml());try{const p=new URL(CHAT_CONFIG.urls.handleThreadItem.
-replace("0",e),window.location.origin);p.searchParams.set("limit",String(getEffectiveThreadInitialMessageLimit()));
-const g=await apiFetch(p.toString());if(!g.ok)throw new Error(`thread request failed (${g.status})`);
-const h=await g.json();if(!h||!Array.isArray(h.messages))throw new Error("invalid thread response");
-if(n!==threadLoadSequence)return!1;setCurrentChatHeaderTitle(h&&h.title),allMessages=h.messages,threadHasOlderMessages=
-!!h.has_older_messages,oldestLoadedMessageId=h.oldest_loaded_id||(allMessages.length?allMessages[0].
-id:null);const v=(allMessages||[]).filter(w=>w.role==="user"&&w.content).map(w=>w.content);if(promptHistory=
-[...new Set(v.slice().reverse())],historyIndex=-1,tempPrompt="",currentThreadPending=h.pending_job||
-null,setTemporaryChatUiState(!!(h&&h.is_temporary)),applyTemporaryChatRuntimeMeta(h||{}),ensureTemporaryChatHeartbeat(
-!0),get("thread-custom-instruction")&&(get("thread-custom-instruction").value=h.custom_instruction||
-""),h.last_model&&selectModelById(h.last_model),get("enable-prompt-cache")&&(get("enable-prompt-cach\
-e").checked=!!h.enable_prompt_caching,updatePromptCacheUi()),h.last_gem_uuid&&loadedGems.length>0){const w=loadedGems.
-find(x=>x.uuid===h.last_gem_uuid);w&&(threadGemMap[currentThreadId]=w,applyActiveGem(w))}const b=localStorage.
-getItem(`fixed_branch_${currentThreadId}`);if(b&&allMessages.find(w=>String(w.id)===String(b))?currentLeafId=
-b:allMessages.length>0?currentLeafId=allMessages[allMessages.length-1].id:currentLeafId=null,renderThreadTree(
-{silent:s,keepScroll:s}),s&&a?applyCodeCollapseByMessage(get("chat-container"),a,!0):s||applyCodeCollapseByMessage(
-get("chat-container"),null,!0),currentThreadPending&&!s&&!isPendingJobSuppressed(currentThreadPending.
-job_id)&&resumePendingStream(currentThreadPending),i){const w=get("prompt-input");w&&(w.value=r||"",
-l?w.style.height=l:w.style.height="auto"),currentImageUrls=d,currentImageUrls&&currentImageUrls.length?
-(get("file-preview").classList.remove("hidden"),get("file-name").innerText=`${currentImageUrls.length}\
- files ready`):get("file-preview").classList.add("hidden"),schedulePromptTokenEstimate(!0)}if(i||schedulePromptTokenEstimate(
-!0),window.innerWidth<768&&get("overlay").click(),typeof window.__refreshAdminThreadEncState=="funct\
-ion")try{window.__refreshAdminThreadEncState()}catch{}return!0}catch(p){return n!==threadLoadSequence||
-(console.error("Failed to load chat thread:",p),s||showChatLoadError(e),s||showToast("\u30C1\u30E3\u30C3\u30C8\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\
-\u3057\u305F","error",!0)),!1}}o(loadMessages,"loadMessages");async function loadOlderMessages(){if(loadingOlderMessages||
+length)return;const s=e[0];geminiBatchBannerThreadId=s.thread_id,n.textContent=e.length===1?`${s.model}\
+ \u306EBatch\u51E6\u7406\u304C\u5B8C\u4E86\u3057\u307E\u3057\u305F\u3002`:`${e.length}\u4EF6\u306EBatch\u51E6\u7406\u304C\u5B8C\u4E86\u3057\u307E\
+\u3057\u305F\u3002`,t.classList.remove("hidden"),i&&(i.onclick=async()=>{t.classList.add("hidden"),geminiBatchBannerThreadId&&
+await loadMessages(geminiBatchBannerThreadId)});const a=get("batch-notification-close");a&&(a.onclick=
+()=>t.classList.add("hidden"))}o(showGeminiBatchCompletionBanner,"showGeminiBatchCompletionBanner");
+async function refreshGeminiBatchStatus(){if(!geminiBatchStatusPollBusy){geminiBatchStatusPollBusy=!0;
+try{const e=await apiFetch("/api/gemini/batch/status");if(!e.ok)return;const t=await e.json().catch(
+()=>({})),n=new Set((t.active||[]).map(i=>String(i.thread_id)));currentThreadId&&n.has(String(currentThreadId))&&
+await loadMessages(currentThreadId,{preserveDraft:!0,silent:!0}),Array.isArray(t.completed)&&t.completed.
+length&&(showGeminiBatchCompletionBanner(t.completed),loadThreads(!1))}catch{}finally{geminiBatchStatusPollBusy=
+!1}}}o(refreshGeminiBatchStatus,"refreshGeminiBatchStatus");async function toggleBookmark(e,t){e&&e.
+stopPropagation(),await apiFetch(`/api/threads/${t}/bookmark`,{method:"POST"}),loadThreads()}o(toggleBookmark,
+"toggleBookmark");async function loadMessages(e,t={}){const n=++threadLoadSequence;window.closeHistoryModal&&
+window.closeHistoryModal();const i=!!t.preserveDraft,s=!!t.silent;s||resumeChatAutoScroll({scroll:!1});
+const a=s?snapshotCodeCollapseByMessage(get("chat-container")):null;let r="",l="",d=[];if(i){const p=get(
+"prompt-input");r=p?p.value:"",l=p?p.style.height:"",d=currentImageUrls?currentImageUrls.slice():[],
+editingMessageId=null,setEditUi(!1)}else cancelEdit();currentThreadId=e!=null?String(e):e,t.skipHistory||
+history.pushState({},"","/c/"+e),updateThreadHighlighting(),syncActiveGemForThread(currentThreadId),
+get("welcome-screen").classList.add("hidden"),s||(get("chat-container").innerHTML=buildChatLoadingSkeletonHtml());
+try{const p=new URL(CHAT_CONFIG.urls.handleThreadItem.replace("0",e),window.location.origin);p.searchParams.
+set("limit",String(getEffectiveThreadInitialMessageLimit()));const g=await apiFetch(p.toString());if(!g.
+ok)throw new Error(`thread request failed (${g.status})`);const h=await g.json();if(!h||!Array.isArray(
+h.messages))throw new Error("invalid thread response");if(n!==threadLoadSequence)return!1;setCurrentChatHeaderTitle(
+h&&h.title),allMessages=h.messages,threadHasOlderMessages=!!h.has_older_messages,oldestLoadedMessageId=
+h.oldest_loaded_id||(allMessages.length?allMessages[0].id:null);const v=(allMessages||[]).filter(w=>w.
+role==="user"&&w.content).map(w=>w.content);if(promptHistory=[...new Set(v.slice().reverse())],historyIndex=
+-1,tempPrompt="",currentThreadPending=h.pending_job||null,setTemporaryChatUiState(!!(h&&h.is_temporary)),
+applyTemporaryChatRuntimeMeta(h||{}),ensureTemporaryChatHeartbeat(!0),get("thread-custom-instruction")&&
+(get("thread-custom-instruction").value=h.custom_instruction||""),h.last_model&&selectModelById(h.last_model),
+get("enable-prompt-cache")&&(get("enable-prompt-cache").checked=!!h.enable_prompt_caching,updatePromptCacheUi()),
+h.last_gem_uuid&&loadedGems.length>0){const w=loadedGems.find(x=>x.uuid===h.last_gem_uuid);w&&(threadGemMap[currentThreadId]=
+w,applyActiveGem(w))}const b=localStorage.getItem(`fixed_branch_${currentThreadId}`);if(b&&allMessages.
+find(w=>String(w.id)===String(b))?currentLeafId=b:allMessages.length>0?currentLeafId=allMessages[allMessages.
+length-1].id:currentLeafId=null,renderThreadTree({silent:s,keepScroll:s}),s&&a?applyCodeCollapseByMessage(
+get("chat-container"),a,!0):s||applyCodeCollapseByMessage(get("chat-container"),null,!0),currentThreadPending&&
+!s&&!isPendingJobSuppressed(currentThreadPending.job_id)&&resumePendingStream(currentThreadPending),
+i){const w=get("prompt-input");w&&(w.value=r||"",l?w.style.height=l:w.style.height="auto"),currentImageUrls=
+d,currentImageUrls&&currentImageUrls.length?(get("file-preview").classList.remove("hidden"),get("fil\
+e-name").innerText=`${currentImageUrls.length} files ready`):get("file-preview").classList.add("hidd\
+en"),schedulePromptTokenEstimate(!0)}if(i||schedulePromptTokenEstimate(!0),window.innerWidth<768&&get(
+"overlay").click(),typeof window.__refreshAdminThreadEncState=="function")try{window.__refreshAdminThreadEncState()}catch{}
+return!0}catch(p){return n!==threadLoadSequence||(console.error("Failed to load chat thread:",p),s||
+showChatLoadError(e),s||showToast("\u30C1\u30E3\u30C3\u30C8\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
+"error",!0)),!1}}o(loadMessages,"loadMessages");async function loadOlderMessages(){if(loadingOlderMessages||
 !currentThreadId||!threadHasOlderMessages||!oldestLoadedMessageId)return;loadingOlderMessages=!0;const e=get(
 "chat-container"),t=e?e.scrollHeight:0,n=e?e.scrollTop:0;try{const i=new URL(CHAT_CONFIG.urls.handleThreadItem.
 replace("0",currentThreadId),window.location.origin);i.searchParams.set("before_id",String(oldestLoadedMessageId)),

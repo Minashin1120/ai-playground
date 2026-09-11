@@ -21,6 +21,30 @@ def _is_gemini_batch_model(model_key):
         'computer-use'
     ))
 
+def _is_openai_batch_model(model_key):
+    """OpenAI GPT models with the Batch endpoint documented by OpenAI."""
+    model_l = str(model_key or '').strip().lower()
+    if model_key not in ALL_VALID_MODEL_IDS or not model_l.startswith('gpt-'):
+        return False
+    return not any(marker in model_l for marker in (
+        'image', 'audio', 'tts', 'transcribe', 'realtime', 'search',
+    ))
+
+def _is_batch_model(model_key):
+    return _is_gemini_batch_model(model_key) or _is_openai_batch_model(model_key)
+
+def _openai_batch_state_label(raw_status):
+    return {
+        'validating': 'JOB_STATE_VALIDATING',
+        'in_progress': 'JOB_STATE_RUNNING',
+        'finalizing': 'JOB_STATE_FINALIZING',
+        'completed': 'JOB_STATE_SUCCEEDED',
+        'failed': 'JOB_STATE_FAILED',
+        'expired': 'JOB_STATE_EXPIRED',
+        'cancelling': 'JOB_STATE_CANCELLING',
+        'cancelled': 'JOB_STATE_CANCELLED',
+    }.get(str(raw_status or '').strip().lower(), 'JOB_STATE_PENDING')
+
 def _batch_json_value(value):
     """Convert google-genai Pydantic objects to REST/SDK JSON safely."""
     if value is None or isinstance(value, (str, int, float, bool)):
@@ -58,10 +82,13 @@ def _batch_field(value, *names):
 def _batch_state_label(state):
     labels = {
         'JOB_STATE_QUEUED': 'Batch APIへの送信待ちです',
+        'JOB_STATE_VALIDATING': 'Batch APIで入力を検証中です',
         'JOB_STATE_PENDING': 'Batch APIに送信済みです。処理待機中です',
         'JOB_STATE_RUNNING': 'Batch APIで処理中です',
+        'JOB_STATE_FINALIZING': 'Batch処理の結果を準備中です',
         'JOB_STATE_SUCCEEDED': 'Batch処理が完了しました',
         'JOB_STATE_FAILED': 'Batch処理に失敗しました',
+        'JOB_STATE_CANCELLING': 'Batch処理をキャンセル中です',
         'JOB_STATE_CANCELLED': 'Batch処理がキャンセルされました',
         'JOB_STATE_EXPIRED': 'Batch処理の有効期限が切れました',
     }
@@ -399,9 +426,9 @@ def chat_stream():
     if model_key not in ALL_VALID_MODEL_IDS:
         return jsonify({'error': 'Invalid model'}), 400
     batch_mode = bool(data.get('batch_mode'))
-    if batch_mode and not _is_gemini_batch_model(model_key):
+    if batch_mode and not _is_batch_model(model_key):
         return jsonify({
-            'error': 'Batch APIは Gemini API の generateContent 対応モデル（テキスト／画像）で利用できます。動画・音声・埋め込み等では利用できません。'
+            'error': 'Batch APIは対応するGemini／OpenAIのテキストモデル（画像入力を含む）で利用できます。動画・音声・埋め込み・検索専用モデル等では利用できません。'
         }), 400
     coding_mode = data.get('coding_mode') is True
     coding_target = data.get('coding_target')
@@ -472,7 +499,7 @@ def chat_stream():
         }), 400
     if batch_mode:
         gemini_runtime = resolved_auth.get('gemini_runtime') or {}
-        if gemini_runtime.get('backend') == 'vertex_ai':
+        if resolved_auth.get('provider') == 'gemini' and gemini_runtime.get('backend') == 'vertex_ai':
             return jsonify({'error': 'Batch APIは現在 Gemini API モードでのみ利用できます。Vertex AI モードを切り替えてください。'}), 400
         if coding_mode:
             return jsonify({'error': 'Batch APIではCoding Modeを利用できません。'}), 400
@@ -648,6 +675,7 @@ def chat_stream():
                 user_message_id=user_msg.id,
                 assistant_message_id=assistant_batch_msg.id,
                 model=model_key,
+                provider=resolved_auth.get('provider') or get_model_api_provider(model_key) or 'unknown',
                 state='JOB_STATE_QUEUED',
                 status_text='Batch APIへ送信する準備中です',
             ))
@@ -951,7 +979,7 @@ def chat_stream():
 @app.route('/api/gemini/batch/status', methods=['GET'])
 @login_required
 def gemini_batch_status_api():
-    """Refresh the user's Gemini Batch jobs and return banner-worthy completions."""
+    """Refresh the user's provider Batch jobs and return banner-worthy completions."""
     rows = GeminiBatchJob.query.filter_by(user_id=current_user.id).filter(
         GeminiBatchJob.notified_at.is_(None) | ~GeminiBatchJob.state.in_({
             'JOB_STATE_SUCCEEDED', 'JOB_STATE_FAILED',
@@ -1036,6 +1064,57 @@ def gemini_batch_status_api():
             detail = str(error_text or _batch_state_label(state))[:4000]
             _set_message_payload(message, f'**{_batch_state_label(state)}**\n\n{detail}')
 
+    def _terminal_openai_message(row, state, error_text=None, response_payload=None):
+        message = Message.query.filter_by(
+            id=row.assistant_message_id, thread_id=row.thread_id
+        ).first()
+        if not message:
+            return
+        if state == 'JOB_STATE_SUCCEEDED':
+            response = _batch_field(response_payload, 'response') or response_payload or {}
+            body = _batch_field(response, 'body') or {}
+            content = _extract_openai_response_text(body).strip()
+            if not content:
+                content = 'Batch処理が完了しましたが、回答本文はありませんでした。'
+            usage = _batch_field(body, 'usage') or {}
+            tokens_out = _batch_field(usage, 'output_tokens')
+            _set_message_payload(message, content, tokens_out=tokens_out)
+        else:
+            detail = str(error_text or _batch_state_label(state))[:4000]
+            _set_message_payload(message, f'**{_batch_state_label(state)}**\n\n{detail}')
+
+    def _openai_batch_state(raw_status):
+        return {
+            'validating': 'JOB_STATE_VALIDATING',
+            'in_progress': 'JOB_STATE_RUNNING',
+            'finalizing': 'JOB_STATE_FINALIZING',
+            'completed': 'JOB_STATE_SUCCEEDED',
+            'failed': 'JOB_STATE_FAILED',
+            'expired': 'JOB_STATE_EXPIRED',
+            'cancelling': 'JOB_STATE_CANCELLING',
+            'cancelled': 'JOB_STATE_CANCELLED',
+        }.get(str(raw_status or '').strip().lower(), 'JOB_STATE_PENDING')
+
+    def _openai_file_text(client, file_id):
+        response = client.files.content(file_id)
+        raw = getattr(response, 'text', None)
+        if callable(raw):
+            raw = raw()
+        if raw is None and hasattr(response, 'read'):
+            raw = response.read()
+        return str(raw or '')
+
+    def _openai_result_line(raw_text):
+        for line in str(raw_text or '').splitlines():
+            if line.strip():
+                try:
+                    value = json.loads(line)
+                except Exception:
+                    continue
+                if isinstance(value, dict):
+                    return value
+        return None
+
     for row in rows:
         public_thread_id = getattr(getattr(row, 'thread', None), 'public_id', None) or str(row.thread_id)
         old_state = row.state
@@ -1051,46 +1130,78 @@ def gemini_batch_status_api():
         if stale_without_provider:
             row.state = 'JOB_STATE_FAILED'
             row.status_text = 'Batch APIへの送信がタイムアウトしました'
-            row.error = 'Gemini Batch APIのジョブ名を取得できないまま時間切れになりました。再送してください。'
+            row.error = 'Batch APIのジョブ名を取得できないまま時間切れになりました。再送してください。'
             row.completed_at = row.completed_at or datetime.utcnow()
             _terminal_message(row, row.state, error_text=row.error)
             state = row.state
         if row.provider_job_name and state not in terminal_states:
             try:
+                provider = row.provider or get_model_api_provider(row.model)
                 resolved = _resolve_chat_model_auth(current_user, row.model)
-                runtime = resolved.get('gemini_runtime') or {}
-                api_key = resolved.get('api_key') or runtime.get('api_key')
-                if not api_key or runtime.get('backend') == 'vertex_ai':
-                    raise RuntimeError('Gemini APIキーまたは Gemini API モードを確認してください')
-                provider_url = f"https://generativelanguage.googleapis.com/v1beta/{row.provider_job_name.lstrip('/')}"
-                provider_response = requests.get(
-                    provider_url,
-                    headers={'x-goog-api-key': str(api_key)},
-                    timeout=30,
-                )
-                provider_payload = provider_response.json() if provider_response.content else {}
-                if not provider_response.ok:
-                    raise RuntimeError(
-                        _batch_field(_batch_field(provider_payload, 'error') or {}, 'message')
-                        or f'Gemini Batch API HTTP {provider_response.status_code}'
+                if provider == 'openai':
+                    api_key = resolved.get('api_key')
+                    if not api_key:
+                        raise RuntimeError('OpenAI APIキーを確認してください')
+                    client = _get_openai_client(api_key, base_url=None)
+                    provider_payload = client.batches.retrieve(row.provider_job_name)
+                    state = _openai_batch_state(_batch_field(provider_payload, 'status'))
+                    row.state = state
+                    row.status_text = _batch_state_label(state)
+                    row.output_file_id = _batch_field(provider_payload, 'output_file_id') or row.output_file_id
+                    row.error_file_id = _batch_field(provider_payload, 'error_file_id') or row.error_file_id
+                    if state in terminal_states:
+                        row.completed_at = row.completed_at or datetime.utcnow()
+                        if state == 'JOB_STATE_SUCCEEDED' and row.output_file_id:
+                            result_line = _openai_result_line(_openai_file_text(client, row.output_file_id))
+                            if result_line and _batch_field(result_line, 'response'):
+                                _terminal_openai_message(row, state, response_payload=result_line)
+                            else:
+                                _terminal_openai_message(row, 'JOB_STATE_FAILED', error_text='OpenAI Batch APIから回答データが返されませんでした')
+                                row.state = 'JOB_STATE_FAILED'
+                        elif state == 'JOB_STATE_SUCCEEDED':
+                            _terminal_openai_message(row, 'JOB_STATE_FAILED', error_text='OpenAI Batch APIの結果ファイルが見つかりませんでした')
+                            row.state = 'JOB_STATE_FAILED'
+                        elif state != 'JOB_STATE_SUCCEEDED':
+                            detail = row.status_text
+                            if row.error_file_id:
+                                error_line = _openai_result_line(_openai_file_text(client, row.error_file_id))
+                                error_obj = _batch_field(error_line, 'error') if error_line else None
+                                detail = _batch_field(error_obj, 'message') or detail
+                            _terminal_openai_message(row, state, error_text=detail)
+                else:
+                    runtime = resolved.get('gemini_runtime') or {}
+                    api_key = resolved.get('api_key') or runtime.get('api_key')
+                    if not api_key or runtime.get('backend') == 'vertex_ai':
+                        raise RuntimeError('Gemini APIキーまたは Gemini API モードを確認してください')
+                    provider_url = f"https://generativelanguage.googleapis.com/v1beta/{row.provider_job_name.lstrip('/')}"
+                    provider_response = requests.get(
+                        provider_url,
+                        headers={'x-goog-api-key': str(api_key)},
+                        timeout=30,
                     )
-                state = str(_batch_field(provider_payload, 'state') or state).upper()
-                row.state = state
-                row.status_text = _batch_state_label(state)
-                if state in terminal_states:
-                    row.completed_at = row.completed_at or datetime.utcnow()
-                    if state == 'JOB_STATE_SUCCEEDED':
-                        dest = _batch_field(provider_payload, 'dest') or {}
-                        responses = _batch_field(dest, 'inlinedResponses', 'inlined_responses') or []
-                        if responses:
-                            _terminal_message(row, state, response_payload=responses[0])
+                    provider_payload = provider_response.json() if provider_response.content else {}
+                    if not provider_response.ok:
+                        raise RuntimeError(
+                            _batch_field(_batch_field(provider_payload, 'error') or {}, 'message')
+                            or f'Gemini Batch API HTTP {provider_response.status_code}'
+                        )
+                    state = str(_batch_field(provider_payload, 'state') or state).upper()
+                    row.state = state
+                    row.status_text = _batch_state_label(state)
+                    if state in terminal_states:
+                        row.completed_at = row.completed_at or datetime.utcnow()
+                        if state == 'JOB_STATE_SUCCEEDED':
+                            dest = _batch_field(provider_payload, 'dest') or {}
+                            responses = _batch_field(dest, 'inlinedResponses', 'inlined_responses') or []
+                            if responses:
+                                _terminal_message(row, state, response_payload=responses[0])
+                            else:
+                                _terminal_message(row, state, error_text='Batch APIから回答データが返されませんでした')
                         else:
-                            _terminal_message(row, state, error_text='Batch APIから回答データが返されませんでした')
-                    else:
-                        error_obj = _batch_field(provider_payload, 'error') or {}
-                        _terminal_message(row, state, error_text=_batch_field(error_obj, 'message') or row.status_text)
+                            error_obj = _batch_field(provider_payload, 'error') or {}
+                            _terminal_message(row, state, error_text=_batch_field(error_obj, 'message') or row.status_text)
             except Exception as poll_error:
-                logger.warning('Gemini Batch status poll failed for %s: %s', row.job_id, poll_error)
+                logger.warning('Batch status poll failed for %s: %s', row.job_id, poll_error)
                 row.status_text = 'Batch APIの状態を再確認しています'
         if row.state != old_state or row.status_text != old_status:
             changed_thread_ids.add(str(public_thread_id))
@@ -1102,6 +1213,7 @@ def gemini_batch_status_api():
                     'job_id': row.job_id,
                     'thread_id': public_thread_id,
                     'model': row.model,
+                    'provider': row.provider or get_model_api_provider(row.model),
                     'state': state,
                     'status_text': row.status_text or _batch_state_label(state),
                 })
@@ -1110,6 +1222,7 @@ def gemini_batch_status_api():
                 'job_id': row.job_id,
                 'thread_id': public_thread_id,
                 'model': row.model,
+                'provider': row.provider or get_model_api_provider(row.model),
                 'state': state,
                 'status_text': row.status_text or _batch_state_label(state),
             })

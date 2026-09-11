@@ -287,6 +287,7 @@ def handle_thread_item(thread_id):
                     'status_text': batch_row.status_text,
                     'error': batch_row.error,
                     'model': batch_row.model,
+                    'provider': batch_row.provider,
                 } if batch_row else None)
             })
         payload = {

@@ -1120,17 +1120,18 @@
             refreshMinimalOptionsIfOpen();
         }
 
-        function isGeminiBatchModelKey(model) {
+        function isBatchModelKey(model) {
             const m = String(model || '').trim().toLowerCase();
+            if (m.startsWith('gpt-')) return !/(image|audio|tts|transcribe|realtime|search)/.test(m);
             if (!m.startsWith('gemini-')) return false;
             return !/(embedding|video|veo|music|lyria|native-audio|tts|live|transcribe|agent|deep-research|robotics|computer-use)/.test(m);
         }
 
-        function updateGeminiBatchUi(model) {
+        function updateBatchUi(model) {
             const container = get('batch-mode-container');
             const checkbox = get('enable-batch-mode');
             if (!container || !checkbox) return;
-            const supported = isGeminiBatchModelKey(model);
+            const supported = isBatchModelKey(model);
             container.classList.toggle('hidden', !supported);
             checkbox.disabled = !supported || browserFastModeEnabled;
             if (!supported) checkbox.checked = false;
@@ -1154,7 +1155,7 @@
             }
             if (browserFastModeEnabled) applyBrowserFastModeRestrictions();
             else if (opts.restoreOptions !== false) restoreBrowserFastModeOptions();
-            updateGeminiBatchUi(get('model-select') ? get('model-select').value : '');
+            updateBatchUi(get('model-select') ? get('model-select').value : '');
         }
 
         function openBrowserFastModeModal(showWarning = true) {

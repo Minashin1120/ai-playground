@@ -16,12 +16,12 @@
 | ファイル | 主な内容 | いつ開くか |
 |---|---|---|
 | `../chat.html` | doctype、head（CSS/JS 読み込み、テーマ、Turnstile）、body の include 一覧 | 新規アセットの読み込み、viewport、最初の描画 |
-| `chrome.html` | flash、Turnstile 箱、オフライン帯、Gemini Batch完了バナー、画像ビューア、トースト、Alpha バー、引用ポップオーバー | 通知、画像ビューア、引用 UI |
+| `chrome.html` | flash、Turnstile 箱、オフライン帯、Gemini／OpenAI Batch完了バナー、画像ビューア、トースト、Alpha バー、引用ポップオーバー | 通知、画像ビューア、引用 UI |
 | `sidebar.html` | 左サイドバー（新規チャット、検索、スレッド一覧、フッター） | サイドバー、スレッド一覧、モバイルメニュー |
 | `main_stage.html` | モバイルヘッダー、会話コンテナ、Welcome、Canvas パネル | チャット表示、Welcome、Canvas |
 | `composer.html` | 束ね役。下記 `composer_*.html` を include するだけ | 分割先を決めるとき（下の行へ） |
 | `composer_context_bars.html` | 引用バー、Coding対象バー、編集バー | 引用、編集、Coding対象のバー表示 |
-| `composer_controls.html` | モデル選択行と標準オプション行（Batch / File / MCP 等のチェック） | 送信まわりのオプション、MCPスイッチ |
+| `composer_controls.html` | モデル選択行と標準オプション行（Gemini／OpenAI Batch / File / MCP 等のチェック） | 送信まわりのオプション、MCPスイッチ |
 | `composer_attachments.html` | 添付ファイル／マスクのプレビュー | 添付、マスク表示 |
 | `composer_gen_image.html` | GPT / Gemini / Grok の画像生成パネル | 画像生成の詳細設定 |
 | `composer_gen_media.html` | xAI 詳細パネル、動画/音楽/OCR/TTS パネル | メディア生成の詳細設定 |

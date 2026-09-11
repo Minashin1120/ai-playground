@@ -1083,6 +1083,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_batch_job_columns()
+    except Exception:
+        pass
+    try:
         ensure_user_google_columns()
     except Exception:
         pass
@@ -1582,4 +1586,3 @@ def client_log():
         return jsonify({'status': 'ok'})
     except Exception:
         return jsonify({'status': 'error'}), 500
-

@@ -819,3 +819,31 @@ def ensure_user_vision_model_columns():
     except Exception:
         pass
 
+def ensure_batch_job_columns():
+    """Add provider/result metadata to the shared Gemini/OpenAI Batch table."""
+    columns = [
+        ('provider', "ALTER TABLE gemini_batch_job ADD COLUMN provider VARCHAR(24) NOT NULL DEFAULT 'gemini'"),
+        ('output_file_id', "ALTER TABLE gemini_batch_job ADD COLUMN output_file_id VARCHAR(255)"),
+        ('error_file_id', "ALTER TABLE gemini_batch_job ADD COLUMN error_file_id VARCHAR(255)"),
+    ]
+    try:
+        table_names = set(inspect(db.engine).get_table_names())
+        if 'gemini_batch_job' not in table_names:
+            return
+        with db.engine.connect() as conn:
+            for column_name, ddl in columns:
+                present = conn.execute(text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='gemini_batch_job' "
+                    "AND COLUMN_NAME=:column_name"
+                ), {'column_name': column_name}).scalar()
+                if present:
+                    continue
+                try:
+                    conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                    conn.execute(text(ddl))
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+    except Exception:
+        pass

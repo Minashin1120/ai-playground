@@ -875,6 +875,51 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             pub('done', 'BATCH_ACCEPTED')
             return True
 
+        def _submit_openai_batch(client, request_kwargs):
+            """Upload one Responses API request as JSONL and create an OpenAI Batch."""
+            row = GeminiBatchJob.query.filter_by(job_id=job_id, user_id=user_id).first()
+            if not row:
+                raise RuntimeError('Batchジョブの記録が見つかりません')
+            row.state = 'JOB_STATE_QUEUED'
+            row.status_text = 'Batch APIへ送信する準備中です'
+            safe_db_commit()
+
+            request_body = dict(request_kwargs or {})
+            request_body.pop('stream', None)
+            request_body['store'] = False
+            batch_line = {
+                'custom_id': job_id,
+                'method': 'POST',
+                'url': '/v1/responses',
+                'body': request_body,
+            }
+            jsonl_bytes = (json.dumps(batch_line, ensure_ascii=False, separators=(',', ':')) + '\n').encode('utf-8')
+            if len(jsonl_bytes) > 200 * 1024 * 1024:
+                raise ValueError('Batch APIの入力ファイル上限（200MB）を超えています')
+            batch_file = BytesIO(jsonl_bytes)
+            batch_file.name = f'{job_id}.jsonl'
+            uploaded = client.files.create(file=batch_file, purpose='batch')
+            input_file_id = _batch_field(uploaded, 'id')
+            if not input_file_id:
+                raise RuntimeError('OpenAI Files APIから入力ファイルIDが返されませんでした')
+            provider_batch = client.batches.create(
+                input_file_id=input_file_id,
+                endpoint='/v1/responses',
+                completion_window='24h',
+            )
+            provider_batch_id = _batch_field(provider_batch, 'id')
+            if not provider_batch_id:
+                raise RuntimeError('OpenAI Batch APIからジョブIDが返されませんでした')
+            row.provider_job_name = str(provider_batch_id)
+            row.provider = 'openai'
+            row.state = _openai_batch_state_label(_batch_field(provider_batch, 'status'))
+            row.status_text = _batch_state_label(row.state)
+            db.session.add(row)
+            safe_db_commit()
+            pub('status', row.status_text)
+            pub('done', 'BATCH_ACCEPTED')
+            return True
+
         def _persist_batch_failure(error_text):
             row = GeminiBatchJob.query.filter_by(job_id=job_id, user_id=user_id).first()
             if row:
@@ -1273,6 +1318,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             model_key = model_key.strip()
             model_key_l = model_key.lower()
             is_openai_search_model = model_key_l in ("gpt-5-search-api", "gpt-4o-search-preview", "gpt-4o-mini-search-preview")
+            is_openai_batch_model = _is_openai_batch_model(model_key)
             is_gem = is_gemini_model_key(model_key_l)
             is_claude = is_anthropic_model_key(model_key_l)
             is_deepseek = is_deepseek_model_key(model_key_l)
@@ -1849,6 +1895,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             except Exception:
                 user_auto_search = True
             disable_auto = bool(options.get('disable_auto_search'))
+            if batch_mode:
+                # Batch requests cannot pause for interactive tool execution or
+                # follow-up calls, including automatic URL/search helpers.
+                auto_enable_search = False
+                auto_enable_url_context = False
+                auto_enable_maps = False
+                grok_enable_search = False
+                disable_auto = True
             if is_mistral_ocr:
                 grok_enable_search = False
                 auto_enable_search = False
@@ -6096,6 +6150,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     log_force(f"Reasoning config: {kwargs['reasoning']}")
 
                 log_force(f"Responses API Params: {kwargs.keys()}")
+                if batch_mode and is_openai_batch_model:
+                    _mark_provider_request_started()
+                    try:
+                        _submit_openai_batch(client, kwargs)
+                    except Exception as batch_error:
+                        logger.exception('OpenAI Batch submission failed')
+                        _persist_batch_failure(str(batch_error))
+                    return
                 pub("status", "APIへ送信完了。モデルが応答を生成中です...")
                 _mark_provider_request_started()
                 stream = client.responses.create(**kwargs)

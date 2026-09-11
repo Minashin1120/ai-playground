@@ -15,8 +15,8 @@
             const first = completed[0];
             geminiBatchBannerThreadId = first.thread_id;
             text.textContent = completed.length === 1
-                ? `${first.model || 'Gemini'} のBatch処理が完了しました。`
-                : `${completed.length}件のGemini Batch処理が完了しました。`;
+                ? `${first.model} のBatch処理が完了しました。`
+                : `${completed.length}件のBatch処理が完了しました。`;
             banner.classList.remove('hidden');
             if (open) {
                 open.onclick = async () => {

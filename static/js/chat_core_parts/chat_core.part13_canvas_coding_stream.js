@@ -505,7 +505,7 @@
                     : state === 'JOB_STATE_SUCCEEDED'
                         ? 'border-emerald-400/40 bg-emerald-950/30 text-emerald-100'
                         : 'border-violet-400/40 bg-violet-950/30 text-violet-100';
-                return `<div class="batch-status-card mb-3 rounded-lg border ${tone} px-3 py-2 text-xs"><div class="font-semibold"><i class="fas fa-layer-group mr-1"></i>Gemini Batch</div><div class="mt-1 opacity-90">${escapeHtml(statusText)}</div></div>`;
+                return `<div class="batch-status-card mb-3 rounded-lg border ${tone} px-3 py-2 text-xs"><div class="font-semibold"><i class="fas fa-layer-group mr-1"></i>Batch</div><div class="mt-1 opacity-90">${escapeHtml(statusText)}</div></div>`;
             })() : '';
             if (isUser) {
                 // User message: RAW TEXT DISPLAY (Preserve whitespace, no markdown)

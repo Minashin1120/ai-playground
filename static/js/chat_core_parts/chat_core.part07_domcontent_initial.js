@@ -29,7 +29,7 @@
                             showToast('Batch APIではCoding Modeを利用できないため解除しました', 'warning', true);
                         }
                     }
-                    updateGeminiBatchUi(get('model-select') ? get('model-select').value : '');
+                    updateBatchUi(get('model-select') ? get('model-select').value : '');
                 };
             }
             const fastModelSelect = get('model-select');
@@ -563,7 +563,7 @@
                 updateGrokVideoUi();
                 updateGeminiVideoUi();
                 updateGeminiMusicUi();
-                updateGeminiBatchUi(model);
+                updateBatchUi(model);
                 updateXaiChatUi();
                 updateMistralOcrUi();
                 updateImageInputLimits();

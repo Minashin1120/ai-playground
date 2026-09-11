@@ -5184,23 +5184,33 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
 @keyframes minimal-options-content-in {
     0% {
         opacity: 0;
-        transform: translateY(12px) scale(0.84);
-        filter: blur(5px);
+        transform: translate(-18px, 28px) scale(0.56) rotate(-6deg);
+        filter: blur(10px);
+        box-shadow: 0 0 0 rgba(var(--theme-rgb), 0);
     }
-    68% {
+    45% {
         opacity: 1;
-        transform: translateY(-2px) scale(1.015);
+        transform: translate(6px, -7px) scale(1.08) rotate(1.5deg);
+        filter: blur(1px);
+        box-shadow: 0 0 24px rgba(var(--theme-rgb), 0.34);
+    }
+    72% {
+        opacity: 1;
+        transform: translate(-2px, 2px) scale(0.985) rotate(-0.4deg);
         filter: blur(0);
+        box-shadow: 0 0 8px rgba(var(--theme-rgb), 0.16);
     }
     100% {
         opacity: 1;
-        transform: translateY(0) scale(1);
+        transform: translate(0, 0) scale(1) rotate(0);
         filter: blur(0);
+        box-shadow: 0 0 0 rgba(var(--theme-rgb), 0);
     }
 }
 @keyframes minimal-options-part-in {
-    0% { opacity: 0; transform: translateY(4px); }
-    100% { opacity: 1; transform: translateY(0); }
+    0% { opacity: 0; transform: translateY(12px) scale(0.72) rotate(-3deg); }
+    65% { opacity: 1; transform: translateY(-2px) scale(1.05) rotate(0.5deg); }
+    100% { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
 }
 #minimal-options-popup {
     position: fixed;
@@ -5245,17 +5255,17 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
     overflow: hidden;
     /* Align the expansion point with the minimal-mode plus button below. */
     transform-origin: 1.5rem calc(100% + 0.7rem);
-    transform: translateY(10px) scale(0.9);
+    transform: translateY(16px) scale(0.84) rotate(-1.2deg);
     opacity: 0;
     filter: blur(4px);
     will-change: transform, opacity, filter;
-    transition: transform 0.38s var(--ease-out), opacity 0.28s var(--ease-standard), filter 0.32s var(--ease-standard);
+    transition: transform 0.48s var(--ease-out), opacity 0.32s var(--ease-standard), filter 0.4s var(--ease-standard);
 }
 #minimal-options-popup.minimal-options-open #minimal-options-backdrop {
     opacity: 1;
 }
 #minimal-options-popup.minimal-options-open #minimal-options-panel {
-    transform: translateY(0);
+    transform: translateY(0) scale(1) rotate(0);
     opacity: 1;
     filter: blur(0);
 }
@@ -5280,6 +5290,12 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
 #minimal-options-popup.minimal-options-open .minimal-options-header {
     animation-delay: 0.03s;
 }
+#minimal-options-popup.minimal-options-open .minimal-options-section-title {
+    animation-delay: 0.38s;
+}
+#minimal-options-popup.minimal-options-open .minimal-options-model-body > * {
+    animation-delay: 0.42s;
+}
 #minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(1) { animation-delay: 0.06s; }
 #minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(2) { animation-delay: 0.10s; }
 #minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(3) { animation-delay: 0.14s; }
@@ -5289,8 +5305,10 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
 #minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(7) { animation-delay: 0.30s; }
 #minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(8) { animation-delay: 0.34s; }
 #minimal-options-popup.minimal-options-open .minimal-option-item > * {
-    animation: minimal-options-part-in 0.28s var(--ease-standard) 0.16s both;
+    animation: minimal-options-part-in 0.38s var(--ease-standard) 0.22s both;
 }
+#minimal-options-popup.minimal-options-open .minimal-option-item > *:nth-child(2) { animation-delay: 0.26s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item > *:nth-child(3) { animation-delay: 0.30s; }
 .minimal-options-header,
 .minimal-option-item,
 .minimal-options-section-title,
@@ -5299,6 +5317,15 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
 }
 .minimal-option-item > * {
     will-change: transform, opacity;
+}
+@media (prefers-reduced-motion: reduce) {
+    #minimal-options-popup.minimal-options-open .minimal-options-header,
+    #minimal-options-popup.minimal-options-open .minimal-option-item,
+    #minimal-options-popup.minimal-options-open .minimal-options-section-title,
+    #minimal-options-popup.minimal-options-open .minimal-options-model-body > *,
+    #minimal-options-popup.minimal-options-open .minimal-option-item > * {
+        animation: none;
+    }
 }
 .minimal-options-title {
     font-size: 0.72rem;

@@ -838,8 +838,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             row = GeminiBatchJob.query.filter_by(job_id=job_id, user_id=user_id).first()
             if not row:
                 raise RuntimeError('Gemini Batchジョブの記録が見つかりません')
-            row.state = 'JOB_STATE_RUNNING'
-            row.status_text = 'Batch APIへ送信中です'
+            # Keep the visible state at "preparing" until the provider returns
+            # a real Batch job name. This prevents a stalled SDK call from
+            # leaving a permanent "sending" bubble in the conversation.
+            row.state = 'JOB_STATE_QUEUED'
+            row.status_text = 'Batch APIへ送信する準備中です'
             safe_db_commit()
             request = {'contents': _batch_json_value(request_contents)}
             if config_kwargs:

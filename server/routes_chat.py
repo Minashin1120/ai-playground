@@ -1042,6 +1042,19 @@ def gemini_batch_status_api():
         old_status = row.status_text
         state = str(row.state or 'JOB_STATE_QUEUED').upper()
         provider_payload = None
+        stale_without_provider = (
+            not row.provider_job_name
+            and state in {'JOB_STATE_QUEUED', 'JOB_STATE_RUNNING'}
+            and row.updated_at
+            and (datetime.utcnow() - row.updated_at).total_seconds() > 180
+        )
+        if stale_without_provider:
+            row.state = 'JOB_STATE_FAILED'
+            row.status_text = 'Batch APIへの送信がタイムアウトしました'
+            row.error = 'Gemini Batch APIのジョブ名を取得できないまま時間切れになりました。再送してください。'
+            row.completed_at = row.completed_at or datetime.utcnow()
+            _terminal_message(row, row.state, error_text=row.error)
+            state = row.state
         if row.provider_job_name and state not in terminal_states:
             try:
                 resolved = _resolve_chat_model_auth(current_user, row.model)

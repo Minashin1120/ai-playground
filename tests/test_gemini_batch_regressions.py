@@ -14,6 +14,13 @@ class GeminiBatchRegressionTests(unittest.TestCase):
         self.assertIn("_batch_field(provider_payload, 'response')", source)
         self.assertIn("'inlinedResponses', 'inlined_responses'", source)
 
+    def test_gemini_batch_normalizes_sdk_and_rest_state_values(self):
+        routes = (APP_ROOT / "server/routes_chat.py").read_text(encoding="utf-8")
+        self.assertIn("def _normalize_batch_state", routes)
+        self.assertIn("'COMPLETED': 'JOB_STATE_SUCCEEDED'", routes)
+        background = (APP_ROOT / "server/background.py").read_text(encoding="utf-8")
+        self.assertIn("row.state = _normalize_batch_state", background)
+
     def test_gemini_batch_downloads_file_results(self):
         routes = (APP_ROOT / "server/routes_chat.py").read_text(encoding="utf-8")
         start = routes.index("def _gemini_result_payload")

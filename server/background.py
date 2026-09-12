@@ -862,12 +862,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             if not provider_name:
                 raise RuntimeError('Gemini Batch APIからジョブ名が返されませんでした')
             row.provider_job_name = str(provider_name)
-            row.state = str(
+            row.state = _normalize_batch_state(
                 getattr(getattr(provider_job, 'state', None), 'name', None)
                 or getattr(provider_job, 'state', None)
                 or (provider_job.get('state') if isinstance(provider_job, dict) else None)
                 or 'JOB_STATE_PENDING'
-            ).upper()
+            )
             row.status_text = _batch_state_label(row.state)
             db.session.add(row)
             safe_db_commit()

@@ -79,6 +79,30 @@ def _batch_field(value, *names):
             return current
     return None
 
+def _normalize_batch_state(raw_state):
+    """Normalize REST/SDK enum representations to Gemini's canonical state."""
+    value = raw_state
+    if isinstance(value, dict):
+        value = value.get('name') or value.get('value') or value.get('state')
+    else:
+        value = getattr(value, 'name', None) or getattr(value, 'value', None) or value
+    state = str(value or '').strip()
+    if '.' in state:
+        state = state.rsplit('.', 1)[-1]
+    state = state.replace('-', '_').replace(' ', '_').upper()
+    if state.startswith('STATE_'):
+        state = state[len('STATE_'):]
+    aliases = {
+        'COMPLETED': 'JOB_STATE_SUCCEEDED',
+        'SUCCESS': 'JOB_STATE_SUCCEEDED',
+        'SUCCEEDED': 'JOB_STATE_SUCCEEDED',
+    }
+    if state in aliases:
+        return aliases[state]
+    if state.startswith('JOB_STATE_'):
+        return state
+    return f'JOB_STATE_{state}' if state else ''
+
 def _batch_state_label(state):
     labels = {
         'JOB_STATE_QUEUED': 'Batch APIへの送信待ちです',
@@ -92,7 +116,7 @@ def _batch_state_label(state):
         'JOB_STATE_CANCELLED': 'Batch処理がキャンセルされました',
         'JOB_STATE_EXPIRED': 'Batch処理の有効期限が切れました',
     }
-    return labels.get(str(state or '').upper(), 'Batch処理の状態を確認中です')
+    return labels.get(_normalize_batch_state(state), 'Batch処理の状態を確認中です')
 
 def _get_browser_fast_mode_user_key(user, model_key):
     """Return only a key owned by this user; never disclose admin/env fallback keys."""
@@ -1172,7 +1196,7 @@ def gemini_batch_status_api():
         public_thread_id = getattr(getattr(row, 'thread', None), 'public_id', None) or str(row.thread_id)
         old_state = row.state
         old_status = row.status_text
-        state = str(row.state or 'JOB_STATE_QUEUED').upper()
+        state = _normalize_batch_state(row.state or 'JOB_STATE_QUEUED')
         provider_payload = None
         stale_without_provider = (
             not row.provider_job_name
@@ -1239,11 +1263,11 @@ def gemini_batch_status_api():
                             or f'Gemini Batch API HTTP {provider_response.status_code}'
                         )
                     metadata = _batch_field(provider_payload, 'metadata') or {}
-                    state = str(
+                    state = _normalize_batch_state(
                         _batch_field(provider_payload, 'state')
                         or _batch_field(metadata, 'state')
                         or state
-                    ).upper()
+                    )
                     row.state = state
                     row.status_text = _batch_state_label(state)
                     if state in terminal_states:
@@ -1289,7 +1313,7 @@ def gemini_batch_status_api():
                 row.status_text = 'Batch APIの状態を再確認しています'
         if row.state != old_state or row.status_text != old_status:
             changed_thread_ids.add(str(public_thread_id))
-        state = str(row.state or '').upper()
+        state = _normalize_batch_state(row.state)
         if state in terminal_states:
             if row.notified_at is None:
                 row.notified_at = datetime.utcnow()

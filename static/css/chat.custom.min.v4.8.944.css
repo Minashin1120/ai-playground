@@ -5184,20 +5184,15 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
 @keyframes minimal-options-content-in {
     0% {
         opacity: 0;
-        transform: translate(-10px, 20px) scale(0.72);
+        transform: translate(var(--minimal-start-x, -12px), var(--minimal-start-y, 72px)) scale(0.34);
     }
-    68% {
-        opacity: 1;
-        transform: translate(1px, -1px) scale(1.018);
+    24% {
+        opacity: 0.35;
     }
     100% {
         opacity: 1;
         transform: translate(0, 0) scale(1);
     }
-}
-@keyframes minimal-options-part-in {
-    0% { opacity: 0; }
-    100% { opacity: 1; }
 }
 #minimal-options-popup {
     position: fixed;
@@ -5242,10 +5237,10 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
     overflow: hidden;
     /* Align the expansion point with the minimal-mode plus button below. */
     transform-origin: 1.5rem calc(100% + 0.7rem);
-    transform: translateY(10px) scale(0.94);
+    transform: translateY(18px) scale(0.82);
     opacity: 0;
     will-change: transform, opacity;
-    transition: transform 0.34s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s var(--ease-standard);
+    transition: transform 0.44s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.24s var(--ease-standard);
 }
 #minimal-options-popup.minimal-options-open #minimal-options-backdrop {
     opacity: 1;
@@ -5269,29 +5264,53 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
 #minimal-options-popup.minimal-options-open .minimal-option-item,
 #minimal-options-popup.minimal-options-open .minimal-options-section-title,
 #minimal-options-popup.minimal-options-open .minimal-options-model-body > * {
-    transform-origin: 1.5rem calc(100% + 0.7rem);
-    animation: minimal-options-content-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    transform-origin: left bottom;
+    animation: minimal-options-content-in 0.58s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 #minimal-options-popup.minimal-options-open .minimal-options-header {
-    animation-delay: 0.03s;
+    --minimal-start-x: -8px;
+    --minimal-start-y: 300px;
+    animation-delay: 0.01s;
 }
 #minimal-options-popup.minimal-options-open .minimal-options-section-title {
-    animation-delay: 0.22s;
-}
-#minimal-options-popup.minimal-options-open .minimal-options-model-body > * {
+    --minimal-start-x: -8px;
+    --minimal-start-y: 56px;
     animation-delay: 0.24s;
 }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(1) { animation-delay: 0.04s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(2) { animation-delay: 0.065s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(3) { animation-delay: 0.09s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(4) { animation-delay: 0.115s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(5) { animation-delay: 0.14s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(6) { animation-delay: 0.165s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(7) { animation-delay: 0.19s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(8) { animation-delay: 0.215s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item > * {
-    animation: minimal-options-part-in 0.2s var(--ease-standard) 0.12s both;
+#minimal-options-popup.minimal-options-open .minimal-options-model-body > * {
+    --minimal-start-x: -8px;
+    --minimal-start-y: 40px;
+    animation-delay: 0.27s;
 }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(even) { --minimal-start-x: -8px; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(odd):not(:first-child) { --minimal-start-x: -184px; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(1) { --minimal-start-x: -8px; --minimal-start-y: 260px; animation-delay: 0.02s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(2),
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(3) { --minimal-start-y: 220px; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(4),
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(5) { --minimal-start-y: 180px; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(6),
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(7) { --minimal-start-y: 140px; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(8),
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(9) { --minimal-start-y: 100px; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(10),
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(11) { --minimal-start-y: 72px; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(12),
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(13) { --minimal-start-y: 52px; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(n+14) { --minimal-start-y: 36px; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(2) { animation-delay: 0.05s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(3) { animation-delay: 0.065s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(4) { animation-delay: 0.08s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(5) { animation-delay: 0.095s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(6) { animation-delay: 0.11s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(7) { animation-delay: 0.125s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(8) { animation-delay: 0.14s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(9) { animation-delay: 0.155s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(10) { animation-delay: 0.17s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(11) { animation-delay: 0.185s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(12) { animation-delay: 0.20s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(13) { animation-delay: 0.215s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(n+14) { animation-delay: 0.23s; }
 .minimal-options-header,
 .minimal-option-item,
 .minimal-options-section-title,
@@ -5302,8 +5321,7 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
     #minimal-options-popup.minimal-options-open .minimal-options-header,
     #minimal-options-popup.minimal-options-open .minimal-option-item,
     #minimal-options-popup.minimal-options-open .minimal-options-section-title,
-    #minimal-options-popup.minimal-options-open .minimal-options-model-body > *,
-    #minimal-options-popup.minimal-options-open .minimal-option-item > * {
+    #minimal-options-popup.minimal-options-open .minimal-options-model-body > * {
         animation: none;
     }
 }

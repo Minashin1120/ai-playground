@@ -1115,6 +1115,59 @@ def gemini_batch_status_api():
                     return value
         return None
 
+    def _gemini_result_line(raw_text):
+        """Normalize one Gemini result-file JSONL line to an inline response."""
+        for line in str(raw_text or '').splitlines():
+            if not line.strip():
+                continue
+            try:
+                value = json.loads(line)
+            except Exception:
+                continue
+            if not isinstance(value, dict):
+                continue
+            # File results may be wrapped as {key, response}, while the API
+            # can also return a bare GenerateContentResponse object.
+            if _batch_field(value, 'response') or _batch_field(value, 'error'):
+                return value
+            return {'response': value}
+        return None
+
+    def _gemini_result_payload(provider_payload, api_key):
+        """Return the first Gemini result from inline or downloadable output."""
+        result_container = (
+            _batch_field(provider_payload, 'response')
+            or _batch_field(provider_payload, 'dest')
+            or {}
+        )
+        responses = _batch_field(result_container, 'inlinedResponses', 'inlined_responses') or []
+        if responses:
+            return responses[0]
+
+        result_file = _batch_field(
+            result_container,
+            'responsesFile', 'responses_file', 'fileName', 'file_name'
+        )
+        if not result_file:
+            return None
+        result_file = str(result_file).lstrip('/')
+        download_url = (
+            'https://generativelanguage.googleapis.com/download/v1beta/'
+            f'{result_file}:download?alt=media'
+        )
+        result_response = requests.get(
+            download_url,
+            headers={'x-goog-api-key': str(api_key)},
+            timeout=30,
+        )
+        if not result_response.ok:
+            try:
+                detail = _batch_field(result_response.json().get('error') or {}, 'message')
+            except Exception:
+                detail = None
+            raise RuntimeError(detail or f'Gemini Batch結果ファイル HTTP {result_response.status_code}')
+        return _gemini_result_line(result_response.content.decode('utf-8', errors='replace'))
+
     for row in rows:
         public_thread_id = getattr(getattr(row, 'thread', None), 'public_id', None) or str(row.thread_id)
         old_state = row.state
@@ -1185,23 +1238,54 @@ def gemini_batch_status_api():
                             _batch_field(_batch_field(provider_payload, 'error') or {}, 'message')
                             or f'Gemini Batch API HTTP {provider_response.status_code}'
                         )
-                    state = str(_batch_field(provider_payload, 'state') or state).upper()
+                    metadata = _batch_field(provider_payload, 'metadata') or {}
+                    state = str(
+                        _batch_field(provider_payload, 'state')
+                        or _batch_field(metadata, 'state')
+                        or state
+                    ).upper()
                     row.state = state
                     row.status_text = _batch_state_label(state)
                     if state in terminal_states:
-                        row.completed_at = row.completed_at or datetime.utcnow()
                         if state == 'JOB_STATE_SUCCEEDED':
-                            dest = _batch_field(provider_payload, 'dest') or {}
-                            responses = _batch_field(dest, 'inlinedResponses', 'inlined_responses') or []
-                            if responses:
-                                _terminal_message(row, state, response_payload=responses[0])
+                            result_container = (
+                                _batch_field(provider_payload, 'response')
+                                or _batch_field(provider_payload, 'dest')
+                                or {}
+                            )
+                            result_file = _batch_field(
+                                result_container,
+                                'responsesFile', 'responses_file', 'fileName', 'file_name'
+                            )
+                            if result_file:
+                                row.output_file_id = str(result_file)
+                            result_payload = _gemini_result_payload(provider_payload, api_key)
+                            if result_payload and _batch_field(result_payload, 'error'):
+                                error_obj = _batch_field(result_payload, 'error') or {}
+                                row.state = 'JOB_STATE_FAILED'
+                                row.error = _batch_field(error_obj, 'message') or str(error_obj)
+                                row.completed_at = row.completed_at or datetime.utcnow()
+                                row.status_text = _batch_state_label(row.state)
+                                _terminal_message(row, row.state, error_text=row.error)
+                            elif result_payload:
+                                row.completed_at = row.completed_at or datetime.utcnow()
+                                _terminal_message(row, state, response_payload=result_payload)
                             else:
-                                _terminal_message(row, state, error_text='Batch APIから回答データが返されませんでした')
+                                row.state = 'JOB_STATE_FAILED'
+                                row.error = 'Gemini Batch APIから回答データが返されませんでした'
+                                row.completed_at = row.completed_at or datetime.utcnow()
+                                row.status_text = _batch_state_label(row.state)
+                                _terminal_message(row, row.state, error_text=row.error)
                         else:
+                            row.completed_at = row.completed_at or datetime.utcnow()
                             error_obj = _batch_field(provider_payload, 'error') or {}
                             _terminal_message(row, state, error_text=_batch_field(error_obj, 'message') or row.status_text)
             except Exception as poll_error:
                 logger.warning('Batch status poll failed for %s: %s', row.job_id, poll_error)
+                if state == 'JOB_STATE_SUCCEEDED' and row.state == 'JOB_STATE_SUCCEEDED':
+                    # Keep the job pollable when the provider has finished but
+                    # its result file is temporarily unavailable.
+                    row.state = old_state
                 row.status_text = 'Batch APIの状態を再確認しています'
         if row.state != old_state or row.status_text != old_status:
             changed_thread_ids.add(str(public_thread_id))

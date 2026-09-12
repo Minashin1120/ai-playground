@@ -22,6 +22,12 @@ class GeminiBatchRegressionTests(unittest.TestCase):
         self.assertIn("/download/v1beta/", source)
         self.assertIn("_gemini_result_line", source)
 
+    def test_gemini_batch_status_is_polled_until_completion(self):
+        part = (APP_ROOT / "static/js/chat_core_parts/chat_core.part15_slash_tempchat_threads.js").read_text(encoding="utf-8")
+        self.assertIn("setInterval(refreshGeminiBatchStatus", part)
+        self.assertIn("refreshGeminiBatchStatus();", part)
+        self.assertIn("15000", part)
+
 
 if __name__ == "__main__":
     unittest.main()

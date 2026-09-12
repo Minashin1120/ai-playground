@@ -6,14 +6,13 @@
         }
 
         let geminiBatchStatusPollBusy = false;
-        let geminiBatchBannerThreadId = null;
         function showGeminiBatchCompletionBanner(completed) {
             const banner = get('batch-notification-banner');
             const text = get('batch-notification-text');
             const open = get('batch-notification-open');
             if (!banner || !text || !completed || !completed.length) return;
             const first = completed[0];
-            geminiBatchBannerThreadId = first.thread_id;
+            const threadId = first.thread_id;
             text.textContent = completed.length === 1
                 ? `${first.model} のBatch処理が完了しました。`
                 : `${completed.length}件のBatch処理が完了しました。`;
@@ -21,7 +20,7 @@
             if (open) {
                 open.onclick = async () => {
                     banner.classList.add('hidden');
-                    if (geminiBatchBannerThreadId) await loadMessages(geminiBatchBannerThreadId);
+                    if (threadId) await loadMessages(threadId);
                 };
             }
             const close = get('batch-notification-close');
@@ -49,6 +48,9 @@
                 geminiBatchStatusPollBusy = false;
             }
         }
+
+        refreshGeminiBatchStatus();
+        setInterval(refreshGeminiBatchStatus, 15000);
 
         async function toggleBookmark(e, tid) {
             if (e) e.stopPropagation();

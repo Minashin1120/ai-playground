@@ -1211,7 +1211,10 @@ def gemini_batch_status_api():
             row.completed_at = row.completed_at or datetime.utcnow()
             _terminal_message(row, row.state, error_text=row.error)
             state = row.state
-        if row.provider_job_name and state not in terminal_states:
+        # A terminal row with no notification may have reached the provider's
+        # completed state before result persistence succeeded. Re-poll it so
+        # existing stuck jobs can still retrieve their answer.
+        if row.provider_job_name and (state not in terminal_states or row.notified_at is None):
             try:
                 provider = row.provider or get_model_api_provider(row.model)
                 resolved = _resolve_chat_model_auth(current_user, row.model)

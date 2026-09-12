@@ -21,6 +21,13 @@ class GeminiBatchRegressionTests(unittest.TestCase):
         background = (APP_ROOT / "server/background.py").read_text(encoding="utf-8")
         self.assertIn("row.state = _normalize_batch_state", background)
 
+    def test_unnotified_terminal_jobs_are_repolled_for_results(self):
+        routes = (APP_ROOT / "server/routes_chat.py").read_text(encoding="utf-8")
+        self.assertIn(
+            "state not in terminal_states or row.notified_at is None",
+            routes,
+        )
+
     def test_gemini_batch_downloads_file_results(self):
         routes = (APP_ROOT / "server/routes_chat.py").read_text(encoding="utf-8")
         start = routes.index("def _gemini_result_payload")

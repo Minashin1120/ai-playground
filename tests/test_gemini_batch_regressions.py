@@ -8,11 +8,12 @@ APP_ROOT = Path(__file__).resolve().parents[1]
 class GeminiBatchRegressionTests(unittest.TestCase):
     def test_gemini_batch_reads_rest_state_and_response_envelope(self):
         routes = (APP_ROOT / "server/routes_chat.py").read_text(encoding="utf-8")
-        start = routes.index("def gemini_batch_status_api")
-        source = routes[start:]
-        self.assertIn("_batch_field(provider_payload, 'metadata')", source)
-        self.assertIn("_batch_field(provider_payload, 'response')", source)
-        self.assertIn("'inlinedResponses', 'inlined_responses'", source)
+        helper_start = routes.index("def _gemini_operation_state")
+        helper_source = routes[helper_start:routes.index("def _batch_state_label", helper_start)]
+        status_source = routes[routes.index("def gemini_batch_status_api"):]
+        self.assertIn("_batch_field(provider_payload, 'metadata')", helper_source)
+        self.assertIn("_batch_field(provider_payload, 'response')", helper_source)
+        self.assertIn("'inlinedResponses', 'inlined_responses'", status_source)
 
     def test_gemini_batch_normalizes_sdk_and_rest_state_values(self):
         routes = (APP_ROOT / "server/routes_chat.py").read_text(encoding="utf-8")
@@ -27,6 +28,27 @@ class GeminiBatchRegressionTests(unittest.TestCase):
         self.assertEqual(normalize("JOB_STATE_BATCH_STATE_SUCCEEDED"), "JOB_STATE_SUCCEEDED")
         background = (APP_ROOT / "server/background.py").read_text(encoding="utf-8")
         self.assertIn("row.state = _normalize_batch_state", background)
+
+    def test_gemini_batch_uses_operation_result_when_metadata_state_is_missing(self):
+        routes = (APP_ROOT / "server/routes_chat.py").read_text(encoding="utf-8")
+        start = routes.index("def _batch_field")
+        end = routes.index("def _batch_state_label", start)
+        namespace = {}
+        exec(routes[start:end], namespace)
+        resolve = namespace["_gemini_operation_state"]
+
+        self.assertEqual(
+            resolve({"done": True, "response": {}}, "JOB_STATE_RUNNING"),
+            "JOB_STATE_SUCCEEDED",
+        )
+        self.assertEqual(
+            resolve({"done": True, "error": {"code": 13}}, "JOB_STATE_RUNNING"),
+            "JOB_STATE_FAILED",
+        )
+        self.assertEqual(
+            resolve({"done": False, "metadata": {"state": "BATCH_STATE_RUNNING"}}, "JOB_STATE_PENDING"),
+            "JOB_STATE_RUNNING",
+        )
 
     def test_unnotified_terminal_jobs_are_repolled_for_results(self):
         routes = (APP_ROOT / "server/routes_chat.py").read_text(encoding="utf-8")

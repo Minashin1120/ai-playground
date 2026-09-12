@@ -107,6 +107,26 @@ def _normalize_batch_state(raw_state):
         return state
     return f'JOB_STATE_{state}' if state else ''
 
+def _gemini_operation_state(provider_payload, fallback_state):
+    """Resolve Gemini Batch state from either Batch metadata or Operation result."""
+    metadata = _batch_field(provider_payload, 'metadata') or {}
+    raw_state = (
+        _batch_field(provider_payload, 'state')
+        or _batch_field(metadata, 'state')
+    )
+    if raw_state:
+        return _normalize_batch_state(raw_state)
+
+    # Operation metadata is service-specific and may be omitted. Per the
+    # long-running Operation contract, done=true has exactly one of error or
+    # response, so it is sufficient to determine the terminal state.
+    if _batch_field(provider_payload, 'done') is True:
+        if _batch_field(provider_payload, 'error') is not None:
+            return 'JOB_STATE_FAILED'
+        if _batch_field(provider_payload, 'response') is not None:
+            return 'JOB_STATE_SUCCEEDED'
+    return _normalize_batch_state(fallback_state)
+
 def _batch_state_label(state):
     labels = {
         'JOB_STATE_QUEUED': 'Batch APIへの送信待ちです',
@@ -1273,12 +1293,7 @@ def gemini_batch_status_api():
                             _batch_field(_batch_field(provider_payload, 'error') or {}, 'message')
                             or f'Gemini Batch API HTTP {provider_response.status_code}'
                         )
-                    metadata = _batch_field(provider_payload, 'metadata') or {}
-                    state = _normalize_batch_state(
-                        _batch_field(provider_payload, 'state')
-                        or _batch_field(metadata, 'state')
-                        or state
-                    )
+                    state = _gemini_operation_state(provider_payload, state)
                     row.state = state
                     row.status_text = _batch_state_label(state)
                     if state in terminal_states:

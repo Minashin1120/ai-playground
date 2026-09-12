@@ -5203,7 +5203,7 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
     justify-content: center;
     pointer-events: none;
     visibility: hidden;
-    transition: visibility 0.32s;
+    transition: visibility 0.22s;
 }
 #minimal-options-popup.minimal-options-open {
     visibility: visible;
@@ -5215,7 +5215,7 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
     opacity: 0;
-    transition: opacity 0.25s var(--ease-standard);
+    transition: opacity 0.18s var(--ease-standard);
     pointer-events: auto;
     cursor: pointer;
 }
@@ -5240,7 +5240,7 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
     transform: translateY(18px) scale(0.82);
     opacity: 0;
     will-change: transform, opacity;
-    transition: transform 0.44s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.24s var(--ease-standard);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.18s var(--ease-standard);
 }
 #minimal-options-popup.minimal-options-open #minimal-options-backdrop {
     opacity: 1;
@@ -5265,7 +5265,7 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
 #minimal-options-popup.minimal-options-open .minimal-options-section-title,
 #minimal-options-popup.minimal-options-open .minimal-options-model-body > * {
     transform-origin: left bottom;
-    animation: minimal-options-content-in 0.58s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation: minimal-options-content-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 #minimal-options-popup.minimal-options-open .minimal-options-header {
     --minimal-start-x: -8px;
@@ -5275,16 +5275,16 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
 #minimal-options-popup.minimal-options-open .minimal-options-section-title {
     --minimal-start-x: -8px;
     --minimal-start-y: 56px;
-    animation-delay: 0.24s;
+    animation-delay: 0.16s;
 }
 #minimal-options-popup.minimal-options-open .minimal-options-model-body > * {
     --minimal-start-x: -8px;
     --minimal-start-y: 40px;
-    animation-delay: 0.27s;
+    animation-delay: 0.18s;
 }
 #minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(even) { --minimal-start-x: -8px; }
 #minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(odd):not(:first-child) { --minimal-start-x: -184px; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(1) { --minimal-start-x: -8px; --minimal-start-y: 260px; animation-delay: 0.02s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(1) { --minimal-start-x: -8px; --minimal-start-y: 260px; animation-delay: 0.01s; }
 #minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(2),
 #minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(3) { --minimal-start-y: 220px; }
 #minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(4),
@@ -5298,19 +5298,19 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
 #minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(12),
 #minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(13) { --minimal-start-y: 52px; }
 #minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(n+14) { --minimal-start-y: 36px; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(2) { animation-delay: 0.05s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(3) { animation-delay: 0.065s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(4) { animation-delay: 0.08s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(5) { animation-delay: 0.095s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(6) { animation-delay: 0.11s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(7) { animation-delay: 0.125s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(8) { animation-delay: 0.14s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(9) { animation-delay: 0.155s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(10) { animation-delay: 0.17s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(11) { animation-delay: 0.185s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(12) { animation-delay: 0.20s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(13) { animation-delay: 0.215s; }
-#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(n+14) { animation-delay: 0.23s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(2) { animation-delay: 0.03s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(3) { animation-delay: 0.042s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(4) { animation-delay: 0.054s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(5) { animation-delay: 0.066s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(6) { animation-delay: 0.078s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(7) { animation-delay: 0.09s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(8) { animation-delay: 0.102s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(9) { animation-delay: 0.114s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(10) { animation-delay: 0.126s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(11) { animation-delay: 0.138s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(12) { animation-delay: 0.15s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(13) { animation-delay: 0.162s; }
+#minimal-options-popup.minimal-options-open .minimal-option-item:nth-child(n+14) { animation-delay: 0.174s; }
 .minimal-options-header,
 .minimal-option-item,
 .minimal-options-section-title,

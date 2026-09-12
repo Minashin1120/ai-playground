@@ -20,23 +20,23 @@ color:#bfdbfe;font-weight:700;line-height:1.3">\u4E00\u6642\u7684\u306B\u6DF7\u9
 r&&l.setAttribute("data-file-name",String(r)),l},"buildBusyWarning"),a=o(r=>String(r||"").split("?")[0].
 replace("/files/thumb/","/files/"),"fullFileUrl");document.addEventListener("error",r=>{const l=r.target;
 if(!l||l.tagName!=="IMG")return;const d=l.currentSrc||l.src||"";if(!t(d))return;r.stopImmediatePropagation(),
-r.preventDefault();const p=String(d).split("?")[0],g=l.getAttribute("data-viewer-filename")||p.split(
-"/").pop(),h=o(x=>{const L=i(g,!!x);try{l.replaceWith(L)}catch{}},"showWarning"),v=o(()=>{const x=s(
-g);try{l.replaceWith(x)}catch{}},"showBusyWarning"),b=o((x,L)=>{const T=l.cloneNode(!1);T.setAttribute(
+r.preventDefault();const p=String(d).split("?")[0],h=l.getAttribute("data-viewer-filename")||p.split(
+"/").pop(),g=o(x=>{const L=i(h,!!x);try{l.replaceWith(L)}catch{}},"showWarning"),v=o(()=>{const x=s(
+h);try{l.replaceWith(x)}catch{}},"showBusyWarning"),b=o((x,L)=>{const T=l.cloneNode(!1);T.setAttribute(
 "data-file-retry",String(L));const $=x+(x.includes("?")?"&":"?")+"retry="+Date.now()+"_"+L;T.setAttribute(
 "src",$);try{l.replaceWith(T)}catch{}},"retryLoad"),w=o(x=>{if(x===429||x===503){v();return}if(x===409){
-h(!0);return}if(x===404||x===410||x===403){h(!1);return}const L=parseInt(l.getAttribute&&l.getAttribute(
+g(!0);return}if(x===404||x===410||x===403){g(!1);return}const L=parseInt(l.getAttribute&&l.getAttribute(
 "data-file-retry")||"0",10);if(L<2){b(d,L+1);return}if(d.includes("/files/thumb/")&&!l.getAttribute(
-"data-file-fallback")){l.setAttribute("data-file-fallback","1"),b(a(d),0);return}h(!1)},"handleStatu\
+"data-file-fallback")){l.setAttribute("data-file-fallback","1"),b(a(d),0);return}g(!1)},"handleStatu\
 s");n(d).then(w).catch(()=>{const x=parseInt(l.getAttribute&&l.getAttribute("data-file-retry")||"0",
-10);if(x<2){b(d,x+1);return}if(d.includes("/files/thumb/")){v();return}h(!1)})},!0)})();const isAdminSidebarDebugEnabled=o(
+10);if(x<2){b(d,x+1);return}if(d.includes("/files/thumb/")){v();return}g(!1)})},!0)})();const isAdminSidebarDebugEnabled=o(
 ()=>{try{const e=window.CHAT_CONFIG||{};return!!(e.botConfig&&e.botConfig.isAdmin)}catch{return!1}},
 "isAdminSidebarDebugEnabled"),ADMIN_SIDEBAR_DEBUG_PREFIX="[admin-sidebar]",adminSidebarDebugEntries=[],
 snapshotSidebarHistory=o(e=>{if(!isAdminSidebarDebugEnabled())return null;const t=get("thread-list"),
 n=get("sidebar"),i=get("settings-modal"),s=get("history-modal"),a=t?window.getComputedStyle(t):null,
 r=n?window.getComputedStyle(n):null,l=t?Array.from(t.querySelectorAll("[data-thread-id]")):[],d=l[0]||
-null,p=d?window.getComputedStyle(d):null;let g=null;try{g=typeof threadLoading=="boolean"?threadLoading:
-null}catch{g=null}const h={t:Date.now(),reason:String(e||""),path:location.pathname,vw:window.innerWidth,
+null,p=d?window.getComputedStyle(d):null;let h=null;try{h=typeof threadLoading=="boolean"?threadLoading:
+null}catch{h=null}const g={t:Date.now(),reason:String(e||""),path:location.pathname,vw:window.innerWidth,
 liteHtml:document.documentElement.classList.contains("performance-lite-mode"),blurHtml:document.documentElement.
 classList.contains("performance-blur-disabled"),liquidBody:!!(document.body&&document.body.classList.
 contains("liquid-glass-mode")),blurMode:adaptiveBlurPreferenceMode,liteEnabled:adaptiveBlurLiteEnabled,
@@ -50,9 +50,9 @@ return v?String(v.value||"").length:0})(),firstItemText:d&&d.textContent?d.textC
 0,40):null,firstItemOpacity:p?p.opacity:null,firstItemDisplay:p?p.display:null,firstItemVisibility:p?
 p.visibility:null,firstItemClass:d?d.className:null,settingsHidden:i?i.classList.contains("hidden"):
 null,settingsOpen:i?i.classList.contains("modal-open"):null,settingsDisplay:i&&i.style.display||null,
-historyHidden:s?s.classList.contains("hidden"):null,threadLoading:g};adminSidebarDebugEntries.push(h),
+historyHidden:s?s.classList.contains("hidden"):null,threadLoading:h};adminSidebarDebugEntries.push(g),
 adminSidebarDebugEntries.length>80&&adminSidebarDebugEntries.shift();try{nativeConsoleLog(ADMIN_SIDEBAR_DEBUG_PREFIX,
-e,h)}catch{}return h},"snapshotSidebarHistory"),installAdminSidebarDebugObserver=o(()=>{if(!isAdminSidebarDebugEnabled())
+e,g)}catch{}return g},"snapshotSidebarHistory"),installAdminSidebarDebugObserver=o(()=>{if(!isAdminSidebarDebugEnabled())
 return;const e=get("thread-list");if(!(!e||e.dataset.adminSidebarDebugObserved==="1")){e.dataset.adminSidebarDebugObserved=
 "1";try{new MutationObserver(n=>{const i=n.reduce((a,r)=>a+Array.from(r.removedNodes||[]).filter(l=>l&&
 l.nodeType===1&&l.getAttribute&&l.getAttribute("data-thread-id")).length,0),s=n.reduce((a,r)=>a+Array.
@@ -131,9 +131,9 @@ adaptiveBlurMeasurementActive||document.visibilityState!=="visible")return;if(e)
 Date.now();else{const s=Date.now();if(s-adaptiveBlurMeasurementLastAt<adaptiveBlurInteractionCooldownMs||
 adaptiveBlurIsBusy())return;adaptiveBlurMeasurementLastAt=s}adaptiveBlurMeasurementActive=!0;const t=[];
 let n=0;const i=o(s=>{if(document.visibilityState!=="visible"){adaptiveBlurMeasurementActive=!1;return}
-if(n){const h=s-n;h<=200&&t.push(h)}if(n=s,t.length<30){requestAnimationFrame(i);return}adaptiveBlurMeasurementActive=
-!1;const a=[...t].sort((h,v)=>h-v),r=Math.min(17.5,Math.max(7,a[Math.floor(a.length*.2)])),l=Math.max(
-28,r*1.75),d=Math.max(44,r*2.7),p=t.filter(h=>h>=l).length,g=t.filter(h=>h>=d).length;(p>=5||p>=4&&g>=
+if(n){const g=s-n;g<=200&&t.push(g)}if(n=s,t.length<30){requestAnimationFrame(i);return}adaptiveBlurMeasurementActive=
+!1;const a=[...t].sort((g,v)=>g-v),r=Math.min(17.5,Math.max(7,a[Math.floor(a.length*.2)])),l=Math.max(
+28,r*1.75),d=Math.max(44,r*2.7),p=t.filter(g=>g>=l).length,h=t.filter(g=>g>=d).length;(p>=5||p>=4&&h>=
 2)&&(adaptiveBlurFallbackEnabled?enableAdaptiveBlurLite():enableAdaptiveBlurFallback())},"sampleFram\
 e");requestAnimationFrame(i)},"measureInteractionFrames"),measureAdaptiveBlurAfterInteraction=o(()=>{
 document.readyState!=="complete"||adaptiveBlurLiteEnabled||requestAnimationFrame(()=>{adaptiveBlurLiteEnabled||
@@ -179,16 +179,16 @@ setItem(COMPRESSION_SIZE_KEY,e),localStorage.setItem(COMPRESSION_DIM_KEY,t),loca
 n),localStorage.setItem(COMPRESSION_FORMAT_ONLY_KEY,i)},"setCompressionSettings"),syncCompressionSettingsUi=o(
 ()=>{const e=get("compression-max-size"),t=get("compression-max-dim"),n=get("compression-output-type"),
 i=get("compression-format-only");if(e&&(e.value=getCompressionMaxSizeMB()),t&&(t.value=getCompressionMaxDim()),
-n&&(n.value=getCompressionOutputType()),i){i.checked=getCompressionFormatOnly();const g=i.checked;e&&
-(e.disabled=g),t&&(t.disabled=g);const h=get("compression-size-wrap"),v=get("compression-dim-wrap");
-h&&(h.style.opacity=g?"0.4":"1"),v&&(v.style.opacity=g?"0.4":"1")}const s=o((g,h)=>{get(g)&&get(h)&&
-(get(h).value=get(g).value)},"sync");s("gpt-image-size","modal-gpt-image-size"),s("gpt-image-quality",
+n&&(n.value=getCompressionOutputType()),i){i.checked=getCompressionFormatOnly();const h=i.checked;e&&
+(e.disabled=h),t&&(t.disabled=h);const g=get("compression-size-wrap"),v=get("compression-dim-wrap");
+g&&(g.style.opacity=h?"0.4":"1"),v&&(v.style.opacity=h?"0.4":"1")}const s=o((h,g)=>{get(h)&&get(g)&&
+(get(g).value=get(h).value)},"sync");s("gpt-image-size","modal-gpt-image-size"),s("gpt-image-quality",
 "modal-gpt-image-quality"),s("gpt-image-format","modal-gpt-image-format"),s("gpt-image-compression",
 "modal-gpt-image-compression"),s("gemini-image-aspect","modal-gemini-image-aspect"),s("gemini-image-\
 size","modal-gemini-image-size"),s("grok-image-aspect","modal-grok-image-aspect"),s("grok-image-reso\
 lution","modal-grok-image-resolution"),s("grok-image-quality","modal-grok-image-quality"),s("ocr-tab\
-le-format","modal-ocr-table-format"),s("ocr-pages","modal-ocr-pages");const a=o((g,h)=>{get(g)&&get(
-h)&&(get(h).checked=get(g).checked)},"syncChk");a("ocr-extract-header","modal-ocr-extract-header"),a(
+le-format","modal-ocr-table-format"),s("ocr-pages","modal-ocr-pages");const a=o((h,g)=>{get(h)&&get(
+g)&&(get(g).checked=get(h).checked)},"syncChk");a("ocr-extract-header","modal-ocr-extract-header"),a(
 "ocr-extract-footer","modal-ocr-extract-footer"),a("ocr-include-blocks","modal-ocr-include-blocks"),
 a("ocr-include-images","modal-ocr-include-images");const r=get("model-select").value,l=isGptImageModel(
 r),d=isGeminiImageModel(r),p=isGrokImageModel(r);get("modal-gpt-image-options")&&get("modal-gpt-imag\
@@ -458,10 +458,10 @@ w),L=p(w);if(L>0){const $=parseRichPasteCssColor(x.color);if($&&$.a>=.5){const j
 J=l.get(j)||{color:$,weight:0};J.weight+=L,l.set(j,J),d+=L}}if(!!(String(w.style.backgroundColor||"").
 trim()||String(w.style.background||"").trim())){const $=parseRichPasteCssColor(x.backgroundColor);if($&&
 $.a>=.72){const j=String(w.textContent||"").replace(/\s+/g," ").trim().length;r.push({color:$,weight:Math.
-max(1,j)})}}});const g=Array.from(l.values()).sort((w,x)=>x.weight-w.weight),h=g.length?g[0].color:null,
-v=g.reduce((w,x)=>w+(richPasteColorLuminance(x.color)>=.6?x.weight:0),0);r.sort((w,x)=>x.weight-w.weight);
+max(1,j)})}}});const h=Array.from(l.values()).sort((w,x)=>x.weight-w.weight),g=h.length?h[0].color:null,
+v=h.reduce((w,x)=>w+(richPasteColorLuminance(x.color)>=.6?x.weight:0),0);r.sort((w,x)=>x.weight-w.weight);
 let b=r.length?r[0].color:null;return b||(b=d>0&&v/d>=.55?{r:11,g:11,b:12,a:1}:t),makeRichPasteTheme(
-b,h||n)}catch{return makeRichPasteTheme(t,n)}finally{s.parentNode&&s.parentNode.removeChild(s)}},"de\
+b,g||n)}catch{return makeRichPasteTheme(t,n)}finally{s.parentNode&&s.parentNode.removeChild(s)}},"de\
 tectRichPasteTheme"),prepareRichPastePdfClone=o((e,t)=>{if(!e)return;const n=e.head||e.querySelector(
 "head");n&&Array.from(n.querySelectorAll('link[rel="stylesheet"]')).forEach(i=>{try{i.remove()}catch{}}),
 e.body&&(e.body.style.margin="0",e.body.style.background=t.background,e.body.style.color=t.foreground)},
@@ -476,8 +476,8 @@ String(e||""),"text/html");if(!n.body)return"";const i=(n.body.textContent||"").
 trim().length,s=n.body.querySelectorAll("*").length;if(i<1e3||s<120)return n.body.innerHTML;const r=[
 ...Array.from(n.body.querySelectorAll("article")),...Array.from(n.body.querySelectorAll("main")),...Array.
 from(n.body.querySelectorAll('[role="main"],[role="article"]'))].filter(d=>(d.textContent||"").replace(
-/\s+/g," ").trim().length>=i*.65);r.sort((d,p)=>{const g=+!!p.querySelector("h1")-+!!d.querySelector(
-"h1");return g||d.querySelectorAll("*").length-p.querySelectorAll("*").length});const l=r[0]||null;return l?
+/\s+/g," ").trim().length>=i*.65);r.sort((d,p)=>{const h=+!!p.querySelector("h1")-+!!d.querySelector(
+"h1");return h||d.querySelectorAll("*").length-p.querySelectorAll("*").length});const l=r[0]||null;return l?
 l.outerHTML:n.body.innerHTML},"extractRichPasteArticleHtml"),sanitizeRichPasteHtml=o(e=>{if(!window.
 DOMPurify||typeof window.DOMPurify.sanitize!="function"){const s=new DOMParser().parseFromString(String(
 e||""),"text/html");return escapeHtml(s.body?s.body.textContent:"")}let t=extractRichPasteArticleHtml(
@@ -486,28 +486,28 @@ KEEP_CONTENT:!0});if((!n||n.trim()==="")&&e&&e.trim()!==""&&(n=window.DOMPurify.
 ALLOWED_ATTR:RICH_PASTE_ALLOWED_ATTR,KEEP_CONTENT:!0})),!n)return"";const i=document.createElement("\
 template");return i.innerHTML=n,normalizeRichPasteTree(i.content),i.innerHTML},"sanitizeRichPasteHtm\
 l"),normalizeRichPastePrintHtml=o(e=>{const t=document.createElement("template");t.innerHTML=String(
-e||"");const n=Array.from(t.content.querySelectorAll("*")),i=n.reduce((d,p)=>{const g=String(p.style&&
+e||"");const n=Array.from(t.content.querySelectorAll("*")),i=n.reduce((d,p)=>{const h=String(p.style&&
 p.style.display||"").trim().toLowerCase();return d+(["flex","inline-flex","grid","inline-grid"].includes(
-g)?1:0)},0),s=n.reduce((d,p)=>{if(!p||!p.style||!["article","div","main","section"].includes(String(
-p.tagName||"").toLowerCase()))return d;const g=String(p.getAttribute("style")||""),h=Array.from(g.matchAll(
+h)?1:0)},0),s=n.reduce((d,p)=>{if(!p||!p.style||!["article","div","main","section"].includes(String(
+p.tagName||"").toLowerCase()))return d;const h=String(p.getAttribute("style")||""),g=Array.from(h.matchAll(
 /(?:^|;)\s*padding(?:-left|-right|-inline|-inline-start|-inline-end)?\s*:\s*([^;]+)/gi)).some(b=>Array.
-from(b[1].matchAll(/(-?\d+(?:\.\d+)?)px/gi)).some(w=>Math.abs(Number(w[1])||0)>=96)),v=Array.from(g.
+from(b[1].matchAll(/(-?\d+(?:\.\d+)?)px/gi)).some(w=>Math.abs(Number(w[1])||0)>=96)),v=Array.from(h.
 matchAll(/(?:^|;)\s*(?:width|min-width)\s*:\s*(-?\d+(?:\.\d+)?)px/gi)).some(b=>Math.abs(Number(b[1])||
-0)>720);return d+(h||v?1:0)},0);if(n.length<=500&&i<=24&&s===0)return t.innerHTML;const a=new Set(["\
+0)>720);return d+(g||v?1:0)},0);if(n.length<=500&&i<=24&&s===0)return t.innerHTML;const a=new Set(["\
 align-items","align-self","column-gap","flex","flex-basis","flex-direction","flex-grow","flex-shrink",
 "flex-wrap","gap","grid","grid-auto-columns","grid-auto-flow","grid-auto-rows","grid-column","grid-c\
 olumn-end","grid-column-start","grid-row","grid-row-end","grid-row-start","grid-template","grid-temp\
 late-areas","grid-template-columns","grid-template-rows","justify-content","justify-items","justify-\
 self","order","row-gap"]),r=new Set(["article","div","main","section"]),l=new Set(["padding","paddin\
 g-left","padding-right","padding-inline","padding-inline-start","padding-inline-end"]);return n.forEach(
-d=>{if(!d||!d.style)return;const p=String(d.tagName||"").toLowerCase(),g=[];String(d.getAttribute("s\
-tyle")||"").split(";").forEach(h=>{if(!h||h.indexOf(":")<0)return;const v=h.indexOf(":"),b=h.slice(0,
-v).trim().toLowerCase();let w=h.slice(v+1).trim();if(!(!b||!w||a.has(b))&&!["height","max-height","m\
+d=>{if(!d||!d.style)return;const p=String(d.tagName||"").toLowerCase(),h=[];String(d.getAttribute("s\
+tyle")||"").split(";").forEach(g=>{if(!g||g.indexOf(":")<0)return;const v=g.indexOf(":"),b=g.slice(0,
+v).trim().toLowerCase();let w=g.slice(v+1).trim();if(!(!b||!w||a.has(b))&&!["height","max-height","m\
 in-height","overflow","overflow-x","overflow-y"].includes(b)&&!(["width","min-width"].includes(b)&&r.
 has(p))){if(l.has(b)&&r.has(p)&&Array.from(w.matchAll(/(-?\d+(?:\.\d+)?)px/gi)).map(L=>Math.abs(Number(
 L[1])||0)).some(L=>L>=96)&&(w="0px"),b==="display"){const x=w.toLowerCase();["flex","grid"].includes(
-x)?w="block":["inline-flex","inline-grid"].includes(x)&&(w="inline-block")}g.push(`${b}: ${w}`)}}),g.
-length?d.setAttribute("style",g.join("; ")):d.removeAttribute("style")}),t.innerHTML},"normalizeRich\
+x)?w="block":["inline-flex","inline-grid"].includes(x)&&(w="inline-block")}h.push(`${b}: ${w}`)}}),h.
+length?d.setAttribute("style",h.join("; ")):d.removeAttribute("style")}),t.innerHTML},"normalizeRich\
 PastePrintHtml"),getRichPasteSelectionRange=o(e=>{const t=window.getSelection&&window.getSelection();
 if(!t||!t.rangeCount)return null;const n=t.getRangeAt(0);if(e&&e.contains(n.commonAncestorContainer))
 return n;const i=document.createRange();return i.selectNodeContents(e),i.collapse(!1),i},"getRichPas\
@@ -572,8 +572,8 @@ e,t).map(i=>i.text).join(""),"collectRichPasteInlineText"),collectRichPasteTable
 return Array.from(e.querySelectorAll("tr")||[]).forEach(n=>{n&&n.closest&&n.closest("table")===e&&t.
 push(n)}),t},"collectRichPasteTableRows"),makeRichPasteTableMarkdown=o(e=>{const t=e&&e.querySelector?
 e.querySelector("caption"):null,n=t?normalizeRichPastePdfText(collectRichPasteInlineText(t)):"",i=collectRichPasteTableRows(
-e).map(d=>Array.from(d.children||[]).filter(g=>{const h=String(g.tagName||"").toLowerCase();return h===
-"th"||h==="td"}).map(g=>normalizeRichPastePdfText(collectRichPasteInlineText(g))||" ")).filter(d=>d.
+e).map(d=>Array.from(d.children||[]).filter(h=>{const g=String(h.tagName||"").toLowerCase();return g===
+"th"||g==="td"}).map(h=>normalizeRichPastePdfText(collectRichPasteInlineText(h))||" ")).filter(d=>d.
 length);if(!i.length)return n||"[table]";const s=i.reduce((d,p)=>Math.max(d,p.length),0),a=i.map(d=>{
 const p=d.slice(0,s);for(;p.length<s;)p.push(" ");return p}),r=`| ${Array(s).fill("---").join(" | ")}\
  |`,l=[];n&&(l.push(`Table: ${n}`),l.push("")),l.push(`| ${a[0].join(" | ")} |`),l.push(r);for(let d=1;d<
@@ -582,8 +582,8 @@ a.length;d+=1)l.push(`| ${a[d].join(" | ")} |`);return l.join(`
 e.children||[]).filter(r=>String(r.tagName||"").toLowerCase()==="li");let a=1;return s.forEach(r=>{const l=r.
 cloneNode(!0);Array.from(l.querySelectorAll("ul,ol")||[]).forEach(p=>{try{p.remove()}catch{}});const d=collectRichPasteInlineSegments(
 l);d.length>0&&i.push({type:"list_item",ordered:t,depth:n,index:a,segments:d}),Array.from(r.children||
-[]).forEach(p=>{const g=String(p.tagName||"").toLowerCase();(g==="ul"||g==="ol")&&i.push(...collectRichPasteListBlocks(
-p,g==="ol",n+1))}),a+=1}),i},"collectRichPasteListBlocks"),collectRichPastePdfBlocks=o((e,t=0)=>{const n=[];
+[]).forEach(p=>{const h=String(p.tagName||"").toLowerCase();(h==="ul"||h==="ol")&&i.push(...collectRichPasteListBlocks(
+p,h==="ol",n+1))}),a+=1}),i},"collectRichPasteListBlocks"),collectRichPastePdfBlocks=o((e,t=0)=>{const n=[];
 if(!e)return n;let i=[];const s=o(()=>{i.length!==0&&(n.push({type:"paragraph",segments:[...i]}),i=[])},
 "flushBuffer");return Array.from(e.childNodes||[]).forEach(a=>{if(!a)return;if(a.nodeType===Node.TEXT_NODE){
 const p=(a.textContent||"").replace(/\u00a0/g," ");p&&i.push({text:p});return}if(a.nodeType!==Node.ELEMENT_NODE)
@@ -597,14 +597,14 @@ a.innerText||a.textContent||"");p.trim()&&n.push({type:"code",text:p});return}if
 a);p&&n.push({type:"table",text:p});return}if(r==="ul"||r==="ol"){s(),n.push(...collectRichPasteListBlocks(
 a,r==="ol",t));return}if(r==="hr"){s(),n.push({type:"hr"});return}if(r==="figure"){s();const p=a.querySelector(
 "img");p&&n.push({type:"image",src:String(p.getAttribute("src")||"").trim(),alt:String(p.getAttribute(
-"alt")||p.getAttribute("title")||"").trim(),title:String(p.getAttribute("title")||"").trim()});const g=a.
-querySelector("figcaption");if(g){const h=collectRichPasteInlineSegments(g);h.length>0&&n.push({type:"\
-paragraph",segments:h})}return}if(r==="img"){s(),n.push({type:"image",src:String(a.getAttribute("src")||
+"alt")||p.getAttribute("title")||"").trim(),title:String(p.getAttribute("title")||"").trim()});const h=a.
+querySelector("figcaption");if(h){const g=collectRichPasteInlineSegments(h);g.length>0&&n.push({type:"\
+paragraph",segments:g})}return}if(r==="img"){s(),n.push({type:"image",src:String(a.getAttribute("src")||
 "").trim(),alt:String(a.getAttribute("alt")||a.getAttribute("title")||"").trim(),title:String(a.getAttribute(
 "title")||"").trim()});return}if(r==="li"){s(),n.push(...collectRichPasteListBlocks(a,!1,t));return}
-if(Array.from(a.children||[]).some(p=>{const g=String(p.tagName||"").toLowerCase();return/^h[1-6]$/.
-test(g)||["p","div","section","article","main","blockquote","pre","table","ul","ol","hr","figure","i\
-mg","li"].includes(g)})&&["div","section","article","main","figure"].includes(r)){s(),n.push(...collectRichPastePdfBlocks(
+if(Array.from(a.children||[]).some(p=>{const h=String(p.tagName||"").toLowerCase();return/^h[1-6]$/.
+test(h)||["p","div","section","article","main","blockquote","pre","table","ul","ol","hr","figure","i\
+mg","li"].includes(h)})&&["div","section","article","main","figure"].includes(r)){s(),n.push(...collectRichPastePdfBlocks(
 a,t+1));return}const d=collectRichPasteInlineSegments(a);d.length>0&&i.push(...d)}),s(),n},"collectR\
 ichPastePdfBlocks"),detectImageMimeType=o(e=>{const t=String(e||"").match(/^data:(image\/[a-z0-9.+-]+);/i);
 return t?t[1].toLowerCase():"image/png"},"detectImageMimeType"),loadRichPasteImageData=o(async(e,t=3e3)=>{
@@ -700,10 +700,10 @@ v,150)));const s=getRichPasteEditor();if(!s)throw new Error("PDF\u5316\u3059\u30
 const a=inferRichPasteTitle(),r=sanitizeRichPasteHtml(s.innerHTML||""),l=detectRichPasteTheme(r),d=normalizeRichPastePrintHtml(
 r);await ensurePdfLibraries();const p=window.jspdf&&window.jspdf.jsPDF?window.jspdf.jsPDF:null;if(!p)
 throw new Error("jsPDF \u30E9\u30A4\u30D6\u30E9\u30EA\u304C\u8AAD\u307F\u8FBC\u307E\u308C\u3066\u3044\u307E\u305B\u3093");
-const g=window.html2canvas;if(typeof g!="function")throw new Error("html2canvas \u30E9\u30A4\u30D6\u30E9\u30EA\u304C\u8AAD\u307F\u8FBC\u307E\u308C\u3066\u3044\u307E\u305B\u3093");
-i(5);const h=document.createElement("div");h.style.position="absolute",h.style.left="-10000px",h.style.
-top="0",h.style.width="794px",h.style.background=l.background,h.style.color=l.foreground,h.style.boxSizing=
-"border-box",h.style.fontFamily='"Noto Sans JP", "Segoe UI", "Helvetica Neue", Arial, sans-serif',h.
+const h=window.html2canvas;if(typeof h!="function")throw new Error("html2canvas \u30E9\u30A4\u30D6\u30E9\u30EA\u304C\u8AAD\u307F\u8FBC\u307E\u308C\u3066\u3044\u307E\u305B\u3093");
+i(5);const g=document.createElement("div");g.style.position="absolute",g.style.left="-10000px",g.style.
+top="0",g.style.width="794px",g.style.background=l.background,g.style.color=l.foreground,g.style.boxSizing=
+"border-box",g.style.fontFamily='"Noto Sans JP", "Segoe UI", "Helvetica Neue", Arial, sans-serif',g.
 innerHTML=`
                 <style>
                         :root {
@@ -834,12 +834,12 @@ nd); font-weight: bold; }
                     <div class="pdf-meta">Created at: ${new Date().toLocaleString("ja-JP")}</div>
                     <div class="pdf-content">${d}</div>
                 </div>
-            `,document.body.appendChild(h),await waitForRichPasteMedia(h,4e3),i(15);try{const v=new p(
+            `,document.body.appendChild(g),await waitForRichPasteMedia(g,4e3),i(15);try{const v=new p(
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),b=v.internal.pageSize.getWidth(),w=v.internal.
-pageSize.getHeight(),x=794,L=Math.floor(w/b*x),T=h.scrollHeight||h.offsetHeight;let $=0,j=!0;const J=Math.
+pageSize.getHeight(),x=794,L=Math.floor(w/b*x),T=g.scrollHeight||g.offsetHeight;let $=0,j=!0;const J=Math.
 ceil(T/L);let X=0;for(;$<T;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
 "Aborted","AbortError");const P=Math.min(L,T-$),Y=(await new Promise((pe,ke)=>{const te=setTimeout(()=>ke(
-new Error("PDF chunk rendering timed out")),12e4);g(h,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:l.
+new Error("PDF chunk rendering timed out")),12e4);h(g,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:l.
 background,logging:!1,imageTimeout:5e3,x:0,y:$,width:x,height:P,windowWidth:x,scrollX:0,scrollY:0,signal:richPasteAbortController?
 richPasteAbortController.signal:void 0,onclone:o(se=>{prepareRichPastePdfClone(se,l);const W=se.querySelector(
 ".pdf-root-wrapper");W&&(W.style.position="relative",W.style.left="0",W.style.top="0")},"onclone")}).
@@ -847,16 +847,16 @@ then(se=>{clearTimeout(te),pe(se)}).catch(se=>{clearTimeout(te),ke(se)})})).toDa
 de=v.getImageProperties(Y),oe=Math.min(w,de.height*b/de.width);j||v.addPage(),v.addImage(Y,"JPEG",0,
 0,b,oe),j=!1,$+=P,X++;const xe=Math.min(100,15+Math.round(X/J*85));i(xe),await new Promise(pe=>setTimeout(
 pe,100))}return i(100),{blob:v.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
-add("hidden"),e.style.display="none"),h&&h.parentNode&&document.body.removeChild(h)}},"renderRichPas\
+add("hidden"),e.style.display="none"),g&&g.parentNode&&document.body.removeChild(g)}},"renderRichPas\
 tePdfBlob"),createRichPastePdfBlob=o(async()=>await renderRichPastePdfBlob(),"createRichPastePdfBlob"),
 buildRichPasteServerPayload=o(()=>{const e=getRichPasteEditor();if(!e)throw new Error("PDF\u5316\u3059\u308B\u5185\u5BB9\u304C\u3042\u308A\u307E\u305B\
 \u3093");const t=String(e.innerHTML||"").trim(),n=String(e.textContent||"").trim(),i=t||(n?`<p>${escapeHtml(
 n).replace(/\n/g,"<br/>")}</p>`:"");return{title:inferRichPasteTitle(),html:i,created_at:new Date().
 toLocaleString("ja-JP"),theme:detectRichPasteTheme(sanitizeRichPasteHtml(i))}},"buildRichPasteServer\
 Payload"),attachRichPastePdfAndSend=o(async(e,t,n,i)=>{const s=new Set(collectAttachmentItemsForSend().
-map(g=>g.path)),a=new File([e],t,{type:"application/pdf",lastModified:Date.now()}),r=get("prompt-inp\
-ut");if(r&&(r.value=n),await handleFiles([a],{openModal:!1}),!collectAttachmentItemsForSend().map(g=>g.
-path).some(g=>!s.has(g)))throw r&&(r.value=i),new Error("PDF\u306E\u6DFB\u4ED8\u306B\u5931\u6557\u3057\u307E\u3057\u305F");
+map(h=>h.path)),a=new File([e],t,{type:"application/pdf",lastModified:Date.now()}),r=get("prompt-inp\
+ut");if(r&&(r.value=n),await handleFiles([a],{openModal:!1}),!collectAttachmentItemsForSend().map(h=>h.
+path).some(h=>!s.has(h)))throw r&&(r.value=i),new Error("PDF\u306E\u6DFB\u4ED8\u306B\u5931\u6557\u3057\u307E\u3057\u305F");
 const p=sendMessage();clearRichPasteEditor(!0),window.closeRichPasteModal(),showToast("PDF\u3092\u6DFB\u4ED8\u3057\u3066\u9001\u4FE1\u3092\u958B\u59CB\
 \u3057\u307E\u3057\u305F","success"),p&&typeof p.catch=="function"&&p.catch(()=>{})},"attachRichPast\
 ePdfAndSend"),openRichPasteModal=o(async()=>{await ensureUserSettingsSnapshot(),showModal("rich-past\
@@ -880,18 +880,18 @@ p.remove()}),t?(showToast("\u30B5\u30FC\u30D0\u30FC\u5074\u3067PDF\u3092\u751F\u
 showToast("PDF\u3092\u751F\u6210\u3057\u3066\u3044\u307E\u3059...","info",!0),t){if(!RICH_PASTE_PDF_SERVER_ROUTE)
 throw new Error("\u30B5\u30FC\u30D0\u30FC\u5074PDF\u751F\u6210\u306EURL\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093");
 const p=buildRichPasteServerPayload();setRichPasteProgress(10,"\u30B5\u30FC\u30D0\u30FC\u3078\u9001\u4FE1\u4E2D...");
-const g=await apiFetch(RICH_PASTE_PDF_SERVER_ROUTE,{method:"POST",headers:{"Content-Type":"applicati\
+const h=await apiFetch(RICH_PASTE_PDF_SERVER_ROUTE,{method:"POST",headers:{"Content-Type":"applicati\
 on/json"},body:JSON.stringify(p),signal:richPasteAbortController.signal});if(setRichPasteProgress(60,
-"PDF\u3092\u53D7\u4FE1\u4E2D..."),!g.ok){let w="";try{const x=await g.json();w=x&&(x.message||x.error)?
-String(x.message||x.error):""}catch{try{w=await g.text()}catch{w=""}}throw w==="missing_html"?new Error(
+"PDF\u3092\u53D7\u4FE1\u4E2D..."),!h.ok){let w="";try{const x=await h.json();w=x&&(x.message||x.error)?
+String(x.message||x.error):""}catch{try{w=await h.text()}catch{w=""}}throw w==="missing_html"?new Error(
 "\u30B5\u30FC\u30D0\u30FC\u3078\u9001\u308BHTML\u304C\u7A7A\u3067\u3059\u3002\u30AF\u30EA\u30C3\u30D7\u30DC\u30FC\u30C9\u5185\u5BB9\u306E\u53D6\u308A\u8FBC\u307F\u3092\u5148\u306B\u884C\u3063\u3066\u304F\u3060\u3055\u3044"):
 new Error(w?`\u30B5\u30FC\u30D0\u30FCPDF\u751F\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F: ${w}`:
 "\u30B5\u30FC\u30D0\u30FCPDF\u751F\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F")}setRichPasteProgress(
-75,"PDF\u3092\u6DFB\u4ED8\u4E2D...");const h=await g.blob(),v=g.headers.get("X-Rich-Paste-Filename")||
+75,"PDF\u3092\u6DFB\u4ED8\u4E2D...");const g=await h.blob(),v=h.headers.get("X-Rich-Paste-Filename")||
 buildRichPastePdfFilename();!!(get("rich-paste-download-only")&&get("rich-paste-download-only").checked)?
-(setRichPasteProgress(90,"\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u4E2D..."),downloadBlob(h,v),showToast(
+(setRichPasteProgress(90,"\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u4E2D..."),downloadBlob(g,v),showToast(
 "PDF\u3092\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u3057\u307E\u3057\u305F","success"),hideModal("rich-p\
-aste-modal",{skipConfirm:!0})):await attachRichPastePdfAndSend(h,v,r,l),setRichPasteProgress(100,"\u5B8C\u4E86"),
+aste-modal",{skipConfirm:!0})):await attachRichPastePdfAndSend(g,v,r,l),setRichPasteProgress(100,"\u5B8C\u4E86"),
 setTimeout(()=>hideRichPasteProgress(),400)}else{const p=await createRichPastePdfBlob();!!(get("rich\
 -paste-download-only")&&get("rich-paste-download-only").checked)?(downloadBlob(p.blob,p.fileName),showToast(
 "PDF\u3092\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u3057\u307E\u3057\u305F","success"),hideModal("rich-p\
@@ -915,7 +915,7 @@ unt_locked")return!isAdminUser&&!document.getElementById("bot-lock-overlay")&&sh
 "\u30A2\u30AB\u30A6\u30F3\u30C8\u304C\u4E00\u6642\u7684\u306B\u30ED\u30C3\u30AF\u3055\u308C\u3066\u3044\u307E\u3059\u3002",
 l.remaining_seconds),r;if(d==="banned"||d==="turnstile_failed"||d==="rate_limit")return r;if(d==="tu\
 rnstile_required"&&isBotDetectionActive())return botDetectionVerified=!1,await Promise.race([runBotDetectionGate(),
-new Promise(h=>setTimeout(()=>h(!1),3e4))])&&(i["X-CSRF-Token"]=csrfToken,r=await fetch(e,Object.assign(
+new Promise(g=>setTimeout(()=>g(!1),3e4))])&&(i["X-CSRF-Token"]=csrfToken,r=await fetch(e,Object.assign(
 {},t,{headers:i,credentials:a}))),r;await refreshCsrfToken()&&(i["X-CSRF-Token"]=csrfToken,r=await fetch(
 e,Object.assign({},t,{headers:i,credentials:a})))}return r},"apiFetch"),manualSpinnerRequestOptions=o(
 e=>window.ProgressSpinner?window.ProgressSpinner.manualRequestOptions(e):e,"manualSpinnerRequestOpti\
@@ -1035,13 +1035,13 @@ ipt")]).then(()=>window.hljs||null).catch(e=>{throw highlightLoadPromise=null,e}
 o(ensureHighlightLoaded,"ensureHighlightLoaded");function maybeNeedsMathJax(e){const t=String(e||"");
 return t.includes("$$")||t.includes("\\(")||t.includes("\\[")||t.includes("\\begin{")?!0:/(?<!\$)\$(?!\$)(?=[\s\S]*?[A-Za-z\\^_{}])(?:[^$\n\\]|\\.)+?\$(?!\$)/.
 test(t)}o(maybeNeedsMathJax,"maybeNeedsMathJax");function protectMathSegments(e){const t=String(e||""),
-n=[],i=o(p=>{const g=`@@MATHJAX_BLOCK_${n.length}@@`;return n.push(p),g},"stash"),s=[],a=/(^|\n)([ \t]*)(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:\n\2\3[ \t]*(?:\n|$)|$)/g;
+n=[],i=o(p=>{const h=`@@MATHJAX_BLOCK_${n.length}@@`;return n.push(p),h},"stash"),s=[],a=/(^|\n)([ \t]*)(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:\n\2\3[ \t]*(?:\n|$)|$)/g;
 let r=0,l;for(;(l=a.exec(t))!==null;){const p=l.index;p>r&&s.push({type:"text",value:t.slice(r,p)}),
 s.push({type:"code",value:l[0]}),r=p+l[0].length}return r<t.length&&s.push({type:"text",value:t.slice(
-r)}),s.length||s.push({type:"text",value:t}),{text:s.map(p=>{if(p.type==="code")return p.value;let g=p.
-value;return g=g.replace(/\$\$([\s\S]+?)\$\$/g,i),g=g.replace(/\\\(([\s\S]+?)\\\)/g,i),g=g.replace(/\\\[([\s\S]+?)\\\]/g,
-i),g=g.replace(/\\begin\{([a-zA-Z*]+)\}([\s\S]+?)\\end\{\1\}/g,i),g=g.replace(/(?<!\$)\$(?!\$)([^\s$](?:(?:[^$\n\\]|\\.)*?[^\s$])?)\$(?!\$)/g,
-i),g}).join(""),blocks:n}}o(protectMathSegments,"protectMathSegments");function getStreamMathSegmentKey(e,t){
+r)}),s.length||s.push({type:"text",value:t}),{text:s.map(p=>{if(p.type==="code")return p.value;let h=p.
+value;return h=h.replace(/\$\$([\s\S]+?)\$\$/g,i),h=h.replace(/\\\(([\s\S]+?)\\\)/g,i),h=h.replace(/\\\[([\s\S]+?)\\\]/g,
+i),h=h.replace(/\\begin\{([a-zA-Z*]+)\}([\s\S]+?)\\end\{\1\}/g,i),h=h.replace(/(?<!\$)\$(?!\$)([^\s$](?:(?:[^$\n\\]|\\.)*?[^\s$])?)\$(?!\$)/g,
+i),h}).join(""),blocks:n}}o(protectMathSegments,"protectMathSegments");function getStreamMathSegmentKey(e,t){
 const n=String(t||"");let i=2166136261;for(let s=0;s<n.length;s++)i^=n.charCodeAt(s),i=Math.imul(i,16777619);
 return`${e}-${n.length}-${(i>>>0).toString(16)}`}o(getStreamMathSegmentKey,"getStreamMathSegmentKey");
 function restoreMathSegments(e,t,n={}){return!t||!t.length?String(e||""):String(e||"").replace(/@@MATHJAX_BLOCK_(\d+)@@/g,
@@ -1145,16 +1145,16 @@ for(;(i=s.exec(t))!==null;)if(isPasswordPromptingScript(i[1]))return!0;return!!(
 test(t)||/src\s*=\s*["'`][^"'`]*polyfill\.io/i.test(t))}o(detectBlockedScriptsInCode,"detectBlockedS\
 criptsInCode");function sanitizeHtmlForPreview(e){if(!e)return"";const t=detectBlockedScriptsInCode(
 e);let n=String(e);try{const s=new DOMParser().parseFromString(n,"text/html");let a=!1;s.querySelectorAll(
-"script").forEach(l=>{const d=l.getAttribute("src")||"";let p=!1;if(d&&isBlockedScriptSrc(d)){const g=s.
-createElement("div");g.setAttribute("data-blocked-script","true"),g.style.cssText="background:#fee2e\
+"script").forEach(l=>{const d=l.getAttribute("src")||"";let p=!1;if(d&&isBlockedScriptSrc(d)){const h=s.
+createElement("div");h.setAttribute("data-blocked-script","true"),h.style.cssText="background:#fee2e\
 2;border:1px solid #ef4444;color:#991b1b;padding:6px 10px;border-radius:6px;font-size:12px;margin:6p\
-x 0;font-family:system-ui;";const h=d.length>70?d.slice(0,67)+"...":d;g.textContent="\u26A0 \u30D6\u30ED\u30C3\u30AF\u6E08\u307F: "+
-h+" \uFF08polyfill.io \u306A\u3069\u306E\u5371\u967A\u30C9\u30E1\u30A4\u30F3\u306F\u30D7\u30EC\u30D3\u30E5\u30FC\u3067\u7121\u52B9\u5316\u3055\u308C\u307E\u3059\uFF09",
-l.parentNode&&l.parentNode.replaceChild(g,l),a=!0,p=!0}else if(!d){const g=l.textContent||"";if(isPasswordPromptingScript(
-g)){const h=s.createElement("div");h.setAttribute("data-blocked-script","true"),h.style.cssText="bac\
+x 0;font-family:system-ui;";const g=d.length>70?d.slice(0,67)+"...":d;h.textContent="\u26A0 \u30D6\u30ED\u30C3\u30AF\u6E08\u307F: "+
+g+" \uFF08polyfill.io \u306A\u3069\u306E\u5371\u967A\u30C9\u30E1\u30A4\u30F3\u306F\u30D7\u30EC\u30D3\u30E5\u30FC\u3067\u7121\u52B9\u5316\u3055\u308C\u307E\u3059\uFF09",
+l.parentNode&&l.parentNode.replaceChild(h,l),a=!0,p=!0}else if(!d){const h=l.textContent||"";if(isPasswordPromptingScript(
+h)){const g=s.createElement("div");g.setAttribute("data-blocked-script","true"),g.style.cssText="bac\
 kground:#fef3c7;border:1px solid #f59e0b;color:#92400e;padding:6px 10px;border-radius:6px;font-size:\
-12px;margin:6px 0;font-family:system-ui;",h.textContent="\u26A0 \u30D6\u30ED\u30C3\u30AF\u6E08\u307F: \u30D1\u30B9\u30EF\u30FC\u30C9\u5165\u529B\u8981\u6C42\u306A\u3069\u306E\u7591\u308F\u3057\u3044\u30A4\u30F3\u30E9\u30A4\u30F3\u30B9\u30AF\u30EA\u30D7\u30C8\u3092\u7121\u52B9\u5316\u3057\u307E\u3057\
-\u305F",l.parentNode&&l.parentNode.replaceChild(h,l),a=!0,p=!0}}}),s.querySelectorAll('a[href^="java\
+12px;margin:6px 0;font-family:system-ui;",g.textContent="\u26A0 \u30D6\u30ED\u30C3\u30AF\u6E08\u307F: \u30D1\u30B9\u30EF\u30FC\u30C9\u5165\u529B\u8981\u6C42\u306A\u3069\u306E\u7591\u308F\u3057\u3044\u30A4\u30F3\u30E9\u30A4\u30F3\u30B9\u30AF\u30EA\u30D7\u30C8\u3092\u7121\u52B9\u5316\u3057\u307E\u3057\
+\u305F",l.parentNode&&l.parentNode.replaceChild(g,l),a=!0,p=!0}}}),s.querySelectorAll('a[href^="java\
 script:" i], area[href^="javascript:" i]').forEach(l=>{l.setAttribute("href","#"),l.setAttribute("ti\
 tle",(l.getAttribute("title")||"")+" [javascript: disabled in preview]")});const r=s.head||s.querySelector(
 "head");if(r&&!r.querySelector("base")){const l=s.createElement("base");l.setAttribute("href",`${window.
@@ -1271,8 +1271,8 @@ target-btn");i&&i.classList.toggle("visible",codingModeEnabled);const r=resolveC
 [r].filter(Boolean):collectCodingCandidates(String(((d=get("prompt-input"))==null?void 0:d.value)||""));
 if(codingModeEffective=codingModeEnabled&&l.length>0,s)if(codingTargetSelection&&r)s.textContent=`\u7DE8\u96C6\
 \u5BFE\u8C61: ${r.language||"text"} \u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF`;else if(l.length>1){
-const p=l.filter(h=>h.prompt_source).length,g=l.length-p;s.textContent=`\u30E2\u30C7\u30EB\u304C\u7DE8\u96C6\u5BFE\u8C61\u3092\u5224\u65AD: \u5165\u529B${p}\
-\u4EF6 / \u5C65\u6B74${g}\u4EF6`}else r&&r.prompt_source?s.textContent=`\u5165\u529B\u4E2D: ${r.language||
+const p=l.filter(g=>g.prompt_source).length,h=l.length-p;s.textContent=`\u30E2\u30C7\u30EB\u304C\u7DE8\u96C6\u5BFE\u8C61\u3092\u5224\u65AD: \u5165\u529B${p}\
+\u4EF6 / \u5C65\u6B74${h}\u4EF6`}else r&&r.prompt_source?s.textContent=`\u5165\u529B\u4E2D: ${r.language||
 "text"} \u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF`:r?s.textContent=`\u81EA\u52D5\u9078\u629E: \u6700\u65B0\u306E ${r.
 language||"text"} \u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF`:s.textContent="\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u751F\u6210\u5F8C\u306B\u81EA\u52D5\u6709\u52B9\u5316";
 a&&a.classList.toggle("hidden",!codingTargetSelection),syncCodingTargetButtons()}o(syncCodingModeUi,
@@ -1324,9 +1324,9 @@ rue";t.set(`${i}:${r}`,l)})}),t}o(snapshotCodeCollapseByMessage,"snapshotCodeCol
 e&&e.querySelectorAll(".message-group").forEach(i=>{const s=i.getAttribute("id")||"";i.querySelectorAll(
 ".code-wrapper").forEach((a,r)=>{const l=a.getAttribute("data-code-key")||String(r),d=`${s}:${l}`,p=t&&
 t.has(d)?t.get(d):n;a.setAttribute("data-collapsed",p?"true":"false"),a.classList.toggle("collapsed",
-!!p);const g=a.querySelector(".code-toggle");g&&(g.setAttribute("aria-expanded",p?"false":"true"),g.
-innerHTML=p?'<i class="fas fa-chevron-down"></i>':'<i class="fas fa-chevron-up"></i>',g.title=p?"\u5C55\u958B":
-"\u6298\u308A\u305F\u305F\u3080",g.setAttribute("aria-label",p?"\u5C55\u958B":"\u6298\u308A\u305F\u305F\u3080"))})})}
+!!p);const h=a.querySelector(".code-toggle");h&&(h.setAttribute("aria-expanded",p?"false":"true"),h.
+innerHTML=p?'<i class="fas fa-chevron-down"></i>':'<i class="fas fa-chevron-up"></i>',h.title=p?"\u5C55\u958B":
+"\u6298\u308A\u305F\u305F\u3080",h.setAttribute("aria-label",p?"\u5C55\u958B":"\u6298\u308A\u305F\u305F\u3080"))})})}
 o(applyCodeCollapseByMessage,"applyCodeCollapseByMessage");function buildTokenTotals(e){const t={tokens_total:0,
 tokens_in:0,tokens_out:0,tokens_content:0,tokens_thought:0};let n=!1,i=!1,s=!1,a=!1,r=!1;return(e||[]).
 forEach(l=>{if(!l)return;let d=null;l.tokens!==null&&l.tokens!==void 0?d=Number(l.tokens||0):(l.tokens_in!==
@@ -1534,8 +1534,8 @@ e.classList.add("hidden");const t=get("thinking-slide-inner");t&&(t.style.transf
 "click",()=>closeMinimalOptions()),document.addEventListener("keydown",r=>{if(r.key==="Escape"){if(minimalOptionsOpen){
 closeMinimalOptions();return}thinkingSliderOpen&&hideThinkingSlider()}});const n=get("thinking-slide\
 r");n&&n.addEventListener("input",()=>{const r=Number(n.value),l=allowedThinkingValues(),d=get("thin\
-king-level");if(l.length){const p=l.map(h=>thinkingIndexFromValue(h)),g=p.includes(r)?r:p.reduce((h,v)=>Math.
-abs(v-r)<Math.abs(h-r)?v:h,p[0]);d&&(d.value=THINKING_LEVELS[g].value,d.dispatchEvent(new Event("cha\
+king-level");if(l.length){const p=l.map(g=>thinkingIndexFromValue(g)),h=p.includes(r)?r:p.reduce((g,v)=>Math.
+abs(v-r)<Math.abs(g-r)?v:g,p[0]);d&&(d.value=THINKING_LEVELS[h].value,d.dispatchEvent(new Event("cha\
 nge",{bubbles:!0})))}syncThinkingSliderUi(),scheduleThinkingSliderHide()});const i=get("thinking-sli\
 de-close-btn");i&&i.addEventListener("click",r=>{r.stopPropagation(),hideThinkingSlider()});const s=get(
 "thinking-slide-bar");if(s){const r=get("thinking-slide-inner");s.addEventListener("touchstart",l=>{
@@ -1544,7 +1544,7 @@ l.touches[0].clientX,thinkingSliderAxis=null,r&&r.classList.add("dragging"))},{p
 "touchmove",l=>{if(!thinkingSliderDragging)return;const d=l.touches[0].clientX-thinkingSliderStartX,
 p=l.touches[0].clientY-thinkingSliderStartY;if(thinkingSliderAxis===null&&(Math.abs(d)>8||Math.abs(p)>
 8)&&(thinkingSliderAxis=Math.abs(p)>Math.abs(d)?"v":"h"),thinkingSliderAxis==="v")if(p>0){l.cancelable&&
-l.preventDefault();const g=Math.min((p-8)*.5,120);r&&(r.style.transform=g>0?`translateY(${g}px)`:"")}else
+l.preventDefault();const h=Math.min((p-8)*.5,120);r&&(r.style.transform=h>0?`translateY(${h}px)`:"")}else
 r&&(r.style.transform="")},{passive:!1}),s.addEventListener("touchend",l=>{if(!thinkingSliderDragging)
 return;thinkingSliderDragging=!1;const d=l.changedTouches[0].clientY-thinkingSliderStartY;r&&r.classList.
 remove("dragging"),thinkingSliderAxis==="v"&&d>100?(r&&(r.style.transform=`translateY(${Math.max(d*.5,
@@ -1601,9 +1601,9 @@ null;const e=get("prompt-input");e&&(e.value="",e.style.height="auto"),currentIm
 "prompt-input");i.value=n||"",i.focus(),i.style.height="auto",i.style.height=i.scrollHeight+"px";const s=allMessages.
 find(d=>d.id==e),a=messageMeta[e]||{};s?currentParentId=s.parent_id===void 0?null:s.parent_id:a.parent_id!==
 void 0&&(currentParentId=a.parent_id),editingMessageId=e,setEditUi(!0);const r=s?s.image_url:a.image_url;
-if(r)try{const d=JSON.parse(r);Array.isArray(d)&&d.length?(currentImageUrls=d.map(p=>{let g="unknown",
-h=p;p&&typeof p=="object"&&(g=normalizeAttachmentSource(p.source),h=p.filepath||p.path||p.url||p.file||
-"");const v=normalizeAttachmentPath(h);return v&&setAttachmentSourceForPath(v,g),v}).filter(Boolean),
+if(r)try{const d=JSON.parse(r);Array.isArray(d)&&d.length?(currentImageUrls=d.map(p=>{let h="unknown",
+g=p;p&&typeof p=="object"&&(h=normalizeAttachmentSource(p.source),g=p.filepath||p.path||p.url||p.file||
+"");const v=normalizeAttachmentPath(g);return v&&setAttachmentSourceForPath(v,h),v}).filter(Boolean),
 get("file-preview").classList.remove("hidden"),get("file-name").innerText=`${currentImageUrls.length}\
  files ready`):(currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-input").value=
 "")}catch{currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-input").value=""}else
@@ -1820,18 +1820,18 @@ return;const n=(t||e).split(".").pop().toLowerCase(),i=["png","jpg","jpeg","webp
 ov","mkv","avi","m4v","webm"],a=["mp3","wav","m4a","ogg","flac"],r=["pdf","txt","md","csv","log","js\
 on","docx"];if(i.includes(n)){openImageViewer(e);return}const l=get("file-viewer"),d=get("file-viewe\
 r-body"),p=get("file-viewer-title");if(!(!l||!d||!p)){if(p.textContent=t||"File Preview",d.replaceChildren(),
-s.includes(n)){const g=document.createElement("video");g.src=String(e),g.controls=!0,g.playsInline=!0,
-g.preload="metadata",d.appendChild(g)}else if(a.includes(n)){const g=document.createElement("audio");
-g.src=String(e),g.controls=!0,d.appendChild(g)}else if(r.includes(n)){const g=document.createElement(
-"iframe");g.src=String(e),g.setAttribute("sandbox",""),g.referrerPolicy="no-referrer",d.appendChild(
-g)}else{const g=document.createElement("div");g.className="fallback",g.appendChild(document.createTextNode(
+s.includes(n)){const h=document.createElement("video");h.src=String(e),h.controls=!0,h.playsInline=!0,
+h.preload="metadata",d.appendChild(h)}else if(a.includes(n)){const h=document.createElement("audio");
+h.src=String(e),h.controls=!0,d.appendChild(h)}else if(r.includes(n)){const h=document.createElement(
+"iframe");h.src=String(e),h.setAttribute("sandbox",""),h.referrerPolicy="no-referrer",d.appendChild(
+h)}else{const h=document.createElement("div");h.className="fallback",h.appendChild(document.createTextNode(
 "\u3053\u306E\u5F62\u5F0F\u306F\u30D7\u30EC\u30D3\u30E5\u30FC\u3067\u304D\u307E\u305B\u3093\u3002"));
-const h=document.createElement("div");h.className="mt-3 flex justify-center gap-2";const v=document.
+const g=document.createElement("div");g.className="mt-3 flex justify-center gap-2";const v=document.
 createElement("a");v.href=String(e),v.download="",v.className="px-3 py-1 bg-gray-800 text-white roun\
 ded text-xs border border-gray-700",v.textContent="\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9";const b=document.
 createElement("a");b.href=String(e),b.target="_blank",b.rel="noopener noreferrer",b.className=v.className,
-b.textContent="\u65B0\u3057\u3044\u30BF\u30D6\u3067\u958B\u304F",h.append(v,b),g.appendChild(h),d.appendChild(
-g)}l.classList.add("visible")}}o(openFileViewer,"openFileViewer");function closeFileViewer(){const e=get(
+b.textContent="\u65B0\u3057\u3044\u30BF\u30D6\u3067\u958B\u304F",g.append(v,b),h.appendChild(g),d.appendChild(
+h)}l.classList.add("visible")}}o(openFileViewer,"openFileViewer");function closeFileViewer(){const e=get(
 "file-viewer"),t=get("file-viewer-body");!e||!t||(t.innerHTML="",e.classList.remove("visible"))}o(closeFileViewer,
 "closeFileViewer");function showToast(e,t="error",n=!1,i=null){const s=get("toast-stack");if(!s)return;
 for(;s.children.length>=3;)s.removeChild(s.firstChild);const a=document.createElement("div");return a.
@@ -1873,12 +1873,12 @@ l}o(getSectionSnippet,"getSectionSnippet");function removeSearchOverlays(){ALL_T
 t.children).forEach(i=>{i.classList.contains("settings-no-results")||(i.style.display="")})})}o(removeSearchOverlays,
 "removeSearchOverlays");function filterSettings(){const e=get("settings-search");if(!e)return;const t=e.
 value.trim().toLowerCase(),n=get("settings-search-clear");if(n&&n.classList.toggle("hidden",!t),removeSearchOverlays(),
-!t){ALL_TABS.forEach(l=>{const d=get("btn-tab-"+l);if(d){const g=d.querySelector(".settings-search-b\
-adge");g&&g.remove()}const p=get("tab-"+l);p&&p.classList.toggle("hidden",l!==activeSettingsTab)});return}
+!t){ALL_TABS.forEach(l=>{const d=get("btn-tab-"+l);if(d){const h=d.querySelector(".settings-search-b\
+adge");h&&h.remove()}const p=get("tab-"+l);p&&p.classList.toggle("hidden",l!==activeSettingsTab)});return}
 let i=[];ALL_TABS.forEach(l=>{const d=get("tab-"+l);d&&(d.classList.add("hidden"),Array.from(d.children).
 forEach(p=>{if(!(p.classList.contains("settings-no-results")||p.classList.contains("settings-search-\
-overlay"))&&p.textContent.toLowerCase().includes(t)){const g=getSectionHeading(p)||l,h=getSectionSnippet(
-p,t);i.push({tabId:l,title:g,snippet:h,element:p})}}))});let s=activeSettingsTab;if(!i.some(l=>l.tabId===
+overlay"))&&p.textContent.toLowerCase().includes(t)){const h=getSectionHeading(p)||l,g=getSectionSnippet(
+p,t);i.push({tabId:l,title:h,snippet:g,element:p})}}))});let s=activeSettingsTab;if(!i.some(l=>l.tabId===
 s)){const l=i.find(d=>d.tabId);l&&(s=l.tabId)}const a=get("tab-"+s);if(!a)return;a.classList.remove(
 "hidden"),Array.from(a.children).forEach(l=>{l.classList.contains("settings-no-results")||l.classList.
 contains("settings-search-overlay")||(l.style.display="none")});const r=document.createElement("div");
@@ -1888,19 +1888,19 @@ div><div class="settings-empty-title">\u4E00\u81F4\u3059\u308B\u8A2D\u5B9A\u306F
 const d=document.createElement("div");d.className="settings-empty-sub",d.textContent="\u300C"+t+"\u300D\u306B\u4E00\
 \u81F4\u3059\u308B\u8A2D\u5B9A\u9805\u76EE\u306F\u3042\u308A\u307E\u305B\u3093\u3002",l.appendChild(
 d),r.appendChild(l)}else{const l=document.createElement("div");l.className="settings-search-count",l.
-textContent=i.length+"\u4EF6\u306E\u4E00\u81F4",r.appendChild(l);let d=null;i.forEach((p,g)=>{if(p.tabId!==
+textContent=i.length+"\u4EF6\u306E\u4E00\u81F4",r.appendChild(l);let d=null;i.forEach((p,h)=>{if(p.tabId!==
 d){if(d!==null){const L=document.createElement("div");L.className="border-t border-gray-700/50 my-1.\
 5",r.appendChild(L)}if(p.tabId!==s){const L=document.createElement("div");L.className="text-[10px] t\
 ext-gray-500 px-1 pb-1 font-bold",L.textContent="\u25BC "+(TAB_LABELS[p.tabId]||p.tabId),r.appendChild(
-L)}d=p.tabId}const h=document.createElement("div");h.className="settings-search-result-item flex ite\
-ms-start gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150",h.style.animation=
-"fadeIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both",h.style.animationDelay=g*30+"ms";const v=document.
+L)}d=p.tabId}const g=document.createElement("div");g.className="settings-search-result-item flex ite\
+ms-start gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150",g.style.animation=
+"fadeIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both",g.style.animationDelay=h*30+"ms";const v=document.
 createElement("span");v.className="settings-result-tab-badge shrink-0 mt-0.5",v.textContent=TAB_LABELS[p.
 tabId]||p.tabId;const b=document.createElement("div");b.className="min-w-0 flex-1";const w=document.
 createElement("div");w.className="text-sm font-bold text-white truncate",w.textContent=p.title;const x=document.
 createElement("div");x.className="text-[11px] text-gray-400 truncate mt-0.5",x.textContent=p.snippet,
-b.appendChild(w),b.appendChild(x),h.appendChild(v),h.appendChild(b),h.addEventListener("click",()=>jumpToSetting(
-p.tabId,p.element)),r.appendChild(h)})}a.insertBefore(r,a.firstChild)}o(filterSettings,"filterSettin\
+b.appendChild(w),b.appendChild(x),g.appendChild(v),g.appendChild(b),g.addEventListener("click",()=>jumpToSetting(
+p.tabId,p.element)),r.appendChild(g)})}a.insertBefore(r,a.firstChild)}o(filterSettings,"filterSettin\
 gs");function jumpToSetting(e,t){const n=get("settings-search");n&&(n.value=""),removeSearchOverlays(),
 filterSettings(),e!==activeSettingsTab&&switchTab(e),setTimeout(()=>{t.scrollIntoView({behavior:"smo\
 oth",block:"center"}),t.classList.add("settings-jump-highlight"),setTimeout(()=>t.classList.remove("\
@@ -1926,22 +1926,22 @@ arrow-right");if(!e||!t||!n||!i)return;if(e.dataset.scrollBound==="1"){syncSetti
 e.dataset.scrollBound="1";const s=56;let a=0,r=0,l=0;const d=o(b=>{const w=e.getBoundingClientRect();
 if(!w.width)return;const x=b-w.left;e.classList.toggle("is-edge-left",x>=0&&x<=s),e.classList.toggle(
 "is-edge-right",x>=w.width-s&&x<=w.width)},"updateEdgeHover"),p=o(()=>{l||e.classList.remove("is-edg\
-e-left","is-edge-right")},"clearEdgeHover"),g=o((b,w)=>{const x=getSettingsTabsMaxScroll(t);if(x<=0||
+e-left","is-edge-right")},"clearEdgeHover"),h=o((b,w)=>{const x=getSettingsTabsMaxScroll(t);if(x<=0||
 !b)return;const L=Math.max(0,Math.min(x,t.scrollLeft+b));w&&typeof t.scrollTo=="function"?t.scrollTo(
-{left:L,behavior:"smooth"}):t.scrollLeft=L,syncSettingsTabsOverflow()},"scrollTabsBy"),h=o(()=>{l=0,
-a&&(clearTimeout(a),a=0),r&&(cancelAnimationFrame(r),r=0)},"stopHold"),v=o(b=>{h(),l=b,e.classList.toggle(
-"is-edge-left",b<0),e.classList.toggle("is-edge-right",b>0),g(b*Math.max(120,t.clientWidth*.55),!0),
-a=setTimeout(()=>{const w=o(()=>{l&&(g(l*14,!1),r=requestAnimationFrame(w))},"step");r=requestAnimationFrame(
+{left:L,behavior:"smooth"}):t.scrollLeft=L,syncSettingsTabsOverflow()},"scrollTabsBy"),g=o(()=>{l=0,
+a&&(clearTimeout(a),a=0),r&&(cancelAnimationFrame(r),r=0)},"stopHold"),v=o(b=>{g(),l=b,e.classList.toggle(
+"is-edge-left",b<0),e.classList.toggle("is-edge-right",b>0),h(b*Math.max(120,t.clientWidth*.55),!0),
+a=setTimeout(()=>{const w=o(()=>{l&&(h(l*14,!1),r=requestAnimationFrame(w))},"step");r=requestAnimationFrame(
 w)},280)},"startHold");if(e.addEventListener("pointermove",b=>{b.pointerType!=="touch"&&d(b.clientX)}),
 e.addEventListener("pointerenter",b=>{b.pointerType!=="touch"&&d(b.clientX)}),e.addEventListener("po\
-interleave",b=>{b.pointerType!=="touch"&&(h(),p())}),e.addEventListener("wheel",b=>{const w=getSettingsTabsMaxScroll(
+interleave",b=>{b.pointerType!=="touch"&&(g(),p())}),e.addEventListener("wheel",b=>{const w=getSettingsTabsMaxScroll(
 t);if(w<=2)return;const L=Math.abs(b.deltaY)>=Math.abs(b.deltaX)?b.deltaY:b.deltaX;if(!L)return;const T=Math.
 max(0,Math.min(w,t.scrollLeft+L));T!==t.scrollLeft&&(b.preventDefault(),t.scrollLeft=T,syncSettingsTabsOverflow())},
 {passive:!1}),n.addEventListener("pointerdown",b=>{b.button!=null&&b.button!==0||(b.preventDefault(),
 v(-1))}),i.addEventListener("pointerdown",b=>{b.button!=null&&b.button!==0||(b.preventDefault(),v(1))}),
 n.addEventListener("click",b=>{b.preventDefault(),b.stopPropagation()}),i.addEventListener("click",b=>{
-b.preventDefault(),b.stopPropagation()}),window.addEventListener("pointerup",h),window.addEventListener(
-"pointercancel",h),window.addEventListener("blur",h),t.addEventListener("scroll",syncSettingsTabsOverflow,
+b.preventDefault(),b.stopPropagation()}),window.addEventListener("pointerup",g),window.addEventListener(
+"pointercancel",g),window.addEventListener("blur",g),t.addEventListener("scroll",syncSettingsTabsOverflow,
 {passive:!0}),window.addEventListener("resize",syncSettingsTabsOverflow),typeof ResizeObserver!="und\
 efined")try{const b=new ResizeObserver(()=>syncSettingsTabsOverflow());b.observe(t),b.observe(e)}catch{}
 syncSettingsTabsOverflow()}o(initSettingsTabsScroll,"initSettingsTabsScroll"),initSettingsTabsScroll();
@@ -2029,20 +2029,20 @@ n,viewerSwipe.dy=i,!viewerSwipe.active){if(Math.abs(n)<10&&Math.abs(i)<10)return
 abs(i)*1.15){viewerSwipe=null;return}viewerSwipe.active=!0,viewerSwipe.dir=n>0?-1:1,viewerSwipe.adjacent=
 getViewerAdjacent(viewerSwipe.dir),viewerSwipe.adjacent||(viewerSwipe.resist=!0)}e.preventDefault();
 const l=get("image-viewer-img");if(!l)return;const d=document.querySelector(".viewer-content"),p=d?d.
-clientWidth:window.innerWidth,g=viewerSwipe.resist?n*.3:n;l.style.transition="none",l.style.transform=
-`translateX(${g}px) scale(${1-Math.min(Math.abs(g)/(p*4),.04)})`,l.style.opacity=String(Math.max(1-Math.
-min(Math.abs(g)/(p*.45),.55),.4));const h=viewerSwipe.adjacent;if(h){const v=Number(h.dataset.dir)||
-0;h.style.transition="none",h.style.transform=`translate(-50%, -50%) translateX(${v*p+n}px) scale(0.\
-97)`,h.style.opacity=String(Math.min(Math.abs(n)/(p*.3),1))}}o(onViewerTouchMove,"onViewerTouchMove");
+clientWidth:window.innerWidth,h=viewerSwipe.resist?n*.3:n;l.style.transition="none",l.style.transform=
+`translateX(${h}px) scale(${1-Math.min(Math.abs(h)/(p*4),.04)})`,l.style.opacity=String(Math.max(1-Math.
+min(Math.abs(h)/(p*.45),.55),.4));const g=viewerSwipe.adjacent;if(g){const v=Number(g.dataset.dir)||
+0;g.style.transition="none",g.style.transform=`translate(-50%, -50%) translateX(${v*p+n}px) scale(0.\
+97)`,g.style.opacity=String(Math.min(Math.abs(n)/(p*.3),1))}}o(onViewerTouchMove,"onViewerTouchMove");
 function onViewerTouchEnd(){if(!viewerSwipe)return;const e=viewerSwipe;if(viewerSwipe=null,!e.active)
 return;suppressViewerCloseClick=!0,setTimeout(()=>{suppressViewerCloseClick=!1},120);const t=get("im\
 age-viewer-img");if(!t)return;const n=document.querySelector(".viewer-content"),i=n?n.clientWidth:window.
 innerWidth,s=i*.22,a=e.dir||(e.dx>0?-1:1),r=window.matchMedia&&window.matchMedia("(prefers-reduced-m\
 otion: reduce)").matches,l=!e.resist&&(Math.abs(e.dx)>s||Math.abs(e.vx)>.45&&Math.sign(e.dx)===a),d=e.
 adjacent;if(!l){if(t.style.transition="transform 0.32s var(--ease-out), opacity 0.32s var(--ease-out\
-)",t.style.transform="translateX(0) scale(1)",t.style.opacity="1",d){const g=d;d.style.transition="t\
+)",t.style.transform="translateX(0) scale(1)",t.style.opacity="1",d){const h=d;d.style.transition="t\
 ransform 0.32s var(--ease-out), opacity 0.32s var(--ease-out)",d.style.transform=`translate(-50%, -5\
-0%) translateX(${a*i}px) scale(0.97)`,d.style.opacity="0",setTimeout(()=>{g.isConnected&&g.remove()},
+0%) translateX(${a*i}px) scale(0.97)`,d.style.opacity="0",setTimeout(()=>{h.isConnected&&h.remove()},
 340)}return}if(r){finishSwipeNav(a);return}const p=a*i;t.style.transition="transform 0.3s var(--ease\
 -out), opacity 0.3s var(--ease-out)",t.style.transform=`translateX(${p}px) scale(0.96)`,t.style.opacity=
 "0.2",d&&(d.style.transition="transform 0.3s var(--ease-out), opacity 0.3s var(--ease-out)",d.style.
@@ -2569,30 +2569,30 @@ n.classList.remove("hidden"),i&&i.classList.add("hidden"),s&&s.classList.add("hi
 window.VoiceStudio.closeIfOpen())}o(updateStsUi,"updateStsUi");function updateStsOptions(){if(!isStsModel())
 return;const e=get("model-select").value||"",t=getStsProvider(e),n=get("sts-voice"),i=get("sts-speed\
 -wrap"),s=get("sts-speed"),a=get("sts-speed-label"),r=get("sts-rate-wrap"),l=get("sts-rate-in"),d=get(
-"sts-rate-out"),p=get("sts-thinking-wrap"),g=get("sts-note"),h=get("sts-voice-wrap"),v=get("sts-auto\
+"sts-rate-out"),p=get("sts-thinking-wrap"),h=get("sts-note"),g=get("sts-voice-wrap"),v=get("sts-auto\
 -play-wrap"),b=get("sts-mode-label"),w=isTranscriptionModel()||isGeminiLiveTranscribeModel(),x=get("\
-sts-lang-wrap");if(w){b&&(b.textContent="Realtime Speech-to-Text"),h&&h.classList.add("hidden"),v&&v.
+sts-lang-wrap");if(w){b&&(b.textContent="Realtime Speech-to-Text"),g&&g.classList.add("hidden"),v&&v.
 classList.add("hidden"),i&&i.classList.add("hidden"),r&&r.classList.add("hidden"),p&&p.classList.add(
 "hidden"),x&&x.classList.add("hidden");const L=get("sts-transcribe-wrap"),T=get("sts-custom-vocab-wr\
 ap");L&&L.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),T&&T.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),
-g&&(g.textContent=isGeminiLiveTranscribeModel()?"\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u4F4E\u9045\u5EF6\u6587\u5B57\u8D77\u3053\u3057\uFF0816kHz PCM / \u6700\u592710\u5206\uFF09":
+h&&(h.textContent=isGeminiLiveTranscribeModel()?"\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u4F4E\u9045\u5EF6\u6587\u5B57\u8D77\u3053\u3057\uFF0816kHz PCM / \u6700\u592710\u5206\uFF09":
 e==="gpt-live-transcribe"?"\u4F4E\u9045\u5EF6\u30E9\u30A4\u30D6\u6587\u5B57\u8D77\u3053\u3057\uFF0824kHz PCM\uFF09":
 "\u9AD8\u7CBE\u5EA6\u306A\u30B3\u30DF\u30C3\u30C8\u5358\u4F4D\u306E\u6587\u5B57\u8D77\u3053\u3057\uFF0824kHz PCM\uFF09")}else
-t==="openai"?(b&&(b.textContent="Speech-to-Speech Live"),h&&h.classList.remove("hidden"),v&&v.classList.
+t==="openai"?(b&&(b.textContent="Speech-to-Speech Live"),g&&g.classList.remove("hidden"),v&&v.classList.
 remove("hidden"),setSelectOptions(n,OPENAI_STS_VOICES,n.value||"alloy"),i&&i.classList.remove("hidde\
 n"),s&&(s.min=.25,s.max=1.5,s.step=.05,s.value||(s.value=1),Number(s.value)<.25&&(s.value=.25),Number(
 s.value)>1.5&&(s.value=1.5)),r&&r.classList.add("hidden"),p&&p.classList.add("hidden"),x&&x.classList.
-add("hidden"),g&&(g.textContent="OpenAI Realtime\u306F24kHz PCM\u56FA\u5B9A")):t==="xai"?(b&&(b.textContent=
-"Speech-to-Speech Live"),h&&h.classList.remove("hidden"),v&&v.classList.remove("hidden"),setSelectOptions(
+add("hidden"),h&&(h.textContent="OpenAI Realtime\u306F24kHz PCM\u56FA\u5B9A")):t==="xai"?(b&&(b.textContent=
+"Speech-to-Speech Live"),g&&g.classList.remove("hidden"),v&&v.classList.remove("hidden"),setSelectOptions(
 n,GROK_STS_VOICES,n.value||"Ara"),i&&i.classList.add("hidden"),r&&r.classList.remove("hidden"),p&&p.
 classList.add("hidden"),x&&x.classList.add("hidden"),setSelectOptions(l,GROK_PCM_RATES,Number(l.value||
-24e3)),setSelectOptions(d,GROK_PCM_RATES,Number(d.value||24e3)),g&&(g.textContent="xAI\u306FPCM\u30B5\u30F3\u30D7\u30EB\u30EC\u30FC\u30C8\u5909\u66F4\u53EF")):
-t==="gemini"&&(b&&(b.textContent="Speech-to-Speech Live"),h&&h.classList.remove("hidden"),v&&v.classList.
+24e3)),setSelectOptions(d,GROK_PCM_RATES,Number(d.value||24e3)),h&&(h.textContent="xAI\u306FPCM\u30B5\u30F3\u30D7\u30EB\u30EC\u30FC\u30C8\u5909\u66F4\u53EF")):
+t==="gemini"&&(b&&(b.textContent="Speech-to-Speech Live"),g&&g.classList.remove("hidden"),v&&v.classList.
 remove("hidden"),setSelectOptions(n,GEMINI_STS_VOICES,n.value||"Kore"),i&&i.classList.add("hidden"),
-r&&r.classList.add("hidden"),p&&p.classList.remove("hidden"),x&&x.classList.add("hidden"),g&&(g.textContent=
+r&&r.classList.add("hidden"),p&&p.classList.remove("hidden"),x&&x.classList.add("hidden"),h&&(h.textContent=
 "Gemini Live\u306F\u97F3\u58F0\u901F\u5EA6\u5909\u66F4\u975E\u5BFE\u5FDC"),e==="gemini-3.5-live-tran\
-slate-preview"&&(b&&(b.textContent="Realtime Translation"),p&&p.classList.add("hidden"),h&&h.classList.
-add("hidden"),x&&x.classList.remove("hidden"),g&&(g.textContent="70\u4EE5\u4E0A\u306E\u8A00\u8A9E\u306B\u5BFE\u5FDC\u3059\u308B\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u97F3\u58F0\u7FFB\u8A33\uFF08Think\u975E\u5BFE\u5FDC\u30FB\u97F3\u58F0\u9078\
+slate-preview"&&(b&&(b.textContent="Realtime Translation"),p&&p.classList.add("hidden"),g&&g.classList.
+add("hidden"),x&&x.classList.remove("hidden"),h&&(h.textContent="70\u4EE5\u4E0A\u306E\u8A00\u8A9E\u306B\u5BFE\u5FDC\u3059\u308B\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u97F3\u58F0\u7FFB\u8A33\uFF08Think\u975E\u5BFE\u5FDC\u30FB\u97F3\u58F0\u9078\
 \u629E\u4E0D\u53EF\uFF09")));i&&a&&s&&!i.classList.contains("hidden")&&(a.textContent=`${Number(s.value||
 1).toFixed(2)}x`)}o(updateStsOptions,"updateStsOptions");function stsOpt(e){const t=get(e);return e===
 "sts-auto-play"||e==="sts-auto-restart"?t?!!t.checked:!0:t?!!t.checked:!1}o(stsOpt,"stsOpt");function getStsSilenceMs(){
@@ -2606,20 +2606,20 @@ e.appendChild(s)}))}o(setSelectOptions,"setSelectOptions");function updateTtsUi(
 -select").value||"",t=getTtsProvider(e),n=get("audio-gen-options");if(!n)return;if(!t){n.classList.add(
 "hidden");return}n.classList.remove("hidden");const i=get("tts-voice"),s=get("tts-voice-custom-wrap"),
 a=get("tts-voice-custom"),r=get("tts-language-wrap"),l=get("tts-language"),d=get("tts-speed-wrap"),p=get(
-"tts-speed"),g=get("tts-speed-label"),h=get("tts-speed-note");t==="openai"?(setSelectOptions(i,OPENAI_TTS_VOICES,
+"tts-speed"),h=get("tts-speed-label"),g=get("tts-speed-note");t==="openai"?(setSelectOptions(i,OPENAI_TTS_VOICES,
 i.value||"alloy"),s.classList.add("hidden"),r.classList.add("hidden"),p&&(p.min=.25,p.max=4,p.step=.05,
 p.value||(p.value=1),Number(p.value)<.25&&(p.value=.25),Number(p.value)>4&&(p.value=4),p.disabled=!1),
-h&&(h.textContent="")):t==="gemini"?(setSelectOptions(i,GEMINI_TTS_VOICES,i.value||"Kore"),s.classList.
-add("hidden"),r.classList.add("hidden"),p&&(p.disabled=!0),h&&(h.textContent="(Gemini TTS\u306F\u901F\u5EA6\u5909\u66F4\u975E\u5BFE\u5FDC)")):
+g&&(g.textContent="")):t==="gemini"?(setSelectOptions(i,GEMINI_TTS_VOICES,i.value||"Kore"),s.classList.
+add("hidden"),r.classList.add("hidden"),p&&(p.disabled=!0),g&&(g.textContent="(Gemini TTS\u306F\u901F\u5EA6\u5909\u66F4\u975E\u5BFE\u5FDC)")):
 t==="google"?(setSelectOptions(i,[{value:"auto",label:"Auto (Studio/Neural2)"},{value:"custom",label:"\
 Custom Voice Name"}],i.value||"auto"),i.value==="custom"?s.classList.remove("hidden"):(s.classList.add(
 "hidden"),a&&(a.value="")),r.classList.remove("hidden"),l&&!l.value&&(l.value="ja-JP"),p&&(p.min=.25,
 p.max=2,p.step=.05,p.value||(p.value=1),Number(p.value)<.25&&(p.value=.25),Number(p.value)>2&&(p.value=
-2),p.disabled=!1),h&&(h.textContent="")):t==="xai"&&(setSelectOptions(i,GROK_TTS_VOICES,i.value||"Ev\
+2),p.disabled=!1),g&&(g.textContent="")):t==="xai"&&(setSelectOptions(i,GROK_TTS_VOICES,i.value||"Ev\
 e"),s.classList.remove("hidden"),r.classList.remove("hidden"),l&&!l.value&&(l.value="ja"),p&&(p.min=
 .7,p.max=1.5,p.step=.05,p.value||(p.value=1),Number(p.value)<.7&&(p.value=.7),Number(p.value)>1.5&&(p.
-value=1.5),p.disabled=!1),h&&(h.textContent="xAI TTS supports speed 0.7\u20131.5 and speech tags")),
-p&&g&&(g.textContent=`${Number(p.value||1).toFixed(2)}x`)}o(updateTtsUi,"updateTtsUi");let mcpServers=[],
+value=1.5),p.disabled=!1),g&&(g.textContent="xAI TTS supports speed 0.7\u20131.5 and speech tags")),
+p&&h&&(h.textContent=`${Number(p.value||1).toFixed(2)}x`)}o(updateTtsUi,"updateTtsUi");let mcpServers=[],
 mcpLoaded=!1,mcpLoadPromise=null,mcpOauthPopups=[];const MCP_URLS={servers:o(()=>"/api/mcp/servers",
 "servers"),server:o(e=>`/api/mcp/servers/${encodeURIComponent(e)}`,"server"),test:o(e=>`/api/mcp/ser\
 vers/${encodeURIComponent(e)}/test`,"test"),authStart:o(e=>`/api/mcp/servers/${encodeURIComponent(e)}\
@@ -2667,16 +2667,16 @@ mcpStatusMsg("mcp-status-msg","");return}const i=mcpServers.map((s,a)=>mcpServer
 e.innerHTML=i,mcpStatusMsg("mcp-status-msg","")}o(renderMcpServers,"renderMcpServers");function mcpServerCard(e,t){
 const n=!!e.is_preset,i=e.auth_type==="oauth",s=e.auth_type==="bearer",a=i||s,r=i&&!e.oauth_client_registered,
 l=Number(e.tool_count||0),d=l>0?`${l}\u30C4\u30FC\u30EB`:"\u30C4\u30FC\u30EB\u672A\u53D6\u5F97",p=mcpStateBadge(
-e),g=n?'<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-700/50 text-blue-100">\u30D7\u30EA\u30BB\u30C3\u30C8<\
+e),h=n?'<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-700/50 text-blue-100">\u30D7\u30EA\u30BB\u30C3\u30C8<\
 /span>':'<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-700/50 text-purple-100">\u30AB\
-\u30B9\u30BF\u30E0</span>',h=mcpAuthBlock(e),v=i?mcpOauthClientBlock(e):"";return`
+\u30B9\u30BF\u30E0</span>',g=mcpAuthBlock(e),v=i?mcpOauthClientBlock(e):"";return`
 <div class="rounded border border-gray-700 bg-gray-950/50 p-3" data-mcp-server="${mcpEsc(e.slug)}">
     <div class="flex items-center justify-between gap-2 flex-wrap">
         <div class="flex items-center gap-2 min-w-0">
             <i class="fas fa-plug ${e.enabled?"text-cyan-300":"text-gray-600"}"></i>
             <div class="min-w-0">
                 <span class="text-xs font-bold text-white">${mcpEsc(e.name)}</span>
-                ${g} ${p}
+                ${h} ${p}
             </div>
         </div>
         <div class="flex items-center gap-1 shrink-0">
@@ -2715,7 +2715,7 @@ t" data-id="${e.id}"><i class="fas fa-plug"></i> \u63A5\u7D9A\u30C6\u30B9\u30C8<
 a-mcp-toolbox="${e.id}"><div class="text-[10px] text-gray-600">\u63A5\u7D9A\u30C6\u30B9\u30C8\u5F8C\u306B\u30C4\u30FC\u30EB\u4E00\u89A7\u304C\u8868\u793A\u3055\u308C\u307E\u3059\u3002</div></div>`}\
 
     ${v}
-    ${h}
+    ${g}
 </div>`}o(mcpServerCard,"mcpServerCard");function mcpAuthActionButton(e){return e.auth_type==="beare\
 r"?"":e.auth_status==="connected"||e.auth_status==="expired"?`<button type="button" data-progress-no\
 -spinner="true" class="mcp-mini-btn mcp-auth-btn" data-act="reconnect" data-id="${e.id}"><i class="f\
@@ -2831,11 +2831,11 @@ try{const a=await apiFetch(MCP_URLS.oauthClient(),{method:"PUT",headers:{"Conten
 (a&&a.message?a.message:a),!0)}}o(mcpSaveOauthClient,"mcpSaveOauthClient");async function mcpAddCustomServer(){
 const e=get("mcp-custom-name"),t=get("mcp-custom-url"),n=get("mcp-custom-auth"),i=get("mcp-custom-de\
 sc"),s=get("mcp-custom-bearer"),a=get("mcp-custom-status"),r=get("mcp-add-server-btn");if(!e||!t||!n)
-return;const l=(e.value||"").trim(),d=(t.value||"").trim(),p=n.value||"none",g=i?(i.value||"").trim():
-"",h=(s&&s.value||"").trim();if(!l||!d){a&&(a.textContent="\u8868\u793A\u540D\u3068URL\u306F\u5FC5\u9808\u3067\u3059",
+return;const l=(e.value||"").trim(),d=(t.value||"").trim(),p=n.value||"none",h=i?(i.value||"").trim():
+"",g=(s&&s.value||"").trim();if(!l||!d){a&&(a.textContent="\u8868\u793A\u540D\u3068URL\u306F\u5FC5\u9808\u3067\u3059",
 a.style.color="#f87171");return}r&&(r.disabled=!0),a&&(a.textContent="\u63A5\u7D9A\u30C6\u30B9\u30C8\u4E2D...",
-a.style.color="#9ca3af");const v={name:l,url:d,auth_type:p,description:g};p==="bearer"&&h&&(v.bearer_token=
-h);try{const b=await apiFetch(MCP_URLS.servers(),{method:"POST",headers:{"Content-Type":"application\
+a.style.color="#9ca3af");const v={name:l,url:d,auth_type:p,description:h};p==="bearer"&&g&&(v.bearer_token=
+g);try{const b=await apiFetch(MCP_URLS.servers(),{method:"POST",headers:{"Content-Type":"application\
 /json"},body:JSON.stringify(v)}),w=await b.json().catch(()=>({}));if(!b.ok){a&&(a.textContent=w.error||
 "\u8FFD\u52A0\u306B\u5931\u6557\u3057\u307E\u3057\u305F",a.style.color="#f87171");return}a&&(a.textContent=
 w.probe&&w.probe.message||"\u8FFD\u52A0\u3057\u307E\u3057\u305F",a.style.color=w.probe&&w.probe.ok?"\
@@ -2854,7 +2854,7 @@ const l=r.getAttribute("data-act"),d=r.getAttribute("data-id");if(l==="test"){a.
 d);return}if(l==="tools"){a.preventDefault(),mcpLoadTools(d);return}if(l==="auth"||l==="reconnect"){
 a.preventDefault(),mcpOpenAuth(d);return}if(l==="disconnect"){a.preventDefault(),mcpDisconnect(d);return}
 if(l==="delete"){a.preventDefault(),mcpDeleteServer(d);return}if(l==="edit-oauth"){if(a.preventDefault(),
-r.closest("[data-mcp-server]")){const g=r.getAttribute("data-oauth-pk")||"",h=mcpServers.find(w=>String(
+r.closest("[data-mcp-server]")){const h=r.getAttribute("data-oauth-pk")||"",g=mcpServers.find(w=>String(
 w.id)===String(d)),v=document.createElement("div");v.className="mt-2 rounded border border-amber-700\
 /50 bg-amber-950/20 p-2",v.innerHTML=`
     <div class="grid grid-cols-1 md:grid-cols-2 gap-1">
@@ -2867,18 +2867,18 @@ hite">
     </div>
     <div class="flex justify-end mt-1 gap-1">
         <button type="button" data-progress-no-spinner="true" class="mcp-mini-btn" data-act="save-oa\
-uth" data-id="${d}" data-pk="${mcpEsc(h&&(h.oauth_provider_key||h.slug)||"")}">\u4FDD\u5B58</button>
+uth" data-id="${d}" data-pk="${mcpEsc(g&&(g.oauth_provider_key||g.slug)||"")}">\u4FDD\u5B58</button>
     </div>`;const b=r.closest("div");b.parentNode.insertBefore(v,b.nextSibling),r.remove()}return}if(l===
-"save-oauth"){a.preventDefault();const p=r.getAttribute("data-pk")||"",g=r.closest("[data-mcp-server\
-]")||document,h=g.querySelectorAll('[data-oauth-role="cid"], .mcp-oauth-edit-cid'),v=g.querySelectorAll(
-'[data-oauth-role="secret"], .mcp-oauth-edit-sec'),b=h.length?h[h.length-1].value:"",w=v.length?v[v.
+"save-oauth"){a.preventDefault();const p=r.getAttribute("data-pk")||"",h=r.closest("[data-mcp-server\
+]")||document,g=h.querySelectorAll('[data-oauth-role="cid"], .mcp-oauth-edit-cid'),v=h.querySelectorAll(
+'[data-oauth-role="secret"], .mcp-oauth-edit-sec'),b=g.length?g[g.length-1].value:"",w=v.length?v[v.
 length-1].value:"";if(!b&&!w){mcpStatusMsg("mcp-status-msg","Client ID \u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044",
 !0);return}mcpSaveOauthClient(p,b||"********",w||"********",d);return}if(l==="save-bearer"){a.preventDefault();
-const p=document.querySelector(`[data-bearer-id="${d}"]`),g=p?p.value:"";if(!g||g.trim()===""){mcpStatusMsg(
+const p=document.querySelector(`[data-bearer-id="${d}"]`),h=p?p.value:"";if(!h||h.trim()===""){mcpStatusMsg(
 "mcp-status-msg","Bearer\u30C8\u30FC\u30AF\u30F3\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044",
-!0);return}mcpStatusMsg("mcp-status-msg","\u4FDD\u5B58\u3057\u3066\u3044\u307E\u3059...",!1);try{const h=await apiFetch(
-MCP_URLS.server(d),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({bearer_token:g})}),
-v=await h.json().catch(()=>({}));if(!h.ok){mcpStatusMsg("mcp-status-msg",v.error||"\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
+!0);return}mcpStatusMsg("mcp-status-msg","\u4FDD\u5B58\u3057\u3066\u3044\u307E\u3059...",!1);try{const g=await apiFetch(
+MCP_URLS.server(d),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({bearer_token:h})}),
+v=await g.json().catch(()=>({}));if(!g.ok){mcpStatusMsg("mcp-status-msg",v.error||"\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 !0);return}mcpStatusMsg("mcp-status-msg","Bearer\u30C8\u30FC\u30AF\u30F3\u3092\u4FDD\u5B58\u3057\u307E\u3057\u305F\u3002",
 !1),loadMcpServers(!0)}catch{mcpStatusMsg("mcp-status-msg","\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 !0)}return}}),e.addEventListener("change",a=>{const r=a.target.closest(".mcp-enable-toggle");r&&mcpToggleEnabled(
@@ -2916,123 +2916,118 @@ ranscription")||a.includes("speech-to-text"))&&n.push("transcription"),(r.includ
 s.includes("agent")||a.includes("agentic")||a.includes("computer use")||a.includes("deep research"))&&
 n.push("agent"),e.agenticView&&n.push("agentic view"),n}o(getModelTags,"getModelTags");function updateModelTagUi(){
 const e=get("model-tag-bar");if(!e)return;e.querySelectorAll(".model-tag-btn").forEach(n=>{const i=n.
-innerText.trim().toLowerCase(),s=(i==="all"?"all":i)===activeModelTag;n.className=`model-tag-btn px-\
-2 py-1 text-[10px] rounded border transition ${s?"bg-blue-600/20 border-blue-500 text-blue-300":"bg-\
-gray-800 border-gray-700 text-gray-300 hover:border-gray-500"}`})}o(updateModelTagUi,"updateModelTag\
-Ui");function getModelCapabilitySearchTerms(e){const t=String(e.id||"").toLowerCase(),n=[],i=t.includes(
-"deepseek"),s=t.includes("tts"),a=t.startsWith("mistral-ocr"),r=s||a||t.includes("transcribe")||t.includes(
-"realtime")||t.includes("voice-agent")||t.includes("native-audio")||t.includes("live")||t.includes("\
-image")||t.includes("video")||t.startsWith("veo-")||t.includes("omni-flash")||t.startsWith("lyria-")||
-t.includes("embedding"),l=!r&&(t.includes("gpt")||t.includes("gemini")||t.includes("grok")||i||t.startsWith(
-"deep-research-")||t.startsWith("antigravity-")),d=o((...g)=>g.forEach(h=>n.push(h,h.replace(/-/g," "))),
-"add");if((t.includes("gemini-3.1-flash-image")||t.includes("gemini-3-pro-image")||t.includes("gemin\
-i-2.5-flash-image"))&&d("image generation","image editing"),t==="gemini-3.1-flash-lite-image"||t==="\
-gemini-3.1-flash-image"?d("thinking","\u601D\u8003","minimal","high","thinking level"):t.includes("g\
-emini")&&!r&&(d("thinking","\u601D\u8003","thinking level"),t==="gemini-3.8-flash"||t==="gemini-3.7-\
-flash"?d("low","medium","high"):t==="gemini-3.6-flash"?d("medium","high"):t==="gemini-3.5-flash-lite"?
-d("minimal","medium","high"):t.includes("flash")?d("minimal","low","medium","high"):d("low","high")),
-i&&(d("thinking","\u601D\u8003","reasoning","\u63A8\u8AD6","reasoning effort","high"),t!=="deepseek-\
-v4-pro"&&d("low"),t.includes("v4-flash")&&d("none","max")),l&&(t.includes("gpt-5")||t.includes("o1")||
-t.includes("o3")||t.includes("grok-4.3")||t.includes("grok-4.5")||t.includes("grok-4.6")||t.includes(
-"grok-4.20-0309-reasoning")||t.includes("grok-build")||t.includes("multi-agent")||t.includes("gpt")&&
-!s)){d("reasoning","\u63A8\u8AD6","reasoning effort","low","high");const g=t==="gpt-5.6"||t.startsWith(
-"gpt-5.6-"),h=t.includes("grok-4.6"),v=t.includes("grok-4.3")||t.includes("grok-4.5")||h||t.includes(
-"grok-4.20-0309-reasoning")||t.includes("grok-build")||t.includes("multi-agent")||t.includes("gpt-5")||
-t.includes("o1")||t.includes("o3"),b=t.includes("grok-4.3")||t.includes("grok-build")||t.includes("g\
-pt-5")||i;v&&d("medium"),b&&d("none"),(g||i)&&d("max"),(h||t.includes("multi-agent")||g)&&d("xhigh")}
-return t.includes("claude")&&d("thinking","\u601D\u8003","thinking budget","budget"),e.agenticView&&
-d("agentic view"),[...new Set(n)]}o(getModelCapabilitySearchTerms,"getModelCapabilitySearchTerms");const modelListGroups=[];
-let modelListBanner=null,modelListEmpty=null,modelListBuilt=!1,modelListAnimated=!1,modelListRenderFrame=0;
-function buildModelList(){const e=get("model-list-container");!e||modelListBuilt||(e.innerHTML="",modelListBanner=
-document.createElement("div"),modelListBanner.className="hidden mb-4 px-3 py-2 rounded-lg border bor\
-der-teal-500/40 bg-teal-900/20 text-[11px] text-teal-200",e.appendChild(modelListBanner),MODELS.forEach(
+innerText.trim().toLowerCase(),s=(i==="all"?"all":i)===activeModelTag;n.classList.toggle("is-active",
+s)})}o(updateModelTagUi,"updateModelTagUi");function getModelCapabilitySearchTerms(e){const t=String(
+e.id||"").toLowerCase(),n=[],i=t.includes("deepseek"),s=t.includes("tts"),a=t.startsWith("mistral-oc\
+r"),r=s||a||t.includes("transcribe")||t.includes("realtime")||t.includes("voice-agent")||t.includes(
+"native-audio")||t.includes("live")||t.includes("image")||t.includes("video")||t.startsWith("veo-")||
+t.includes("omni-flash")||t.startsWith("lyria-")||t.includes("embedding"),l=!r&&(t.includes("gpt")||
+t.includes("gemini")||t.includes("grok")||i||t.startsWith("deep-research-")||t.startsWith("antigravi\
+ty-")),d=o((...h)=>h.forEach(g=>n.push(g,g.replace(/-/g," "))),"add");if((t.includes("gemini-3.1-fla\
+sh-image")||t.includes("gemini-3-pro-image")||t.includes("gemini-2.5-flash-image"))&&d("image genera\
+tion","image editing"),t==="gemini-3.1-flash-lite-image"||t==="gemini-3.1-flash-image"?d("thinking",
+"\u601D\u8003","minimal","high","thinking level"):t.includes("gemini")&&!r&&(d("thinking","\u601D\u8003",
+"thinking level"),t==="gemini-3.8-flash"||t==="gemini-3.7-flash"?d("low","medium","high"):t==="gemin\
+i-3.6-flash"?d("medium","high"):t==="gemini-3.5-flash-lite"?d("minimal","medium","high"):t.includes(
+"flash")?d("minimal","low","medium","high"):d("low","high")),i&&(d("thinking","\u601D\u8003","reason\
+ing","\u63A8\u8AD6","reasoning effort","high"),t!=="deepseek-v4-pro"&&d("low"),t.includes("v4-flash")&&
+d("none","max")),l&&(t.includes("gpt-5")||t.includes("o1")||t.includes("o3")||t.includes("grok-4.3")||
+t.includes("grok-4.5")||t.includes("grok-4.6")||t.includes("grok-4.20-0309-reasoning")||t.includes("\
+grok-build")||t.includes("multi-agent")||t.includes("gpt")&&!s)){d("reasoning","\u63A8\u8AD6","reaso\
+ning effort","low","high");const h=t==="gpt-5.6"||t.startsWith("gpt-5.6-"),g=t.includes("grok-4.6"),
+v=t.includes("grok-4.3")||t.includes("grok-4.5")||g||t.includes("grok-4.20-0309-reasoning")||t.includes(
+"grok-build")||t.includes("multi-agent")||t.includes("gpt-5")||t.includes("o1")||t.includes("o3"),b=t.
+includes("grok-4.3")||t.includes("grok-build")||t.includes("gpt-5")||i;v&&d("medium"),b&&d("none"),(h||
+i)&&d("max"),(g||t.includes("multi-agent")||h)&&d("xhigh")}return t.includes("claude")&&d("thinking",
+"\u601D\u8003","thinking budget","budget"),e.agenticView&&d("agentic view"),[...new Set(n)]}o(getModelCapabilitySearchTerms,
+"getModelCapabilitySearchTerms");const modelListGroups=[];let modelListBanner=null,modelListEmpty=null,
+modelListBuilt=!1,modelListAnimated=!1,modelListRenderFrame=0;function buildModelList(){const e=get(
+"model-list-container");!e||modelListBuilt||(e.innerHTML="",modelListBanner=document.createElement("\
+div"),modelListBanner.className="model-banner hidden",e.appendChild(modelListBanner),MODELS.forEach(
 t=>{const n=t.items.filter(r=>!r.deprecated);if(!n.length)return;const i=document.createElement("sec\
 tion");i.className="model-list-group",i.innerHTML=`
-                    <div class="flex items-center gap-2 mb-3 px-2">
+                    <div class="model-group-header">
                         <i class="${t.icon}"></i>
                         <div>
-                            <h3 class="font-bold text-gray-200 text-sm">${t.category}</h3>
-                            <p class="text-[10px] text-gray-500">${t.description}</p>
+                            <h3 class="model-group-title">${t.category}</h3>
+                            <p class="model-group-desc">${t.description}</p>
                         </div>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-6"></div>
-                `;const s=i.querySelector(".grid"),a=n.map(r=>{const l=document.createElement("butto\
-n"),d=String(r.apiId||r.id||"").trim(),p=r.agenticView?'<span class="inline-flex items-center gap-1 \
-rounded-full border border-teal-500/40 bg-teal-900/20 px-2 py-0.5 text-[9px] font-semibold text-teal\
--200 whitespace-nowrap" title="Agentic View\u5BFE\u5FDC\uFF1A\u753B\u50CF\u3092\u30AF\u30ED\u30C3\u30D7\u3057\u3066\u518D\u89B3\u5BDF\u3057\u306A\u304C\u3089\u63A8\u8AD6\u3092\u7D99\u7D9A\u3067\u304D\u307E\u3059"><i class="fas fa-eye" aria-\
-hidden="true"></i>Agentic View</span>':"",g=d?`<div class="text-[10px] text-cyan-300/90 mt-1.5 font-\
-mono break-all"><span class="font-sans text-gray-500 mr-1">API model:</span>${escapeHtml(d)}</div>`:
-"",h=r.price?`<div class="text-[10px] text-amber-400/90 mt-1.5 font-mono flex items-start gap-1"><i \
-class="fas fa-tag text-[9px] mt-0.5 opacity-70 shrink-0"></i><span>${r.price}</span></div>`:"";return l.
-type="button",l.className="flex flex-col text-left p-3 rounded-lg border transition bg-gray-800 bord\
-er-gray-700 hover:border-gray-500 hover:bg-gray-750",l.dataset.selected="0",l.onclick=()=>selectModel(
-r.id,r.name),l.innerHTML=`
+                    <div class="model-group-grid"></div>
+                `;const s=i.querySelector(".model-group-grid"),a=n.map(r=>{const l=document.createElement(
+"button"),d=String(r.apiId||r.id||"").trim(),p=r.agenticView?'<span class="inline-flex items-center \
+gap-1 rounded-full border border-teal-500/40 bg-teal-900/20 px-2 py-0.5 text-[9px] font-semibold tex\
+t-teal-200 whitespace-nowrap" title="Agentic View\u5BFE\u5FDC\uFF1A\u753B\u50CF\u3092\u30AF\u30ED\u30C3\u30D7\u3057\u3066\u518D\u89B3\u5BDF\u3057\u306A\u304C\u3089\u63A8\u8AD6\u3092\u7D99\u7D9A\u3067\u304D\u307E\u3059"><i class="fas fa-eye"\
+ aria-hidden="true"></i>Agentic View</span>':"",h=d?`<div class="text-[10px] text-cyan-300/90 mt-1.5\
+ font-mono break-all"><span class="font-sans text-gray-500 mr-1">API model:</span>${escapeHtml(d)}</\
+div>`:"",g=r.price?`<div class="text-[10px] text-amber-400/90 mt-1.5 font-mono flex items-start gap-\
+1"><i class="fas fa-tag text-[9px] mt-0.5 opacity-70 shrink-0"></i><span>${r.price}</span></div>`:"";
+return l.type="button",l.className="model-card",l.dataset.selected="0",l.onclick=()=>selectModel(r.id,
+r.name),l.innerHTML=`
                         <div class="flex justify-between items-start gap-2 w-full mb-1">
                             <div class="flex flex-wrap items-center gap-2 min-w-0">
-                                <span class="font-bold text-sm text-gray-200">${r.name}</span>
+                                <span class="model-name font-bold text-sm">${r.name}</span>
                                 ${p}
                             </div>
-                            <i class="model-selected-icon fas fa-check-circle text-blue-400 hidden s\
-hrink-0 mt-0.5"></i>
+                            <i class="model-selected-icon fas fa-check-circle hidden shrink-0 mt-0.5\
+"></i>
                         </div>
-                        <span class="text-[10px] text-gray-400">${r.desc}</span>
-                        ${g}
+                        <span class="model-desc text-[10px]">${r.desc}</span>
                         ${h}
+                        ${g}
                     `,s.appendChild(l),{model:r,button:l,searchText:`${r.name} ${r.id} ${d} ${r.agenticView?
 "agentic view":""} ${t.category} ${getModelTags(r,t).join(" ")} ${getModelCapabilitySearchTerms(r).join(
 " ")}`.toLowerCase(),provider:getModelApiProvider(r.id),tags:new Set(getModelTags(r,t))}});modelListGroups.
 push({element:i,entries:a}),e.appendChild(i)}),modelListEmpty=document.createElement("div"),modelListEmpty.
-className="hidden text-center text-gray-500 py-8",e.appendChild(modelListEmpty),modelListBuilt=!0)}o(
-buildModelList,"buildModelList");function updateModelButtonSelection(e,t){const n=t===e.model.id;if(e.
-button.dataset.selected===(n?"1":"0"))return;e.button.dataset.selected=n?"1":"0",e.button.classList.
-toggle("bg-blue-600/20",n),e.button.classList.toggle("border-blue-500",n),e.button.classList.toggle(
-"ring-1",n),e.button.classList.toggle("ring-blue-500",n),e.button.classList.toggle("bg-gray-800",!n),
-e.button.classList.toggle("border-gray-700",!n),e.button.classList.toggle("hover:border-gray-500",!n),
-e.button.classList.toggle("hover:bg-gray-750",!n);const i=e.button.querySelector(".model-selected-ic\
-on");i&&i.classList.toggle("hidden",!n)}o(updateModelButtonSelection,"updateModelButtonSelection");function renderModelList(e="",t={}){
-const n=get("model-list-container");if(!n)return;buildModelList();const i=e.toLowerCase(),s=window._visionPickerActive?
+className="model-list-empty hidden",e.appendChild(modelListEmpty),modelListBuilt=!0)}o(buildModelList,
+"buildModelList");function updateModelButtonSelection(e,t){const n=t===e.model.id;if(e.button.dataset.
+selected===(n?"1":"0"))return;e.button.dataset.selected=n?"1":"0",e.button.classList.toggle("is-sele\
+cted",n);const i=e.button.querySelector(".model-selected-icon");i&&i.classList.toggle("hidden",!n)}o(
+updateModelButtonSelection,"updateModelButtonSelection");function renderModelList(e="",t={}){const n=get(
+"model-list-container");if(!n)return;buildModelList();const i=e.toLowerCase(),s=window._visionPickerActive?
 null:getPromptCacheLockedProvider(),a=s?PROVIDER_LABELS[s]||s:"",r=get("model-select")?get("model-se\
 lect").value:"";let l=0;modelListBanner.classList.toggle("hidden",!s),s&&(modelListBanner.innerHTML=
 `<i class="fas fa-database mr-1.5"></i>PromptCache \u6709\u52B9\u4E2D: <strong>${a}</strong> \u306E\u30E2\u30C7\u30EB\u306E\u307F\u9078\
 \u629E\u3067\u304D\u307E\u3059\uFF08\u4ED6API\u3078\u306E\u5207\u66FF\u306F\u4E0D\u53EF\uFF09`),modelListGroups.
-forEach(d=>{let p=0;d.entries.forEach(g=>{const h=g.searchText.includes(i)&&(!s||g.provider===s)&&(activeModelTag===
-"all"||g.tags.has(activeModelTag));g.button.classList.toggle("hidden",!h),updateModelButtonSelection(
-g,r),h&&(p+=1)}),d.element.classList.toggle("hidden",p===0),l+=p}),modelListEmpty.classList.toggle("\
+forEach(d=>{let p=0;d.entries.forEach(h=>{const g=h.searchText.includes(i)&&(!s||h.provider===s)&&(activeModelTag===
+"all"||h.tags.has(activeModelTag));h.button.classList.toggle("hidden",!g),updateModelButtonSelection(
+h,r),g&&(p+=1)}),d.element.classList.toggle("hidden",p===0),l+=p}),modelListEmpty.classList.toggle("\
 hidden",l!==0),l===0&&(modelListEmpty.textContent=s?`No ${a} models found.`:"No models found."),t.animate&&
 !modelListAnimated&&(modelListAnimated=!0,n.classList.add("model-list-animate"))}o(renderModelList,"\
 renderModelList");function scheduleModelListRender(e){modelListRenderFrame&&cancelAnimationFrame(modelListRenderFrame),
 modelListRenderFrame=requestAnimationFrame(()=>{modelListRenderFrame=0,renderModelList(e)})}o(scheduleModelListRender,
 "scheduleModelListRender");function openModelModal(){location.pathname!=="/model"&&history.pushState(
-{modal:"model"},"","/model");const e=get("model-search");e&&(e.value=""),updateModelTagUi(),renderModelList(
-"",{animate:!0}),showModal("model-modal"),e&&window.innerWidth>768&&requestAnimationFrame(()=>e.focus(
-{preventScroll:!0}))}o(openModelModal,"openModelModal"),window.closeModelModal=(e=!1)=>{hideModal("m\
-odel-modal"),!e&&location.pathname==="/model"&&history.back()};function selectModel(e,t){if(window._visionPickerActive){
-currentVisionModel=e,window._visionPickerActive=!1,window.closeModelModal(),_syncVisionModelDisplay();
-return}if(isPromptCacheEnabled()){const s=getModelApiProvider(get("model-select")?get("model-select").
-value:""),a=getModelApiProvider(e);if(s&&a&&s!==a){const r=PROVIDER_LABELS[s]||s,l=PROVIDER_LABELS[a]||
-a;showToast(`PromptCache \u6709\u52B9\u4E2D\u306F\u4ED6API\uFF08${l}\uFF09\u306E\u30E2\u30C7\u30EB\u306B\u5909\u66F4\u3067\u304D\u307E\u305B\u3093\u3002\u73FE\u5728: ${r}`,
-"warning",!0);return}}const n=get("model-select");n.value=e,get("model-selector-text").innerText=t,window.
-closeModelModal();const i=new Event("change");n.dispatchEvent(i)}o(selectModel,"selectModel");function selectModelById(e){
-let t=e;for(const n of MODELS){const i=n.items.find(s=>s.id===e);if(i){t=i.name;break}}selectModel(e,
-t)}o(selectModelById,"selectModelById");function populateAiSafeFormFields(e){if(e)try{get("set-defau\
-lt-model")&&(get("set-default-model").value=e.default_model||get("set-default-model").value),get("se\
-t-default-vision-model")&&(get("set-default-vision-model").value=e.default_vision_model||"gemini-3-f\
-lash-preview"),get("set-default-search")&&(get("set-default-search").checked=!!e.default_enable_search),
-get("set-default-url-context")&&(get("set-default-url-context").checked=!!e.default_enable_url_context),
-get("set-default-maps")&&(get("set-default-maps").checked=!!e.default_enable_maps),get("set-default-\
-python")&&(get("set-default-python").checked=!!e.default_enable_python),get("set-default-file-creati\
-on")&&(get("set-default-file-creation").checked=!!e.default_enable_file_creation),get("set-default-t\
-hinking")&&(get("set-default-thinking").checked=!!e.default_enable_thinking),get("set-default-sys-pr\
-ompt")&&(get("set-default-sys-prompt").checked=!!e.default_enable_system_prompt),get("set-default-mc\
-p")&&(get("set-default-mcp").checked=e.default_enable_mcp!==!1),get("set-default-thinking-level")&&(get(
-"set-default-thinking-level").value=e.default_thinking_level||"high"),get("set-default-thinking-budg\
-et")&&(get("set-default-thinking-budget").value=e.default_thinking_budget||4096),get("set-default-re\
-asoning-effort")&&(get("set-default-reasoning-effort").value=e.default_reasoning_effort||"medium"),get(
-"set-default-safety")&&(get("set-default-safety").value=e.default_safety_setting||"default"),get("sy\
-s-prompt-text")&&(get("sys-prompt-text").value=e.system_prompt||""),get("set-global-sys-prompt-enabl\
-ed")&&(get("set-global-sys-prompt-enabled").checked=e.system_prompt_enabled!==!1),get("set-apply-glo\
-bal-sys-prompt")&&(get("set-apply-global-sys-prompt").checked=e.apply_global_system_prompt!==!1),get(
-"set-apply-auto-sys-prompt-notices")&&(get("set-apply-auto-sys-prompt-notices").checked=e.apply_auto_system_prompt_notices!==
+{modal:"model"},"","/model");const e=get("model-search");e&&(e.value=""),updateModelTagUi(),syncModelSearchClear(),
+renderModelList("",{animate:!0}),showModal("model-modal"),e&&window.innerWidth>768&&requestAnimationFrame(
+()=>e.focus({preventScroll:!0}))}o(openModelModal,"openModelModal"),window.closeModelModal=(e=!1)=>{
+hideModal("model-modal"),!e&&location.pathname==="/model"&&history.back()};function selectModel(e,t){
+if(window._visionPickerActive){currentVisionModel=e,window._visionPickerActive=!1,window.closeModelModal(),
+_syncVisionModelDisplay();return}if(isPromptCacheEnabled()){const s=getModelApiProvider(get("model-s\
+elect")?get("model-select").value:""),a=getModelApiProvider(e);if(s&&a&&s!==a){const r=PROVIDER_LABELS[s]||
+s,l=PROVIDER_LABELS[a]||a;showToast(`PromptCache \u6709\u52B9\u4E2D\u306F\u4ED6API\uFF08${l}\uFF09\u306E\u30E2\u30C7\u30EB\u306B\u5909\u66F4\
+\u3067\u304D\u307E\u305B\u3093\u3002\u73FE\u5728: ${r}`,"warning",!0);return}}const n=get("model-sel\
+ect");n.value=e,get("model-selector-text").innerText=t,window.closeModelModal();const i=new Event("c\
+hange");n.dispatchEvent(i)}o(selectModel,"selectModel");function selectModelById(e){let t=e;for(const n of MODELS){
+const i=n.items.find(s=>s.id===e);if(i){t=i.name;break}}selectModel(e,t)}o(selectModelById,"selectMo\
+delById");function populateAiSafeFormFields(e){if(e)try{get("set-default-model")&&(get("set-default-\
+model").value=e.default_model||get("set-default-model").value),get("set-default-vision-model")&&(get(
+"set-default-vision-model").value=e.default_vision_model||"gemini-3-flash-preview"),get("set-default\
+-search")&&(get("set-default-search").checked=!!e.default_enable_search),get("set-default-url-contex\
+t")&&(get("set-default-url-context").checked=!!e.default_enable_url_context),get("set-default-maps")&&
+(get("set-default-maps").checked=!!e.default_enable_maps),get("set-default-python")&&(get("set-defau\
+lt-python").checked=!!e.default_enable_python),get("set-default-file-creation")&&(get("set-default-f\
+ile-creation").checked=!!e.default_enable_file_creation),get("set-default-thinking")&&(get("set-defa\
+ult-thinking").checked=!!e.default_enable_thinking),get("set-default-sys-prompt")&&(get("set-default\
+-sys-prompt").checked=!!e.default_enable_system_prompt),get("set-default-mcp")&&(get("set-default-mc\
+p").checked=e.default_enable_mcp!==!1),get("set-default-thinking-level")&&(get("set-default-thinking\
+-level").value=e.default_thinking_level||"high"),get("set-default-thinking-budget")&&(get("set-defau\
+lt-thinking-budget").value=e.default_thinking_budget||4096),get("set-default-reasoning-effort")&&(get(
+"set-default-reasoning-effort").value=e.default_reasoning_effort||"medium"),get("set-default-safety")&&
+(get("set-default-safety").value=e.default_safety_setting||"default"),get("sys-prompt-text")&&(get("\
+sys-prompt-text").value=e.system_prompt||""),get("set-global-sys-prompt-enabled")&&(get("set-global-\
+sys-prompt-enabled").checked=e.system_prompt_enabled!==!1),get("set-apply-global-sys-prompt")&&(get(
+"set-apply-global-sys-prompt").checked=e.apply_global_system_prompt!==!1),get("set-apply-auto-sys-pr\
+ompt-notices")&&(get("set-apply-auto-sys-prompt-notices").checked=e.apply_auto_system_prompt_notices!==
 !1),get("set-mic-transcribe-mode")&&(get("set-mic-transcribe-mode").value=e.mic_transcribe_mode||"st\
 t_api"),get("set-stt-model")&&(get("set-stt-model").value=e.stt_model||"gpt-4o-mini-transcribe"),get(
 "set-llm-transcribe-prompt")&&(get("set-llm-transcribe-prompt").value=e.llm_transcribe_prompt||""),get(
@@ -3050,8 +3045,12 @@ cs").checked=!!e.enable_latency_metrics),get("set-client-debug-log")&&syncClient
 "ai-settings"),get("set-bot-detect")&&(get("set-bot-detect").checked=e.bot_detection_enabled!==!1),get(
 "set-skip-2fa-google")&&(get("set-skip-2fa-google").checked=!!e.skip_2fa_on_google_login),get("set-d\
 efault-2fa-method")&&(get("set-default-2fa-method").value=e.default_2fa_method||"totp")}catch{}}o(populateAiSafeFormFields,
-"populateAiSafeFormFields"),get("model-search")&&get("model-search").addEventListener("input",e=>scheduleModelListRender(
-e.target.value)),get("model-tag-bar")&&(get("model-tag-bar").addEventListener("click",e=>{const t=e.
+"populateAiSafeFormFields");function syncModelSearchClear(){const e=get("model-search"),t=get("model\
+-search-clear");t&&t.classList.toggle("hidden",!e||!e.value)}o(syncModelSearchClear,"syncModelSearch\
+Clear"),get("model-search")&&get("model-search").addEventListener("input",e=>{scheduleModelListRender(
+e.target.value),syncModelSearchClear()}),get("model-search-clear")&&get("model-search-clear").addEventListener(
+"click",()=>{const e=get("model-search");e&&(e.value="",syncModelSearchClear(),scheduleModelListRender(
+""),e.focus())}),get("model-tag-bar")&&(get("model-tag-bar").addEventListener("click",e=>{const t=e.
 target.closest(".model-tag-btn");if(!t)return;const n=t.innerText.trim().toLowerCase();activeModelTag=
 MODEL_TAGS.includes(n)?n:"all",updateModelTagUi(),renderModelList(get("model-search").value)}),updateModelTagUi()),
 window.quickStart=e=>{selectModelById(e),get("welcome-screen").classList.add("hidden")};const BROWSER_FAST_DISABLED_OPTIONS=[
@@ -3157,15 +3156,15 @@ on")?get("modal-grok-image-resolution").parentElement:null;_&&_.classList.toggle
 const u=String(((f=get("model-select"))==null?void 0:f.value)||"").toLowerCase();isGrokVideoModel()?
 c.classList.remove("hidden"):c.classList.add("hidden");const m=get("grok-video-resolution");if(m){const y=Array.
 from(m.options).find(k=>k.value==="1080p");y&&(y.disabled=u!=="grok-imagine-video-1.5"),u!=="grok-im\
-agine-video-1.5"&&m.value==="1080p"&&(m.value="720p")}}o(p,"updateGrokVideoUi");function g(){var y;const c=get(
+agine-video-1.5"&&m.value==="1080p"&&(m.value="720p")}}o(p,"updateGrokVideoUi");function h(){var y;const c=get(
 "gemini-video-options");if(!c)return;const u=String(((y=get("model-select"))==null?void 0:y.value)||
 "").toLowerCase();isGeminiVideoModel()?c.classList.remove("hidden"):c.classList.add("hidden");const m=get(
 "gemini-video-resolution");if(m){const k=Array.from(m.options).find(S=>S.value==="4K"),_=u==="veo-3.\
 1-lite-generate-preview"||u==="veo-3.1-fast-generate-preview"||u==="gemini-omni-flash";k&&(k.disabled=
 _),_&&m.value==="4K"&&(m.value="1080p")}const f=get("gemini-video-duration-wrap");f&&f.classList.toggle(
-"hidden",u==="gemini-omni-1.1-flash")}o(g,"updateGeminiVideoUi");function h(){const c=get("gemini-mu\
+"hidden",u==="gemini-omni-1.1-flash")}o(h,"updateGeminiVideoUi");function g(){const c=get("gemini-mu\
 sic-options");if(!c)return;const u=isGeminiRealtimeMusicModel(),m=isGeminiMusicModel()&&!u;c.classList.
-toggle("hidden",!m);const f=get("lyria-realtime-studio-bar");f&&f.classList.toggle("hidden",!u)}o(h,
+toggle("hidden",!m);const f=get("lyria-realtime-studio-bar");f&&f.classList.toggle("hidden",!u)}o(g,
 "updateGeminiMusicUi");function v(){var _;const c=get("xai-chat-options");if(!c)return;const u=String(
 ((_=get("model-select"))==null?void 0:_.value)||"").toLowerCase(),m=u.startsWith("grok-")&&!isGrokImageModel(
 u)&&!isGrokVideoModel(u)&&!u.includes("voice");c.classList.toggle("hidden",!m);const f=get("xai-logp\
@@ -3267,7 +3266,7 @@ A.disabled=!0,H.classList.add("opacity-50")),ve&&(isLlmModel()?(ve.classList.rem
 I.classList.add("opacity-50","pointer-events-none"),ve&&(V.checked=!1,V.disabled=!0,ve.classList.add(
 "opacity-50","pointer-events-none"))):B&&!u.includes("tts")&&!Oe&&!f&&!Ve&&(B.disabled=!1);const re=get(
 "mask-btn");re&&(isGptImageModel()?re.classList.remove("hidden"):(re.classList.add("hidden"),currentMaskImage=
-null,updateMaskPreview())),updateTtsUi(),updateStsUi(),updateStsOptions(),r(),l(),d(),p(),g(),h(),updateBatchUi(
+null,updateMaskPreview())),updateTtsUi(),updateStsUi(),updateStsOptions(),r(),l(),d(),p(),h(),g(),updateBatchUi(
 u),v(),b(),w(),purgeUnsupportedAttachments(!0),refreshMinimalOptionsIfOpen(),applyMcpPromptChipUi()}
 o(x,"toggleOptions"),get("model-select")&&(get("model-select").addEventListener("change",x),get("mod\
 el-select").addEventListener("change",()=>schedulePromptTokenEstimate(!0))),bindPromptCacheControls(),
@@ -3505,7 +3504,7 @@ u=>{if(Ce={files:c.files||[],selection:new Set((c.files||[]).map(m=>m.archive_pa
 available_bytes,resolve:u},ut(),!get("import-files-modal")){u(null);return}showModal("import-files-m\
 odal")}),"showImportFileSelection"),ot=o(c=>{if(hideModal("import-files-modal"),Ce){const u=Ce.resolve;
 Ce=null,u(c)}},"closeImportFileSelection"),xt=get("import-files-close");xt&&(xt.onclick=()=>ot(null));
-const gt=get("import-files-cancel");gt&&(gt.onclick=()=>ot(null));const kt=get("import-files-confirm");
+const ht=get("import-files-cancel");ht&&(ht.onclick=()=>ot(null));const kt=get("import-files-confirm");
 kt&&(kt.onclick=()=>{if(!Ce)return;const c=Array.from(Ce.selection);ot(c.length?c.join(","):"__none_\
 _")});const rt=get("import-files-select-all");rt&&(rt.onclick=()=>{Ce&&(Ce.files.forEach(c=>Ce.selection.
 add(c.archive_path)),ut())});const Pt=get("import-files-none");Pt&&(Pt.onclick=()=>{Ce&&(Ce.selection.
@@ -3581,26 +3580,26 @@ const D=get("account-import-result");let ne=Promise.resolve(null);try{const A=Ma
 size/10485760)),H=await apiFetch("/api/account/import/upload/start",manualSpinnerRequestOptions({method:"\
 POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({size:u.size}),signal:I.controller.
 signal})),V=await H.json().catch(()=>({}));if(!H.ok)throw new Error(V.error||"\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u3092\u958B\u59CB\u3067\u304D\u307E\u305B\u3093");
-I.uploadId=V.upload_id;const ve=V.chunk_size||10485760;let z=0,ie=0;const we=o(async()=>{for(;;){const ge=ie++;
-if(ge>=A)return;const re=u.slice(ge*ve,Math.min(u.size,(ge+1)*ve)),ue=new FormData;ue.append("chunk",
-re,u.name),ue.append("index",String(ge));const Ie=await apiFetch(`/api/account/import/upload/${encodeURIComponent(
+I.uploadId=V.upload_id;const ve=V.chunk_size||10485760;let z=0,ie=0;const we=o(async()=>{for(;;){const he=ie++;
+if(he>=A)return;const re=u.slice(he*ve,Math.min(u.size,(he+1)*ve)),ue=new FormData;ue.append("chunk",
+re,u.name),ue.append("index",String(he));const Ie=await apiFetch(`/api/account/import/upload/${encodeURIComponent(
 I.uploadId)}/chunk`,manualSpinnerRequestOptions({method:"POST",body:ue,signal:I.controller.signal})),
 Se=await Ie.json().catch(()=>({}));if(!Ie.ok)throw new Error(Se.error||"\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306B\u5931\u6557\u3057\u307E\u3057\u305F");
 z++,te({progress:Math.min(35,Math.round(z/A*35)),phase:"uploading",message:`ZIP\u3092\u4E26\u5217\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u3057\u3066\u3044\u307E\u3059\uFF08${z}\
 /${A}\uFF09`}),window.ConnectionMonitor&&window.ConnectionMonitor.reportActivity()}},"uploadWorker");
 let $e=!1;window.ConnectionMonitor&&(window.ConnectionMonitor.operationStarted(),$e=!0);try{await Promise.
-all([we(),we(),we()]);const ge=await apiFetch(`/api/account/import/upload/${encodeURIComponent(I.uploadId)}\
-/complete`,manualSpinnerRequestOptions({method:"POST",signal:I.controller.signal})),re=await ge.json().
-catch(()=>({}));if(!ge.ok)throw new Error(re.error||"\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u3092\u5B8C\u4E86\u3067\u304D\u307E\u305B\u3093");
+all([we(),we(),we()]);const he=await apiFetch(`/api/account/import/upload/${encodeURIComponent(I.uploadId)}\
+/complete`,manualSpinnerRequestOptions({method:"POST",signal:I.controller.signal})),re=await he.json().
+catch(()=>({}));if(!he.ok)throw new Error(re.error||"\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u3092\u5B8C\u4E86\u3067\u304D\u307E\u305B\u3093");
 te({progress:35,phase:"validating",message:"ZIP\u3092\u691C\u8A3C\u3057\u3066\u3044\u307E\u3059"})}finally{
 $e&&window.ConnectionMonitor&&window.ConnectionMonitor.operationEnded()}let Oe="",Ve=!1,Qe=0;const Et=o(
-async()=>{let ge=!1;const re=o(()=>{ge||(ge=!0,setTimeout(()=>{location.reload()},1100))},"scheduleR\
+async()=>{let he=!1;const re=o(()=>{he||(he=!0,setTimeout(()=>{location.reload()},1100))},"scheduleR\
 eload");try{const ue=await apiFetch(CHAT_CONFIG.urls.handleSettingsQuery,{cache:"no-store"}),Ie=await ue.
 json().catch(()=>null);if(!ue.ok||!Ie){re();return}cacheUserSettings(Ie);const Se=get("settings-moda\
 l");if(Se&&Se.classList.contains("modal-open"))try{In(Ie)}catch{}Ie.theme_color&&applyThemeColor(Ie.
 theme_color,!0),Object.prototype.hasOwnProperty.call(Ie,"minimal_prompt_mode")&&Ie.minimal_prompt_mode?
 setMinimalPromptMode(!0):Object.prototype.hasOwnProperty.call(Ie,"compact_prompt_mode")&&setCompactPromptMode(
-!!Ie.compact_prompt_mode)}catch{}re()},"refreshSettingsFormAfterImport"),bt=o(ge=>{const re=ge&&ge.message||
+!!Ie.compact_prompt_mode)}catch{}re()},"refreshSettingsFormAfterImport"),bt=o(he=>{const re=he&&he.message||
 "\u30A4\u30F3\u30DD\u30FC\u30C8\u304C\u5B8C\u4E86\u3057\u307E\u3057\u305F";D&&(D.textContent=`\u5B8C\u4E86: ${re}`,
 D.classList.remove("hidden","text-red-300"),D.classList.add("text-emerald-300")),te({progress:100,phase:"\
 completed",message:re}),showToast("\u9078\u629E\u3057\u305F\u30A2\u30AB\u30A6\u30F3\u30C8\u30C7\u30FC\u30BF\u3092\u30A4\u30F3\u30DD\u30FC\u30C8\u3057\u307E\u3057\u305F",
@@ -3608,40 +3607,40 @@ completed",message:re}),showToast("\u9078\u629E\u3057\u305F\u30A2\u30AB\u30A6\u3
 (f.includes("settings")||f.includes("api_credentials"))&&Et()},"finishImportSuccess"),yt=o(async()=>{
 try{const re=await(await apiFetch(`/api/account/transfer/${I.id}`,manualSpinnerRequestOptions({cache:"\
 no-store"}))).json().catch(()=>null);return re&&re.state?re:null}catch{return null}},"fetchImportSta\
-tus"),dt=o(async()=>{const ge=await yt();if(!ge)return{status:"unknown"};if(ge.state==="completed")return bt(
-ge),{status:"done"};if(["failed","cancelled","expired"].includes(ge.state))throw new Error(ge.message||
-"\u30A4\u30F3\u30DD\u30FC\u30C8\u306B\u5931\u6557\u3057\u307E\u3057\u305F");if(ge.state==="needs_sel\
-ection"&&Array.isArray(ge.files)){const re=await Ke({files:ge.files,available_bytes:ge.available_bytes});
+tus"),dt=o(async()=>{const he=await yt();if(!he)return{status:"unknown"};if(he.state==="completed")return bt(
+he),{status:"done"};if(["failed","cancelled","expired"].includes(he.state))throw new Error(he.message||
+"\u30A4\u30F3\u30DD\u30FC\u30C8\u306B\u5931\u6557\u3057\u307E\u3057\u305F");if(he.state==="needs_sel\
+ection"&&Array.isArray(he.files)){const re=await Ke({files:he.files,available_bytes:he.available_bytes});
 return re===null?(te({progress:0,phase:"cancelled",message:"\u30D5\u30A1\u30A4\u30EB\u9078\u629E\u3092\u30AD\u30E3\u30F3\u30BB\u30EB\u3057\u307E\u3057\u305F"}),
 I.uploadId&&apiFetch(`/api/account/import/upload/${encodeURIComponent(I.uploadId)}`,manualSpinnerRequestOptions(
-{method:"DELETE"})).catch(()=>null),{status:"cancelled"}):(Oe=re,{status:"reselect"})}if(ge.state===
-"needs_settings_confirmation"&&Array.isArray(ge.settings_changes))return await St({settings_changes:ge.
+{method:"DELETE"})).catch(()=>null),{status:"cancelled"}):(Oe=re,{status:"reselect"})}if(he.state===
+"needs_settings_confirmation"&&Array.isArray(he.settings_changes))return await St({settings_changes:he.
 settings_changes})?(M=!0,{status:"reselect"}):(te({progress:0,phase:"cancelled",message:"\u8A2D\u5B9A\u306E\u30A4\u30F3\u30DD\u30FC\u30C8\u3092\u30AD\u30E3\
 \u30F3\u30BB\u30EB\u3057\u307E\u3057\u305F"}),I.uploadId&&apiFetch(`/api/account/import/upload/${encodeURIComponent(
 I.uploadId)}`,manualSpinnerRequestOptions({method:"DELETE"})).catch(()=>null),{status:"cancelled"});
-if(ge.state==="running"){const re=await Promise.race([ne.catch(()=>null),new Promise(ue=>setTimeout(
+if(he.state==="running"){const re=await Promise.race([ne.catch(()=>null),new Promise(ue=>setTimeout(
 ()=>ue(null),6e4))]);if(re&&re.state==="completed")return bt(re),{status:"done"};throw re&&["failed",
 "cancelled","expired"].includes(re.state)?new Error(re.message||"\u30A4\u30F3\u30DD\u30FC\u30C8\u306B\u5931\u6557\u3057\u307E\u3057\u305F"):
 new Error("\u30A4\u30F3\u30DD\u30FC\u30C8\u51E6\u7406\u304C\u30B5\u30FC\u30D0\u30FC\u5074\u3067\u7D99\u7D9A\u4E2D\u3067\u3059\u3002\u3057\u3070\u3089\u304F\u3057\u3066\u304B\u3089\u30DA\u30FC\u30B8\u3092\u518D\u8AAD\u307F\u8FBC\u307F\u3057\u3066\u78BA\u8A8D\u3057\u3066\u304F\u3060\u3055\u3044")}
 return{status:"unknown"}},"settleUnreadableImport");for(;!Ve;){I.stopped=!0,await ne.catch(()=>null),
-I.stopped=!1,ne=C(I);let ge;try{ge=await apiFetch("/api/account/import",manualSpinnerRequestOptions(
+I.stopped=!1,ne=C(I);let he;try{he=await apiFetch("/api/account/import",manualSpinnerRequestOptions(
 {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({upload_id:I.uploadId,
 categories:f.join(","),job_id:I.id,selected_files:Oe,restore_inplace:k,confirm_settings:M||S}),signal:I.
 controller.signal}))}catch(De){if(I.cancelRequested||De&&De.name==="AbortError")throw De;const it=await dt();
 if(it.status==="done"){Ve=!0;break}if(it.status==="cancelled")return;if(it.status==="reselect")continue;
 if(Qe<2){Qe++;continue}throw new Error("\u30A4\u30F3\u30DD\u30FC\u30C8\u5FDC\u7B54\u3092\u53D6\u5F97\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F\u3002\u901A\u4FE1\u74B0\u5883\u3092\u3054\u78BA\u8A8D\u306E\u3046\u3048\u3001\u3082\u3046\u4E00\u5EA6\u304A\u8A66\u3057\u304F\u3060\u3055\u3044")}
-let re=null;try{re=await ge.json()}catch{re=null}if(re===null){const De=await dt();if(De.status==="d\
-one"){Ve=!0;break}if(De.status==="cancelled")return;if(De.status==="reselect")continue;if(ge.ok)throw new Error(
+let re=null;try{re=await he.json()}catch{re=null}if(re===null){const De=await dt();if(De.status==="d\
+one"){Ve=!0;break}if(De.status==="cancelled")return;if(De.status==="reselect")continue;if(he.ok)throw new Error(
 "\u30A4\u30F3\u30DD\u30FC\u30C8\u7D50\u679C\u3092\u78BA\u8A8D\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F\u3002\u30DA\u30FC\u30B8\u3092\u518D\u8AAD\u307F\u8FBC\u307F\u3057\u3066\u78BA\u8A8D\u3057\u3066\u304F\u3060\u3055\u3044");
 if(Qe<2){Qe++;continue}throw new Error("\u30A4\u30F3\u30DD\u30FC\u30C8\u5FDC\u7B54\u3092\u53D6\u5F97\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F\u3002\u901A\u4FE1\u74B0\u5883\u3092\u3054\u78BA\u8A8D\u306E\u3046\u3048\u3001\u3082\u3046\u4E00\u5EA6\u304A\u8A66\u3057\u304F\u3060\u3055\u3044")}
-if(!ge.ok&&re.error==="storage_limit_files"&&re.files){const De=await Ke(re);if(De===null){te({progress:0,
+if(!he.ok&&re.error==="storage_limit_files"&&re.files){const De=await Ke(re);if(De===null){te({progress:0,
 phase:"cancelled",message:"\u30D5\u30A1\u30A4\u30EB\u9078\u629E\u3092\u30AD\u30E3\u30F3\u30BB\u30EB\u3057\u307E\u3057\u305F"}),
 I.uploadId&&apiFetch(`/api/account/import/upload/${encodeURIComponent(I.uploadId)}`,manualSpinnerRequestOptions(
 {method:"DELETE"})).catch(()=>null);return}Oe=De;continue}if(re&&re.status==="settings_confirmation"&&
 Array.isArray(re.settings_changes)){if(!await St(re)){te({progress:0,phase:"cancelled",message:"\u8A2D\u5B9A\u306E\u30A4\
 \u30F3\u30DD\u30FC\u30C8\u3092\u30AD\u30E3\u30F3\u30BB\u30EB\u3057\u307E\u3057\u305F"}),I.uploadId&&
 apiFetch(`/api/account/import/upload/${encodeURIComponent(I.uploadId)}`,manualSpinnerRequestOptions(
-{method:"DELETE"})).catch(()=>null);return}M=!0;continue}if(!ge.ok)throw new Error(re.error||"\u30A4\u30F3\u30DD\u30FC\u30C8\u306B\
+{method:"DELETE"})).catch(()=>null);return}M=!0;continue}if(!he.ok)throw new Error(re.error||"\u30A4\u30F3\u30DD\u30FC\u30C8\u306B\
 \u5931\u6557\u3057\u307E\u3057\u305F");const ue=re.imported||{},Ie=[`\u8A2D\u5B9A ${ue.settings||0}\u4EF6`,
 `API\u8A8D\u8A3C ${ue.api_credentials||0}\u4EF6`,`\u30C1\u30E3\u30C3\u30C8 ${ue.chats||0}\u4EF6`,`Ge\
 m ${ue.gems||0}\u4EF6`,`\u30D5\u30A1\u30A4\u30EB ${ue.files||0}\u4EF6`,`\u30D5\u30A3\u30FC\u30C9\u30D0\u30C3\u30AF ${ue.
@@ -4034,10 +4033,10 @@ const jt=get("settings-search");jt&&(jt.addEventListener("input",filterSettings)
 ":scope > .settings-match");m&&m.scrollIntoView({behavior:"smooth",block:"start"})}}));const On=get(
 "settings-search-clear");On&&On.addEventListener("click",()=>{jt&&(jt.value="",filterSettings(),jt.focus())}),
 ii(),si(),bindModelApiKeySettingsControls(),syncGeminiLocalPyDialogSetting(),syncCompressionSettingsUi();
-const gn=get("set-gemini-local-python-dialog");gn&&(gn.onchange=()=>setGeminiLocalPyDialogEnabled(gn.
+const hn=get("set-gemini-local-python-dialog");hn&&(hn.onchange=()=>setGeminiLocalPyDialogEnabled(hn.
 checked));const Nn=get("set-gemini-backend");Nn&&(Nn.onchange=()=>syncGeminiBackendUi());const Rn=get(
-"set-admin-api-key-mode");Rn&&(Rn.onchange=()=>syncAdminApiKeyModeUi());const hn=get("set-temp-chat-\
-timeout-seconds");hn&&(hn.onchange=()=>{applyTemporaryChatTimeoutSeconds(hn.value)});const Bn=get("s\
+"set-admin-api-key-mode");Rn&&(Rn.onchange=()=>syncAdminApiKeyModeUi());const gn=get("set-temp-chat-\
+timeout-seconds");gn&&(gn.onchange=()=>{applyTemporaryChatTimeoutSeconds(gn.value)});const Bn=get("s\
 lash-command-cancel-btn");Bn&&(Bn.onclick=()=>{hidePendingSlashCommandIndicator();const c=get("promp\
 t-input");c&&c.focus()}),syncGeminiBackendUi(),syncAdminApiKeyModeUi(),get("save-settings-btn").onclick=
 async()=>{if(!settingsModalLoaded){showToast("\u8A2D\u5B9A\u3092\u8AAD\u307F\u8FBC\u307F\u4E2D\u3067\u3059\u3002\u5B8C\u4E86\u3059\u308B\u307E\u3067\u304A\u5F85\u3061\u304F\u3060\u3055\u3044",
@@ -4449,7 +4448,7 @@ e",onViewerTouchMove,{passive:!1}),Qt.addEventListener("touchend",onViewerTouchE
 suppressViewerCloseClick=!1;return}(c.target.id==="image-viewer"||c.target.classList.contains("viewe\
 r-content"))&&closeImageViewer()}),get("file-viewer").addEventListener("click",c=>{c.target.id==="fi\
 le-viewer"&&closeFileViewer()}),document.addEventListener("keydown",c=>{c.key==="Escape"&&closeImageViewer()});
-let ze,Ae=null,ln=[],xn=!1,cn=null,Ht=null,Ct=null,Zt=null,kn=0,dn=!1,en=null,qt=null,ht=null,tn=null,
+let ze,Ae=null,ln=[],xn=!1,cn=null,Ht=null,Ct=null,Zt=null,kn=0,dn=!1,en=null,qt=null,gt=null,tn=null,
 un=null,Lt=null,pn=null,mn=null;function Hn(){const c=get("mic-waveform");if(!c)return[];if(Array.isArray(
 pn)&&pn.length)return pn;c.innerHTML="";const u=[];for(let m=0;m<24;m++){const f=document.createElement(
 "span");f.className="block rounded-full",f.style.background="rgba(252, 165, 165, 0.92)",f.style.width=
@@ -4460,11 +4459,11 @@ null),u==="hidden"){m.classList.add("hidden");return}f&&c&&(f.innerText=c),m.cla
 n"),u==="recording"?m.style.color="rgb(252 165 165)":u==="processing"?m.style.color="rgb(253 224 71)":
 m.style.color="rgb(209 213 219)"}}o(Mt,"setMicRecordingIndicator");function qn(){Hn().forEach(u=>{u.
 style.height="2px",u.style.opacity="0.35"})}o(qn,"resetMicWaveformBars");function At(){if(un&&(cancelAnimationFrame(
-un),un=null),tn){try{tn.disconnect()}catch{}tn=null}if(qt){try{qt.close()}catch{}qt=null}ht=null,Lt=
+un),un=null),tn){try{tn.disconnect()}catch{}tn=null}if(qt){try{qt.close()}catch{}qt=null}gt=null,Lt=
 null,qn()}o(At,"stopMicWaveform");function Gn(c){At();const u=Hn();if(!u.length)return;const m=window.
-AudioContext||window.webkitAudioContext;if(!m)return;try{qt=new m,ht=qt.createAnalyser(),ht.fftSize=
-256,ht.smoothingTimeConstant=0,tn=qt.createMediaStreamSource(c),tn.connect(ht),Lt=new Uint8Array(ht.
-frequencyBinCount)}catch{At();return}const f=o(()=>{if(!ht||!Lt)return;ht.getByteFrequencyData(Lt);const y=Math.
+AudioContext||window.webkitAudioContext;if(!m)return;try{qt=new m,gt=qt.createAnalyser(),gt.fftSize=
+256,gt.smoothingTimeConstant=0,tn=qt.createMediaStreamSource(c),tn.connect(gt),Lt=new Uint8Array(gt.
+frequencyBinCount)}catch{At();return}const f=o(()=>{if(!gt||!Lt)return;gt.getByteFrequencyData(Lt);const y=Math.
 max(1,Math.floor(Lt.length/u.length));for(let k=0;k<u.length;k++){const S=(Lt[Math.min(Lt.length-1,k*
 y)]||0)/255,M=Math.max(2,Math.round(2+S*10));u[k].style.height=`${M}px`,u[k].style.opacity=`${.35+S*
 .65}`}un=requestAnimationFrame(f)},"render");f()}o(Gn,"startMicWaveform");function fn(){if(cn&&(clearInterval(
@@ -4629,9 +4628,9 @@ Math.floor((Date.now()-B)/1e3):0,F=String(Math.floor(E/60)).padStart(2,"0"),me=S
 sed");E&&(E.textContent=ve()),I||(I=window.setInterval(()=>{const F=A("lyria-elapsed");F&&(F.textContent=
 ve())},1e3))}o(z,"startElapsedTimer");function ie(){I&&(window.clearInterval(I),I=null)}o(ie,"stopEl\
 apsedTimer");function we(){const E=A("lyria-play-btn"),F=A("lyria-pause-btn"),me=A("lyria-stop-btn"),
-ee=A("lyria-reset-btn"),he=!!f,Ee=D==="streaming"||D==="connecting";if(E){E.disabled=ne||!he;const We=E.
-querySelector("i");We&&(We.className="fas fa-play")}F&&(F.disabled=ne||!Ee),me&&(me.disabled=ne||!he||
-!Ee),ee&&(ee.disabled=ne||!he||!Ee)}o(we,"updateTransportButtons");function $e(){const E=A("lyria-sa\
+ee=A("lyria-reset-btn"),ge=!!f,Ee=D==="streaming"||D==="connecting";if(E){E.disabled=ne||!ge;const We=E.
+querySelector("i");We&&(We.className="fas fa-play")}F&&(F.disabled=ne||!Ee),me&&(me.disabled=ne||!ge||
+!Ee),ee&&(ee.disabled=ne||!ge||!Ee)}o(we,"updateTransportButtons");function $e(){const E=A("lyria-sa\
 ve-btn");if(!E)return;const F=!!f&&D!=="idle"&&D!=="connecting"&&D!=="error";E.classList.toggle("hid\
 den",!F)}o($e,"updateSaveButton");function Oe(E,F){const me=A("lyria-prompt-rows");if(!me)return;const ee=document.
 createElement("div");ee.className="flex items-center gap-2",ee.innerHTML=`
@@ -4648,16 +4647,16 @@ ber"?F:1}" class="accent-purple-400 w-16">
                         <button type="button" data-progress-no-spinner="true" class="lyria-prompt-re\
 move shrink-0 w-6 h-6 rounded-full bg-gray-800 hover:bg-red-600 text-gray-400 hover:text-white text-\
 [10px] flex items-center justify-center transition btn-hover"><i class="fas fa-times"></i></button>
-                    `;const he=ee.querySelector('input[type="range"]'),Ee=ee.querySelector(".lyria-w\
-eight-label");he&&Ee&&he.addEventListener("input",()=>{Ee.textContent=parseFloat(he.value).toFixed(1)});
+                    `;const ge=ee.querySelector('input[type="range"]'),Ee=ee.querySelector(".lyria-w\
+eight-label");ge&&Ee&&ge.addEventListener("input",()=>{Ee.textContent=parseFloat(ge.value).toFixed(1)});
 const We=ee.querySelector(".lyria-prompt-remove");We&&We.addEventListener("click",()=>{me.querySelectorAll(
 ".lyria-prompt-row-wrap").length<=1||ee.remove()}),ee.classList.add("lyria-prompt-row-wrap"),me.appendChild(
 ee)}o(Oe,"addPromptRow");function Ve(){const E=document.querySelectorAll("#lyria-prompt-rows .lyria-\
-prompt-row-wrap"),F=[];return E.forEach(me=>{const ee=me.querySelector('input[type="text"]'),he=me.querySelector(
-'input[type="range"]'),Ee=(ee?ee.value:"").trim();Ee&&F.push({text:Ee,weight:parseFloat(he?he.value:
+prompt-row-wrap"),F=[];return E.forEach(me=>{const ee=me.querySelector('input[type="text"]'),ge=me.querySelector(
+'input[type="range"]'),Ee=(ee?ee.value:"").trim();Ee&&F.push({text:Ee,weight:parseFloat(ge?ge.value:
 1)||1})}),F}o(Ve,"collectPrompts");function Qe(){const E={},F=o(ui=>{const An=A(ui);return An&&An.value!==
 ""?parseFloat(An.value):void 0},"num"),me=F("lyria-bpm");me!==void 0&&(E.bpm=Math.round(me));const ee=F(
-"lyria-guidance");ee!==void 0&&(E.guidance=ee);const he=F("lyria-density");he!==void 0&&(E.density=he);
+"lyria-guidance");ee!==void 0&&(E.guidance=ee);const ge=F("lyria-density");ge!==void 0&&(E.density=ge);
 const Ee=F("lyria-brightness");Ee!==void 0&&(E.brightness=Ee);const We=F("lyria-temperature");We!==void 0&&
 (E.temperature=We);const Be=A("lyria-scale");Be&&Be.value&&(E.scale=Be.value);const Je=A("lyria-mode");
 Je&&Je.value&&(E.music_generation_mode=Je.value);const st=A("lyria-mute-bass"),It=A("lyria-mute-drum\
@@ -4665,32 +4664,32 @@ s"),Zn=A("lyria-only-bass-drums");return st&&(E.mute_bass=st.checked),It&&(E.mut
 Zn&&(E.only_bass_and_drums=Zn.checked),E}o(Qe,"collectConfig");function Et(){[["lyria-bpm","lyria-bp\
 m-label"],["lyria-guidance","lyria-guidance-label"],["lyria-density","lyria-density-label"],["lyria-\
 brightness","lyria-brightness-label"],["lyria-temperature","lyria-temperature-label"]].forEach(([F,me])=>{
-const ee=A(F),he=A(me);!ee||!he||ee.addEventListener("input",()=>{const Ee=parseFloat(ee.value);he.textContent=
+const ee=A(F),ge=A(me);!ee||!ge||ee.addEventListener("input",()=>{const Ee=parseFloat(ee.value);ge.textContent=
 F==="lyria-bpm"?String(Math.round(Ee)):Ee.toFixed(1)})})}o(Et,"bindRangeLabels");function bt(){if(_){
 try{_.close()}catch{}_=null}S=!1,M=0}o(bt,"resetPlayback");function yt(){if(k=!1,y&&typeof y.abort==
 "function")try{y.abort()}catch{}y=null}o(yt,"closeStream");async function dt(){yt(),y=new AbortController,
 k=!0;try{const E=await fetch(`/api/gemini/music/stream?session_id=${encodeURIComponent(f)}`,H({method:"\
-GET",signal:y.signal,headers:{Accept:"text/event-stream"},cache:"no-store"}));if(!E.ok){const he=await E.
-json().catch(()=>({}));throw new Error(he.error||"\u30B9\u30C8\u30EA\u30FC\u30E0\u63A5\u7D9A\u306B\u5931\u6557\u3057\u307E\u3057\u305F")}
-const F=E.body.getReader(),me=new TextDecoder;let ee="";for(;k;){const{done:he,value:Ee}=await F.read();
-if(he)break;ee+=me.decode(Ee,{stream:!0});const We=ee.split(`
+GET",signal:y.signal,headers:{Accept:"text/event-stream"},cache:"no-store"}));if(!E.ok){const ge=await E.
+json().catch(()=>({}));throw new Error(ge.error||"\u30B9\u30C8\u30EA\u30FC\u30E0\u63A5\u7D9A\u306B\u5931\u6557\u3057\u307E\u3057\u305F")}
+const F=E.body.getReader(),me=new TextDecoder;let ee="";for(;k;){const{done:ge,value:Ee}=await F.read();
+if(ge)break;ee+=me.decode(Ee,{stream:!0});const We=ee.split(`
 
 `);ee=We.pop();for(const Be of We){const Je=Be.split(`
 `).find(It=>It.startsWith("data: "));if(!Je)continue;const st=Je.slice(6);try{const It=JSON.parse(st);
-ge(It)}catch{}}}}catch(E){if(E&&E.name==="AbortError")return;k&&(V("\u30B9\u30C8\u30EA\u30FC\u30E0\u5207\u65AD\u3002\u518D\u63A5\u7D9A\u3057\u307E\u3059\u2026",
-"connecting"),window.setTimeout(()=>{k&&f&&dt()},1200))}finally{k=!1}}o(dt,"openStream");function ge(E){
+he(It)}catch{}}}}catch(E){if(E&&E.name==="AbortError")return;k&&(V("\u30B9\u30C8\u30EA\u30FC\u30E0\u5207\u65AD\u3002\u518D\u63A5\u7D9A\u3057\u307E\u3059\u2026",
+"connecting"),window.setTimeout(()=>{k&&f&&dt()},1200))}finally{k=!1}}o(dt,"openStream");function he(E){
 if(E&&E.snapshot){const F=E.status;if(F==="error"){V("\u30A8\u30E9\u30FC","error"),ie();return}if(F===
 "closed"||F==="stopped"){V("\u7D42\u4E86","closed"),ie();return}V(F==="paused"?"\u4E00\u6642\u505C\u6B62\u4E2D":
 "\u63A5\u7D9A\u4E2D...",F==="paused"?"paused":"connecting");return}if(E&&E.audio){V("\u518D\u751F\u4E2D...",
 "streaming"),z(),re(E.audio);return}if(E&&E.error){V("\u30A8\u30E9\u30FC: "+E.error,"error"),ie();return}
-if(E&&E.final){V("\u7D42\u4E86","closed"),ie(),we();return}}o(ge,"handleStreamMessage");function re(E){
+if(E&&E.final){V("\u7D42\u4E86","closed"),ie(),we();return}}o(he,"handleStreamMessage");function re(E){
 if(!E)return;if(!_){const Be=window.AudioContext||window.webkitAudioContext;if(!Be)return;_=new Be({
 sampleRate:48e3}),S=!1,M=0}let F;try{const Be=atob(E);F=new Uint8Array(Be.length);for(let Je=0;Je<Be.
 length;Je++)F[Je]=Be.charCodeAt(Je)}catch{return}const me=new Int16Array(F.buffer),ee=Math.floor(me.
-length/2);if(ee<1)return;const he=_.createBuffer(2,ee,48e3);for(let Be=0;Be<2;Be++){const Je=he.getChannelData(
+length/2);if(ee<1)return;const ge=_.createBuffer(2,ee,48e3);for(let Be=0;Be<2;Be++){const Je=ge.getChannelData(
 Be);for(let st=0;st<ee;st++)Je[st]=me[st*2+Be]/32768}_.state==="suspended"&&_.resume();const Ee=_.createBufferSource();
-Ee.buffer=he,Ee.connect(_.destination),S||(M=_.currentTime+.08,S=!0);const We=Math.max(_.currentTime,
-M);Ee.start(We),M=We+he.duration}o(re,"playChunk");async function ue(E,F){const me=await fetch("/api\
+Ee.buffer=ge,Ee.connect(_.destination),S||(M=_.currentTime+.08,S=!0);const We=Math.max(_.currentTime,
+M);Ee.start(We),M=We+ge.duration}o(re,"playChunk");async function ue(E,F){const me=await fetch("/api\
 /gemini/music/command",H({method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(
 Object.assign({session_id:f,type:E},F||{}))})),ee=await me.json().catch(()=>({}));if(!me.ok)throw new Error(
 ee.error||"\u30B3\u30DE\u30F3\u30C9\u9001\u4FE1\u306B\u5931\u6557\u3057\u307E\u3057\u305F");return ee}
@@ -4711,10 +4710,10 @@ if(!E.length){showToast("\u30D7\u30ED\u30F3\u30D7\u30C8\u3092\u5165\u529B\u3057\
 D==="paused"?"paused":"streaming"),showToast("\u30D7\u30ED\u30F3\u30D7\u30C8\u3092\u9069\u7528\u3057\u307E\u3057\u305F",
 "success")}catch(F){showToast("Lyria RealTime: "+F.message,"error",!0)}finally{ne=!1,we()}}o(vt,"app\
 lyPrompts");async function wt(){if(!f)return;const E=Qe(),F=O||{},me=E.bpm!==void 0&&E.bpm!==F.bpm,ee=E.
-scale!==void 0&&E.scale!==F.scale,he=me||ee;ne=!0;try{await ue("config",{config:E,reset_context:he}),
-O=E,V(he?"\u8A2D\u5B9A\u3092\u9069\u7528\u3057\u307E\u3057\u305F\uFF08\u30B3\u30F3\u30C6\u30AD\u30B9\u30C8\u3092\u30EA\u30BB\u30C3\u30C8\uFF09":
+scale!==void 0&&E.scale!==F.scale,ge=me||ee;ne=!0;try{await ue("config",{config:E,reset_context:ge}),
+O=E,V(ge?"\u8A2D\u5B9A\u3092\u9069\u7528\u3057\u307E\u3057\u305F\uFF08\u30B3\u30F3\u30C6\u30AD\u30B9\u30C8\u3092\u30EA\u30BB\u30C3\u30C8\uFF09":
 "\u8A2D\u5B9A\u3092\u9069\u7528\u3057\u307E\u3057\u305F",D==="paused"?"paused":"streaming"),showToast(
-he?"\u8A2D\u5B9A\u3092\u9069\u7528\u3057\u307E\u3057\u305F\uFF08\u30B3\u30F3\u30C6\u30AD\u30B9\u30C8\u3092\u30EA\u30BB\u30C3\u30C8\uFF09":
+ge?"\u8A2D\u5B9A\u3092\u9069\u7528\u3057\u307E\u3057\u305F\uFF08\u30B3\u30F3\u30C6\u30AD\u30B9\u30C8\u3092\u30EA\u30BB\u30C3\u30C8\uFF09":
 "\u8A2D\u5B9A\u3092\u9069\u7528\u3057\u307E\u3057\u305F","success")}catch(Ee){showToast("Lyria RealT\
 ime: "+Ee.message,"error",!0)}finally{ne=!1,we()}}o(wt,"applyConfig");async function $t(){if(f){ne=!0,
 V("\u4FDD\u5B58\u4E2D...","connecting"),we();try{const E=await fetch("/api/gemini/music/save",H({method:"\
@@ -4728,10 +4727,10 @@ ne=!1,we()}}}o($t,"saveSession");async function De(){if(yt(),f)try{await fetch("
 ncel",H({method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session_id:f})}))}catch{}
 f=null,ie(),bt(),V("\u6E96\u5099\u5B8C\u4E86","idle")}o(De,"cancelSession");function it(){const E=A(
 "lyria-prompt-rows");E&&(E.innerHTML=""),Oe("",1),O=null,B=0,["lyria-bpm","lyria-guidance","lyria-de\
-nsity","lyria-brightness","lyria-temperature"].forEach(ee=>{const he=A(ee);he&&(he.value=ee==="lyria\
+nsity","lyria-brightness","lyria-temperature"].forEach(ee=>{const ge=A(ee);ge&&(ge.value=ee==="lyria\
 -bpm"?"120":ee==="lyria-guidance"?"4":ee==="lyria-temperature"?"1.1":"0.5")});const F=A("lyria-scale");
 F&&(F.value="");const me=A("lyria-mode");me&&(me.value="QUALITY"),["lyria-mute-bass","lyria-mute-dru\
-ms","lyria-only-bass-drums"].forEach(ee=>{const he=A(ee);he&&(he.checked=!1)}),Et()}o(it,"resetContr\
+ms","lyria-only-bass-drums"].forEach(ee=>{const ge=A(ee);ge&&(ge.checked=!1)}),Et()}o(it,"resetContr\
 ols");function Qn(E){yt(),f&&fetch("/api/gemini/music/cancel",H({method:"POST",headers:{"Content-Typ\
 e":"application/json"},body:JSON.stringify({session_id:f})})).catch(()=>{}),f=null,k=!1,ie(),bt(),hideModal(
 "lyria-studio-modal")}o(Qn,"closeAndCleanup");function Mn(E){if(!isLyriaRealtimeModel()){showToast("\
@@ -4743,7 +4742,7 @@ ie(),bt(),V("\u6E96\u5099\u5B8C\u4E86","idle"),showModal("lyria-studio-modal")}o
 const E=A("lyria-open-studio-btn");E&&E.addEventListener("click",()=>Mn(""));const F=A("lyria-studio\
 -close");F&&F.addEventListener("click",()=>Qn(!1));const me=A("lyria-play-btn");me&&me.addEventListener(
 "click",()=>{if(!f){Ie();return}Se("PLAY")});const ee=A("lyria-pause-btn");ee&&ee.addEventListener("\
-click",()=>Se("PAUSE"));const he=A("lyria-stop-btn");he&&he.addEventListener("click",()=>Se("STOP"));
+click",()=>Se("PAUSE"));const ge=A("lyria-stop-btn");ge&&ge.addEventListener("click",()=>Se("STOP"));
 const Ee=A("lyria-reset-btn");Ee&&Ee.addEventListener("click",()=>Se("RESET_CONTEXT"));const We=A("l\
 yria-add-prompt-btn");We&&We.addEventListener("click",()=>Oe("",1));const Be=A("lyria-apply-prompts-\
 btn");Be&&Be.addEventListener("click",vt);const Je=A("lyria-apply-config-btn");Je&&Je.addEventListener(
@@ -4777,8 +4776,8 @@ ice-studio-open-btn");O&&O.addEventListener("click",()=>B());const A=m("voice-st
 "click",()=>I()),window.VoiceStudio={open:B,close:I,closeIfOpen:D,log:_,isStudioMode:f}}return o(ne,
 "init"),{init:ne,open:B,close:I,closeIfOpen:D,log:_,isStudioMode:f}})().init();let Ut=null;function zn(){
 if(Ut&&(Ut.stop(),Ut=null),en){try{en.pause()}catch{}try{en.src=""}catch{}en=null}}o(zn,"stopStsPlay\
-back");async function gi(c){zn();const u=new Audio;return u.src=c,u.preload="auto",u.autoplay=!0,u.playsInline=
-!0,en=u,await u.play(),new Promise(m=>{u.onended=()=>m("ended"),u.onerror=()=>m("error")})}o(gi,"pla\
+back");async function hi(c){zn();const u=new Audio;return u.src=c,u.preload="auto",u.autoplay=!0,u.playsInline=
+!0,en=u,await u.play(),new Promise(m=>{u.onended=()=>m("ended"),u.onerror=()=>m("error")})}o(hi,"pla\
 yStsAudio");function Wn(){if(Gt.isActive()){Gt._cancel();return}if(Ae){Ae.stop(),Ae=null,zn(),get("m\
 ic-btn").classList.remove("bg-red-600","animate-pulse"),get("mic-btn").classList.add("bg-gray-700"),
 setStsStatus("Canceled",!1),setTimeout(()=>setStsStatus("Tap to speak",!1),800),At();return}ze&&ze.state===
@@ -4976,13 +4975,13 @@ q.split("/").pop(),P.onclick=function(Y){Y.preventDefault(),openImageViewer(this
 P.style.animationDelay=`${j*32}ms`,s.appendChild(P)}),T.length>0?s.classList.remove("hidden"):s.classList.
 add("hidden")}function d(T){const $=document.createElement("div");return $.className="thumb-item bg-\
 gray-800 flex items-center justify-center text-gray-500 text-[9px] shadow-sm font-bold",$.innerText=
-T,$}o(d,"createFileThumb");const p=collectImageUrlsForSend(),g=uploadProgressState.total,h=uploadProgressState.
-completed,v=uploadProgressState.active;g===0&&(e.classList.add("hidden"),n&&n.classList.add("hidden"),
+T,$}o(d,"createFileThumb");const p=collectImageUrlsForSend(),h=uploadProgressState.total,g=uploadProgressState.
+completed,v=uploadProgressState.active;h===0&&(e.classList.add("hidden"),n&&n.classList.add("hidden"),
 r&&r.classList.add("hidden"),s&&s.classList.add("hidden"));const b=get("send-btn"),w=get("mic-btn"),
 x=get("mask-btn"),L=isStopMode;if(v>0?(b&&(b.disabled=!0),w&&(w.disabled=!0),x&&(x.disabled=!0)):L||
-(b&&(b.disabled=!1),w&&(w.disabled=!1),x&&(x.disabled=!1)),v>0){const T=`Preparing... (${h}/${g})`;e.
-classList.remove("hidden"),t.innerText=T,a&&(a.innerText=`(${h}/${g})`);let $=h*100,j=0;for(let Te in uploadProgressState.
-perFilePct)$+=uploadProgressState.perFilePct[Te],j++;const J=g>0?$/(g*100)*100:0,X=`${Math.min(100,J)}\
+(b&&(b.disabled=!1),w&&(w.disabled=!1),x&&(x.disabled=!1)),v>0){const T=`Preparing... (${g}/${h})`;e.
+classList.remove("hidden"),t.innerText=T,a&&(a.innerText=`(${g}/${h})`);let $=g*100,j=0;for(let Te in uploadProgressState.
+perFilePct)$+=uploadProgressState.perFilePct[Te],j++;const J=h>0?$/(h*100)*100:0,X=`${Math.min(100,J)}\
 %`;n&&i&&(n.classList.remove("hidden"),i.style.width=X),r&&l&&(r.classList.remove("hidden"),l.style.
 width=X)}else a&&(a.innerText=""),r&&r.classList.add("hidden"),p.length>0?(e.classList.remove("hidde\
 n"),t.innerText=`${p.length} files ready`,n&&n.classList.add("hidden")):(e.classList.add("hidden"),t.
@@ -5009,8 +5008,8 @@ markerState.opacity)||.6));markerState.opacity=t;const n=t*100,i=formatMarkerOpa
 rker-color-picker");s&&s.value!==e&&(s.value=e);const a=get("marker-opacity");a&&a.value!==i&&(a.value=
 i);const r=get("marker-opacity-number");r&&r.value!==i&&(r.value=i);const l=get("marker-opacity-valu\
 e");l&&(l.textContent=`${i}%`),document.querySelectorAll("#marker-toolbar .marker-color-chip[data-ma\
-rker-color]").forEach(p=>{const g=normalizeMarkerHexColor(p.getAttribute("data-marker-color"));p.classList.
-toggle("active",g===e)})}o(syncMarkerColorControls,"syncMarkerColorControls");function setMarkerColor(e){
+rker-color]").forEach(p=>{const h=normalizeMarkerHexColor(p.getAttribute("data-marker-color"));p.classList.
+toggle("active",h===e)})}o(syncMarkerColorControls,"syncMarkerColorControls");function setMarkerColor(e){
 markerState.colorHex=normalizeMarkerHexColor(e),syncMarkerColorControls()}o(setMarkerColor,"setMarke\
 rColor");function setMarkerOpacity(e){const t=clampMarkerOpacityPct(e,60);markerState.opacity=t/100,
 syncMarkerColorControls()}o(setMarkerOpacity,"setMarkerOpacity");function setMarkerMode(e){markerState.
@@ -5030,8 +5029,8 @@ scale<=markerView.minScale+1e-4){markerView.offsetX=0,markerView.offsetY=0;retur
 r-stage"),t=get("marker-viewport");if(!e||!t)return;const n=Math.max(1,e.clientWidth||0),i=Math.max(
 1,e.clientHeight||0),s=Math.max(1,t.offsetWidth||t.clientWidth||0),a=Math.max(1,t.offsetHeight||t.clientHeight||
 0);if(n<=1||i<=1||s<=1||a<=1)return;const r=(n-s)/2,l=(i-a)/2,d=s*markerView.scale,p=a*markerView.scale,
-g=Math.min(n*.45,Math.max(24,n*.12)),h=Math.min(i*.45,Math.max(24,i*.12)),v=g-r-d,b=n-g-r,w=h-l-p,x=i-
-h-l,L=o((T,$,j)=>Number.isFinite(T)?$>j?($+j)/2:Math.min(j,Math.max($,T)):0,"clampOffset");markerView.
+h=Math.min(n*.45,Math.max(24,n*.12)),g=Math.min(i*.45,Math.max(24,i*.12)),v=h-r-d,b=n-h-r,w=g-l-p,x=i-
+g-l,L=o((T,$,j)=>Number.isFinite(T)?$>j?($+j)/2:Math.min(j,Math.max($,T)):0,"clampOffset");markerView.
 offsetX=L(markerView.offsetX,v,b),markerView.offsetY=L(markerView.offsetY,w,x)}o(clampMarkerViewOffset,
 "clampMarkerViewOffset");function applyMarkerTransform(){const e=get("marker-viewport");e&&(clampMarkerViewOffset(),
 e.style.transform=`translate(${markerView.offsetX}px, ${markerView.offsetY}px) scale(${markerView.scale}\
@@ -5089,9 +5088,9 @@ const n=e.getAttribute("data-original-filename");return getAttachmentSourceForPa
 s.getImageData(0,0,t,n),markerState.baseCanvas=i):(markerState.baseImageData=null,markerState.baseCanvas=
 null)}o(prepareMarkerBaseCanvas,"prepareMarkerBaseCanvas");function renderCropOverlay(){const e=get(
 "marker-crop-canvas");if(!e)return;const t=e.getContext("2d");if(!t)return;t.clearRect(0,0,e.width,e.
-height);const n=o((r,l,d=null,p=!1)=>{if(!r)return;const g=Math.max(0,r.x),h=Math.max(0,r.y),v=Math.
-max(1,r.w),b=Math.max(1,r.h);d&&(t.fillStyle=d,t.fillRect(g,h,v,b)),t.save(),p&&t.setLineDash([6,4]),
-t.strokeStyle=l,t.lineWidth=2,t.strokeRect(g+.5,h+.5,Math.max(1,v-1),Math.max(1,b-1)),t.restore()},"\
+height);const n=o((r,l,d=null,p=!1)=>{if(!r)return;const h=Math.max(0,r.x),g=Math.max(0,r.y),v=Math.
+max(1,r.w),b=Math.max(1,r.h);d&&(t.fillStyle=d,t.fillRect(h,g,v,b)),t.save(),p&&t.setLineDash([6,4]),
+t.strokeStyle=l,t.lineWidth=2,t.strokeRect(h+.5,g+.5,Math.max(1,v-1),Math.max(1,b-1)),t.restore()},"\
 drawRect"),i=markerState.cropRect,s=i&&i.x===0&&i.y===0&&Math.abs(i.w-e.width)<1&&Math.abs(i.h-e.height)<
 1;if(i&&(markerState.mode==="crop"||!s)){t.fillStyle="rgba(0,0,0,0.35)",t.fillRect(0,0,e.width,e.height);
 const r=Math.max(0,i.x),l=Math.max(0,i.y),d=Math.max(1,i.w),p=Math.max(1,i.h);t.clearRect(r,l,d,p),markerState.
@@ -5102,10 +5101,10 @@ mosaicPreviewRect,"rgba(56,189,248,0.95)","rgba(56,189,248,0.14)",!0)}o(renderCr
 pOverlay");function collectImageUrlsForSend(){return collectAttachmentItemsForSend().map(e=>e.path)}
 o(collectImageUrlsForSend,"collectImageUrlsForSend");function collectAttachmentItemsForSend(){const e=[],
 t=new Map,n=o((s,a,r)=>{const l=normalizeAttachmentPath(s);if(!l)return;const d=normalizeAttachmentSource(
-a),p=normalizeAttachmentDisplayName(r)||getAttachmentNameForPath(l),g=t.get(l);if(g===void 0){const b=e.
-length;t.set(l,b),e.push({path:l,source:d,name:p});return}const h=e[g];if(!h)return;const v=normalizeAttachmentSource(
-h.source);(v==="unknown"&&d!=="unknown"||v==="library"&&d==="upload")&&(h.source=d),!normalizeAttachmentDisplayName(
-h.name)&&p&&(h.name=p)},"pushItem"),i=get("upload-list");return i&&i.querySelectorAll("[data-filenam\
+a),p=normalizeAttachmentDisplayName(r)||getAttachmentNameForPath(l),h=t.get(l);if(h===void 0){const b=e.
+length;t.set(l,b),e.push({path:l,source:d,name:p});return}const g=e[h];if(!g)return;const v=normalizeAttachmentSource(
+g.source);(v==="unknown"&&d!=="unknown"||v==="library"&&d==="upload")&&(g.source=d),!normalizeAttachmentDisplayName(
+g.name)&&p&&(g.name=p)},"pushItem"),i=get("upload-list");return i&&i.querySelectorAll("[data-filenam\
 e]").forEach(s=>{const a=s.getAttribute("data-filename");n(a,getRowAttachmentSource(s),getRowAttachmentName(
 s));const r=s.getAttribute("data-original-filename");s.dataset.attachOriginal==="1"&&n(r,getRowOriginalAttachmentSource(
 s),getAttachmentNameForPath(r))}),currentImageUrls&&currentImageUrls.length&&currentImageUrls.forEach(
@@ -5142,7 +5141,7 @@ showModal("marker-modal"),location.pathname!=="/edit-image"&&history.pushState({
 p=Math.max(1,Math.floor(s.clientHeight));a.width=d,a.height=p,a.style.width=`${d}px`,a.style.height=
 `${p}px`,a.style.left="0px",a.style.top="0px",r&&(r.width=d,r.height=p,r.style.width=`${d}px`,r.style.
 height=`${p}px`,r.style.left="0px",r.style.top="0px"),markerState.naturalWidth=s.naturalWidth||d,markerState.
-naturalHeight=s.naturalHeight||p;const g=a.getContext("2d");g&&g.clearRect(0,0,a.width,a.height),prepareMarkerBaseCanvas(
+naturalHeight=s.naturalHeight||p;const h=a.getContext("2d");h&&h.clearRect(0,0,a.width,a.height),prepareMarkerBaseCanvas(
 s,d,p),saveMarkerHistory(),markerState.mode==="crop"&&!markerState.cropRect&&resetCropRectToFull(),renderCropOverlay(),
 resetMarkerTransform()},s.src=t)}o(openMarkerModalForRow,"openMarkerModalForRow");let uploadProgressState={
 total:0,completed:0,active:0,perFilePct:{}};const uploadCancelTokens=new Set;function updateGlobalUploadProgress(e,t){
@@ -5189,7 +5188,7 @@ ideal:1080}},audio:!1},{video:{facingMode:e},audio:!1},{video:!0,audio:!1}];let 
 try{const r=await navigator.mediaDevices.getUserMedia(a);cameraCaptureStream=r,t.srcObject=r;try{await t.
 play()}catch{}const l=r.getVideoTracks&&r.getVideoTracks()[0],d=l&&l.getSettings?l.getSettings():{},
 p=String(d.facingMode||"").toLowerCase();p==="user"||p==="environment"?cameraCaptureFacingMode=p:cameraCaptureFacingMode=
-e;const g=get("camera-capture-btn");return g&&(g.disabled=!1),n&&(n.disabled=!1),setCameraCaptureStatus(
+e;const h=get("camera-capture-btn");return h&&(h.disabled=!1),n&&(n.disabled=!1),setCameraCaptureStatus(
 cameraCapturePendingFiles.length>0?`${cameraCapturePendingFiles.length}\u679A\u64AE\u5F71\u6E08\u307F\u3002\u7D9A\u3051\u3066\u64AE\u5F71\u3059\u308B\u304B\u300C\u6DFB\u4ED8\u300D\u3092\u62BC\u3057\u3066\u304F\u3060\u3055\u3044\u3002`:
 "\u64AE\u5F71\u3057\u3066\u8FFD\u52A0\u3067\u304D\u307E\u3059\u3002\u6700\u5F8C\u306B\u300C\u6DFB\u4ED8\u300D\u3092\u62BC\u3057\u3066\u304F\u3060\u3055\u3044\u3002"),
 updateCameraCapturePendingUi(),r}catch(r){s=r}throw s||new Error("\u30AB\u30E1\u30E9\u3092\u8D77\u52D5\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F")}
@@ -5220,7 +5219,7 @@ if(cameraCaptureBusy)return;const e=get("camera-video"),t=get("camera-canvas"),n
 i&&(i.disabled=!0);const s=get("camera-attach-btn");s&&(s.disabled=!0),setCameraCaptureStatus("\u64AE\u5F71\u4E2D..\
 .");try{t.width=e.videoWidth,t.height=e.videoHeight;const a=t.getContext("2d");if(!a)throw new Error(
 "\u64AE\u5F71\u51E6\u7406\u306B\u5931\u6557\u3057\u307E\u3057\u305F");a.drawImage(e,0,0,t.width,t.height);
-const r=await new Promise((d,p)=>{t.toBlob(g=>{g?d(g):p(new Error("\u753B\u50CF\u306E\u751F\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F"))},
+const r=await new Promise((d,p)=>{t.toBlob(h=>{h?d(h):p(new Error("\u753B\u50CF\u306E\u751F\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F"))},
 "image/jpeg",.92)}),l=new File([r],buildCameraCaptureFilename(),{type:"image/jpeg",lastModified:Date.
 now()});cameraCapturePendingFiles.push(l),cameraCapturePendingPreviewUrls.push(URL.createObjectURL(r)),
 updateCameraCapturePendingUi(),setCameraCaptureStatus(`${cameraCapturePendingFiles.length}\u679A\u64AE\u5F71\u6E08\u307F\u3002\u7D9A\u3051\u3066\u64AE\
@@ -5264,15 +5263,15 @@ if(!e||(e=normalizeAttachmentPath(e),!e))return null;const n=normalizeAttachment
 "upload-list");if(!i)return null;i.children.length===1&&i.children[0].classList.contains("text-gray-\
 500")&&(i.innerHTML="");const s=e.split("/").pop()||e,a=normalizeAttachmentDisplayName(t.displayName)||
 getAttachmentNameForPath(e)||s,r=(s.split(".").pop()||"").toLowerCase(),l=["png","jpg","jpeg","webp",
-"gif"].includes(r),d=buildFileUrl(e),p=l?buildAttachmentPreviewUrl(e):d,g=`lib_${Date.now()}_${Math.
-random().toString(36).slice(2,8)}`,h=document.createElement("div");h.className="upload-row ui-enter \
-bg-gray-900/60 rounded p-2",h.dataset.uploadId=g,h.setAttribute("data-filename",e),h.dataset.fileSource=
-n,h.dataset.displayName=a,h.dataset.defaultDisplayName=a,h.dataset.sendNameCustomized="";const v=escapeHtml(
+"gif"].includes(r),d=buildFileUrl(e),p=l?buildAttachmentPreviewUrl(e):d,h=`lib_${Date.now()}_${Math.
+random().toString(36).slice(2,8)}`,g=document.createElement("div");g.className="upload-row ui-enter \
+bg-gray-900/60 rounded p-2",g.dataset.uploadId=h,g.setAttribute("data-filename",e),g.dataset.fileSource=
+n,g.dataset.displayName=a,g.dataset.defaultDisplayName=a,g.dataset.sendNameCustomized="";const v=escapeHtml(
 a),b=l&&!browserFastModeEnabled?'<button class="upload-marker text-[10px] border rounded px-2 py-1">\
 \u753B\u50CF\u7DE8\u96C6</button>':"",w=l?`<img src="${p}" loading="lazy" decoding="async" class="up\
 load-preview w-12 h-12 object-cover rounded border border-gray-700 cursor-pointer" alt="${v}">`:'<di\
 v class="upload-preview w-12 h-12 bg-gray-800 rounded border border-gray-700 flex items-center justi\
-fy-center text-gray-400 text-sm cursor-pointer">FILE</div>';h.innerHTML=`
+fy-center text-gray-400 text-sm cursor-pointer">FILE</div>';g.innerHTML=`
                 <div class="flex items-center gap-3">
                     ${w}
                     <div class="flex-1 min-w-0">
@@ -5293,15 +5292,15 @@ rder border-gray-700 rounded px-2 py-1">\u524A\u9664</button>
                 <div class="upload-progress h-2 rounded mt-2 overflow-hidden">
                     <div style="width:100%"></div>
                 </div>
-            `;const x=h.querySelector(".upload-preview");x&&(x.onclick=()=>openFileViewer(d,getRowAttachmentName(
-h)||a));const L=h.querySelector(".upload-send-name");L&&(L.onclick=()=>promptRowAttachmentName(h));const T=h.
-querySelector(".upload-remove");T&&(T.onclick=()=>{uploadCancelTokens.add(g),browserFastLocalFiles.delete(
-g),decrementUploadTotal(g);const j=h.getAttribute("data-filename");j&&(currentImageUrls=currentImageUrls.
-filter(J=>J!==j)),setRowMarkerState(h,!1),h.remove(),updateFilePreview(),i.children.length===0&&(i.innerHTML=
+            `;const x=g.querySelector(".upload-preview");x&&(x.onclick=()=>openFileViewer(d,getRowAttachmentName(
+g)||a));const L=g.querySelector(".upload-send-name");L&&(L.onclick=()=>promptRowAttachmentName(g));const T=g.
+querySelector(".upload-remove");T&&(T.onclick=()=>{uploadCancelTokens.add(h),browserFastLocalFiles.delete(
+h),decrementUploadTotal(h);const j=g.getAttribute("data-filename");j&&(currentImageUrls=currentImageUrls.
+filter(J=>J!==j)),setRowMarkerState(g,!1),g.remove(),updateFilePreview(),i.children.length===0&&(i.innerHTML=
 '<div class="text-xs text-gray-500">\u307E\u3060\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u304C\u3042\u308A\u307E\u305B\u3093\u3002</div>')});
-const $=h.querySelector(".upload-marker");return $&&($.onclick=()=>openMarkerModalForRow(h)),setAttachmentSourceForPath(
-e,n),setAttachmentNameForPath(e,a),i.prepend(h),{row:h,bar:h.querySelector(".upload-progress > div"),
-status:h.querySelector(".upload-status"),uploadId:g}}o(addStoredUploadRow,"addStoredUploadRow");function addUploadRow(e){
+const $=g.querySelector(".upload-marker");return $&&($.onclick=()=>openMarkerModalForRow(g)),setAttachmentSourceForPath(
+e,n),setAttachmentNameForPath(e,a),i.prepend(g),{row:g,bar:g.querySelector(".upload-progress > div"),
+status:g.querySelector(".upload-status"),uploadId:h}}o(addStoredUploadRow,"addStoredUploadRow");function addUploadRow(e){
 const t=get("upload-list");if(!t)return null;t.children.length===1&&t.children[0].classList.contains(
 "text-gray-500")&&(t.innerHTML="");const n=`up_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
 i=document.createElement("div");i.className="upload-row ui-enter bg-gray-900/60 rounded p-2",i.dataset.
@@ -5334,10 +5333,10 @@ rder border-gray-700 rounded px-2 py-1">\u524A\u9664</button>
                 <div class="upload-progress h-2 rounded mt-2 overflow-hidden">
                     <div style="width:0%"></div>
                 </div>
-            `,p&&i.setAttribute("data-local-url",p);const g=i.querySelector(".upload-preview");g&&(g.
+            `,p&&i.setAttribute("data-local-url",p);const h=i.querySelector(".upload-preview");h&&(h.
 onclick=()=>{const w=i.getAttribute("data-filename"),x=w?buildFileUrl(w):i.getAttribute("data-local-\
-url"),L=normalizeAttachmentDisplayName(i.dataset.displayName)||e.name||w||"";openFileViewer(x,L)});const h=i.
-querySelector(".upload-remove");h&&(h.onclick=()=>{uploadCancelTokens.add(n),browserFastLocalFiles.delete(
+url"),L=normalizeAttachmentDisplayName(i.dataset.displayName)||e.name||w||"";openFileViewer(x,L)});const g=i.
+querySelector(".upload-remove");g&&(g.onclick=()=>{uploadCancelTokens.add(n),browserFastLocalFiles.delete(
 n),decrementUploadTotal(n);const w=i.getAttribute("data-local-url");w&&URL.revokeObjectURL(w);const x=i.
 getAttribute("data-filename");x&&(currentImageUrls=currentImageUrls.filter(L=>L!==x)),setRowMarkerState(
 i,!1),i.remove(),updateFilePreview(),t.children.length===0&&(t.innerHTML='<div class="text-xs text-g\
@@ -5348,16 +5347,16 @@ status:i.querySelector(".upload-status"),bar:i.querySelector(".upload-progress >
 "addUploadRow");const CHUNK_THRESHOLD_BYTES=20*1024*1024;async function uploadFileChunked(e,t){if(!e)
 return!1;let n=!1;window.ConnectionMonitor&&(window.ConnectionMonitor.operationStarted(),n=!0);try{const i=await apiFetch(
 "/upload/init",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken},body:JSON.
-stringify({filename:e.name,size:e.size})}),s=await i.json();if(!i.ok){const h=s&&s.error?s.error:"\u30A2\u30C3\
+stringify({filename:e.name,size:e.size})}),s=await i.json();if(!i.ok){const g=s&&s.error?s.error:"\u30A2\u30C3\
 \u30D7\u30ED\u30FC\u30C9\u306B\u5931\u6557\u3057\u307E\u3057\u305F";return t&&t.status&&(t.status.textContent=
-"\u5931\u6557"),showToast(h,"error",!0),!1}const a=s.upload_id,r=s.chunk_size||10*1024*1024,l=Math.ceil(
-e.size/r);for(let h=0;h<l;h++){const v=h*r,b=Math.min(e.size,v+r),w=e.slice(v,b);if(!await new Promise(
+"\u5931\u6557"),showToast(g,"error",!0),!1}const a=s.upload_id,r=s.chunk_size||10*1024*1024,l=Math.ceil(
+e.size/r);for(let g=0;g<l;g++){const v=g*r,b=Math.min(e.size,v+r),w=e.slice(v,b);if(!await new Promise(
 L=>{const T=new XMLHttpRequest;T.open("POST","/upload/chunk",!0),T.setRequestHeader("X-CSRF-Token",csrfToken),
 T.upload.onprogress=j=>{if(j.lengthComputable&&t&&t.bar){const J=v+j.loaded,X=Math.min(100,Math.floor(
 J/e.size*100));t.bar.style.width=`${X}%`,t.status&&(t.status.textContent=`${X}%`),t.uploadId&&updateGlobalUploadProgress(
 t.uploadId,X)}window.ConnectionMonitor&&window.ConnectionMonitor.reportActivity()},T.onload=()=>{T.status>=
 200&&T.status<300?L(!0):L(!1)},T.onerror=()=>L(!1);const $=new FormData;$.append("upload_id",a),$.append(
-"index",String(h)),$.append("total",String(l)),$.append("chunk",w,e.name),T.send($)}))return t&&t.status&&
+"index",String(g)),$.append("total",String(l)),$.append("chunk",w,e.name),T.send($)}))return t&&t.status&&
 (t.status.textContent="\u5931\u6557"),showToast("\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0),!1}t&&t.status&&(t.status.textContent="\u51E6\u7406\u4E2D...");const d=await apiFetch("/\
 upload/complete",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken},
@@ -5365,14 +5364,14 @@ body:JSON.stringify({upload_id:a})}),p=await d.json();if(d.ok&&p&&p.filename){if
 uploadCancelTokens.has(t.uploadId))return t.row&&t.row.parentNode&&t.row.remove(),!1;if(t&&t.row){const b=t.
 row.getAttribute("data-local-url");b&&URL.revokeObjectURL(b),t.row.removeAttribute("data-local-url");
 const w=t.row.querySelector("img.upload-preview");if(w){const x=p.filename.replace(/^\d+\//,"");w.src=
-buildAttachmentPreviewUrl(x)}}const h=normalizeAttachmentPath(p.filename);if(h&&currentImageUrls.push(
-h),t&&t.row&&(t.row.setAttribute("data-filename",h||p.filename),setRowAttachmentSource(t.row,"upload"),
-h)){const b=isRowAttachmentNameCustomized(t.row),w=defaultAttachmentDisplayName(h),x=b&&normalizeAttachmentDisplayName(
-t.row.dataset.displayName)||w;t.row.dataset.defaultDisplayName=w,setRowAttachmentName(t.row,x)}return h&&
-setAttachmentSourceForPath(h,"upload"),t&&t.status&&(t.status.textContent="\u5B8C\u4E86"),updateFilePreview(),
+buildAttachmentPreviewUrl(x)}}const g=normalizeAttachmentPath(p.filename);if(g&&currentImageUrls.push(
+g),t&&t.row&&(t.row.setAttribute("data-filename",g||p.filename),setRowAttachmentSource(t.row,"upload"),
+g)){const b=isRowAttachmentNameCustomized(t.row),w=defaultAttachmentDisplayName(g),x=b&&normalizeAttachmentDisplayName(
+t.row.dataset.displayName)||w;t.row.dataset.defaultDisplayName=w,setRowAttachmentName(t.row,x)}return g&&
+setAttachmentSourceForPath(g,"upload"),t&&t.status&&(t.status.textContent="\u5B8C\u4E86"),updateFilePreview(),
 (Array.isArray(p.filenames)&&p.filenames.length?p.filenames:[p.filename]).forEach(b=>addLibraryFileFromPath(
-b)),!0}const g=p&&p.error?p.error:"\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306B\u5931\u6557\u3057\u307E\u3057\u305F";
-return t&&t.status&&(t.status.textContent="\u5931\u6557"),showToast(g,"error",!0),!1}catch{return t&&
+b)),!0}const h=p&&p.error?p.error:"\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306B\u5931\u6557\u3057\u307E\u3057\u305F";
+return t&&t.status&&(t.status.textContent="\u5931\u6557"),showToast(h,"error",!0),!1}catch{return t&&
 t.status&&(t.status.textContent="\u5931\u6557"),showToast("\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u4E2D\u306B\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u307E\u3057\u305F",
 "error",!0),!1}finally{n&&window.ConnectionMonitor&&window.ConnectionMonitor.operationEnded()}}o(uploadFileChunked,
 "uploadFileChunked");function uploadFileWithProgress(e,t){return new Promise(n=>{if(e&&e.size>CHUNK_THRESHOLD_BYTES){
@@ -5384,15 +5383,15 @@ i=!0);const s=o(()=>{i&&window.ConnectionMonitor&&(window.ConnectionMonitor.oper
 %`),t.uploadId&&updateGlobalUploadProgress(t.uploadId,d)}window.ConnectionMonitor&&window.ConnectionMonitor.
 reportActivity()},a.onload=()=>{let l={};try{l=JSON.parse(a.responseText||"{}")}catch{}if(a.status>=
 200&&a.status<300&&l&&l.filename){if(t&&t.row&&t.uploadId&&uploadCancelTokens.has(t.uploadId)){t.row&&
-t.row.parentNode&&t.row.remove(),s(),n(!1);return}if(t&&t.row){const g=t.row.getAttribute("data-loca\
-l-url");g&&URL.revokeObjectURL(g),t.row.removeAttribute("data-local-url");const h=t.row.querySelector(
-"img.upload-preview");if(h){const v=l.filename.replace(/^\d+\//,"");h.src=buildAttachmentPreviewUrl(
+t.row.parentNode&&t.row.remove(),s(),n(!1);return}if(t&&t.row){const h=t.row.getAttribute("data-loca\
+l-url");h&&URL.revokeObjectURL(h),t.row.removeAttribute("data-local-url");const g=t.row.querySelector(
+"img.upload-preview");if(g){const v=l.filename.replace(/^\d+\//,"");g.src=buildAttachmentPreviewUrl(
 v)}}const d=normalizeAttachmentPath(l.filename);if(d&&currentImageUrls.push(d),t&&t.row&&(t.row.setAttribute(
-"data-filename",d||l.filename),setRowAttachmentSource(t.row,"upload"),d)){const g=isRowAttachmentNameCustomized(
-t.row),h=defaultAttachmentDisplayName(d),v=g&&normalizeAttachmentDisplayName(t.row.dataset.displayName)||
-h;t.row.dataset.defaultDisplayName=h,setRowAttachmentName(t.row,v)}d&&setAttachmentSourceForPath(d,"\
+"data-filename",d||l.filename),setRowAttachmentSource(t.row,"upload"),d)){const h=isRowAttachmentNameCustomized(
+t.row),g=defaultAttachmentDisplayName(d),v=h&&normalizeAttachmentDisplayName(t.row.dataset.displayName)||
+g;t.row.dataset.defaultDisplayName=g,setRowAttachmentName(t.row,v)}d&&setAttachmentSourceForPath(d,"\
 upload"),t&&t.status&&(t.status.textContent="\u5B8C\u4E86"),updateFilePreview(),(Array.isArray(l.filenames)&&
-l.filenames.length?l.filenames:[l.filename]).forEach(g=>addLibraryFileFromPath(g)),s(),n(!0)}else{const d=l&&
+l.filenames.length?l.filenames:[l.filename]).forEach(h=>addLibraryFileFromPath(h)),s(),n(!0)}else{const d=l&&
 l.error?l.error:"\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306B\u5931\u6557\u3057\u307E\u3057\u305F";t&&
 t.status&&(t.status.textContent="\u5931\u6557"),showToast(d,"error",!0),s(),n(!1)}},a.onerror=()=>{t&&
 t.status&&(t.status.textContent="\u5931\u6557"),showToast("\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u4E2D\u306B\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u307E\u3057\u305F",
@@ -5402,11 +5401,11 @@ includes(getFileExt(e.name||"")):!1}o(isVideoFile,"isVideoFile");function isAudi
 type&&e.type.startsWith("audio/")?!0:AUDIO_EXTS.includes(getFileExt(e.name||"")):!1}o(isAudioFile,"i\
 sAudioFile");function encodeWav(e,t){let n=0;e.forEach(p=>{n+=p.length});const i=new Float32Array(n);
 let s=0;e.forEach(p=>{i.set(p,s),s+=p.length});const a=new ArrayBuffer(44+i.length*2),r=new DataView(
-a),l=o((p,g)=>{for(let h=0;h<g.length;h++)r.setUint8(p+h,g.charCodeAt(h))},"writeString");l(0,"RIFF"),
+a),l=o((p,h)=>{for(let g=0;g<h.length;g++)r.setUint8(p+g,h.charCodeAt(g))},"writeString");l(0,"RIFF"),
 r.setUint32(4,36+i.length*2,!0),l(8,"WAVE"),l(12,"fmt "),r.setUint32(16,16,!0),r.setUint16(20,1,!0),
 r.setUint16(22,1,!0),r.setUint32(24,t,!0),r.setUint32(28,t*2,!0),r.setUint16(32,2,!0),r.setUint16(34,
-16,!0),l(36,"data"),r.setUint32(40,i.length*2,!0);let d=44;for(let p=0;p<i.length;p++){const g=Math.
-max(-1,Math.min(1,i[p]));r.setInt16(d,g<0?g*32768:g*32767,!0),d+=2}return new Blob([r],{type:"audio/\
+16,!0),l(36,"data"),r.setUint32(40,i.length*2,!0);let d=44;for(let p=0;p<i.length;p++){const h=Math.
+max(-1,Math.min(1,i[p]));r.setInt16(d,h<0?h*32768:h*32767,!0),d+=2}return new Blob([r],{type:"audio/\
 wav"})}o(encodeWav,"encodeWav");function pickAudioRecorderType(){if(typeof MediaRecorder=="undefined")
 return"";const e=["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/ogg"];for(const t of e)
 if(MediaRecorder.isTypeSupported(t))return t;return""}o(pickAudioRecorderType,"pickAudioRecorderType");
@@ -5418,8 +5417,8 @@ a);const r=URL.createObjectURL(t);e.row.setAttribute("data-local-url",r);const l
 "image/"),d=escapeHtml(s),p=l?`<img src="${r}" class="upload-preview w-12 h-12 object-cover rounded \
 border border-gray-700 cursor-pointer" alt="${d}">`:'<div class="upload-preview w-12 h-12 bg-gray-80\
 0 rounded border border-gray-700 flex items-center justify-center text-gray-400 text-sm cursor-point\
-er">FILE</div>',g=e.row.querySelector(".upload-preview");g&&(g.outerHTML=p);const h=e.row.querySelector(
-".upload-preview");h&&(h.onclick=()=>{const b=e.row.getAttribute("data-filename"),w=b?buildFileUrl(b):
+er">FILE</div>',h=e.row.querySelector(".upload-preview");h&&(h.outerHTML=p);const g=e.row.querySelector(
+".upload-preview");g&&(g.onclick=()=>{const b=e.row.getAttribute("data-filename"),w=b?buildFileUrl(b):
 e.row.getAttribute("data-local-url");openFileViewer(w,getRowAttachmentName(e.row)||s||b||"")});const v=e.
 row.querySelector(".upload-marker");v&&v.classList.toggle("hidden",!l),l||(setRowMarkerState(e.row,!1),
 e.row.dataset.originalFilename="",e.row.dataset.originalSource="",e.row.dataset.attachOriginal="")}o(
@@ -5438,7 +5437,7 @@ const e=get("marker-canvas");if(!e)return;const t=e.getContext("2d");t&&t.clearR
 markerState.hasStroke=!1,markerState.mosaicRects=[],markerState.mosaicPreviewRect=null,renderCropOverlay(),
 saveMarkerHistory()}o(clearMarkerCanvas,"clearMarkerCanvas");function initMarkerCanvas(){const e=get(
 "marker-canvas");if(!e)return;const t=e.getContext("2d"),n=get("marker-size"),i=new Map;let s=!1,a=0,
-r=markerView.scale,l={x:0,y:0},d={x:0,y:0},p=[],g=16,h="",v=null,b=null,w=null,x=null,L=!1,T=null;const $=o(
+r=markerView.scale,l={x:0,y:0},d={x:0,y:0},p=[],h=16,g="",v=null,b=null,w=null,x=null,L=!1,T=null;const $=o(
 C=>{const R=e.getBoundingClientRect(),G=(C.clientX-R.left)*(e.width/R.width),K=(C.clientY-R.top)*(e.
 height/R.height);return{x:G,y:K}},"getPoint"),j=o((C,R)=>({x:(C.x+R.x)/2,y:(C.y+R.y)/2}),"getMid"),J=o(
 (C,R)=>Math.hypot(C.x-R.x,C.y-R.y),"getDist");let X=!1;const Te=o(()=>{v||(v=document.createElement(
@@ -5447,12 +5446,12 @@ e.width||v.height!==e.height)&&(v.width=e.width,v.height=e.height),(w.width!==e.
 height)&&(w.width=e.width,w.height=e.height)},"ensureDrawBuffers"),P=o(()=>{if(!t||!v||!w)return;const C=Math.
 max(MARKER_OPACITY_MIN_ALPHA,Math.min(1,Number(markerState.opacity)||.6));t.clearRect(0,0,e.width,e.
 height),t.drawImage(v,0,0),t.save(),t.globalAlpha=C,t.drawImage(w,0,0),t.restore()},"renderDrawPrevi\
-ew"),q=o(()=>{x&&(x.strokeStyle=h,x.fillStyle=h,x.lineWidth=g,x.lineCap="round",x.lineJoin="round")},
+ew"),q=o(()=>{x&&(x.strokeStyle=g,x.fillStyle=g,x.lineWidth=h,x.lineCap="round",x.lineJoin="round")},
 "applyMarkerBrush"),Y=o(C=>{if(!C)return!1;if(p.length===0)return p.push(C),!0;const R=p[p.length-1],
-G=C.x-R.x,K=C.y-R.y,Z=Math.hypot(G,K),ye=Math.max(.35,g*.04);if(Z<ye)return!1;const Q=Math.max(1,g*.25),
+G=C.x-R.x,K=C.y-R.y,Z=Math.hypot(G,K),ye=Math.max(.35,h*.04);if(Z<ye)return!1;const Q=Math.max(1,h*.25),
 le=Math.max(1,Math.ceil(Z/Q));for(let U=1;U<=le;U++){const fe=U/le;p.push({x:R.x+G*fe,y:R.y+K*fe})}return!0},
 "appendStrokePoint"),de=o(()=>{if(x&&(x.clearRect(0,0,w.width,w.height),p.length!==0)){if(q(),p.length===
-1){const C=p[0];x.beginPath(),x.arc(C.x,C.y,g/2,0,Math.PI*2),x.fill();return}if(x.beginPath(),x.moveTo(
+1){const C=p[0];x.beginPath(),x.arc(C.x,C.y,h/2,0,Math.PI*2),x.fill();return}if(x.beginPath(),x.moveTo(
 p[0].x,p[0].y),p.length===2)x.lineTo(p[1].x,p[1].y);else{for(let G=1;G<p.length-2;G++){const K=p[G],
 Z=p[G+1],ye=j(K,Z);x.quadraticCurveTo(K.x,K.y,ye.x,ye.y)}const C=p[p.length-2],R=p[p.length-1];x.quadraticCurveTo(
 C.x,C.y,R.x,R.y)}x.stroke()}},"renderStrokeLayer"),oe=o((C,R)=>{if(!C||!R)return null;const G=Math.min(
@@ -5466,15 +5465,15 @@ if(!R)return!1;const G=n?Number(n.value||16):16,K=Math.max(4,Math.floor(G/2)),Z=
 C.x)),ye=Math.max(0,Math.floor(C.y)),Q=Math.min(e.width,Math.ceil(C.x+C.w)),le=Math.min(e.height,Math.
 ceil(C.y+C.h));if(Q<=Z||le<=ye)return!1;for(let U=ye;U<le;U+=K)for(let fe=Z;fe<Q;fe+=K){const et=Math.
 min(K,Q-fe),Ce=Math.min(K,le-U),tt=Math.min(e.width-1,Math.max(0,fe+Math.floor(et/2))),Ke=(Math.min(
-e.height-1,Math.max(0,U+Math.floor(Ce/2)))*e.width+tt)*4,ot=R.data[Ke],xt=R.data[Ke+1],gt=R.data[Ke+
-2];t.fillStyle=`rgb(${ot},${xt},${gt})`,t.fillRect(fe,U,et,Ce)}return!0},"applyMosaicRect"),te=o(C=>{
+e.height-1,Math.max(0,U+Math.floor(Ce/2)))*e.width+tt)*4,ot=R.data[Ke],xt=R.data[Ke+1],ht=R.data[Ke+
+2];t.fillStyle=`rgb(${ot},${xt},${ht})`,t.fillRect(fe,U,et,Ce)}return!0},"applyMosaicRect"),te=o(C=>{
 if(!t)return;if(i.set(C.pointerId,{x:C.clientX,y:C.clientY}),i.size>=2){const G=Array.from(i.values()),
 K=G[0],Z=G[1];s=!0,X=!1,p=[],L=!1,T=null,markerState.mosaicPreviewRect=null,a=J(K,Z)||1,r=markerView.
 scale,l={x:markerView.offsetX,y:markerView.offsetY},d=j(K,Z),renderCropOverlay(),e.setPointerCapture&&
 e.setPointerCapture(C.pointerId),C.preventDefault();return}if(s||markerState.mode==="crop")return;X=
 !0;const R=$(C);if(markerState.mode==="mosaic")L=!0,T=R,markerState.mosaicPreviewRect=xe(R),renderCropOverlay();else{
 if(Te(),!b||!x)return;b.clearRect(0,0,v.width,v.height),b.drawImage(e,0,0),x.clearRect(0,0,w.width,w.
-height),g=n?Number(n.value||16):16,h=normalizeMarkerHexColor(markerState.colorHex),p=[],Y(R),de(),markerState.
+height),h=n?Number(n.value||16):16,g=normalizeMarkerHexColor(markerState.colorHex),p=[],Y(R),de(),markerState.
 hasStroke=!0,P()}e.setPointerCapture&&e.setPointerCapture(C.pointerId),C.preventDefault()},"start"),
 se=o(C=>{if(i.has(C.pointerId)&&i.set(C.pointerId,{x:C.clientX,y:C.clientY}),s&&i.size>=2){const G=Array.
 from(i.values()),K=G[0],Z=G[1],ye=j(K,Z),Q=J(K,Z)||1,le=r*(Q/a);markerView.scale=Math.min(markerView.
@@ -5489,7 +5488,7 @@ R&&saveMarkerHistory()}e.releasePointerCapture&&e.releasePointerCapture(C.pointe
 "end");e.addEventListener("pointerdown",te),e.addEventListener("pointermove",se),e.addEventListener(
 "pointerup",W),e.addEventListener("pointercancel",W)}o(initMarkerCanvas,"initMarkerCanvas");function initCropCanvas(){
 const e=get("marker-crop-canvas");if(!e)return;const t=e.getContext("2d"),n=new Map;let i=!1,s=null,
-a=null,r=null,l=!1,d=0,p=markerView.scale,g={x:0,y:0},h={x:0,y:0};const v=8,b=14,w=o((P,q,Y)=>Math.min(
+a=null,r=null,l=!1,d=0,p=markerView.scale,h={x:0,y:0},g={x:0,y:0};const v=8,b=14,w=o((P,q,Y)=>Math.min(
 Y,Math.max(q,P)),"clamp"),x=o(P=>{const q=e.getBoundingClientRect(),Y=(P.clientX-q.left)*(e.width/q.
 width),de=(P.clientY-q.top)*(e.height/q.height);return{x:Y,y:de}},"getPoint"),L=o((P,q)=>({x:(P.x+q.
 x)/2,y:(P.y+q.y)/2}),"getMid"),T=o((P,q)=>Math.hypot(P.x-q.x,P.y-q.y),"getDist"),$=o(()=>(markerState.
@@ -5502,13 +5501,13 @@ om":null;if(C&&R){if(C==="left"&&R==="top")return"nw";if(C==="right"&&R==="top")
 eft"&&R==="bottom")return"sw";if(C==="right"&&R==="bottom")return"se"}return C?C==="left"?"w":"e":R?
 R==="top"?"n":"s":"move"},"hitTest"),J=o(P=>{if(markerState.mode!=="crop")return;if(n.set(P.pointerId,
 {x:P.clientX,y:P.clientY}),n.size>=2){const de=Array.from(n.values()),oe=de[0],xe=de[1];l=!0,i=!1,d=
-T(oe,xe)||1,p=markerView.scale,g={x:markerView.offsetX,y:markerView.offsetY},h=L(oe,xe),e.setPointerCapture&&
+T(oe,xe)||1,p=markerView.scale,h={x:markerView.offsetX,y:markerView.offsetY},g=L(oe,xe),e.setPointerCapture&&
 e.setPointerCapture(P.pointerId),P.preventDefault();return}if(l)return;i=!0;const q=x(P),Y=$();a=j(q,
 Y),s=q,r=Y?{x:Y.x,y:Y.y,w:Y.w,h:Y.h}:null,renderCropOverlay(),e.setPointerCapture&&e.setPointerCapture(
 P.pointerId),P.preventDefault()},"start"),X=o(P=>{if(markerState.mode!=="crop")return;if(n.has(P.pointerId)&&
 n.set(P.pointerId,{x:P.clientX,y:P.clientY}),l&&n.size>=2){const C=Array.from(n.values()),R=C[0],G=C[1],
 K=L(R,G),Z=T(R,G)||1,ye=p*(Z/d);markerView.scale=Math.min(markerView.maxScale,Math.max(markerView.minScale,
-ye)),markerView.offsetX=g.x+(K.x-h.x),markerView.offsetY=g.y+(K.y-h.y),applyMarkerTransform(),renderCropOverlay(),
+ye)),markerView.offsetX=h.x+(K.x-g.x),markerView.offsetY=h.y+(K.y-g.y),applyMarkerTransform(),renderCropOverlay(),
 P.preventDefault();return}if(!i||!s||!r)return;const q=x(P),Y=e.width,de=e.height,oe={x:r.x,y:r.y,w:r.
 w,h:r.h},xe=r.x+r.w,pe=r.y+r.h,ke=o(()=>{const C=w(q.x,0,xe-v);oe.x=C,oe.w=xe-C},"applyW"),te=o(()=>{
 oe.w=w(q.x-r.x,v,Y-r.x)},"applyE"),se=o(()=>{const C=w(q.y,0,pe-v);oe.y=C,oe.h=pe-C},"applyN"),W=o(()=>{
@@ -5530,56 +5529,56 @@ cropRect.y*T)),J=Math.min(a,Math.max(1,Math.floor(markerState.cropRect.w*L))),X=
 1,Math.floor(markerState.cropRect.h*T))),Te=document.createElement("canvas");Te.width=J,Te.height=X;
 const P=Te.getContext("2d");P&&(P.drawImage(s,$,j,J,X,0,0,J,X),s=Te)}const d=await new Promise(L=>s.
 toBlob(L,"image/png",.92));if(!d){showToast("\u7DE8\u96C6\u753B\u50CF\u306E\u751F\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
-"error",!0);return}const g=(markerState.filename||"marked.png").replace(/\.[^/.]+$/,""),h=new File([
-d],`${g}_marked.png`,{type:"image/png"}),v={row:e,uploadId:e.dataset.uploadId,status:e.querySelector(
+"error",!0);return}const h=(markerState.filename||"marked.png").replace(/\.[^/.]+$/,""),g=new File([
+d],`${h}_marked.png`,{type:"image/png"}),v={row:e,uploadId:e.dataset.uploadId,status:e.querySelector(
 ".upload-status"),bar:e.querySelector(".upload-progress > div")};v.status&&(v.status.textContent="\u7DE8\u96C6\
-\u53CD\u6620\u4E2D..."),updateUploadRowFile(v,h);const b=e.getAttribute("data-filename"),w=getRowAttachmentSource(
+\u53CD\u6620\u4E2D..."),updateUploadRowFile(v,g);const b=e.getAttribute("data-filename"),w=getRowAttachmentSource(
 e);b&&!e.dataset.originalFilename&&(e.dataset.originalFilename=b,e.dataset.originalSource=w,setAttachmentSourceForPath(
-b,w)),await uploadFileWithProgress(h,v)?(b&&(currentImageUrls=currentImageUrls.filter(L=>L!==b)),setRowAttachmentSource(
+b,w)),await uploadFileWithProgress(g,v)?(b&&(currentImageUrls=currentImageUrls.filter(L=>L!==b)),setRowAttachmentSource(
 e,"upload"),setRowMarkerState(e,!0)):showToast("\u7DE8\u96C6\u753B\u50CF\u306E\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0),updateFilePreview(),window.closeMarkerModal(),markerState.row=null}o(saveMarkerToRow,"sa\
 veMarkerToRow");async function extractAudioFromVideo(e,t){return!isVideoFile(e)||!HTMLMediaElement.prototype.
 captureStream?null:(t&&t.status&&(t.status.textContent="\u97F3\u58F0\u62BD\u51FA\u4E2D..."),new Promise(
 n=>{const i=document.createElement("video");i.preload="auto",i.muted=!0,i.playsInline=!0,i.src=URL.createObjectURL(
-e);let s=null,a=null,r=null,l=null,d=[],p=null;const g=o(()=>{p&&clearTimeout(p);try{URL.revokeObjectURL(
+e);let s=null,a=null,r=null,l=null,d=[],p=null;const h=o(()=>{p&&clearTimeout(p);try{URL.revokeObjectURL(
 i.src)}catch{}try{i.remove()}catch{}if(s&&s.getTracks().forEach(v=>v.stop()),r)try{r.disconnect()}catch{}
-if(l)try{l.disconnect()}catch{}if(a)try{a.close()}catch{}},"cleanup"),h=o(()=>{g(),n(null)},"fail");
-i.onloadedmetadata=async()=>{try{s=i.captureStream();const v=s.getAudioTracks();if(!v||!v.length)return h();
+if(l)try{l.disconnect()}catch{}if(a)try{a.close()}catch{}},"cleanup"),g=o(()=>{h(),n(null)},"fail");
+i.onloadedmetadata=async()=>{try{s=i.captureStream();const v=s.getAudioTracks();if(!v||!v.length)return g();
 a=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16e3}),l=a.createMediaStreamSource(
 new MediaStream(v)),r=a.createScriptProcessor(4096,1,1),r.onaudioprocess=w=>{const x=w.inputBuffer.getChannelData(
 0);d.push(new Float32Array(x))},l.connect(r),r.connect(a.destination);const b=isFinite(i.duration)?Math.
 max(1,Math.ceil(i.duration*1e3)):0;b>0&&(p=setTimeout(()=>{const w=(e.name||"video").replace(/\.[^/.]+$/,
-""),x=encodeWav(d,a.sampleRate),L=new File([x],`${w}.audio.wav`,{type:"audio/wav"});g(),n(L)},b+250)),
+""),x=encodeWav(d,a.sampleRate),L=new File([x],`${w}.audio.wav`,{type:"audio/wav"});h(),n(L)},b+250)),
 await i.play(),i.onended=()=>{const w=(e.name||"video").replace(/\.[^/.]+$/,""),x=encodeWav(d,a.sampleRate),
-L=new File([x],`${w}.audio.wav`,{type:"audio/wav"});g(),n(L)}}catch{h()}},i.onerror=()=>h()}))}o(extractAudioFromVideo,
+L=new File([x],`${w}.audio.wav`,{type:"audio/wav"});h(),n(L)}}catch{g()}},i.onerror=()=>g()}))}o(extractAudioFromVideo,
 "extractAudioFromVideo");async function handleFiles(e,t={}){if(!e||!e.length)return;const n=Array.from(
 e).filter(Boolean);if(!n.length)return;const i=collectImageUrlsForSend().length+browserFastLocalFiles.
-size+Math.max(0,Number(uploadProgressState.active)||0);let s=n;if(i+n.length>ATTACHMENT_MAX_FILES){const h=Math.
-max(0,ATTACHMENT_MAX_FILES-i);if(h<=0){showToast(`\u6DFB\u4ED8\u306F\u6700\u5927${ATTACHMENT_MAX_FILES}\
-\u4EF6\u3067\u3059`,"error",!0);return}s=n.slice(0,h),showToast(`\u6DFB\u4ED8\u306F\u6700\u5927${ATTACHMENT_MAX_FILES}\
-\u4EF6\u3067\u3059\u3002\u5148\u982D${h}\u4EF6\u306E\u307F\u8FFD\u52A0\u3057\u307E\u3059\u3002`,"war\
+size+Math.max(0,Number(uploadProgressState.active)||0);let s=n;if(i+n.length>ATTACHMENT_MAX_FILES){const g=Math.
+max(0,ATTACHMENT_MAX_FILES-i);if(g<=0){showToast(`\u6DFB\u4ED8\u306F\u6700\u5927${ATTACHMENT_MAX_FILES}\
+\u4EF6\u3067\u3059`,"error",!0);return}s=n.slice(0,g),showToast(`\u6DFB\u4ED8\u306F\u6700\u5927${ATTACHMENT_MAX_FILES}\
+\u4EF6\u3067\u3059\u3002\u5148\u982D${g}\u4EF6\u306E\u307F\u8FFD\u52A0\u3057\u307E\u3059\u3002`,"war\
 ning",!0)}t.openModal!==!1?openUploadModal():syncUploadRowsFromCurrent(),uploadProgressState.total+=
 s.length,uploadProgressState.active+=s.length,updateFilePreview();const a=!!(get("upload-audio-only")&&
-get("upload-audio-only").checked),r=getModelMediaSupport(get("model-select").value),l=o(async h=>{let v=null;
-try{if(isAudioFile(h)&&!r.audio)return showToast("\u3053\u306E\u30E2\u30C7\u30EB\u306F\u97F3\u58F0\u5165\u529B\u306B\u5BFE\u5FDC\u3057\u3066\u3044\u307E\u305B\u3093",
+get("upload-audio-only").checked),r=getModelMediaSupport(get("model-select").value),l=o(async g=>{let v=null;
+try{if(isAudioFile(g)&&!r.audio)return showToast("\u3053\u306E\u30E2\u30C7\u30EB\u306F\u97F3\u58F0\u5165\u529B\u306B\u5BFE\u5FDC\u3057\u3066\u3044\u307E\u305B\u3093",
 "error",!0),uploadProgressState.total>0&&uploadProgressState.total--,uploadProgressState.active>0&&uploadProgressState.
-active--,!1;if(isVideoFile(h)&&!r.video)return showToast("\u3053\u306E\u30E2\u30C7\u30EB\u306F\u52D5\u753B\u5165\u529B\u306B\u5BFE\u5FDC\u3057\u3066\u3044\u307E\u305B\u3093",
+active--,!1;if(isVideoFile(g)&&!r.video)return showToast("\u3053\u306E\u30E2\u30C7\u30EB\u306F\u52D5\u753B\u5165\u529B\u306B\u5BFE\u5FDC\u3057\u3066\u3044\u307E\u305B\u3093",
 "error",!0),uploadProgressState.total>0&&uploadProgressState.total--,uploadProgressState.active>0&&uploadProgressState.
-active--,!1;if(browserFastModeEnabled&&(!h.type||!h.type.startsWith("image/")))return showToast("\u9AD8\u901F\u30E2\
+active--,!1;if(browserFastModeEnabled&&(!g.type||!g.type.startsWith("image/")))return showToast("\u9AD8\u901F\u30E2\
 \u30FC\u30C9\u3067\u306F\u753B\u50CF\u30D5\u30A1\u30A4\u30EB\u3060\u3051\u3092\u6DFB\u4ED8\u3067\u304D\u307E\u3059",
 "error",!0),uploadProgressState.total>0&&uploadProgressState.total--,uploadProgressState.active>0&&uploadProgressState.
-active--,!1;const b=addUploadRow(h);updateFilePreview(),v=b.uploadId,uploadProgressState.perFilePct[v]=
-0;let w=h;if(a&&isVideoFile(h)){const x=await extractAudioFromVideo(h,b);x?(w=x,updateUploadRowFile(
+active--,!1;const b=addUploadRow(g);updateFilePreview(),v=b.uploadId,uploadProgressState.perFilePct[v]=
+0;let w=g;if(a&&isVideoFile(g)){const x=await extractAudioFromVideo(g,b);x?(w=x,updateUploadRowFile(
 b,x),b&&b.status&&(b.status.textContent="\u97F3\u58F0\u306E\u307F")):(b&&b.status&&(b.status.textContent=
 "\u62BD\u51FA\u5931\u6557: \u52D5\u753B\u9001\u4FE1"),showToast("\u97F3\u58F0\u62BD\u51FA\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002\u52D5\u753B\u306E\u307E\u307E\u9001\u4FE1\u3057\u307E\u3059\u3002",
-"error",!0))}if(get("enable-compression").checked&&h.type.startsWith("image/"))try{const x=getCompressionOutputType();
-if(getCompressionFormatOnly())w=await convertImageFormatOnly(h,x);else{const T={maxSizeMB:getCompressionMaxSizeMB(),
+"error",!0))}if(get("enable-compression").checked&&g.type.startsWith("image/"))try{const x=getCompressionOutputType();
+if(getCompressionFormatOnly())w=await convertImageFormatOnly(g,x);else{const T={maxSizeMB:getCompressionMaxSizeMB(),
 maxWidthOrHeight:getCompressionMaxDim(),useWebWorker:!0};x&&x!=="original"&&(T.fileType=x),await ensureImageCompression();
-const $=await window.imageCompression(h,T),j=new File([$],imageFilenameForMime(h.name,$.type||(x!=="\
-original"?x:h.type)),{type:$.type||h.type,lastModified:h.lastModified||Date.now()});j.size>h.size?(showToast(
+const $=await window.imageCompression(g,T),j=new File([$],imageFilenameForMime(g.name,$.type||(x!=="\
+original"?x:g.type)),{type:$.type||g.type,lastModified:g.lastModified||Date.now()});j.size>g.size?(showToast(
 `\u5727\u7E2E\u5F8C\u306B\u30B5\u30A4\u30BA\u304C\u5897\u52A0\u3057\u307E\u3057\u305F: ${formatBytes(
-h.size)} -> ${formatBytes(j.size)}\uFF08\u5143\u30D5\u30A1\u30A4\u30EB\u3092\u4F7F\u7528\uFF09`,"war\
-ning",!0),w=h):w=j}w!==h&&updateUploadRowFile(b,w)}catch{}if(browserFastModeEnabled){const x=Array.from(
+g.size)} -> ${formatBytes(j.size)}\uFF08\u5143\u30D5\u30A1\u30A4\u30EB\u3092\u4F7F\u7528\uFF09`,"war\
+ning",!0),w=g):w=j}w!==g&&updateUploadRowFile(b,w)}catch{}if(browserFastModeEnabled){const x=Array.from(
 browserFastLocalFiles.values()).reduce((L,T)=>L+Number(T.file&&T.file.size||0),0);return browserFastLocalFiles.
 size>=BROWSER_FAST_MAX_IMAGES||x+w.size>BROWSER_FAST_MAX_BYTES?(b&&b.status&&(b.status.textContent="\
 \u4E0A\u9650\u8D85\u904E"),b&&b.row&&b.row.remove(),showToast("\u9AD8\u901F\u30E2\u30FC\u30C9\u306E\u753B\u50CF\u306F4\u679A\u30FB\u5408\u8A0812MB\u307E\u3067\u3067\u3059",
@@ -5589,8 +5588,8 @@ size>=BROWSER_FAST_MAX_IMAGES||x+w.size>BROWSER_FAST_MAX_BYTES?(b&&b.status&&(b.
 v&&uploadProgressState.perFilePct.hasOwnProperty(v)&&(delete uploadProgressState.perFilePct[v],uploadProgressState.
 completed++,uploadProgressState.active--),uploadProgressState.active<=0&&(uploadProgressState.total=
 0,uploadProgressState.completed=0,uploadProgressState.active=0,uploadProgressState.perFilePct={}),updateFilePreview()}},
-"processOne");let d=0;const p=Math.min(UPLOAD_CONCURRENCY,s.length),g=Array.from({length:p}).map(async()=>{
-for(;;){const h=d++;if(h>=s.length)break;await l(s[h])}});await Promise.all(g)}o(handleFiles,"handle\
+"processOne");let d=0;const p=Math.min(UPLOAD_CONCURRENCY,s.length),h=Array.from({length:p}).map(async()=>{
+for(;;){const g=d++;if(g>=s.length)break;await l(s[g])}});await Promise.all(h)}o(handleFiles,"handle\
 Files"),get("clear-file-btn").onclick=()=>{resetUploadState()},get("clear-mask-btn")&&(get("clear-ma\
 sk-btn").onclick=()=>{currentMaskImage=null,updateMaskPreview()}),get("mask-btn")&&get("mask-input")&&
 (get("mask-btn").onclick=()=>{get("mask-input").click()},get("mask-input").addEventListener("change",
@@ -5613,16 +5612,16 @@ test(i)||/<html[\s>]/i.test(i)}o(isCanvasHtmlPreviewCandidate,"isCanvasHtmlPrevi
 const n=String(e&&e.lang?e.lang:"").trim(),i=String(e&&e.code!==void 0&&e.code!==null?e.code:""),s=!!(e&&
 e.open);return{...e,index:t,lang:n,code:i,open:s,key:hashString(`${n||"TEXT"}
 ${i||""}`)}}o(normalizeCanvasBlock,"normalizeCanvasBlock");function parseCanvasMarkdown(e){const t=String(
-e||""),n=t.split(/\r?\n/),i=[],s=[],a=/^(\s*)(`{3,}|~{3,})(.*)$/;let r=null,l="",d=[];for(const h of n){
-if(!r){const w=h.match(a);if(w){r=w[2],l=String(w[3]||"").trim(),d=[],i.push({lang:l,code:"",open:!0}),
+e||""),n=t.split(/\r?\n/),i=[],s=[],a=/^(\s*)(`{3,}|~{3,})(.*)$/;let r=null,l="",d=[];for(const g of n){
+if(!r){const w=g.match(a);if(w){r=w[2],l=String(w[3]||"").trim(),d=[],i.push({lang:l,code:"",open:!0}),
 s.push('<div class="canvas-code-placeholder">Canvas\u3067\u8868\u793A\u4E2D</div>');continue}s.push(
-h);continue}const v=String(h||"").trim();if(v&&v.replace(/\s+/g,"")===r){const w=i[i.length-1];w&&(w.
+g);continue}const v=String(g||"").trim();if(v&&v.replace(/\s+/g,"")===r){const w=i[i.length-1];w&&(w.
 code=d.join(`
-`),w.open=!1),r=null,l="",d=[];continue}d.push(h);const b=i[i.length-1];b&&(b.code=d.join(`
-`))}if(r&&i.length){const h=i[i.length-1];h&&(h.code=d.join(`
-`),h.open=!0)}const p=i.map((h,v)=>normalizeCanvasBlock(h,v)),g=selectCanvasPreviewBlock(p,t);return{
+`),w.open=!1),r=null,l="",d=[];continue}d.push(g);const b=i[i.length-1];b&&(b.code=d.join(`
+`))}if(r&&i.length){const g=i[i.length-1];g&&(g.code=d.join(`
+`),g.open=!0)}const p=i.map((g,v)=>normalizeCanvasBlock(g,v)),h=selectCanvasPreviewBlock(p,t);return{
 renderText:s.join(`
-`),blocks:p,primaryBlock:g?g.block:null,primaryIndex:g?g.index:-1,rawText:t}}o(parseCanvasMarkdown,"\
+`),blocks:p,primaryBlock:h?h.block:null,primaryIndex:h?h.index:-1,rawText:t}}o(parseCanvasMarkdown,"\
 parseCanvasMarkdown");function selectCanvasPreviewBlock(e,t="",n=-1){const i=Array.isArray(e)?e:[];if(Number.
 isInteger(n)&&n>=0&&n<i.length){const a=i[n];return{block:a,index:n,previewType:isCanvasHtmlPreviewCandidate(
 a.lang,a.code)?"html":"code"}}if(i.length>0){const a=i.length-1,r=i[a];return{block:r,index:a,previewType:isCanvasHtmlPreviewCandidate(
@@ -5666,13 +5665,13 @@ blocks)?canvasPreviewState.blocks:[];if(e.blockCount&&(e.blockCount.textContent=
 length){e.blockList.innerHTML='<div class="px-2 py-3 text-xs text-gray-500">\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3092\u5F85\u6A5F\u4E2D</div>';
 return}const n=Number.isInteger(canvasPreviewState.selectedIndex)?canvasPreviewState.selectedIndex:-1;
 e.blockList.innerHTML=t.map((i,s)=>{const a=String(i&&i.lang?i.lang:"text").trim()||"text",r=s===n,l=i&&
-i.open?"\u751F\u6210\u4E2D":"\u8868\u793A",g=(String(i&&i.code?i.code:"").split(/\r?\n/).find(b=>b.trim())||
-"\u7A7A\u306E\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF").trim().replace(/\s+/g," ").slice(0,120),h=`${r?
-"\u73FE\u5728\u8868\u793A\u4E2D":"\u5207\u308A\u66FF\u3048"}: ${a}`,v=`${h}\u3001${g}`;return`<butto\
+i.open?"\u751F\u6210\u4E2D":"\u8868\u793A",h=(String(i&&i.code?i.code:"").split(/\r?\n/).find(b=>b.trim())||
+"\u7A7A\u306E\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF").trim().replace(/\s+/g," ").slice(0,120),g=`${r?
+"\u73FE\u5728\u8868\u793A\u4E2D":"\u5207\u308A\u66FF\u3048"}: ${a}`,v=`${g}\u3001${h}`;return`<butto\
 n type="button" class="canvas-block-chip${r?" active":""}" data-canvas-block-index="${s}" title="${escapeHtml(
-h)}" aria-label="${escapeHtml(v)}" aria-pressed="${r?"true":"false"}"><span class="canvas-block-chip\
+g)}" aria-label="${escapeHtml(v)}" aria-pressed="${r?"true":"false"}"><span class="canvas-block-chip\
 -index">#${s+1}</span><span class="canvas-block-chip-main"><span class="canvas-block-chip-lang">${escapeHtml(
-a)}</span><span class="canvas-block-chip-preview">${escapeHtml(g)}</span></span><span class="canvas-\
+a)}</span><span class="canvas-block-chip-preview">${escapeHtml(h)}</span></span><span class="canvas-\
 block-chip-state">${r?"\u8868\u793A\u4E2D":l}</span></button>`}).join("")}o(renderCanvasBlockChips,"\
 renderCanvasBlockChips");function renderCanvasSourceOptions(){const e=getCanvasModeElements();if(!e||
 !e.sourceSelect)return;const t=Array.isArray(canvasPreviewState.blocks)?canvasPreviewState.blocks:[];
@@ -5742,12 +5741,12 @@ canvasPreviewState.blocks:[],n=getCanvasSelectedBlock(),i=n&&n.block?n.block:nul
 n.index)?n.index:-1,a=!!i,r=String(i&&i.lang?i.lang:"").trim(),l=String(i&&i.code!==void 0&&i.code!==
 null?i.code:""),d=a?isCanvasHtmlPreviewCandidate(r,l):!1,p=a?d?"HTML \u3092\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u3067\u30D7\u30EC\u30D3\u30E5\u30FC\u3057\u3066\u3044\u307E\u3059":
 i&&i.open?"\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3092\u751F\u6210\u4E2D":"\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3092\u30D7\u30EC\u30D3\u30E5\u30FC\u3057\u3066\u3044\u307E\u3059":
-"\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3092\u5F85\u6A5F\u4E2D",g=a?d?`HTML Canvas Preview${t.length>
+"\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3092\u5F85\u6A5F\u4E2D",h=a?d?`HTML Canvas Preview${t.length>
 1&&s>=0?` #${s+1}/${t.length}`:""}`:`Canvas Preview: ${r||"text"}${t.length>1&&s>=0?` #${s+1}/${t.length}`:
-""}`:"Canvas\u3067\u8868\u793A\u4E2D";e.title&&(e.title.textContent=g),e.status&&(e.status.textContent=
-p),e.previewLang&&(e.previewLang.textContent=a?r||"text":"idle");const h=e.sourceScroll?e.sourceScroll.
+""}`:"Canvas\u3067\u8868\u793A\u4E2D";e.title&&(e.title.textContent=h),e.status&&(e.status.textContent=
+p),e.previewLang&&(e.previewLang.textContent=a?r||"text":"idle");const g=e.sourceScroll?e.sourceScroll.
 scrollTop:canvasPreviewState.sourceScrollTop,v=e.sourceScroll?e.sourceScroll.scrollLeft:canvasPreviewState.
-sourceScrollLeft;if(e.code&&(e.code.textContent=l),e.sourceScroll&&(e.sourceScroll.scrollTop=h,e.sourceScroll.
+sourceScrollLeft;if(e.code&&(e.code.textContent=l),e.sourceScroll&&(e.sourceScroll.scrollTop=g,e.sourceScroll.
 scrollLeft=v,canvasPreviewState.sourceScrollTop=e.sourceScroll.scrollTop,canvasPreviewState.sourceScrollLeft=
 e.sourceScroll.scrollLeft),e.blockCount&&(e.blockCount.textContent=String(t.length)),renderCanvasBlockChips(),
 renderCanvasSourceOptions(),a){canvasPreviewState.frameRenderToken+=1;const b=canvasPreviewState.frameRenderToken,
@@ -5775,8 +5774,8 @@ onCode");function collectCanvasBlocksFromButton(e){const t=decodeCanvasPreviewBu
 const n=e&&typeof e.closest=="function"?e.closest(".message-group"):null,i=n?Array.from(n.querySelectorAll(
 ".canvas-preview-btn")):[];if(!i.length){const l=normalizeCanvasBlock({lang:t.lang,code:t.code,open:!1},
 0);return{blocks:[l],selectedIndex:0,selectedKey:l.key||t.codeKey||""}}const s=[];let a=-1;if(i.forEach(
-(l,d)=>{const p=decodeCanvasPreviewButtonCode(l);if(!p)return;const g=normalizeCanvasBlock({lang:p.lang,
-code:p.code,open:!1},d);s.push(g),a===-1&&p.codeKey===t.codeKey&&(a=s.length-1)}),!s.length)return null;
+(l,d)=>{const p=decodeCanvasPreviewButtonCode(l);if(!p)return;const h=normalizeCanvasBlock({lang:p.lang,
+code:p.code,open:!1},d);s.push(h),a===-1&&p.codeKey===t.codeKey&&(a=s.length-1)}),!s.length)return null;
 a===-1&&(a=0);const r=s[a]||s[0]||null;return{blocks:s,selectedIndex:a,selectedKey:r&&r.key?r.key:t.
 codeKey||""}}o(collectCanvasBlocksFromButton,"collectCanvasBlocksFromButton");function previewCanvasCodeFromButton(e){
 if(!e)return!1;const t=collectCanvasBlocksFromButton(e);if(!t||!t.blocks||!t.blocks.length)return!1;
@@ -5839,9 +5838,9 @@ vasModeUi");function normalizeMarkdownNewlines(e){return String(e||"").replace(/
 `).replace(/\r/g,`
 `)}o(normalizeMarkdownNewlines,"normalizeMarkdownNewlines");function stripExactFencedBlock(e,t,n){let i=normalizeMarkdownNewlines(
 e);const s=normalizeMarkdownNewlines(n);if(!s&&s!=="")return i;const a=t?[String(t),""]:[""];for(const r of[
-"`","~"])for(let l=3;l<=10;l++){const d=r.repeat(l);for(const p of a){const g=`${d}${p}
-`,h=`
-${d}`,v=g+s+h;i.includes(v)&&(i=i.split(v).join(""))}}return i}o(stripExactFencedBlock,"stripExactFe\
+"`","~"])for(let l=3;l<=10;l++){const d=r.repeat(l);for(const p of a){const h=`${d}${p}
+`,g=`
+${d}`,v=h+s+g;i.includes(v)&&(i=i.split(v).join(""))}}return i}o(stripExactFencedBlock,"stripExactFe\
 ncedBlock");function stripVisiblePythonOutputBlock(e,t){let n=normalizeMarkdownNewlines(e);const i=normalizeMarkdownNewlines(
 t==null?"":String(t)),s=[`**Output:**
 `,`**Output:** 
@@ -5858,7 +5857,7 @@ ${d}`,`
 ${a}
 ${d}
 ${i}
-${d}`].forEach(g=>{n.includes(g)&&(n=n.split(g).join(`
+${d}`].forEach(h=>{n.includes(h)&&(n=n.split(h).join(`
 `))})}return n}o(stripVisiblePythonOutputBlock,"stripVisiblePythonOutputBlock");function buildChatErrorBubbleHtml(e){
 const t=String(e==null?"":e).trim()||"Unknown error";return`<div class="text-red-400 text-xs mt-2 bo\
 rder border-red-500 p-2 rounded chat-error-box" role="alert"><i class="fas fa-triangle-exclamation m\
@@ -5897,13 +5896,13 @@ a=escapeHtml(i)}catch{a=escapeHtml(i)}const r=escapeHtml(s),l=encodeURIComponent
 7"),d=encodeURIComponent(s).replace(/'/g,"%27"),p=hashString(`pyexec-detail
 ${i}
 ${s}
-${t}`),g=n>1?`Python Execution ${t+1}/${n}`:"Python Execution",h=`<button class="download-btn" data-\
+${t}`),h=n>1?`Python Execution ${t+1}/${n}`:"Python Execution",g=`<button class="download-btn" data-\
 code="${l}" data-lang="python" title="\u30B3\u30FC\u30C9\u3092\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9" aria-label="\u30B3\u30FC\u30C9\u3092\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9"><i class="fas fa-download"\
 ></i></button>`,v=`<button class="coding-target-btn" data-code="${l}" data-code-key="${p}" data-codi\
 ng-lang="python" aria-pressed="false" title="Coding Mode\u306E\u7DE8\u96C6\u5BFE\u8C61\u306B\u6307\u5B9A" aria-label="\u7DE8\u96C6\u5BFE\u8C61\u306B\u6307\u5B9A"><i class="fas\
  fa-quote-right"></i></button>`;return`<div class="code-wrapper python-box" data-collapsed="false" d\
 ata-code-key="${p}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i>\
- ${escapeHtml(g)}</span><div class="code-actions">${v}${h}<button class="copy-btn" data-copy="code" \
+ ${escapeHtml(h)}</span><div class="code-actions">${v}${g}<button class="copy-btn" data-copy="code" \
 data-code="${l}" title="\u30B3\u30FC\u30C9\u3092\u30B3\u30D4\u30FC" aria-label="\u30B3\u30FC\u30C9\u3092\u30B3\u30D4\u30FC"><i class="fas fa-copy"></i></button><button cl\
 ass="copy-btn" data-copy="output" data-code="${d}" title="\u51FA\u529B\u3092\u30B3\u30D4\u30FC" aria-label="\u51FA\u529B\u3092\u30B3\u30D4\u30FC"><i class="fas \
 fa-align-left"></i></button></div></div><div class="code-body"><div class="python-section"><div clas\
@@ -5933,20 +5932,20 @@ t),s=appendMcpExecutionNotes(i.text,i.notes),a=canvasModeEnabled?parseCanvasMark
 blocks:[],primaryBlock:null,rawText:s};if(canvasModeEnabled&&(updateCanvasPreviewState(a),refreshCanvasPreviewPanel()),
 n.incrementalMath){const r=document.createElement("template");r.innerHTML=sanitizeMarkdownHtml(a.renderText,
 {streamMathSegments:!0});const l=new Map;e.querySelectorAll(".stream-math-segment[data-stream-math-k\
-ey]").forEach(p=>{const g=p.getAttribute("data-stream-math-key");g&&l.set(g,p)});const d=[];r.content.
-querySelectorAll(".stream-math-segment[data-stream-math-key]").forEach(p=>{const g=l.get(p.getAttribute(
-"data-stream-math-key"));g?p.replaceWith(g):d.push(p)}),e.replaceChildren(r.content),wrapRenderedSvgBoxes(
+ey]").forEach(p=>{const h=p.getAttribute("data-stream-math-key");h&&l.set(h,p)});const d=[];r.content.
+querySelectorAll(".stream-math-segment[data-stream-math-key]").forEach(p=>{const h=l.get(p.getAttribute(
+"data-stream-math-key"));h?p.replaceWith(h):d.push(p)}),e.replaceChildren(r.content),wrapRenderedSvgBoxes(
 e),queueHighlight(e,a.renderText),queueIncrementalMathTypeset(d);return}e.innerHTML=sanitizeMarkdownHtml(
 a.renderText),wrapRenderedSvgBoxes(e),queueMessageDecorations(e,a.renderText)}o(renderAiMarkdownInto,
 "renderAiMarkdownInto");function wrapRenderedSvgBoxes(e){!e||typeof e.querySelectorAll!="function"||
 e.querySelectorAll("svg").forEach(t=>{if(!t||!t.parentNode||t.closest(".svg-render-box")||t.closest(
 "pre, code, .code-wrapper, .thought-container"))return;const n=document.createElement("span");n.className=
 "svg-render-box",t.parentNode.insertBefore(n,t),n.appendChild(t)})}o(wrapRenderedSvgBoxes,"wrapRende\
-redSvgBoxes");function renderMessage(e,t,n,i,s,a,r=null,l=!0,d=null,p=null,g=null,h=null,v=null,b=null,w=null,x=null,L=!0,T=null,$=null,j=null){
+redSvgBoxes");function renderMessage(e,t,n,i,s,a,r=null,l=!0,d=null,p=null,h=null,g=null,v=null,b=null,w=null,x=null,L=!0,T=null,$=null,j=null){
 const J=t==="user",X=J?"bg-blue-600":"bg-gray-700",Te=J?"justify-end":"justify-start";messageStore[e]=
 n;const P=!J&&n?extractPythonExecutionsFromContent(n):{text:n||"",executions:[]},q=J?n:P.text;let Y=p;
-if(Y==null){const Q=g!=null?Number(g):0,le=h!=null?Number(h):0;(g!=null||h!=null)&&(Y=Q+le)}messageMeta[e]=
-{tokens_in:g,tokens_out:h,tokens_total:Y,tokens_content:b,tokens_thought:w,is_encrypted:v,role:t,model:a,
+if(Y==null){const Q=h!=null?Number(h):0,le=g!=null?Number(g):0;(h!=null||g!=null)&&(Y=Q+le)}messageMeta[e]=
+{tokens_in:h,tokens_out:g,tokens_total:Y,tokens_content:b,tokens_thought:w,is_encrypted:v,role:t,model:a,
 parent_id:T,quote_text:d,image_url:i,gem_name:$,batch_job:j,python_executions:J?[]:P.executions||[]};
 let de="";d&&(de=`<div class="mb-2 p-2 bg-black/20 rounded border-l-4 border-blue-400 text-xs text-g\
 ray-300 italic truncate max-w-full"><i class="fas fa-quote-left mr-1 opacity-50"></i>${escapeHtml(d)}\
@@ -5972,8 +5971,8 @@ ton>${J?`<button class="ctrl-btn edit-btn" data-id="${e}"><i class="fas fa-pen">
 <button class="ctrl-btn" onclick="deleteMessage('${e}')"><i class="fas fa-trash"></i></button></div>`,
 te=[];!J&&a&&te.push(escapeHtml(a)),$&&(J?te.push(`<span class="text-purple-300/90"><i class="fas fa\
 -gem mr-0.5"></i>${escapeHtml($)}</span>`):te.push(`<span class="text-purple-300/90"><i class="fas f\
-a-gem mr-0.5"></i>${escapeHtml($)}</span>`));const se=[];if(g!=null&&se.push(`In ${g}`),h!=null){let Q=`\
-Out ${h}`;w!=null&&Number(w)>0&&(Q+=` (Thought ${w})`),se.push(Q)}if(se.length||p!=null){const Q=se.
+a-gem mr-0.5"></i>${escapeHtml($)}</span>`));const se=[];if(h!=null&&se.push(`In ${h}`),g!=null){let Q=`\
+Out ${g}`;w!=null&&Number(w)>0&&(Q+=` (Thought ${w})`),se.push(Q)}if(se.length||p!=null){const Q=se.
 length?se.join(" / "):`${p} tokens`;te.push(`<button class="underline decoration-dotted hover:text-w\
 hite token-detail-btn" onclick="openTokenDetail('${e}')">${Q}</button>`)}if(v!=null){const Q=v?"fa-l\
 ock":"fa-lock-open",le=isAdminUser?v?"\u6697\u53F7\u5316\u72B6\u614B\uFF08\u30BF\u30C3\u30D7\u3067\u5FA9\u53F7\u5316\uFF09":
@@ -6065,18 +6064,18 @@ async()=>{if(!isGeminiLocalPyDialogEnabled())return!0;const e=get("gemini-local-
 return!0;const t=get("gemini-local-python-dont-show"),n=get("gemini-local-python-continue"),i=get("g\
 emini-local-python-cancel"),s=get("gemini-local-python-close");return t&&(t.checked=!1),showModal("g\
 emini-local-python-modal"),await new Promise(a=>{let r=!1;function l(){n&&n.removeEventListener("cli\
-ck",p),i&&i.removeEventListener("click",g),s&&s.removeEventListener("click",g),e.removeEventListener(
-"click",h,!0)}o(l,"cleanup");function d(v){if(r)return;r=!0,t&&t.checked&&(setGeminiLocalPyDialogEnabled(
+ck",p),i&&i.removeEventListener("click",h),s&&s.removeEventListener("click",h),e.removeEventListener(
+"click",g,!0)}o(l,"cleanup");function d(v){if(r)return;r=!0,t&&t.checked&&(setGeminiLocalPyDialogEnabled(
 !1),syncGeminiLocalPyDialogSetting()),l(),hideModal("gemini-local-python-modal"),a(v)}o(d,"finalize");
-function p(){d(!0)}o(p,"onOk");function g(){d(!1)}o(g,"onCancel");function h(v){v.target===e&&(v.preventDefault(),
-v.stopImmediatePropagation(),g())}o(h,"onOverlay"),n&&n.addEventListener("click",p),i&&i.addEventListener(
-"click",g),s&&s.addEventListener("click",g),e.addEventListener("click",h,!0)})},"confirmGeminiLocalP\
+function p(){d(!0)}o(p,"onOk");function h(){d(!1)}o(h,"onCancel");function g(v){v.target===e&&(v.preventDefault(),
+v.stopImmediatePropagation(),h())}o(g,"onOverlay"),n&&n.addEventListener("click",p),i&&i.addEventListener(
+"click",h),s&&s.addEventListener("click",h),e.addEventListener("click",g,!0)})},"confirmGeminiLocalP\
 ythonSwitch");function renderPendingMessage(e=null,t=!0,n=!0,i=null,s=null){const a=t?"fade-in":"",r=i?
 ` id="${i}"`:"",l=buildPendingSkeletonHtml(s,"\u56DE\u7B54\u3092\u751F\u6210\u4E2D..."),d=`<div clas\
 s="flex justify-start mb-4 ${a}"><div${r} class="message-bubble ai-pending-bubble bg-gray-700 text-w\
 hite p-4 rounded-2xl rounded-tl-none shadow-md relative">${l}</div></div>`,p=e||get("chat-container");
-if(p){if(typeof p.insertAdjacentHTML=="function")p.insertAdjacentHTML("beforeend",d);else{const g=document.
-createElement("div");g.innerHTML=d;const h=g.firstElementChild;h&&p.appendChild(h)}n&&scrollToBottom()}}
+if(p){if(typeof p.insertAdjacentHTML=="function")p.insertAdjacentHTML("beforeend",d);else{const h=document.
+createElement("div");h.innerHTML=d;const g=h.firstElementChild;g&&p.appendChild(g)}n&&scrollToBottom()}}
 o(renderPendingMessage,"renderPendingMessage");function beginPendingToStreamTransition(e){if(!e||e.getAttribute(
 "data-stream-transition")==="1")return;const t=e.querySelector(".content-area");t&&(t.classList.remove(
 "pending-shimmer","skeleton-pending"),t.removeAttribute("data-skeleton-kind")),e.setAttribute("data-\
@@ -6113,7 +6112,7 @@ var l,d;const n=Math.max(0,Number((l=t.retries)!=null?l:1)||0),i=Math.max(0,Numb
 null?d:180)||0),s=!!t.notifyOnFailure,a=e!=null&&e!==""?String(e):null,r=currentThreadId!=null&&currentThreadId!==
 ""?String(currentThreadId):null;if(!r||a&&r!==a)return!1;for(let p=0;p<=n;p++)try{return currentThreadId!=
 null&&currentThreadId!==""&&String(currentThreadId)!==r?!1:(await loadMessages(r,{preserveDraft:!0,silent:!0}),
-!0)}catch{p<n&&i>0&&await new Promise(h=>setTimeout(h,i))}return s&&(currentThreadId!=null&&currentThreadId!==
+!0)}catch{p<n&&i>0&&await new Promise(g=>setTimeout(g,i))}return s&&(currentThreadId!=null&&currentThreadId!==
 ""?String(currentThreadId):null)===r&&showToast("\u505C\u6B62\u5F8C\u306E\u5C65\u6B74\u540C\u671F\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002\u753B\u9762\u3092\u518D\u8AAD\u307F\u8FBC\u307F\u3059\u308B\u3068\u78BA\u5B9F\u3067\u3059\u3002",
 "warning",!0),!1}o(syncThreadAfterAbortedStream,"syncThreadAfterAbortedStream");function vibrateHelper(e){
 try{typeof navigator!="undefined"&&navigator.vibrate&&navigator.vibrate(e)}catch(t){console.warn("Vi\
@@ -6173,9 +6172,9 @@ slashSelectedIndex?"bg-gray-700":""}`,w.innerHTML=`
 0||(L.preventDefault(),x=!0,selectSlashCommand(v.id))}),w.addEventListener("click",L=>{L.preventDefault(),
 x||selectSlashCommand(v.id)}),w.onmouseenter=()=>{slashSelectedIndex=b,showSlashCommandSuggestions(e)},
 n.appendChild(w)});const a=i.getBoundingClientRect(),r=window.innerHeight,l=r-a.bottom,d=a.top,p=260,
-g=8;if(t.style.position="fixed",t.style.left=`${Math.max(8,a.left)}px`,t.style.zIndex="80",t.style.maxHeight=
-"none",l<180&&d>l){const v=Math.min(p,d-g);t.style.top="auto",t.style.bottom=`${r-a.top+4}px`,n.style.
-maxHeight=`${v}px`}else{const v=Math.min(p,l-g);t.style.top=`${a.bottom+4}px`,t.style.bottom="auto",
+h=8;if(t.style.position="fixed",t.style.left=`${Math.max(8,a.left)}px`,t.style.zIndex="80",t.style.maxHeight=
+"none",l<180&&d>l){const v=Math.min(p,d-h);t.style.top="auto",t.style.bottom=`${r-a.top+4}px`,n.style.
+maxHeight=`${v}px`}else{const v=Math.min(p,l-h);t.style.top=`${a.bottom+4}px`,t.style.bottom="auto",
 n.style.maxHeight=`${v}px`}t.classList.remove("hidden"),slashSuggestionsVisible=!0}o(showSlashCommandSuggestions,
 "showSlashCommandSuggestions");function selectSlashCommand(e){const t=get("prompt-input");if(!t)return;
 const n=t.value,i=extractSlashCommandToken(n);if(i!==null){const r=String(n||"").trimStart();t.value=
@@ -6250,7 +6249,7 @@ a?"\u78BA\u8A8D\u3067\u304D\u308B\u8A2D\u5B9A\u9805\u76EE\u304C\u3042\u308A\u307
 l=renderMessage(s,"assistant",r,null,null,t,null,!0,null,null,null,null,null,null,null,null,!0);if(!l)
 return;removeEphemeralMessageControls(l);const d=l.querySelector(".message-bubble");if(!d||!i.length)
 return;const p=document.createElement("div");p.className="mt-3 space-y-2 ai-settings-result-list",i.
-forEach(([h,v])=>{const b=AI_SETTING_JUMP_TARGETS[h]||{label:h},w=document.createElement("button");w.
+forEach(([g,v])=>{const b=AI_SETTING_JUMP_TARGETS[g]||{label:g},w=document.createElement("button");w.
 type="button",w.className="w-full flex items-center gap-3 rounded-xl border border-white/10 bg-black\
 /20 px-3 py-2.5 text-left hover:bg-black/30 hover:border-blue-400/40 transition ai-settings-result-i\
 tem";const x=document.createElement("span");x.className="min-w-0 flex-1";const L=document.createElement(
@@ -6258,8 +6257,8 @@ tem";const x=document.createElement("span");x.className="min-w-0 flex-1";const L
 "span");T.className="block mt-0.5 text-[11px] text-gray-300 break-words",T.textContent=formatAiSettingValue(
 v);const $=document.createElement("i");$.className="fas fa-arrow-up-right-from-square text-[10px] te\
 xt-blue-300 shrink-0",x.appendChild(L),x.appendChild(T),w.appendChild(x),w.appendChild($),w.addEventListener(
-"click",()=>openAiSettingJumpTarget(h)),p.appendChild(w)});const g=d.querySelector(".message-footer-\
-meta");g?d.insertBefore(p,g):d.appendChild(p),scrollToBottom()}o(renderAiSettingsResultBubble,"rende\
+"click",()=>openAiSettingJumpTarget(g)),p.appendChild(w)});const h=d.querySelector(".message-footer-\
+meta");h?d.insertBefore(p,h):d.appendChild(p),scrollToBottom()}o(renderAiSettingsResultBubble,"rende\
 rAiSettingsResultBubble");async function runAiSettingsCommand(e,t){pendingSlashCommand!=="settings"&&
 (pendingSlashCommand="settings",showPendingSlashCommandIndicator("settings")),appendAiSettingsConversation(
 "user",e);const n=Date.now(),i=renderMessage(`settings-user-${n}`,"user",`/settings ${e}`,null,null,
@@ -6278,12 +6277,12 @@ return}if(d&&d.status==="ok"&&d.applied){appendAiSettingsConversation("assistant
 d.applied,"update")),showToast(`\u8A2D\u5B9A\u3092\u66F4\u65B0\u3057\u307E\u3057\u305F\uFF08${Object.
 keys(d.applied).length}\u9805\u76EE\uFF09`,"success");try{const v=await apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).
 then(b=>b.json());populateAiSafeFormFields(v),cacheUserSettings(v)}catch{}renderAiSettingsResultBubble(
-d.applied,t);return}const g=d.message||d.error||"\u8A2D\u5B9A\u5909\u66F4\u306B\u5931\u6557\u3057\u307E\u3057\u305F";
-appendAiSettingsConversation("assistant",`\u8A2D\u5B9A\u64CD\u4F5C\u306B\u5931\u6557\u3057\u307E\u3057\u305F: ${g}`);
-const h=renderMessage(`settings-error-${Date.now()}`,"assistant",`\u8A2D\u5B9A\u5909\u66F4\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002
+d.applied,t);return}const h=d.message||d.error||"\u8A2D\u5B9A\u5909\u66F4\u306B\u5931\u6557\u3057\u307E\u3057\u305F";
+appendAiSettingsConversation("assistant",`\u8A2D\u5B9A\u64CD\u4F5C\u306B\u5931\u6557\u3057\u307E\u3057\u305F: ${h}`);
+const g=renderMessage(`settings-error-${Date.now()}`,"assistant",`\u8A2D\u5B9A\u5909\u66F4\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002
 
-${g}`,null,null,t,null,!0,null,null,null,null,null,null,null,null,!0);removeEphemeralMessageControls(
-h),showToast(g,"error",!0)}catch{appendAiSettingsConversation("assistant","\u8A2D\u5B9A\u64CD\u4F5C\u306E\u901A\u4FE1\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002");
+${h}`,null,null,t,null,!0,null,null,null,null,null,null,null,null,!0);removeEphemeralMessageControls(
+g),showToast(h,"error",!0)}catch{appendAiSettingsConversation("assistant","\u8A2D\u5B9A\u64CD\u4F5C\u306E\u901A\u4FE1\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002");
 const d=get(a);d&&d.remove();const p=renderMessage(`settings-error-${Date.now()}`,"assistant","\u8A2D\u5B9A\u5909\u66F4\u306E\
 \u901A\u4FE1\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002\u6642\u9593\u3092\u304A\u3044\u3066\u518D\u5EA6\u304A\u8A66\u3057\u304F\u3060\u3055\u3044\u3002",
 null,null,t,null,!0,null,null,null,null,null,null,null,null,!0);removeEphemeralMessageControls(p),showToast(
@@ -6304,10 +6303,10 @@ x.className=`px-3 py-2 flex items-center gap-3 cursor-pointer text-sm hover:bg-g
 b.description)}</div>`:""}
                     </div>
                 `,x.onclick=()=>selectGemSuggestion(b),x.onmouseenter=()=>{gemSelectedIndex=w,showGemSuggestions(
-e)},n.appendChild(x)});const r=i.getBoundingClientRect(),l=window.innerHeight,d=l-r.bottom,p=r.top,g=260,
-h=8;if(t.style.position="fixed",t.style.left=`${Math.max(8,r.left)}px`,t.style.zIndex="80",t.style.maxHeight=
-"none",d<180&&p>d){const b=Math.min(g,p-h);t.style.top="auto",t.style.bottom=`${l-r.top+4}px`,n.style.
-maxHeight=`${b}px`}else{const b=Math.min(g,d-h);t.style.top=`${r.bottom+4}px`,t.style.bottom="auto",
+e)},n.appendChild(x)});const r=i.getBoundingClientRect(),l=window.innerHeight,d=l-r.bottom,p=r.top,h=260,
+g=8;if(t.style.position="fixed",t.style.left=`${Math.max(8,r.left)}px`,t.style.zIndex="80",t.style.maxHeight=
+"none",d<180&&p>d){const b=Math.min(h,p-g);t.style.top="auto",t.style.bottom=`${l-r.top+4}px`,n.style.
+maxHeight=`${b}px`}else{const b=Math.min(h,d-g);t.style.top=`${r.bottom+4}px`,t.style.bottom="auto",
 n.style.maxHeight=`${b}px`}t.classList.remove("hidden"),gemSuggestionsVisible=!0}o(showGemSuggestions,
 "showGemSuggestions");function selectGemSuggestion(e){const t=get("prompt-input");if(!t)return;const n=t.
 value,i=n.lastIndexOf("@");i!==-1?t.value=n.substring(0,i).trimEnd():t.value="",hideGemSuggestions(),
@@ -6382,8 +6381,8 @@ e,null,null,null,null,!0,null,null,null,null,null,null,null,null,!0);const p=`br
 get("chat-container").insertAdjacentHTML("beforeend",`<div class="flex justify-start mb-4 fade-in"><\
 div id="${p}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded\
 -tl-none shadow-md relative">${buildPendingSkeletonHtml(t,"Gemini\u3078\u76F4\u63A5\u9001\u4FE1\u4E2D...")}\
-</div></div>`);const g=get(p);activeStreamingBubbleId=p,setSendBtnToStopMode(),resumeChatAutoScroll(),
-abortController=new AbortController;let h="",v="";const b=[];let w=null,x=null,L=!1;const T={},$=[];
+</div></div>`);const h=get(p);activeStreamingBubbleId=p,setSendBtnToStopMode(),resumeChatAutoScroll(),
+abortController=new AbortController;let g="",v="";const b=[];let w=null,x=null,L=!1;const T={},$=[];
 let j=null,J="";const X=window.ProgressSpinner?window.ProgressSpinner.startFlow("browserFast"):null;
 let Te=!1;try{const P=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
 t)}:streamGenerateContent?alt=sse`,manualSpinnerRequestOptions({method:"POST",headers:{"Content-Type":"\
@@ -6397,32 +6396,32 @@ const C=JSON.parse(W);if(C.error)throw new Error(C.error.message||"Gemini API er
 C.candidates)?C.candidates:[]).forEach(G=>{(G&&G.content&&Array.isArray(G.content.parts)?G.content.parts:
 []).forEach(Z=>{if(Z&&typeof Z.thoughtSignature=="string"&&!b.includes(Z.thoughtSignature)&&b.push(Z.
 thoughtSignature),Z&&Z.executableCode&&typeof Z.executableCode.code=="string"){const Q=Z.executableCode.
-code;h+=`
+code;g+=`
 \`\`\`python
 ${Q}
 \`\`\`
-`,j=`browserFastPy_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,J=Q,T[j]||(g.insertAdjacentHTML(
-"afterbegin",browserFastPythonBoxHtml(j)),T[j]=g.querySelector(`[data-py-id="${j}"]`)),updateBrowserFastPythonBox(
+`,j=`browserFastPy_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,J=Q,T[j]||(h.insertAdjacentHTML(
+"afterbegin",browserFastPythonBoxHtml(j)),T[j]=h.querySelector(`[data-py-id="${j}"]`)),updateBrowserFastPythonBox(
 T[j],"code",Q);return}if(Z&&Z.codeExecutionResult&&typeof Z.codeExecutionResult.output=="string"){const Q=Z.
-codeExecutionResult.output;h+=`
+codeExecutionResult.output;g+=`
 **Output:**
 \`\`\`
 ${Q}
 \`\`\`
 `;const le=j||`browserFastPy_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;$.push({code:J||
-"",output:Q}),T[le]||(g.insertAdjacentHTML("afterbegin",browserFastPythonBoxHtml(le)),T[le]=g.querySelector(
+"",output:Q}),T[le]||(h.insertAdjacentHTML("afterbegin",browserFastPythonBoxHtml(le)),T[le]=h.querySelector(
 `[data-py-id="${le}"]`)),updateBrowserFastPythonBox(T[le],"output",Q);return}const ye=typeof Z.text==
-"string"?Z.text:"";ye&&(Z.thought===!0?v+=ye:h+=ye)})}),!L&&(h||v)){beginPendingToStreamTransition(g);
-const G=g.querySelector(".content-area");G&&G.remove(),L=!0}v&&(x||(g.insertAdjacentHTML("afterbegin",
+"string"?Z.text:"";ye&&(Z.thought===!0?v+=ye:g+=ye)})}),!L&&(g||v)){beginPendingToStreamTransition(h);
+const G=h.querySelector(".content-area");G&&G.remove(),L=!0}v&&(x||(h.insertAdjacentHTML("afterbegin",
 '<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class=\
 "fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>'),
-x=g.querySelector(".thought-content")),x.textContent=v),h&&(w||(w=document.createElement("div"),w.className=
-"content-area prose prose-invert text-sm break-words",g.appendChild(w)),renderAiMarkdownInto(w,h,{incrementalMath:!0})),
+x=h.querySelector(".thought-content")),x.textContent=v),g&&(w||(w=document.createElement("div"),w.className=
+"content-area prose prose-invert text-sm break-words",h.appendChild(w)),renderAiMarkdownInto(w,g,{incrementalMath:!0})),
 scrollToBottom()},"consumeEvent");for(;;){const{done:se,value:W}=await q.read();if(se)break;window.ConnectionMonitor&&
 window.ConnectionMonitor.reportActivity(),X&&X.setPhase("receiving"),de+=Y.decode(W,{stream:!0});const C=de.
-split(/\r?\n\r?\n/);de=C.pop()||"",C.forEach(oe)}if(de+=Y.decode(),de.trim()&&oe(de),!h.trim())throw new Error(
+split(/\r?\n\r?\n/);de=C.pop()||"",C.forEach(oe)}if(de+=Y.decode(),de.trim()&&oe(de),!g.trim())throw new Error(
 "Gemini\u304B\u3089\u56DE\u7B54\u672C\u6587\u304C\u8FD4\u3055\u308C\u307E\u305B\u3093\u3067\u3057\u305F");
-w&&renderAiMarkdownInto(w,h,{incrementalMath:!0}),x&&x.classList.add("collapsed"),$.length&&(h+=$.map(
+w&&renderAiMarkdownInto(w,g,{incrementalMath:!0}),x&&x.classList.add("collapsed"),$.length&&(g+=$.map(
 se=>`
 \`\`\`pyexec
 ${JSON.stringify(se)}
@@ -6431,17 +6430,17 @@ ${JSON.stringify(se)}
 "info",!1),await uploadBrowserFastLocalFiles()),X&&X.setPhase("saving");const xe=collectImageUrlsForSend(),
 pe=await fetchChatStreamWithUnavailableRetry("/api/browser_fast_mode/save",manualSpinnerRequestOptions(
 {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({client_request_id:createClientRequestId(),
-message:e,assistant_content:h,thought_content:v,model:t,image_urls:xe,temporary_chat:temporaryChatEnabled,
+message:e,assistant_content:g,thought_content:v,model:t,image_urls:xe,temporary_chat:temporaryChatEnabled,
 thread_id:currentThreadId||null,parent_id:n.parent_id||null,thought_signatures:b,turnstile_token:botTurnstileTokenForRequest()}),
-signal:abortController.signal}),g),ke=await pe.json().catch(()=>({}));if(!pe.ok||!ke.thread_id)throw new Error(
+signal:abortController.signal}),h),ke=await pe.json().catch(()=>({}));if(!pe.ok||!ke.thread_id)throw new Error(
 ke.error||"DB\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\u3057\u305F");const te=!currentThreadId;currentThreadId=
 String(ke.thread_id),currentParentId=ke.assistant_message_id||null,currentLeafId=ke.assistant_message_id||
 null,resetUploadState(),browserFastBootstrap=null,await loadMessages(currentThreadId,{preserveDraft:!0,
 silent:!0,skipHistory:!te}),applyBrowserFastModeRestrictions(),loadThreads(!1),showToast("\u9AD8\u901F\u30E2\u30FC\u30C9\u306E\u56DE\u7B54\u3092\u5C65\
 \u6B74\u3078\u4FDD\u5B58\u3057\u307E\u3057\u305F","success",!1)}catch(P){if(P.name!=="AbortError"){showToast(
 `\u9AD8\u901F\u30E2\u30FC\u30C9: ${P.message}`,"error",!0),get("prompt-input").value||(get("prompt-i\
-nput").value=e);const q=P.message||"\u30A8\u30E9\u30FC";g&&g.insertAdjacentHTML("beforeend",buildChatErrorBubbleHtml(
-q));try{let Y=h||"";$.length&&(Y+=$.map(ke=>`
+nput").value=e);const q=P.message||"\u30A8\u30E9\u30FC";h&&h.insertAdjacentHTML("beforeend",buildChatErrorBubbleHtml(
+q));try{let Y=g||"";$.length&&(Y+=$.map(ke=>`
 \`\`\`pyexec
 ${JSON.stringify(ke)}
 \`\`\`
@@ -6450,7 +6449,7 @@ ${JSON.stringify(ke)}
 plication/json"},body:JSON.stringify({client_request_id:createClientRequestId(),message:e,assistant_content:de,
 thought_content:v||"",model:t,image_urls:oe,temporary_chat:temporaryChatEnabled,thread_id:currentThreadId||
 null,parent_id:n&&n.parent_id?n.parent_id:null,thought_signatures:b,turnstile_token:botTurnstileTokenForRequest()}),
-signal:abortController&&!abortController.signal.aborted?abortController.signal:void 0}),g),pe=await xe.
+signal:abortController&&!abortController.signal.aborted?abortController.signal:void 0}),h),pe=await xe.
 json().catch(()=>({}));if(xe.ok&&pe.thread_id){const ke=!currentThreadId;currentThreadId=String(pe.thread_id),
 currentParentId=pe.assistant_message_id||null,currentLeafId=pe.assistant_message_id||null,resetUploadState(),
 browserFastBootstrap=null,await loadMessages(currentThreadId,{preserveDraft:!0,silent:!0,skipHistory:!ke}),
@@ -6491,10 +6490,10 @@ ae.message||"\u901A\u5E38\u30E2\u30FC\u30C9\u7528\u30A2\u30C3\u30D7\u30ED\u30FC\
 N.source)==="upload").map(N=>N.path);if(a.length>ATTACHMENT_MAX_FILES){showToast(`\u6DFB\u4ED8\u306F\u6700\u5927${ATTACHMENT_MAX_FILES}\
 \u4EF6\u3067\u3059\u3002\u6DFB\u4ED8\u3092\u6E1B\u3089\u3057\u3066\u518D\u9001\u3057\u3066\u304F\u3060\u3055\u3044\u3002`,
 "error",!0);return}const l=getModelMediaSupport(get("model-select").value),d=a.some(N=>isAudioPath(N)),
-p=a.some(N=>isVideoPath(N)),g=(get("model-select").value||"").toLowerCase(),h=get("enable-python"),v=!!(h&&
-h.checked);if(d&&!l.audio||p&&!l.video){showToast("\u3053\u306E\u30E2\u30C7\u30EB\u306F\u97F3\u58F0/\u52D5\u753B\u5165\u529B\u306B\u5BFE\u5FDC\u3057\u3066\u3044\u307E\u305B\u3093",
+p=a.some(N=>isVideoPath(N)),h=(get("model-select").value||"").toLowerCase(),g=get("enable-python"),v=!!(g&&
+g.checked);if(d&&!l.audio||p&&!l.video){showToast("\u3053\u306E\u30E2\u30C7\u30EB\u306F\u97F3\u58F0/\u52D5\u753B\u5165\u529B\u306B\u5BFE\u5FDC\u3057\u3066\u3044\u307E\u305B\u3093",
 "error",!0),purgeUnsupportedAttachments(!0);return}if(!t.trim()&&a.length===0)return;if(isMistralOcrModel(
-g)){const N=/https?:\/\/\S+/i.test(t);if(a.filter(_e=>isAudioPath(_e)||isVideoPath(_e)).length){showToast(
+h)){const N=/https?:\/\/\S+/i.test(t);if(a.filter(_e=>isAudioPath(_e)||isVideoPath(_e)).length){showToast(
 "Mistral OCR \u306F\u97F3\u58F0\u30FB\u52D5\u753B\u306B\u5BFE\u5FDC\u3057\u3066\u3044\u307E\u305B\u3093\u3002PDF / \u753B\u50CF / DOCX / PPTX \u3092\u6DFB\u4ED8\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
 "error",!0);return}if(!a.length&&!N){showToast("Mistral OCR \u306F\u6587\u66F8\u5C02\u7528\u3067\u3059\u3002PDF\u30FB\u753B\u50CF\u30FBDOCX\u30FBPPTX \u3092\u6DFB\u4ED8\u3059\u308B\u304B\u3001\u516C\u958BURL\u3092\u5165\u529B\
 \u3057\u3066\u304F\u3060\u3055\u3044\u3002","error",!0);return}}const b=t.trim();if(/^\/settings(?:\s|$)/i.
@@ -6505,7 +6504,7 @@ if(!N){showToast("\u4F7F\u3044\u65B9: /settings \u30C7\u30D5\u30A9\u30EB\u30C8\u
 lastSlashFilter=Me,showSlashCommandSuggestions(Me),_e.focus();return}const ae=get("model-select")?get(
 "model-select").value:null;if(!ae){showToast("\u30E2\u30C7\u30EB\u304C\u9078\u629E\u3055\u308C\u3066\u3044\u307E\u305B\u3093",
 "error",!0);return}get("prompt-input").value="",get("prompt-input").style.height="auto",await runAiSettingsCommand(
-N,ae);return}if(isGeminiLocalPythonMode(g,d,p,v)&&!await confirmGeminiLocalPythonSwitch())return;let w=null,
+N,ae);return}if(isGeminiLocalPythonMode(h,d,p,v)&&!await confirmGeminiLocalPythonSwitch())return;let w=null,
 x=[];if(codingModeEnabled){const N=collectCodingCandidates(t),ae=N.filter(Fe=>Fe.prompt_source),_e=N.
 filter(Fe=>!Fe.prompt_source),Me=ae.reduce((Fe,Pe)=>Fe+String(Pe.code||"").length,0);if(Me>3e5){showToast(
 "\u5165\u529B\u5185\u306E\u7DE8\u96C6\u5019\u88DC\u30B3\u30FC\u30C9\u5408\u8A08\u304C\u5927\u304D\u3059\u304E\u307E\u3059\uFF08\u4E0A\u9650300,000\u6587\u5B57\uFF09",
@@ -6606,9 +6605,9 @@ data-placeholder="1"></div></div>'),fe=U.querySelector(".thought-content")),fe&&
 ta-placeholder","1"),fe.textContent=N||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D..."),
 fe),"ensureThoughtPlaceholder");Q&&et("\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D..."),
 abortController=new AbortController;const Ce=currentThreadId,tt=nowPerfMs(),ut=Date.now();let Ke=!1,
-ot=!1,xt=!1,gt=null,kt=null,rt=null,Pt=currentThreadId!=null&&currentThreadId!==""?String(currentThreadId):
+ot=!1,xt=!1,ht=null,kt=null,rt=null,Pt=currentThreadId!=null&&currentThreadId!==""?String(currentThreadId):
 null;const Ot=o((N,ae)=>{if(!ae||N==="status"&&Ke||N==="thought"&&ot||N==="content"&&xt)return;const _e=Math.
-max(0,nowPerfMs()-tt);N==="status"?gt=_e:N==="thought"?kt=_e:N==="content"&&(rt=_e),reportFirstTokenLatency(
+max(0,nowPerfMs()-tt);N==="status"?ht=_e:N==="thought"?kt=_e:N==="content"&&(rt=_e),reportFirstTokenLatency(
 {latency_seconds:_e/1e3,latency_ms:_e,thread_id:Pt||currentThreadId,job_id:currentJobId,model:C.model,
 first_event_type:N,client_sent_at_ms:ut}),N==="status"?Ke=!0:N==="thought"?ot=!0:N==="content"&&(xt=
 !0)},"maybeReportFirstEventLatency"),at=window.ProgressSpinner?window.ProgressSpinner.startFlow("cha\
@@ -6694,7 +6693,7 @@ Ne,Le,!0)}if(scrollToBottom(),vibrateHelper([100,50,100]),U)if(queueHighlight(U,
 const Le=nowPerfMs()-tt;reportFirstTokenLatency({is_total:!0,latency_seconds:Le/1e3,latency_ms:Le,thread_id:Pt||
 currentThreadId,job_id:currentJobId,model:C.model,client_sent_at_ms:ut,client_done_at_ms:Date.now()});
 let Re='<div class="mt-2 pt-2 border-t border-gray-700/30 flex flex-col gap-1 items-end opacity-70 t\
-ext-[10px] font-mono text-gray-400">',Xe=null;gt!==null&&(Xe=gt),kt!==null&&(Xe===null||kt<Xe)&&(Xe=
+ext-[10px] font-mono text-gray-400">',Xe=null;ht!==null&&(Xe=ht),kt!==null&&(Xe===null||kt<Xe)&&(Xe=
 kt),rt!==null&&(Xe===null||rt<Xe)&&(Xe=rt),Xe!==null&&(Re+=`<div>Initial: ${(Xe/1e3).toFixed(2)}s</d\
 iv>`),rt!==null&&rt!==Xe&&(Re+=`<div>Content: ${(rt/1e3).toFixed(2)}s</div>`),Re+=`<div class="font-\
 bold text-gray-300">Total: ${(Le/1e3).toFixed(2)}s</div>`,currentJobId&&(Re+=`<div class="text-[9px]\
@@ -6746,16 +6745,16 @@ ght-container"><div class="thought-header thinking-shimmer" onclick="toggleThink
 a-placeholder="1"></div></div>'),d=s.querySelector(".thought-content")),d&&(d.setAttribute("data-pla\
 ceholder","1"),d.textContent=q||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D..."),d),
 "ensureThoughtPlaceholder");l&&p("\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D...");
-let g="",h="",v="",b=!0,w=null,x=null,L=null,T=!1;const $={};let j=0,J=!1;const X=window.ProgressSpinner?
+let h="",g="",v="",b=!0,w=null,x=null,L=null,T=!1;const $={};let j=0,J=!1;const X=window.ProgressSpinner?
 window.ProgressSpinner.startFlow("chatResume"):null;let Te=!1,P=!1;try{const q=await apiFetch("/chat\
 _stream_resume",manualSpinnerRequestOptions({method:"POST",headers:{"Content-Type":"application/json"},
 body:JSON.stringify({thread_id:currentThreadId,job_id:t,turnstile_token:botTurnstileTokenForRequest()}),
 signal:abortController.signal}));if(!q.ok)throw new Error(`Resume failed (${q.status})`);window.ConnectionMonitor&&
 (P=!0,window.ConnectionMonitor.operationStarted()),X&&X.setPhase("waiting");const Y=q.body.getReader(),
 de=new TextDecoder;for(;!J;){const{done:oe,value:xe}=await Y.read();if(oe)break;window.ConnectionMonitor&&
-window.ConnectionMonitor.reportActivity(),X&&X.setPhase("receiving"),g+=de.decode(xe,{stream:!0});let pe=g.
+window.ConnectionMonitor.reportActivity(),X&&X.setPhase("receiving"),h+=de.decode(xe,{stream:!0});let pe=h.
 split(`
-`);g=pe.pop();let ke=!1,te=!1;for(let se of pe)if(se.trim())try{const W=JSON.parse(se);if(W.type==="\
+`);h=pe.pop();let ke=!1,te=!1;for(let se of pe)if(se.trim())try{const W=JSON.parse(se);if(W.type==="\
 job_id"){currentJobId=W.content||t;continue}if(W.type==="search_status"){W.content==="searching"&&!L?
 (s.insertAdjacentHTML("afterbegin",'<div class="search-box visible animate-pulse mb-2"><i class="fas\
  fa-globe"></i> Searching web...</div>'),L=s.querySelector(".search-box")):W.content==="done"&&L&&(L.
@@ -6799,14 +6798,14 @@ null?"":String(C.code),Z=G.querySelector(".python-code");Z&&(Z.textContent=K,Z.r
 "":String(C.output),Z=G.querySelector(".python-output");Z&&(Z.textContent=K);const ye=G.querySelector(
 '.copy-btn[data-copy="output"]');ye&&ye.setAttribute("data-code",encodeURIComponent(K).replace(/'/g,
 "%27"))}}}else if(W.type==="content"){const C=W.content===null||W.content===void 0?"":String(W.content);
-h+=C,/[`~]/.test(C)&&activateDeferredCodingModeFromStream(h),x||(x=s.querySelector(".content-area")||
+g+=C,/[`~]/.test(C)&&activateDeferredCodingModeFromStream(g),x||(x=s.querySelector(".content-area")||
 document.createElement("div"),x.className="prose prose-invert text-sm break-words",s.contains(x)||s.
 appendChild(x)),ke=!0}else if(W.type==="error"){T=!0,J=!0,s.insertAdjacentHTML("beforeend",buildChatErrorBubbleHtml(
 W.content)),showToast(W.content||"Unknown error","error",!0);break}}catch{}if(te&&w&&(w.textContent=
 v,userAutoScroll&&(w.scrollTop=w.scrollHeight)),ke&&x){const se=Date.now();if(se-j>100){const W=snapshotCodeCollapse(
-x);renderAiMarkdownInto(x,h,{incrementalMath:!0}),applyCodeCollapse(x,W,!0),j=se}}scrollToBottom()}if(X&&
-X(),x){const oe=snapshotCodeCollapse(x);renderAiMarkdownInto(x,h,{incrementalMath:!0}),applyCodeCollapse(
-x,oe,!0)}vibrateHelper([100,50,100]),s&&queueHighlight(s,h),s&&s.querySelectorAll(".thought-content").
+x);renderAiMarkdownInto(x,g,{incrementalMath:!0}),applyCodeCollapse(x,W,!0),j=se}}scrollToBottom()}if(X&&
+X(),x){const oe=snapshotCodeCollapse(x);renderAiMarkdownInto(x,g,{incrementalMath:!0}),applyCodeCollapse(
+x,oe,!0)}vibrateHelper([100,50,100]),s&&queueHighlight(s,g),s&&s.querySelectorAll(".thought-content").
 forEach(xe=>xe.classList.add("collapsed")),await loadMessages(currentThreadId,{preserveDraft:!0,silent:!0}),
 loadThreads(!1)}catch(q){const Y=q.name==="AbortError"&&isManualStopAbortForThread(a);q.name==="Abor\
 tError"&&!Y&&await syncThreadAfterAbortedStream(a,{retries:2,retryDelayMs:180,notifyOnFailure:!0}),Y||
@@ -6831,14 +6830,14 @@ indicator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i 
 r fa-spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div><div id="scroll-sentinel">\
 </div>',threadObserver){threadObserver.disconnect();const p=get("scroll-sentinel");p&&threadObserver.
 observe(p)}}const r=get("scroll-sentinel");s&&Array.isArray(s.threads)?(s.threads.forEach(l=>{const d=String(
-l.id),p=document.createElement("div"),g=l.is_bookmarked?"text-yellow-400":"text-gray-500",h=l.is_temporary?
+l.id),p=document.createElement("div"),h=l.is_bookmarked?"text-yellow-400":"text-gray-500",g=l.is_temporary?
 '<span class="text-[9px] text-amber-300 border border-amber-500/50 rounded px-1 py-0">\u4E00\u6642</span>':
 "",b=d===String(currentThreadId)?"bg-gray-700/60 border-l-2 border-blue-500":"";p.className=`p-2 rou\
 nded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 truncate flex justify-between items-cent\
 er group ${b}`,p.dataset.threadId=d,p.innerHTML=`<div class="flex items-center gap-1 truncate flex-1\
-"><button class="${g} hover:text-yellow-400 px-1" onclick="toggleBookmark(event, '${d}')"><i class="\
+"><button class="${h} hover:text-yellow-400 px-1" onclick="toggleBookmark(event, '${d}')"><i class="\
 fas fa-star text-[10px]"></i></button><span class="truncate">${escapeHtml(l.title||"No Title")}</spa\
-n>${h}</div><div class="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 \
+n>${g}</div><div class="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 \
 transition" data-thread-actions="1"><button class="text-gray-500 hover:text-white px-1 transition" o\
 nclick="renameThread(event, '${d}')"><i class="fas fa-pen text-xs"></i></button><button class="text-\
 gray-500 hover:text-red-400 px-1 transition" onclick="deleteThread(event, '${d}')"><i class="fas fa-\
@@ -6848,22 +6847,22 @@ hasMoreThreads&&threadPage++,snapshotSidebarHistory("loadThreads-rendered count=
  append="+!!e)):snapshotSidebarHistory("loadThreads-empty-or-invalid")}catch(t){console.error("Faile\
 d to load threads:",t),snapshotSidebarHistory("loadThreads-error")}finally{threadLoading=!1,updateThreadHighlighting(),
 snapshotSidebarHistory("loadThreads-finally")}}o(loadThreads,"loadThreads");function initPullToRefresh(e,t){
-const n=get(e);if(!n)return;const i=`${e}-pull-indicator`,s=60,a=88,r=52,l=.5,d=8;let p=0,g=!1,h=0,v=null;
+const n=get(e);if(!n)return;const i=`${e}-pull-indicator`,s=60,a=88,r=52,l=.5,d=8;let p=0,h=!1,g=0,v=null;
 const b=o(()=>get(i),"indicatorEl"),w=o(()=>{const T=b();return T?T.querySelector(".ptr-pull-label"):
 null},"labelEl"),x=o(T=>{const $=b();if(!$)return;$.style.height=Math.min(T,a)+"px",$.classList.toggle(
 "active",T>2),$.classList.toggle("pull-ready",T>=s);const j=w();j&&(j.textContent=T>=s?"\u96E2\u3057\u3066\u66F4\u65B0":
 "\u5F15\u3063\u5F35\u3063\u3066\u66F4\u65B0")},"applyPullUI"),L=o(()=>{const T=b();T&&(T.style.height=
 "0px",T.classList.remove("active","pull-ready","refreshing"),T.classList.remove("dragging"))},"reset\
-PullUI");n.addEventListener("touchstart",T=>{if(v){g=!1;return}if(n.scrollTop>0){g=!1;return}const $=T.
-touches[0];$&&(p=$.clientY,h=0,g=!0)},{passive:!0}),n.addEventListener("touchmove",T=>{if(!g||v)return;
-if(n.scrollTop>0){g=!1;return}const $=T.touches[0];if(!$)return;const j=$.clientY-p;if(j<=0){h>0&&(h=
-0,x(0)),g=!1;return}const J=b();J&&!J.classList.contains("dragging")&&J.classList.add("dragging"),h=
-Math.min(j*l,a),x(h),j>=d&&T.preventDefault()},{passive:!1}),n.addEventListener("touchend",()=>{if(!g||
-(g=!1,v))return;const T=b();T&&T.classList.remove("dragging");const $=h>=s;if(h=0,!$){L();return}let j;
+PullUI");n.addEventListener("touchstart",T=>{if(v){h=!1;return}if(n.scrollTop>0){h=!1;return}const $=T.
+touches[0];$&&(p=$.clientY,g=0,h=!0)},{passive:!0}),n.addEventListener("touchmove",T=>{if(!h||v)return;
+if(n.scrollTop>0){h=!1;return}const $=T.touches[0];if(!$)return;const j=$.clientY-p;if(j<=0){g>0&&(g=
+0,x(0)),h=!1;return}const J=b();J&&!J.classList.contains("dragging")&&J.classList.add("dragging"),g=
+Math.min(j*l,a),x(g),j>=d&&T.preventDefault()},{passive:!1}),n.addEventListener("touchend",()=>{if(!h||
+(h=!1,v))return;const T=b();T&&T.classList.remove("dragging");const $=g>=s;if(g=0,!$){L();return}let j;
 try{j=t()}catch{j=null}const J=b();if(J){J.classList.add("refreshing"),J.style.height=r+"px";const X=J.
 querySelector(".ptr-pull-label");X&&(X.textContent="\u66F4\u65B0\u4E2D...")}j&&typeof j.then=="funct\
 ion"?(v=j,j.catch(()=>{}).finally(()=>{v=null,L()})):(v=Promise.resolve(),setTimeout(()=>{v=null,L()},
-400))}),n.addEventListener("touchcancel",()=>{g=!1,h=0,L()})}o(initPullToRefresh,"initPullToRefresh");
+400))}),n.addEventListener("touchcancel",()=>{h=!1,g=0,L()})}o(initPullToRefresh,"initPullToRefresh");
 const initThreadPullToRefresh=o(()=>initPullToRefresh("thread-list",()=>loadThreads(!1)),"initThread\
 PullToRefresh"),initGemPullToRefresh=o(()=>initPullToRefresh("gem-list",()=>loadGems()),"initGemPull\
 ToRefresh"),initPullToRefreshAll=o(()=>{initThreadPullToRefresh(),initGemPullToRefresh()},"initPullT\
@@ -6943,17 +6942,17 @@ slice():[],editingMessageId=null,setEditUi(!1)}else cancelEdit();currentThreadId
 t.skipHistory||history.pushState({},"","/c/"+e),updateThreadHighlighting(),syncActiveGemForThread(currentThreadId),
 get("welcome-screen").classList.add("hidden"),s||(get("chat-container").innerHTML=buildChatLoadingSkeletonHtml());
 try{const p=new URL(CHAT_CONFIG.urls.handleThreadItem.replace("0",e),window.location.origin);p.searchParams.
-set("limit",String(getEffectiveThreadInitialMessageLimit()));const g=await apiFetch(p.toString());if(!g.
-ok)throw new Error(`thread request failed (${g.status})`);const h=await g.json();if(!h||!Array.isArray(
-h.messages))throw new Error("invalid thread response");if(n!==threadLoadSequence)return!1;setCurrentChatHeaderTitle(
-h&&h.title),allMessages=h.messages,threadHasOlderMessages=!!h.has_older_messages,oldestLoadedMessageId=
-h.oldest_loaded_id||(allMessages.length?allMessages[0].id:null);const v=(allMessages||[]).filter(w=>w.
+set("limit",String(getEffectiveThreadInitialMessageLimit()));const h=await apiFetch(p.toString());if(!h.
+ok)throw new Error(`thread request failed (${h.status})`);const g=await h.json();if(!g||!Array.isArray(
+g.messages))throw new Error("invalid thread response");if(n!==threadLoadSequence)return!1;setCurrentChatHeaderTitle(
+g&&g.title),allMessages=g.messages,threadHasOlderMessages=!!g.has_older_messages,oldestLoadedMessageId=
+g.oldest_loaded_id||(allMessages.length?allMessages[0].id:null);const v=(allMessages||[]).filter(w=>w.
 role==="user"&&w.content).map(w=>w.content);if(promptHistory=[...new Set(v.slice().reverse())],historyIndex=
--1,tempPrompt="",currentThreadPending=h.pending_job||null,setTemporaryChatUiState(!!(h&&h.is_temporary)),
-applyTemporaryChatRuntimeMeta(h||{}),ensureTemporaryChatHeartbeat(!0),get("thread-custom-instruction")&&
-(get("thread-custom-instruction").value=h.custom_instruction||""),h.last_model&&selectModelById(h.last_model),
-get("enable-prompt-cache")&&(get("enable-prompt-cache").checked=!!h.enable_prompt_caching,updatePromptCacheUi()),
-h.last_gem_uuid&&loadedGems.length>0){const w=loadedGems.find(x=>x.uuid===h.last_gem_uuid);w&&(threadGemMap[currentThreadId]=
+-1,tempPrompt="",currentThreadPending=g.pending_job||null,setTemporaryChatUiState(!!(g&&g.is_temporary)),
+applyTemporaryChatRuntimeMeta(g||{}),ensureTemporaryChatHeartbeat(!0),get("thread-custom-instruction")&&
+(get("thread-custom-instruction").value=g.custom_instruction||""),g.last_model&&selectModelById(g.last_model),
+get("enable-prompt-cache")&&(get("enable-prompt-cache").checked=!!g.enable_prompt_caching,updatePromptCacheUi()),
+g.last_gem_uuid&&loadedGems.length>0){const w=loadedGems.find(x=>x.uuid===g.last_gem_uuid);w&&(threadGemMap[currentThreadId]=
 w,applyActiveGem(w))}const b=localStorage.getItem(`fixed_branch_${currentThreadId}`);if(b&&allMessages.
 find(w=>String(w.id)===String(b))?currentLeafId=b:allMessages.length>0?currentLeafId=allMessages[allMessages.
 length-1].id:currentLeafId=null,renderThreadTree({silent:s,keepScroll:s}),s&&a?applyCodeCollapseByMessage(
@@ -6984,20 +6983,20 @@ o(loadOlderMessages,"loadOlderMessages");function renderThreadTree(e={}){const t
 forEach(b=>{r[b.id]=b,b.childrenIds=[]}),allMessages.forEach(b=>{b.parent_id&&r[b.parent_id]&&r[b.parent_id].
 childrenIds.push(b.id)}),(!currentLeafId||!r[currentLeafId])&&(currentLeafId=allMessages.length>0?allMessages[allMessages.
 length-1].id:null);const l=[];let d=r[currentLeafId];for(;d;)l.unshift(d),d=r[d.parent_id];const p=buildTokenTotals(
-l),g=buildTokenTotals(allMessages),h=document.createDocumentFragment();if(threadHasOlderMessages){const b=loadingOlderMessages?
+l),h=buildTokenTotals(allMessages),g=document.createDocumentFragment();if(threadHasOlderMessages){const b=loadingOlderMessages?
 "\u8AAD\u307F\u8FBC\u307F\u4E2D...":"\u904E\u53BB\u30E1\u30C3\u30BB\u30FC\u30B8\u3092\u8AAD\u307F\u8FBC\u3080",
 w=loadingOlderMessages?"disabled":"",x=document.createElement("div");x.className="mb-3 text-center",
 x.innerHTML=`<button id="load-older-messages-btn" class="px-3 py-1.5 text-xs rounded border border-g\
 ray-600 text-gray-200 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed" onclick="lo\
-adOlderMessages()" ${w}><i class="fas fa-clock-rotate-left mr-1"></i>${b}</button>`,h.appendChild(x)}
+adOlderMessages()" ${w}><i class="fas fa-clock-rotate-left mr-1"></i>${b}</button>`,g.appendChild(x)}
 l.forEach(b=>{const w=b.parent_id?r[b.parent_id]:null,x=w?w.childrenIds:allMessages.filter(T=>!T.parent_id).
 map(T=>T.id),L=x.length>1?{current:x.indexOf(b.id)+1,total:x.length,siblings:x}:null;renderMessage(b.
 id,b.role,b.content,b.image_url,b.thought_data,b.model,L,n,b.quote_text,b.tokens,b.tokens_in,b.tokens_out,
-b.is_encrypted,b.tokens_content,b.tokens_thought,h,!1,b.parent_id,b.gem_name,b.batch_job)});const v=currentThreadPending;
+b.is_encrypted,b.tokens_content,b.tokens_thought,g,!1,b.parent_id,b.gem_name,b.batch_job)});const v=currentThreadPending;
 if(v&&!isPendingJobSuppressed(v.job_id)){const b=v.message_id,w=new Set(l.map(T=>T.id)),x=l.length?l[l.
 length-1]:null;if(b&&w.has(b)&&currentLeafId===b||!b&&x&&x.role==="user"){const T=v.job_id?`pending-${v.
-job_id}`:null;renderPendingMessage(h,n,!1,T,v.model||null)}}if(s.appendChild(h),updateTotalTokenBar(
-p.tokens_total,p,g),currentParentId=currentLeafId,i&&a!==null?restoreThreadTreeScroll(s,a):scrollToBottom(),
+job_id}`:null;renderPendingMessage(g,n,!1,T,v.model||null)}}if(s.appendChild(g),updateTotalTokenBar(
+p.tokens_total,p,h),currentParentId=currentLeafId,i&&a!==null?restoreThreadTreeScroll(s,a):scrollToBottom(),
 lowBandwidthMode)queueMessageDecorations(s,s&&s.textContent||"");else if(queueHighlight(s),l.length){
 const b=l[l.length-1]&&l[l.length-1].content;queueMathTypeset(s,b)}}o(renderThreadTree,"renderThread\
 Tree");function restoreThreadTreeScroll(e,t){if(!e)return;const n=e.scrollHeight-e.clientHeight;userAutoScroll&&
@@ -7167,16 +7166,16 @@ ngs-btn"),n=t?t.textContent:"";t&&(t.disabled=!0,t.textContent="\u4FDD\u5B58\u4E
 !0,l=get("thread-global-sys-prompt"),d=get("thread-global-sys-prompt-enabled");let p=null;try{p=l||d?
 {system_prompt:l?l.value:"",system_prompt_enabled:d?d.checked:!0,apply_auto_system_prompt_notices:get(
 "thread-apply-auto-sys-prompt-notices")?get("thread-apply-auto-sys-prompt-notices").checked:!0,auto_system_prompt_notices_config:collectAutoSystemPromptConfigFromForm(
-"thread")}:null}catch(g){sendClientDebugLog("error","Payload construction failed: "+g.message)}try{sendClientDebugLog(
-"info","Starting PUT request for thread: "+e);const g=await apiFetch(`/api/threads/${e}/settings`,{method:"\
+"thread")}:null}catch(h){sendClientDebugLog("error","Payload construction failed: "+h.message)}try{sendClientDebugLog(
+"info","Starting PUT request for thread: "+e);const h=await apiFetch(`/api/threads/${e}/settings`,{method:"\
 PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({custom_instruction:s,include_global_instruction:r})});
-sendClientDebugLog("info","PUT request finished, status: "+g.status);let h=!0;if(p){sendClientDebugLog(
+sendClientDebugLog("info","PUT request finished, status: "+h.status);let g=!0;if(p){sendClientDebugLog(
 "info","Starting POST request for user settings");const v=await apiFetch(CHAT_CONFIG.urls.handleSettings,
-{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});h=v.ok,sendClientDebugLog(
-"info","POST request finished, status: "+v.status)}g.ok&&h?(window.closeThreadModal(),showToast("\u4FDD\u5B58\u3055\
+{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});g=v.ok,sendClientDebugLog(
+"info","POST request finished, status: "+v.status)}h.ok&&g?(window.closeThreadModal(),showToast("\u4FDD\u5B58\u3055\
 \u308C\u307E\u3057\u305F","success")):showToast("\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
-"error",!0)}catch(g){sendClientDebugLog("error","Save failed with error: "+g.message),showToast("\u30A8\u30E9\u30FC\
-: "+g.message,"error",!0)}finally{t&&(t.disabled=!1,t.textContent=n||"\u4FDD\u5B58")}},window.openCompressionModal=
+"error",!0)}catch(h){sendClientDebugLog("error","Save failed with error: "+h.message),showToast("\u30A8\u30E9\u30FC\
+: "+h.message,"error",!0)}finally{t&&(t.disabled=!1,t.textContent=n||"\u4FDD\u5B58")}},window.openCompressionModal=
 ()=>{syncCompressionSettingsUi(),showModal("compression-modal"),location.pathname!=="/compression"&&
 history.pushState({modal:"compression"},"","/compression")},window.closeCompressionModal=(e=!1)=>{hideModal(
 "compression-modal"),!e&&location.pathname==="/compression"&&history.back()},get("save-compression-s\
@@ -7225,8 +7224,8 @@ ts"),buildPdfDocumentHtml=o(e=>{const t=e&&e.thread?e.thread:{},n=Array.isArray(
 ync data-cfasync="false"><\/script>`:"",a=t.title||"AI Chat",r=[{label:"Exported At",value:pdfFormatTimestamp(
 e&&e.generated_at)},{label:"Leaf Message",value:e&&e.leaf_id?`#${e.leaf_id}`:"none"},{label:"Message\
 s",value:String(n.length)},{label:"Version",value:`AI Playground ${appVersion}`}],l=n.map(d=>{const p=d.
-role==="user",g=d.quote_text?`<div class="quote"><strong>Quote</strong><br>${escapeHtml(d.quote_text)}\
-</div>`:"",h=d.thought_text?`<div class="thought">${escapeHtml(d.thought_text)}</div>`:"",v=p?`<div \
+role==="user",h=d.quote_text?`<div class="quote"><strong>Quote</strong><br>${escapeHtml(d.quote_text)}\
+</div>`:"",g=d.thought_text?`<div class="thought">${escapeHtml(d.thought_text)}</div>`:"",v=p?`<div \
 class="content" style="white-space: pre-wrap;">${escapeHtml(d.content||"")}</div>`:`<div class="cont\
 ent">${sanitizeMarkdownHtml(d.content||"")}</div>`,b=buildPdfMessageAttachments(d),w=b.length?`<div \
 class="attachments">${b.map(T=>T.isImage?`<div class="attachment"><img src="${pdfEscapeAttr(T.previewUrl)}\
@@ -7248,9 +7247,9 @@ span class="dot"></span><span>${p?"User":"Assistant"}</span></div>
 </div>
                         </div>
                         <div class="message-body">
-                            ${g}
-                            ${v}
                             ${h}
+                            ${v}
+                            ${g}
                             ${w}
                             ${L}
                         </div>
@@ -7364,19 +7363,19 @@ a.style.height="1px",a.style.opacity="0",a.style.pointerEvents="none",a.style.bo
 const l=o(()=>{r&&(clearTimeout(r),r=null),t&&t.remove(),(activePdfPrintFrame===a||activePdfPrintFrame===
 e)&&(activePdfPrintFrame=null);try{a.parentNode&&a.parentNode.removeChild(a)}catch{}},"cleanup");r=setTimeout(
 ()=>{activePdfPrintFrame===a&&(console.log("PDF print cleanup fallback triggered"),l())},6e4),a.onload=
-async()=>{try{const g=a.contentDocument,h=a.contentWindow;if(!g||!h){l(),showToast("PDF\u5370\u5237\u30E2\u30FC\u30C0\u30EB\u306E\u6E96\u5099\u306B\u5931\u6557\u3057\
+async()=>{try{const h=a.contentDocument,g=a.contentWindow;if(!h||!g){l(),showToast("PDF\u5370\u5237\u30E2\u30FC\u30C0\u30EB\u306E\u6E96\u5099\u306B\u5931\u6557\u3057\
 \u307E\u3057\u305F","error",!0);return}if(t.update(40),(Array.isArray(s&&s.messages)?s.messages:[]).
-some(T=>maybeNeedsMathJax(T.content)||maybeNeedsMathJax(T.thought_text))&&(h.MathJax={tex:{inlineMath:[
+some(T=>maybeNeedsMathJax(T.content)||maybeNeedsMathJax(T.thought_text))&&(g.MathJax={tex:{inlineMath:[
 ["\\(","\\)"],["$","$"]],displayMath:[["$$","$$"],["\\[","\\]"]],processEscapes:!0},options:{ignoreHtmlClass:"\
 tex2jax_ignore|mathjax_ignore",processHtmlClass:"tex2jax_process|mathjax_process"},startup:{typeset:!1}}),
-t.update(50),g.fonts&&g.fonts.ready)try{await g.fonts.ready}catch{}t.update(60);const w=Array.from(g.
+t.update(50),h.fonts&&h.fonts.ready)try{await h.fonts.ready}catch{}t.update(60);const w=Array.from(h.
 images||[]),x=Promise.all(w.map(T=>T.complete?Promise.resolve():new Promise($=>{T.addEventListener("\
 load",$,{once:!0}),T.addEventListener("error",$,{once:!0})})));if(await Promise.race([x,new Promise(
-T=>setTimeout(T,5e3))]),t.update(80),g.getElementById("MathJax-script")){let T=0;for(;T<100&&(!h.MathJax||
-typeof h.MathJax.typesetPromise!="function");)await new Promise($=>setTimeout($,50)),T++;if(h.MathJax&&
-typeof h.MathJax.typesetPromise=="function")try{await h.MathJax.typesetPromise()}catch($){console.error(
-"PDF MathJax typeset failed",$)}}t.update(95),setTimeout(()=>{try{h.focus(),h.addEventListener("afte\
-rprint",()=>{l()},{once:!0}),t.update(100),setTimeout(()=>{t&&t.remove()},1e3),h.print()}catch{l(),showToast(
+T=>setTimeout(T,5e3))]),t.update(80),h.getElementById("MathJax-script")){let T=0;for(;T<100&&(!g.MathJax||
+typeof g.MathJax.typesetPromise!="function");)await new Promise($=>setTimeout($,50)),T++;if(g.MathJax&&
+typeof g.MathJax.typesetPromise=="function")try{await g.MathJax.typesetPromise()}catch($){console.error(
+"PDF MathJax typeset failed",$)}}t.update(95),setTimeout(()=>{try{g.focus(),g.addEventListener("afte\
+rprint",()=>{l()},{once:!0}),t.update(100),setTimeout(()=>{t&&t.remove()},1e3),g.print()}catch{l(),showToast(
 "PDF\u5370\u5237\u30E2\u30FC\u30C0\u30EB\u3092\u958B\u3051\u307E\u305B\u3093\u3067\u3057\u305F","err\
 or",!0)}},100)}catch{l(),showToast("PDF\u5370\u5237\u30E2\u30FC\u30C0\u30EB\u306E\u6E96\u5099\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0)}};const d=buildPdfDocumentHtml(s),p=new Blob([d],{type:"text/html"});a.src=URL.createObjectURL(
@@ -7410,14 +7409,14 @@ const p=get("lib-total-count");p&&(p.innerText="0 files");return}const i=sortLib
 s=getLibSearchQuery(),a=i.filter(p=>lib.favoritesOnly&&!p.is_favorite?!1:!s||fileNameForSearch(p).includes(
 s)),r=get("lib-total-count");if(r){const p=Number(lib.totalCount)||lib.files.length;lib.hasMore||s||
 lib.favoritesOnly?r.innerText=`${lib.files.length} / ${p} files`:r.innerText=`${p} files`}if(!a.length){
-if(n)return;const p=lib.favoritesOnly&&!s?"fa-star":"fa-search",g=lib.favoritesOnly&&!s?"\u304A\u6C17\u306B\u5165\u308A\u304C\u3042\u308A\u307E\u305B\u3093":
-"\u4E00\u81F4\u3059\u308B\u30D5\u30A1\u30A4\u30EB\u304C\u3042\u308A\u307E\u305B\u3093",h=lib.favoritesOnly&&
+if(n)return;const p=lib.favoritesOnly&&!s?"fa-star":"fa-search",h=lib.favoritesOnly&&!s?"\u304A\u6C17\u306B\u5165\u308A\u304C\u3042\u308A\u307E\u305B\u3093":
+"\u4E00\u81F4\u3059\u308B\u30D5\u30A1\u30A4\u30EB\u304C\u3042\u308A\u307E\u305B\u3093",g=lib.favoritesOnly&&
 !s?"\u30D5\u30A1\u30A4\u30EB\u306E\u661F\u30DC\u30BF\u30F3\u304B\u3089\u304A\u6C17\u306B\u5165\u308A\u306B\u8FFD\u52A0\u3067\u304D\u307E\u3059\u3002":
 "\u691C\u7D22\u6761\u4EF6\u3084\u4E26\u3073\u9806\u3092\u5909\u66F4\u3057\u3066\u304F\u3060\u3055\u3044\u3002";
 t.innerHTML=`<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas ${p}"></i></div>\
-<p class="lib-empty-title">${g}</p><p class="lib-empty-sub">${h}</p></div>`;return}let l=0;(n?sortLibraryFiles(
+<p class="lib-empty-title">${h}</p><p class="lib-empty-sub">${g}</p></div>`;return}let l=0;(n?sortLibraryFiles(
 e).filter(p=>lib.favoritesOnly&&!p.is_favorite?!1:!s||fileNameForSearch(p).includes(s)):a).forEach(p=>{
-try{const g=renderLibraryItem(p,l++);t.appendChild(g)}catch{}})}o(renderLibraryGrid,"renderLibraryGr\
+try{const h=renderLibraryItem(p,l++);t.appendChild(h)}catch{}})}o(renderLibraryGrid,"renderLibraryGr\
 id");function openLibraryImage(e){if(!lib.files)return;const t=sortLibraryFiles(lib.files),n=getLibSearchQuery(),
 s=(n?t.filter(d=>fileNameForSearch(d).includes(n)):t).filter(d=>d.type==="image"),a=lib.favoritesOnly?
 s.filter(d=>d.is_favorite):s;if(!a.length)return;const r=a.map(d=>({url:d.url,filename:d.filename||d.
@@ -7435,12 +7434,12 @@ LE")}</span></div>`,r=`<div class="lib-overlay"><a href="${escapeHtml(e.url)}" d
 e.filename)}" class="lib-overlay-btn" onclick="event.stopPropagation()" title="\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9"><i class="fas\
  fa-download"></i></a></div>`,l=e.is_favorite?" is-favorite":"",d=e.is_favorite?"fas fa-star":"far f\
 a-star",p=e.is_favorite?"\u304A\u6C17\u306B\u5165\u308A\u304B\u3089\u5916\u3059":"\u304A\u6C17\u306B\u5165\u308A\u306B\u8FFD\u52A0",
-g=`<div class="lib-thumb-actions"><button class="lib-favorite-btn lib-action-circle${l}" title="${p}\
+h=`<div class="lib-thumb-actions"><button class="lib-favorite-btn lib-action-circle${l}" title="${p}\
 " aria-label="${p}" aria-pressed="${e.is_favorite?"true":"false"}"><i class="${d}"></i></button><but\
 ton class="lib-open-btn lib-action-circle" title="\u958B\u304F"><i class="fas fa-eye"></i></button><button cla\
 ss="lib-del-btn lib-action-circle lib-del" title="\u524A\u9664"><i class="fas fa-trash"></i></button></div>`,
-h=`<div class="lib-thumb-bar"><span class="lib-thumb-name" title="${escapeHtml(e.filename)}">${escapeHtml(
-e.filename)}</span></div>`;n.innerHTML=`<div class="lib-thumb-media-wrap">${a}</div>${r}${g}${h}`,n.
+g=`<div class="lib-thumb-bar"><span class="lib-thumb-name" title="${escapeHtml(e.filename)}">${escapeHtml(
+e.filename)}</span></div>`;n.innerHTML=`<div class="lib-thumb-media-wrap">${a}</div>${r}${h}${g}`,n.
 onclick=()=>{lib.selected.has(e.filepath)?(lib.selected.delete(e.filepath),n.classList.remove("is-se\
 lected")):(lib.selected.add(e.filepath),n.classList.add("is-selected")),window.updateLibSelectionUi()},
 lib.selected&&lib.selected.has(e.filepath)&&n.classList.add("is-selected"),n.querySelectorAll(".lib-\
@@ -7494,12 +7493,12 @@ if(!a.ok)throw new Error(r.error||`HTTP ${a.status}`);const l=Array.isArray(r.ch
 length){i.innerHTML='<div class="text-sm text-gray-400 text-center py-8"><i class="fas fa-comment-do\
 ts text-xl mb-2 block"></i>\u3053\u306E\u30D5\u30A1\u30A4\u30EB\u3092\u4F7F\u7528\u3057\u3066\u3044\u308B\u30C1\u30E3\u30C3\u30C8\u306F\u3042\u308A\u307E\u305B\u3093\u3002</div>';
 return}if(i.innerHTML="",l.forEach(d=>{const p=document.createElement("div");p.className="flex items\
--center gap-3 rounded-lg border border-gray-700 bg-gray-800/70 p-3";const g=d.updated_at?new Date(d.
+-center gap-3 rounded-lg border border-gray-700 bg-gray-800/70 p-3";const h=d.updated_at?new Date(d.
 updated_at).toLocaleString():"";p.innerHTML=`<div class="min-w-0 flex-1"><div class="text-sm text-gr\
 ay-200 truncate" title="${escapeHtml(d.title||"")}">${escapeHtml(d.title||"\u65B0\u3057\u3044\u30C1\u30E3\u30C3\u30C8")}\
-</div><div class="text-[11px] text-gray-500 mt-1">${escapeHtml(g)}</div></div><button type="button" \
+</div><div class="text-[11px] text-gray-500 mt-1">${escapeHtml(h)}</div></div><button type="button" \
 class="lib-action-btn lib-btn-accent shrink-0"><i class="fas fa-folder"></i><span>\u958B\u304F</span></button>`;
-const h=p.querySelector("button");h&&(h.onclick=async()=>{closeFileUsageModal(),window.closeLibModal&&
+const g=p.querySelector("button");g&&(g.onclick=async()=>{closeFileUsageModal(),window.closeLibModal&&
 window.closeLibModal(!0),await loadMessages(String(d.id))}),i.appendChild(p)}),r.has_more){const d=document.
 createElement("p");d.className="text-[11px] text-gray-500 text-center pt-2",d.textContent="\u8868\u793A\u3067\u304D\u308B\u30C1\u30E3\u30C3\u30C8\
 \u306F\u6700\u5927100\u4EF6\u3067\u3059\u3002",i.appendChild(d)}}catch{i.innerHTML='<div class="text\
@@ -7507,9 +7506,9 @@ createElement("p");d.className="text-[11px] text-gray-500 text-center pt-2",d.te
 </div>'}}}o(showSelectedFileUsage,"showSelectedFileUsage");async function loadLibraryFiles(e=!1){const t=get(
 "lib-grid"),n=get("lib-load-more-btn");if(lib.loading||e&&!lib.hasMore)return;lib.loading=!0,e||(lib.
 nextOffset=0,lib.totalCount=0,lib.hasMore=!1),e||renderLibrarySkeleton(t);let i=null;const s=CHAT_CONFIG.
-urls.getFilesLib;let a=null,r=!1;try{const d=getLibSortOrder(),p=getLibSearchQuery(),g=e?lib.nextOffset:
-0,h=new URLSearchParams({limit:String(LIBRARY_PAGE_SIZE),offset:String(g),sort:d,q:p,favorites_only:lib.
-favoritesOnly?"1":"0"}),v=await apiFetch(s+"?"+h.toString(),{cache:"no-store",headers:{Accept:"appli\
+urls.getFilesLib;let a=null,r=!1;try{const d=getLibSortOrder(),p=getLibSearchQuery(),h=e?lib.nextOffset:
+0,g=new URLSearchParams({limit:String(LIBRARY_PAGE_SIZE),offset:String(h),sort:d,q:p,favorites_only:lib.
+favoritesOnly?"1":"0"}),v=await apiFetch(s+"?"+g.toString(),{cache:"no-store",headers:{Accept:"appli\
 cation/json"}});if(!v.ok)throw new Error("HTTP "+v.status);a=await v.json(),r=!0}catch(d){i=d}if(!r){
 console.error("Library load failed:",i),!e&&t?t.innerHTML='<div class="lib-empty-state"><div class="\
 lib-empty-icon"><i class="fas fa-exclamation-triangle"></i></div><p class="lib-empty-title">\u30E9\u30A4\u30D6\u30E9\u30EA\u306E\u8AAD\u307F\
@@ -7518,15 +7517,15 @@ e&&showToast("\u8FFD\u52A0\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E
 "error",!0),lib.loading=!1,n&&(n.disabled=!1,n.hidden=!lib.hasMore);return}let l=Array.isArray(a)?a:
 a&&Array.isArray(a.files)?a.files:[];a&&!Array.isArray(a)&&(lib.totalCount=Number(a.total)||0,lib.hasMore=
 !!a.has_more,lib.nextOffset=(Number(a.offset)||0)+(Number(a.limit)||l.length));try{const d=FILE_BASE_URL,
-p=FILE_THUMB_BASE_URL,g=new Set(l.map(v=>v&&v.filepath).filter(Boolean));(!e&&Array.isArray(currentImageUrls)?
-currentImageUrls:[]).forEach(v=>{if(l.length>=LIBRARY_PAGE_SIZE||!v||g.has(v))return;const b=getAttachmentNameForPath(
+p=FILE_THUMB_BASE_URL,h=new Set(l.map(v=>v&&v.filepath).filter(Boolean));(!e&&Array.isArray(currentImageUrls)?
+currentImageUrls:[]).forEach(v=>{if(l.length>=LIBRARY_PAGE_SIZE||!v||h.has(v))return;const b=getAttachmentNameForPath(
 v)||v.split("/").pop()||v,w=(b.split(".").pop()||"").toLowerCase(),x=["png","jpg","jpeg","webp","gif"].
 includes(w)?"image":"file",L=x==="image"?p+v:null;l.unshift({filename:b,original_filename:b,filepath:v,
-url:d+v,thumbnail_url:L,type:x,ext:w,is_favorite:!1,ts:Math.floor(Date.now()/1e3)}),g.add(v)})}catch{}
-try{lib.selected||(lib.selected=new Set),e||lib.selected.clear();const d=l.filter(g=>g&&g.filepath&&
-g.url);let p=[];if(e){const g=new Set(lib.files.map(h=>h.filepath));p=d.filter(h=>!g.has(h.filepath)),
-lib.files.push(...p)}else lib.files=d;lib.files.forEach(g=>{g&&g.filepath&&setAttachmentNameForPath(
-g.filepath,g.filename||g.original_filename||"")}),lib.fileSet=new Set(lib.files.map(g=>g.filepath)),
+url:d+v,thumbnail_url:L,type:x,ext:w,is_favorite:!1,ts:Math.floor(Date.now()/1e3)}),h.add(v)})}catch{}
+try{lib.selected||(lib.selected=new Set),e||lib.selected.clear();const d=l.filter(h=>h&&h.filepath&&
+h.url);let p=[];if(e){const h=new Set(lib.files.map(g=>g.filepath));p=d.filter(g=>!h.has(g.filepath)),
+lib.files.push(...p)}else lib.files=d;lib.files.forEach(h=>{h&&h.filepath&&setAttachmentNameForPath(
+h.filepath,h.filename||h.original_filename||"")}),lib.fileSet=new Set(lib.files.map(h=>h.filepath)),
 lib.totalCount||(lib.totalCount=lib.files.length),window.updateLibSelectionUi(),renderLibraryGrid(e?
 p:null)}catch(d){i=i||d}i&&t&&(console.error("Library load failed:",i),e?showToast("\u8FFD\u52A0\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002\u3082\u3046\
 \u4E00\u5EA6\u304A\u8A66\u3057\u304F\u3060\u3055\u3044\u3002","error",!0):t.innerHTML='<div class="l\
@@ -7587,7 +7586,7 @@ back()};function renderBranchTreeVisualization(){const e=get("branch-tree-canvas
 allMessages.forEach(s=>{s.parent_id&&t[s.parent_id]?t[s.parent_id].children.push(t[s.id]):s.parent_id||
 n.push(t[s.id])});function i(s){const a=document.createElement("div");a.className="flex flex-col ite\
 ms-center mt-4";const r=document.createElement("div"),l=String(s.id)===String(currentLeafId),d=s.id===
-threadFixedBranchId,p=branchLabelNames[s.id]||(s.role==="user"?"User":"AI"),g=getCumulativeTokensForNode(
+threadFixedBranchId,p=branchLabelNames[s.id]||(s.role==="user"?"User":"AI"),h=getCumulativeTokensForNode(
 s.id);if(r.className=`ui-enter-scale px-3 py-2 rounded-lg border cursor-pointer transition-all text-\
 [10px] min-w-[120px] max-w-[180px] text-center relative ${selectedBranchNodeId===s.id?"ring-2 ring-p\
 urple-500 border-purple-400":"border-gray-700 hover:border-gray-500"} ${l?"bg-blue-900/40 border-blu\
@@ -7596,15 +7595,15 @@ e-500/50":"bg-gray-800"}`,r.innerHTML=`
                     <div class="text-[9px] text-gray-500 flex justify-between mt-1 gap-2">
                         <span class="truncate">${escapeHtml(s.model||"-")}</span>
                         <span class="text-blue-400 font-mono font-bold" title="Cumulative tokens for\
- this path">${g}</span>
+ this path">${h}</span>
                     </div>
                     ${d?'<div class="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full bord\
 er border-gray-900 shadow-sm" title="Fixed Branch"></div>':""}
                     ${l?'<div class="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full border\
  border-gray-900 shadow-sm" title="Current Branch"></div>':""}
-                `,r.onclick=h=>{h.stopPropagation(),selectedBranchNodeId=s.id,renderBranchTreeVisualization(),
-updateBranchDetailPane()},a.appendChild(r),s.children.length>0){const h=document.createElement("div");
-h.className="w-px h-4 bg-gray-700",a.appendChild(h);const v=document.createElement("div");v.className=
+                `,r.onclick=g=>{g.stopPropagation(),selectedBranchNodeId=s.id,renderBranchTreeVisualization(),
+updateBranchDetailPane()},a.appendChild(r),s.children.length>0){const g=document.createElement("div");
+g.className="w-px h-4 bg-gray-700",a.appendChild(g);const v=document.createElement("div");v.className=
 "flex gap-4 items-start",s.children.forEach(b=>v.appendChild(i(b))),a.appendChild(v)}return a}o(i,"r\
 enderNodeRecursive"),n.forEach(s=>e.appendChild(i(s)))}o(renderBranchTreeVisualization,"renderBranch\
 TreeVisualization");function updateBranchDetailPane(){const e=get("branch-detail-panel"),t=get("bran\
@@ -7615,8 +7614,8 @@ ch-empty-panel");if(!selectedBranchNodeId||!allMessages){e.classList.add("hidden
 0),s=getCumulativeTokensForNode(n.id);get("br-tokens").innerHTML=`<span title="Current message token\
 s">${i}</span> <span class="text-gray-500">/</span> <span class="text-purple-400 font-bold" title="P\
 ath total tokens">${s} total</span>`;const a=get("branch-model-breakdown"),r=getPerModelTokensForPath(
-n.id);a.innerHTML="",Object.entries(r).sort((d,p)=>p[1].total-d[1].total).forEach(([d,p])=>{const g=document.
-createElement("div");g.className="bg-gray-800/50 p-2 rounded border border-gray-700/50",g.innerHTML=
+n.id);a.innerHTML="",Object.entries(r).sort((d,p)=>p[1].total-d[1].total).forEach(([d,p])=>{const h=document.
+createElement("div");h.className="bg-gray-800/50 p-2 rounded border border-gray-700/50",h.innerHTML=
 `
                     <div class="flex justify-between font-bold text-gray-300 mb-1">
                         <span class="truncate pr-2">${d}</span>
@@ -7628,7 +7627,7 @@ createElement("div");g.className="bg-gray-800/50 p-2 rounded border border-gray-
                         <div title="Thought/Reasoning tokens">${p.thought>0?`Th: ${p.thought}`:""}</\
 div>
                     </div>
-                `,a.appendChild(g)}),get("br-name-input").value=branchLabelNames[n.id]||"";const l=get(
+                `,a.appendChild(h)}),get("br-name-input").value=branchLabelNames[n.id]||"";const l=get(
 "br-fix-btn");selectedBranchNodeId===threadFixedBranchId?(l.innerText="\u56FA\u5B9A\u3092\u89E3\u9664",
 l.classList.replace("bg-amber-600","bg-gray-600")):(l.innerText="\u30E1\u30A4\u30F3\u30EB\u30FC\u30C8\u306B\u56FA\u5B9A",
 l.classList.replace("bg-gray-600","bg-amber-600"))}o(updateBranchDetailPane,"updateBranchDetailPane"),
@@ -7650,18 +7649,18 @@ i.label:"API\u30AD\u30FC"}\u306E\u8A2D\u5B9A\u304C\u5FC5\u8981\u3067\u3059\u3002
 -key-label").textContent=i?i.label:"API Key";const s=i?get(i.inputId):null;get("api-key-modal-input").
 value=s?s.value:"",get("api-key-modal-input").placeholder="API\u30AD\u30FC\u3092\u5165\u529B";const a=get(
 "api-key-modal-save-btn"),r=get("api-key-modal-fallback-btn"),l=get("api-key-modal-cancel-btn"),d=o(
-()=>{a.onclick=null,r.onclick=null,l.onclick=null},"cleanup"),p=o(g=>{g.key==="Enter"&&(g.preventDefault(),
+()=>{a.onclick=null,r.onclick=null,l.onclick=null},"cleanup"),p=o(h=>{h.key==="Enter"&&(h.preventDefault(),
 a.click())},"onKeydown");get("api-key-modal-input").addEventListener("keydown",p),a.onclick=async()=>{
-const g=get("api-key-modal-input").value.trim();if(!g){showToast("API\u30AD\u30FC\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044",
-"error");return}if(i){const h=get(i.inputId);h&&(h.value=g);try{if(!(await apiFetch(CHAT_CONFIG.urls.
-handleSettings,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({[i.keyField]:g})})).
+const h=get("api-key-modal-input").value.trim();if(!h){showToast("API\u30AD\u30FC\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044",
+"error");return}if(i){const g=get(i.inputId);g&&(g.value=h);try{if(!(await apiFetch(CHAT_CONFIG.urls.
+handleSettings,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({[i.keyField]:h})})).
 ok){showToast("API\u30AD\u30FC\u306E\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\u3057\u305F","error",
-!0);return}userSettingsSnapshot&&(userSettingsSnapshot[i.keyField]=g)}catch{showToast("API\u30AD\u30FC\u306E\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\
+!0);return}userSettingsSnapshot&&(userSettingsSnapshot[i.keyField]=h)}catch{showToast("API\u30AD\u30FC\u306E\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\
 \u3057\u305F","error",!0);return}}hideModal("api-key-required-modal"),get("api-key-modal-input").removeEventListener(
 "keydown",p),d(),t("set")},r.onclick=()=>{hideModal("api-key-required-modal"),get("api-key-modal-inp\
 ut").removeEventListener("keydown",p),d(),t("switch")},l.onclick=()=>{hideModal("api-key-required-mo\
 dal"),get("api-key-modal-input").removeEventListener("keydown",p),d(),t("cancel")},showModal("api-ke\
-y-required-modal"),setTimeout(()=>{const g=get("api-key-modal-input");g&&g.focus()},350)}),"showApiK\
+y-required-modal"),setTimeout(()=>{const h=get("api-key-modal-input");h&&h.focus()},350)}),"showApiK\
 eyRequiredModalAsync");(function(){const e=console.log,t=console.error,n=console.warn,i=console.info;
 let s=!1;async function a(r,l){if(s||!isClientDebugLogEnabled()||l&&l[0]===ADMIN_SIDEBAR_DEBUG_PREFIX)
 return;s=!0;const d=l.map(p=>{try{return p instanceof Error?p.stack||p.message:typeof p=="object"?JSON.

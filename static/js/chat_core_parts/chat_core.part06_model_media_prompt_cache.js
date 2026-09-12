@@ -725,7 +725,7 @@
             btns.forEach(b => {
                 const t = b.innerText.trim().toLowerCase();
                 const active = (t === 'all' ? 'all' : t) === activeModelTag;
-                b.className = `model-tag-btn px-2 py-1 text-[10px] rounded border transition ${active ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`;
+                b.classList.toggle('is-active', active);
             });
         }
 
@@ -810,7 +810,7 @@
             if (!container || modelListBuilt) return;
             container.innerHTML = '';
             modelListBanner = document.createElement('div');
-            modelListBanner.className = 'hidden mb-4 px-3 py-2 rounded-lg border border-teal-500/40 bg-teal-900/20 text-[11px] text-teal-200';
+            modelListBanner.className = 'model-banner hidden';
             container.appendChild(modelListBanner);
 
             MODELS.forEach(group => {
@@ -819,16 +819,16 @@
                 const groupEl = document.createElement('section');
                 groupEl.className = 'model-list-group';
                 groupEl.innerHTML = `
-                    <div class="flex items-center gap-2 mb-3 px-2">
+                    <div class="model-group-header">
                         <i class="${group.icon}"></i>
                         <div>
-                            <h3 class="font-bold text-gray-200 text-sm">${group.category}</h3>
-                            <p class="text-[10px] text-gray-500">${group.description}</p>
+                            <h3 class="model-group-title">${group.category}</h3>
+                            <p class="model-group-desc">${group.description}</p>
                         </div>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-6"></div>
+                    <div class="model-group-grid"></div>
                 `;
-                const grid = groupEl.querySelector('.grid');
+                const grid = groupEl.querySelector('.model-group-grid');
                 const entries = availableItems.map(m => {
                     const item = document.createElement('button');
                     const apiModelName = String(m.apiId || m.id || '').trim();
@@ -836,18 +836,18 @@
                     const apiModelHtml = apiModelName ? `<div class="text-[10px] text-cyan-300/90 mt-1.5 font-mono break-all"><span class="font-sans text-gray-500 mr-1">API model:</span>${escapeHtml(apiModelName)}</div>` : '';
                     const priceHtml = m.price ? `<div class="text-[10px] text-amber-400/90 mt-1.5 font-mono flex items-start gap-1"><i class="fas fa-tag text-[9px] mt-0.5 opacity-70 shrink-0"></i><span>${m.price}</span></div>` : '';
                     item.type = 'button';
-                    item.className = 'flex flex-col text-left p-3 rounded-lg border transition bg-gray-800 border-gray-700 hover:border-gray-500 hover:bg-gray-750';
+                    item.className = 'model-card';
                     item.dataset.selected = '0';
                     item.onclick = () => selectModel(m.id, m.name);
                     item.innerHTML = `
                         <div class="flex justify-between items-start gap-2 w-full mb-1">
                             <div class="flex flex-wrap items-center gap-2 min-w-0">
-                                <span class="font-bold text-sm text-gray-200">${m.name}</span>
+                                <span class="model-name font-bold text-sm">${m.name}</span>
                                 ${agenticViewHtml}
                             </div>
-                            <i class="model-selected-icon fas fa-check-circle text-blue-400 hidden shrink-0 mt-0.5"></i>
+                            <i class="model-selected-icon fas fa-check-circle hidden shrink-0 mt-0.5"></i>
                         </div>
-                        <span class="text-[10px] text-gray-400">${m.desc}</span>
+                        <span class="model-desc text-[10px]">${m.desc}</span>
                         ${apiModelHtml}
                         ${priceHtml}
                     `;
@@ -865,7 +865,7 @@
             });
 
             modelListEmpty = document.createElement('div');
-            modelListEmpty.className = 'hidden text-center text-gray-500 py-8';
+            modelListEmpty.className = 'model-list-empty hidden';
             container.appendChild(modelListEmpty);
             modelListBuilt = true;
         }
@@ -874,14 +874,7 @@
             const isSelected = selectedModel === entry.model.id;
             if (entry.button.dataset.selected === (isSelected ? '1' : '0')) return;
             entry.button.dataset.selected = isSelected ? '1' : '0';
-            entry.button.classList.toggle('bg-blue-600/20', isSelected);
-            entry.button.classList.toggle('border-blue-500', isSelected);
-            entry.button.classList.toggle('ring-1', isSelected);
-            entry.button.classList.toggle('ring-blue-500', isSelected);
-            entry.button.classList.toggle('bg-gray-800', !isSelected);
-            entry.button.classList.toggle('border-gray-700', !isSelected);
-            entry.button.classList.toggle('hover:border-gray-500', !isSelected);
-            entry.button.classList.toggle('hover:bg-gray-750', !isSelected);
+            entry.button.classList.toggle('is-selected', isSelected);
             const icon = entry.button.querySelector('.model-selected-icon');
             if (icon) icon.classList.toggle('hidden', !isSelected);
         }
@@ -942,6 +935,7 @@
             const search = get('model-search');
             if (search) search.value = '';
             updateModelTagUi();
+            syncModelSearchClear();
             // Build/update while hidden so opening animation never competes with DOM construction.
             renderModelList('', { animate: true });
             showModal('model-modal');
@@ -1039,8 +1033,27 @@
             } catch (e) { /* element missing ok */ }
         }
 
+        function syncModelSearchClear() {
+            const input = get('model-search');
+            const clearBtn = get('model-search-clear');
+            if (clearBtn) clearBtn.classList.toggle('hidden', !input || !input.value);
+        }
+
         if (get('model-search')) {
-            get('model-search').addEventListener('input', (e) => scheduleModelListRender(e.target.value));
+            get('model-search').addEventListener('input', (e) => {
+                scheduleModelListRender(e.target.value);
+                syncModelSearchClear();
+            });
+        }
+        if (get('model-search-clear')) {
+            get('model-search-clear').addEventListener('click', () => {
+                const input = get('model-search');
+                if (!input) return;
+                input.value = '';
+                syncModelSearchClear();
+                scheduleModelListRender('');
+                input.focus();
+            });
         }
         if (get('model-tag-bar')) {
             get('model-tag-bar').addEventListener('click', (e) => {

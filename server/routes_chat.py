@@ -92,6 +92,10 @@ def _normalize_batch_state(raw_state):
     state = state.replace('-', '_').replace(' ', '_').upper()
     if state.startswith('STATE_'):
         state = state[len('STATE_'):]
+    if state.startswith('JOB_STATE_BATCH_STATE_'):
+        state = f"JOB_STATE_{state[len('JOB_STATE_BATCH_STATE_') :]}"
+    elif state.startswith('BATCH_STATE_'):
+        state = f"JOB_STATE_{state[len('BATCH_STATE_') :]}"
     aliases = {
         'COMPLETED': 'JOB_STATE_SUCCEEDED',
         'SUCCESS': 'JOB_STATE_SUCCEEDED',
@@ -1165,6 +1169,10 @@ def gemini_batch_status_api():
             or {}
         )
         responses = _batch_field(result_container, 'inlinedResponses', 'inlined_responses') or []
+        if isinstance(responses, dict):
+            responses = _batch_field(
+                responses, 'inlinedResponses', 'inlined_responses', 'responses'
+            ) or []
         if responses:
             return responses[0]
 
@@ -1309,10 +1317,12 @@ def gemini_batch_status_api():
                             _terminal_message(row, state, error_text=_batch_field(error_obj, 'message') or row.status_text)
             except Exception as poll_error:
                 logger.warning('Batch status poll failed for %s: %s', row.job_id, poll_error)
-                if state == 'JOB_STATE_SUCCEEDED' and row.state == 'JOB_STATE_SUCCEEDED':
-                    # Keep the job pollable when the provider has finished but
-                    # its result file is temporarily unavailable.
-                    row.state = old_state
+                if state in terminal_states:
+                    # Keep a completed provider job pollable until its result
+                    # has actually been persisted to the assistant message.
+                    row.state = 'JOB_STATE_FINALIZING'
+                    row.completed_at = None
+                    state = row.state
                 row.status_text = 'Batch APIの状態を再確認しています'
         if row.state != old_state or row.status_text != old_status:
             changed_thread_ids.add(str(public_thread_id))

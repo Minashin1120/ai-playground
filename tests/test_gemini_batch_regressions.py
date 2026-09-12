@@ -18,6 +18,13 @@ class GeminiBatchRegressionTests(unittest.TestCase):
         routes = (APP_ROOT / "server/routes_chat.py").read_text(encoding="utf-8")
         self.assertIn("def _normalize_batch_state", routes)
         self.assertIn("'COMPLETED': 'JOB_STATE_SUCCEEDED'", routes)
+        start = routes.index("def _normalize_batch_state")
+        helper_source = routes[start:routes.index("def _batch_state_label", start)]
+        namespace = {}
+        exec(helper_source, namespace)
+        normalize = namespace["_normalize_batch_state"]
+        self.assertEqual(normalize("BATCH_STATE_SUCCEEDED"), "JOB_STATE_SUCCEEDED")
+        self.assertEqual(normalize("JOB_STATE_BATCH_STATE_SUCCEEDED"), "JOB_STATE_SUCCEEDED")
         background = (APP_ROOT / "server/background.py").read_text(encoding="utf-8")
         self.assertIn("row.state = _normalize_batch_state", background)
 
@@ -27,6 +34,7 @@ class GeminiBatchRegressionTests(unittest.TestCase):
             "state not in terminal_states or row.notified_at is None",
             routes,
         )
+        self.assertIn("row.state = 'JOB_STATE_FINALIZING'", routes)
 
     def test_gemini_batch_downloads_file_results(self):
         routes = (APP_ROOT / "server/routes_chat.py").read_text(encoding="utf-8")
@@ -35,6 +43,8 @@ class GeminiBatchRegressionTests(unittest.TestCase):
         self.assertIn("'responsesFile', 'responses_file'", source)
         self.assertIn("/download/v1beta/", source)
         self.assertIn("_gemini_result_line", source)
+        self.assertIn("if isinstance(responses, dict)", source)
+        self.assertIn("'inlinedResponses', 'inlined_responses', 'responses'", source)
 
     def test_gemini_batch_status_is_polled_until_completion(self):
         part = (APP_ROOT / "static/js/chat_core_parts/chat_core.part15_slash_tempchat_threads.js").read_text(encoding="utf-8")

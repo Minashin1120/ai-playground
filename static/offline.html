@@ -6,12 +6,23 @@
   <title>オフライン | AI Chat Playground</title>
   <style>
     :root {
-      color-scheme: dark;
+      color-scheme: light dark;
       --bg-1: #05070f;
       --bg-2: #080c18;
       --text: #eef1f7;
       --muted: #8b95a8;
       --theme-rgb: 13, 212, 191;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg-1: #f6f8fc;
+        --bg-2: #eef2f9;
+        --text: #131c2e;
+        --muted: #5c6779;
+      }
+      body::before { background-image: radial-gradient(rgba(15, 23, 42, 0.05) 1px, transparent 1px); }
+      .panel { background: rgba(255, 255, 255, 0.92); border-color: rgba(15, 23, 42, 0.10); box-shadow: 0 20px 60px rgba(15, 23, 42, 0.14); }
+      .badge { color: #92400e; background: rgba(245, 158, 11, 0.14); }
     }
     body {
       margin: 0;

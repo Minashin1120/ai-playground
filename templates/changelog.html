@@ -143,6 +143,12 @@
             }
         }
     </style>
+    <style>
+        @media (prefers-color-scheme: light) {
+            body::before { background-image: radial-gradient(rgba(15, 23, 42, 0.05) 1px, transparent 1px); }
+        }
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-light.css') }}?v={{ app_version }}">
 </head>
 <body class="min-h-screen p-6 md:p-12">
     <div class="max-w-4xl mx-auto">

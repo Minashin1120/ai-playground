@@ -73,7 +73,7 @@ class EdgeToEdgeRegressionTests(unittest.TestCase):
     def test_no_theme_color_meta(self):
         pwa_meta = (APP_ROOT / "templates" / "pwa_meta.html").read_text(encoding="utf-8")
         self.assertNotIn("theme-color", pwa_meta)
-        self.assertIn('<meta name="color-scheme" content="dark">', pwa_meta)
+        self.assertIn('<meta name="color-scheme" content="light dark">', pwa_meta)
 
     def test_all_pages_have_viewport_fit_cover(self):
         for name in (
@@ -97,7 +97,7 @@ class EdgeToEdgeRegressionTests(unittest.TestCase):
 
     def test_color_scheme_unified_on_all_pwa_pages(self):
         pwa_meta = (APP_ROOT / "templates" / "pwa_meta.html").read_text(encoding="utf-8")
-        self.assertIn('<meta name="color-scheme" content="dark">', pwa_meta)
+        self.assertIn('<meta name="color-scheme" content="light dark">', pwa_meta)
 
     def test_pwa_manifest_has_no_theme_color(self):
         manifest = json.loads((APP_ROOT / "static" / "manifest.webmanifest").read_text(encoding="utf-8"))

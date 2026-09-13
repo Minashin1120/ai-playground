@@ -138,10 +138,6 @@
                         popupPanel.style.transform = `translateY(${Math.max(dy * 0.6, 100)}px)`;
                         popupPanel.style.opacity = '0';
                         closeMinimalOptions();
-                        setTimeout(() => {
-                            popupPanel.style.transform = '';
-                            popupPanel.style.opacity = '';
-                        }, 340);
                     } else {
                         // Snap back to the open position.
                         popupPanel.style.transform = '';

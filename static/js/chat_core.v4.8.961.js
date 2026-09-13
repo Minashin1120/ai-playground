@@ -4684,10 +4684,8 @@
             // Clear any inline transform/opacity left by a swipe-to-close so a
             // quick reopen starts from the clean open state.
             const panel = get('minimal-options-panel');
-            if (panel) {
-                panel.style.transform = '';
-                panel.style.opacity = '';
-            }
+            if (panel) panel.style.cssText = '';
+            popup.classList.remove('minimal-options-closing', 'minimal-options-open');
             popup.classList.remove('hidden');
             popup.setAttribute('aria-hidden', 'false');
             void popup.offsetWidth;
@@ -4698,11 +4696,14 @@
             minimalOptionsOpen = false;
             const popup = get('minimal-options-popup');
             if (popup) {
-                popup.classList.remove('minimal-options-open');
+                popup.classList.add('minimal-options-closing');
                 popup.setAttribute('aria-hidden', 'true');
                 setTimeout(() => {
-                    if (!minimalOptionsOpen) popup.classList.add('hidden');
-                }, 400);
+                    if (!minimalOptionsOpen) {
+                    popup.classList.remove('minimal-options-open', 'minimal-options-closing');
+                    popup.classList.add('hidden');
+                    }
+                }, 560);
             }
             restoreModelPanelsFromPopup();
             hideThinkingSlider();
@@ -4921,10 +4922,6 @@
                         popupPanel.style.transform = `translateY(${Math.max(dy * 0.6, 100)}px)`;
                         popupPanel.style.opacity = '0';
                         closeMinimalOptions();
-                        setTimeout(() => {
-                            popupPanel.style.transform = '';
-                            popupPanel.style.opacity = '';
-                        }, 340);
                     } else {
                         // Snap back to the open position.
                         popupPanel.style.transform = '';

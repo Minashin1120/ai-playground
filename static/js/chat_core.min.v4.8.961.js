@@ -1504,146 +1504,147 @@ body"),t=get("minimal-options-model-section");if(!e||!t)return;let n=!1;Array.fr
 i=>{i.classList.contains("hidden")||(n=!0)}),t.classList.toggle("hidden",!n)}o(refreshMinimalModelSection,
 "refreshMinimalModelSection");function openMinimalOptions(){if(minimalOptionsOpen||!minimalPromptMode)
 return;hideThinkingSlider(),minimalOptionsOpen=!0,renderMinimalOptionItems(),moveModelPanelsIntoPopup();
-const e=get("minimal-options-popup");if(!e)return;const t=get("minimal-options-panel");t&&(t.style.transform=
-"",t.style.opacity=""),e.classList.remove("hidden"),e.setAttribute("aria-hidden","false"),e.offsetWidth,
-e.classList.add("minimal-options-open")}o(openMinimalOptions,"openMinimalOptions");function closeMinimalOptions(){
-if(!minimalOptionsOpen)return;minimalOptionsOpen=!1;const e=get("minimal-options-popup");e&&(e.classList.
-remove("minimal-options-open"),e.setAttribute("aria-hidden","true"),setTimeout(()=>{minimalOptionsOpen||
-e.classList.add("hidden")},400)),restoreModelPanelsFromPopup(),hideThinkingSlider()}o(closeMinimalOptions,
-"closeMinimalOptions");function toggleMinimalOptions(){minimalOptionsOpen?closeMinimalOptions():openMinimalOptions()}
-o(toggleMinimalOptions,"toggleMinimalOptions");function refreshMinimalOptionsIfOpen(){minimalOptionsOpen&&
-(renderMinimalOptionItems(),refreshMinimalModelSection())}o(refreshMinimalOptionsIfOpen,"refreshMini\
-malOptionsIfOpen");function allowedThinkingValues(){const e=get("thinking-level");return e?Array.from(
-e.options).filter(n=>!n.disabled&&!n.classList.contains("hidden")).map(n=>n.value):THINKING_LEVELS.map(
-n=>n.value)}o(allowedThinkingValues,"allowedThinkingValues");function thinkingIndexFromValue(e){const t=THINKING_LEVELS.
-findIndex(n=>n.value===e);return t<0?3:t}o(thinkingIndexFromValue,"thinkingIndexFromValue");function syncThinkingSliderUi(){
-const e=get("thinking-slider"),t=get("thinking-slide-value"),n=get("thinking-level"),i=thinkingIndexFromValue(
-n?n.value:"high");e&&(e.value=String(i)),t&&(t.textContent=THINKING_LEVELS[i].label)}o(syncThinkingSliderUi,
-"syncThinkingSliderUi");function scheduleThinkingSliderHide(){thinkingSliderTimer&&clearTimeout(thinkingSliderTimer),
-thinkingSliderTimer=setTimeout(()=>{thinkingSliderTimer=null,hideThinkingSlider()},2500)}o(scheduleThinkingSliderHide,
-"scheduleThinkingSliderHide");function showThinkingSlider(){if(thinkingSliderOpen){scheduleThinkingSliderHide();
-return}const e=get("thinking-slide-bar");if(!e)return;const t=get("thinking-slide-inner");t&&(t.style.
-transform=""),thinkingSliderOpen=!0,e.classList.remove("hidden"),e.setAttribute("aria-hidden","false"),
-syncThinkingSliderUi(),e.offsetWidth,e.classList.add("thinking-slide-open"),scheduleThinkingSliderHide()}
-o(showThinkingSlider,"showThinkingSlider");function hideThinkingSlider(){thinkingSliderTimer&&(clearTimeout(
-thinkingSliderTimer),thinkingSliderTimer=null);const e=get("thinking-slide-bar");e&&(thinkingSliderOpen=
-!1,e.classList.remove("thinking-slide-open"),e.setAttribute("aria-hidden","true"),setTimeout(()=>{thinkingSliderOpen||
-e.classList.add("hidden");const t=get("thinking-slide-inner");t&&(t.style.transform="")},360))}o(hideThinkingSlider,
-"hideThinkingSlider");function bindMinimalOptionsEvents(){const e=get("minimal-options-backdrop"),t=get(
-"minimal-options-close-btn");e&&e.addEventListener("click",()=>closeMinimalOptions()),t&&t.addEventListener(
-"click",()=>closeMinimalOptions()),document.addEventListener("keydown",r=>{if(r.key==="Escape"){if(minimalOptionsOpen){
-closeMinimalOptions();return}thinkingSliderOpen&&hideThinkingSlider()}});const n=get("thinking-slide\
-r");n&&n.addEventListener("input",()=>{const r=Number(n.value),l=allowedThinkingValues(),d=get("thin\
-king-level");if(l.length){const p=l.map(g=>thinkingIndexFromValue(g)),h=p.includes(r)?r:p.reduce((g,v)=>Math.
-abs(v-r)<Math.abs(g-r)?v:g,p[0]);d&&(d.value=THINKING_LEVELS[h].value,d.dispatchEvent(new Event("cha\
-nge",{bubbles:!0})))}syncThinkingSliderUi(),scheduleThinkingSliderHide()});const i=get("thinking-sli\
-de-close-btn");i&&i.addEventListener("click",r=>{r.stopPropagation(),hideThinkingSlider()});const s=get(
-"thinking-slide-bar");if(s){const r=get("thinking-slide-inner");s.addEventListener("touchstart",l=>{
-thinkingSliderOpen&&(thinkingSliderDragging=!0,thinkingSliderStartY=l.touches[0].clientY,thinkingSliderStartX=
-l.touches[0].clientX,thinkingSliderAxis=null,r&&r.classList.add("dragging"))},{passive:!0}),s.addEventListener(
-"touchmove",l=>{if(!thinkingSliderDragging)return;const d=l.touches[0].clientX-thinkingSliderStartX,
-p=l.touches[0].clientY-thinkingSliderStartY;if(thinkingSliderAxis===null&&(Math.abs(d)>8||Math.abs(p)>
-8)&&(thinkingSliderAxis=Math.abs(p)>Math.abs(d)?"v":"h"),thinkingSliderAxis==="v")if(p>0){l.cancelable&&
-l.preventDefault();const h=Math.min((p-8)*.5,120);r&&(r.style.transform=h>0?`translateY(${h}px)`:"")}else
-r&&(r.style.transform="")},{passive:!1}),s.addEventListener("touchend",l=>{if(!thinkingSliderDragging)
-return;thinkingSliderDragging=!1;const d=l.changedTouches[0].clientY-thinkingSliderStartY;r&&r.classList.
-remove("dragging"),thinkingSliderAxis==="v"&&d>100?(r&&(r.style.transform=`translateY(${Math.max(d*.5,
-60)}px)`),hideThinkingSlider()):(r&&(r.style.transform=""),scheduleThinkingSliderHide())},{passive:!0}),
-s.addEventListener("touchcancel",()=>{thinkingSliderDragging=!1,r&&(r.classList.remove("dragging"),r.
-style.transform=""),scheduleThinkingSliderHide()},{passive:!0})}const a=get("minimal-options-panel");
-a&&(a.addEventListener("touchstart",r=>{if(!minimalOptionsOpen)return;popupSwipeDragging=!0,popupSwipeStartY=
-r.touches[0].clientY,popupSwipeStartX=r.touches[0].clientX,popupSwipeAxis=null;let l=r.target instanceof
-Element?r.target:null,d=!0;for(;l&&l!==a;){if(l.scrollTop>0){d=!1;break}l=l.parentElement}popupSwipeAtTop=
-d,d&&a.classList.add("dragging")},{passive:!0}),a.addEventListener("touchmove",r=>{if(!popupSwipeDragging||
+const e=get("minimal-options-popup");if(!e)return;const t=get("minimal-options-panel");t&&(t.style.cssText=
+""),e.classList.remove("minimal-options-closing","minimal-options-open"),e.classList.remove("hidden"),
+e.setAttribute("aria-hidden","false"),e.offsetWidth,e.classList.add("minimal-options-open")}o(openMinimalOptions,
+"openMinimalOptions");function closeMinimalOptions(){if(!minimalOptionsOpen)return;minimalOptionsOpen=
+!1;const e=get("minimal-options-popup");e&&(e.classList.add("minimal-options-closing"),e.setAttribute(
+"aria-hidden","true"),setTimeout(()=>{minimalOptionsOpen||(e.classList.remove("minimal-options-open",
+"minimal-options-closing"),e.classList.add("hidden"))},560)),restoreModelPanelsFromPopup(),hideThinkingSlider()}
+o(closeMinimalOptions,"closeMinimalOptions");function toggleMinimalOptions(){minimalOptionsOpen?closeMinimalOptions():
+openMinimalOptions()}o(toggleMinimalOptions,"toggleMinimalOptions");function refreshMinimalOptionsIfOpen(){
+minimalOptionsOpen&&(renderMinimalOptionItems(),refreshMinimalModelSection())}o(refreshMinimalOptionsIfOpen,
+"refreshMinimalOptionsIfOpen");function allowedThinkingValues(){const e=get("thinking-level");return e?
+Array.from(e.options).filter(n=>!n.disabled&&!n.classList.contains("hidden")).map(n=>n.value):THINKING_LEVELS.
+map(n=>n.value)}o(allowedThinkingValues,"allowedThinkingValues");function thinkingIndexFromValue(e){
+const t=THINKING_LEVELS.findIndex(n=>n.value===e);return t<0?3:t}o(thinkingIndexFromValue,"thinkingI\
+ndexFromValue");function syncThinkingSliderUi(){const e=get("thinking-slider"),t=get("thinking-slide\
+-value"),n=get("thinking-level"),i=thinkingIndexFromValue(n?n.value:"high");e&&(e.value=String(i)),t&&
+(t.textContent=THINKING_LEVELS[i].label)}o(syncThinkingSliderUi,"syncThinkingSliderUi");function scheduleThinkingSliderHide(){
+thinkingSliderTimer&&clearTimeout(thinkingSliderTimer),thinkingSliderTimer=setTimeout(()=>{thinkingSliderTimer=
+null,hideThinkingSlider()},2500)}o(scheduleThinkingSliderHide,"scheduleThinkingSliderHide");function showThinkingSlider(){
+if(thinkingSliderOpen){scheduleThinkingSliderHide();return}const e=get("thinking-slide-bar");if(!e)return;
+const t=get("thinking-slide-inner");t&&(t.style.transform=""),thinkingSliderOpen=!0,e.classList.remove(
+"hidden"),e.setAttribute("aria-hidden","false"),syncThinkingSliderUi(),e.offsetWidth,e.classList.add(
+"thinking-slide-open"),scheduleThinkingSliderHide()}o(showThinkingSlider,"showThinkingSlider");function hideThinkingSlider(){
+thinkingSliderTimer&&(clearTimeout(thinkingSliderTimer),thinkingSliderTimer=null);const e=get("think\
+ing-slide-bar");e&&(thinkingSliderOpen=!1,e.classList.remove("thinking-slide-open"),e.setAttribute("\
+aria-hidden","true"),setTimeout(()=>{thinkingSliderOpen||e.classList.add("hidden");const t=get("thin\
+king-slide-inner");t&&(t.style.transform="")},360))}o(hideThinkingSlider,"hideThinkingSlider");function bindMinimalOptionsEvents(){
+const e=get("minimal-options-backdrop"),t=get("minimal-options-close-btn");e&&e.addEventListener("cl\
+ick",()=>closeMinimalOptions()),t&&t.addEventListener("click",()=>closeMinimalOptions()),document.addEventListener(
+"keydown",r=>{if(r.key==="Escape"){if(minimalOptionsOpen){closeMinimalOptions();return}thinkingSliderOpen&&
+hideThinkingSlider()}});const n=get("thinking-slider");n&&n.addEventListener("input",()=>{const r=Number(
+n.value),l=allowedThinkingValues(),d=get("thinking-level");if(l.length){const p=l.map(g=>thinkingIndexFromValue(
+g)),h=p.includes(r)?r:p.reduce((g,v)=>Math.abs(v-r)<Math.abs(g-r)?v:g,p[0]);d&&(d.value=THINKING_LEVELS[h].
+value,d.dispatchEvent(new Event("change",{bubbles:!0})))}syncThinkingSliderUi(),scheduleThinkingSliderHide()});
+const i=get("thinking-slide-close-btn");i&&i.addEventListener("click",r=>{r.stopPropagation(),hideThinkingSlider()});
+const s=get("thinking-slide-bar");if(s){const r=get("thinking-slide-inner");s.addEventListener("touc\
+hstart",l=>{thinkingSliderOpen&&(thinkingSliderDragging=!0,thinkingSliderStartY=l.touches[0].clientY,
+thinkingSliderStartX=l.touches[0].clientX,thinkingSliderAxis=null,r&&r.classList.add("dragging"))},{
+passive:!0}),s.addEventListener("touchmove",l=>{if(!thinkingSliderDragging)return;const d=l.touches[0].
+clientX-thinkingSliderStartX,p=l.touches[0].clientY-thinkingSliderStartY;if(thinkingSliderAxis===null&&
+(Math.abs(d)>8||Math.abs(p)>8)&&(thinkingSliderAxis=Math.abs(p)>Math.abs(d)?"v":"h"),thinkingSliderAxis===
+"v")if(p>0){l.cancelable&&l.preventDefault();const h=Math.min((p-8)*.5,120);r&&(r.style.transform=h>
+0?`translateY(${h}px)`:"")}else r&&(r.style.transform="")},{passive:!1}),s.addEventListener("touchen\
+d",l=>{if(!thinkingSliderDragging)return;thinkingSliderDragging=!1;const d=l.changedTouches[0].clientY-
+thinkingSliderStartY;r&&r.classList.remove("dragging"),thinkingSliderAxis==="v"&&d>100?(r&&(r.style.
+transform=`translateY(${Math.max(d*.5,60)}px)`),hideThinkingSlider()):(r&&(r.style.transform=""),scheduleThinkingSliderHide())},
+{passive:!0}),s.addEventListener("touchcancel",()=>{thinkingSliderDragging=!1,r&&(r.classList.remove(
+"dragging"),r.style.transform=""),scheduleThinkingSliderHide()},{passive:!0})}const a=get("minimal-o\
+ptions-panel");a&&(a.addEventListener("touchstart",r=>{if(!minimalOptionsOpen)return;popupSwipeDragging=
+!0,popupSwipeStartY=r.touches[0].clientY,popupSwipeStartX=r.touches[0].clientX,popupSwipeAxis=null;let l=r.
+target instanceof Element?r.target:null,d=!0;for(;l&&l!==a;){if(l.scrollTop>0){d=!1;break}l=l.parentElement}
+popupSwipeAtTop=d,d&&a.classList.add("dragging")},{passive:!0}),a.addEventListener("touchmove",r=>{if(!popupSwipeDragging||
 !popupSwipeAtTop||!minimalOptionsOpen)return;const l=r.touches[0].clientX-popupSwipeStartX,d=r.touches[0].
 clientY-popupSwipeStartY;popupSwipeAxis===null&&(Math.abs(l)>8||Math.abs(d)>8)&&(popupSwipeAxis=Math.
 abs(d)>Math.abs(l)?"v":"h"),popupSwipeAxis==="v"&&d>0&&(r.cancelable&&r.preventDefault(),a.style.transform=
 `translateY(${Math.min(d*.6,140)}px)`)},{passive:!1}),a.addEventListener("touchend",r=>{if(!popupSwipeDragging)
 return;popupSwipeDragging=!1;const l=r.changedTouches[0].clientY-popupSwipeStartY;a.classList.remove(
 "dragging"),popupSwipeAtTop&&popupSwipeAxis!=="h"&&l>70?(a.style.transform=`translateY(${Math.max(l*
-.6,100)}px)`,a.style.opacity="0",closeMinimalOptions(),setTimeout(()=>{a.style.transform="",a.style.
-opacity=""},340)):a.style.transform=""},{passive:!0}),a.addEventListener("touchcancel",()=>{popupSwipeDragging=
-!1,a.classList.remove("dragging"),a.style.transform="",a.style.opacity=""},{passive:!0}))}o(bindMinimalOptionsEvents,
-"bindMinimalOptionsEvents");function bindUploadButton(){const e=get("upload-btn");e&&(e.onclick=()=>{
-minimalPromptMode?toggleMinimalOptions():openUploadModal()})}o(bindUploadButton,"bindUploadButton");
-function applyChatDefaults(e){if(!e||(Object.prototype.hasOwnProperty.call(e,"voice_studio_ui")&&(voiceStudioUiEnabled=
-e.voice_studio_ui!==!1),applyTemporaryChatTimeoutSeconds(e.temp_chat_timeout_seconds),chatDefaultsLoaded))
-return;const n=!!e.use_last_chat_settings?{model:e.last_model,enable_search:e.last_enable_search,enable_url_context:e.
-last_enable_url_context,enable_maps:e.last_enable_maps,enable_python:e.last_enable_python,enable_file_creation:e.
-last_enable_file_creation,enable_thinking:e.last_enable_thinking,thinking_level:e.last_thinking_level,
-thinking_budget:e.last_thinking_budget,reasoning_effort:e.last_reasoning_effort,enable_system_prompt:e.
-last_enable_system_prompt,enable_mcp:e.last_enable_mcp,safety_setting:e.last_safety_setting}:{model:e.
-default_model,enable_search:e.default_enable_search,enable_url_context:e.default_enable_url_context,
-enable_maps:e.default_enable_maps,enable_python:e.default_enable_python,enable_file_creation:e.default_enable_file_creation,
-enable_thinking:e.default_enable_thinking,thinking_level:e.default_thinking_level,thinking_budget:e.
-default_thinking_budget,reasoning_effort:e.default_reasoning_effort,enable_system_prompt:e.default_enable_system_prompt,
-enable_mcp:e.default_enable_mcp,safety_setting:e.default_safety_setting},i=o((s,a)=>s==null||s===""?
-a:s,"s");n.model&&selectModelById(n.model),get("enable-search")&&(get("enable-search").checked=!!i(n.
-enable_search,get("enable-search").checked)),get("enable-url-context")&&(get("enable-url-context").checked=
-!!i(n.enable_url_context,get("enable-url-context").checked)),get("enable-maps")&&(get("enable-maps").
-checked=!!i(n.enable_maps,get("enable-maps").checked)),get("enable-python")&&(get("enable-python").checked=
-!!i(n.enable_python,get("enable-python").checked)),get("enable-file-creation")&&(get("enable-file-cr\
-eation").checked=!!i(n.enable_file_creation,get("enable-file-creation").checked)),get("enable-thinki\
-ng")&&(get("enable-thinking").checked=!!i(n.enable_thinking,get("enable-thinking").checked)),get("th\
-inking-level")&&(get("thinking-level").value=i(n.thinking_level,get("thinking-level").value||"high")),
-get("thinking-budget")&&(get("thinking-budget").value=i(n.thinking_budget,get("thinking-budget").value||
-4096)),get("reasoning-effort")&&(get("reasoning-effort").value=i(n.reasoning_effort,get("reasoning-e\
-ffort").value||"medium")),get("enable-sys-prompt")&&(get("enable-sys-prompt").checked=!!i(n.enable_system_prompt,
-get("enable-sys-prompt").checked)),get("enable-mcp")&&(get("enable-mcp").checked=!!i(n.enable_mcp,get(
-"enable-mcp").checked)),get("safety-setting")&&(get("safety-setting").value=i(n.safety_setting,get("\
-safety-setting").value||"default")),chatDefaultsLoaded=!0,toggleOptions(),applyMcpPromptChipUi()}o(applyChatDefaults,
-"applyChatDefaults");function setEditUi(e){const t=get("edit-bar");t&&(e?(t.classList.remove("hidden"),
-t.classList.add("flex")):(t.classList.add("hidden"),t.classList.remove("flex")),updatePromptPlaceholder())}
-o(setEditUi,"setEditUi");function cancelEdit(){editingMessageId=null,currentParentId=currentLeafId||
-null;const e=get("prompt-input");e&&(e.value="",e.style.height="auto"),currentImageUrls=[],get("file\
--preview").classList.add("hidden"),get("file-input").value="",clearQuote(),setEditUi(!1)}o(cancelEdit,
-"cancelEdit");function beginEditMessage(e,t=!1){const n=messageStore[e];if(n==null)return;const i=get(
-"prompt-input");i.value=n||"",i.focus(),i.style.height="auto",i.style.height=i.scrollHeight+"px";const s=allMessages.
-find(d=>d.id==e),a=messageMeta[e]||{};s?currentParentId=s.parent_id===void 0?null:s.parent_id:a.parent_id!==
-void 0&&(currentParentId=a.parent_id),editingMessageId=e,setEditUi(!0);const r=s?s.image_url:a.image_url;
-if(r)try{const d=JSON.parse(r);Array.isArray(d)&&d.length?(currentImageUrls=d.map(p=>{let h="unknown",
-g=p;p&&typeof p=="object"&&(h=normalizeAttachmentSource(p.source),g=p.filepath||p.path||p.url||p.file||
-"");const v=normalizeAttachmentPath(g);return v&&setAttachmentSourceForPath(v,h),v}).filter(Boolean),
-get("file-preview").classList.remove("hidden"),get("file-name").innerText=`${currentImageUrls.length}\
- files ready`):(currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-input").value=
-"")}catch{currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-input").value=""}else
-currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-input").value="";const l=s?
-s.quote_text:a.quote_text;l?(currentQuote=l,get("quote-text-display").innerText=currentQuote,get("qu\
-ote-bar").classList.add("visible")):clearQuote(),schedulePromptTokenEstimate(!0),t&&sendMessage()}o(
-beginEditMessage,"beginEditMessage");function playSendAnimation(){const e=get("send-btn");e&&(e.classList.
-remove("fly"),e.offsetWidth,e.classList.add("fly"))}o(playSendAnimation,"playSendAnimation");function setSendBtnToStopMode(){
-const e=get("send-btn");if(!e)return;e.onclick=stopGeneration,isStopMode=!0,e.disabled=!1;const t=o(
-()=>{!e||!isStopMode||(e.classList.add("stop-mode"),e.innerHTML='<span style="font-size:20px;line-he\
-ight:1;color:#fff;">\u25A0</span>',e.classList.add("btn-swap"),setTimeout(()=>e.classList.remove("bt\
-n-swap"),300))},"applyStopUi");if(e.classList.contains("fly")){const n=o(i=>{i.animationName==="send\
-BtnPop"&&(e.removeEventListener("animationend",n),t())},"onEnd");e.addEventListener("animationend",n),
-setTimeout(t,700)}else t()}o(setSendBtnToStopMode,"setSendBtnToStopMode");function setSendBtnToSendMode(){
-const e=get("send-btn");e&&(e.classList.remove("stop-mode","fly","btn-swap"),e.innerHTML='<i class="\
-fas fa-paper-plane"></i>',e.classList.add("btn-swap"),setTimeout(()=>e.classList.remove("btn-swap"),
-300),e.onclick=sendMessage,isStopMode=!1)}o(setSendBtnToSendMode,"setSendBtnToSendMode");async function stopGeneration(){
-const e=currentThreadId!=null&&currentThreadId!==""?String(currentThreadId):null,t=normalizeJobIdForUi(
-currentJobId),n=++manualStopSeq,i=captureStoppedPartialBubbleSnapshot(getActiveStreamingBubbleElement());
-manualStopContext={seq:n,threadId:e,jobId:t,partialSnapshot:i},t&&suppressPendingJob(t),abortController&&
-abortController.abort();try{if(t||e){const s={};t&&(s.job_id=t),e&&(s.thread_id=e);const r=await(await apiFetch(
-"/api/stop_chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(s)})).
-json().catch(()=>({})),l=normalizeJobIdForUi(r&&r.job_id);l&&(suppressPendingJob(l),manualStopContext&&
-manualStopContext.seq===n&&(manualStopContext.jobId=l))}manualStopContext&&manualStopContext.seq===n&&
-await syncThreadAfterAbortedStream(e,{retries:2,retryDelayMs:180,notifyOnFailure:!0})&&manualStopContext.
-partialSnapshot&&appendStoppedPartialBubbleSnapshot(manualStopContext.partialSnapshot,e)}finally{manualStopContext&&
-manualStopContext.seq===n&&(manualStopContext=null),setSendBtnToSendMode(),updateFilePreview()}}o(stopGeneration,
-"stopGeneration");async function purgeCaches(){if("caches"in window){const e=await caches.keys();await Promise.
-all(e.map(t=>caches.delete(t)))}if(navigator.serviceWorker){const e=await navigator.serviceWorker.getRegistrations();
-await Promise.all(e.map(t=>t.unregister()))}}o(purgeCaches,"purgeCaches");const SW_CACHE_MODE_STORAGE_KEY="\
-ai_sw_cache_mode_v2";async function applyCacheMode(e,t={}){if("serviceWorker"in navigator)if(e)try{await navigator.
-serviceWorker.register(`/sw.js?v=${encodeURIComponent(appVersion)}`),localStorage.setItem(SW_CACHE_MODE_STORAGE_KEY,
-"enabled")}catch{}else{const n=localStorage.getItem(SW_CACHE_MODE_STORAGE_KEY);(!!t.forceCleanup||n!==
-"disabled")&&await purgeCaches(),localStorage.setItem(SW_CACHE_MODE_STORAGE_KEY,"disabled")}}o(applyCacheMode,
-"applyCacheMode");function checkAndNotifyVersion(e){!e||!appVersion||e===appVersion||(localStorage.getItem(
-"version_notified")||"")===e||(localStorage.setItem("app_version",e),syncVersionUpdateCachePreferenceUi(),
-showModal("version-update-modal"))}o(checkAndNotifyVersion,"checkAndNotifyVersion");async function checkVersion(){
-try{const e=await fetch("/api/version",{cache:"no-store"});if(!e.ok)return;const n=(await e.json()).
-version||"",i=localStorage.getItem("app_version")||"";n&&!i&&localStorage.setItem("app_version",n),n&&
-i&&n!==i&&(await purgeCaches(),checkAndNotifyVersion(n))}catch{}}o(checkVersion,"checkVersion");async function fetchChatStreamWithUnavailableRetry(e,t,n){
+.6,100)}px)`,a.style.opacity="0",closeMinimalOptions()):a.style.transform=""},{passive:!0}),a.addEventListener(
+"touchcancel",()=>{popupSwipeDragging=!1,a.classList.remove("dragging"),a.style.transform="",a.style.
+opacity=""},{passive:!0}))}o(bindMinimalOptionsEvents,"bindMinimalOptionsEvents");function bindUploadButton(){
+const e=get("upload-btn");e&&(e.onclick=()=>{minimalPromptMode?toggleMinimalOptions():openUploadModal()})}
+o(bindUploadButton,"bindUploadButton");function applyChatDefaults(e){if(!e||(Object.prototype.hasOwnProperty.
+call(e,"voice_studio_ui")&&(voiceStudioUiEnabled=e.voice_studio_ui!==!1),applyTemporaryChatTimeoutSeconds(
+e.temp_chat_timeout_seconds),chatDefaultsLoaded))return;const n=!!e.use_last_chat_settings?{model:e.
+last_model,enable_search:e.last_enable_search,enable_url_context:e.last_enable_url_context,enable_maps:e.
+last_enable_maps,enable_python:e.last_enable_python,enable_file_creation:e.last_enable_file_creation,
+enable_thinking:e.last_enable_thinking,thinking_level:e.last_thinking_level,thinking_budget:e.last_thinking_budget,
+reasoning_effort:e.last_reasoning_effort,enable_system_prompt:e.last_enable_system_prompt,enable_mcp:e.
+last_enable_mcp,safety_setting:e.last_safety_setting}:{model:e.default_model,enable_search:e.default_enable_search,
+enable_url_context:e.default_enable_url_context,enable_maps:e.default_enable_maps,enable_python:e.default_enable_python,
+enable_file_creation:e.default_enable_file_creation,enable_thinking:e.default_enable_thinking,thinking_level:e.
+default_thinking_level,thinking_budget:e.default_thinking_budget,reasoning_effort:e.default_reasoning_effort,
+enable_system_prompt:e.default_enable_system_prompt,enable_mcp:e.default_enable_mcp,safety_setting:e.
+default_safety_setting},i=o((s,a)=>s==null||s===""?a:s,"s");n.model&&selectModelById(n.model),get("e\
+nable-search")&&(get("enable-search").checked=!!i(n.enable_search,get("enable-search").checked)),get(
+"enable-url-context")&&(get("enable-url-context").checked=!!i(n.enable_url_context,get("enable-url-c\
+ontext").checked)),get("enable-maps")&&(get("enable-maps").checked=!!i(n.enable_maps,get("enable-map\
+s").checked)),get("enable-python")&&(get("enable-python").checked=!!i(n.enable_python,get("enable-py\
+thon").checked)),get("enable-file-creation")&&(get("enable-file-creation").checked=!!i(n.enable_file_creation,
+get("enable-file-creation").checked)),get("enable-thinking")&&(get("enable-thinking").checked=!!i(n.
+enable_thinking,get("enable-thinking").checked)),get("thinking-level")&&(get("thinking-level").value=
+i(n.thinking_level,get("thinking-level").value||"high")),get("thinking-budget")&&(get("thinking-budg\
+et").value=i(n.thinking_budget,get("thinking-budget").value||4096)),get("reasoning-effort")&&(get("r\
+easoning-effort").value=i(n.reasoning_effort,get("reasoning-effort").value||"medium")),get("enable-s\
+ys-prompt")&&(get("enable-sys-prompt").checked=!!i(n.enable_system_prompt,get("enable-sys-prompt").checked)),
+get("enable-mcp")&&(get("enable-mcp").checked=!!i(n.enable_mcp,get("enable-mcp").checked)),get("safe\
+ty-setting")&&(get("safety-setting").value=i(n.safety_setting,get("safety-setting").value||"default")),
+chatDefaultsLoaded=!0,toggleOptions(),applyMcpPromptChipUi()}o(applyChatDefaults,"applyChatDefaults");
+function setEditUi(e){const t=get("edit-bar");t&&(e?(t.classList.remove("hidden"),t.classList.add("f\
+lex")):(t.classList.add("hidden"),t.classList.remove("flex")),updatePromptPlaceholder())}o(setEditUi,
+"setEditUi");function cancelEdit(){editingMessageId=null,currentParentId=currentLeafId||null;const e=get(
+"prompt-input");e&&(e.value="",e.style.height="auto"),currentImageUrls=[],get("file-preview").classList.
+add("hidden"),get("file-input").value="",clearQuote(),setEditUi(!1)}o(cancelEdit,"cancelEdit");function beginEditMessage(e,t=!1){
+const n=messageStore[e];if(n==null)return;const i=get("prompt-input");i.value=n||"",i.focus(),i.style.
+height="auto",i.style.height=i.scrollHeight+"px";const s=allMessages.find(d=>d.id==e),a=messageMeta[e]||
+{};s?currentParentId=s.parent_id===void 0?null:s.parent_id:a.parent_id!==void 0&&(currentParentId=a.
+parent_id),editingMessageId=e,setEditUi(!0);const r=s?s.image_url:a.image_url;if(r)try{const d=JSON.
+parse(r);Array.isArray(d)&&d.length?(currentImageUrls=d.map(p=>{let h="unknown",g=p;p&&typeof p=="ob\
+ject"&&(h=normalizeAttachmentSource(p.source),g=p.filepath||p.path||p.url||p.file||"");const v=normalizeAttachmentPath(
+g);return v&&setAttachmentSourceForPath(v,h),v}).filter(Boolean),get("file-preview").classList.remove(
+"hidden"),get("file-name").innerText=`${currentImageUrls.length} files ready`):(currentImageUrls=[],
+get("file-preview").classList.add("hidden"),get("file-input").value="")}catch{currentImageUrls=[],get(
+"file-preview").classList.add("hidden"),get("file-input").value=""}else currentImageUrls=[],get("fil\
+e-preview").classList.add("hidden"),get("file-input").value="";const l=s?s.quote_text:a.quote_text;l?
+(currentQuote=l,get("quote-text-display").innerText=currentQuote,get("quote-bar").classList.add("vis\
+ible")):clearQuote(),schedulePromptTokenEstimate(!0),t&&sendMessage()}o(beginEditMessage,"beginEditM\
+essage");function playSendAnimation(){const e=get("send-btn");e&&(e.classList.remove("fly"),e.offsetWidth,
+e.classList.add("fly"))}o(playSendAnimation,"playSendAnimation");function setSendBtnToStopMode(){const e=get(
+"send-btn");if(!e)return;e.onclick=stopGeneration,isStopMode=!0,e.disabled=!1;const t=o(()=>{!e||!isStopMode||
+(e.classList.add("stop-mode"),e.innerHTML='<span style="font-size:20px;line-height:1;color:#fff;">\u25A0<\
+/span>',e.classList.add("btn-swap"),setTimeout(()=>e.classList.remove("btn-swap"),300))},"applyStopU\
+i");if(e.classList.contains("fly")){const n=o(i=>{i.animationName==="sendBtnPop"&&(e.removeEventListener(
+"animationend",n),t())},"onEnd");e.addEventListener("animationend",n),setTimeout(t,700)}else t()}o(setSendBtnToStopMode,
+"setSendBtnToStopMode");function setSendBtnToSendMode(){const e=get("send-btn");e&&(e.classList.remove(
+"stop-mode","fly","btn-swap"),e.innerHTML='<i class="fas fa-paper-plane"></i>',e.classList.add("btn-\
+swap"),setTimeout(()=>e.classList.remove("btn-swap"),300),e.onclick=sendMessage,isStopMode=!1)}o(setSendBtnToSendMode,
+"setSendBtnToSendMode");async function stopGeneration(){const e=currentThreadId!=null&&currentThreadId!==
+""?String(currentThreadId):null,t=normalizeJobIdForUi(currentJobId),n=++manualStopSeq,i=captureStoppedPartialBubbleSnapshot(
+getActiveStreamingBubbleElement());manualStopContext={seq:n,threadId:e,jobId:t,partialSnapshot:i},t&&
+suppressPendingJob(t),abortController&&abortController.abort();try{if(t||e){const s={};t&&(s.job_id=
+t),e&&(s.thread_id=e);const r=await(await apiFetch("/api/stop_chat",{method:"POST",headers:{"Content\
+-Type":"application/json"},body:JSON.stringify(s)})).json().catch(()=>({})),l=normalizeJobIdForUi(r&&
+r.job_id);l&&(suppressPendingJob(l),manualStopContext&&manualStopContext.seq===n&&(manualStopContext.
+jobId=l))}manualStopContext&&manualStopContext.seq===n&&await syncThreadAfterAbortedStream(e,{retries:2,
+retryDelayMs:180,notifyOnFailure:!0})&&manualStopContext.partialSnapshot&&appendStoppedPartialBubbleSnapshot(
+manualStopContext.partialSnapshot,e)}finally{manualStopContext&&manualStopContext.seq===n&&(manualStopContext=
+null),setSendBtnToSendMode(),updateFilePreview()}}o(stopGeneration,"stopGeneration");async function purgeCaches(){
+if("caches"in window){const e=await caches.keys();await Promise.all(e.map(t=>caches.delete(t)))}if(navigator.
+serviceWorker){const e=await navigator.serviceWorker.getRegistrations();await Promise.all(e.map(t=>t.
+unregister()))}}o(purgeCaches,"purgeCaches");const SW_CACHE_MODE_STORAGE_KEY="ai_sw_cache_mode_v2";async function applyCacheMode(e,t={}){
+if("serviceWorker"in navigator)if(e)try{await navigator.serviceWorker.register(`/sw.js?v=${encodeURIComponent(
+appVersion)}`),localStorage.setItem(SW_CACHE_MODE_STORAGE_KEY,"enabled")}catch{}else{const n=localStorage.
+getItem(SW_CACHE_MODE_STORAGE_KEY);(!!t.forceCleanup||n!=="disabled")&&await purgeCaches(),localStorage.
+setItem(SW_CACHE_MODE_STORAGE_KEY,"disabled")}}o(applyCacheMode,"applyCacheMode");function checkAndNotifyVersion(e){
+!e||!appVersion||e===appVersion||(localStorage.getItem("version_notified")||"")===e||(localStorage.setItem(
+"app_version",e),syncVersionUpdateCachePreferenceUi(),showModal("version-update-modal"))}o(checkAndNotifyVersion,
+"checkAndNotifyVersion");async function checkVersion(){try{const e=await fetch("/api/version",{cache:"\
+no-store"});if(!e.ok)return;const n=(await e.json()).version||"",i=localStorage.getItem("app_version")||
+"";n&&!i&&localStorage.setItem("app_version",n),n&&i&&n!==i&&(await purgeCaches(),checkAndNotifyVersion(
+n))}catch{}}o(checkVersion,"checkVersion");async function fetchChatStreamWithUnavailableRetry(e,t,n){
 let i=0;for(;;){if(t.signal&&t.signal.aborted)throw new DOMException("Aborted","AbortError");try{const s=await apiFetch(
 e,t),a=window.ConnectionMonitor.retryModeForResponse(s);let r=!1;if(s.status===425&&(r=(await s.clone().
 json().catch(()=>({}))).code==="submission_in_progress"),!a&&!r)return window.ConnectionMonitor.markReachable(),

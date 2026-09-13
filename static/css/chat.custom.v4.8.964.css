@@ -716,7 +716,7 @@
         /* Toasts */
         #toast-stack { position: fixed; top: max(16px, calc(env(safe-area-inset-top, 0px) + 16px)); right: max(16px, env(safe-area-inset-right, 0px)); z-index: 120; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; max-width: calc(100vw - 32px); box-sizing: border-box; }
         .toast { background: rgba(10, 16, 30, 0.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); color: #e5e7eb; border: 1px solid var(--line); border-radius: 0.8rem; padding: 10px 12px; font-size: 12px; display: flex; gap: 8px; align-items: center; max-width: 100%; box-sizing: border-box; box-shadow: var(--shadow); }
-        #batch-notification-banner { top: max(16px, calc(env(safe-area-inset-top, 0px) + 16px)); width: min(calc(100vw - 32px), 34rem); box-sizing: border-box; }
+        #batch-notification-banner { top: max(16px, calc(env(safe-area-inset-top, 0px) + 16px)); width: min(calc(100vw - 32px), 34rem); box-sizing: border-box; z-index: 130; pointer-events: auto; }
         .toast.error { border-color: #f9708d; color: #fecaca; }
         .toast button { color: inherit; opacity: 0.7; }
         .toast button:hover { opacity: 1; }

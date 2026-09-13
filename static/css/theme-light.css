@@ -376,6 +376,40 @@
         border-color: rgba(15, 23, 42, 0.10) !important;
         color: var(--text) !important;
     }
+    /* Minimal-mode options popup (opened by the plus button): the item labels
+       are hardcoded near-white, so they vanish on the lightened panel. */
+    #minimal-options-popup .minimal-options-title,
+    #minimal-options-popup .minimal-options-section-title { color: var(--theme-700) !important; }
+    #minimal-options-popup .minimal-options-close { color: #64748b !important; }
+    #minimal-options-popup .minimal-options-close:hover {
+        color: #0f172a !important;
+        background: rgba(15, 23, 42, 0.08) !important;
+    }
+    #minimal-options-popup .minimal-options-header,
+    #minimal-options-popup #minimal-options-model-section {
+        border-color: rgba(15, 23, 42, 0.08) !important;
+    }
+    #minimal-options-popup .minimal-option-item {
+        background: rgba(15, 23, 42, 0.035) !important;
+        border-color: rgba(15, 23, 42, 0.08) !important;
+        color: var(--text) !important;
+    }
+    #minimal-options-popup .minimal-option-item:hover {
+        background: rgba(15, 23, 42, 0.07) !important;
+        border-color: rgba(var(--theme-rgb), 0.35) !important;
+    }
+    #minimal-options-popup .minimal-option-item .minimal-option-icon { color: #64748b !important; }
+    #minimal-options-popup .minimal-option-item.off .minimal-option-icon,
+    #minimal-options-popup .minimal-option-item.off .minimal-option-label { color: var(--text) !important; }
+    #minimal-options-popup .minimal-option-item.on .minimal-option-icon,
+    #minimal-options-popup .minimal-option-item.on .minimal-option-label { color: var(--theme-700) !important; }
+    #minimal-options-popup .minimal-option-item.action-upload {
+        border-color: rgba(37, 99, 235, 0.45) !important;
+        background: rgba(37, 99, 235, 0.10) !important;
+    }
+    #minimal-options-popup .minimal-option-item.action-upload .minimal-option-icon,
+    #minimal-options-popup .minimal-option-item.action-upload .minimal-option-label { color: #1d4ed8 !important; }
+    #minimal-options-popup .minimal-option-gear { color: #64748b !important; }
     input[type="checkbox"] {
         background: #ffffff !important;
         border-color: rgba(15, 23, 42, 0.22) !important;
@@ -501,6 +535,51 @@
     #model-modal .model-header {
         background: linear-gradient(180deg, rgba(var(--theme-rgb), 0.10), transparent) !important;
     }
+
+    /* File library modal (hardcoded dark surfaces, not covered by utilities) */
+    .lib-modal-panel {
+        background: linear-gradient(180deg, #ffffff, #f7f9fc) !important;
+        border-color: rgba(15, 23, 42, 0.10) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), var(--shadow) !important;
+    }
+    .lib-modal-header { border-color: var(--line-soft) !important; }
+    .lib-toolbar {
+        background: rgba(15, 23, 42, 0.035) !important;
+        border-color: var(--line-soft) !important;
+    }
+    .lib-close-btn { background: rgba(15, 23, 42, 0.04) !important; }
+    .lib-close-btn:hover { background: rgba(15, 23, 42, 0.08) !important; }
+    .lib-search-box input,
+    .lib-sort {
+        background: #ffffff !important;
+        color: var(--text) !important;
+    }
+    .lib-search-box input:focus { background: #ffffff !important; }
+    .lib-count {
+        background: rgba(15, 23, 42, 0.04) !important;
+        border-color: rgba(15, 23, 42, 0.10) !important;
+    }
+    /* Thumbnail caption bar sits directly under the preview image. */
+    .lib-thumb-bar {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(241, 245, 249, 0.96)) !important;
+        border-top-color: rgba(15, 23, 42, 0.08) !important;
+    }
+    .lib-action-circle {
+        background: rgba(255, 255, 255, 0.94) !important;
+        border-color: rgba(15, 23, 42, 0.14) !important;
+        color: var(--text) !important;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.10) !important;
+    }
+    .lib-action-circle.lib-del { color: #be123c !important; }
+    .lib-action-circle.lib-favorite-btn { color: #64748b !important; }
+    .lib-btn-danger { color: #be123c !important; }
+    .lib-btn-danger:hover:not(:disabled) { color: #9f1239 !important; }
+    .lib-filter-btn.is-active { color: #92400e !important; }
+    .lib-skeleton-bar {
+        background: rgba(15, 23, 42, 0.05) !important;
+        border-top-color: rgba(15, 23, 42, 0.06) !important;
+    }
+    .lib-skeleton-line { background: rgba(15, 23, 42, 0.08) !important; }
 
     /* Welcome */
     #welcome-screen .welcome-subtitle { color: var(--muted) !important; }

@@ -1662,8 +1662,8 @@ def generate_title_api():
             or (os.getenv('XAI_API_KEY') if _admin_env_fallback_enabled(current_user) else None)
         )
         d_key = (
-            _get_model_specific_api_key(current_user, requested_model or "deepseek-v4-flash-0731")
-            or _get_model_specific_api_key(current_user, "deepseek-v4-flash-0731")
+            _get_model_specific_api_key(current_user, requested_model or "deepseek-v4.1-flash")
+            or _get_model_specific_api_key(current_user, "deepseek-v4.1-flash")
             or decrypt_val(current_user.deepseek_api_key)
             or (os.getenv('DEEPSEEK_API_KEY') if _admin_env_fallback_enabled(current_user) else None)
         )

@@ -30,7 +30,7 @@
         { key: 'gpt', name: 'GPT-5.6 Sol', short: 'GPT-5.6', color: '#34d399', glyph: '\uF5DC', faIcon: 'fa-brain' },
         { key: 'grok', name: 'Grok 4.3', short: 'Grok', color: '#e2e8f0', glyph: '\uF135', faIcon: 'fa-rocket' },
         { key: 'claude', name: 'Claude Opus 4.6', short: 'Claude', color: '#f59e0b', glyph: '\uF06D', faIcon: 'fa-fire' },
-        { key: 'deepseek', name: 'DeepSeek V4', short: 'DeepSeek', color: '#22d3ee', glyph: '\uF0E7', faIcon: 'fa-bolt' },
+        { key: 'deepseek', name: 'DeepSeek V4.1', short: 'DeepSeek', color: '#22d3ee', glyph: '\uF0E7', faIcon: 'fa-bolt' },
         { key: 'kimi', name: 'Kimi K3', short: 'Kimi', color: '#a78bfa', glyph: '\uF3A5', faIcon: 'fa-gem' }
     ];
 

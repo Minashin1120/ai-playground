@@ -722,14 +722,15 @@
                 ]
             },
             {
-                category: "DeepSeek V4",
+                category: "DeepSeek V4.1 / V4",
                 icon: "fas fa-bolt text-cyan-400",
-                description: "DeepSeek's OpenAI-compatible text models",
+                description: "DeepSeek's OpenAI-compatible V4.1 Flash and V4 Pro models",
                 items: [
-                    { id: "deepseek-v4-flash-vision-exp", implementedAt: "2026-08-23", implementedRank: 8260, quickEmoji: "👁️", name: "DeepSeek V4 Flash Vision Exp", desc: "Experimental V4 Flash with native image input (JPEG/PNG/GIF/WebP), 1M context, up to 384K output, thinking, tools, and JSON output.", price: "In $0.007/1M (hit), $0.22/1M (miss), Out $0.66/1M (off-peak)" },
-                    { id: "deepseek-v4-flash-0731", implementedAt: "2026-07-31", implementedRank: 6610, quickEmoji: "⚡", apiId: "deepseek-v4-flash", name: "DeepSeek V4 Flash", desc: "Official V4 Flash release with 1M context, up to 384K output, thinking, tools, and JSON output.", price: "In $0.0028/1M (hit), $0.14/1M (miss), Out $0.28/1M" },
-                    { id: "deepseek-v4-flash", implementedAt: "2026-04-26", implementedRank: 4510, name: "DeepSeek V4 Flash Preview", desc: "Retired preview key retained for chat history compatibility.", price: "Legacy preview", deprecated: true },
-                    { id: "deepseek-v4-pro", implementedAt: "2026-04-26", implementedRank: 4511, name: "DeepSeek V4 Pro", desc: "Higher-capacity DeepSeek V4 model with 1M context and up to 384K output.", price: "In $0.003625/1M (hit), $0.435/1M (miss), Out $0.87/1M" }
+                    { id: "deepseek-v4.1-flash", implementedAt: "2026-09-13", implementedRank: 9600, quickEmoji: "⚡", apiId: "deepseek-flash", name: "DeepSeek V4.1 Flash", desc: "V4.1 Flash with Vision, 1M context, 384K output, thinking, tools, and JSON.", price: "In $0.003 hit/$0.15 miss, Out $0.60 off-peak" },
+                    { id: "deepseek-v4-flash-vision-exp", implementedAt: "2026-08-23", implementedRank: 8260, name: "DeepSeek V4 Flash Vision Exp", desc: "Retired; retained for history.", price: "Retired", deprecated: true },
+                    { id: "deepseek-v4-flash-0731", implementedAt: "2026-07-31", implementedRank: 6610, name: "DeepSeek V4 Flash", desc: "Retired; retained for history.", price: "Retired", deprecated: true },
+                    { id: "deepseek-v4-flash", implementedAt: "2026-04-26", implementedRank: 4510, name: "DeepSeek V4 Flash Preview", desc: "Retired; retained for history.", price: "Retired", deprecated: true },
+                    { id: "deepseek-v4-pro", implementedAt: "2026-04-26", implementedRank: 4511, name: "DeepSeek V4 Pro", desc: "V4 Pro with 1M context, 384K output, thinking, tools, and JSON.", price: "In $0.022 hit/$0.66 miss, Out $1.98 off-peak" }
                 ]
             },
             {

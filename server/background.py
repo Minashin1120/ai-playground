@@ -1480,7 +1480,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
             def _deepseek_reasoning_effort():
                 raw = (options.get('reasoning_effort') or "").lower().strip()
-                if model_key_l in {"deepseek-v4-flash-0731", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp"}:
+                if model_key_l in {"deepseek-v4.1-flash", "deepseek-v4-flash-0731", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp"}:
                     if raw in ("low", "high", "max"):
                         return raw
                     # DeepSeek maps compatibility values medium/xhigh to high.
@@ -5395,10 +5395,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if sys_prompt:
                         messages.append({"role": "system", "content": sys_prompt})
 
-                    # DeepSeek V4 Flash Vision Exp accepts images natively via OpenAI-compatible
-                    # image_url content blocks (official Vision guide). Other DeepSeek V4
-                    # models remain text-only and use the vision-analysis fallback below.
-                    deepseek_native_vision = "vision-exp" in model_key_l
+                    # DeepSeek V4.1 Flash accepts images natively via OpenAI-compatible
+                    # image_url content blocks (official Vision guide). The retired Vision
+                    # Exp alias remains native-vision capable for history compatibility.
+                    deepseek_native_vision = model_key_l in {"deepseek-v4.1-flash", "deepseek-v4-flash-vision-exp"}
                     ds_history_img_seen = set()
                     ds_history_img_bytes = 0
 
@@ -5445,12 +5445,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             user_text += f"\n\n[File: {fi.get('send_name') or fi.get('name') or 'file'}]\n{fi['text']}"
 
                     # If images are present, analyze them with a vision model unless the selected
-                    # DeepSeek model accepts image inputs natively (DeepSeek V4 Flash Vision Exp).
+                    # DeepSeek model accepts image inputs natively (DeepSeek V4.1 Flash).
                     if image_files and not deepseek_native_vision:
                         vision_model = (options.get('image_vision_model') or "").strip()
                         analysis_prompt = _auto_notice_text("image_analysis") or DEFAULT_IMAGE_ANALYSIS_PROMPT
                         if not vision_model:
-                            pub("error", "DeepSeek V4 does not support images. Please select a Vision Model in Settings > Default Vision Model to enable automatic image analysis.")
+                            pub("error", "This DeepSeek model does not support images. Please select a Vision Model in Settings > Default Vision Model to enable automatic image analysis.")
                             return
                         pub("status", "画像を vision model で解析中...")
                         analysis_texts = []

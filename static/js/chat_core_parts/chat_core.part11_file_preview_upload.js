@@ -1019,8 +1019,9 @@
             if (vmi) {
                 const model = get('model-select') ? get('model-select').value : '';
                 const uploadModelLower = model.toLowerCase();
-                // Vision Exp accepts images natively, so the vision-model notice is not needed.
-                const needsVisionNotice = uploadModelLower.includes('deepseek') && uploadModelLower !== 'deepseek-v4-flash-vision-exp';
+                // V4.1 Flash accepts images natively, so the vision-model notice is not needed.
+                const deepseekNativeVision = uploadModelLower === 'deepseek-v4.1-flash' || uploadModelLower === 'deepseek-v4-flash-vision-exp';
+                const needsVisionNotice = uploadModelLower.includes('deepseek') && !deepseekNativeVision;
                 vmi.classList.toggle('hidden', !needsVisionNotice);
             }
             _syncVisionModelDisplay();

@@ -7,7 +7,7 @@ from tests.app_source import read_app_source
 ROOT = Path(__file__).resolve().parents[1]
 
 
-class DeepSeekV4Flash0731Tests(unittest.TestCase):
+class DeepSeekV41FlashTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app_source = read_app_source()
@@ -21,43 +21,43 @@ class DeepSeekV4Flash0731Tests(unittest.TestCase):
         m2 = re.search(r"APP_VERSION',\s*'([^']+)'", cls.app_source)
         cls.app_version = m2.group(1) if m2 else ""
 
-    def test_new_release_is_visible_and_preview_is_deprecated(self):
+    def test_v41_flash_is_visible_and_legacy_flash_is_deprecated(self):
         self.assertRegex(
             self.js_source,
             re.compile(
-                r'id:\s*"deepseek-v4-flash-0731"[^}]*apiId:\s*"deepseek-v4-flash"[^}]*name:\s*"DeepSeek V4 Flash"'
+                r'id:\s*"deepseek-v4\.1-flash"[^}]*apiId:\s*"deepseek-flash"[^}]*name:\s*"DeepSeek V4\.1 Flash"'
             ),
         )
         self.assertRegex(
             self.js_source,
             re.compile(
-                r'id:\s*"deepseek-v4-flash"[^}]*name:\s*"DeepSeek V4 Flash Preview"[^}]*deprecated:\s*true'
+                r'id:\s*"deepseek-v4-flash-0731"[^}]*name:\s*"DeepSeek V4 Flash"[^}]*deprecated:\s*true'
             ),
         )
         self.assertIn(
-            '<option value="deepseek-v4-flash-0731">DeepSeek V4 Flash</option>',
+            '<option value="deepseek-v4.1-flash">DeepSeek V4.1 Flash</option>',
             self.setup_source,
         )
         self.assertNotIn(
-            '<option value="deepseek-v4-flash">DeepSeek V4 Flash</option>',
+            '<option value="deepseek-v4-flash-0731">DeepSeek V4 Flash</option>',
             self.setup_source,
         )
 
     def test_official_alias_and_specs_are_applied(self):
-        self.assertIn('if mk.lower() == "deepseek-v4-flash-0731":', self.app_source)
-        self.assertIn('return "deepseek-v4-flash"', self.app_source)
+        self.assertIn('if mk.lower() == "deepseek-v4.1-flash":', self.app_source)
+        self.assertIn('return "deepseek-flash"', self.app_source)
         self.assertIn('"model": _deepseek_api_model_id(model_key)', self.app_source)
         self.assertIn('legacy_value = key_map.get("deepseek-v4-flash")', self.app_source)
-        self.assertIn('1M context, up to 384K output', self.js_source)
-        self.assertIn('$0.0028/1M (hit), $0.14/1M (miss), Out $0.28/1M', self.js_source)
-        self.assertIn('$0.003625/1M (hit), $0.435/1M (miss), Out $0.87/1M', self.js_source)
+        self.assertIn('1M context, 384K output', self.js_source)
+        self.assertIn('In $0.003 hit/$0.15 miss, Out $0.60 off-peak', self.js_source)
+        self.assertIn('In $0.022 hit/$0.66 miss, Out $1.98 off-peak', self.js_source)
 
     def test_flash_effort_and_user_isolation_follow_official_api(self):
         self.assertIn('if raw in ("low", "high", "max"):', self.app_source)
         self.assertIn('deepseek_kwargs["extra_body"]["user_id"] = f"app_user_{user_id}"', self.app_source)
         self.assertIn('"stream_options": {"include_usage": True}', self.app_source)
-        self.assertIn("const isDeepSeekFlash0731 = modelLower === 'deepseek-v4-flash-0731'", self.js_source)
-        self.assertIn("!isDeepSeekFlash0731 && !isDeepSeekPro", self.js_source)
+        self.assertIn("const isDeepSeekFlash = modelLower === 'deepseek-v4.1-flash'", self.js_source)
+        self.assertIn("!isDeepSeekFlash && !isDeepSeekPro", self.js_source)
         self.assertIn("isLlmModel() && !isDeepSeek", self.js_source)
 
     def test_none_effort_forces_deepseek_non_thinking_mode(self):

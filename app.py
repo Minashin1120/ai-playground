@@ -217,6 +217,8 @@ def _is_deepseek_model_key(model_key):
 def _deepseek_api_model_id(model_key):
     """Map app-facing DeepSeek release IDs to the stable official API alias."""
     mk = str(model_key or "").strip()
+    if mk.lower() == "deepseek-v4.1-flash":
+        return "deepseek-flash"
     if mk.lower() == "deepseek-v4-flash-0731":
         return "deepseek-v4-flash"
     return mk
@@ -429,8 +431,13 @@ def _get_model_specific_api_key(user, model_key):
         if str(k or "").strip().lower() == mk_l:
             val = str(v or "").strip()
             return val or None
-    # Carry an existing per-model key forward when the stable Flash alias is
-    # represented by the dated app-facing release ID.
+    # Carry existing per-model keys forward when a stable Flash alias is
+    # represented by a new app-facing release ID.
+    if mk_l == "deepseek-v4.1-flash":
+        for legacy_key in ("deepseek-v4-flash-0731", "deepseek-v4-flash"):
+            legacy_value = key_map.get(legacy_key)
+            if legacy_value and str(legacy_value).strip():
+                return str(legacy_value).strip()
     if mk_l == "deepseek-v4-flash-0731":
         legacy_value = key_map.get("deepseek-v4-flash")
         if legacy_value and str(legacy_value).strip():
@@ -746,8 +753,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-13-016')
-app.config['SYSTEM_VERSION'] = 'V4.8.959'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-13-017')
+app.config['SYSTEM_VERSION'] = 'V4.8.960'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'

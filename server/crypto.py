@@ -232,8 +232,8 @@ ALL_VALID_MODEL_IDS = {
     "gpt-5.5", "gpt-5.5-mini", "gpt-5.5-nano", "gpt-5.5-pro",
     "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4-pro",
     "gpt-5.2", "gpt-5-search-api", "gpt-5.1", "gpt-5-mini",
-    # DeepSeek V4
-    "deepseek-v4-flash-0731", "deepseek-v4-flash", "deepseek-v4-pro",
+    # DeepSeek V4 / V4.1
+    "deepseek-v4.1-flash", "deepseek-v4-flash-0731", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp", "deepseek-v4-pro",
     # Anthropic Claude
     "claude-opus-4-6", "claude-sonnet-4-6",
     # Audio (TTS)

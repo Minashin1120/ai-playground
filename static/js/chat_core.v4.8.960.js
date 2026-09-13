@@ -7095,14 +7095,15 @@
                 ]
             },
             {
-                category: "DeepSeek V4",
+                category: "DeepSeek V4.1 / V4",
                 icon: "fas fa-bolt text-cyan-400",
-                description: "DeepSeek's OpenAI-compatible text models",
+                description: "DeepSeek's OpenAI-compatible V4.1 Flash and V4 Pro models",
                 items: [
-                    { id: "deepseek-v4-flash-vision-exp", implementedAt: "2026-08-23", implementedRank: 8260, quickEmoji: "👁️", name: "DeepSeek V4 Flash Vision Exp", desc: "Experimental V4 Flash with native image input (JPEG/PNG/GIF/WebP), 1M context, up to 384K output, thinking, tools, and JSON output.", price: "In $0.007/1M (hit), $0.22/1M (miss), Out $0.66/1M (off-peak)" },
-                    { id: "deepseek-v4-flash-0731", implementedAt: "2026-07-31", implementedRank: 6610, quickEmoji: "⚡", apiId: "deepseek-v4-flash", name: "DeepSeek V4 Flash", desc: "Official V4 Flash release with 1M context, up to 384K output, thinking, tools, and JSON output.", price: "In $0.0028/1M (hit), $0.14/1M (miss), Out $0.28/1M" },
-                    { id: "deepseek-v4-flash", implementedAt: "2026-04-26", implementedRank: 4510, name: "DeepSeek V4 Flash Preview", desc: "Retired preview key retained for chat history compatibility.", price: "Legacy preview", deprecated: true },
-                    { id: "deepseek-v4-pro", implementedAt: "2026-04-26", implementedRank: 4511, name: "DeepSeek V4 Pro", desc: "Higher-capacity DeepSeek V4 model with 1M context and up to 384K output.", price: "In $0.003625/1M (hit), $0.435/1M (miss), Out $0.87/1M" }
+                    { id: "deepseek-v4.1-flash", implementedAt: "2026-09-13", implementedRank: 9600, quickEmoji: "⚡", apiId: "deepseek-flash", name: "DeepSeek V4.1 Flash", desc: "V4.1 Flash with Vision, 1M context, 384K output, thinking, tools, and JSON.", price: "In $0.003 hit/$0.15 miss, Out $0.60 off-peak" },
+                    { id: "deepseek-v4-flash-vision-exp", implementedAt: "2026-08-23", implementedRank: 8260, name: "DeepSeek V4 Flash Vision Exp", desc: "Retired; retained for history.", price: "Retired", deprecated: true },
+                    { id: "deepseek-v4-flash-0731", implementedAt: "2026-07-31", implementedRank: 6610, name: "DeepSeek V4 Flash", desc: "Retired; retained for history.", price: "Retired", deprecated: true },
+                    { id: "deepseek-v4-flash", implementedAt: "2026-04-26", implementedRank: 4510, name: "DeepSeek V4 Flash Preview", desc: "Retired; retained for history.", price: "Retired", deprecated: true },
+                    { id: "deepseek-v4-pro", implementedAt: "2026-04-26", implementedRank: 4511, name: "DeepSeek V4 Pro", desc: "V4 Pro with 1M context, 384K output, thinking, tools, and JSON.", price: "In $0.022 hit/$0.66 miss, Out $1.98 off-peak" }
                 ]
             },
             {
@@ -9518,10 +9519,10 @@
                     '<div>最大 16 枚 / 画像1枚あたり 50MB 未満 / PNG・JPG・WEBP</div>',
                     '<div>マスク使用時: PNGのみ、4MB未満、元画像と同サイズ</div>'
                 ].join('');
-            } else if (model === 'deepseek-v4-flash-vision-exp') {
+            } else if (model === 'deepseek-v4.1-flash' || model === 'deepseek-v4-flash-vision-exp') {
                 show = true;
                 html = [
-                    '<div class="font-bold text-gray-300 mb-1">DeepSeek V4 Flash Vision Exp 入力制限</div>',
+                    '<div class="font-bold text-gray-300 mb-1">DeepSeek V4.1 Flash 入力制限</div>',
                     '<div>JPEG・PNG・GIF・WebP / 画像1枚あたり最大32MB / リクエスト合計48MB</div>',
                     '<div>画像は約800×800相当へ自動リサイズ（1枚あたり最大384トークン）</div>'
                 ].join('');
@@ -9627,19 +9628,19 @@
                     if (effortSel) {
                         Array.from(effortSel.options).forEach(opt => {
                             const isGpt56Model = modelLower === 'gpt-5.6' || modelLower.startsWith('gpt-5.6-');
-                            // DeepSeek V4 Flash family (incl. Vision Exp) shares the low/high/max effort mapping.
-                            const isDeepSeekFlash0731 = modelLower === 'deepseek-v4-flash-0731' || modelLower === 'deepseek-v4-flash' || modelLower === 'deepseek-v4-flash-vision-exp';
+                            // DeepSeek Flash family shares the low/high/max effort mapping.
+                            const isDeepSeekFlash = modelLower === 'deepseek-v4.1-flash' || modelLower === 'deepseek-v4-flash-0731' || modelLower === 'deepseek-v4-flash' || modelLower === 'deepseek-v4-flash-vision-exp';
                             const isDeepSeekPro = modelLower === 'deepseek-v4-pro';
                             const isGrok45 = modelLower.includes('grok-4.5');
                             const isGrok46 = modelLower.includes('grok-4.6');
                             if (opt.value === 'max') {
-                                opt.classList.toggle('hidden', !isGpt56Model && !isDeepSeekFlash0731 && !isDeepSeekPro);
+                                opt.classList.toggle('hidden', !isGpt56Model && !isDeepSeekFlash && !isDeepSeekPro);
                             } else if (opt.value === 'xhigh') {
                                 opt.classList.toggle('hidden', !isGrok46 && !modelLower.includes('multi-agent') && !isGpt56Model);
                             } else if (opt.value === 'medium') {
                                 opt.classList.toggle('hidden', !(modelLower.includes('grok-4.3') || isGrok45 || isGrok46 || modelLower.includes('grok-4.20-0309-reasoning') || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3')));
                             } else if (opt.value === 'none') {
-                                opt.classList.toggle('hidden', !modelLower.includes('grok-4.3') && !modelLower.includes('grok-build') && !modelLower.includes('gpt-5') && !isDeepSeekFlash0731 && !isDeepSeekPro);
+                                opt.classList.toggle('hidden', !modelLower.includes('grok-4.3') && !modelLower.includes('grok-build') && !modelLower.includes('gpt-5') && !isDeepSeekFlash && !isDeepSeekPro);
                             } else if (opt.value === 'low') {
                                 opt.classList.toggle('hidden', isDeepSeekPro);
                             }
@@ -9758,9 +9759,9 @@
                     if(searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none');
                 } else if (isDeepSeek) {
                     reasonOpts.classList.remove('hidden');
-                    // Vision Exp handles images natively; only text-only DeepSeek models need the vision-model notice.
+                    // V4.1 Flash handles images natively; only text-only DeepSeek models need the vision-model notice.
                     const vmi = get('vision-model-info');
-                    if (vmi) vmi.classList.toggle('hidden', modelLower === 'deepseek-v4-flash-vision-exp');
+                    if (vmi) vmi.classList.toggle('hidden', modelLower === 'deepseek-v4.1-flash' || modelLower === 'deepseek-v4-flash-vision-exp');
                     if (searchChk) {
                         searchChk.checked = false;
                         searchChk.disabled = true;
@@ -16291,8 +16292,9 @@
             if (vmi) {
                 const model = get('model-select') ? get('model-select').value : '';
                 const uploadModelLower = model.toLowerCase();
-                // Vision Exp accepts images natively, so the vision-model notice is not needed.
-                const needsVisionNotice = uploadModelLower.includes('deepseek') && uploadModelLower !== 'deepseek-v4-flash-vision-exp';
+                // V4.1 Flash accepts images natively, so the vision-model notice is not needed.
+                const deepseekNativeVision = uploadModelLower === 'deepseek-v4.1-flash' || uploadModelLower === 'deepseek-v4-flash-vision-exp';
+                const needsVisionNotice = uploadModelLower.includes('deepseek') && !deepseekNativeVision;
                 vmi.classList.toggle('hidden', !needsVisionNotice);
             }
             _syncVisionModelDisplay();

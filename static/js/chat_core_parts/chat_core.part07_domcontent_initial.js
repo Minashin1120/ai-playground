@@ -937,10 +937,6 @@
             }
             snapshotSidebarHistory('page-init');
             loadThreads(); loadGems();
-            if (typeof refreshGeminiBatchStatus === 'function') {
-                refreshGeminiBatchStatus();
-                setInterval(refreshGeminiBatchStatus, 30000);
-            }
 
             get('send-btn').onclick = () => { if (isStopMode) stopGeneration(); else sendMessage(); };
             get('new-chat-btn').onclick = () => startNewChat();

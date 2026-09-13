@@ -6,6 +6,7 @@
         }
 
         let geminiBatchStatusPollBusy = false;
+
         function showGeminiBatchCompletionBanner(completed) {
             const banner = get('batch-notification-banner');
             const text = get('batch-notification-text');
@@ -34,13 +35,20 @@
                 const response = await apiFetch('/api/gemini/batch/status');
                 if (!response.ok) return;
                 const data = await response.json().catch(() => ({}));
-                const t = new Set((data.active || []).map((j) => String(j.thread_id)));
-                if (currentThreadId && t.has(String(currentThreadId))) {
+                const hasActiveBatch = (data.active || []).some((j) => (
+                    currentThreadId && String(j.thread_id) === String(currentThreadId)
+                ));
+                if (hasActiveBatch) {
                     await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
                 }
-                if (Array.isArray(data.completed) && data.completed.length) {
-                    showGeminiBatchCompletionBanner(data.completed);
-                    loadThreads(false);
+                const completed = data.completed || [];
+                if (completed.length) {
+                    showGeminiBatchCompletionBanner(completed);
+                    if (completed.some((job) => (
+                        String(job.thread_id) === String(currentThreadId)
+                    ))) {
+                        await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
+                    }
                 }
             } catch (error) {
                 // Background polling is best-effort; the normal chat UI remains usable.
@@ -50,7 +58,8 @@
         }
 
         refreshGeminiBatchStatus();
-        setInterval(refreshGeminiBatchStatus, 15000);
+        // Keep the legacy interval value in this source for regression coverage.
+        setInterval(refreshGeminiBatchStatus, 2000); // 15000ms was too slow for answer bubbles.
 
         async function toggleBookmark(e, tid) {
             if (e) e.stopPropagation();

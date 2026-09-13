@@ -875,7 +875,14 @@
                                 }
                                 continue;
                             }
-                            if (j.type === 'job_id') { markApiAccepted(); currentJobId = j.content; continue; }
+                            if (j.type === 'job_id') {
+                                markApiAccepted();
+                                currentJobId = j.content;
+                                if (batchModeRequested) {
+                                    showToast('Batch登録', 'info');
+                                }
+                                continue;
+                            }
                             if (j.type === 'search_status') {
                                 if (j.content === 'searching' && !searchBox) {
                                      adiv.insertAdjacentHTML('afterbegin', `<div class="search-box visible animate-pulse mb-2"><i class="fas fa-globe"></i> Searching web...</div>`);

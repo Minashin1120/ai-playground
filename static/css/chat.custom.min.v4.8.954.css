@@ -4878,6 +4878,59 @@ body.liquid-glass-mode #top-model-bar {
 #sidebar {
     width: 16.5rem; /* slightly roomier for titles */
 }
+
+/* Desktop sidebar resize affordance */
+@media (min-width: 769px) {
+    #sidebar {
+        position: relative;
+    }
+    #sidebar-resize-handle {
+        position: absolute;
+        z-index: 20;
+        top: 0;
+        right: -5px;
+        width: 10px;
+        height: 100%;
+        cursor: col-resize;
+        touch-action: none;
+    }
+    #sidebar-resize-handle::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 4px;
+        width: 2px;
+        height: 100%;
+        background: rgba(var(--theme-rgb), 0.7);
+        opacity: 0;
+        transition: opacity 0.18s ease;
+    }
+    #sidebar-resize-handle:hover::after,
+    #sidebar-resize-handle.active::after,
+    #sidebar-resize-handle:focus-visible::after {
+        opacity: 1;
+    }
+    #sidebar-resize-handle:focus-visible {
+        outline: 2px solid rgba(var(--theme-rgb), 0.8);
+        outline-offset: -1px;
+    }
+    #sidebar.sidebar-resizing {
+        transition: none !important;
+    }
+    body.sidebar-resizing {
+        cursor: col-resize !important;
+        user-select: none !important;
+    }
+    #sidebar.compact #sidebar-resize-handle {
+        display: none;
+    }
+}
+
+@media (max-width: 768px) {
+    #sidebar-resize-handle {
+        display: none;
+    }
+}
 .sidebar-header {
     background: linear-gradient(180deg, rgba(12, 20, 40, 0.35), transparent);
 }

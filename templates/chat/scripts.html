@@ -106,6 +106,82 @@
             const threadListInModal = document.getElementById('history-modal-thread-list-container');
             const sidebarContainer = threadList ? threadList.parentElement : null;
             const historyModal = document.getElementById('history-modal');
+            const resizeHandle = document.getElementById('sidebar-resize-handle');
+            const SIDEBAR_WIDTH_KEY = 'sidebar_width';
+            const SIDEBAR_MIN_WIDTH = 240;
+            const SIDEBAR_MAX_WIDTH = 520;
+
+            function isDesktop() {
+                return window.innerWidth > 768;
+            }
+
+            function getSidebarMaxWidth() {
+                return Math.min(SIDEBAR_MAX_WIDTH, Math.max(320, Math.floor(window.innerWidth * 0.4)));
+            }
+
+            function setSidebarWidth(width, persist) {
+                if (!sidebar || !isDesktop()) return;
+                const maxWidth = getSidebarMaxWidth();
+                const clampedWidth = Math.max(SIDEBAR_MIN_WIDTH, Math.min(maxWidth, Math.round(width)));
+                sidebar.style.width = `${clampedWidth}px`;
+                if (resizeHandle) {
+                    resizeHandle.setAttribute('aria-valuemax', String(maxWidth));
+                    resizeHandle.setAttribute('aria-valuenow', String(clampedWidth));
+                }
+                if (persist) localStorage.setItem(SIDEBAR_WIDTH_KEY, String(clampedWidth));
+            }
+
+            function restoreSidebarWidth() {
+                if (!sidebar || !isDesktop() || sidebar.classList.contains('compact')) return;
+                const inlineWidth = parseFloat(sidebar.style.width);
+                const storedWidth = parseFloat(localStorage.getItem(SIDEBAR_WIDTH_KEY));
+                setSidebarWidth(Number.isFinite(inlineWidth) ? inlineWidth : (Number.isFinite(storedWidth) ? storedWidth : 264), false);
+            }
+
+            let isResizingSidebar = false;
+            function finishSidebarResize() {
+                if (!isResizingSidebar) return;
+                isResizingSidebar = false;
+                document.body.classList.remove('sidebar-resizing');
+                sidebar.classList.remove('sidebar-resizing');
+                if (resizeHandle) resizeHandle.classList.remove('active');
+                localStorage.setItem(SIDEBAR_WIDTH_KEY, String(Math.round(sidebar.getBoundingClientRect().width)));
+            }
+
+            if (resizeHandle) {
+                resizeHandle.addEventListener('pointerdown', (event) => {
+                    if (!isDesktop() || sidebar.classList.contains('compact') || (event.button !== undefined && event.button !== 0)) return;
+                    isResizingSidebar = true;
+                    document.body.classList.add('sidebar-resizing');
+                    sidebar.classList.add('sidebar-resizing');
+                    resizeHandle.classList.add('active');
+                    resizeHandle.setPointerCapture?.(event.pointerId);
+                    event.preventDefault();
+                });
+
+                resizeHandle.addEventListener('pointermove', (event) => {
+                    if (!isResizingSidebar) return;
+                    setSidebarWidth(event.clientX - sidebar.getBoundingClientRect().left, false);
+                });
+
+                resizeHandle.addEventListener('keydown', (event) => {
+                    if (!isDesktop() || sidebar.classList.contains('compact')) return;
+                    const currentWidth = sidebar.getBoundingClientRect().width;
+                    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                        setSidebarWidth(currentWidth + (event.key === 'ArrowRight' ? 16 : -16), true);
+                        event.preventDefault();
+                    } else if (event.key === 'Home') {
+                        setSidebarWidth(SIDEBAR_MIN_WIDTH, true);
+                        event.preventDefault();
+                    } else if (event.key === 'End') {
+                        setSidebarWidth(getSidebarMaxWidth(), true);
+                        event.preventDefault();
+                    }
+                });
+            }
+
+            window.addEventListener('pointerup', finishSidebarResize);
+            window.addEventListener('pointercancel', finishSidebarResize);
 
             function ensureThreadListParent() {
                 const isModalOpen = historyModal && !historyModal.classList.contains('hidden') && historyModal.style.display !== 'none';
@@ -189,6 +265,7 @@
 
             // Load initial state
             const isCompactStored = localStorage.getItem('sidebar_compact') === 'true';
+            restoreSidebarWidth();
             updateSidebarState(isCompactStored);
 
             toggleBtn.onclick = () => {
@@ -204,6 +281,7 @@
                 clearTimeout(resizeTimer);
                 resizeTimer = setTimeout(() => {
                     const isCompact = localStorage.getItem('sidebar_compact') === 'true';
+                    restoreSidebarWidth();
                     updateSidebarState(isCompact);
                 }, 100);
             });

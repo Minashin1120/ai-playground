@@ -139,6 +139,24 @@
             }
 
             let isResizingSidebar = false;
+            function cancelSidebarResize() {
+                if (!isResizingSidebar) return;
+                isResizingSidebar = false;
+                document.body.classList.remove('sidebar-resizing');
+                sidebar.classList.remove('sidebar-resizing');
+                if (resizeHandle) resizeHandle.classList.remove('active');
+            }
+
+            function syncSidebarWidthForViewport() {
+                if (!sidebar) return;
+                if (isDesktop()) {
+                    restoreSidebarWidth();
+                } else {
+                    cancelSidebarResize();
+                    sidebar.style.removeProperty('width');
+                }
+            }
+
             function finishSidebarResize() {
                 if (!isResizingSidebar) return;
                 isResizingSidebar = false;
@@ -265,7 +283,7 @@
 
             // Load initial state
             const isCompactStored = localStorage.getItem('sidebar_compact') === 'true';
-            restoreSidebarWidth();
+            syncSidebarWidthForViewport();
             updateSidebarState(isCompactStored);
 
             toggleBtn.onclick = () => {
@@ -281,7 +299,7 @@
                 clearTimeout(resizeTimer);
                 resizeTimer = setTimeout(() => {
                     const isCompact = localStorage.getItem('sidebar_compact') === 'true';
-                    restoreSidebarWidth();
+                    syncSidebarWidthForViewport();
                     updateSidebarState(isCompact);
                 }, 100);
             });

@@ -645,6 +645,15 @@
         /* Keep persistent lists visible if this animation restarts or is disabled. */
         @keyframes modelListEnter { from { transform: translateY(6px); } to { transform: translateY(0); } }
         .model-list-animate { animation: modelListEnter 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
+
+        @keyframes modelCategoryEnter {
+            from { opacity: 0; transform: translateY(8px) scale(0.995); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        #model-modal .model-category-enter > .model-list-group:not(.hidden),
+        #model-modal .model-category-enter > .model-list-empty:not(.hidden) {
+            animation: modelCategoryEnter 0.28s var(--ease-out) both;
+        }
         
         @keyframes slideInLeft { from { transform: translateX(-10px); } to { transform: translateX(0); } }
         .slide-in-animate { animation: slideInLeft 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
@@ -4578,6 +4587,7 @@ html.performance-lite-mode .font-mono {
 html.performance-lite-mode .fade-in,
 html.performance-lite-mode .slide-in-animate,
 html.performance-lite-mode .model-list-animate,
+html.performance-lite-mode .model-category-enter,
 html.performance-lite-mode .slide-in-animate.opacity-0,
 html.performance-lite-mode .model-list-animate.opacity-0,
 html.performance-lite-mode body:not(.liquid-glass-mode) .fade-in,

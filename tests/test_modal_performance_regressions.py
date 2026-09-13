@@ -97,6 +97,9 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("API model:</span>${escapeHtml(apiModelName)}", source)
         self.assertIn("function getModelCapabilitySearchTerms(m)", source)
         self.assertIn("add('low', 'medium', 'high')", source)
+        self.assertIn("function animateModelCategoryChange()", source)
+        self.assertIn("if (nextTag === activeModelTag) return", source)
+        self.assertIn("animateModelCategoryChange();", source)
         self.assertIn(
             "`${m.name} ${m.id} ${apiModelName} "
             "${m.agenticView ? 'agentic view' : ''} ${group.category} "
@@ -109,6 +112,11 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         renderer = renderer[: renderer.index("function scheduleModelListRender")]
         self.assertNotIn("container.innerHTML = ''", renderer)
         self.assertNotIn("document.createElement('button')", renderer)
+
+        css = _current_asset("css", "chat.custom.v4.8.*.css")
+        self.assertIn("@keyframes modelCategoryEnter", css)
+        self.assertIn("#model-modal .model-category-enter > .model-list-group:not(.hidden)", css)
+        self.assertIn("html.performance-lite-mode .model-category-enter", css)
 
     def test_model_tag_filters_cover_current_model_families(self):
         source = _current_asset("js", "chat_core.v4.8.*.js")

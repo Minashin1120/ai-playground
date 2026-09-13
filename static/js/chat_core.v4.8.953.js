@@ -8941,6 +8941,14 @@
             });
         }
 
+        function animateModelCategoryChange() {
+            const container = get('model-list-container');
+            if (!container) return;
+            container.classList.remove('model-category-enter');
+            void container.offsetWidth;
+            container.classList.add('model-category-enter');
+        }
+
         function openModelModal() {
             if (location.pathname !== '/model') {
                 history.pushState({ modal: 'model' }, '', '/model');
@@ -9073,9 +9081,13 @@
                 const btn = e.target.closest('.model-tag-btn');
                 if (!btn) return;
                 const t = btn.innerText.trim().toLowerCase();
-                activeModelTag = MODEL_TAGS.includes(t) ? t : 'all';
+                const nextTag = MODEL_TAGS.includes(t) ? t : 'all';
+                if (nextTag === activeModelTag) return;
+                activeModelTag = nextTag;
                 updateModelTagUi();
-                renderModelList(get('model-search').value);
+                const search = get('model-search');
+                renderModelList(search ? search.value : '');
+                animateModelCategoryChange();
             });
             updateModelTagUi();
         }

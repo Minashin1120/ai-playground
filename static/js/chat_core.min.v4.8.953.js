@@ -2996,38 +2996,40 @@ hidden",l!==0),l===0&&(modelListEmpty.textContent=s?`No ${a} models found.`:"No 
 !modelListAnimated&&(modelListAnimated=!0,n.classList.add("model-list-animate"))}o(renderModelList,"\
 renderModelList");function scheduleModelListRender(e){modelListRenderFrame&&cancelAnimationFrame(modelListRenderFrame),
 modelListRenderFrame=requestAnimationFrame(()=>{modelListRenderFrame=0,renderModelList(e)})}o(scheduleModelListRender,
-"scheduleModelListRender");function openModelModal(){location.pathname!=="/model"&&history.pushState(
-{modal:"model"},"","/model");const e=get("model-search");e&&(e.value=""),updateModelTagUi(),syncModelSearchClear(),
-renderModelList("",{animate:!0}),showModal("model-modal"),e&&window.innerWidth>768&&requestAnimationFrame(
-()=>e.focus({preventScroll:!0}))}o(openModelModal,"openModelModal"),window.closeModelModal=(e=!1)=>{
-hideModal("model-modal"),!e&&location.pathname==="/model"&&history.back()};function selectModel(e,t){
-if(window._visionPickerActive){currentVisionModel=e,window._visionPickerActive=!1,window.closeModelModal(),
-_syncVisionModelDisplay();return}if(isPromptCacheEnabled()){const s=getModelApiProvider(get("model-s\
-elect")?get("model-select").value:""),a=getModelApiProvider(e);if(s&&a&&s!==a){const r=PROVIDER_LABELS[s]||
-s,l=PROVIDER_LABELS[a]||a;showToast(`PromptCache \u6709\u52B9\u4E2D\u306F\u4ED6API\uFF08${l}\uFF09\u306E\u30E2\u30C7\u30EB\u306B\u5909\u66F4\
-\u3067\u304D\u307E\u305B\u3093\u3002\u73FE\u5728: ${r}`,"warning",!0);return}}const n=get("model-sel\
-ect");n.value=e,get("model-selector-text").innerText=t,window.closeModelModal();const i=new Event("c\
-hange");n.dispatchEvent(i)}o(selectModel,"selectModel");function selectModelById(e){let t=e;for(const n of MODELS){
-const i=n.items.find(s=>s.id===e);if(i){t=i.name;break}}selectModel(e,t)}o(selectModelById,"selectMo\
-delById");function populateAiSafeFormFields(e){if(e)try{get("set-default-model")&&(get("set-default-\
-model").value=e.default_model||get("set-default-model").value),get("set-default-vision-model")&&(get(
-"set-default-vision-model").value=e.default_vision_model||"gemini-3-flash-preview"),get("set-default\
--search")&&(get("set-default-search").checked=!!e.default_enable_search),get("set-default-url-contex\
-t")&&(get("set-default-url-context").checked=!!e.default_enable_url_context),get("set-default-maps")&&
-(get("set-default-maps").checked=!!e.default_enable_maps),get("set-default-python")&&(get("set-defau\
-lt-python").checked=!!e.default_enable_python),get("set-default-file-creation")&&(get("set-default-f\
-ile-creation").checked=!!e.default_enable_file_creation),get("set-default-thinking")&&(get("set-defa\
-ult-thinking").checked=!!e.default_enable_thinking),get("set-default-sys-prompt")&&(get("set-default\
--sys-prompt").checked=!!e.default_enable_system_prompt),get("set-default-mcp")&&(get("set-default-mc\
-p").checked=e.default_enable_mcp!==!1),get("set-default-thinking-level")&&(get("set-default-thinking\
--level").value=e.default_thinking_level||"high"),get("set-default-thinking-budget")&&(get("set-defau\
-lt-thinking-budget").value=e.default_thinking_budget||4096),get("set-default-reasoning-effort")&&(get(
-"set-default-reasoning-effort").value=e.default_reasoning_effort||"medium"),get("set-default-safety")&&
-(get("set-default-safety").value=e.default_safety_setting||"default"),get("sys-prompt-text")&&(get("\
-sys-prompt-text").value=e.system_prompt||""),get("set-global-sys-prompt-enabled")&&(get("set-global-\
-sys-prompt-enabled").checked=e.system_prompt_enabled!==!1),get("set-apply-global-sys-prompt")&&(get(
-"set-apply-global-sys-prompt").checked=e.apply_global_system_prompt!==!1),get("set-apply-auto-sys-pr\
-ompt-notices")&&(get("set-apply-auto-sys-prompt-notices").checked=e.apply_auto_system_prompt_notices!==
+"scheduleModelListRender");function animateModelCategoryChange(){const e=get("model-list-container");
+e&&(e.classList.remove("model-category-enter"),e.offsetWidth,e.classList.add("model-category-enter"))}
+o(animateModelCategoryChange,"animateModelCategoryChange");function openModelModal(){location.pathname!==
+"/model"&&history.pushState({modal:"model"},"","/model");const e=get("model-search");e&&(e.value=""),
+updateModelTagUi(),syncModelSearchClear(),renderModelList("",{animate:!0}),showModal("model-modal"),
+e&&window.innerWidth>768&&requestAnimationFrame(()=>e.focus({preventScroll:!0}))}o(openModelModal,"o\
+penModelModal"),window.closeModelModal=(e=!1)=>{hideModal("model-modal"),!e&&location.pathname==="/m\
+odel"&&history.back()};function selectModel(e,t){if(window._visionPickerActive){currentVisionModel=e,
+window._visionPickerActive=!1,window.closeModelModal(),_syncVisionModelDisplay();return}if(isPromptCacheEnabled()){
+const s=getModelApiProvider(get("model-select")?get("model-select").value:""),a=getModelApiProvider(
+e);if(s&&a&&s!==a){const r=PROVIDER_LABELS[s]||s,l=PROVIDER_LABELS[a]||a;showToast(`PromptCache \u6709\u52B9\u4E2D\u306F\
+\u4ED6API\uFF08${l}\uFF09\u306E\u30E2\u30C7\u30EB\u306B\u5909\u66F4\u3067\u304D\u307E\u305B\u3093\u3002\u73FE\u5728: ${r}`,
+"warning",!0);return}}const n=get("model-select");n.value=e,get("model-selector-text").innerText=t,window.
+closeModelModal();const i=new Event("change");n.dispatchEvent(i)}o(selectModel,"selectModel");function selectModelById(e){
+let t=e;for(const n of MODELS){const i=n.items.find(s=>s.id===e);if(i){t=i.name;break}}selectModel(e,
+t)}o(selectModelById,"selectModelById");function populateAiSafeFormFields(e){if(e)try{get("set-defau\
+lt-model")&&(get("set-default-model").value=e.default_model||get("set-default-model").value),get("se\
+t-default-vision-model")&&(get("set-default-vision-model").value=e.default_vision_model||"gemini-3-f\
+lash-preview"),get("set-default-search")&&(get("set-default-search").checked=!!e.default_enable_search),
+get("set-default-url-context")&&(get("set-default-url-context").checked=!!e.default_enable_url_context),
+get("set-default-maps")&&(get("set-default-maps").checked=!!e.default_enable_maps),get("set-default-\
+python")&&(get("set-default-python").checked=!!e.default_enable_python),get("set-default-file-creati\
+on")&&(get("set-default-file-creation").checked=!!e.default_enable_file_creation),get("set-default-t\
+hinking")&&(get("set-default-thinking").checked=!!e.default_enable_thinking),get("set-default-sys-pr\
+ompt")&&(get("set-default-sys-prompt").checked=!!e.default_enable_system_prompt),get("set-default-mc\
+p")&&(get("set-default-mcp").checked=e.default_enable_mcp!==!1),get("set-default-thinking-level")&&(get(
+"set-default-thinking-level").value=e.default_thinking_level||"high"),get("set-default-thinking-budg\
+et")&&(get("set-default-thinking-budget").value=e.default_thinking_budget||4096),get("set-default-re\
+asoning-effort")&&(get("set-default-reasoning-effort").value=e.default_reasoning_effort||"medium"),get(
+"set-default-safety")&&(get("set-default-safety").value=e.default_safety_setting||"default"),get("sy\
+s-prompt-text")&&(get("sys-prompt-text").value=e.system_prompt||""),get("set-global-sys-prompt-enabl\
+ed")&&(get("set-global-sys-prompt-enabled").checked=e.system_prompt_enabled!==!1),get("set-apply-glo\
+bal-sys-prompt")&&(get("set-apply-global-sys-prompt").checked=e.apply_global_system_prompt!==!1),get(
+"set-apply-auto-sys-prompt-notices")&&(get("set-apply-auto-sys-prompt-notices").checked=e.apply_auto_system_prompt_notices!==
 !1),get("set-mic-transcribe-mode")&&(get("set-mic-transcribe-mode").value=e.mic_transcribe_mode||"st\
 t_api"),get("set-stt-model")&&(get("set-stt-model").value=e.stt_model||"gpt-4o-mini-transcribe"),get(
 "set-llm-transcribe-prompt")&&(get("set-llm-transcribe-prompt").value=e.llm_transcribe_prompt||""),get(
@@ -3051,9 +3053,10 @@ Clear"),get("model-search")&&get("model-search").addEventListener("input",e=>{sc
 e.target.value),syncModelSearchClear()}),get("model-search-clear")&&get("model-search-clear").addEventListener(
 "click",()=>{const e=get("model-search");e&&(e.value="",syncModelSearchClear(),scheduleModelListRender(
 ""),e.focus())}),get("model-tag-bar")&&(get("model-tag-bar").addEventListener("click",e=>{const t=e.
-target.closest(".model-tag-btn");if(!t)return;const n=t.innerText.trim().toLowerCase();activeModelTag=
-MODEL_TAGS.includes(n)?n:"all",updateModelTagUi(),renderModelList(get("model-search").value)}),updateModelTagUi()),
-window.quickStart=e=>{selectModelById(e),get("welcome-screen").classList.add("hidden")};const BROWSER_FAST_DISABLED_OPTIONS=[
+target.closest(".model-tag-btn");if(!t)return;const n=t.innerText.trim().toLowerCase(),i=MODEL_TAGS.
+includes(n)?n:"all";if(i===activeModelTag)return;activeModelTag=i,updateModelTagUi();const s=get("mo\
+del-search");renderModelList(s?s.value:""),animateModelCategoryChange()}),updateModelTagUi()),window.
+quickStart=e=>{selectModelById(e),get("welcome-screen").classList.add("hidden")};const BROWSER_FAST_DISABLED_OPTIONS=[
 ["enable-search","search-container"],["enable-url-context","url-context-container"],["enable-maps","\
 maps-grounding-container"],["enable-sys-prompt","sys-prompt-option"],["enable-prompt-cache","prompt-\
 cache-container"],["enable-mcp","mcp-container"],["enable-file-creation","file-creation-container"]];

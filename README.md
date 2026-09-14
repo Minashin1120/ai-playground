@@ -1,6 +1,6 @@
 # AI Chat Playground
 
-[![Version](https://img.shields.io/badge/version-V4.8.972-2563eb)](static/changelogs/20260914_v4.8.972.md)
+[![Version](https://img.shields.io/badge/version-V4.8.973-2563eb)](static/changelogs/20260914_v4.8.973.md)
 [![Python](https://img.shields.io/badge/Python-3.11-3776ab)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-f59e0b)](LICENSE)
 
@@ -358,6 +358,7 @@ journalctl -u 'ai-chat-worker@1.service' -n 100 --no-pager
 
 ## ドキュメント案内
 
+- [Batch処理の機能と実装](static/docs/batch.md)：利用方法、非同期処理フロー、API、状態管理、コード配置
 - [MODELS.md](MODELS.md)：対応モデルと価格表示の扱い
 - [CONTRIBUTING.md](CONTRIBUTING.md)：変更、テスト、Pull Request
 - [SECURITY.md](SECURITY.md)：脆弱性報告と安全な運用

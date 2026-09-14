@@ -557,6 +557,40 @@ def _call_coding_mode_repair_model(user, model_key, repair_prompt):
     )
     return _extract_openai_response_text(response)
 
+def _iter_chat_history_ancestors(thread_id, parent_id, user_id, max_messages=0):
+    """Read branch links cheaply, then load only selected ancestors in batches."""
+    if not parent_id:
+        return
+    links = dict(
+        db.session.query(Message.id, Message.parent_id)
+        .join(Thread, Thread.id == Message.thread_id)
+        .filter(Message.thread_id == thread_id, Thread.user_id == user_id)
+        .all()
+    )
+    ancestor_ids = []
+    seen = set()
+    while parent_id in links and parent_id not in seen:
+        seen.add(parent_id)
+        ancestor_ids.append(parent_id)
+        if max_messages > 0 and len(ancestor_ids) >= max_messages:
+            break
+        parent_id = links[parent_id]
+    del links, seen
+    for offset in range(0, len(ancestor_ids), 64):
+        batch_ids = ancestor_ids[offset:offset + 64]
+        batch = {
+            row.id: row for row in Message.query.filter(
+                Message.thread_id == thread_id, Message.id.in_(batch_ids)
+            ).all()
+        }
+        for message_id in batch_ids:
+            row = batch.get(message_id)
+            if row is None:
+                return  # An ancestor was deleted while loading the branch.
+            yield row
+        del batch
+
+
 def background_chat_task(job_id, thread_id, model_key, message_id, options, user_id, user_config):
     with app.app_context():
         channel = f"ai_chat:channel:{job_id}"
@@ -1106,16 +1140,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 MAX_CONTEXT_MESSAGES = 0
             history_count = 0
             
-            # Load all messages for the thread once to avoid N+1 sequential queries when traversing parent_id
-            all_thread_msgs = Message.query.filter_by(thread_id=thread_id).all()
-            msg_map = {m.id: m for m in all_thread_msgs}
-            
-            current_node = msg_map.get(msg.parent_id) if msg.parent_id else None
-            if current_node and current_node.thread.user_id != user_id:
-                current_node = None
-            
             messages_to_update = False
-            while current_node:
+            for current_node in _iter_chat_history_ancestors(
+                thread_id, msg.parent_id, user_id, MAX_CONTEXT_MESSAGES
+            ):
                 if MAX_CONTEXT_MESSAGES and history_count >= MAX_CONTEXT_MESSAGES:
                     break
                 raw_cnt = current_node.content or ""
@@ -1171,8 +1199,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 else:
                     break
                 
-                current_node = msg_map.get(current_node.parent_id) if current_node.parent_id else None
-            
             # Commit any token count updates in a single batch
             if messages_to_update:
                 try:

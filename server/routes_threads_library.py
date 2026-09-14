@@ -100,11 +100,21 @@ def admin_threads_list():
     if q:
         query = query.filter(Thread.title.contains(q))
     threads = query.order_by(Thread.updated_at.desc()).limit(500).all()
+    # Aggregate counts in SQL without transferring message bodies or an N+1 query.
+    counts = {}
+    if threads:
+        from sqlalchemy import func
+        rows = db.session.query(
+            Message.thread_id, Message.is_encrypted, func.count(Message.id)
+        ).filter(Message.thread_id.in_([t.id for t in threads])).group_by(
+            Message.thread_id, Message.is_encrypted
+        ).all()
+        for thread_id, is_encrypted, count in rows:
+            total, encrypted = counts.get(thread_id, (0, 0))
+            counts[thread_id] = (total + count, encrypted + (count if is_encrypted else 0))
     res = []
     for t in threads:
-        msgs = Message.query.filter_by(thread_id=t.id).all()
-        total = len(msgs)
-        enc = sum(1 for m in msgs if m.is_encrypted)
+        total, enc = counts.get(t.id, (0, 0))
         res.append({
             'thread_id': t.public_id or t.id,
             'title': t.title,

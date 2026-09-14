@@ -370,10 +370,11 @@ def _is_low_latency_image_attachment_set(rel_paths):
             return False
     return True
 
-_MEDIA_BYTES_CACHE_LOCK = threading.Lock()
+# Wrappers hold the lock through the size-counter assignment; helpers also lock.
+_MEDIA_BYTES_CACHE_LOCK = threading.RLock()
 _MEDIA_BYTES_CACHE = OrderedDict()
 _MEDIA_BYTES_CACHE_SIZE = 0
-_THUMBNAIL_BYTES_CACHE_LOCK = threading.Lock()
+_THUMBNAIL_BYTES_CACHE_LOCK = threading.RLock()
 _THUMBNAIL_BYTES_CACHE = OrderedDict()
 _THUMBNAIL_BYTES_CACHE_SIZE = 0
 _THUMBNAIL_GENERATION_SEMAPHORE = threading.BoundedSemaphore(1)
@@ -447,24 +448,26 @@ def _media_bytes_cache_get(key):
 
 def _media_bytes_cache_put(key, data):
     global _MEDIA_BYTES_CACHE_SIZE
-    _MEDIA_BYTES_CACHE_SIZE = _ordered_lru_bytes_cache_put(
-        _MEDIA_BYTES_CACHE,
-        _MEDIA_BYTES_CACHE_LOCK,
-        key,
-        data,
-        _MEDIA_BYTES_CACHE_MAX,
-        _MEDIA_BYTES_CACHE_ITEM_MAX,
-        _MEDIA_BYTES_CACHE_SIZE,
-    )
+    with _MEDIA_BYTES_CACHE_LOCK:
+        _MEDIA_BYTES_CACHE_SIZE = _ordered_lru_bytes_cache_put(
+            _MEDIA_BYTES_CACHE,
+            _MEDIA_BYTES_CACHE_LOCK,
+            key,
+            data,
+            _MEDIA_BYTES_CACHE_MAX,
+            _MEDIA_BYTES_CACHE_ITEM_MAX,
+            _MEDIA_BYTES_CACHE_SIZE,
+        )
 
 def _media_bytes_cache_evict_path(rel_path):
     global _MEDIA_BYTES_CACHE_SIZE
-    _MEDIA_BYTES_CACHE_SIZE = _ordered_lru_bytes_cache_evict_path(
-        _MEDIA_BYTES_CACHE,
-        _MEDIA_BYTES_CACHE_LOCK,
-        rel_path,
-        _MEDIA_BYTES_CACHE_SIZE,
-    )
+    with _MEDIA_BYTES_CACHE_LOCK:
+        _MEDIA_BYTES_CACHE_SIZE = _ordered_lru_bytes_cache_evict_path(
+            _MEDIA_BYTES_CACHE,
+            _MEDIA_BYTES_CACHE_LOCK,
+            rel_path,
+            _MEDIA_BYTES_CACHE_SIZE,
+        )
 
 def _thumbnail_bytes_cache_get(key):
     return _ordered_lru_cache_get(
@@ -476,24 +479,26 @@ def _thumbnail_bytes_cache_get(key):
 
 def _thumbnail_bytes_cache_put(key, data):
     global _THUMBNAIL_BYTES_CACHE_SIZE
-    _THUMBNAIL_BYTES_CACHE_SIZE = _ordered_lru_bytes_cache_put(
-        _THUMBNAIL_BYTES_CACHE,
-        _THUMBNAIL_BYTES_CACHE_LOCK,
-        key,
-        data,
-        _THUMBNAIL_CACHE_MAX,
-        _THUMBNAIL_CACHE_ITEM_MAX,
-        _THUMBNAIL_BYTES_CACHE_SIZE,
-    )
+    with _THUMBNAIL_BYTES_CACHE_LOCK:
+        _THUMBNAIL_BYTES_CACHE_SIZE = _ordered_lru_bytes_cache_put(
+            _THUMBNAIL_BYTES_CACHE,
+            _THUMBNAIL_BYTES_CACHE_LOCK,
+            key,
+            data,
+            _THUMBNAIL_CACHE_MAX,
+            _THUMBNAIL_CACHE_ITEM_MAX,
+            _THUMBNAIL_BYTES_CACHE_SIZE,
+        )
 
 def _thumbnail_bytes_cache_evict_path(rel_path):
     global _THUMBNAIL_BYTES_CACHE_SIZE
-    _THUMBNAIL_BYTES_CACHE_SIZE = _ordered_lru_bytes_cache_evict_path(
-        _THUMBNAIL_BYTES_CACHE,
-        _THUMBNAIL_BYTES_CACHE_LOCK,
-        rel_path,
-        _THUMBNAIL_BYTES_CACHE_SIZE,
-    )
+    with _THUMBNAIL_BYTES_CACHE_LOCK:
+        _THUMBNAIL_BYTES_CACHE_SIZE = _ordered_lru_bytes_cache_evict_path(
+            _THUMBNAIL_BYTES_CACHE,
+            _THUMBNAIL_BYTES_CACHE_LOCK,
+            rel_path,
+            _THUMBNAIL_BYTES_CACHE_SIZE,
+        )
 
 
 def _acquire_thumbnail_generation_slot():

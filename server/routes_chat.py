@@ -155,14 +155,13 @@ def _get_browser_fast_mode_user_key(user, model_key):
 def _browser_fast_mode_history(thread, parent_message):
     if not thread or not parent_message:
         return []
-    all_messages = Message.query.filter_by(thread_id=thread.id).all()
-    message_map = {message.id: message for message in all_messages}
-    current = message_map.get(parent_message.id)
     history_rev = []
     total_chars = 0
     selected_image_count = 0
     selected_image_bytes = 0
-    while current and len(history_rev) < 200:
+    for current in _iter_chat_history_ancestors(thread.id, parent_message.id, thread.user_id):
+        if len(history_rev) >= 200:
+            break
         raw_content = current.content or ''
         content = decrypt_val(raw_content) if current.is_encrypted else raw_content
         content = str(content or '')
@@ -207,7 +206,6 @@ def _browser_fast_mode_history(thread, parent_message):
                 'thought_signatures': signatures,
             })
             total_chars += len(content)
-        current = message_map.get(current.parent_id) if current.parent_id else None
     return list(reversed(history_rev))
 
 @app.route('/api/browser_fast_mode/bootstrap', methods=['POST'])

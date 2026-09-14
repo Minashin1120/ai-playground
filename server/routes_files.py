@@ -221,7 +221,12 @@ def handle_thread_item(thread_id):
                 oldest_loaded_id = ms[0].id
         batch_by_assistant = {}
         try:
-            batch_rows = GeminiBatchJob.query.filter_by(thread_id=t.id).all()
+            batch_query = GeminiBatchJob.query.filter_by(thread_id=t.id)
+            if limit:
+                batch_query = batch_query.filter(
+                    GeminiBatchJob.assistant_message_id.in_([m.id for m in ms])
+                )
+            batch_rows = batch_query.all() if ms else []
             batch_by_assistant = {row.assistant_message_id: row for row in batch_rows}
         except Exception:
             # The startup schema migration may still be completing on a fresh install.

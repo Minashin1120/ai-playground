@@ -12030,6 +12030,14 @@
                         const d = await res.json();
                         if (d && d.message) saveMsg = d.message;
                     } catch (e) {}
+
+                    // Keep the cached settings in sync with the values just saved.
+                    // Without this, reopening the modal reused the pre-save snapshot
+                    // and showed both display-mode switches as OFF until a full reload.
+                    cacheUserSettings(Object.assign({}, userSettingsSnapshot || {}, {
+                        light_mode_enabled: !!b.light_mode_enabled,
+                        liquid_glass_enabled: !!b.liquid_glass_enabled
+                    }));
                     closeSettingsModal();
 
                     const oldUsername = currentUsername;

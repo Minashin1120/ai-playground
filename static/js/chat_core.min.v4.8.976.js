@@ -4103,17 +4103,19 @@ get("set-admin-api-key-mode").value)),get("set-bot-detect")&&(f.bot_detection_en
 etect").checked),get("set-bot-detect-global")&&(f.bot_detection_global_enabled=get("set-bot-detect-g\
 lobal").checked);const _=await apiFetch(CHAT_CONFIG.urls.handleSettings,{method:"POST",headers:{"Con\
 tent-Type":"application/json"},body:JSON.stringify(f)});if(_.ok){let S="\u8A2D\u5B9A\u3092\u4FDD\u5B58\u3057\u307E\u3057\u305F";
-try{const D=await _.json();D&&D.message&&(S=D.message)}catch{}Bt();const M=currentUsername,B=CHAT_CONFIG.
-enableE2EE;enterToSend=f.enter_to_send,autoSearchOnLinks=f.auto_search_on_links;const I=useSwCache;useSwCache=
-f.use_sw_cache,window.CHAT_CONFIG&&(window.CHAT_CONFIG.clearCacheOnVersionUpdate=!!f.clear_cache_on_version_update),
-compactPromptMode=f.compact_prompt_mode,minimalPromptMode=f.minimal_prompt_mode,voiceStudioUiEnabled=
-f.voice_studio_ui!==!1,temporaryChatTimeoutSeconds=f.temp_chat_timeout_seconds,applyThemeColor(f.theme_color,
-!0),syncThemeInputs(f.theme_color),applyLightMode(f.light_mode_enabled),applyLiquidGlassMode(f.liquid_glass_enabled),
-applyAdaptiveBlurPreference(get("set-background-blur-mode")?get("set-background-blur-mode").value:adaptiveBlurPreferenceMode),
-minimalPromptMode?setMinimalPromptMode(!0):setCompactPromptMode(compactPromptMode),updateStsUi(),I!==
-useSwCache&&applyCacheMode(useSwCache,{forceCleanup:!useSwCache}),showToast(S,"success"),syncClientDebugLogToggle(
-f.enable_client_debug_log,"settings saved"),f.new_username&&f.new_username!==M?setTimeout(()=>location.
-reload(),1e3):f.new_password&&showToast("\u30D1\u30B9\u30EF\u30FC\u30C9\u3092\u5909\u66F4\u3057\u307E\u3057\u305F\u3002\u6B21\u56DE\u30ED\u30B0\u30A4\u30F3\u6642\u304B\u3089\u6709\u52B9\u3067\u3059\u3002",
+try{const D=await _.json();D&&D.message&&(S=D.message)}catch{}cacheUserSettings(Object.assign({},userSettingsSnapshot||
+{},{light_mode_enabled:!!f.light_mode_enabled,liquid_glass_enabled:!!f.liquid_glass_enabled})),Bt();
+const M=currentUsername,B=CHAT_CONFIG.enableE2EE;enterToSend=f.enter_to_send,autoSearchOnLinks=f.auto_search_on_links;
+const I=useSwCache;useSwCache=f.use_sw_cache,window.CHAT_CONFIG&&(window.CHAT_CONFIG.clearCacheOnVersionUpdate=
+!!f.clear_cache_on_version_update),compactPromptMode=f.compact_prompt_mode,minimalPromptMode=f.minimal_prompt_mode,
+voiceStudioUiEnabled=f.voice_studio_ui!==!1,temporaryChatTimeoutSeconds=f.temp_chat_timeout_seconds,
+applyThemeColor(f.theme_color,!0),syncThemeInputs(f.theme_color),applyLightMode(f.light_mode_enabled),
+applyLiquidGlassMode(f.liquid_glass_enabled),applyAdaptiveBlurPreference(get("set-background-blur-mo\
+de")?get("set-background-blur-mode").value:adaptiveBlurPreferenceMode),minimalPromptMode?setMinimalPromptMode(
+!0):setCompactPromptMode(compactPromptMode),updateStsUi(),I!==useSwCache&&applyCacheMode(useSwCache,
+{forceCleanup:!useSwCache}),showToast(S,"success"),syncClientDebugLogToggle(f.enable_client_debug_log,
+"settings saved"),f.new_username&&f.new_username!==M?setTimeout(()=>location.reload(),1e3):f.new_password&&
+showToast("\u30D1\u30B9\u30EF\u30FC\u30C9\u3092\u5909\u66F4\u3057\u307E\u3057\u305F\u3002\u6B21\u56DE\u30ED\u30B0\u30A4\u30F3\u6642\u304B\u3089\u6709\u52B9\u3067\u3059\u3002",
 "info")}else{let S={};try{S=await _.json()}catch{}showToast(S.error||"\u8A2D\u5B9A\u306E\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0)}},get("disable-2fa-btn").onclick=async()=>{if(confirm("Disable 2FA?"))if((await apiFetch(
 CHAT_CONFIG.urls.handleSettings,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.

@@ -1082,11 +1082,14 @@ def gemini_batch_status_api():
             image_refs = []
             for part in parts:
                 part_text = _batch_field(part, 'text')
-                if part_text:
-                    if _batch_field(part, 'thought') is True:
+                # Thought images are intermediate reasoning artifacts, just as
+                # in the non-Batch Gemini image response path.
+                if _batch_field(part, 'thought') is True:
+                    if part_text:
                         thought_parts.append(str(part_text))
-                    else:
-                        text_parts.append(str(part_text))
+                    continue
+                if part_text:
+                    text_parts.append(str(part_text))
                 inline_data = _batch_field(part, 'inlineData', 'inline_data')
                 if inline_data:
                     raw_data = _batch_field(inline_data, 'data')

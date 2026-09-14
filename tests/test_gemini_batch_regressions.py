@@ -1,4 +1,7 @@
 from pathlib import Path
+import ast
+from types import SimpleNamespace
+from unittest.mock import Mock
 import unittest
 
 
@@ -67,6 +70,61 @@ class GeminiBatchRegressionTests(unittest.TestCase):
         self.assertIn("_gemini_result_line", source)
         self.assertIn("if isinstance(responses, dict)", source)
         self.assertIn("'inlinedResponses', 'inlined_responses', 'responses'", source)
+
+    def test_batch_omits_thought_images_but_preserves_final_images(self):
+        routes = (APP_ROOT / "server/routes_chat.py").read_text(encoding="utf-8")
+        tree = ast.parse(routes)
+        status = next(n for n in tree.body if isinstance(n, ast.FunctionDef)
+                      and n.name == "gemini_batch_status_api")
+        terminal = next(n for n in status.body if isinstance(n, ast.FunctionDef)
+                        and n.name == "_terminal_message")
+        field = next(n for n in tree.body if isinstance(n, ast.FunctionDef)
+                     and n.name == "_batch_field")
+        for sdk in (False, True):
+            with self.subTest(sdk=sdk):
+                def part(**values):
+                    return SimpleNamespace(**values) if sdk else values
+
+                message = SimpleNamespace(is_encrypted=False)
+                query = Mock()
+                query.filter_by.return_value.first.return_value = message
+                save = Mock()
+                payload = Mock()
+                namespace = {
+                    "Message": SimpleNamespace(query=query),
+                    "current_user": SimpleNamespace(id=1),
+                    "_save_user_generated_bytes": save,
+                    "_set_message_payload": payload,
+                    "time": SimpleNamespace(time=lambda: 1),
+                    "secrets": SimpleNamespace(token_hex=Mock(side_effect=["a", "b"])),
+                    "logger": Mock(),
+                }
+                exec(compile(ast.Module(body=[field, terminal], type_ignores=[]),
+                             "<batch-test>", "exec"), namespace)
+                blob_key = "inline_data" if sdk else "inlineData"
+                mime_key = "mime_type" if sdk else "mimeType"
+                def image_part(data, **values):
+                    return part(**values, **{blob_key: part(data=data, **{mime_key: "image/png"})})
+
+                response = {"candidates": [{"content": {"parts": [
+                    image_part(b"intermediate", thought=True),
+                    part(text="reasoning", thought=True),
+                    part(text="final answer"),
+                    image_part(b"final-one"),
+                    image_part(b"final-two", thought=False),
+                ]}}]}
+                namespace["_terminal_message"](
+                    SimpleNamespace(assistant_message_id=2, thread_id=3),
+                    "JOB_STATE_SUCCEEDED", response_payload=response,
+                )
+                self.assertEqual([c.args[1] for c in save.call_args_list],
+                                 [b"final-one", b"final-two"])
+                args = payload.call_args.args
+                self.assertEqual(args[2], "reasoning")
+                self.assertEqual(len(args[3]), 2)
+                self.assertEqual(args[1].count("![Image]"), 2)
+                self.assertTrue(args[1].startswith("final answer"))
+                namespace["logger"].warning.assert_not_called()
 
     def test_gemini_batch_status_is_polled_until_completion(self):
         part = (APP_ROOT / "static/js/chat_core_parts/chat_core.part15_slash_tempchat_threads.js").read_text(encoding="utf-8")

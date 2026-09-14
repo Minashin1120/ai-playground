@@ -1534,6 +1534,141 @@ def gemini_batch_status_api():
     })
 
 
+BATCH_TERMINAL_STATES = {
+    'JOB_STATE_SUCCEEDED', 'JOB_STATE_FAILED',
+    'JOB_STATE_CANCELLED', 'JOB_STATE_EXPIRED'
+}
+
+
+def _serialize_batch_job(row):
+    """Return one Batch history row for the management list.
+
+    History is intentionally never dropped here; completed and failed rows stay
+    visible until the user deletes them explicitly.
+    """
+    state = _normalize_batch_state(row.state or 'JOB_STATE_QUEUED')
+    terminal = state in BATCH_TERMINAL_STATES
+    thread = getattr(row, 'thread', None)
+    public_thread_id = getattr(thread, 'public_id', None) or str(row.thread_id)
+    return {
+        'job_id': row.job_id,
+        'thread_id': public_thread_id,
+        'thread_title': (getattr(thread, 'title', None) or '無題のチャット'),
+        'thread_exists': thread is not None,
+        'assistant_message_id': row.assistant_message_id,
+        'model': row.model,
+        'provider': row.provider or get_model_api_provider(row.model),
+        'state': state,
+        'status_text': row.status_text or _batch_state_label(state),
+        'error': row.error,
+        'created_at': row.created_at.isoformat() if row.created_at else None,
+        'completed_at': row.completed_at.isoformat() if row.completed_at else None,
+        'is_active': not terminal,
+        'can_cancel': bool(row.provider_job_name) and not terminal,
+    }
+
+
+@app.route('/api/batch/jobs', methods=['GET'])
+@login_required
+def list_batch_jobs_api():
+    """List every Batch job the current user submitted, newest first."""
+    rows = GeminiBatchJob.query.filter_by(user_id=current_user.id).order_by(
+        GeminiBatchJob.created_at.desc()
+    ).limit(500).all()
+    return jsonify({'jobs': [_serialize_batch_job(row) for row in rows]})
+
+
+@app.route('/api/batch/jobs/<job_id>/cancel', methods=['POST'])
+@login_required
+def cancel_batch_job_api(job_id):
+    """Ask the provider to cancel an active Batch job and stop tracking it."""
+    row = GeminiBatchJob.query.filter_by(job_id=job_id, user_id=current_user.id).first()
+    if not row:
+        return jsonify({'error': 'Batchジョブが見つかりません'}), 404
+    state = _normalize_batch_state(row.state or '')
+    if state in BATCH_TERMINAL_STATES:
+        return jsonify({'error': 'このBatch処理はすでに終了しています'}), 400
+    if not row.provider_job_name:
+        return jsonify({'error': 'Batch APIへ送信中のため停止できません。少し待ってから再度お試しください。'}), 400
+
+    provider = row.provider or get_model_api_provider(row.model)
+    resolved = _resolve_chat_model_auth(current_user, row.model)
+    try:
+        if provider == 'openai':
+            api_key = resolved.get('api_key')
+            if not api_key:
+                raise RuntimeError('OpenAI APIキーを確認してください')
+            client = _get_openai_client(api_key, base_url=None)
+            client.batches.cancel(row.provider_job_name)
+        elif provider == 'xai':
+            api_key = resolved.get('api_key')
+            if not api_key:
+                raise RuntimeError('xAI APIキーを確認してください')
+            cancel_response = requests.post(
+                f"https://{_XAI_API_HOST}/v1/batches/{quote(str(row.provider_job_name), safe='')}:cancel",
+                headers={'Authorization': f'Bearer {str(api_key)}'},
+                timeout=30,
+            )
+            if not cancel_response.ok:
+                payload = cancel_response.json() if cancel_response.content else {}
+                detail = _batch_field(payload, 'error') or payload
+                if isinstance(detail, dict):
+                    detail = _batch_field(detail, 'message') or detail
+                raise RuntimeError(detail or f'xAI Batchキャンセル HTTP {cancel_response.status_code}')
+        else:
+            runtime = resolved.get('gemini_runtime') or {}
+            api_key = resolved.get('api_key') or runtime.get('api_key')
+            if not api_key or runtime.get('backend') == 'vertex_ai':
+                raise RuntimeError('Gemini APIキーまたは Gemini API モードを確認してください')
+            cancel_response = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/{str(row.provider_job_name).lstrip('/')}:cancel",
+                headers={'x-goog-api-key': str(api_key)},
+                timeout=30,
+            )
+            if not cancel_response.ok:
+                payload = cancel_response.json() if cancel_response.content else {}
+                raise RuntimeError(
+                    _batch_field(_batch_field(payload, 'error') or {}, 'message')
+                    or f'Gemini Batchキャンセル HTTP {cancel_response.status_code}'
+                )
+    except Exception as cancel_error:
+        logger.warning('Batch cancel failed for %s: %s', job_id, cancel_error)
+        return jsonify({'error': str(cancel_error)}), 502
+
+    row.state = 'JOB_STATE_CANCELLED'
+    row.status_text = _batch_state_label(row.state)
+    row.completed_at = row.completed_at or datetime.utcnow()
+    row.notified_at = datetime.utcnow()
+    message = Message.query.filter_by(
+        id=row.assistant_message_id, thread_id=row.thread_id
+    ).first()
+    if message:
+        content = f'**{row.status_text}**'
+        message.content = encrypt_val(content) if message.is_encrypted else content
+    safe_db_commit()
+    return jsonify({'ok': True, 'job': _serialize_batch_job(row)})
+
+
+@app.route('/api/batch/jobs/<job_id>', methods=['DELETE'])
+@login_required
+def delete_batch_job_api(job_id):
+    """Remove one finished Batch history row for the current user."""
+    row = GeminiBatchJob.query.filter_by(job_id=job_id, user_id=current_user.id).first()
+    if not row:
+        return jsonify({'error': 'Batchジョブが見つかりません'}), 404
+    state = _normalize_batch_state(row.state or '')
+    if state not in BATCH_TERMINAL_STATES:
+        return jsonify({'error': '実行中のBatch処理は削除できません。先に停止してください。'}), 400
+    try:
+        db.session.delete(row)
+        safe_db_commit()
+    except Exception:
+        db.session.rollback()
+        logger.exception('Batch history delete failed')
+        return jsonify({'error': 'Batch履歴の削除に失敗しました'}), 500
+    return jsonify({'ok': True})
+
+
 @app.route('/api/token_estimate', methods=['POST'])
 @login_required
 def estimate_prompt_tokens_api():

@@ -43,7 +43,7 @@
 | `background.py` | RQ のチャット生成本体、Gemini／OpenAI Batch送信、E2EE 移行、Coding Mode、ストリームの Redis 蓄積 | 生成ジョブ、Batch送信、ストリーム、コーディングモード |
 | `routes_pages.py` | `/`, `/c/<id>`, help, changelog, `/api/version`, `sw.js` などページと入口 | 画面ルート、版 API、PWA |
 | `routes_auth.py` | ログイン、Google / Minashin / Passkey、2FA、signup、setup、logout | 認証、SSO、新規登録 |
-| `routes_chat.py` | `/chat_stream`、Gemini／OpenAI Batch状態取得、トークン見積、停止、一時チャット heartbeat、タイトル生成 | 通常のテキストチャット送信、Batch状態更新 |
+| `routes_chat.py` | `/chat_stream`、Gemini／OpenAI／xAI Batch状態取得・一覧・停止・履歴削除、トークン見積、停止、一時チャット heartbeat、タイトル生成 | 通常のテキストチャット送信、Batch状態更新、Batch履歴管理 |
 | `routes_realtime.py` | Lyria / Realtime の HTTP+SSE、Gemini STS 保存、`robots.txt` | リアルタイム API の HTTP 面 |
 | `routes_files.py` | ファイル・サムネイル配信、Batch状態を含むスレッド一覧・作成・取得・削除 | ファイル URL、スレッド基本操作 |
 | `rich_paste_pdf.py` | スレッドPDFとリッチペーストPDFの組版・サニタイズ・テーマ処理 | PDF出力、リッチペースト印刷 |

@@ -30,7 +30,7 @@
 | `composer_popups.html` | ミニマルモードのポップアップ、思考量スライダー | ミニマルモード、思考量 |
 | `overlay_upload.html` | ドロップオーバーレイ、アップロードモーダル、カメラ | アップロード、カメラ |
 | `overlay_voice.html` | Lyria スタジオ、Voice スタジオ、マーカー編集 | 音声スタジオ、画像マーカー |
-| `overlay_thread.html` | 履歴モーダル、スレッド設定、圧縮設定 | 履歴、スレッド設定、画像圧縮 |
+| `overlay_thread.html` | 履歴モーダル、スレッド設定、圧縮設定、Batch処理一覧モーダル | 履歴、スレッド設定、画像圧縮、Batch処理の確認・停止・削除 |
 | `overlay_model_gem.html` | モデル選択モーダル、Gem 作成/編集 | モデル一覧、Gem |
 | `overlay_settings.html` | 設定モーダル（タブ、2FA、MCP 設定を含む） | 設定画面、MCP タブ、2FA タブ |
 | `overlay_dialogs.html` | MCP 変更確認、Gemini ローカル Python、インポート確認 | 確認ダイアログ |

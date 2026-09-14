@@ -31,6 +31,6 @@
 | `part13_canvas_coding_stream.js` | ~1,490 | Canvasプレビュー生成、Codingモード、ストリーム描画（ペンディング・Batch状態表示）、スラッシュコマンドパレット、Gem候補（`@`）、Python実行モーダル |
 | `part14_send_message_browser_fast.js` | ~1,660 | 送信処理 `sendMessage`、ブラウザ直接送信・高速モード・Gemini Batch送信、プル更新、Xリンク自動検索、`/settings`（AI設定アシスタント）、引用・返信 |
 | `part15_slash_tempchat_threads.js` | ~1,350 | 一時チャット（ハートビート・タイムアウト）、Gemini Batch状態ポーリング・完了通知、スレッド設定モーダル、圧縮設定モーダル、PDFエクスポート、Gem適用、ブランチ集計 |
-| `part16_gems_branch_debug.js` | ~670 | ファイルライブラリ操作、ブランチ管理UI、メッセージコピー、規約・Alpha案内モーダル、Thinking表示切替、クライアントデバッグログ |
+| `part16_gems_branch_debug.js` | ~980 | ファイルライブラリ操作、ブランチ管理UI、Batch処理一覧モーダル（取得・停止・履歴削除・チャットを開く）、メッセージコピー、規約・Alpha案内モーダル、Thinking表示切替、クライアントデバッグログ |
 
 > 注: `part07`〜`part10` は `document.addEventListener('DOMContentLoaded', () => { ... })` という1つの大きな初期化コールバックを4分割したものです。各部品は文の切れ目で区切られていますが、単体では不完全なJSになります（連結すると完全一致します）。境界の前後を調べるときは `part07`〜`part10` をまとめて参照してください。

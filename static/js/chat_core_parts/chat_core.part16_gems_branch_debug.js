@@ -661,6 +661,189 @@
             setTimeout(() => { renderBranchTreeVisualization(); updateBranchDetailPane(); }, 500);
         };
 
+        // ---- Batch processing management -------------------------------
+        // The history list is never trimmed automatically; finished rows stay
+        // until the user deletes them from this modal.
+        let batchJobsCache = [];
+        let batchFilterMode = 'all';
+        let batchListTimer = null;
+
+        function batchProviderLabel(provider) {
+            return { gemini: 'Gemini', openai: 'OpenAI', xai: 'xAI' }[String(provider || '').toLowerCase()]
+                || (provider || 'Batch');
+        }
+
+        function batchStateLabelShort(state) {
+            return {
+                JOB_STATE_QUEUED: '送信待ち',
+                JOB_STATE_VALIDATING: '検証中',
+                JOB_STATE_PENDING: '待機中',
+                JOB_STATE_RUNNING: '実行中',
+                JOB_STATE_FINALIZING: '結果取得中',
+                JOB_STATE_SUCCEEDED: '完了',
+                JOB_STATE_FAILED: '失敗',
+                JOB_STATE_CANCELLING: '停止中',
+                JOB_STATE_CANCELLED: '停止',
+                JOB_STATE_EXPIRED: '期限切れ'
+            }[String(state || '').toUpperCase()] || '確認中';
+        }
+
+        function batchStateTone(state) {
+            const s = String(state || '').toUpperCase();
+            if (s === 'JOB_STATE_SUCCEEDED') return 'border-emerald-500/40 bg-emerald-900/20 text-emerald-200';
+            if (s === 'JOB_STATE_FAILED') return 'border-red-500/40 bg-red-900/20 text-red-200';
+            if (s === 'JOB_STATE_CANCELLED' || s === 'JOB_STATE_EXPIRED') return 'border-gray-500/40 bg-gray-700/30 text-gray-300';
+            if (s === 'JOB_STATE_CANCELLING') return 'border-amber-500/40 bg-amber-900/20 text-amber-200';
+            return 'border-violet-500/40 bg-violet-900/20 text-violet-200';
+        }
+
+        function batchFormatTime(value) {
+            if (!value) return '';
+            let raw = String(value);
+            if (!/[zZ]$/.test(raw) && !/[+-]\d\d:?\d\d$/.test(raw)) raw += 'Z';
+            const date = new Date(raw);
+            if (isNaN(date.getTime())) return String(value);
+            return date.toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function renderBatchJobs() {
+            const list = get('batch-list');
+            if (!list) return;
+            const jobs = batchJobsCache.filter((job) => {
+                if (batchFilterMode === 'active') return !!job.is_active;
+                if (batchFilterMode === 'done') return !job.is_active;
+                return true;
+            });
+            const count = get('batch-count');
+            if (count) count.textContent = `${jobs.length}件`;
+            list.innerHTML = '';
+            if (!jobs.length) {
+                list.innerHTML = '<div class="text-center text-gray-500 text-sm py-10"><i class="fas fa-layer-group text-2xl mb-2 block opacity-40"></i>Batch処理の履歴はありません</div>';
+                return;
+            }
+            jobs.forEach((job) => {
+                const row = document.createElement('div');
+                row.className = 'rounded-lg border border-gray-700 bg-gray-900/60 p-3';
+                const title = escapeHtml(job.thread_title || '無題のチャット');
+                const provider = escapeHtml(batchProviderLabel(job.provider));
+                const model = escapeHtml(job.model || '');
+                const created = escapeHtml(batchFormatTime(job.created_at));
+                const status = escapeHtml(job.status_text || '');
+                const tone = batchStateTone(job.state);
+                const openButton = job.thread_exists
+                    ? '<button type="button" data-batch-open class="rounded border border-blue-500/50 bg-blue-900/30 px-2.5 py-1 text-[11px] font-bold text-blue-100 hover:bg-blue-800/40 transition"><i class="fas fa-comment-dots mr-1"></i>開く</button>'
+                    : '';
+                const cancelButton = job.can_cancel
+                    ? '<button type="button" data-batch-cancel class="rounded border border-amber-500/50 bg-amber-900/30 px-2.5 py-1 text-[11px] font-bold text-amber-100 hover:bg-amber-800/40 transition"><i class="fas fa-stop mr-1"></i>停止</button>'
+                    : '';
+                const deleteButton = !job.is_active
+                    ? '<button type="button" data-batch-delete class="rounded border border-red-500/40 bg-red-900/20 px-2.5 py-1 text-[11px] font-bold text-red-200 hover:bg-red-900/40 transition"><i class="fas fa-trash mr-1"></i>履歴から削除</button>'
+                    : '';
+                row.innerHTML = `
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <div class="text-sm font-bold text-gray-100 truncate" title="${title}">${title}</div>
+                            <div class="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-gray-400">
+                                <span class="inline-flex items-center gap-1"><i class="fas fa-layer-group"></i>${provider}</span>
+                                <span class="truncate max-w-[16rem]">${model}</span>
+                                <span><i class="fas fa-history mr-1"></i>${created}</span>
+                            </div>
+                        </div>
+                        <span class="shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${tone}">${escapeHtml(batchStateLabelShort(job.state))}</span>
+                    </div>
+                    <div class="mt-2 text-[11px] text-gray-300 break-words">${status}</div>
+                    ${job.error ? `<div class="mt-1 text-[10px] text-red-300/90 break-words">${escapeHtml(job.error)}</div>` : ''}
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        ${openButton}${cancelButton}${deleteButton}
+                    </div>`;
+                const openBtn = row.querySelector('[data-batch-open]');
+                if (openBtn) openBtn.onclick = () => {
+                    window.closeBatchModal();
+                    loadMessages(job.thread_id);
+                };
+                const cancelBtn = row.querySelector('[data-batch-cancel]');
+                if (cancelBtn) cancelBtn.onclick = () => cancelBatchJob(job);
+                const delBtn = row.querySelector('[data-batch-delete]');
+                if (delBtn) delBtn.onclick = () => deleteBatchJob(job);
+                list.appendChild(row);
+            });
+        }
+
+        async function loadBatchJobs(opts = {}) {
+            try {
+                const response = await apiFetch('/api/batch/jobs');
+                if (!response.ok) {
+                    if (!opts.silent) showToast('Batch処理の履歴を取得できませんでした', 'error');
+                    return;
+                }
+                const data = await response.json().catch(() => ({}));
+                batchJobsCache = Array.isArray(data.jobs) ? data.jobs : [];
+                renderBatchJobs();
+            } catch (error) {
+                if (!opts.silent) showToast('Batch処理の履歴を取得できませんでした', 'error');
+            }
+        }
+
+        async function cancelBatchJob(job) {
+            if (!confirm('このBatch処理を停止しますか？')) return;
+            const response = await apiFetch(`/api/batch/jobs/${encodeURIComponent(job.job_id)}/cancel`, { method: 'POST' });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                showToast(data.error || 'Batch処理を停止できませんでした', 'error', true);
+                return;
+            }
+            showToast('Batch処理を停止しました', 'success');
+            await loadBatchJobs({ silent: true });
+            if (String(job.thread_id) === String(currentThreadId)) {
+                await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
+            }
+        }
+
+        async function deleteBatchJob(job) {
+            if (!confirm('このBatch処理の履歴を削除しますか？')) return;
+            const response = await apiFetch(`/api/batch/jobs/${encodeURIComponent(job.job_id)}`, { method: 'DELETE' });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                showToast(data.error || 'Batch履歴を削除できませんでした', 'error', true);
+                return;
+            }
+            showToast('Batch履歴を削除しました', 'success');
+            await loadBatchJobs({ silent: true });
+        }
+
+        window.showBatchModal = () => {
+            showModal('batch-modal');
+            if (location.pathname !== '/batch') {
+                history.pushState({ modal: 'batch' }, '', '/batch');
+            }
+            loadBatchJobs();
+            if (batchListTimer) clearInterval(batchListTimer);
+            batchListTimer = setInterval(() => {
+                const modal = get('batch-modal');
+                if (!modal || modal.classList.contains('hidden')) return;
+                loadBatchJobs({ silent: true });
+            }, 5000);
+        };
+        window.closeBatchModal = (skipHistory = false) => {
+            hideModal('batch-modal');
+            if (batchListTimer) { clearInterval(batchListTimer); batchListTimer = null; }
+            if (!skipHistory && location.pathname === '/batch') {
+                history.back();
+            }
+        };
+
+        if (get('batch-manage-btn')) get('batch-manage-btn').onclick = () => window.showBatchModal();
+        if (get('batch-refresh-btn')) get('batch-refresh-btn').onclick = () => loadBatchJobs();
+        document.querySelectorAll('.batch-filter-tab').forEach((tab) => {
+            tab.onclick = () => {
+                batchFilterMode = tab.dataset.batchFilter || 'all';
+                document.querySelectorAll('.batch-filter-tab').forEach((other) => {
+                    other.classList.toggle('is-active', other === tab);
+                });
+                renderBatchJobs();
+            };
+        });
+
         const showApiKeyRequiredModalAsync = (modelId) => new Promise((resolve) => {
             const modelName = getModelNameById(modelId);
             const info = getModelProviderInfo(modelId);

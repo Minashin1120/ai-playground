@@ -20,6 +20,7 @@ def index():
 @app.route('/library')
 @app.route('/history')
 @app.route('/branch')
+@app.route('/batch')
 @app.route('/paste')
 @app.route('/camera')
 @app.route('/edit-image')

@@ -1518,6 +1518,7 @@
                 '/library': { id: 'lib-modal', open: () => { setLibAttachMode(false); showModal('lib-modal'); loadLibraryFiles(); } },
                 '/history': { id: 'history-modal', open: () => window.showHistoryModal() },
                 '/branch': { id: 'branch-modal', open: () => window.showBranchModal() },
+                '/batch': { id: 'batch-modal', open: () => window.showBatchModal() },
                 '/paste': { id: 'rich-paste-modal', open: () => openRichPasteModal() },
                 '/camera': { id: 'camera-capture-modal', open: () => openCameraCaptureModal() },
                 '/edit-image': { id: 'marker-modal', open: () => { /* Marker modal usually needs context */ } },
@@ -1539,6 +1540,7 @@
                     case 'history-modal': if (window.closeHistoryModal) window.closeHistoryModal(skipHistory); break;
                     case 'lib-modal': if (window.closeLibModal) window.closeLibModal(skipHistory); break;
                     case 'branch-modal': if (window.closeBranchModal) window.closeBranchModal(skipHistory); break;
+                    case 'batch-modal': if (window.closeBatchModal) window.closeBatchModal(skipHistory); break;
                     case 'rich-paste-modal': if (window.closeRichPasteModal) window.closeRichPasteModal(skipHistory); break;
                     case 'marker-modal': if (window.closeMarkerModal) window.closeMarkerModal(skipHistory); break;
                     case 'thread-modal': if (window.closeThreadModal) window.closeThreadModal(skipHistory); break;

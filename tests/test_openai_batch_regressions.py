@@ -37,7 +37,7 @@ class OpenAIBatchRegressionTests(unittest.TestCase):
         self.assertIn("if (m.startsWith('gpt-'))", part)
         self.assertIn("const supported = isBatchModelKey(model)", part)
         template = (APP_ROOT / "templates/chat/composer_controls.html").read_text(encoding="utf-8")
-        self.assertIn("Gemini／OpenAI Batch API", template)
+        self.assertIn("Gemini／OpenAI／xAI Batch API", template)
 
 
 if __name__ == "__main__":

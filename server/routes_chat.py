@@ -30,8 +30,21 @@ def _is_openai_batch_model(model_key):
         'image', 'audio', 'tts', 'transcribe', 'realtime', 'search',
     ))
 
+def _is_xai_batch_model(model_key):
+    """xAI text models that can be submitted through the xAI Batch API."""
+    model_l = str(model_key or '').strip().lower()
+    if model_key not in ALL_VALID_MODEL_IDS or not model_l.startswith('grok-'):
+        return False
+    return not any(marker in model_l for marker in (
+        'image', 'video', 'voice', 'audio', 'tts', 'realtime',
+    ))
+
 def _is_batch_model(model_key):
-    return _is_gemini_batch_model(model_key) or _is_openai_batch_model(model_key)
+    return (
+        _is_gemini_batch_model(model_key)
+        or _is_openai_batch_model(model_key)
+        or _is_xai_batch_model(model_key)
+    )
 
 def _openai_batch_state_label(raw_status):
     return {
@@ -474,7 +487,7 @@ def chat_stream():
     batch_mode = bool(data.get('batch_mode'))
     if batch_mode and not _is_batch_model(model_key):
         return jsonify({
-            'error': 'Batch APIは対応するGemini／OpenAIのテキストモデル（画像入力を含む）で利用できます。動画・音声・埋め込み・検索専用モデル等では利用できません。'
+            'error': 'Batch APIは対応するGemini／OpenAI／xAIのテキストモデル（画像入力を含む）で利用できます。動画・音声・埋め込み・検索専用モデル等では利用できません。'
         }), 400
     coding_mode = data.get('coding_mode') is True
     coding_target = data.get('coding_target')
@@ -1129,6 +1142,64 @@ def gemini_batch_status_api():
             detail = str(error_text or _batch_state_label(state))[:4000]
             _set_message_payload(message, f'**{_batch_state_label(state)}**\n\n{detail}')
 
+    def _terminal_xai_message(row, state, error_text=None, response_payload=None):
+        message = Message.query.filter_by(
+            id=row.assistant_message_id, thread_id=row.thread_id
+        ).first()
+        if not message:
+            return
+        if state == 'JOB_STATE_SUCCEEDED':
+            batch_result = _batch_field(response_payload, 'batch_result') or {}
+            response = _batch_field(batch_result, 'response') or {}
+            completion = (
+                _batch_field(response, 'chat_get_completion')
+                or _batch_field(response, 'responses')
+                or response
+            )
+            choices = _batch_field(completion, 'choices') or []
+            choice = choices[0] if choices else {}
+            answer = _batch_field(choice, 'message') or {}
+            content = _batch_field(answer, 'content')
+            if isinstance(content, list):
+                content = ''.join(
+                    str(_batch_field(part, 'text') or '')
+                    for part in content
+                    if isinstance(part, (dict, list)) or hasattr(part, 'text')
+                )
+            if not content:
+                content = _batch_field(completion, 'output_text')
+            if not content:
+                output_items = _batch_field(completion, 'output') or []
+                output_parts = []
+                for item in output_items:
+                    for part in (_batch_field(item, 'content') or []):
+                        part_text = _batch_field(part, 'text')
+                        if part_text:
+                            output_parts.append(str(part_text))
+                content = ''.join(output_parts)
+            thought = _batch_field(answer, 'reasoning_content')
+            usage = _batch_field(completion, 'usage') or {}
+            tokens_out = (
+                _batch_field(usage, 'completion_tokens', 'output_tokens')
+            )
+            tokens_thought = _batch_field(
+                _batch_field(usage, 'completion_tokens_details') or {},
+                'reasoning_tokens'
+            ) or 0
+            content = str(content or '').strip()
+            if not content:
+                content = 'Batch処理が完了しましたが、回答本文はありませんでした。'
+            _set_message_payload(
+                message,
+                content,
+                str(thought).strip() if thought else None,
+                tokens_out=tokens_out,
+                tokens_thought=tokens_thought,
+            )
+        else:
+            detail = str(error_text or _batch_state_label(state))[:4000]
+            _set_message_payload(message, f'**{_batch_state_label(state)}**\n\n{detail}')
+
     def _openai_batch_state(raw_status):
         return {
             'validating': 'JOB_STATE_VALIDATING',
@@ -1218,6 +1289,55 @@ def gemini_batch_status_api():
             raise RuntimeError(detail or f'Gemini Batch結果ファイル HTTP {result_response.status_code}')
         return _gemini_result_line(result_response.content.decode('utf-8', errors='replace'))
 
+    def _xai_batch_state(provider_payload):
+        """Map xAI's aggregate counters to the shared canonical states."""
+        state = _batch_field(provider_payload, 'state') or {}
+        def _count(name):
+            try:
+                return max(0, int(_batch_field(state, name) or 0))
+            except (TypeError, ValueError):
+                return 0
+        pending = _count('num_pending')
+        if pending > 0:
+            return 'JOB_STATE_RUNNING' if _count('num_success') or _count('num_error') else 'JOB_STATE_PENDING'
+        if _count('num_error'):
+            return 'JOB_STATE_FAILED'
+        if _count('num_cancelled') and not _count('num_success'):
+            return 'JOB_STATE_CANCELLED'
+        if _count('num_success'):
+            return 'JOB_STATE_SUCCEEDED'
+        if _batch_field(provider_payload, 'cancel_by_xai_message'):
+            return 'JOB_STATE_CANCELLED'
+        return 'JOB_STATE_PENDING'
+
+    def _xai_batch_result(api_key, batch_id, request_id):
+        """Find this chat's result, following xAI's pagination token."""
+        base_url = f"https://{_XAI_API_HOST}/v1/batches/{quote(str(batch_id), safe='')}/results"
+        pagination_token = None
+        for _ in range(1000):
+            params = {'limit': 100}
+            if pagination_token:
+                params['pagination_token'] = pagination_token
+            result_response = requests.get(
+                base_url,
+                headers={'Authorization': f'Bearer {str(api_key)}'},
+                params=params,
+                timeout=30,
+            )
+            payload = result_response.json() if result_response.content else {}
+            if not result_response.ok:
+                detail = _batch_field(payload, 'error') or payload
+                if isinstance(detail, dict):
+                    detail = _batch_field(detail, 'message') or detail
+                raise RuntimeError(detail or f'xAI Batch結果 HTTP {result_response.status_code}')
+            for result in _batch_field(payload, 'results') or []:
+                if str(_batch_field(result, 'batch_request_id') or '') == str(request_id):
+                    return result
+            pagination_token = _batch_field(payload, 'pagination_token')
+            if not pagination_token:
+                return None
+        raise RuntimeError('xAI Batch結果のページ数が上限を超えました')
+
     for row in rows:
         public_thread_id = getattr(getattr(row, 'thread', None), 'public_id', None) or str(row.thread_id)
         old_state = row.state
@@ -1244,7 +1364,49 @@ def gemini_batch_status_api():
             try:
                 provider = row.provider or get_model_api_provider(row.model)
                 resolved = _resolve_chat_model_auth(current_user, row.model)
-                if provider == 'openai':
+                if provider == 'xai':
+                    api_key = resolved.get('api_key')
+                    if not api_key:
+                        raise RuntimeError('xAI APIキーを確認してください')
+                    batch_url = f"https://{_XAI_API_HOST}/v1/batches/{quote(str(row.provider_job_name), safe='')}"
+                    provider_response = requests.get(
+                        batch_url,
+                        headers={'Authorization': f'Bearer {str(api_key)}'},
+                        timeout=30,
+                    )
+                    provider_payload = provider_response.json() if provider_response.content else {}
+                    if not provider_response.ok:
+                        detail = _batch_field(provider_payload, 'error') or provider_payload
+                        if isinstance(detail, dict):
+                            detail = _batch_field(detail, 'message') or detail
+                        raise RuntimeError(detail or f'xAI Batch API HTTP {provider_response.status_code}')
+                    state = _xai_batch_state(provider_payload)
+                    row.state = state
+                    row.status_text = _batch_state_label(state)
+                    if state in terminal_states:
+                        if state == 'JOB_STATE_SUCCEEDED':
+                            result_payload = _xai_batch_result(api_key, row.provider_job_name, row.job_id)
+                            if not result_payload:
+                                raise RuntimeError('xAI Batch APIから回答データが返されませんでした')
+                            result_error = _batch_field(_batch_field(result_payload, 'batch_result') or {}, 'error')
+                            if result_error:
+                                row.state = 'JOB_STATE_FAILED'
+                                row.error = str(result_error)
+                                row.status_text = _batch_state_label(row.state)
+                                row.completed_at = row.completed_at or datetime.utcnow()
+                                _terminal_xai_message(row, row.state, error_text=row.error)
+                            else:
+                                row.completed_at = row.completed_at or datetime.utcnow()
+                                _terminal_xai_message(row, state, response_payload=result_payload)
+                        else:
+                            row.completed_at = row.completed_at or datetime.utcnow()
+                            error_text = (
+                                _batch_field(provider_payload, 'cancel_by_xai_message')
+                                or _batch_field(provider_payload, 'error')
+                                or row.status_text
+                            )
+                            _terminal_xai_message(row, state, error_text=error_text)
+                elif provider == 'openai':
                     api_key = resolved.get('api_key')
                     if not api_key:
                         raise RuntimeError('OpenAI APIキーを確認してください')

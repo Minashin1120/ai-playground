@@ -954,6 +954,71 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             pub('done', 'BATCH_ACCEPTED')
             return True
 
+        def _submit_xai_batch(api_key, request_kwargs):
+            """Create an xAI Batch and add one Responses API request inline."""
+            row = GeminiBatchJob.query.filter_by(job_id=job_id, user_id=user_id).first()
+            if not row:
+                raise RuntimeError('xAI Batchジョブの記録が見つかりません')
+            if not api_key:
+                raise RuntimeError('xAI APIキーを確認してください')
+            row.state = 'JOB_STATE_QUEUED'
+            row.status_text = 'Batch APIへ送信する準備中です'
+            safe_db_commit()
+
+            request_body = dict(request_kwargs or {})
+            request_body.pop('stream', None)
+            request_body.pop('store', None)
+            batch_request = {
+                'batch_request_id': job_id,
+                'batch_request': {'responses': request_body},
+            }
+            request_size = len(json.dumps(batch_request, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
+            if request_size > 25 * 1024 * 1024:
+                raise ValueError('xAI Batch APIの1リクエスト上限（25MB）を超えています')
+            headers = {
+                'Authorization': f'Bearer {str(api_key)}',
+                'Content-Type': 'application/json',
+            }
+            base_url = f'https://{_XAI_API_HOST}/v1/batches'
+            create_response = requests.post(
+                base_url,
+                headers=headers,
+                json={'name': f'ai-chat-{job_id[-24:]}'},
+                timeout=60,
+            )
+            create_payload = create_response.json() if create_response.content else {}
+            if not create_response.ok:
+                detail = _batch_field(create_payload, 'error') or create_payload
+                if isinstance(detail, dict):
+                    detail = _batch_field(detail, 'message') or detail
+                raise RuntimeError(detail or f'xAI Batch API HTTP {create_response.status_code}')
+            provider_batch_id = _batch_field(create_payload, 'batch_id')
+            if not provider_batch_id:
+                raise RuntimeError('xAI Batch APIからバッチIDが返されませんでした')
+
+            add_response = requests.post(
+                f'{base_url}/{quote(str(provider_batch_id), safe="")}/requests',
+                headers=headers,
+                json={'batch_requests': [batch_request]},
+                timeout=60,
+            )
+            add_payload = add_response.json() if add_response.content else {}
+            if not add_response.ok:
+                detail = _batch_field(add_payload, 'error') or add_payload
+                if isinstance(detail, dict):
+                    detail = _batch_field(detail, 'message') or detail
+                raise RuntimeError(detail or f'xAI Batchリクエスト HTTP {add_response.status_code}')
+
+            row.provider = 'xai'
+            row.provider_job_name = str(provider_batch_id)
+            row.state = 'JOB_STATE_PENDING'
+            row.status_text = _batch_state_label(row.state)
+            db.session.add(row)
+            safe_db_commit()
+            pub('status', row.status_text)
+            pub('done', 'BATCH_ACCEPTED')
+            return True
+
         def _persist_batch_failure(error_text):
             row = GeminiBatchJob.query.filter_by(job_id=job_id, user_id=user_id).first()
             if row:
@@ -4683,7 +4748,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     pub("error", f"Claude Error: {str(e)}")
 
             # --- 2. xAI Grok (Native SDK) ---
-            elif is_grok and x_client and not options.get('enable_python') and _ensure_mcp_env() is None:
+            elif is_grok and x_client and not batch_mode and not options.get('enable_python') and _ensure_mcp_env() is None:
                 log_force("Routing: Grok Branch (Native SDK)")
                 if options.get('enable_thinking') and not grok_reasoning_supported:
                     # Grok non-reasoning models should not emit thought events (avoids UI thought box).
@@ -6176,6 +6241,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     log_force(f"Reasoning config: {kwargs['reasoning']}")
 
                 log_force(f"Responses API Params: {kwargs.keys()}")
+                if batch_mode and is_xai_batch_model(model_key):
+                    _mark_provider_request_started()
+                    try:
+                        _submit_xai_batch(api_keys.get('xai') or key, kwargs)
+                    except Exception as batch_error:
+                        logger.exception('xAI Batch submission failed')
+                        _persist_batch_failure(str(batch_error))
+                    return
                 if batch_mode and is_openai_batch_model:
                     _mark_provider_request_started()
                     try:

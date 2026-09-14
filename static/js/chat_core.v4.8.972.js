@@ -23965,7 +23965,16 @@
             return date.toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
         }
 
-        function renderBatchJobs() {
+        function playBatchListAnimation() {
+            const list = get('batch-list');
+            if (!list) return;
+            list.classList.remove('batch-list-enter');
+            // Restart the CSS animation on every filter switch.
+            void list.offsetWidth;
+            list.classList.add('batch-list-enter');
+        }
+
+        function renderBatchJobs(options = {}) {
             const list = get('batch-list');
             if (!list) return;
             const jobs = batchJobsCache.filter((job) => {
@@ -23978,6 +23987,7 @@
             list.innerHTML = '';
             if (!jobs.length) {
                 list.innerHTML = '<div class="batch-empty"><i class="fas fa-layer-group"></i><span>Batch処理の履歴はありません</span></div>';
+                if (options.animate) playBatchListAnimation();
                 return;
             }
             jobs.forEach((job) => {
@@ -24026,6 +24036,7 @@
                 if (delBtn) delBtn.onclick = () => deleteBatchJob(job);
                 list.appendChild(row);
             });
+            if (options.animate) playBatchListAnimation();
         }
 
         async function loadBatchJobs(opts = {}) {
@@ -24099,7 +24110,7 @@
                 document.querySelectorAll('.batch-filter-tab').forEach((other) => {
                     other.classList.toggle('is-active', other === tab);
                 });
-                renderBatchJobs();
+                renderBatchJobs({ animate: true });
             };
         });
 

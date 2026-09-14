@@ -132,13 +132,25 @@
             <h3 class="settings-card-title">表示スタイル</h3>
             <div class="flex items-center justify-between gap-4">
                 <div>
-                    <div class="text-xs font-bold text-white flex items-center gap-2"><i class="fas fa-droplet text-cyan-300"></i>Liquid Glassモード</div>
-                    <div class="text-[10px] text-gray-500 mt-1">操作・ナビゲーション層を、光の屈折や反射を感じるApple風の素材表現に切り替えます。</div>
+                    <div class="text-xs font-bold text-white flex items-center gap-2"><i class="fas fa-sun text-amber-300"></i>ライトモード</div>
+                    <div class="text-[10px] text-gray-500 mt-1">OSの配色設定に関係なく、明るい配色を使用します。</div>
                 </div>
                 <label class="relative inline-flex items-center cursor-pointer shrink-0">
-                    <input type="checkbox" id="set-liquid-glass" class="sr-only peer">
+                    <input type="checkbox" id="set-light-mode" class="sr-only peer">
                     <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--theme-600)]"></div>
                 </label>
+            </div>
+            <div class="border-t border-gray-700 mt-4 pt-4">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                    <div class="text-xs font-bold text-white flex items-center gap-2"><i class="fas fa-droplet text-cyan-300"></i>Liquid Glassモード</div>
+                    <div class="text-[10px] text-gray-500 mt-1">操作・ナビゲーション層を、光の屈折や反射を感じるApple風の素材表現に切り替えます。</div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" id="set-liquid-glass" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--theme-600)]"></div>
+                    </label>
+                </div>
             </div>
             <div class="border-t border-gray-700 mt-4 pt-4">
                 <label for="set-background-blur-mode" class="text-xs font-bold text-white block mb-2">通常表示の背景ぼかし</label>
@@ -149,6 +161,7 @@
                     <option value="lite">常に軽量（最小負荷）</option>
                 </select>
                 <div id="background-blur-mode-status" class="text-[10px] text-gray-500 mt-2">現在の状態を確認しています。</div>
+            </div>
             </div>
         </div>
 </div>

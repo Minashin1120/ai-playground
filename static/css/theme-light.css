@@ -2,8 +2,8 @@
  * AI Playground — light (white) theme
  * ---------------------------------------------------------------------------
  * Loaded after every other stylesheet on every page. Dark remains the default;
- * these rules only activate when the OS requests a light color scheme, so there
- * is no manual toggle and no stored preference.
+ * these rules activate when the OS requests a light color scheme.
+ * Account-level manual light mode uses the companion theme-light-manual.css.
  *
  * Keep the neutral-utility selectors in sync with the Tailwind palette used in
  * the templates (gray/slate/white surfaces and text). Accent (theme) colors and

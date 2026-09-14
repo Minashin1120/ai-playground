@@ -638,6 +638,7 @@
                 if(get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;
                 if(get('set-clear-cache-on-version-update')) get('set-clear-cache-on-version-update').checked = !!d.clear_cache_on_version_update;
             if(get('set-liquid-glass')) get('set-liquid-glass').checked = !!d.liquid_glass_enabled;
+            if(get('set-light-mode')) get('set-light-mode').checked = !!d.light_mode_enabled;
             if(get('set-auto-search-links')) get('set-auto-search-links').checked = d.auto_search_on_links !== false;
             if(get('set-use-last-settings')) get('set-use-last-settings').checked = !!d.use_last_chat_settings;
             if(get('set-default-model')) get('set-default-model').value = d.default_model || 'gemini-3.6-flash';
@@ -934,6 +935,7 @@
                     apply_auto_system_prompt_notices: get('set-apply-auto-sys-prompt-notices') ? get('set-apply-auto-sys-prompt-notices').checked : true,
                     auto_system_prompt_notices_config: collectAutoSystemPromptConfigFromForm('set'),
                     theme_color: normalizeHex(get('set-theme-color-text') ? get('set-theme-color-text').value : '') || THEME_DEFAULT,
+                    light_mode_enabled: get('set-light-mode') ? get('set-light-mode').checked : false,
                     mic_transcribe_mode: get('set-mic-transcribe-mode') ? get('set-mic-transcribe-mode').value : 'stt_api',
                     stt_model: get('set-stt-model') ? get('set-stt-model').value : null,
                     llm_transcribe_prompt: get('set-llm-transcribe-prompt') ? get('set-llm-transcribe-prompt').value : '',
@@ -1031,6 +1033,7 @@
                     // Apply theme color
                     applyThemeColor(b.theme_color, true);
                     syncThemeInputs(b.theme_color);
+                    applyLightMode(b.light_mode_enabled);
                     applyLiquidGlassMode(b.liquid_glass_enabled);
                     applyAdaptiveBlurPreference(get('set-background-blur-mode') ? get('set-background-blur-mode').value : adaptiveBlurPreferenceMode);
 

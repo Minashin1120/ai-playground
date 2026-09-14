@@ -2,6 +2,7 @@
         window.CHAT_CONFIG = {
             initialThemeColor: {{ initial_theme_color|tojson }},
             initialLiquidGlassEnabled: {{ initial_liquid_glass_enabled|tojson }},
+            initialLightModeEnabled: {{ initial_light_mode_enabled|tojson }},
             initialThreadId: {{ initial_thread_id|default(none)|tojson }},
             attachmentMaxFiles: Number({{ attachment_max_files|default(30)|tojson }}) || 30,
             uploadConcurrency: Math.max(1, Number({{ upload_concurrency|default(3)|tojson }}) || 3),
@@ -17,6 +18,7 @@
             currentUsername: {{ current_user.username|tojson if current_user.is_authenticated else 'null' }},
             enableE2EE: {{ current_user.enable_e2ee|tojson if current_user.is_authenticated else 'false' }},
             urls: {
+                manualLightTheme: "{{ url_for('static', filename='css/theme-light-manual.css') }}?v={{ app_version }}",
                 handleSettingsQuery: "{{ url_for('handle_settings', _=1) }}",
                 handleSettings: "{{ url_for('handle_settings') }}",
                 estimatePromptTokensApi: "{{ url_for('estimate_prompt_tokens_api') }}",

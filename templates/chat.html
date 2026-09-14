@@ -95,6 +95,9 @@
         }
     </style>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-light.css') }}?v={{ app_version }}">
+    {% if initial_light_mode_enabled %}
+    <link rel="stylesheet" id="manual-theme-light-css" href="{{ url_for('static', filename='css/theme-light-manual.css') }}?v={{ app_version }}">
+    {% endif %}
 </head>
 <body class="h-[100dvh] flex overflow-hidden text-sm md:text-base{% if initial_liquid_glass_enabled %} liquid-glass-mode{% endif %}{% if current_user.is_authenticated and current_user.minimal_prompt_mode %} minimal-prompt-mode{% endif %}">
     {% include 'chat/chrome.html' %}

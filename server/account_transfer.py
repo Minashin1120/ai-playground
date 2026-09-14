@@ -12,7 +12,7 @@ ACCOUNT_SETTING_FIELDS = (
     "apply_auto_system_prompt_notices", "auto_system_prompt_notices_config",
     "gemini_backend", "gemini_vertex_location", "mic_transcribe_mode", "stt_model",
     "llm_transcribe_prompt", "enter_to_send", "use_sw_cache", "clear_cache_on_version_update",
-    "theme_color", "liquid_glass_enabled", "auto_search_on_links", "compact_prompt_mode",
+    "theme_color", "liquid_glass_enabled", "light_mode_enabled", "auto_search_on_links", "compact_prompt_mode",
     "minimal_prompt_mode",
     "use_last_chat_settings", "voice_studio_ui", "temp_chat_timeout_seconds", "default_model",
     "default_enable_search", "default_enable_url_context", "default_enable_maps",
@@ -33,7 +33,7 @@ ACCOUNT_SECRET_FIELDS = (
 )
 ACCOUNT_BOOL_SETTING_FIELDS = frozenset({
     "system_prompt_enabled", "apply_global_system_prompt", "apply_auto_system_prompt_notices",
-    "enter_to_send", "use_sw_cache", "clear_cache_on_version_update", "liquid_glass_enabled",
+    "enter_to_send", "use_sw_cache", "clear_cache_on_version_update", "liquid_glass_enabled", "light_mode_enabled",
     "auto_search_on_links", "compact_prompt_mode", "minimal_prompt_mode", "use_last_chat_settings",
     "voice_studio_ui",
     "default_enable_search", "default_enable_url_context", "default_enable_maps",
@@ -1002,4 +1002,3 @@ _LATENCY_PHASE_TO_FIELD = {
     "stream_done_ms": "stream_done_at",
     "worker_done_ms": "worker_done_at",
 }
-

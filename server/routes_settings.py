@@ -68,6 +68,7 @@ def handle_settings():
             'clear_cache_on_version_update': current_user.clear_cache_on_version_update if current_user.clear_cache_on_version_update is not None else False,
             'theme_color': current_user.theme_color or "",
             'liquid_glass_enabled': bool(getattr(current_user, 'liquid_glass_enabled', False)),
+            'light_mode_enabled': bool(getattr(current_user, 'light_mode_enabled', False)),
             'auto_search_on_links': current_user.auto_search_on_links,
             'compact_prompt_mode': current_user.compact_prompt_mode if current_user.compact_prompt_mode is not None else False,
             'minimal_prompt_mode': current_user.minimal_prompt_mode if getattr(current_user, 'minimal_prompt_mode', None) is not None else False,
@@ -198,6 +199,7 @@ def handle_settings():
         current_user.compact_prompt_mode = False
     if 'theme_color' in d: current_user.theme_color = normalize_theme_color(d.get('theme_color'))
     if 'liquid_glass_enabled' in d: current_user.liquid_glass_enabled = bool(d['liquid_glass_enabled'])
+    if 'light_mode_enabled' in d: current_user.light_mode_enabled = bool(d['light_mode_enabled'])
     if 'auto_search_on_links' in d: current_user.auto_search_on_links = bool(d['auto_search_on_links'])
     if 'use_last_chat_settings' in d: current_user.use_last_chat_settings = bool(d['use_last_chat_settings'])
     if 'voice_studio_ui' in d: current_user.voice_studio_ui = bool(d['voice_studio_ui'])
@@ -365,6 +367,7 @@ def _build_ai_settings_tool_schema():
         "temp_chat_timeout_seconds": {"type": "integer", "description": "一時チャットの切断タイムアウト秒数 (30-86400)"},
         "theme_color": {"type": "string", "description": "テーマカラー (HEX, 例: #10a37f)"},
         "liquid_glass_enabled": {"type": "boolean", "description": "Liquid Glass表示モードのON/OFF"},
+        "light_mode_enabled": {"type": "boolean", "description": "ライトモードのON/OFF"},
         "rich_paste_prompt_default": {"type": "string", "description": "リッチ貼り付け用カスタムプロンプト既定値"},
         "rich_paste_prompt_use_custom_default": {"type": "boolean", "description": "リッチ貼り付けでカスタムプロンプトを使用"},
         "enable_latency_metrics": {"type": "boolean", "description": "初回トークンレイテンシ計測を有効化"},
@@ -976,4 +979,3 @@ def toggle_maintenance():
         if os.path.exists(lock_file): os.remove(lock_file)
         app.config['MAINTENANCE_MODE'] = False
     return jsonify({'status': 'ok', 'mode': app.config['MAINTENANCE_MODE']})
-

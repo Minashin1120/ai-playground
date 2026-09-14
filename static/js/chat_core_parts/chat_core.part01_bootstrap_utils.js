@@ -497,6 +497,7 @@
         const THEME_DEFAULT = '#0dd4bf';
         const THEME_STORAGE_KEY = 'theme_color';
         const INITIAL_THEME_COLOR = (window.CHAT_CONFIG && window.CHAT_CONFIG.initialThemeColor) || null;
+        const INITIAL_LIGHT_MODE_ENABLED = !!(window.CHAT_CONFIG && window.CHAT_CONFIG.initialLightModeEnabled);
         const INITIAL_LIQUID_GLASS_ENABLED = !!(window.CHAT_CONFIG && window.CHAT_CONFIG.initialLiquidGlassEnabled);
         const RICH_PASTE_DEFAULT_PROMPT = 'このPDFをMarkdown形式に変換し、コードブロックに書き出してください。';
         const GEMINI_LOCAL_PY_DIALOG_KEY = 'gemini_local_py_dialog_enabled';
@@ -760,6 +761,21 @@
             });
             if (persist) localStorage.setItem(THEME_STORAGE_KEY, hex);
         };
+        const applyLightMode = (enabled) => {
+            const shouldEnable = !!enabled;
+            let link = get('manual-theme-light-css');
+            if (shouldEnable && !link) {
+                const href = window.CHAT_CONFIG && window.CHAT_CONFIG.urls && window.CHAT_CONFIG.urls.manualLightTheme;
+                if (!href) return;
+                link = document.createElement('link');
+                link.id = 'manual-theme-light-css';
+                link.rel = 'stylesheet';
+                link.href = href;
+                document.head.appendChild(link);
+            } else if (!shouldEnable && link) {
+                link.remove();
+            }
+        };
         const syncThemeInputs = (value) => {
             const hex = normalizeHex(value) || THEME_DEFAULT;
             const colorInput = get('set-theme-color');
@@ -773,6 +789,7 @@
             });
         };
         const initThemeFromServer = () => {
+            if (INITIAL_LIGHT_MODE_ENABLED) applyLightMode(true);
             const serverTheme = normalizeHex(INITIAL_THEME_COLOR);
             if (serverTheme) {
                 applyThemeColor(serverTheme, false);

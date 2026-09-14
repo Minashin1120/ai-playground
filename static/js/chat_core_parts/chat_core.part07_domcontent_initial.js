@@ -1321,7 +1321,7 @@
                 mic_transcribe_mode: 'マイク文字起こし方式', stt_model: 'STTモデル', llm_transcribe_prompt: 'LLM文字起こしプロンプト',
                 enter_to_send: 'Enterキーで送信', use_sw_cache: 'Service Workerキャッシュ',
                 clear_cache_on_version_update: 'バージョン更新時キャッシュ削除', theme_color: 'テーマカラー',
-                liquid_glass_enabled: 'Liquid Glass', auto_search_on_links: 'リンクで自動検索',
+                liquid_glass_enabled: 'Liquid Glass', light_mode_enabled: 'ライトモード', auto_search_on_links: 'リンクで自動検索',
                 compact_prompt_mode: 'プロンプトバー表示（コンパクト）', minimal_prompt_mode: 'プロンプトバー表示（ミニマル）',
                 use_last_chat_settings: '直前のチャット設定を使用', voice_studio_ui: '音声スタジオUI',
                 temp_chat_timeout_seconds: '一時チャットの有効時間（秒）', default_model: '既定のモデル',

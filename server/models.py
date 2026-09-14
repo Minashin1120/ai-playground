@@ -35,6 +35,7 @@ class User(UserMixin, db.Model):
     clear_cache_on_version_update = db.Column(db.Boolean, default=False)
     theme_color = db.Column(db.String(16), default="")
     liquid_glass_enabled = db.Column(db.Boolean, default=False)
+    light_mode_enabled = db.Column(db.Boolean, default=False)
     auto_search_on_links = db.Column(db.Boolean, default=True)
     compact_prompt_mode = db.Column(db.Boolean, default=False)
     minimal_prompt_mode = db.Column(db.Boolean, default=False)

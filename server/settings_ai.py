@@ -17,7 +17,7 @@ AI_SAFE_EDITABLE_FIELDS = {
     'mic_transcribe_mode', 'stt_model', 'llm_transcribe_prompt',
     # UI / behavior prefs (safe)
     'enter_to_send', 'use_sw_cache', 'compact_prompt_mode', 'minimal_prompt_mode', 'auto_search_on_links',
-    'use_last_chat_settings', 'voice_studio_ui', 'temp_chat_timeout_seconds', 'theme_color', 'liquid_glass_enabled',
+    'use_last_chat_settings', 'voice_studio_ui', 'temp_chat_timeout_seconds', 'theme_color', 'liquid_glass_enabled', 'light_mode_enabled',
     # Rich paste custom prompt
     'rich_paste_prompt_default', 'rich_paste_prompt_use_custom_default',
     # Debug / metrics (user opt-in)
@@ -69,6 +69,7 @@ def _get_ai_safe_settings_snapshot(user):
         'rich_paste_prompt_use_custom_default': bool(getattr(user, 'rich_paste_prompt_use_custom_default', False)),
         'theme_color': getattr(user, 'theme_color', None) or '',
         'liquid_glass_enabled': bool(getattr(user, 'liquid_glass_enabled', False)),
+        'light_mode_enabled': bool(getattr(user, 'light_mode_enabled', False)),
         'compact_prompt_mode': bool(getattr(user, 'compact_prompt_mode', False)),
         'minimal_prompt_mode': bool(getattr(user, 'minimal_prompt_mode', False)),
         'voice_studio_ui': bool(getattr(user, 'voice_studio_ui', True)),
@@ -160,6 +161,9 @@ def _apply_ai_settings_update(current_user, delta):
             elif key == 'liquid_glass_enabled':
                 current_user.liquid_glass_enabled = bool(val)
                 applied[key] = current_user.liquid_glass_enabled
+            elif key == 'light_mode_enabled':
+                current_user.light_mode_enabled = bool(val)
+                applied[key] = current_user.light_mode_enabled
             elif key == 'auto_search_on_links':
                 current_user.auto_search_on_links = bool(val)
                 applied[key] = current_user.auto_search_on_links
@@ -659,4 +663,3 @@ async def _xai_sts_realtime(pcm_bytes, api_key, model_key="grok-voice-agent", vo
             elif mtype in ("response.output_audio.done", "response.done"):
                 break
     return bytes(audio_out), transcript_out
-

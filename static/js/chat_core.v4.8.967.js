@@ -497,6 +497,7 @@
         const THEME_DEFAULT = '#0dd4bf';
         const THEME_STORAGE_KEY = 'theme_color';
         const INITIAL_THEME_COLOR = (window.CHAT_CONFIG && window.CHAT_CONFIG.initialThemeColor) || null;
+        const INITIAL_LIGHT_MODE_ENABLED = !!(window.CHAT_CONFIG && window.CHAT_CONFIG.initialLightModeEnabled);
         const INITIAL_LIQUID_GLASS_ENABLED = !!(window.CHAT_CONFIG && window.CHAT_CONFIG.initialLiquidGlassEnabled);
         const RICH_PASTE_DEFAULT_PROMPT = 'このPDFをMarkdown形式に変換し、コードブロックに書き出してください。';
         const GEMINI_LOCAL_PY_DIALOG_KEY = 'gemini_local_py_dialog_enabled';
@@ -760,6 +761,21 @@
             });
             if (persist) localStorage.setItem(THEME_STORAGE_KEY, hex);
         };
+        const applyLightMode = (enabled) => {
+            const shouldEnable = !!enabled;
+            let link = get('manual-theme-light-css');
+            if (shouldEnable && !link) {
+                const href = window.CHAT_CONFIG && window.CHAT_CONFIG.urls && window.CHAT_CONFIG.urls.manualLightTheme;
+                if (!href) return;
+                link = document.createElement('link');
+                link.id = 'manual-theme-light-css';
+                link.rel = 'stylesheet';
+                link.href = href;
+                document.head.appendChild(link);
+            } else if (!shouldEnable && link) {
+                link.remove();
+            }
+        };
         const syncThemeInputs = (value) => {
             const hex = normalizeHex(value) || THEME_DEFAULT;
             const colorInput = get('set-theme-color');
@@ -773,6 +789,7 @@
             });
         };
         const initThemeFromServer = () => {
+            if (INITIAL_LIGHT_MODE_ENABLED) applyLightMode(true);
             const serverTheme = normalizeHex(INITIAL_THEME_COLOR);
             if (serverTheme) {
                 applyThemeColor(serverTheme, false);
@@ -10595,7 +10612,7 @@
                 mic_transcribe_mode: 'マイク文字起こし方式', stt_model: 'STTモデル', llm_transcribe_prompt: 'LLM文字起こしプロンプト',
                 enter_to_send: 'Enterキーで送信', use_sw_cache: 'Service Workerキャッシュ',
                 clear_cache_on_version_update: 'バージョン更新時キャッシュ削除', theme_color: 'テーマカラー',
-                liquid_glass_enabled: 'Liquid Glass', auto_search_on_links: 'リンクで自動検索',
+                liquid_glass_enabled: 'Liquid Glass', light_mode_enabled: 'ライトモード', auto_search_on_links: 'リンクで自動検索',
                 compact_prompt_mode: 'プロンプトバー表示（コンパクト）', minimal_prompt_mode: 'プロンプトバー表示（ミニマル）',
                 use_last_chat_settings: '直前のチャット設定を使用', voice_studio_ui: '音声スタジオUI',
                 temp_chat_timeout_seconds: '一時チャットの有効時間（秒）', default_model: '既定のモデル',
@@ -11639,6 +11656,7 @@
                 if(get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;
                 if(get('set-clear-cache-on-version-update')) get('set-clear-cache-on-version-update').checked = !!d.clear_cache_on_version_update;
             if(get('set-liquid-glass')) get('set-liquid-glass').checked = !!d.liquid_glass_enabled;
+            if(get('set-light-mode')) get('set-light-mode').checked = !!d.light_mode_enabled;
             if(get('set-auto-search-links')) get('set-auto-search-links').checked = d.auto_search_on_links !== false;
             if(get('set-use-last-settings')) get('set-use-last-settings').checked = !!d.use_last_chat_settings;
             if(get('set-default-model')) get('set-default-model').value = d.default_model || 'gemini-3.6-flash';
@@ -11935,6 +11953,7 @@
                     apply_auto_system_prompt_notices: get('set-apply-auto-sys-prompt-notices') ? get('set-apply-auto-sys-prompt-notices').checked : true,
                     auto_system_prompt_notices_config: collectAutoSystemPromptConfigFromForm('set'),
                     theme_color: normalizeHex(get('set-theme-color-text') ? get('set-theme-color-text').value : '') || THEME_DEFAULT,
+                    light_mode_enabled: get('set-light-mode') ? get('set-light-mode').checked : false,
                     mic_transcribe_mode: get('set-mic-transcribe-mode') ? get('set-mic-transcribe-mode').value : 'stt_api',
                     stt_model: get('set-stt-model') ? get('set-stt-model').value : null,
                     llm_transcribe_prompt: get('set-llm-transcribe-prompt') ? get('set-llm-transcribe-prompt').value : '',
@@ -12032,6 +12051,7 @@
                     // Apply theme color
                     applyThemeColor(b.theme_color, true);
                     syncThemeInputs(b.theme_color);
+                    applyLightMode(b.light_mode_enabled);
                     applyLiquidGlassMode(b.liquid_glass_enabled);
                     applyAdaptiveBlurPreference(get('set-background-blur-mode') ? get('set-background-blur-mode').value : adaptiveBlurPreferenceMode);
 

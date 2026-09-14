@@ -3,6 +3,7 @@ def inject_csrf():
     is_admin = current_user.is_authenticated and bool(getattr(current_user, "is_admin", False))
     initial_theme_color = normalize_theme_color(getattr(current_user, 'theme_color', '')) if current_user.is_authenticated else ""
     initial_liquid_glass_enabled = bool(getattr(current_user, 'liquid_glass_enabled', False)) if current_user.is_authenticated else False
+    initial_light_mode_enabled = bool(getattr(current_user, 'light_mode_enabled', False)) if current_user.is_authenticated else False
     return {
         'csrf_token': get_csrf_token(),
         'app_version': app.config.get('APP_VERSION'),
@@ -13,6 +14,7 @@ def inject_csrf():
         'initial_theme_color': initial_theme_color,
         'initial_theme_css': build_theme_css_vars(initial_theme_color),
         'initial_liquid_glass_enabled': initial_liquid_glass_enabled,
+        'initial_light_mode_enabled': initial_light_mode_enabled,
     }
 
 def validate_csrf():
@@ -68,7 +70,7 @@ def try_alter(sql):
         pass
 
 def ensure_user_liquid_glass_column():
-    """Ensure the login-critical Liquid Glass preference exists before any User query."""
+    """Ensure login-critical visual preferences exist before any User query."""
     table_names = set(inspect(db.engine).get_table_names())
     if 'user' not in table_names:
         return
@@ -83,6 +85,16 @@ def ensure_user_liquid_glass_column():
     verified_columns = {column['name'] for column in inspect(db.engine).get_columns('user')}
     if 'liquid_glass_enabled' not in verified_columns:
         raise RuntimeError("Required database column user.liquid_glass_enabled is missing")
+    if 'light_mode_enabled' not in verified_columns:
+        with db.engine.begin() as conn:
+            if db.engine.dialect.name in ('mysql', 'mariadb'):
+                conn.execute(text("SET SESSION lock_wait_timeout=5"))
+            conn.execute(text(
+                "ALTER TABLE user ADD COLUMN light_mode_enabled BOOLEAN DEFAULT 0"
+            ))
+    verified_columns = {column['name'] for column in inspect(db.engine).get_columns('user')}
+    if 'light_mode_enabled' not in verified_columns:
+        raise RuntimeError("Required database column user.light_mode_enabled is missing")
 
 def ensure_thread_last_model_column():
     try:

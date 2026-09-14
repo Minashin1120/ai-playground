@@ -252,21 +252,31 @@
     </div>
 
     <!-- Batch Jobs Modal -->
-    <div id="batch-modal" class="fixed inset-0 bg-gray-900/95 z-[100] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
-        <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[90vh] max-h-none modal-panel">
-            <div class="flex items-center justify-between border-b border-gray-700 pb-3 mb-3">
-                <h2 class="text-lg font-bold text-white flex items-center"><i class="fas fa-layer-group mr-2 text-violet-400"></i>Batch処理</h2>
-                <div class="flex items-center gap-2">
-                    <span id="batch-count" class="text-[11px] text-gray-400"></span>
-                    <button id="batch-refresh-btn" type="button" data-progress-no-spinner="true" class="text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition" title="最新の状態に更新"><i class="fas fa-rotate-right"></i></button>
-                    <button onclick="closeBatchModal()" type="button" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center" title="閉じる"><i class="fas fa-times"></i></button>
+    <div id="batch-modal" class="fixed inset-0 z-[100] hidden items-center justify-center modal-overlay batch-modal-root">
+        <div class="batch-modal-panel modal-panel">
+            <div class="batch-modal-header">
+                <div class="batch-title-wrap">
+                    <div class="batch-title-icon"><i class="fas fa-layer-group"></i></div>
+                    <div class="batch-title-text">
+                        <h2 class="batch-modal-title">Batch処理</h2>
+                        <p class="batch-modal-subtitle">実行中・完了したジョブを確認・管理</p>
+                    </div>
+                </div>
+                <div class="batch-header-actions">
+                    <span id="batch-count" class="batch-count"></span>
+                    <button id="batch-refresh-btn" type="button" data-progress-no-spinner="true" class="batch-icon-btn" title="最新の状態に更新" aria-label="最新の状態に更新"><i class="fas fa-rotate-right"></i></button>
+                    <button onclick="closeBatchModal()" type="button" class="batch-close-btn" title="閉じる" aria-label="閉じる"><i class="fas fa-times"></i></button>
                 </div>
             </div>
-            <div id="batch-filter-tabs" class="flex gap-1 mb-3 shrink-0">
-                <button type="button" data-batch-filter="all" class="batch-filter-tab is-active">すべて</button>
-                <button type="button" data-batch-filter="active" class="batch-filter-tab">実行中</button>
-                <button type="button" data-batch-filter="done" class="batch-filter-tab">終了</button>
+            <div class="batch-toolbar">
+                <div id="batch-filter-tabs" class="batch-filter-tabs">
+                    <button type="button" data-batch-filter="all" class="batch-filter-tab is-active">すべて</button>
+                    <button type="button" data-batch-filter="active" class="batch-filter-tab">実行中</button>
+                    <button type="button" data-batch-filter="done" class="batch-filter-tab">終了</button>
+                </div>
             </div>
-            <div id="batch-list" class="flex-1 overflow-y-auto space-y-2.5 min-h-0 pr-1"></div>
+            <div class="batch-content">
+                <div id="batch-list" class="batch-list"></div>
+            </div>
         </div>
     </div>

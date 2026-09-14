@@ -7672,37 +7672,34 @@ test(t)&&(t+="Z");const n=new Date(t);return isNaN(n.getTime())?String(e):n.toLo
 month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}a(batchFormatTime,"batchFormatTime");
 function renderBatchJobs(){const e=get("batch-list");if(!e)return;const t=batchJobsCache.filter(i=>batchFilterMode===
 "active"?!!i.is_active:batchFilterMode==="done"?!i.is_active:!0),n=get("batch-count");if(n&&(n.textContent=
-`${t.length}\u4EF6`),e.innerHTML="",!t.length){e.innerHTML='<div class="text-center text-gray-500 te\
-xt-sm py-10"><i class="fas fa-layer-group text-2xl mb-2 block opacity-40"></i>Batch\u51E6\u7406\u306E\u5C65\u6B74\u306F\u3042\u308A\u307E\u305B\u3093</div>';
-return}t.forEach(i=>{const s=document.createElement("div");s.className="rounded-lg border border-gra\
-y-700 bg-gray-900/60 p-3";const o=escapeHtml(i.thread_title||"\u7121\u984C\u306E\u30C1\u30E3\u30C3\u30C8"),
-r=escapeHtml(batchProviderLabel(i.provider)),l=escapeHtml(i.model||""),d=escapeHtml(batchFormatTime(
-i.created_at)),p=escapeHtml(i.status_text||""),h=batchStateTone(i.state),g=i.thread_exists?'<button \
-type="button" data-batch-open class="rounded border border-blue-500/50 bg-blue-900/30 px-2.5 py-1 te\
-xt-[11px] font-bold text-blue-100 hover:bg-blue-800/40 transition"><i class="fas fa-comment-dots mr-\
-1"></i>\u958B\u304F</button>':"",y=i.can_cancel?'<button type="button" data-batch-cancel class="roun\
-ded border border-amber-500/50 bg-amber-900/30 px-2.5 py-1 text-[11px] font-bold text-amber-100 hove\
-r:bg-amber-800/40 transition"><i class="fas fa-stop mr-1"></i>\u505C\u6B62</button>':"",b=i.is_active?
-"":'<button type="button" data-batch-delete class="rounded border border-red-500/40 bg-red-900/20 px\
--2.5 py-1 text-[11px] font-bold text-red-200 hover:bg-red-900/40 transition"><i class="fas fa-trash \
-mr-1"></i>\u5C65\u6B74\u304B\u3089\u524A\u9664</button>';s.innerHTML=`
+`${t.length}\u4EF6`),e.innerHTML="",!t.length){e.innerHTML='<div class="batch-empty"><i class="fas f\
+a-layer-group"></i><span>Batch\u51E6\u7406\u306E\u5C65\u6B74\u306F\u3042\u308A\u307E\u305B\u3093</span></div>';
+return}t.forEach(i=>{const s=document.createElement("div");s.className="batch-job-card";const o=escapeHtml(
+i.thread_title||"\u7121\u984C\u306E\u30C1\u30E3\u30C3\u30C8"),r=escapeHtml(batchProviderLabel(i.provider)),
+l=escapeHtml(i.model||""),d=escapeHtml(batchFormatTime(i.created_at)),p=escapeHtml(i.status_text||""),
+h=batchStateTone(i.state),g=i.thread_exists?'<button type="button" data-batch-open class="batch-acti\
+on-btn batch-action-open"><i class="fas fa-comment-dots"></i>\u958B\u304F</button>':"",y=i.can_cancel?
+'<button type="button" data-batch-cancel class="batch-action-btn batch-action-cancel"><i class="fas \
+fa-stop"></i>\u505C\u6B62</button>':"",b=i.is_active?"":'<button type="button" data-batch-delete cla\
+ss="batch-action-btn batch-action-danger"><i class="fas fa-trash"></i>\u5C65\u6B74\u304B\u3089\u524A\u9664</button>';
+s.innerHTML=`
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
-                            <div class="text-sm font-bold text-gray-100 truncate" title="${o}">${o}<\
-/div>
-                            <div class="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-gray\
--400">
+                            <div class="batch-job-title text-sm font-bold truncate" title="${o}">${o}\
+</div>
+                            <div class="batch-job-meta mt-1 flex flex-wrap items-center gap-2 text-[\
+10px]">
                                 <span class="inline-flex items-center gap-1"><i class="fas fa-layer-\
 group"></i>${r}</span>
                                 <span class="truncate max-w-[16rem]">${l}</span>
                                 <span><i class="fas fa-history mr-1"></i>${d}</span>
                             </div>
                         </div>
-                        <span class="shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${h}">${escapeHtml(
-batchStateLabelShort(i.state))}</span>
+                        <span class="batch-state-badge shrink-0 ${h}">${escapeHtml(batchStateLabelShort(
+i.state))}</span>
                     </div>
-                    <div class="mt-2 text-[11px] text-gray-300 break-words">${p}</div>
-                    ${i.error?`<div class="mt-1 text-[10px] text-red-300/90 break-words">${escapeHtml(
+                    <div class="batch-job-status mt-2 text-[11px] break-words">${p}</div>
+                    ${i.error?`<div class="batch-job-error mt-1 text-[10px] break-words">${escapeHtml(
 i.error)}</div>`:""}
                     <div class="mt-3 flex flex-wrap gap-2">
                         ${g}${y}${b}

@@ -42,13 +42,13 @@ class UiDesignRefreshRegressionTests(unittest.TestCase):
         self.assertIn("welcome-subtitle", chat)
         self.assertIn("composer-input-shell", chat)
         self.assertIn("sidebar-toolbar", chat)
-        self.assertIn("flex-nowrap", chat)
-        self.assertNotIn('sidebar-toolbar flex items-center justify-start gap-0.5 flex-wrap', chat)
+        self.assertIn("flex-wrap", chat)
+        self.assertNotIn('sidebar-toolbar flex items-center justify-start gap-0.5 flex-nowrap', chat)
 
-    def test_sidebar_toolbar_stays_on_one_row(self):
+    def test_sidebar_toolbar_wraps_instead_of_overflowing(self):
         custom = _current_asset("css", "chat.custom.v4.8.*.css")
         chat = read_chat_markup()
-        self.assertIn("flex-wrap: nowrap !important;", custom)
+        self.assertIn("flex-wrap: wrap !important;", custom)
         self.assertIn("#sidebar #lib-btn.sidebar-icon-btn", custom)
         self.assertIn("id=\"lib-btn\"", chat)
 

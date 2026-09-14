@@ -4998,7 +4998,9 @@ body.liquid-glass-mode #top-model-bar {
 }
 .sidebar-toolbar {
     gap: 0.12rem !important;
-    flex-wrap: nowrap !important;
+    /* アイコンボタンが増えてもサイドバー幅からはみ出さないよう折り返す */
+    row-gap: 0.35rem !important;
+    flex-wrap: wrap !important;
 }
 .sidebar-divider {
     border-color: var(--line-soft) !important;

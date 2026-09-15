@@ -3,6 +3,7 @@ package com.minashin1120.aiplayground.data
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
@@ -145,6 +146,20 @@ class PlaygroundApiTest {
         assertEquals("jpg", extensionForMime("image/jpeg"))
         assertEquals("m4a", extensionForMime("audio/x-m4a; charset=binary"))
         assertEquals("", extensionForMime("application/zip"))
+    }
+
+    @Test fun libraryGemsAndMentionsParse() {
+        val library = parseLibraryFiles(JSONObject("""{"files":[{"filename":"renamed.txt","original_filename":"note.txt","filepath":"1/abc.txt","url":"/files/1/abc.txt","thumbnail_url":null,"type":"file","ext":"txt","is_favorite":true,"ts":123}],"total":1,"has_more":false}"""))
+        assertEquals("renamed.txt", library.single().displayName)
+        assertEquals("1/abc.txt", library.single().filepath)
+        assertTrue(library.single().isFavorite)
+        assertFalse(library.single().isImage)
+        val gems = parseGems(JSONArray("""[{"uuid":"g1","name":"Brief","description":"d","instruction":"be brief","default_model":"gpt-5.6-sol"}]"""))
+        assertEquals("Brief", gems.single().name)
+        assertEquals("gpt-5.6-sol", gems.single().defaultModel)
+        assertEquals("bri", gemMentionQuery("hello @bri"))
+        assertNull(gemMentionQuery("hello world"))
+        assertEquals("hello", replaceGemMention("hello @bri", "bri"))
     }
 
     @Test fun binaryReadIsBounded() {

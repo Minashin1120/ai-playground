@@ -14,6 +14,10 @@ MOBILE_ENDPOINT_METHODS = {
     'upload': {'POST'}, 'upload_init': {'POST'}, 'upload_chunk': {'POST'},
     'upload_complete': {'POST'}, 'serve_file': {'GET', 'HEAD'},
     'serve_file_thumb': {'GET', 'HEAD'}, 'get_storage_usage': {'GET'},
+    'get_files_lib': {'GET'},
+    'toggle_file_favorite': {'POST'}, 'delete_files_batch': {'POST'},
+    'rename_library_file': {'POST'},
+    'handle_gems': {'GET', 'POST'}, 'handle_gem_item': {'GET', 'PUT', 'DELETE'},
 }
 MOBILE_PUBLIC_ENDPOINTS = {'mobile_device', 'mobile_token'}
 

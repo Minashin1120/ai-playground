@@ -14,6 +14,7 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
@@ -67,6 +68,14 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
     }
     suspend fun get(path: String, token: String? = null): JSONObject = execute(
         request(path, token).header("Accept", "application/json").build(), consume = ::jsonResponse)
+    /** Some existing endpoints (for example `/api/gems`) return a top-level JSON array. */
+    suspend fun getArray(path: String, token: String? = null): JSONArray = execute(
+        request(path, token).header("Accept", "application/json").build()
+    ) { response ->
+        if (!response.isSuccessful) throw error(response)
+        if (response.body.contentType()?.subtype != "json") throw IOException("JSON以外の応答です。Webで接続状態を確認してください。")
+        JSONArray(readBoundedUtf8(response.body.byteStream(), 8 * 1024 * 1024))
+    }
     suspend fun post(path: String, payload: JSONObject, token: String? = null): JSONObject = execute(
         request(path, token).header("Accept", "application/json")
             .post(payload.toString().toRequestBody(jsonType)).build(), consume = ::jsonResponse)

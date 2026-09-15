@@ -27,6 +27,65 @@ data class Account(val id: Int, val name: String, val models: List<ModelInfo>, v
                    val encrypted: Boolean)
 data class StoredSession(val token: String, val expiresAt: Long)
 
+data class LibraryFile(
+    val displayName: String,
+    val filepath: String,
+    val url: String,
+    val thumbnailUrl: String,
+    val type: String,
+    val ext: String,
+    val isFavorite: Boolean,
+    val timestamp: Long,
+) {
+    val isImage: Boolean get() = type == "image" || thumbnailUrl.isNotBlank()
+}
+
+data class Gem(
+    val uuid: String,
+    val name: String,
+    val description: String,
+    val instruction: String,
+    val defaultModel: String,
+)
+
+fun parseLibraryFiles(json: JSONObject): List<LibraryFile> {
+    val rows = json.optJSONArray("files") ?: return emptyList()
+    return (0 until rows.length()).map { index ->
+        val row = rows.getJSONObject(index)
+        LibraryFile(
+            displayName = row.nullableString("filename").ifBlank { row.nullableString("original_filename") },
+            filepath = row.nullableString("filepath"),
+            url = row.nullableString("url"),
+            thumbnailUrl = row.nullableString("thumbnail_url"),
+            type = row.optString("type", "file"),
+            ext = row.optString("ext"),
+            isFavorite = row.optBoolean("is_favorite"),
+            timestamp = row.optLong("ts", 0L),
+        )
+    }
+}
+
+fun parseGems(rows: JSONArray): List<Gem> = (0 until rows.length()).map { index ->
+    val row = rows.getJSONObject(index)
+    Gem(
+        uuid = row.nullableString("uuid"),
+        name = row.nullableString("name").ifBlank { "Gem" },
+        description = row.nullableString("description"),
+        instruction = row.nullableString("instruction"),
+        defaultModel = row.nullableString("default_model"),
+    )
+}
+
+/** Detects a trailing `@name` mention for the Gem candidate list. */
+fun gemMentionQuery(text: String): String? =
+    Regex("(?:^|\\s)@([^\\s@]*)$").find(text)?.groupValues?.get(1)
+
+/** Removes the trailing `@query` mention once a Gem is applied. */
+fun replaceGemMention(text: String, query: String): String {
+    val marker = "@$query"
+    return if (text.endsWith(marker)) text.dropLast(marker.length).trimEnd() else text
+}
+
 /** Live-only progress cards for streamed search and tool execution. */
 enum class CardKind { SEARCH, PYTHON }
 
@@ -138,6 +197,15 @@ fun attachmentKind(name: String, mime: String = ""): AttachmentKind {
         ext in TEXT_EXTENSIONS || type.startsWith("text/") -> AttachmentKind.TEXT
         else -> AttachmentKind.FILE
     }
+}
+
+fun attachmentKindIcon(kind: AttachmentKind): String = when (kind) {
+    AttachmentKind.IMAGE -> "🖼"
+    AttachmentKind.AUDIO -> "🎵"
+    AttachmentKind.VIDEO -> "🎬"
+    AttachmentKind.PDF -> "📄"
+    AttachmentKind.TEXT -> "📝"
+    AttachmentKind.FILE -> "📎"
 }
 
 /** Best-effort extension for providers that only report a MIME type (e.g. FileProvider). */

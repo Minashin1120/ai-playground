@@ -24,6 +24,10 @@ import androidx.core.content.FileProvider
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.data.ThreadItem
+import com.minashin1120.aiplayground.data.LibraryFile
+import com.minashin1120.aiplayground.data.Gem
+import com.minashin1120.aiplayground.data.attachmentKind
+import com.minashin1120.aiplayground.data.attachmentKindIcon
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -42,6 +46,8 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
             var modelPicker by remember { mutableStateOf(false) }
             var threadSettings by remember { mutableStateOf(false) }
             var attachMenu by remember { mutableStateOf(false) }
+            var libraryOpen by remember { mutableStateOf(false) }
+            var gemsOpen by remember { mutableStateOf(false) }
             var cameraUri by remember { mutableStateOf<Uri?>(null) }
             val context = LocalContext.current
             val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { model.upload(it) }
@@ -104,7 +110,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
             if (showThreads && wide) {
                 Row(Modifier.fillMaxSize()) {
                     Surface(Modifier.width(PlaygroundDimens.sidePane).fillMaxHeight(), tonalElevation = 1.dp) {
-                        ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {})
+                        ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {}, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true })
                     }
                     VerticalDivider()
                     Box(Modifier.weight(1f)) { content() }
@@ -113,12 +119,14 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
                 ModalNavigationDrawer(drawerState = drawer, gesturesEnabled = showThreads,
                     drawerContent = {
                         if (showThreads) ModalDrawerSheet(Modifier.width(PlaygroundDimens.drawerPane)) {
-                            ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer)
+                            ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true })
                         }
                     }) { content() }
             }
 
             if (modelPicker) ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { model.chooseModel(it); modelPicker = false })
+            if (libraryOpen) LibraryDialog(state, model, onDismiss = { libraryOpen = false })
+            if (gemsOpen) GemsDialog(state, model, onDismiss = { gemsOpen = false })
             if (attachMenu) AlertDialog(onDismissRequest = { attachMenu = false }, title = { Text("添付を追加") },
                 text = { Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = { attachMenu = false; picker.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("📂 ファイルを選択") }
@@ -162,6 +170,8 @@ private fun ThreadPanel(
     onLogout: () -> Unit,
     onDelete: (ThreadItem) -> Unit,
     onNavigate: () -> Unit,
+    onLibrary: () -> Unit,
+    onGems: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Column(Modifier.fillMaxWidth()) {
@@ -205,6 +215,8 @@ private fun ThreadPanel(
                 TextButton(onClick = model::moreThreads, modifier = Modifier.fillMaxWidth()) { Text("もっと読み込む") }
             }
         }
+        TextButton(onClick = onLibrary, modifier = Modifier.fillMaxWidth()) { Text("ファイルライブラリ") }
+        TextButton(onClick = onGems, modifier = Modifier.fillMaxWidth()) { Text("Gems") }
         TextButton(onClick = { onWeb(false) }, modifier = Modifier.fillMaxWidth()) { Text("Web設定・安全性確認") }
         TextButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) { Text("この端末からログアウト") }
         Spacer(Modifier.navigationBarsPadding())
@@ -356,4 +368,154 @@ private fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (Stri
             }
         }
     }, confirmButton = { TextButton(onClick = onDismiss) { Text("閉じる") } })
+}
+
+@Composable
+private fun LibraryDialog(state: ChatState, model: ChatViewModel, onDismiss: () -> Unit) {
+    var renameTarget by remember { mutableStateOf<LibraryFile?>(null) }
+    var deleteTarget by remember { mutableStateOf<LibraryFile?>(null) }
+    LaunchedEffect(Unit) { model.refreshLibrary() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("ファイルライブラリ") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(state.libraryQuery, model::librarySearch, singleLine = true,
+                    label = { Text("ファイル名で検索") }, modifier = Modifier.fillMaxWidth())
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    FilterChip(state.libraryFavoritesOnly, { model.setLibraryFavoritesOnly(!state.libraryFavoritesOnly) }, { Text("★ お気に入り") })
+                    Spacer(Modifier.width(12.dp))
+                    Text("${state.libraryTotal}件", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (state.libraryBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                    items(state.library, key = { it.filepath }) { file ->
+                        Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                            Text("${attachmentKindIcon(attachmentKind(file.displayName))} ${file.displayName}",
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Row {
+                                TextButton(onClick = { model.reuseLibraryFile(file); onDismiss() }) { Text("再利用") }
+                                TextButton(onClick = { model.toggleLibraryFavorite(file) }) { Text(if (file.isFavorite) "★" else "☆") }
+                                TextButton(onClick = { renameTarget = file }) { Text("名前変更") }
+                                TextButton(onClick = { deleteTarget = file }) { Text("削除") }
+                            }
+                        }
+                    }
+                    if (state.library.isEmpty() && !state.libraryBusy) item(key = "empty") {
+                        Text("ファイルはありません。チャットで送った添付がここに表示されます。",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(12.dp))
+                    }
+                    if (state.libraryHasMore) item(key = "more") {
+                        TextButton(onClick = model::moreLibrary, modifier = Modifier.fillMaxWidth()) { Text("もっと読み込む") }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("閉じる") } },
+    )
+    renameTarget?.let { file ->
+        RenameLibraryFileDialog(file, onDismiss = { renameTarget = null }) { name ->
+            model.renameLibraryFile(file, name)
+            renameTarget = null
+        }
+    }
+    deleteTarget?.let { file ->
+        AlertDialog(onDismissRequest = { deleteTarget = null }, title = { Text("ファイルを削除しますか？") },
+            text = { Text("「${file.displayName}」を削除します。この操作は取り消せません。") },
+            confirmButton = { TextButton(onClick = { model.deleteLibraryFile(file); deleteTarget = null }) { Text("削除") } },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("キャンセル") } })
+    }
+}
+
+@Composable
+private fun RenameLibraryFileDialog(file: LibraryFile, onDismiss: () -> Unit, onRename: (String) -> Unit) {
+    var name by remember(file.filepath) { mutableStateOf(file.displayName) }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("ファイル名を変更") },
+        text = { OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("表示名") }, modifier = Modifier.fillMaxWidth()) },
+        confirmButton = { TextButton(onClick = { onRename(name.trim()) }, enabled = name.isNotBlank() && name.length <= 200) { Text("保存") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } })
+}
+
+@Composable
+private fun GemsDialog(state: ChatState, model: ChatViewModel, onDismiss: () -> Unit) {
+    var editor by remember { mutableStateOf<Gem?>(null) }
+    var creating by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { model.loadGems() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Gems") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${state.gems.size}件", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { creating = true }) { Text("新規作成") }
+                }
+                if (state.gemsBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                    items(state.gems, key = { it.uuid }) { gem ->
+                        Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                            Text((if (state.selectedGem?.uuid == gem.uuid) "✓ " else "") + gem.name, fontWeight = FontWeight.SemiBold)
+                            if (gem.description.isNotBlank()) Text(gem.description, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row {
+                                TextButton(onClick = { model.chooseGem(gem); onDismiss() }) { Text("適用") }
+                                TextButton(onClick = { editor = gem }) { Text("編集") }
+                                TextButton(onClick = { model.deleteGem(gem) }) { Text("削除") }
+                            }
+                        }
+                    }
+                    if (state.gems.isEmpty() && !state.gemsBusy) item(key = "empty") {
+                        Text("Gemはまだありません。繰り返す指示を登録して、入力欄の @ から呼び出せます。",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(12.dp))
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("閉じる") } },
+    )
+    if (creating) GemEditorDialog(gem = null, onDismiss = { creating = false }) { n, d, i, m, done ->
+        model.saveGem(null, n, d, i, m) { ok -> if (ok) creating = false; done(ok) }
+    }
+    editor?.let { gem -> GemEditorDialog(gem = gem, onDismiss = { editor = null }) { n, d, i, m, done ->
+        model.saveGem(gem.uuid, n, d, i, m) { ok -> if (ok) editor = null; done(ok) }
+    } }
+}
+
+@Composable
+private fun GemEditorDialog(
+    gem: Gem?,
+    onDismiss: () -> Unit,
+    onSave: (String, String, String, String, (Boolean) -> Unit) -> Unit,
+) {
+    var name by remember { mutableStateOf(gem?.name.orEmpty()) }
+    var description by remember { mutableStateOf(gem?.description.orEmpty()) }
+    var instruction by remember { mutableStateOf(gem?.instruction.orEmpty()) }
+    var defaultModel by remember { mutableStateOf(gem?.defaultModel.orEmpty()) }
+    var saving by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = { if (!saving) onDismiss() },
+        title = { Text(if (gem == null) "Gemを作成" else "Gemを編集") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("名前") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(description, { description = it }, label = { Text("説明") },
+                    minLines = 1, maxLines = 3, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(instruction, { instruction = it }, label = { Text("指示") },
+                    minLines = 3, maxLines = 8, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(defaultModel, { defaultModel = it }, singleLine = true,
+                    label = { Text("既定モデル（任意・モデルID）") }, modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { saving = true; onSave(name.trim(), description.trim(), instruction.trim(), defaultModel.trim()) { saving = false } },
+                enabled = !saving && name.isNotBlank() && name.length <= 100 && instruction.length <= 100_000,
+            ) { Text("保存") }
+        },
+        dismissButton = { TextButton(onClick = { if (!saving) onDismiss() }) { Text("キャンセル") } },
+    )
 }

@@ -35,6 +35,10 @@ data class ChatState(
     val enablePromptCache: Boolean = false,
     val uploading: Boolean = false, val streaming: Boolean = false,
     val uploadSent: Long = 0L, val uploadTotal: Long = 0L, val uploadName: String = "",
+    val library: List<LibraryFile> = emptyList(), val libraryBusy: Boolean = false,
+    val libraryQuery: String = "", val libraryFavoritesOnly: Boolean = false,
+    val libraryHasMore: Boolean = false, val libraryTotal: Int = 0,
+    val gems: List<Gem> = emptyList(), val gemsBusy: Boolean = false, val selectedGem: Gem? = null,
     val liveContent: String = "", val liveThought: String = "", val status: String = "",
     val cards: List<StatusCard> = emptyList(),
     val offline: Boolean = false,
@@ -54,6 +58,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var streamJob: Job? = null
     private var uploadJob: Job? = null
     private var heartbeatJob: Job? = null
+    private var libraryJob: Job? = null
     private data class Submission(val body: JSONObject, val files: List<Attachment>)
     private var failed: Submission? = null
 
@@ -72,6 +77,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             ?: account.models.firstOrNull { it.selectable }?.id.orEmpty()
         mutable.update { it.copy(account = account, model = chosen, pairing = false, userCode = "", offline = false) }
         fetchThreads(false)
+        runCatching { fetchGems() }.onFailure { report(it) }
     }
     fun setForeground(value: Boolean) {
         val returning = value && !foreground
@@ -175,7 +181,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(selected = null, messages = emptyList(), jobId = null, streaming = false,
             liveContent = "", liveThought = "", status = "", busy = false, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null, customInstruction = "",
-            includeGlobalInstruction = true, newThreadTemporary = temporary, tempChatRemainingSeconds = null) }
+            includeGlobalInstruction = true, newThreadTemporary = temporary, tempChatRemainingSeconds = null,
+            selectedGem = null) }
     }
     fun openThread(thread: ThreadItem) {
         navigationJob?.cancel(); streamJob?.cancel(); heartbeatJob?.cancel(); failed = null
@@ -207,7 +214,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             tempChatRemainingSeconds = if (older) it.tempChatRemainingSeconds else
                 reply.optLong("temp_chat_remaining_seconds").takeIf { value -> !reply.isNull("temp_chat_remaining_seconds") && value >= 0 },
             liveContent = if (older) it.liveContent else "", liveThought = if (older) it.liveThought else "",
-            cards = if (older) it.cards else emptyList()) }
+            cards = if (older) it.cards else emptyList(),
+            selectedGem = if (older) it.selectedGem else {
+                val uuid = reply.nullableString("last_gem_uuid")
+                if (uuid.isBlank()) null else it.gems.firstOrNull { gem -> gem.uuid == uuid }
+            }) }
         if (!older) syncHeartbeat()
     }
 
@@ -294,6 +305,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .put("enable_thinking", current.enableThinking).put("enable_search", current.enableSearch)
             .put("enable_prompt_caching", current.enablePromptCache)
             .put("temporary_chat", current.selected?.isTemporary ?: current.newThreadTemporary)
+        current.selectedGem?.let { body.put("gem_uuid", it.uuid) }
         current.selected?.let { body.put("thread_id", it.id) }
         val submission = Submission(body, current.attachments)
         failed = submission
@@ -395,7 +407,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     } }
     private suspend fun clearSession() {
         val caller = currentCoroutineContext().job
-        listOf(pairingJob, navigationJob, streamJob, uploadJob, heartbeatJob).forEach { if (it !== caller) it?.cancel() }
+        listOf(pairingJob, navigationJob, streamJob, uploadJob, heartbeatJob, libraryJob).forEach { if (it !== caller) it?.cancel() }
         withContext(NonCancellable + Dispatchers.IO) { store.clear() }
         session = null; failed = null
         mutable.value = ChatState(starting = false)
@@ -541,6 +553,150 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             onReady(target, mime)
         } catch (e: Exception) { report(e) }
     } }
+
+    // --- File library ---
+
+    private fun libraryPath(offset: Int): String {
+        val current = state.value
+        val query = URLEncoder.encode(current.libraryQuery, "UTF-8")
+        val favorites = if (current.libraryFavoritesOnly) "&favorites_only=1" else ""
+        return "/api/files?limit=40&offset=$offset&sort=newest&q=$query$favorites"
+    }
+
+    private suspend fun fetchLibrary(append: Boolean) {
+        val offset = if (append) state.value.library.size else 0
+        val reply = api.get(libraryPath(offset), token())
+        val files = parseLibraryFiles(reply)
+        mutable.update {
+            it.copy(
+                library = if (append) (it.library + files).distinctBy { file -> file.filepath } else files,
+                libraryHasMore = reply.optBoolean("has_more"),
+                libraryTotal = reply.optInt("total"),
+                libraryBusy = false,
+            )
+        }
+    }
+
+    fun refreshLibrary() {
+        libraryJob?.cancel()
+        libraryJob = viewModelScope.launch {
+            mutable.update { it.copy(libraryBusy = true) }
+            try { fetchLibrary(false) } catch (e: Exception) { report(e) } finally { mutable.update { it.copy(libraryBusy = false) } }
+        }
+    }
+
+    fun librarySearch(query: String) {
+        mutable.update { it.copy(libraryQuery = query) }
+        libraryJob?.cancel()
+        libraryJob = viewModelScope.launch {
+            delay(300)
+            mutable.update { it.copy(libraryBusy = true) }
+            try { fetchLibrary(false) } catch (e: Exception) { report(e) } finally { mutable.update { it.copy(libraryBusy = false) } }
+        }
+    }
+
+    fun setLibraryFavoritesOnly(value: Boolean) {
+        if (state.value.libraryFavoritesOnly == value) return
+        mutable.update { it.copy(libraryFavoritesOnly = value) }
+        refreshLibrary()
+    }
+
+    fun moreLibrary() {
+        if (!state.value.libraryHasMore || state.value.libraryBusy) return
+        libraryJob = viewModelScope.launch {
+            mutable.update { it.copy(libraryBusy = true) }
+            try { fetchLibrary(true) } catch (e: Exception) { report(e) } finally { mutable.update { it.copy(libraryBusy = false) } }
+        }
+    }
+
+    fun toggleLibraryFavorite(file: LibraryFile) { viewModelScope.launch {
+        try {
+            val reply = api.post("/api/files/favorite", JSONObject().put("filepath", file.filepath), token())
+            val favorite = reply.optBoolean("is_favorite")
+            mutable.update { current -> current.copy(library = current.library.map {
+                if (it.filepath == file.filepath) it.copy(isFavorite = favorite) else it
+            }) }
+        } catch (e: Exception) { report(e) }
+    } }
+
+    fun renameLibraryFile(file: LibraryFile, name: String) { viewModelScope.launch {
+        try {
+            val reply = api.post("/api/files/rename", JSONObject().put("filepath", file.filepath).put("filename", name), token())
+            val display = reply.optString("filename", name)
+            mutable.update { current -> current.copy(library = current.library.map {
+                if (it.filepath == file.filepath) it.copy(displayName = display) else it
+            }) }
+        } catch (e: Exception) { report(e) }
+    } }
+
+    fun deleteLibraryFile(file: LibraryFile) { viewModelScope.launch {
+        try {
+            api.post("/api/files/delete", JSONObject().put("filenames", JSONArray().put(file.filepath)), token())
+            mutable.update { current -> current.copy(library = current.library.filterNot { it.filepath == file.filepath }) }
+        } catch (e: Exception) { report(e) }
+    } }
+
+    /** Reuses a library file as a composer attachment without re-uploading it. */
+    fun reuseLibraryFile(file: LibraryFile) {
+        if (state.value.attachments.any { it.reference == file.filepath }) {
+            mutable.update { it.copy(notice = "この添付はすでに追加されています。") }
+            return
+        }
+        if (state.value.attachments.size >= 30) {
+            mutable.update { it.copy(notice = "添付は30件までです。") }
+            return
+        }
+        mutable.update { it.copy(attachments = it.attachments + Attachment(file.displayName, file.filepath, "")) }
+    }
+
+    // --- Gems ---
+
+    private suspend fun fetchGems() {
+        val gems = parseGems(api.getArray("/api/gems", token()))
+        mutable.update { current ->
+            current.copy(gems = gems, selectedGem = current.selectedGem?.let { selected -> gems.firstOrNull { it.uuid == selected.uuid } })
+        }
+    }
+
+    fun loadGems() {
+        viewModelScope.launch {
+            mutable.update { it.copy(gemsBusy = true) }
+            try { fetchGems() } catch (e: Exception) { report(e) } finally { mutable.update { it.copy(gemsBusy = false) } }
+        }
+    }
+
+    fun saveGem(uuid: String?, name: String, description: String, instruction: String, defaultModel: String, onDone: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            mutable.update { it.copy(gemsBusy = true) }
+            try {
+                val payload = JSONObject().put("name", name).put("description", description)
+                    .put("instruction", instruction).put("default_model", defaultModel)
+                if (uuid.isNullOrBlank()) api.post("/api/gems", payload, token())
+                else api.put("/api/gems/$uuid", payload, token())
+                fetchGems()
+                onDone(true)
+            } catch (e: Exception) { report(e); onDone(false) }
+            finally { mutable.update { it.copy(gemsBusy = false) } }
+        }
+    }
+
+    fun deleteGem(gem: Gem) { viewModelScope.launch {
+        try {
+            api.delete("/api/gems/${gem.uuid}", token())
+            mutable.update { current -> current.copy(
+                gems = current.gems.filterNot { it.uuid == gem.uuid },
+                selectedGem = current.selectedGem?.takeIf { it.uuid != gem.uuid },
+            ) }
+        } catch (e: Exception) { report(e) }
+    } }
+
+    fun chooseGem(gem: Gem?) { mutable.update { it.copy(selectedGem = gem) } }
+
+    /** Applies a Gem chosen from the `@` candidate list and removes its mention. */
+    fun applyGemMention(gem: Gem, query: String) {
+        mutable.update { it.copy(selectedGem = gem, draft = replaceGemMention(it.draft, query)) }
+    }
+
     private companion object {
         const val CHUNK_UPLOAD_THRESHOLD_BYTES = 8L * 1024 * 1024
         const val MAX_SINGLE_UPLOAD_BYTES = 64L * 1024 * 1024

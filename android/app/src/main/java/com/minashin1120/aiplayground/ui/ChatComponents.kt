@@ -19,19 +19,11 @@ import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.StatusCard
-import com.minashin1120.aiplayground.data.AttachmentKind
 import com.minashin1120.aiplayground.data.attachmentKind
+import com.minashin1120.aiplayground.data.attachmentKindIcon
 import com.minashin1120.aiplayground.data.formatByteSize
+import com.minashin1120.aiplayground.data.gemMentionQuery
 import com.minashin1120.aiplayground.data.isImageReference
-
-private fun attachmentKindLabel(kind: AttachmentKind): String = when (kind) {
-    AttachmentKind.IMAGE -> "🖼"
-    AttachmentKind.AUDIO -> "🎵"
-    AttachmentKind.VIDEO -> "🎬"
-    AttachmentKind.PDF -> "📄"
-    AttachmentKind.TEXT -> "📝"
-    AttachmentKind.FILE -> "📎"
-}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -52,10 +44,25 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                     if (info.supports("prompt_cache")) FilterChip(state.enablePromptCache, model::togglePromptCache, { Text("Prompt Cache") })
                 }
             }
+            state.selectedGem?.let { gem ->
+                InputChip(selected = true, onClick = { model.chooseGem(null) }, label = { Text("Gem: ${gem.name.take(20)} ×") })
+            }
+            val gemMention = gemMentionQuery(state.draft)
+            if (gemMention != null && state.gems.isNotEmpty()) {
+                val candidates = state.gems.filter { it.name.contains(gemMention, ignoreCase = true) }.take(6)
+                if (candidates.isNotEmpty()) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        candidates.forEach { gem ->
+                            InputChip(selected = false, onClick = { model.applyGemMention(gem, gemMention) },
+                                label = { Text("@${gem.name.take(20)}") })
+                        }
+                    }
+                }
+            }
             if (state.attachments.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 state.attachments.forEach { attachment ->
                     InputChip(selected = true, onClick = { model.removeAttachment(attachment.reference) },
-                        label = { Text("${attachmentKindLabel(attachmentKind(attachment.name, attachment.mime))} ${attachment.name.take(20)} ×") })
+                        label = { Text("${attachmentKindIcon(attachmentKind(attachment.name, attachment.mime))} ${attachment.name.take(20)} ×") })
                 }
             }
             if (state.uploading) {
@@ -116,7 +123,7 @@ fun MessageCard(
                     } else {
                         val kind = attachmentKind(file)
                         OutlinedButton(onClick = { onFile(file) }) {
-                            Text("${attachmentKindLabel(kind)} ${file.substringAfterLast('/').take(40)}")
+                            Text("${attachmentKindIcon(kind)} ${file.substringAfterLast('/').take(40)}")
                         }
                     }
                 }

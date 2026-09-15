@@ -260,6 +260,59 @@ class MobileApiTests(unittest.TestCase):
         }, content_type='multipart/form-data')
         self.assertEqual(response.status_code, 409)
 
+    def test_native_library_and_gems_are_owner_scoped(self):
+        token = self.token()
+        response = self.call('/upload', token, 'POST',
+            data={'file': (io.BytesIO(b'library bytes'), 'library.txt')},
+            content_type='multipart/form-data')
+        self.assertEqual(response.status_code, 200)
+        filename = response.json['filename']
+        library = self.call('/api/files', token)
+        self.assertEqual(library.status_code, 200)
+        entries = {item['filepath']: item for item in library.json['files']}
+        self.assertIn(filename, entries)
+        self.assertEqual(entries[filename]['ext'], 'txt')
+        self.assertEqual(entries[filename]['filepath'], filename)
+        # Favorite, rename and delete only touch the owner's library.
+        favorite = self.call('/api/files/favorite', token, 'POST', json={'filepath': filename})
+        self.assertEqual(favorite.status_code, 200)
+        self.assertTrue(favorite.json['is_favorite'])
+        rename = self.call('/api/files/rename', token, 'POST',
+                           json={'filepath': filename, 'filename': 'renamed.txt'})
+        self.assertEqual(rename.status_code, 200)
+        self.assertEqual(rename.json['filename'], 'renamed.txt')
+        with target.app.app_context():
+            foreign = target.User(username='library-other', is_setup_completed=True)
+            target.db.session.add(foreign)
+            target.db.session.commit()
+            foreign_id = foreign.id
+        self.assertEqual(self.call('/api/files/favorite', token, 'POST',
+                                   json={'filepath': f'{foreign_id}/secret.txt'}).status_code, 403)
+        deleted = self.call('/api/files/delete', token, 'POST', json={'filenames': [filename]})
+        self.assertEqual(deleted.status_code, 200)
+        self.assertFalse(self.call('/files/' + filename, token).status_code == 200)
+        # Gems CRUD is owner scoped as well.
+        created = self.call('/api/gems', token, 'POST', json={'name': 'Android Gem', 'instruction': 'Be brief'})
+        self.assertEqual(created.status_code, 200)
+        gem_uuid = created.json['uuid']
+        listed = self.call('/api/gems', token)
+        self.assertEqual(listed.status_code, 200)
+        self.assertTrue(any(gem['uuid'] == gem_uuid for gem in listed.json))
+        updated = self.call('/api/gems/' + gem_uuid, token, 'PUT', json={'name': 'Renamed Gem'})
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(updated.json['name'], 'Renamed Gem')
+        with target.app.app_context():
+            foreign_gem = target.Gem(uuid='11111111-1111-1111-1111-111111111111',
+                                     user_id=self.other_id, name='Foreign', instruction='No')
+            target.db.session.add(foreign_gem)
+            target.db.session.commit()
+        for method in ['GET', 'PUT', 'DELETE']:
+            payload = {'name': 'No'} if method == 'PUT' else None
+            response = self.call('/api/gems/11111111-1111-1111-1111-111111111111', token, method,
+                                 **({'json': payload} if payload is not None else {}))
+            self.assertEqual(response.status_code, 403, method)
+        self.assertEqual(self.call('/api/gems/' + gem_uuid, token, 'DELETE').status_code, 200)
+
     def test_encrypted_account_pairs_and_reads_encrypted_history_and_attachment(self):
         with target.app.app_context():
             user = target.db.session.get(target.User, self.user_id)

@@ -32,4 +32,32 @@ println("安全")
         assertNull(safeWebUrl("javascript:alert(1)"))
         assertNull(safeWebUrl("https:///missing-host"))
     }
+
+    @Test fun tablesAreParsedIntoHeadersAndRows() {
+        val blocks = parseMarkdownBlocks("""
+| 名前 | 値 |
+| --- | --- |
+| a | 1 |
+| b | 2 |
+""")
+        val table = blocks.single() as MarkdownBlock.Table
+        assertEquals(listOf("名前", "値"), table.headers)
+        assertEquals(listOf(listOf("a", "1"), listOf("b", "2")), table.rows)
+    }
+
+    @Test fun displayMathIsCapturedAsItsOwnBlock() {
+        val blocks = parseMarkdownBlocks("$$\nE = mc^2\n$$")
+        val math = blocks.single() as MarkdownBlock.Math
+        assertTrue(math.display)
+        assertEquals("E = mc^2", math.tex)
+        val bracketed = parseMarkdownBlocks("\\[a^2 + b^2 = c^2\\]")
+        assertTrue((bracketed.single() as MarkdownBlock.Math).display)
+    }
+
+    @Test fun attachmentsBecomeImageBlocksAndForeignImagesStayText() {
+        val blocks = parseMarkdownBlocks("![図](/files/123/pic.png)")
+        assertEquals(MarkdownBlock.Image("123/pic.png", "図"), blocks.single())
+        val foreign = parseMarkdownBlocks("![x](https://example.org/a.png)")
+        assertTrue(foreign.single() is MarkdownBlock.Paragraph)
+    }
 }

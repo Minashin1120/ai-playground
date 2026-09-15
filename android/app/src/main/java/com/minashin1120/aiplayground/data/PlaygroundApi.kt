@@ -98,13 +98,16 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
         }
     }
 
-    suspend fun download(reference: String, destination: File, token: String): String {
-        // Never attach credentials to a provider URL or another origin.
-        val ref = reference.removePrefix(origin.toString()).removePrefix("/files/").removePrefix("files/")
-        require(!ref.contains("://") && !ref.startsWith('/') && ref.split('/').none { it == ".." })
-        val path = origin.newBuilder().addPathSegment("files").apply {
+    private fun filePath(ref: String, thumbnail: Boolean): String =
+        origin.newBuilder().addPathSegment("files").apply {
+            if (thumbnail) addPathSegment("thumb")
             ref.split('/').forEach { addPathSegment(it) }
         }.build().encodedPath
+
+    suspend fun download(reference: String, destination: File, token: String): String {
+        // Never attach credentials to a provider URL or another origin.
+        val ref = fileReferencePath(reference) ?: throw IOException("添付の参照が不正です。")
+        val path = filePath(ref, thumbnail = false)
         return execute(request(path, token).build()) { response ->
             if (!response.isSuccessful) throw error(response)
             val mime = response.body.contentType()?.let { "${it.type}/${it.subtype}" } ?: "application/octet-stream"
@@ -122,6 +125,15 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
                 } }
             } catch (e: Exception) { destination.delete(); throw e }
             mime
+        }
+    }
+
+    /** Loads a same-origin attachment or its WebP thumbnail within a byte budget. */
+    suspend fun loadFileBytes(reference: String, token: String, thumbnail: Boolean, limit: Long): ByteArray {
+        val ref = fileReferencePath(reference) ?: throw IOException("添付の参照が不正です。")
+        return execute(request(filePath(ref, thumbnail), token).build()) { response ->
+            if (!response.isSuccessful) throw error(response)
+            readBoundedBytes(response.body.byteStream(), limit)
         }
     }
 }

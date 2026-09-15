@@ -95,4 +95,33 @@ class PlaygroundApiTest {
         assertTrue(legacy.single().selectable)
         assertEquals("legacy-model", legacy.single().name)
     }
+
+    @Test fun attachmentReferencesStayOnTheFixedOrigin() {
+        assertEquals("123/pic.png", fileReferencePath("123/pic.png"))
+        assertEquals("123/pic.png", fileReferencePath("/files/123/pic.png"))
+        assertEquals("123/pic.png", fileReferencePath("files/123/pic.png"))
+        assertEquals("123/pic.png", fileReferencePath("https://ai.minashin1120.com/files/123/pic.png"))
+        assertNull(fileReferencePath("https://example.org/files/123/pic.png"))
+        assertNull(fileReferencePath("/files/../secret"))
+        assertNull(fileReferencePath("javascript:alert(1)"))
+        assertNull(fileReferencePath(""))
+        assertTrue(isImageReference("123/pic.PNG"))
+        assertFalse(isImageReference("123/report.pdf"))
+    }
+
+    @Test fun binaryReadIsBounded() {
+        assertEquals(5, readBoundedBytes(ByteArrayInputStream(ByteArray(5)), 5L).size)
+        assertTrue(runCatching { readBoundedBytes(ByteArrayInputStream(ByteArray(6)), 5L) }.exceptionOrNull() is IOException)
+    }
+
+    @Test fun liveCardsMergeSearchAndPythonEvents() {
+        val search = upsertSearchCard(emptyList(), "searching")
+        assertFalse(search.single().done)
+        assertTrue(upsertSearchCard(search, "done").single().done)
+        val code = upsertPythonCard(emptyList(), JSONObject("""{"id":"p1","code":"print(1)"}"""))
+        assertEquals("print(1)", code.single().code)
+        val output = upsertPythonCard(code, JSONObject("""{"id":"p1","output":"1"}"""))
+        assertEquals("print(1)", output.single().code)
+        assertTrue(output.single().done)
+    }
 }

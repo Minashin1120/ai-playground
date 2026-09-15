@@ -1,11 +1,16 @@
 package com.minashin1120.aiplayground.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 // Native equivalents of the Web design tokens in chat.custom.css.
 private val WebDarkColors = darkColorScheme(
@@ -28,7 +33,35 @@ private val WebLightColors = lightColorScheme(
     outline = Color(0xFFCBD5E1), error = Color(0xFFB4233E),
 )
 
+// Japanese and code-heavy answers need a little more line height than Material's default.
+private val DefaultTypography = Typography()
+private val WebTypography = Typography(
+    bodyLarge = DefaultTypography.bodyLarge.copy(lineHeight = 25.sp),
+    bodyMedium = DefaultTypography.bodyMedium.copy(lineHeight = 22.sp),
+    bodySmall = DefaultTypography.bodySmall.copy(lineHeight = 19.sp),
+)
+
+// Rounded corners mirror the Web panel, card and bubble radii.
+private val WebShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(24.dp),
+)
+
+/** Shared layout tokens for the phone/tablet navigation split and dialogs. */
+object PlaygroundDimens {
+    val breakpoint = 720.dp
+    val sidePane = 340.dp
+    val drawerPane = 320.dp
+}
+
 @Composable
 fun PlaygroundTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (isSystemInDarkTheme()) WebDarkColors else WebLightColors, content = content)
+    MaterialTheme(
+        colorScheme = if (isSystemInDarkTheme()) WebDarkColors else WebLightColors,
+        typography = WebTypography,
+        shapes = WebShapes,
+        content = content,
+    )
 }

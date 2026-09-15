@@ -33,6 +33,8 @@ data class ChatState(
     val enablePromptCache: Boolean = false,
     val uploading: Boolean = false, val streaming: Boolean = false,
     val liveContent: String = "", val liveThought: String = "", val status: String = "",
+    val cards: List<StatusCard> = emptyList(),
+    val offline: Boolean = false,
     val jobId: String? = null, val retryAvailable: Boolean = false, val notice: String? = null,
 )
 
@@ -64,7 +66,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val chosen = prefs.getString("model_${account.id}", account.defaultModel).orEmpty()
             .takeIf { chosen -> account.models.any { it.id == chosen && it.selectable } }
             ?: account.models.firstOrNull { it.selectable }?.id.orEmpty()
-        mutable.update { it.copy(account = account, model = chosen, pairing = false, userCode = "") }
+        mutable.update { it.copy(account = account, model = chosen, pairing = false, userCode = "", offline = false) }
         fetchThreads(false)
     }
     fun setForeground(value: Boolean) {
@@ -125,6 +127,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun dismissNotice() { mutable.update { it.copy(notice = null) } }
     fun notify(message: String) { mutable.update { it.copy(notice = message) } }
     fun draft(text: String) { mutable.update { it.copy(draft = text) } }
+    fun quoteMessage(text: String) {
+        val quoted = text.trim().lineSequence().filter { it.isNotBlank() }
+            .joinToString("\n") { "> $it" }
+        if (quoted.isBlank()) return
+        mutable.update {
+            it.copy(draft = if (it.draft.isBlank()) "$quoted\n\n" else it.draft.trimEnd() + "\n\n$quoted\n\n")
+        }
+    }
     fun chooseModel(model: String) {
         val info = state.value.account?.models?.firstOrNull { it.id == model && it.selectable } ?: return
         mutable.update { it.copy(model = model,
@@ -153,20 +163,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             ThreadItem(row.get("id").toString(), row.optString("title", "新しいチャット"), row.nullableString("last_model"))
         }
         mutable.update { it.copy(threads = if (more) (it.threads + items).distinctBy { t -> t.id } else items,
-            nextPage = if (reply.optBoolean("has_next")) reply.optInt("next_page", page + 1) else null) }
+            nextPage = if (reply.optBoolean("has_next")) reply.optInt("next_page", page + 1) else null,
+            offline = false) }
     }
     fun moreThreads() { navigationJob?.cancel(); navigationJob = viewModelScope.launch { try { fetchThreads(true) } catch (e: Exception) { report(e) } } }
     fun newChat() {
         navigationJob?.cancel(); streamJob?.cancel(); failed = null
         mutable.update { it.copy(selected = null, messages = emptyList(), jobId = null, streaming = false,
             liveContent = "", liveThought = "", status = "", busy = false, retryAvailable = false,
-            hasOlder = false, oldestId = null) }
+            cards = emptyList(), hasOlder = false, oldestId = null) }
     }
     fun openThread(thread: ThreadItem) {
         navigationJob?.cancel(); streamJob?.cancel(); failed = null
         mutable.update { it.copy(selected = thread, messages = emptyList(), streaming = false, busy = true,
             liveContent = "", liveThought = "", jobId = null, retryAvailable = false,
-            hasOlder = false, oldestId = null) }
+            cards = emptyList(), hasOlder = false, oldestId = null) }
         navigationJob = viewModelScope.launch {
             try { loadMessages(thread.id); if (foreground && state.value.jobId != null) resume() }
             catch (e: Exception) { report(e) }
@@ -182,7 +193,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             hasOlder = reply.optBoolean("has_older_messages"), oldestId = reply.nullableString("oldest_loaded_id"),
             jobId = if (older) it.jobId else reply.optJSONObject("pending_job")?.nullableString("job_id")?.ifBlank { null },
             selected = it.selected?.let { selected -> selected.copy(title = reply.optString("title", selected.title)) },
-            liveContent = if (older) it.liveContent else "", liveThought = if (older) it.liveThought else "") }
+            liveContent = if (older) it.liveContent else "", liveThought = if (older) it.liveThought else "",
+            cards = if (older) it.cards else emptyList()) }
     }
     fun olderMessages() {
         val id = state.value.selected?.id ?: return
@@ -223,7 +235,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         streamJob?.cancel()
         streamJob = viewModelScope.launch {
             val owner = currentCoroutineContext().job
-            mutable.update { it.copy(streaming = true, retryAvailable = false, status = "送信中…", liveContent = "", liveThought = "") }
+            mutable.update { it.copy(streaming = true, retryAvailable = false, status = "送信中…", liveContent = "", liveThought = "", cards = emptyList()) }
             var id = submission.body.nullableString("thread_id")
             try {
                 if (id.isBlank()) {
@@ -257,6 +269,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     private fun acceptEvent(threadId: String, event: JSONObject) {
         if (state.value.selected?.id != threadId) return
+        when (event.optString("type")) {
+            "python" -> {
+                val payload = event.optJSONObject("content") ?: return
+                mutable.update { it.copy(cards = upsertPythonCard(it.cards, payload), status = "ツールを実行しています…") }
+                return
+            }
+            "search_status" -> {
+                val value = event.opt("content")?.toString().orEmpty()
+                mutable.update { it.copy(cards = upsertSearchCard(it.cards, value), status = "Webを検索しています…") }
+                return
+            }
+        }
         val content = event.opt("content")?.toString().orEmpty()
         mutable.update { when (event.optString("type")) {
             "job_id" -> it.copy(jobId = content, status = "応答を待っています…")
@@ -307,7 +331,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun report(error: Throwable) {
         if (error is CancellationException) throw error
         if (error is ApiException && error.status == 401) clearSession()
-        mutable.update { it.copy(notice = error.message?.take(500) ?: "通信に失敗しました。再試行してください。") }
+        val offline = error is java.net.ConnectException || error is java.net.UnknownHostException ||
+            error is java.net.SocketTimeoutException || error is java.net.SocketException
+        mutable.update { it.copy(
+            notice = error.message?.take(500) ?: "通信に失敗しました。再試行してください。",
+            offline = it.offline || offline) }
+    }
+    /** Clears the offline banner and retries the last account or history load. */
+    fun reconnect() {
+        mutable.update { it.copy(offline = false) }
+        viewModelScope.launch {
+            try {
+                if (session == null) pair() else {
+                    loadAccount()
+                    state.value.selected?.let { loadMessages(it.id) }
+                }
+            } catch (e: Exception) { report(e) }
+        }
+    }
+    /** Loads same-origin attachment bytes for preview; returns null when unavailable. */
+    suspend fun loadAttachmentBytes(reference: String, thumbnail: Boolean, limit: Long = 8L * 1024 * 1024): ByteArray? {
+        val active = session?.token ?: return null
+        return withContext(Dispatchers.IO) {
+            runCatching { api.loadFileBytes(reference, active, thumbnail, limit) }.getOrNull()
+        }
     }
     fun upload(uris: List<Uri>) {
         if (state.value.uploading) return

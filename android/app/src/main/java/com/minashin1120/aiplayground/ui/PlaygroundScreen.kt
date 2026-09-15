@@ -27,80 +27,142 @@ import kotlinx.coroutines.launch
 fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (String) -> Unit) {
     val state by model.state.collectAsStateWithLifecycle()
     PlaygroundTheme {
-        val drawer = rememberDrawerState(DrawerValue.Closed)
-        val scope = rememberCoroutineScope()
-        var deleting by remember { mutableStateOf<ThreadItem?>(null) }
-        var logout by remember { mutableStateOf(false) }
-        var modelPicker by remember { mutableStateOf(false) }
-        val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { model.upload(it) }
-        val snackbar = remember { SnackbarHostState() }
-        LaunchedEffect(state.notice) {
-            state.notice?.let { snackbar.showSnackbar(it, duration = SnackbarDuration.Long); model.dismissNotice() }
-        }
-        ModalNavigationDrawer(drawerState = drawer, gesturesEnabled = state.account != null,
-            drawerContent = {
-                if (state.account != null) ModalDrawerSheet(Modifier.width(320.dp)) {
-                    Column(Modifier.padding(20.dp).fillMaxWidth()) {
-                        Text("AI Playground", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Text(state.account?.name.orEmpty(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(20.dp))
-                        Button(onClick = { model.newChat(); scope.launch { drawer.close() } }, modifier = Modifier.fillMaxWidth()) { Text("＋ 新しいチャット") }
-                        Spacer(Modifier.height(12.dp))
-                        OutlinedTextField(state.search, model::search, singleLine = true, label = { Text("履歴を検索") }, modifier = Modifier.fillMaxWidth())
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            // Tablets and wide screens keep the history pane beside the conversation.
+            val wide = maxWidth >= PlaygroundDimens.breakpoint
+            val drawer = rememberDrawerState(DrawerValue.Closed)
+            val scope = rememberCoroutineScope()
+            var deleting by remember { mutableStateOf<ThreadItem?>(null) }
+            var logout by remember { mutableStateOf(false) }
+            var modelPicker by remember { mutableStateOf(false) }
+            val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { model.upload(it) }
+            val snackbar = remember { SnackbarHostState() }
+            val loader: FileBytesLoader = { reference, thumbnail, limit ->
+                model.loadAttachmentBytes(reference, thumbnail, limit)
+            }
+            LaunchedEffect(state.notice) {
+                state.notice?.let { snackbar.showSnackbar(it, duration = SnackbarDuration.Long); model.dismissNotice() }
+            }
+            val closeDrawer: () -> Unit = { scope.launch { drawer.close() } }
+            val showThreads = state.account != null
+
+            val content: @Composable () -> Unit = {
+                Scaffold(
+                    modifier = Modifier.imePadding(),
+                    topBar = {
+                        TopAppBar(title = { Column {
+                            Text(state.selected?.title?.ifBlank { "新しいチャット" } ?: "AI Playground", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(if (state.account == null) "あなたのAIを、ポケットに。" else "Android · ${state.account?.name}", style = MaterialTheme.typography.labelSmall)
+                        } }, navigationIcon = {
+                            if (showThreads && !wide) TextButton(onClick = { scope.launch { drawer.open() } }) { Text("履歴") }
+                        }, actions = {
+                            if (showThreads) TextButton(onClick = model::refresh, enabled = !state.busy && !state.streaming) { Text("更新") }
+                        })
+                    }, snackbarHost = { SnackbarHost(snackbar) },
+                    bottomBar = {
+                        if (showThreads) Composer(state, model, { modelPicker = true }, { picker.launch(arrayOf("*/*")) })
                     }
-                    LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 12.dp)) {
-                        items(state.threads, key = { it.id }) { thread ->
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                TextButton(onClick = { model.openThread(thread); scope.launch { drawer.close() } }, modifier = Modifier.weight(1f)) {
-                                    Column(Modifier.fillMaxWidth()) {
-                                        Text(thread.title.ifBlank { "新しいチャット" }, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                        if (thread.model.isNotBlank()) Text(thread.model, style = MaterialTheme.typography.labelSmall, maxLines = 1)
-                                    }
-                                }
-                                TextButton(onClick = { deleting = thread }) { Text("削除", style = MaterialTheme.typography.labelSmall) }
+                ) { padding ->
+                    Column(Modifier.fillMaxSize().padding(padding)) {
+                        if (state.offline) OfflineBanner(model::reconnect)
+                        Box(Modifier.weight(1f)) {
+                            when {
+                                state.starting -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                                state.account == null -> PairingScreen(state, model, onWeb)
+                                else -> Conversation(state, model, onFile, loader)
                             }
                         }
-                        if (state.nextPage != null) item { TextButton(onClick = model::moreThreads, modifier = Modifier.fillMaxWidth()) { Text("もっと読み込む") } }
-                    }
-                    TextButton(onClick = { onWeb(false) }, modifier = Modifier.fillMaxWidth()) { Text("Web設定・安全性確認") }
-                    TextButton(onClick = { logout = true }, modifier = Modifier.fillMaxWidth()) { Text("この端末からログアウト") }
-                    Spacer(Modifier.navigationBarsPadding())
-                }
-            }) {
-            Scaffold(
-                modifier = Modifier.imePadding(),
-                topBar = {
-                    TopAppBar(title = { Column {
-                        Text(state.selected?.title?.ifBlank { "新しいチャット" } ?: "AI Playground", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(if (state.account == null) "あなたのAIを、ポケットに。" else "Android · ${state.account?.name}", style = MaterialTheme.typography.labelSmall)
-                    } }, navigationIcon = {
-                        if (state.account != null) TextButton(onClick = { scope.launch { drawer.open() } }) { Text("履歴") }
-                    }, actions = {
-                        if (state.account != null) TextButton(onClick = model::refresh, enabled = !state.busy && !state.streaming) { Text("更新") }
-                    })
-                }, snackbarHost = { SnackbarHost(snackbar) },
-                bottomBar = {
-                    if (state.account != null) Composer(state, model, { modelPicker = true }, { picker.launch(arrayOf("*/*")) })
-                }
-            ) { padding ->
-                Box(Modifier.fillMaxSize().padding(padding)) {
-                    when {
-                        state.starting -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                        state.account == null -> PairingScreen(state, model, onWeb)
-                        else -> Conversation(state, model, onFile)
                     }
                 }
             }
+
+            if (showThreads && wide) {
+                Row(Modifier.fillMaxSize()) {
+                    Surface(Modifier.width(PlaygroundDimens.sidePane).fillMaxHeight(), tonalElevation = 1.dp) {
+                        ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {})
+                    }
+                    VerticalDivider()
+                    Box(Modifier.weight(1f)) { content() }
+                }
+            } else {
+                ModalNavigationDrawer(drawerState = drawer, gesturesEnabled = showThreads,
+                    drawerContent = {
+                        if (showThreads) ModalDrawerSheet(Modifier.width(PlaygroundDimens.drawerPane)) {
+                            ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer)
+                        }
+                    }) { content() }
+            }
+
+            if (modelPicker) ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { model.chooseModel(it); modelPicker = false })
+            deleting?.let { thread -> AlertDialog(onDismissRequest = { deleting = null }, title = { Text("チャットを削除しますか？") },
+                text = { Text("「${thread.title}」の履歴と紐付く添付ファイルを削除します。この操作は取り消せません。") },
+                confirmButton = { TextButton(onClick = { model.deleteThread(thread); deleting = null }) { Text("削除") } },
+                dismissButton = { TextButton(onClick = { deleting = null }) { Text("キャンセル") } }) }
+            if (logout) AlertDialog(onDismissRequest = { logout = false }, title = { Text("この端末からログアウト") },
+                text = { Text("このAndroid端末の連携を取り消します。Webや他の端末のログインは継続します。") },
+                confirmButton = { TextButton(onClick = { model.logout(); logout = false; closeDrawer() }) { Text("ログアウト") } },
+                dismissButton = { TextButton(onClick = { logout = false }) { Text("キャンセル") } })
         }
-        if (modelPicker) ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { model.chooseModel(it); modelPicker = false })
-        deleting?.let { thread -> AlertDialog(onDismissRequest = { deleting = null }, title = { Text("チャットを削除しますか？") },
-            text = { Text("「${thread.title}」の履歴と紐付く添付ファイルを削除します。この操作は取り消せません。") },
-            confirmButton = { TextButton(onClick = { model.deleteThread(thread); deleting = null }) { Text("削除") } },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("キャンセル") } }) }
-        if (logout) AlertDialog(onDismissRequest = { logout = false }, title = { Text("この端末からログアウト") },
-            text = { Text("このAndroid端末の連携を取り消します。Webや他の端末のログインは継続します。") },
-            confirmButton = { TextButton(onClick = { model.logout(); logout = false; scope.launch { drawer.close() } }) { Text("ログアウト") } },
-            dismissButton = { TextButton(onClick = { logout = false }) { Text("キャンセル") } })
+    }
+}
+
+@Composable
+private fun OfflineBanner(onRetry: () -> Unit) {
+    Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("オフラインのようです。接続を確認してください。", modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
+            TextButton(onClick = onRetry) { Text("再試行") }
+        }
+    }
+}
+
+@Composable
+private fun ThreadPanel(
+    state: ChatState,
+    model: ChatViewModel,
+    onWeb: (Boolean) -> Unit,
+    onLogout: () -> Unit,
+    onDelete: (ThreadItem) -> Unit,
+    onNavigate: () -> Unit,
+) {
+    Column(Modifier.fillMaxSize().padding(20.dp)) {
+        Column(Modifier.fillMaxWidth()) {
+            Text("AI Playground", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(state.account?.name.orEmpty(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(20.dp))
+            Button(onClick = { model.newChat(); onNavigate() }, modifier = Modifier.fillMaxWidth()) { Text("＋ 新しいチャット") }
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(state.search, model::search, singleLine = true, label = { Text("履歴を検索") }, modifier = Modifier.fillMaxWidth())
+        }
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 12.dp)) {
+            items(state.threads, key = { it.id }) { thread ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { model.openThread(thread); onNavigate() }, modifier = Modifier.weight(1f)) {
+                        Column(Modifier.fillMaxWidth()) {
+                            Text(thread.title.ifBlank { "新しいチャット" }, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            if (thread.model.isNotBlank()) Text(thread.model, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                        }
+                    }
+                    TextButton(onClick = { onDelete(thread) }) { Text("削除", style = MaterialTheme.typography.labelSmall) }
+                }
+            }
+            if (state.threads.isEmpty()) item(key = "empty") {
+                Text(
+                    if (state.search.isBlank()) "チャット履歴はまだありません。"
+                    else "「${state.search}」に一致する履歴はありません。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(12.dp),
+                )
+            }
+            if (state.nextPage != null) item(key = "more") {
+                TextButton(onClick = model::moreThreads, modifier = Modifier.fillMaxWidth()) { Text("もっと読み込む") }
+            }
+        }
+        TextButton(onClick = { onWeb(false) }, modifier = Modifier.fillMaxWidth()) { Text("Web設定・安全性確認") }
+        TextButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) { Text("この端末からログアウト") }
+        Spacer(Modifier.navigationBarsPadding())
     }
 }
 
@@ -141,10 +203,10 @@ private fun PairingScreen(state: ChatState, model: ChatViewModel, onWeb: (Boolea
 }
 
 @Composable
-private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String) -> Unit) {
+private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String) -> Unit, loader: FileBytesLoader?) {
     val scroll = rememberLazyListState()
-    val live = state.streaming || state.liveContent.isNotEmpty() || state.liveThought.isNotEmpty()
-    LaunchedEffect(state.messages.size, state.liveContent.length) {
+    val live = state.streaming || state.liveContent.isNotEmpty() || state.liveThought.isNotEmpty() || state.cards.isNotEmpty()
+    LaunchedEffect(state.messages.size, state.liveContent.length, state.cards.size) {
         val info = scroll.layoutInfo
         val nearBottom = (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - 3
         val count = state.messages.size + (if (state.hasOlder) 1 else 0) + (if (live) 1 else 0)
@@ -159,7 +221,7 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
         if (state.retryAvailable) TextButton(onClick = model::retry, modifier = Modifier.fillMaxWidth(), enabled = !state.streaming) { Text("同じ送信を再試行（二重送信を防止）") }
         LazyColumn(state = scroll, modifier = Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (state.hasOlder) item(key = "older") { TextButton(onClick = model::olderMessages, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("以前のメッセージ") } }
-            if (state.messages.isEmpty() && !state.busy) item(key = "welcome") {
+            if (state.messages.isEmpty() && !state.busy && !live) item(key = "welcome") {
                 Column(Modifier.fillMaxWidth().padding(vertical = 32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text("今日は何を考えよう？", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     Text("モデルを選んで、気になっていることを話してみましょう。", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -168,8 +230,8 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
                     }
                 }
             }
-            items(state.messages, key = { it.id }) { message -> MessageCard(message, onFile) }
-            if (live) item(key = "live") { LiveMessage(state, onFile) }
+            items(state.messages, key = { it.id }) { message -> MessageCard(message, onFile, model::quoteMessage, loader) }
+            if (live) item(key = "live") { LiveMessage(state, onFile, model::quoteMessage, loader) }
         }
     }
 }

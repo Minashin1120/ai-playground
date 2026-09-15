@@ -78,6 +78,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         pairingJob = viewModelScope.launch {
             mutable.update { it.copy(pairing = true, userCode = "", notice = null) }
             try {
+                // Retry a saved login after a temporary network error without issuing another grant.
+                if (session != null) { loadAccount(); return@launch }
                 val config = api.get("/api/mobile/v1/config")
                 require(config.getInt("api_version") == 1) { "このサーバーの接続方式には未対応です。" }
                 val grant = api.post("/api/mobile/v1/device", JSONObject().put("client_id", "official-android")
@@ -94,7 +96,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         val linked = StoredSession(reply.getString("access_token"), System.currentTimeMillis() + reply.getLong("expires_in") * 1000)
                         withContext(Dispatchers.IO) { store.save(linked) }
                         session = linked
-                        loadAccount()
+                        // The grant is already consumed. Never poll it again if /me or history fails.
+                        try { loadAccount() } catch (e: Exception) { report(e) }
                         return@launch
                     } catch (e: ApiException) {
                         when (e.code) {

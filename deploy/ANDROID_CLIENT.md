@@ -1,6 +1,6 @@
 # Androidクライアント開発・接続ガイド
 
-この文書は、AI Chat Playgroundの公式Androidクライアントを別プロジェクトで実装するための仕様と手順です。今回の成果物はサーバー側の接続機能、端末連携画面、サーバー設定、回帰テスト、本書です。Androidの完成アプリ、署名鍵、APK、AAB、Play Consoleへの登録は含みません。
+この文書は、AI Chat Playgroundの公式Androidクライアントの通信仕様、実装構成、APKの構築・配布、サーバー設定をまとめたものです。Androidプロジェクトは同じリポジトリの `android/` にあり、モジュールは `android/app/` です。GitHub Actionsで署名付きdebug/release APKを構築し、GitHub Releaseへ配布します。Google Playへの登録とAAB配布は対象外です。
 
 接続先は `https://ai.minashin1120.com`。認証プロトコルは `device_pairing_v1`、接続仕様の版は `api_version: 1` です。Webのリリース番号とAndroidのversionCodeは別々に管理します。
 
@@ -38,12 +38,14 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | 一時チャット | 作成・heartbeat。自動削除タイマーをクライアント側でも考慮する |
 | モデル一覧 | `/me` の `model_ids`。有効な内部ID一覧であり、全IDが通常チャットに対応する意味ではない |
 | APIキー・プロフィール・アカウント削除・2FA設定 | Webで操作。Androidトークンでは設定・管理APIにアクセスできない |
-| E2EE | 未対応。E2EE有効アカウントの連携承認とデータ操作を拒否。勝手に無効化しない |
+| WebのE2EE設定 | 有効なまま連携・履歴取得・添付を利用可能。現在の実装はサーバー管理鍵による保存時暗号化であり、端末だけが復号できるE2EEではない |
 | リアルタイム音声、Batch管理、Coding専用UI、MCP設定 | 今回の対応範囲外。専用APIはトークンの許可リストに含めない |
 | ブラウザー高速モード | 対象外。APIキーをAndroidへ返すbootstrap APIは許可しない |
 | アプリ配布・真正性検証 | APK署名・Play配布は別途。client_idや端末名はアプリ署名の証明ではない |
 
-最初のAndroid版は、通常テキストチャットと添付に絞る構成を推奨します。特殊モデル用のUIを作る前に、モデルごとの入出力と追加APIを設計してください。
+Android初版は通常チャット、モデル選択、履歴の検索・ページ送り・削除、添付、生成停止、切断後の再接続、端末連携・失効に対応します。リアルタイム音声・Batch操作・高度なモデル別設定はWebを使います。本文は選択可能なテキストとコードブロックで表示し、Webと同等のMarkdown・数式・画像プレビューはまだ実装していません。
+
+暗号化の境界は「HTTPSで通信」「サーバーが保存データを暗号化・復号」「端末トークンをAndroid Keystoreの鍵で暗号化保存」です。既存Webの `enable_e2ee` はサーバー側の `encrypt_val` / `decrypt_val` とファイル暗号化に使われます。そのため、この設定を理由にAndroidを拒否する必要はありません。真の端末間E2EEに変更する場合は、端末鍵の生成・共有・回復とAI処理時の平文の扱いを別途設計する必要があります。
 
 ## 2. 認証と端末連携
 
@@ -111,7 +113,8 @@ HTTPS必須。JSONはUTF-8。APIレスポンスと認証ページは `Cache-Cont
   "grant_expires_in": 600,
   "poll_interval": 5,
   "stream_format": "application/x-ndjson",
-  "e2ee_supported": false
+  "e2ee_supported": true,
+  "encryption_mode": "server_managed_at_rest"
 }
 ```
 
@@ -180,7 +183,7 @@ IPごとに10分で10申請まで。共有ネットワークでは複数利用�
 
 ### 3.5 アカウント確認・ログアウト
 
-`GET /api/mobile/v1/me`：Bearer必須。`id`、`username`、UTC ISO 8601の `expires_at`、`e2ee_enabled`、`model_ids` を返します。秘密鍵・APIキー・パスワードは返しません。
+`GET /api/mobile/v1/me`：Bearer必須。`id`、`username`、UTC ISO 8601の `expires_at`、`e2ee_enabled`、`encryption_mode`、`default_model`、`model_ids` を返します。秘密鍵・APIキー・パスワードは返しません。`e2ee_supported` は既存Web設定との互換性を表す値であり、端末間暗号化の保証ではありません。
 
 `POST /api/mobile/v1/revoke`：Bearer必須、本文 `{}`。成功は `{"status":"revoked"}`。同じトークンでの次の呼び出しは401になります。
 
@@ -284,20 +287,20 @@ AIが返した外部画像URL、リダイレクト先、任意リンクにはAnd
 
 ### 6.1 開発環境
 
-Android StudioでKotlin / Jetpack ComposeのEmpty Activityプロジェクトを作成します。AndroidプロジェクトはこのFlaskリポジトリとは別に管理します。package/applicationIdは正式な配布名を決めたうえで設定してください。本書の例は `com.example.playground` で、予約済みの公式IDではありません。
+既存の `android/` をAndroid Studioで開きます。新しくEmpty Activityを作り直す必要はありません。固定applicationIdは `com.minashin1120.aiplayground` です。上書きインストールを維持するため変更しません。リポジトリのルートはFlask用、Gradleのルートは `android/` で、Actionsの定義だけはリポジトリ直下の `.github/workflows/` に置きます。
 
-`minSdk = 26` を初期案とし、compileSdk・targetSdk・Android Gradle Plugin・Kotlin・Gradle Wrapperは使用中のAndroid Studioの安定版テンプレートと依存ライブラリの要件に合わせます。Google Playの提出要件は提出時に公式情報を確認してください。
+Android 8.0以上（minSdk 26）、compileSdk / targetSdk 36、JDK 17、AGP 8.13.0、Gradle 8.13、Kotlin 2.2.10、Compose BOM 2025.08.00を使用します。版の正本は `android/app/build.gradle.kts` と `android/build.gradle.kts`、Wrapperのpropertiesです。Gradle配布ZIPとWrapper JARはSHA-256を検証します。
 
-既存のテンプレートのGradle構成を維持したまま、`app/build.gradle.kts` のdependenciesに追加する例：
+主な通信・認可画面用の依存（すでに設定済み）：
 
 ```kotlin
 dependencies {
-    implementation("com.squareup.okhttp3:okhttp:5.5.0")
-    implementation("androidx.browser:browser:1.10.0")
+    implementation("com.squareup.okhttp3:okhttp:5.3.0")
+    implementation("androidx.browser:browser:1.9.0")
 }
 ```
 
-上記は2026-09-15に[OkHttp公式リポジトリ](https://github.com/lysine-dev/okhttp#releases)と[AndroidX Browserの公式リリース情報](https://developer.android.com/jetpack/androidx/releases/browser)で確認した依存指定例です。採用時に互換性を確認して版を固定し、動的バージョン指定は避けます。Compose・Lifecycle・Coroutinesはテンプレートのversion catalogに合わせて管理します。
+更新時は[OkHttp公式リポジトリ](https://github.com/lysine-dev/okhttp#releases)と[AndroidX Browserの公式リリース情報](https://developer.android.com/jetpack/androidx/releases/browser)で互換性を確認し、Actionsのテスト・lint・両APK構築を通します。動的バージョン指定は使いません。
 
 ### 6.2 Manifestとネットワーク
 
@@ -332,37 +335,66 @@ dependencies {
 
 この連携方式にはコールバック用の独自URIスキームや `assetlinks.json` は不要です。将来App Linksで自動復帰させる場合は、正式applicationIdと配布署名のSHA-256を確定してから別途設定します。
 
-### 6.3 推奨する実装順序と構成
+### 6.3 実装構成
 
 ```text
-data/network/PlaygroundApi.kt     固定接続先、JSON/NDJSON、HTTPエラー
-data/auth/PairingRepository.kt    device発行、ポーリング、失効
-data/auth/TokenStore.kt           Keystoreによる端末保存
-data/chat/ChatRepository.kt       履歴取得、送信、再接続
-ui/login/                        コード表示、ブラウザーを開く、再試行
-ui/threads/                      一覧、検索、削除確認
-ui/chat/                         送信、ストリーム表示、停止、添付
+MainActivity.kt                  ブラウザー・添付の起動、画面ライフサイクル
+ChatViewModel.kt                 端末連携、履歴、送信、再接続、添付、失効
+data/PlaygroundApi.kt            固定接続先、CookieなしHTTP、JSON/NDJSON、キャンセル
+data/TokenStore.kt               Keystoreによるトークン暗号化保存
+data/Models.kt                   データ変換、エラー表示、応答サイズ制限
+ui/PlaygroundScreen.kt           連携、履歴、モデル選択、チャット画面
+ui/ChatComponents.kt             入力、メッセージ、添付、コードブロック
 ```
 
-接続仕様取得 → 端末連携 → `/me` → スレッド一覧 → テキスト送信 → 切断復帰 → 添付 → ログアウトの順に実装すると、失敗箇所を切り分けやすくなります。
+これらは `android/app/src/main/java/com/minashin1120/aiplayground/` 配下です。ファイルの地図は [Android README](../android/README.md) にあります。
 
 ### 6.4 ビルドと配布
 
-Android Studioが作成したプロジェクトのルートで実行します。
+通常はGitHubのActions → **Android CI** → **Run workflow**（main）を使います。`android/**` またはAndroid workflowの変更をmainへ反映したときも自動実行されます。サーバーだけの更新はAndroidビルドを起動しません。
 
-```bash
-./gradlew testDebugUnitTest lintDebug assembleDebug
-./gradlew connectedDebugAndroidTest
-./gradlew bundleRelease
+1. 初回だけ、Actionsが `android/ci/debug.keystore` を生成し、同じファイルと `signing-fingerprint.txt` をmainへ記録・送信します。保存に失敗した場合はAPKを作りません。
+2. 固定鍵を含む確定コミットをcheckoutし、JDK 17とAndroid SDK 36を準備します。
+3. JVM通信テスト、lint、debug APK構築、APK署名検証を行い、`app-debug` artifactを30日保存します。
+4. 同じ確定コミットからrelease APKを構築・検証し、`app-release-signed` artifactを90日保存します。
+5. `android/version.properties` のVERSION_NAMEから `android-vX.Y.Z` タグを作り、APK・APK SHA-256・署名証明書SHA-256をGitHub Releaseに掲載します。Webの `v4.8.xxx` タグとは分離しています。
+
+PRでは書き込み・鍵生成・Release作成をしません。固定鍵がまだmainに無い場合は、先にmainのAndroid CIを完了します。Actionsの標準 `GITHUB_TOKEN` だけを使用し、署名用のカスタムSecretは不要です。リポジトリのActions書き込み設定やブランチ保護によってmainへの記録が拒否される場合は、管理者がその権限を整備してください。スクリプトは保護を迂回しません。
+
+### 6.5 固定署名鍵の運用
+
+debug/releaseとも `android/ci/debug.keystore` だけを使います。storePassword / keyPasswordは `android`、keyAliasは `androiddebugkey`。鍵が存在する場合は生成しません。空ファイルや履歴上で削除済みの鍵を検出した場合は停止し、正しい既存ファイルを復元します。ローカル鍵へのフォールバック、base64化、署名用Secretsは使いません。
+
+`android/ci/signing-fingerprint.txt` は初回の証明書SHA-256です。CIは `keytool -list -v` のSHA-1/SHA-256をログに出し、`apksigner verify --print-certs` のAPK署名証明書と固定fingerprintを照合します。APK自体の `.sha256` はファイル改ざん検知用であり、証明書fingerprintとは別です。どちらの鍵関連ファイルも更新の都度作り直さないでください。
+
+初回に保存された署名証明書（2026-09-15）：
+
+```text
+SHA-1:   0B:69:41:70:FF:D5:23:86:16:82:3D:D6:82:71:FA:DC:15:F9:10:54
+SHA-256: 6FA6AD4EAA885046A12123F72D8699300AB6554E22E9AC2D740FC21553B0ECA0
 ```
 
-`connectedDebugAndroidTest` はエミュレーター／実機が必要です。debug APKの典型的な出力先は `app/build/outputs/apk/debug/app-debug.apk`。release AABは `app/build/outputs/bundle/release/` を確認します。
+**この署名鍵は公開共有鍵です。誰でも同じ署名のAPKを作成できるため、署名一致だけでは公式配布元を証明できません。** APKはこのリポジトリのReleaseから取得し、第三者の再配布APKを信用しないでください。これは指定の再ビルド・上書き互換性を優先した運用で、秘密鍵を非公開にする一般的なストア配布設計とは異なります。Android Keystore内の端末トークン暗号化鍵やサーバーのデータ暗号化鍵を公開するものではありません。
 
-releaseは署名設定が別途必要です。Android Studioの署名付きBundle/APK作成画面でアップロード鍵を作成・指定し、鍵ファイルとパスワードをGitへ入れないでください。Play配布ではPlay App Signingとアップロード鍵を区別し、内部テストから確認します。versionCodeは配布ごとに増加させます。[公式ビルド手順](https://developer.android.com/build/building-cmdline)と[アプリ署名](https://developer.android.com/studio/publish/app-signing)を参照してください。
+### 6.6 更新・再実行・ローカル構築
+
+配布する変更では `VERSION_CODE` を必ず増やし、`VERSION_NAME` も未使用の値に変更します。同一タグが別コミットを指す場合はRelease作成を失敗させ、タグや既存APKを上書きしません。同じコミットの再実行では既存Releaseを保持します。手動 **Android Release** は `source_sha` にmain上の確定コミットを指定でき、任意の `tag_name` を入れる場合もVERSION_NAMEと一致する必要があります。鍵が無い状態でReleaseだけを実行しても生成は行いません。
+
+固定鍵の初回CI保存後、任意でローカル構築する場合：
+
+```bash
+cd android
+./gradlew testDebugUnitTest lintDebug assembleDebug
+./gradlew lintRelease assembleRelease
+```
+
+出力先はリポジトリから見て `android/app/build/outputs/apk/debug/app-debug.apk` と `android/app/build/outputs/apk/release/app-release.apk` です。ローカルに鍵が無ければ最新mainを取得してください。外部PCで鍵を作る必要はありません。
+
+APKを端末へダウンロードし、そのダウンロード元アプリの「不明なアプリのインストール」を許可して開きます。既存アプリのapplicationIdと証明書が同じで、versionCodeが下がらなければ通常は上書きできます。過去の異なる鍵で入れたAPKでは `INSTALL_FAILED_UPDATE_INCOMPATIBLE` になります。その場合だけアンインストールして入れ直します（端末連携・端末内データは消えます）。[公式ビルド手順](https://developer.android.com/build/building-cmdline)と[アプリ署名](https://developer.android.com/studio/publish/app-signing)も参照してください。
 
 ## 7. Kotlin通信コード
 
-以下はAndroidプロジェクトへ組み込むための通信部品例であり、画面・永続保存・キャンセルを含む完成SDKではありません。サーバー回帰テストとは別に、Android側でコンパイル・実機テストを実施してください。
+以下はプロトコル理解用の短い通信例です。実際にビルドされる実装は `android/app/src/main/` が正本です。そこでは画面・永続保存・キャンセル・サイズ制限を含めて実装しています。ActionsのJVMテストとlintは実機試験の代わりではないため、端末確認項目も実施してください。
 
 ### 7.1 Cookieを持たない専用クライアント
 
@@ -595,7 +627,7 @@ curl --silent --show-error --include \
 
 configは200 JSON、未認証meは401 JSONが期待値です。テスト出力を共有するときにSet-Cookie等が混ざる場合は除去します。トークン付きcurlコマンドをシェル履歴やプロセス引数へ残さず、認証付き試験にはテスト専用クライアントを使います。
 
-### 10.3 Android完成前の実機確認
+### 10.3 APKの実機確認
 
 | 試験 | 期待結果 |
 |---|---|
@@ -608,8 +640,9 @@ configは200 JSON、未認証meは401 JSONが期待値です。テスト出力�
 | 複数添付・大きすぎる添付 | 上限エラーを表示。再送で二重投稿しない |
 | 外部画像・リンク | 外部ホストへBearerが送られない |
 | Webから端末失効 | 次のAndroid API呼び出しが401になり再連携を促す |
-| E2EE・BAN・Turnstile | 機能制限を回避せず説明する |
-| 署名付きrelease APK/AAB | インストール・更新・端末保存・バックアップ除外を確認 |
+| WebのE2EE設定 | 有効なまま連携・履歴閲覧・添付ができ、設定が変わらない |
+| BAN・Turnstile | 機能制限を回避せず説明する |
+| 署名付きrelease APK | インストール・更新・端末保存・バックアップ除外を確認 |
 
 ## 11. 障害対応・制限・今後の拡張
 
@@ -623,13 +656,13 @@ configは200 JSON、未認証meは401 JSONが期待値です。テスト出力�
 | cookies_or_origin_not_allowed | OkHttpのCookieJar、WebView/CookieManagerとの共有、共通Interceptor |
 | insufficient_scope | 許可されていないURL・メソッドを呼んでいないか |
 | turnstile_required | 同じアカウントでWebの安全性確認を完了して再試行。サーバー側の認証マーカーは既存仕様で15分 |
-| e2ee_not_supported | Android側の鍵・暗号文対応が未実装。Webを利用する |
+| 古いサーバーの e2ee_not_supported | サーバーを互換対応版へ更新する。Webの暗号化設定を無効化する必要はない |
 | 生成中に切断 | CDN/Gunicorn/Apache/端末の待機時間、回線変更、アプリのライフサイクル |
 | 再接続後に本文が重複 | 再接続前の仮表示バッファをクリアしているか、最後にDB履歴へ置き換えているか |
 
 Turnstileの確認にはアプリ内の「Webで安全性を確認」導線を用意します。今回の専用APIは既存の確認マーカーを使い、Androidという理由で確認を免除していません。このため、Bot対策対象アカウントでは継続利用中に再確認が必要になる場合があります。
 
-今後の拡張候補は、ブラウザー認可コード＋PKCEと検証済みApp Links、自動復帰、refresh tokenのローテーション、E2EE鍵管理、安定したネイティブ用モデルメタデータ、リアルタイム音声、チャンクアップロード、イベント連番による再開です。これらは実装済み機能としてクライアントへ表示しないでください。
+今後の拡張候補は、ブラウザー認可コード＋PKCEと検証済みApp Links、自動復帰、refresh tokenのローテーション、端末間E2EEの新しい設計、安定したネイティブ用モデルメタデータ、リアルタイム音声、チャンクアップロード、イベント連番による再開です。これらは実装済み機能としてクライアントへ表示しないでください。
 
 `official-android` という公開client_idを知っていれば、他のクライアントも連携申請自体は作れます。利用者のブラウザー認証と明示承認が権限の根拠です。「公式APKからの通信だけを許可する」要件がある場合は、正式な署名・配布基盤とアプリ検証を別途設計します。
 

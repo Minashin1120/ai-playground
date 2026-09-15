@@ -95,8 +95,6 @@ def mobile_request_guard():
             return _mobile_error('invalid_token', 401)
         if not current_user.is_setup_completed and endpoint != 'mobile_revoke':
             return _mobile_error('setup_required', 403)
-        if current_user.enable_e2ee and endpoint not in {'mobile_me', 'mobile_revoke'}:
-            return _mobile_error('e2ee_not_supported', 409)
     elif endpoint in {'mobile_me', 'mobile_revoke'}:
         return _mobile_error('invalid_token', 401)
 

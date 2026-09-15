@@ -41,6 +41,17 @@ class McpReleaseAllowlistTests(unittest.TestCase):
             with self.subTest(rel=rel):
                 self.assertFalse(module.is_allowed_git_path(rel), f"{rel} must stay blocked")
 
+    def test_android_source_and_only_named_workflows_are_allowed(self):
+        module = self._load_common()
+        for rel in ('android/app/build.gradle.kts', 'android/ci/debug.keystore',
+                    'android/ci/signing-fingerprint.txt', '.github/workflows/android.yml',
+                    '.github/workflows/release.yml'):
+            with self.subTest(rel=rel):
+                self.assertTrue(module.is_allowed_git_path(rel))
+        for rel in ('.github/workflows/unrelated.yml', 'android/.env', 'android/secret.key'):
+            with self.subTest(rel=rel):
+                self.assertFalse(module.is_allowed_git_path(rel))
+
 
 if __name__ == "__main__":
     unittest.main()

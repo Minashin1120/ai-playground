@@ -42,6 +42,8 @@ FORBIDDEN_CHANGELOG_PHRASES = (
 )
 
 ALLOWED_GIT_EXACT = {
+    ".github/workflows/android.yml",
+    ".github/workflows/release.yml",
     ".env.example",
     ".gitignore",
     "CONTRIBUTING.md",
@@ -55,6 +57,7 @@ ALLOWED_GIT_EXACT = {
     "worker.py",
 }
 ALLOWED_GIT_PREFIXES = (
+    "android/",
     "deploy/",
     "LICENSES/",
     "mcp_service/",

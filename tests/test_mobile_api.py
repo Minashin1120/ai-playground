@@ -1,6 +1,7 @@
 """Exercise native authentication with isolated SQL and real, ephemeral Redis."""
 import json
 import io
+from pathlib import Path
 import shutil
 import subprocess
 import tempfile
@@ -169,6 +170,46 @@ class MobileApiTests(unittest.TestCase):
         response.close()
         self.assertEqual(self.call('/files/' + str(self.other_id) + '/private.txt', token).status_code, 403)
 
+    def test_encrypted_account_pairs_and_reads_encrypted_history_and_attachment(self):
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.enable_e2ee = True
+            thread = target.Thread(user_id=self.user_id, title='Encrypted history')
+            target.db.session.add(thread)
+            target.db.session.flush()
+            target.db.session.add(target.Message(thread_id=thread.id, role='assistant',
+                content=target.encrypt_val('暗号化された回答'),
+                thought_data=target.encrypt_val('暗号化された思考'), is_encrypted=True))
+            target.db.session.commit()
+            thread_id = thread.public_id or str(thread.id)
+        token = self.token()
+        config = self.native.get('/api/mobile/v1/config', base_url='https://localhost').json
+        self.assertTrue(config['e2ee_supported'])
+        self.assertEqual(config['encryption_mode'], 'server_managed_at_rest')
+        me = self.call('/api/mobile/v1/me', token).json
+        self.assertTrue(me['e2ee_enabled'])
+        self.assertEqual(me['encryption_mode'], 'server_managed_at_rest')
+        history = self.call('/api/threads/' + thread_id, token)
+        self.assertEqual(history.status_code, 200)
+        self.assertEqual(history.json['messages'][0]['content'], '暗号化された回答')
+        self.assertEqual(history.json['messages'][0]['thought_data'], '暗号化された思考')
+        response = self.call('/upload', token, 'POST',
+            data={'file': (io.BytesIO(b'encrypted android attachment'), 'secret.txt')},
+            content_type='multipart/form-data')
+        self.assertEqual(response.status_code, 200)
+        filename = response.json['filename']
+        # Only the per-test temporary upload directory, never application account-transfer data.
+        stored = Path(target.app.config['UPLOAD_FOLDER']) / (filename + '.enc')
+        self.assertNotIn(b'encrypted android attachment', stored.read_bytes())
+        response = self.call('/files/' + filename, token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b'encrypted android attachment')
+        response.close()
+        self.assertEqual(self.call('/files/' + str(self.other_id) + '/private.txt', token).status_code, 403)
+        with target.app.app_context():
+            self.assertTrue(target.db.session.get(target.User, self.user_id).enable_e2ee)
+            self.assertNotEqual(target.Message.query.one().content, '暗号化された回答')
+
     def test_public_auth_rejects_browser_origin_cookie_and_non_json(self):
         for header in [{'Origin': 'https://evil.example'}, {'Cookie': 'session=test'}]:
             response = self.native.post('/api/mobile/v1/device', base_url='https://localhost', headers=header,
@@ -202,7 +243,7 @@ class MobileApiTests(unittest.TestCase):
             user.is_bot_banned = False
             user.enable_e2ee = True
             target.db.session.commit()
-        self.assertEqual(self.call('/api/threads', token).status_code, 409)
+        self.assertEqual(self.call('/api/threads', token).status_code, 200)
         self.assertEqual(self.call('/api/mobile/v1/me', token).status_code, 200)
         with mock.patch.dict(target.app.config, MAINTENANCE_MODE=True):
             self.assertEqual(self.call('/api/mobile/v1/me', token).json['error'], 'maintenance')

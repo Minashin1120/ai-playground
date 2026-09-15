@@ -29,7 +29,8 @@ def mobile_config():
         'me_endpoint': '/api/mobile/v1/me', 'revoke_endpoint': '/api/mobile/v1/revoke',
         'token_expires_in': MOBILE_TOKEN_TTL, 'grant_expires_in': MOBILE_GRANT_TTL,
         'poll_interval': MOBILE_POLL_INTERVAL, 'stream_format': 'application/x-ndjson',
-        'e2ee_supported': False,
+        'e2ee_supported': True,
+        'encryption_mode': 'server_managed_at_rest',
         'allowed_endpoints': [
             {'path': rule.rule, 'methods': sorted(MOBILE_ENDPOINT_METHODS[rule.endpoint])}
             for rule in app.url_map.iter_rules() if rule.endpoint in MOBILE_ENDPOINT_METHODS
@@ -97,8 +98,6 @@ def mobile_connect():
             return render_template('android_connect.html', user_code=code, device_name=grant['device_name'])
         result = {'status': 'denied'}
         if decision == 'approve':
-            if current_user.enable_e2ee:
-                return render_template('android_connect.html', error='現在のAndroid APIはE2EEに未対応です。連携できません。'), 409
             token = MOBILE_TOKEN_PREFIX + secrets.token_urlsafe(32)
             new_session = UserSession(
                 user_id=current_user.id, session_id='android:' + _mobile_digest(token),
@@ -168,6 +167,8 @@ def mobile_me():
     return jsonify({'id': current_user.id, 'username': current_user.username,
                     'expires_at': (g.mobile_session.created_at + timedelta(seconds=MOBILE_TOKEN_TTL)).isoformat() + 'Z',
                     'e2ee_enabled': bool(current_user.enable_e2ee),
+                    'encryption_mode': 'server_managed_at_rest',
+                    'default_model': current_user.default_model,
                     'model_ids': sorted(ALL_VALID_MODEL_IDS)})
 
 

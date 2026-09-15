@@ -1,0 +1,18 @@
+# AI Playground Android
+
+| ファイル名 | 主な内容 | いつ開くか |
+|---|---|---|
+| `../deploy/ANDROID_CLIENT.md` | 通信仕様・アプリ操作・構築・署名・公開手順 | 開発・導入・障害対応 |
+| `settings.gradle.kts`, `build.gradle.kts`, `gradle.properties` | Android Gradleプロジェクトのルート設定 | SDK・Kotlin・Gradleを更新するとき |
+| `version.properties` | AndroidのversionCodeとversionName | 新しいAndroid版を配布するとき |
+| `app/build.gradle.kts` | 固定applicationId・共有署名・依存関係 | アプリ構成・署名を確認するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/MainActivity.kt` | ブラウザー起動・添付共有・Activityライフサイクル | 端末連携やファイル表示 |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatViewModel.kt` | 認証・履歴・送信・再接続・アップロード状態 | アプリ操作・通信フロー |
+| `app/src/main/java/com/minashin1120/aiplayground/data/` | CookieなしHTTP、NDJSON、APIモデル、Keystore保存 | 認証・通信・保存 |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/` | Compose画面、履歴ドロワー、メッセージ、入力欄 | 画面を編集するとき |
+| `app/src/main/res/` | アイコン、HTTPS設定、バックアップ除外、添付共有範囲 | Androidリソース・保護設定 |
+| `app/src/test/` | HTTP認証境界・ストリーム・データ解析テスト | 通信実装を変更するとき |
+| `ci/bootstrap-keystore.sh` | Actions限定の初回鍵生成と保存 | 初回署名準備 |
+| `ci/verify-keystore.sh`, `ci/verify-apk.sh` | 固定証明書とAPK署名の一致確認 | 署名・上書き更新を検証するとき |
+| `ci/debug.keystore`, `ci/signing-fingerprint.txt` | Actionsが初回だけ保存する共有固定鍵と証明書のSHA-256 | 再利用のみ。削除・置換・再生成しない |
+| `../.github/workflows/android.yml`, `../.github/workflows/release.yml` | CIと署名APKのリリース | GitHub Actionsの運用 |

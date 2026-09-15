@@ -1,0 +1,103 @@
+name: Android Release
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: 'Commit or ref on main to build'
+        required: true
+        default: main
+        type: string
+      tag_name:
+        description: 'Optional android-vX.Y.Z; must match version.properties'
+        required: false
+        default: ''
+        type: string
+  push:
+    tags: ['android-v*']
+
+permissions:
+  contents: write
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.source_sha || github.ref }}
+          fetch-depth: 0
+      - name: Validate source and release version
+        id: version
+        env:
+          INPUT_TAG: ${{ inputs.tag_name }}
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor HEAD origin/main
+          VERSION=$(sed -n 's/^VERSION_NAME=//p' android/version.properties)
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          TAG="android-v$VERSION"
+          [[ -z "$INPUT_TAG" || "$INPUT_TAG" == "$TAG" ]]
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then [[ "${GITHUB_REF#refs/tags/}" == "$TAG" ]]; fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: 'android/**/*.gradle.kts'
+      - name: Verify fixed keystore and Gradle wrapper
+        run: |
+          echo '81a82aaea5abcc8ff68b3dfcb58b3c3c429378efd98e7433460610fecd7ae45f  android/gradle/wrapper/gradle-wrapper.jar' | sha256sum -c -
+          bash android/ci/verify-keystore.sh
+      - name: Install Android SDK components
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"'
+      - name: Build and validate release APK
+        working-directory: android
+        run: ./gradlew --no-daemon testDebugUnitTest lintRelease assembleRelease --stacktrace
+      - name: Verify release signature
+        run: bash android/ci/verify-apk.sh app/build/outputs/apk/release/app-release.apk
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: app-release-signed
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/apk/release/app-release.apk.sha256
+            android/ci/signing-fingerprint.txt
+          if-no-files-found: error
+          retention-days: 90
+      - name: Publish the verified APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          SOURCE_SHA: ${{ steps.version.outputs.sha }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            git fetch origin "refs/tags/$TAG:refs/tags/$TAG"
+            [[ "$(git rev-parse "$TAG^{commit}")" == "$SOURCE_SHA" ]] || {
+              echo 'Version already belongs to another commit. Increment Android version.properties.' >&2; exit 1;
+            }
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git -c tag.gpgsign=false tag -a "$TAG" "$SOURCE_SHA" -m 'Verified Android APK with the fixed signing certificate'
+            git push origin "refs/tags/$TAG"
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo 'Existing release retained; assets are not overwritten.'
+          else
+            gh release create "$TAG" --verify-tag --title "AI Playground Android ${TAG#android-v}" \
+              --notes-file android/ci/release-notes.md \
+              android/app/build/outputs/apk/release/app-release.apk \
+              android/app/build/outputs/apk/release/app-release.apk.sha256 \
+              android/ci/signing-fingerprint.txt
+          fi

@@ -21,4 +21,11 @@ static/uploads/*
 !static/github_promo.png
 venv/
 node_modules/
+android/.gradle/
+android/.kotlin/
+android/.idea/
+android/**/build/
+android/local.properties
+android/debug.keystore
+!android/ci/debug.keystore
 引き継ぎ資料.txt

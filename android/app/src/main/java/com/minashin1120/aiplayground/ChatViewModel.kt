@@ -34,6 +34,7 @@ data class ChatState(
     val enableThinking: Boolean = false, val enableSearch: Boolean = false,
     val enablePromptCache: Boolean = false,
     val uploading: Boolean = false, val streaming: Boolean = false,
+    val uploadSent: Long = 0L, val uploadTotal: Long = 0L, val uploadName: String = "",
     val liveContent: String = "", val liveThought: String = "", val status: String = "",
     val cards: List<StatusCard> = emptyList(),
     val offline: Boolean = false,
@@ -428,37 +429,108 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     fun upload(uris: List<Uri>) {
-        if (state.value.uploading) return
+        if (uris.isEmpty() || state.value.uploading) return
         if (uris.size + state.value.attachments.size > 30) { mutable.update { it.copy(notice = "添付は30件までです。") }; return }
         uploadJob = viewModelScope.launch {
-            mutable.update { it.copy(uploading = true) }
+            mutable.update { it.copy(uploading = true, uploadSent = 0, uploadTotal = 0, uploadName = "") }
             try {
                 for (uri in uris) {
                     val resolver = getApplication<Application>().contentResolver
-                    val name = withContext(Dispatchers.IO) { resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
-                        if (it.moveToFirst()) it.getString(0) else null
-                    } ?: "attachment" }
-                    val body = object : RequestBody() {
-                        override fun contentType() = resolver.getType(uri)?.toMediaTypeOrNull()
-                        override fun writeTo(sink: BufferedSink) {
-                            val input = resolver.openInputStream(uri) ?: throw IOException("添付を開けません。")
-                            input.use {
-                                val bytes = ByteArray(8192); var total = 0L
-                                while (true) {
-                                    val count = it.read(bytes); if (count < 0) break
-                                    total += count
-                                    if (total > 64L * 1024 * 1024) throw IOException("添付は1ファイル64MiBまでです。")
-                                    sink.write(bytes, 0, count)
-                                }
-                            }
-                        }
+                    val local = withContext(Dispatchers.IO) { queryLocalAttachment(resolver, uri) }
+                    mutable.update { it.copy(uploadName = local.name, uploadSent = 0,
+                        uploadTotal = if (local.size > 0) local.size else 0) }
+                    val uploaded = if (local.size > CHUNK_UPLOAD_THRESHOLD_BYTES) {
+                        uploadInChunks(resolver, uri, local)
+                    } else {
+                        uploadWhole(resolver, uri, local)
                     }
-                    val uploaded = api.upload(name, body, token()).getString("filename")
-                    mutable.update { it.copy(attachments = it.attachments + Attachment(name, uploaded)) }
+                    mutable.update { it.copy(attachments = it.attachments + Attachment(local.name, uploaded, local.mime)) }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) { report(e) }
-            finally { mutable.update { it.copy(uploading = false) } }
+            finally { mutable.update { it.copy(uploading = false, uploadSent = 0, uploadTotal = 0, uploadName = "") } }
         }
+    }
+
+    fun cancelUpload() {
+        if (!state.value.uploading) return
+        uploadJob?.cancel()
+        mutable.update { it.copy(notice = "アップロードをキャンセルしました。") }
+    }
+
+    private data class LocalAttachment(val name: String, val size: Long, val mime: String)
+
+    private fun queryLocalAttachment(resolver: android.content.ContentResolver, uri: Uri): LocalAttachment {
+        var name = "attachment"
+        var size = -1L
+        resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (nameIndex >= 0) cursor.getString(nameIndex)?.takeIf { it.isNotBlank() }?.let { name = it }
+                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) size = cursor.getLong(sizeIndex)
+            }
+        }
+        val mime = resolver.getType(uri).orEmpty()
+        if (!name.contains('.') && mime.isNotBlank()) {
+            val extension = extensionForMime(mime)
+            if (extension.isNotBlank()) name = "$name.$extension"
+        }
+        return LocalAttachment(name, size, mime)
+    }
+
+    private suspend fun uploadWhole(resolver: android.content.ContentResolver, uri: Uri, local: LocalAttachment): String {
+        val known = local.size > 0
+        val body = object : RequestBody() {
+            override fun contentType() = local.mime.takeIf { it.isNotBlank() }?.toMediaTypeOrNull()
+            override fun contentLength() = if (known) local.size else -1L
+            override fun writeTo(sink: BufferedSink) {
+                val input = resolver.openInputStream(uri) ?: throw IOException("添付を開けません。")
+                input.use {
+                    val bytes = ByteArray(64 * 1024)
+                    var sent = 0L
+                    while (true) {
+                        val count = it.read(bytes)
+                        if (count < 0) break
+                        sent += count
+                        if (sent > MAX_SINGLE_UPLOAD_BYTES) throw IOException("添付は1ファイル64MiBまでです。")
+                        sink.write(bytes, 0, count)
+                        mutable.update { state -> state.copy(uploadSent = sent, uploadTotal = if (known) local.size else sent) }
+                    }
+                }
+            }
+        }
+        return api.upload(local.name, body, token()).getString("filename")
+    }
+
+    private suspend fun uploadInChunks(resolver: android.content.ContentResolver, uri: Uri, local: LocalAttachment): String {
+        val init = api.uploadInit(local.name, local.size, token())
+        val uploadId = init.getString("upload_id")
+        val chunkSize = init.optLong("chunk_size", CHUNK_UPLOAD_THRESHOLD_BYTES).toInt().coerceAtLeast(1)
+        val totalChunks = ((local.size + chunkSize - 1) / chunkSize).toInt()
+        val input = resolver.openInputStream(uri) ?: throw IOException("添付を開けません。")
+        input.use {
+            val buffer = ByteArray(chunkSize)
+            var index = 0
+            var sent = 0L
+            while (index < totalChunks) {
+                if (!currentCoroutineContext().isActive) throw CancellationException()
+                val expected = minOf(chunkSize.toLong(), local.size - sent).toInt()
+                var read = 0
+                while (read < expected) {
+                    val count = it.read(buffer, read, expected - read)
+                    if (count < 0) break
+                    read += count
+                }
+                if (read != expected) throw IOException("添付の読み込みに失敗しました。")
+                api.uploadChunk(uploadId, index, totalChunks, buffer.copyOf(read), token())
+                sent += read
+                index++
+                mutable.update { state -> state.copy(uploadSent = sent, uploadTotal = local.size) }
+            }
+        }
+        return api.uploadComplete(uploadId, token()).getString("filename")
     }
     fun openFile(reference: String, onReady: (File, String) -> Unit) { viewModelScope.launch {
         try {
@@ -469,4 +541,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             onReady(target, mime)
         } catch (e: Exception) { report(e) }
     } }
+    private companion object {
+        const val CHUNK_UPLOAD_THRESHOLD_BYTES = 8L * 1024 * 1024
+        const val MAX_SINGLE_UPLOAD_BYTES = 64L * 1024 * 1024
+    }
 }

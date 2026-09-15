@@ -17,7 +17,7 @@ data class ThreadItem(
 )
 data class ChatMessage(val id: String, val role: String, val content: String,
                        val thought: String = "", val files: List<String> = emptyList())
-data class Attachment(val name: String, val reference: String)
+data class Attachment(val name: String, val reference: String, val mime: String = "")
 data class ModelInfo(val id: String, val name: String, val provider: String, val providerLabel: String,
                      val mode: String, val capabilities: Set<String>, val deprecated: Boolean,
                      val selectable: Boolean) {
@@ -119,6 +119,58 @@ fun upsertPythonCard(cards: List<StatusCard>, payload: JSONObject): List<StatusC
 }
 
 private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "gif", "webp", "bmp", "heic", "heif", "avif")
+private val AUDIO_EXTENSIONS = setOf("wav", "mp3", "m4a", "ogg", "flac", "aac", "opus")
+private val VIDEO_EXTENSIONS = setOf("mp4", "mov", "mkv", "avi", "m4v", "webm", "3gp")
+private val TEXT_EXTENSIONS = setOf("txt", "md", "markdown", "json", "yaml", "yml", "csv", "tsv", "log",
+    "py", "js", "ts", "tsx", "jsx", "html", "css", "xml", "kt", "java", "c", "cpp", "h", "sh", "sql")
+
+/** Categories used to pick a MIME-appropriate attachment preview and label. */
+enum class AttachmentKind { IMAGE, AUDIO, VIDEO, PDF, TEXT, FILE }
+
+fun attachmentKind(name: String, mime: String = ""): AttachmentKind {
+    val ext = name.substringBefore('?').substringAfterLast('.', "").lowercase()
+    val type = mime.substringBefore(';').trim().lowercase()
+    return when {
+        ext in IMAGE_EXTENSIONS || type.startsWith("image/") -> AttachmentKind.IMAGE
+        ext in AUDIO_EXTENSIONS || type.startsWith("audio/") -> AttachmentKind.AUDIO
+        ext in VIDEO_EXTENSIONS || type.startsWith("video/") -> AttachmentKind.VIDEO
+        ext == "pdf" || type == "application/pdf" -> AttachmentKind.PDF
+        ext in TEXT_EXTENSIONS || type.startsWith("text/") -> AttachmentKind.TEXT
+        else -> AttachmentKind.FILE
+    }
+}
+
+/** Best-effort extension for providers that only report a MIME type (e.g. FileProvider). */
+fun extensionForMime(mime: String): String = when (mime.substringBefore(';').trim().lowercase()) {
+    "image/jpeg" -> "jpg"
+    "image/png" -> "png"
+    "image/webp" -> "webp"
+    "image/gif" -> "gif"
+    "image/heic" -> "heic"
+    "image/heif" -> "heif"
+    "audio/mpeg" -> "mp3"
+    "audio/mp4", "audio/m4a", "audio/x-m4a" -> "m4a"
+    "audio/wav", "audio/x-wav" -> "wav"
+    "audio/ogg" -> "ogg"
+    "audio/flac" -> "flac"
+    "video/mp4" -> "mp4"
+    "video/quicktime" -> "mov"
+    "video/webm" -> "webm"
+    "application/pdf" -> "pdf"
+    "text/plain" -> "txt"
+    else -> ""
+}
+
+fun formatByteSize(bytes: Long): String {
+    if (bytes < 0) return ""
+    if (bytes < 1024) return "$bytes B"
+    val units = listOf("KB", "MB", "GB")
+    var value = bytes.toDouble() / 1024
+    var unit = 0
+    while (value >= 1024 && unit < units.lastIndex) { value /= 1024; unit++ }
+    return if (value >= 10 || value % 1.0 == 0.0) "${value.toInt()} ${units[unit]}"
+    else String.format(java.util.Locale.US, "%.1f %s", value, units[unit])
+}
 
 fun isImageReference(reference: String): Boolean =
     reference.substringBefore('?').substringAfterLast('.', "").lowercase() in IMAGE_EXTENSIONS

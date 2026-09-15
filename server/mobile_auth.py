@@ -11,7 +11,8 @@ MOBILE_ENDPOINT_METHODS = {
     'toggle_bookmark': {'POST'},
     'chat_stream': {'POST'}, 'chat_stream_resume': {'POST'}, 'stop_chat': {'POST'},
     'temporary_chat_heartbeat': {'POST'}, 'estimate_prompt_tokens_api': {'POST'},
-    'upload': {'POST'}, 'serve_file': {'GET', 'HEAD'},
+    'upload': {'POST'}, 'upload_init': {'POST'}, 'upload_chunk': {'POST'},
+    'upload_complete': {'POST'}, 'serve_file': {'GET', 'HEAD'},
     'serve_file_thumb': {'GET', 'HEAD'}, 'get_storage_usage': {'GET'},
 }
 MOBILE_PUBLIC_ENDPOINTS = {'mobile_device', 'mobile_token'}

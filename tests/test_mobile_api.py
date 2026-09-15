@@ -223,6 +223,43 @@ class MobileApiTests(unittest.TestCase):
         response.close()
         self.assertEqual(self.call('/files/' + str(self.other_id) + '/private.txt', token).status_code, 403)
 
+    def test_native_chunked_upload_finalizes_and_enforces_scope(self):
+        token = self.token()
+        # Chunk endpoints are POST-only for the native client.
+        self.assertEqual(self.call('/upload/init', token).status_code, 403)
+        payload = b'chunked android attachment'
+        init = self.call('/upload/init', token, 'POST', json={'filename': 'note.txt', 'size': len(payload)})
+        self.assertEqual(init.status_code, 200)
+        upload_id = init.json['upload_id']
+        chunk_size = init.json['chunk_size']
+        total = (len(payload) + chunk_size - 1) // chunk_size
+        response = self.call('/upload/chunk', token, 'POST', data={
+            'upload_id': upload_id, 'index': '0', 'total': str(total),
+            'chunk': (io.BytesIO(payload), 'chunk'),
+        }, content_type='multipart/form-data')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json['received'], len(payload))
+        complete = self.call('/upload/complete', token, 'POST', json={'upload_id': upload_id})
+        self.assertEqual(complete.status_code, 200)
+        filename = complete.json['filename']
+        self.assertTrue(filename.endswith('.txt'))
+        got = self.call('/files/' + filename, token)
+        self.assertEqual(got.status_code, 200)
+        self.assertEqual(got.data, payload)
+        got.close()
+
+    def test_native_chunked_upload_rejects_out_of_order_chunks(self):
+        token = self.token()
+        init = self.call('/upload/init', token, 'POST', json={'filename': 'note.txt', 'size': 12})
+        self.assertEqual(init.status_code, 200)
+        upload_id = init.json['upload_id']
+        # index 1 is invalid while index 0 has not been received yet.
+        response = self.call('/upload/chunk', token, 'POST', data={
+            'upload_id': upload_id, 'index': '1', 'total': '1',
+            'chunk': (io.BytesIO(b'0123456789ab'), 'chunk'),
+        }, content_type='multipart/form-data')
+        self.assertEqual(response.status_code, 409)
+
     def test_encrypted_account_pairs_and_reads_encrypted_history_and_attachment(self):
         with target.app.app_context():
             user = target.db.session.get(target.User, self.user_id)

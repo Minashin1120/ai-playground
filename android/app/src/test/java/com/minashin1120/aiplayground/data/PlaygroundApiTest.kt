@@ -117,8 +117,7 @@ class PlaygroundApiTest {
         assertEquals("legacy-model", legacy.single().name)
     }
 
-    @Test fun attachmentReferencesStayOnTheFixedOrigin() {
-        assertEquals("123/pic.png", fileReferencePath("123/pic.png"))
+    @Test fun attachmentReferencesStayOnTheFixedOrigin() {        assertEquals("123/pic.png", fileReferencePath("123/pic.png"))
         assertEquals("123/pic.png", fileReferencePath("/files/123/pic.png"))
         assertEquals("123/pic.png", fileReferencePath("files/123/pic.png"))
         assertEquals("123/pic.png", fileReferencePath("https://ai.minashin1120.com/files/123/pic.png"))
@@ -128,6 +127,24 @@ class PlaygroundApiTest {
         assertNull(fileReferencePath(""))
         assertTrue(isImageReference("123/pic.PNG"))
         assertFalse(isImageReference("123/report.pdf"))
+    }
+
+    @Test fun attachmentKindsAndByteSizesRenderForPreview() {
+        assertEquals(AttachmentKind.IMAGE, attachmentKind("photo.PNG"))
+        assertEquals(AttachmentKind.IMAGE, attachmentKind("blob", "image/heic"))
+        assertEquals(AttachmentKind.AUDIO, attachmentKind("voice.m4a"))
+        assertEquals(AttachmentKind.VIDEO, attachmentKind("clip.mp4"))
+        assertEquals(AttachmentKind.PDF, attachmentKind("report.pdf"))
+        assertEquals(AttachmentKind.TEXT, attachmentKind("notes.md"))
+        assertEquals(AttachmentKind.FILE, attachmentKind("archive.zip"))
+        assertEquals("512 B", formatByteSize(512))
+        assertEquals("1 KB", formatByteSize(1024))
+        assertEquals("1.5 MB", formatByteSize(1024L * 1024 * 3 / 2))
+        assertEquals("2 GB", formatByteSize(2L * 1024 * 1024 * 1024))
+        assertEquals("", formatByteSize(-1))
+        assertEquals("jpg", extensionForMime("image/jpeg"))
+        assertEquals("m4a", extensionForMime("audio/x-m4a; charset=binary"))
+        assertEquals("", extensionForMime("application/zip"))
     }
 
     @Test fun binaryReadIsBounded() {

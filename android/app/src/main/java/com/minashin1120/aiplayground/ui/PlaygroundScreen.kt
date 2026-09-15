@@ -1,7 +1,9 @@
 package com.minashin1120.aiplayground.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,15 +14,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.core.content.FileProvider
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.data.ThreadItem
 import kotlinx.coroutines.launch
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,7 +41,25 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
             var logout by remember { mutableStateOf(false) }
             var modelPicker by remember { mutableStateOf(false) }
             var threadSettings by remember { mutableStateOf(false) }
+            var attachMenu by remember { mutableStateOf(false) }
+            var cameraUri by remember { mutableStateOf<Uri?>(null) }
+            val context = LocalContext.current
             val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { model.upload(it) }
+            val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(30)) { model.upload(it) }
+            val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+                val uri = cameraUri
+                cameraUri = null
+                if (success && uri != null) model.upload(listOf(uri))
+            }
+            val launchCamera: () -> Unit = {
+                try {
+                    val directory = File(context.cacheDir, "shared").apply { mkdirs() }
+                    val file = File(directory, "camera_${System.currentTimeMillis()}.jpg").apply { createNewFile() }
+                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+                    cameraUri = uri
+                    camera.launch(uri)
+                } catch (e: Exception) { model.notify("カメラを起動できません。") }
+            }
             val snackbar = remember { SnackbarHostState() }
             val loader: FileBytesLoader = { reference, thumbnail, limit ->
                 model.loadAttachmentBytes(reference, thumbnail, limit)
@@ -62,7 +85,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
                         })
                     }, snackbarHost = { SnackbarHost(snackbar) },
                     bottomBar = {
-                        if (showThreads) Composer(state, model, { modelPicker = true }, { picker.launch(arrayOf("*/*")) })
+                        if (showThreads) Composer(state, model, { modelPicker = true }, { attachMenu = true })
                     }
                 ) { padding ->
                     Column(Modifier.fillMaxSize().padding(padding)) {
@@ -96,6 +119,13 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
             }
 
             if (modelPicker) ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { model.chooseModel(it); modelPicker = false })
+            if (attachMenu) AlertDialog(onDismissRequest = { attachMenu = false }, title = { Text("添付を追加") },
+                text = { Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { attachMenu = false; picker.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("📂 ファイルを選択") }
+                    TextButton(onClick = { attachMenu = false; photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) }, modifier = Modifier.fillMaxWidth()) { Text("🖼 写真・動画を選択") }
+                    TextButton(onClick = { attachMenu = false; launchCamera() }, modifier = Modifier.fillMaxWidth()) { Text("📷 カメラで撮影") }
+                } },
+                confirmButton = { TextButton(onClick = { attachMenu = false }) { Text("閉じる") } })
             if (threadSettings && state.selected != null) ThreadSettingsDialog(state, onDismiss = { threadSettings = false }) {
                 title, instruction, includeGlobal, temporary ->
                 model.saveThreadSettings(title, instruction, includeGlobal, temporary)

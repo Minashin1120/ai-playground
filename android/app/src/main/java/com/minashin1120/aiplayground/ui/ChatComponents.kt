@@ -19,7 +19,19 @@ import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.StatusCard
+import com.minashin1120.aiplayground.data.AttachmentKind
+import com.minashin1120.aiplayground.data.attachmentKind
+import com.minashin1120.aiplayground.data.formatByteSize
 import com.minashin1120.aiplayground.data.isImageReference
+
+private fun attachmentKindLabel(kind: AttachmentKind): String = when (kind) {
+    AttachmentKind.IMAGE -> "🖼"
+    AttachmentKind.AUDIO -> "🎵"
+    AttachmentKind.VIDEO -> "🎬"
+    AttachmentKind.PDF -> "📄"
+    AttachmentKind.TEXT -> "📝"
+    AttachmentKind.FILE -> "📎"
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -43,10 +55,26 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
             if (state.attachments.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 state.attachments.forEach { attachment ->
                     InputChip(selected = true, onClick = { model.removeAttachment(attachment.reference) },
-                        label = { Text("${attachment.name.take(24)} ×") })
+                        label = { Text("${attachmentKindLabel(attachmentKind(attachment.name, attachment.mime))} ${attachment.name.take(20)} ×") })
                 }
             }
-            if (state.uploading) { LinearProgressIndicator(Modifier.fillMaxWidth()); Text("添付をアップロード中…", style = MaterialTheme.typography.labelSmall) }
+            if (state.uploading) {
+                val fraction = if (state.uploadTotal > 0) (state.uploadSent.toFloat() / state.uploadTotal).coerceIn(0f, 1f) else null
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("アップロード中: ${state.uploadName.ifBlank { "添付" }.take(24)}",
+                            style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                        TextButton(onClick = model::cancelUpload) { Text("キャンセル", style = MaterialTheme.typography.labelMedium) }
+                    }
+                    if (fraction != null) {
+                        LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
+                        Text("${formatByteSize(state.uploadSent)} / ${formatByteSize(state.uploadTotal)}",
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                    }
+                }
+            }
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(state.draft, model::draft, placeholder = { Text("メッセージを入力…") }, minLines = 1, maxLines = 6,
                     shape = RoundedCornerShape(20.dp), modifier = Modifier.weight(1f), enabled = !state.streaming)
@@ -86,7 +114,10 @@ fun MessageCard(
                         ProtectedImage(file, loader, onFile, modifier = Modifier.fillMaxWidth(), thumbnail = true,
                             contentDescription = file.substringAfterLast('/'))
                     } else {
-                        OutlinedButton(onClick = { onFile(file) }) { Text("添付: ${file.substringAfterLast('/').take(48)}") }
+                        val kind = attachmentKind(file)
+                        OutlinedButton(onClick = { onFile(file) }) {
+                            Text("${attachmentKindLabel(kind)} ${file.substringAfterLast('/').take(40)}")
+                        }
                     }
                 }
             }

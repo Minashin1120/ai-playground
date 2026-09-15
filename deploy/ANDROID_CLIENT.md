@@ -34,7 +34,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 |---|---|
 | ユーザー認証 | 既存ブラウザーログインと端末連携。パスワード、Google、Minashin SSO、Passkey、2FAの既存経路を利用 |
 | 通常のチャット | スレッド一覧・検索・作成・取得・削除、ブックマーク、タイトル・スレッド指示、送信、ストリーム再接続、停止 |
-| 添付 | 通常アップロード、本人のファイル・サムネイル取得、容量表示 |
+| 添付 | 通常アップロード、大容量チャンクアップロード、進捗表示・キャンセル、Photo Picker・カメラ、MIME別プレビュー、本人のファイル・サムネイル取得、容量表示 |
 | 一時チャット | 作成・heartbeat。自動削除タイマーをクライアント側でも考慮する |
 | モデル一覧 | `/me` の `models`。表示名、提供元、用途、対応能力、廃止状態、通常チャットでの選択可否を返す。互換用の `model_ids` も維持 |
 | APIキー・プロフィール・アカウント削除・2FA設定 | Webで操作。Androidトークンでは設定・管理APIにアクセスできない |
@@ -43,7 +43,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | ブラウザー高速モード | 対象外。APIキーをAndroidへ返すbootstrap APIは許可しない |
 | アプリ配布・真正性検証 | APK署名・Play配布は別途。client_idや端末名はアプリ署名の証明ではない |
 
-Android版は通常チャット、メタデータ付きモデル選択、Thinking・Web検索・Prompt Cache、履歴の検索・ページ送り・削除・ブックマーク、タイトル・スレッド指示、一時チャット、添付、生成停止、切断後の再接続、端末連携・失効に対応します。本文は見出し、強調、リスト、引用、安全なHTTP(S)リンク、コピー・折り畳み対応コード、表、添付画像プレビュー、Web検索とPython実行の状態カードを選択可能なネイティブUIで表示します。数式はWebViewやKaTeXを使わず、LaTeXを読めるネイティブ近似へ変換して描画します。リアルタイム音声、Batch操作、高度なモデル別設定はまだWebを使います。
+Android版は通常チャット、メタデータ付きモデル選択、Thinking・Web検索・Prompt Cache、履歴の検索・ページ送り・削除・ブックマーク、タイトル・スレッド指示、一時チャット、添付（進捗・キャンセル・Photo Picker・カメラ・大容量チャンク）、生成停止、切断後の再接続、端末連携・失効に対応します。本文は見出し、強調、リスト、引用、安全なHTTP(S)リンク、コピー・折り畳み対応コード、表、添付画像プレビュー、Web検索とPython実行の状態カードを選択可能なネイティブUIで表示します。数式はWebViewやKaTeXを使わず、LaTeXを読めるネイティブ近似へ変換して描画します。リアルタイム音声、Batch操作、高度なモデル別設定はまだWebを使います。
 
 暗号化の境界は「HTTPSで通信」「サーバーが保存データを暗号化・復号」「端末トークンをAndroid Keystoreの鍵で暗号化保存」です。既存Webの `enable_e2ee` はサーバー側の `encrypt_val` / `decrypt_val` とファイル暗号化に使われます。そのため、この設定を理由にAndroidを拒否する必要はありません。真の端末間E2EEに変更する場合は、端末鍵の生成・共有・回復とAI処理時の平文の扱いを別途設計する必要があります。
 
@@ -211,6 +211,9 @@ Webのログアウトと同様、端末の失効操作はBot確認待ち・ロ�
 | POST `/api/token_estimate` | `model`, `message`, 必要なら `image_urls` | 既存のトークン見積応答。請求額の確定値ではない |
 | POST `/api/temporary_chat/heartbeat` | `thread_id`, `active` | 一時チャットの状態・期限情報 |
 | POST `/upload` | multipart/form-data、同名 `file` フィールドを必要数 | `filename`（先頭）, `filenames`（全件） |
+| POST `/upload/init` | `{"filename":"...","size":<bytes>}` | `upload_id`, `chunk_size`。チャンクは既定10MiB単位 |
+| POST `/upload/chunk` | multipart/form-data。`upload_id`, `index`, `total`, `chunk` | `received`, `total`, `index`, `chunks`。順序どおりのみ受理 |
+| POST `/upload/complete` | `{"upload_id":"..."}` | 確定後の `filename`, `filenames` |
 | GET/HEAD `/files/<filename>` | uploadの応答を使用 | 本人のファイル。Range対応はファイルの保存状態による |
 | GET/HEAD `/files/thumb/<filename>` | 本人の画像 | WebPサムネイル。失敗時は元ファイルを明示的に取得してよい |
 | GET `/api/storage` | なし | 現行の容量使用量・制限情報 |
@@ -239,13 +242,14 @@ IDは文字列として扱います。古い履歴の数値IDを受け取る場�
 
 ### 4.2 添付
 
-1. AndroidのStorage Access Framework／Photo Pickerで選択したURIを開く。
-2. URIのバイト列を `/upload` の `file` パートとして送る。端末内のパス文字列を送る方式ではない。
-3. 応答 `filenames` の相対参照をチャットの `image_urls` に入れる。これは画像以外の対応ファイルにも使う既存のフィールド名。
-4. 表示時は同一サーバーの `/files/<参照>` にBearerを付ける。パスの各要素をURLエンコードする。
-5. 画像は `/files/thumb/<参照>` のWebPサムネイルで取得し、メッセージ内にプレビューする。画像以外は従来どおり外部アプリで開く。
+1. AndroidのStorage Access Framework／Photo Picker／カメラで選択・撮影したURIを開く。
+2. URIのバイト列を `/upload` の `file` パートとして送る。端末内のパス文字列を送る方式ではない。選択中は端末側で総バイト数から進捗率を計算して表示し、キャンセル操作で転送を中断できる。
+3. 8MiBを超える添付は `/upload/init` → `/upload/chunk`（応答の `chunk_size` 単位）→ `/upload/complete` の順で送る。チャンクは順序どおりに送り、`409` のときは履歴を照合してやり直す。中断したチャンクセッションはサーバー側で期限切れ回収される。
+4. 応答 `filenames` の相対参照をチャットの `image_urls` に入れる。これは画像以外の対応ファイルにも使う既存のフィールド名。
+5. 表示時は同一サーバーの `/files/<参照>` にBearerを付ける。パスの各要素をURLエンコードする。
+6. 画像は `/files/thumb/<参照>` のWebPサムネイルでメッセージ内にプレビューする。画像以外はMIME・拡張子に応じた種別ラベルを付け、外部アプリで開く。
 
-初期APIでは `/upload/init`、`/upload/chunk`、`/upload/complete` は許可していません。単発アップロードがCDN上限を超える場合はサイズを減らすか、別途チャンクAPIをレビューして許可範囲を拡張します。既定の最大添付数は30ですがサーバー設定が優先です。
+既定の最大添付数は30、単発アップロードは1ファイル64MiBまで。上限はサーバー設定が優先です。
 
 AIが返した外部画像URL、リダイレクト先、任意リンクにはAndroidトークンを付けません。認証付きHTTPクライアントを全画像ロードのグローバル既定にしないでください。
 
@@ -616,7 +620,7 @@ scripts/publish_version.sh --message "Add Android pairing and scoped native API 
 
 `tests/test_mobile_api.py` は分離SQLiteとUnixソケットの一時Redisを使い、実際のLuaを含めて検証します。redis-serverがない環境ではこのテスト群はskipされるため、公開確認ではskipを成功と取り違えないでください。
 
-対象は、承認・拒否・期限切れ・二重引き換え防止・並列競合・ポーリング制限・Redis障害・HTTPS・停止スイッチ・Cookie/Origin混在拒否・WebのCSRF維持・失効・BAN・E2EE・Turnstile・スレッド所有者・タイトル・スレッド指示・ブックマーク・一時チャット・添付所有者・モデルメタデータと選択可否です。
+対象は、承認・拒否・期限切れ・二重引き換え防止・並列競合・ポーリング制限・Redis障害・HTTPS・停止スイッチ・Cookie/Origin混在拒否・WebのCSRF維持・失効・BAN・E2EE・Turnstile・スレッド所有者・タイトル・スレッド指示・ブックマーク・一時チャット・添付所有者・チャンクアップロードの確定と順序検証・モデルメタデータと選択可否です。
 
 既存の全体回帰テストはprepareの内部で実行します。実際のAI事業者への有料生成、Android UI、署名APKのインストールはサーバー単体テストでは検証しません。
 
@@ -669,7 +673,7 @@ configは200 JSON、未認証meは401 JSONが期待値です。テスト出力�
 
 Turnstileの確認にはアプリ内の「Webで安全性を確認」導線を用意します。今回の専用APIは既存の確認マーカーを使い、Androidという理由で確認を免除していません。このため、Bot対策対象アカウントでは継続利用中に再確認が必要になる場合があります。
 
-今後の拡張候補は、ブラウザー認可コード＋PKCEと検証済みApp Links、自動復帰、refresh tokenのローテーション、端末間E2EEの新しい設計、Webと説明・価格まで共有するモデルカタログ、リアルタイム音声、チャンクアップロード、イベント連番による再開です。これらは実装済み機能としてクライアントへ表示しないでください。
+今後の拡張候補は、ブラウザー認可コード＋PKCEと検証済みApp Links、自動復帰、refresh tokenのローテーション、端末間E2EEの新しい設計、Webと説明・価格まで共有するモデルカタログ、リアルタイム音声、イベント連番による再開です。これらは実装済み機能としてクライアントへ表示しないでください。
 
 数式はWebのMathJaxではなくネイティブ近似で描画するため、複雑な組版では表現が異なる場合があります。メッセージの編集・再生成・分岐は未実装です。分岐はスレッドの `parent_id` と既存APIの権限設計が必要なため、Phase 2の作業として扱います。
 

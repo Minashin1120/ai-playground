@@ -82,6 +82,23 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
         return execute(request("/upload", token).post(multipart).build(), consume = ::jsonResponse)
     }
 
+    /** Starts a resumable chunk session; the server returns its fixed chunk size. */
+    suspend fun uploadInit(filename: String, size: Long, token: String): JSONObject =
+        post("/upload/init", JSONObject().put("filename", filename).put("size", size), token)
+
+    suspend fun uploadChunk(uploadId: String, index: Int, total: Int, chunk: ByteArray, token: String): JSONObject {
+        val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("upload_id", uploadId)
+            .addFormDataPart("index", index.toString())
+            .addFormDataPart("total", total.toString())
+            .addFormDataPart("chunk", "chunk", chunk.toRequestBody("application/octet-stream".toMediaType()))
+            .build()
+        return execute(request("/upload/chunk", token).post(multipart).build(), consume = ::jsonResponse)
+    }
+
+    suspend fun uploadComplete(uploadId: String, token: String): JSONObject =
+        post("/upload/complete", JSONObject().put("upload_id", uploadId), token)
+
     suspend fun stream(path: String, payload: JSONObject, token: String, onEvent: (JSONObject) -> Unit) {
         val req = request(path, token).header("Accept", "application/x-ndjson")
             .post(payload.toString().toRequestBody(jsonType)).build()

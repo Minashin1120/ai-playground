@@ -39,6 +39,7 @@ data class ChatState(
     val libraryQuery: String = "", val libraryFavoritesOnly: Boolean = false,
     val libraryHasMore: Boolean = false, val libraryTotal: Int = 0,
     val gems: List<Gem> = emptyList(), val gemsBusy: Boolean = false, val selectedGem: Gem? = null,
+    val preferences: Preferences? = null, val prefsBusy: Boolean = false,
     val liveContent: String = "", val liveThought: String = "", val status: String = "",
     val cards: List<StatusCard> = emptyList(),
     val offline: Boolean = false,
@@ -78,6 +79,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(account = account, model = chosen, pairing = false, userCode = "", offline = false) }
         fetchThreads(false)
         runCatching { fetchGems() }.onFailure { report(it) }
+        runCatching { fetchPreferences() }.onFailure { report(it) }
     }
     fun setForeground(value: Boolean) {
         val returning = value && !foreground
@@ -695,6 +697,47 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Applies a Gem chosen from the `@` candidate list and removes its mention. */
     fun applyGemMention(gem: Gem, query: String) {
         mutable.update { it.copy(selectedGem = gem, draft = replaceGemMention(it.draft, query)) }
+    }
+
+    // --- General preferences and this device's session ---
+
+    private suspend fun fetchPreferences() {
+        val preferences = parsePreferences(api.get("/api/mobile/v1/preferences", token()))
+        mutable.update { it.copy(preferences = preferences) }
+    }
+
+    fun loadPreferences() {
+        viewModelScope.launch {
+            mutable.update { it.copy(prefsBusy = true) }
+            try { fetchPreferences() } catch (e: Exception) { report(e) } finally { mutable.update { it.copy(prefsBusy = false) } }
+        }
+    }
+
+    fun savePreferences(
+        defaultModel: String,
+        defaultEnableThinking: Boolean,
+        defaultEnableSearch: Boolean,
+        enterToSend: Boolean,
+        lightModeEnabled: Boolean,
+        autoSearchOnLinks: Boolean,
+        tempChatTimeoutSeconds: Int,
+    ) {
+        viewModelScope.launch {
+            mutable.update { it.copy(prefsBusy = true) }
+            try {
+                val payload = JSONObject()
+                    .put("default_model", defaultModel)
+                    .put("default_enable_thinking", defaultEnableThinking)
+                    .put("default_enable_search", defaultEnableSearch)
+                    .put("enter_to_send", enterToSend)
+                    .put("light_mode_enabled", lightModeEnabled)
+                    .put("auto_search_on_links", autoSearchOnLinks)
+                    .put("temp_chat_timeout_seconds", tempChatTimeoutSeconds)
+                val reply = api.put("/api/mobile/v1/preferences", payload, token())
+                mutable.update { it.copy(preferences = parsePreferences(reply), notice = "設定を保存しました。") }
+            } catch (e: Exception) { report(e) }
+            finally { mutable.update { it.copy(prefsBusy = false) } }
+        }
     }
 
     private companion object {

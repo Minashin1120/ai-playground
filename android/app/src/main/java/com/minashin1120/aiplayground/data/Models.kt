@@ -48,6 +48,44 @@ data class Gem(
     val defaultModel: String,
 )
 
+data class Preferences(
+    val username: String,
+    val defaultModel: String,
+    val defaultEnableThinking: Boolean,
+    val defaultEnableSearch: Boolean,
+    val enterToSend: Boolean,
+    val lightModeEnabled: Boolean,
+    val autoSearchOnLinks: Boolean,
+    val themeColor: String,
+    val tempChatTimeoutSeconds: Int,
+    val e2eeEnabled: Boolean,
+    val twoFactorEnabled: Boolean,
+    val hasTotp: Boolean,
+    val hasWebauthn: Boolean,
+    val sessionCreatedAt: String,
+    val sessionExpiresAt: String,
+    val deviceName: String,
+)
+
+fun parsePreferences(json: JSONObject): Preferences = Preferences(
+    username = json.nullableString("username"),
+    defaultModel = json.nullableString("default_model"),
+    defaultEnableThinking = json.optBoolean("default_enable_thinking"),
+    defaultEnableSearch = json.optBoolean("default_enable_search"),
+    enterToSend = json.optBoolean("enter_to_send"),
+    lightModeEnabled = json.optBoolean("light_mode_enabled"),
+    autoSearchOnLinks = json.optBoolean("auto_search_on_links", true),
+    themeColor = json.nullableString("theme_color"),
+    tempChatTimeoutSeconds = json.optInt("temp_chat_timeout_seconds", 90),
+    e2eeEnabled = json.optBoolean("enable_e2ee"),
+    twoFactorEnabled = json.optBoolean("is_2fa_enabled"),
+    hasTotp = json.optBoolean("has_totp"),
+    hasWebauthn = json.optBoolean("has_webauthn"),
+    sessionCreatedAt = json.nullableString("session_created_at"),
+    sessionExpiresAt = json.nullableString("session_expires_at"),
+    deviceName = json.nullableString("device_name"),
+)
+
 fun parseLibraryFiles(json: JSONObject): List<LibraryFile> {
     val rows = json.optJSONArray("files") ?: return emptyList()
     return (0 until rows.length()).map { index ->

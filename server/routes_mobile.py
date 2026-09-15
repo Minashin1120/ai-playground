@@ -245,3 +245,58 @@ def mobile_revoke():
     g.mobile_session.revoked_at = datetime.utcnow()
     safe_db_commit()
     return jsonify({'status': 'revoked'})
+
+
+# Only non-secret, Android-relevant preferences are exposed. Provider API keys
+# and security settings stay on the Web settings screen.
+_MOBILE_PREFERENCE_BOOLS = (
+    'default_enable_thinking', 'default_enable_search', 'enter_to_send',
+    'light_mode_enabled', 'auto_search_on_links',
+)
+
+
+def _mobile_preferences_payload():
+    user = current_user
+    return {
+        'api_version': 1,
+        'username': user.username,
+        'default_model': user.default_model or "gemini-3.6-flash",
+        'default_enable_thinking': bool(user.default_enable_thinking),
+        'default_enable_search': bool(user.default_enable_search),
+        'enter_to_send': bool(user.enter_to_send),
+        'light_mode_enabled': bool(getattr(user, 'light_mode_enabled', False)),
+        'auto_search_on_links': bool(user.auto_search_on_links) if user.auto_search_on_links is not None else True,
+        'theme_color': normalize_theme_color(user.theme_color or ""),
+        'temp_chat_timeout_seconds': _get_user_temp_chat_timeout_seconds(user),
+        'enable_e2ee': bool(user.enable_e2ee),
+        'is_2fa_enabled': bool(user.is_2fa_enabled),
+        'has_totp': bool(user.totp_secret),
+        'has_webauthn': bool(_load_user_webauthn_credentials(user)),
+        'session_created_at': g.mobile_session.created_at.isoformat() + 'Z',
+        'session_expires_at': (g.mobile_session.created_at + timedelta(seconds=MOBILE_TOKEN_TTL)).isoformat() + 'Z',
+        'device_name': (g.mobile_session.user_agent or '').replace('Official Android: ', '').strip() or None,
+    }
+
+
+@app.route('/api/mobile/v1/preferences', methods=['GET', 'PUT'])
+def mobile_preferences():
+    if request.method == 'GET':
+        return jsonify(_mobile_preferences_payload())
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return _mobile_error('invalid_request')
+    if 'default_model' in data and data.get('default_model') not in ALL_VALID_MODEL_IDS:
+        return _mobile_error('invalid_default_model')
+    if 'default_model' in data:
+        current_user.default_model = data['default_model']
+    for key in _MOBILE_PREFERENCE_BOOLS:
+        if key in data:
+            setattr(current_user, key, bool(data[key]))
+    if 'theme_color' in data:
+        current_user.theme_color = normalize_theme_color(data.get('theme_color'))
+    if 'temp_chat_timeout_seconds' in data:
+        current_user.temp_chat_timeout_seconds = _normalize_temp_chat_timeout_seconds(
+            data.get('temp_chat_timeout_seconds')
+        )
+    safe_db_commit()
+    return jsonify(_mobile_preferences_payload())

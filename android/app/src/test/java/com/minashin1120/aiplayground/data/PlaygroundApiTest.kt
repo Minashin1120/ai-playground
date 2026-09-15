@@ -162,6 +162,18 @@ class PlaygroundApiTest {
         assertEquals("hello", replaceGemMention("hello @bri", "bri"))
     }
 
+    @Test fun preferencesParseSafeFields() {
+        val prefs = parsePreferences(JSONObject("""{"username":"u","default_model":"gpt-5.6-sol","default_enable_thinking":true,"default_enable_search":false,"enter_to_send":true,"light_mode_enabled":true,"auto_search_on_links":false,"theme_color":"#123456","temp_chat_timeout_seconds":900,"enable_e2ee":true,"is_2fa_enabled":true,"has_totp":true,"has_webauthn":false,"session_created_at":"2026-09-16T00:00:00Z","session_expires_at":"2026-10-16T00:00:00Z","device_name":"Pixel"}"""))
+        assertEquals("gpt-5.6-sol", prefs.defaultModel)
+        assertTrue(prefs.defaultEnableThinking)
+        assertTrue(prefs.lightModeEnabled)
+        assertFalse(prefs.autoSearchOnLinks)
+        assertEquals(900, prefs.tempChatTimeoutSeconds)
+        assertTrue(prefs.e2eeEnabled)
+        assertTrue(prefs.twoFactorEnabled)
+        assertEquals("Pixel", prefs.deviceName)
+    }
+
     @Test fun binaryReadIsBounded() {
         assertEquals(5, readBoundedBytes(ByteArrayInputStream(ByteArray(5)), 5L).size)
         assertTrue(runCatching { readBoundedBytes(ByteArrayInputStream(ByteArray(6)), 5L) }.exceptionOrNull() is IOException)

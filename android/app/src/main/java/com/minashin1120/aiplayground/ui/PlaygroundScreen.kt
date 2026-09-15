@@ -5,6 +5,9 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -35,7 +38,7 @@ import java.io.File
 @Composable
 fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (String) -> Unit) {
     val state by model.state.collectAsStateWithLifecycle()
-    PlaygroundTheme {
+    PlaygroundTheme(darkTheme = state.preferences?.let { !it.lightModeEnabled } ?: isSystemInDarkTheme()) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             // Tablets and wide screens keep the history pane beside the conversation.
             val wide = maxWidth >= PlaygroundDimens.breakpoint
@@ -48,6 +51,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
             var attachMenu by remember { mutableStateOf(false) }
             var libraryOpen by remember { mutableStateOf(false) }
             var gemsOpen by remember { mutableStateOf(false) }
+            var settingsOpen by remember { mutableStateOf(false) }
             var cameraUri by remember { mutableStateOf<Uri?>(null) }
             val context = LocalContext.current
             val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { model.upload(it) }
@@ -110,7 +114,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
             if (showThreads && wide) {
                 Row(Modifier.fillMaxSize()) {
                     Surface(Modifier.width(PlaygroundDimens.sidePane).fillMaxHeight(), tonalElevation = 1.dp) {
-                        ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {}, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true })
+                        ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {}, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true })
                     }
                     VerticalDivider()
                     Box(Modifier.weight(1f)) { content() }
@@ -119,7 +123,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
                 ModalNavigationDrawer(drawerState = drawer, gesturesEnabled = showThreads,
                     drawerContent = {
                         if (showThreads) ModalDrawerSheet(Modifier.width(PlaygroundDimens.drawerPane)) {
-                            ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true })
+                            ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true })
                         }
                     }) { content() }
             }
@@ -127,6 +131,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
             if (modelPicker) ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { model.chooseModel(it); modelPicker = false })
             if (libraryOpen) LibraryDialog(state, model, onDismiss = { libraryOpen = false })
             if (gemsOpen) GemsDialog(state, model, onDismiss = { gemsOpen = false })
+            if (settingsOpen) SettingsDialog(state, model, onDismiss = { settingsOpen = false }, onLogout = { model.logout(); settingsOpen = false; closeDrawer() })
             if (attachMenu) AlertDialog(onDismissRequest = { attachMenu = false }, title = { Text("添付を追加") },
                 text = { Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = { attachMenu = false; picker.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("📂 ファイルを選択") }
@@ -172,6 +177,7 @@ private fun ThreadPanel(
     onNavigate: () -> Unit,
     onLibrary: () -> Unit,
     onGems: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Column(Modifier.fillMaxWidth()) {
@@ -215,6 +221,7 @@ private fun ThreadPanel(
                 TextButton(onClick = model::moreThreads, modifier = Modifier.fillMaxWidth()) { Text("もっと読み込む") }
             }
         }
+        TextButton(onClick = onSettings, modifier = Modifier.fillMaxWidth()) { Text("一般設定") }
         TextButton(onClick = onLibrary, modifier = Modifier.fillMaxWidth()) { Text("ファイルライブラリ") }
         TextButton(onClick = onGems, modifier = Modifier.fillMaxWidth()) { Text("Gems") }
         TextButton(onClick = { onWeb(false) }, modifier = Modifier.fillMaxWidth()) { Text("Web設定・安全性確認") }
@@ -344,7 +351,7 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
 }
 
 @Composable
-private fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (String) -> Unit) {
+private fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (String) -> Unit, selectedId: String = state.model) {
     var query by remember { mutableStateOf("") }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("モデルを選択") }, text = {
         Column {
@@ -357,7 +364,7 @@ private fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (Stri
                 items(models, key = { it.id }) { info ->
                     TextButton(onClick = { onSelect(info.id) }, enabled = info.selectable, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
                         Column(Modifier.fillMaxWidth()) {
-                            Text((if (info.id == state.model) "✓ " else "") + info.name, fontWeight = FontWeight.SemiBold)
+                            Text((if (info.id == selectedId) "✓ " else "") + info.name, fontWeight = FontWeight.SemiBold)
                             Text(buildString {
                                 append(info.providerLabel)
                                 if (!info.selectable) append(if (info.deprecated) " · 提供終了" else " · ${info.mode}はWebで利用")
@@ -518,4 +525,78 @@ private fun GemEditorDialog(
         },
         dismissButton = { TextButton(onClick = { if (!saving) onDismiss() }) { Text("キャンセル") } },
     )
+}
+
+@Composable
+private fun CheckboxRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked, onChange)
+        Text(label, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun SettingsDialog(
+    state: ChatState,
+    model: ChatViewModel,
+    onDismiss: () -> Unit,
+    onLogout: () -> Unit,
+) {
+    val prefs = state.preferences
+    var defaultModel by remember(prefs?.defaultModel) { mutableStateOf(prefs?.defaultModel.orEmpty()) }
+    var thinking by remember(prefs?.defaultEnableThinking) { mutableStateOf(prefs?.defaultEnableThinking ?: false) }
+    var search by remember(prefs?.defaultEnableSearch) { mutableStateOf(prefs?.defaultEnableSearch ?: false) }
+    var enterToSend by remember(prefs?.enterToSend) { mutableStateOf(prefs?.enterToSend ?: false) }
+    var lightMode by remember(prefs?.lightModeEnabled) { mutableStateOf(prefs?.lightModeEnabled ?: false) }
+    var autoSearch by remember(prefs?.autoSearchOnLinks) { mutableStateOf(prefs?.autoSearchOnLinks ?: true) }
+    var timeout by remember(prefs?.tempChatTimeoutSeconds) { mutableStateOf((prefs?.tempChatTimeoutSeconds ?: 90).toString()) }
+    var modelPicker by remember { mutableStateOf(false) }
+    var confirmLogout by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { model.loadPreferences() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("一般設定") },
+        text = {
+            Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (state.prefsBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                Text(state.account?.name.orEmpty(), style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = { modelPicker = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("既定モデル: ${defaultModel.ifBlank { "未設定" }} ▾")
+                }
+                CheckboxRow("既定でThinkingを使う", thinking) { thinking = it }
+                CheckboxRow("既定でWeb検索を使う", search) { search = it }
+                CheckboxRow("Enterで送信", enterToSend) { enterToSend = it }
+                CheckboxRow("ライトモード", lightMode) { lightMode = it }
+                CheckboxRow("リンクのX投稿を自動検索", autoSearch) { autoSearch = it }
+                OutlinedTextField(timeout, { timeout = it.filter { c -> c.isDigit() }.take(6) }, singleLine = true,
+                    label = { Text("一時チャットの自動削除（秒）") }, modifier = Modifier.fillMaxWidth())
+                HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                Text("この端末のセッション", fontWeight = FontWeight.SemiBold)
+                Text("端末: ${prefs?.deviceName?.ifBlank { "このAndroid端末" } ?: "このAndroid端末"}",
+                    style = MaterialTheme.typography.labelSmall)
+                if (prefs != null) {
+                    Text("連携日時: ${prefs.sessionCreatedAt}", style = MaterialTheme.typography.labelSmall)
+                    Text("有効期限: ${prefs.sessionExpiresAt}", style = MaterialTheme.typography.labelSmall)
+                }
+                Text("暗号化: ${if (prefs?.e2eeEnabled == true) "有効（サーバー管理鍵）" else "無効"} / 2FA: ${if (prefs?.twoFactorEnabled == true) "有効" else "無効"}",
+                    style = MaterialTheme.typography.labelSmall)
+                Text("APIキー・パスワード・2FAの変更はWeb設定で行います。",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = { confirmLogout = true }) { Text("この端末の連携を取り消す") }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { model.savePreferences(defaultModel, thinking, search, enterToSend, lightMode, autoSearch, timeout.toIntOrNull() ?: 90) },
+                enabled = !state.prefsBusy,
+            ) { Text("保存") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("閉じる") } },
+    )
+    if (modelPicker) ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { defaultModel = it; modelPicker = false }, selectedId = defaultModel)
+    if (confirmLogout) AlertDialog(onDismissRequest = { confirmLogout = false }, title = { Text("この端末からログアウト") },
+        text = { Text("このAndroid端末の連携を取り消します。Webや他の端末のログインは継続します。") },
+        confirmButton = { TextButton(onClick = { confirmLogout = false; onLogout() }) { Text("ログアウト") } },
+        dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text("キャンセル") } })
 }

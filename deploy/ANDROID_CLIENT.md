@@ -38,6 +38,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | 一時チャット | 作成・heartbeat。自動削除タイマーをクライアント側でも考慮する |
 | ファイルライブラリ | 一覧・検索・お気に入り・名前変更・削除・チャットへの再利用。所有者ディレクトリのみ対象 |
 | Gems | 一覧・作成・編集・削除・チャットへの適用・`@`候補。固定プロンプトの編集はWeb導線 |
+| 一般設定・セッション | 既定モデル、既定Thinking／Web検索、Enter送信、ライトモード、リンク自動検索、一時チャット期限、この端末のセッション表示と失効。APIキー・パスワード・2FAはWeb導線 |
 | モデル一覧 | `/me` の `models`。表示名、提供元、用途、対応能力、廃止状態、通常チャットでの選択可否を返す。互換用の `model_ids` も維持 |
 | APIキー・プロフィール・アカウント削除・2FA設定 | Webで操作。Androidトークンでは設定・管理APIにアクセスできない |
 | WebのE2EE設定 | 有効なまま連携・履歴取得・添付を利用可能。現在の実装はサーバー管理鍵による保存時暗号化であり、端末だけが復号できるE2EEではない |
@@ -45,7 +46,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | ブラウザー高速モード | 対象外。APIキーをAndroidへ返すbootstrap APIは許可しない |
 | アプリ配布・真正性検証 | APK署名・Play配布は別途。client_idや端末名はアプリ署名の証明ではない |
 
-Android版は通常チャット、メタデータ付きモデル選択、Thinking・Web検索・Prompt Cache、履歴の検索・ページ送り・削除・ブックマーク、タイトル・スレッド指示、一時チャット、添付（進捗・キャンセル・Photo Picker・カメラ・大容量チャンク）、ファイルライブラリ、Gems、生成停止、切断後の再接続、端末連携・失効に対応します。本文は見出し、強調、リスト、引用、安全なHTTP(S)リンク、コピー・折り畳み対応コード、表、添付画像プレビュー、Web検索とPython実行の状態カードを選択可能なネイティブUIで表示します。数式はWebViewやKaTeXを使わず、LaTeXを読めるネイティブ近似へ変換して描画します。リアルタイム音声、Batch操作、高度なモデル別設定はまだWebを使います。
+Android版は通常チャット、メタデータ付きモデル選択、Thinking・Web検索・Prompt Cache、履歴の検索・ページ送り・削除・ブックマーク、タイトル・スレッド指示、一時チャット、添付（進捗・キャンセル・Photo Picker・カメラ・大容量チャンク）、ファイルライブラリ、Gems、一般設定（既定モデル・既定Thinking／検索・Enter送信・ライトモード・リンク自動検索・一時チャット期限）、この端末のセッション表示、生成停止、切断後の再接続、端末連携・失効に対応します。本文は見出し、強調、リスト、引用、安全なHTTP(S)リンク、コピー・折り畳み対応コード、表、添付画像プレビュー、Web検索とPython実行の状態カードを選択可能なネイティブUIで表示します。数式はWebViewやKaTeXを使わず、LaTeXを読めるネイティブ近似へ変換して描画します。APIキー・パスワード・2FAの変更、リアルタイム音声、Batch操作、高度なモデル別設定はまだWebを使います。
 
 暗号化の境界は「HTTPSで通信」「サーバーが保存データを暗号化・復号」「端末トークンをAndroid Keystoreの鍵で暗号化保存」です。既存Webの `enable_e2ee` はサーバー側の `encrypt_val` / `decrypt_val` とファイル暗号化に使われます。そのため、この設定を理由にAndroidを拒否する必要はありません。真の端末間E2EEに変更する場合は、端末鍵の生成・共有・回復とAI処理時の平文の扱いを別途設計する必要があります。
 
@@ -226,6 +227,8 @@ Webのログアウトと同様、端末の失効操作はBot確認待ち・ロ�
 | GET `/api/gems` | なし | 本人のGem配列（トップレベルJSON配列） |
 | POST `/api/gems` | `name`, `description`, `instruction`, `default_model` | 作成したGem |
 | GET/PUT/DELETE `/api/gems/<uuid>` | PUTは作成と同じ項目 | 取得・更新・削除。所有者のみ |
+| GET `/api/mobile/v1/preferences` | なし | 既定モデル・既定Thinking／検索・Enter送信・ライトモード・リンク自動検索・一時チャット期限・この端末のセッション情報 |
+| PUT `/api/mobile/v1/preferences` | `default_model`, `default_enable_thinking`, `default_enable_search`, `enter_to_send`, `light_mode_enabled`, `auto_search_on_links`, `temp_chat_timeout_seconds` | 更新後の設定。APIキー等の未知キーは無視し、値を変更しない |
 
 IDは文字列として扱います。古い履歴の数値IDを受け取る場合もあります。`limit` は最大200。`before_id` を使って古いメッセージをページングし、初期表示で全履歴を要求しないでください。
 
@@ -631,7 +634,7 @@ scripts/publish_version.sh --message "Add Android pairing and scoped native API 
 
 `tests/test_mobile_api.py` は分離SQLiteとUnixソケットの一時Redisを使い、実際のLuaを含めて検証します。redis-serverがない環境ではこのテスト群はskipされるため、公開確認ではskipを成功と取り違えないでください。
 
-対象は、承認・拒否・期限切れ・二重引き換え防止・並列競合・ポーリング制限・Redis障害・HTTPS・停止スイッチ・Cookie/Origin混在拒否・WebのCSRF維持・失効・BAN・E2EE・Turnstile・スレッド所有者・タイトル・スレッド指示・ブックマーク・一時チャット・添付所有者・チャンクアップロードの確定と順序検証・ファイルライブラリの所有者境界・Gemの所有者境界とCRUD・モデルメタデータと選択可否です。
+対象は、承認・拒否・期限切れ・二重引き換え防止・並列競合・ポーリング制限・Redis障害・HTTPS・停止スイッチ・Cookie/Origin混在拒否・WebのCSRF維持・失効・BAN・E2EE・Turnstile・スレッド所有者・タイトル・スレッド指示・ブックマーク・一時チャット・添付所有者・チャンクアップロードの確定と順序検証・ファイルライブラリの所有者境界・Gemの所有者境界とCRUD・一般設定の許可項目と秘密鍵の拒否・モデルメタデータと選択可否です。
 
 既存の全体回帰テストはprepareの内部で実行します。実際のAI事業者への有料生成、Android UI、署名APKのインストールはサーバー単体テストでは検証しません。
 

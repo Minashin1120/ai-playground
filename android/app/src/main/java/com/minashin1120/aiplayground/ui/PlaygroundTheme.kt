@@ -57,9 +57,9 @@ object PlaygroundDimens {
 }
 
 @Composable
-fun PlaygroundTheme(content: @Composable () -> Unit) {
+fun PlaygroundTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) WebDarkColors else WebLightColors,
+        colorScheme = if (darkTheme) WebDarkColors else WebLightColors,
         typography = WebTypography,
         shapes = WebShapes,
         content = content,

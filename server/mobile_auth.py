@@ -5,7 +5,7 @@ MOBILE_TOKEN_TTL = 30 * 24 * 60 * 60
 MOBILE_GRANT_TTL = 600
 MOBILE_POLL_INTERVAL = 5
 MOBILE_ENDPOINT_METHODS = {
-    'mobile_me': {'GET'}, 'mobile_revoke': {'POST'},
+    'mobile_me': {'GET'}, 'mobile_revoke': {'POST'}, 'mobile_preferences': {'GET', 'PUT'},
     'handle_threads': {'GET', 'POST'}, 'handle_thread_item': {'GET', 'DELETE'},
     'update_thread_settings': {'GET', 'PUT'}, 'update_title': {'PUT'},
     'toggle_bookmark': {'POST'},

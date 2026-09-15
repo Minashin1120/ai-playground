@@ -313,6 +313,37 @@ class MobileApiTests(unittest.TestCase):
             self.assertEqual(response.status_code, 403, method)
         self.assertEqual(self.call('/api/gems/' + gem_uuid, token, 'DELETE').status_code, 200)
 
+    def test_native_preferences_are_limited_and_validated(self):
+        token = self.token()
+        prefs = self.call('/api/mobile/v1/preferences', token)
+        self.assertEqual(prefs.status_code, 200)
+        self.assertEqual(prefs.json['username'], 'android-owner')
+        self.assertEqual(prefs.json['device_name'], 'Test Android')
+        self.assertIn('session_expires_at', prefs.json)
+        updated = self.call('/api/mobile/v1/preferences', token, 'PUT', json={
+            'default_enable_thinking': True,
+            'enter_to_send': True,
+            'light_mode_enabled': True,
+            'theme_color': '#123456',
+            'temp_chat_timeout_seconds': 900,
+        })
+        self.assertEqual(updated.status_code, 200)
+        self.assertTrue(updated.json['default_enable_thinking'])
+        self.assertTrue(updated.json['enter_to_send'])
+        self.assertTrue(updated.json['light_mode_enabled'])
+        self.assertEqual(updated.json['theme_color'], '#123456')
+        self.assertEqual(updated.json['temp_chat_timeout_seconds'], 900)
+        self.assertEqual(self.call('/api/mobile/v1/preferences', token, 'PUT',
+                                   json={'default_model': 'definitely-not-a-model'}).status_code, 400)
+        # Provider secrets cannot be injected through the native preference endpoint.
+        ignored = self.call('/api/mobile/v1/preferences', token, 'PUT', json={'openai_key': 'sk-live-secret'})
+        self.assertEqual(ignored.status_code, 200)
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertNotEqual(user.openai_api_key, 'sk-live-secret')
+            self.assertTrue(user.default_enable_thinking)
+            self.assertEqual(user.temp_chat_timeout_seconds, 900)
+
     def test_encrypted_account_pairs_and_reads_encrypted_history_and_attachment(self):
         with target.app.app_context():
             user = target.db.session.get(target.User, self.user_id)

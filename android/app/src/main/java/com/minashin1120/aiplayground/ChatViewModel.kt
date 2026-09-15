@@ -28,6 +28,7 @@ data class ChatState(
     val threads: List<ThreadItem> = emptyList(), val nextPage: Int? = null, val search: String = "",
     val selected: ThreadItem? = null, val messages: List<ChatMessage> = emptyList(),
     val hasOlder: Boolean = false, val oldestId: String? = null,
+    val allMessages: List<ChatMessage> = emptyList(), val leafId: Int? = null, val editingMessageId: String? = null,
     val customInstruction: String = "", val includeGlobalInstruction: Boolean = true,
     val newThreadTemporary: Boolean = false, val tempChatRemainingSeconds: Long? = null,
     val draft: String = "", val model: String = "", val attachments: List<Attachment> = emptyList(),
@@ -62,6 +63,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var libraryJob: Job? = null
     private data class Submission(val body: JSONObject, val files: List<Attachment>)
     private var failed: Submission? = null
+    private var pendingParentId: Int? = null
 
     init { viewModelScope.launch {
         session = withContext(Dispatchers.IO) { store.load() }
@@ -180,7 +182,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun newChat(temporary: Boolean = false) {
         navigationJob?.cancel(); streamJob?.cancel(); failed = null
         heartbeatJob?.cancel()
-        mutable.update { it.copy(selected = null, messages = emptyList(), jobId = null, streaming = false,
+        pendingParentId = null
+        mutable.update { it.copy(selected = null, messages = emptyList(), allMessages = emptyList(), leafId = null,
+            editingMessageId = null, jobId = null, streaming = false,
             liveContent = "", liveThought = "", status = "", busy = false, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null, customInstruction = "",
             includeGlobalInstruction = true, newThreadTemporary = temporary, tempChatRemainingSeconds = null,
@@ -188,7 +192,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun openThread(thread: ThreadItem) {
         navigationJob?.cancel(); streamJob?.cancel(); heartbeatJob?.cancel(); failed = null
-        mutable.update { it.copy(selected = thread, messages = emptyList(), streaming = false, busy = true,
+        pendingParentId = null
+        val storedLeaf = prefs.getInt("leaf_${thread.id}", -1).takeIf { it > 0 }
+        mutable.update { it.copy(selected = thread, messages = emptyList(), allMessages = emptyList(),
+            leafId = storedLeaf, editingMessageId = null, streaming = false, busy = true,
             liveContent = "", liveThought = "", jobId = null, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null) }
         navigationJob = viewModelScope.launch {
@@ -201,8 +208,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val before = if (older) "&before_id=${state.value.oldestId ?: return}" else ""
         val reply = api.get("/api/threads/$id?limit=50$before", token())
         if (state.value.selected?.id != id) return
-        val messages = parseMessages(reply)
-        mutable.update { it.copy(messages = if (older) (messages + it.messages).distinctBy { m -> m.id } else messages,
+        val parsed = parseMessages(reply)
+        val all = if (older) (parsed + state.value.allMessages).distinctBy { m -> m.id } else parsed
+        val leaf = state.value.leafId?.takeIf { candidate -> all.any { numericId(it) == candidate } }
+            ?: all.mapNotNull { numericId(it) }.maxOrNull()
+        val path = activeBranchPath(all, leaf)
+        mutable.update { it.copy(messages = path, allMessages = all, leafId = leaf,
             hasOlder = reply.optBoolean("has_older_messages"), oldestId = reply.nullableString("oldest_loaded_id"),
             jobId = if (older) it.jobId else reply.optJSONObject("pending_job")?.nullableString("job_id")?.ifBlank { null },
             selected = it.selected?.let { selected -> selected.copy(
@@ -298,6 +309,42 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             finally { mutable.update { it.copy(busy = false) } }
         }
     }
+    /** Prepares the composer to edit a user message, branching from its parent. */
+    fun beginEdit(message: ChatMessage) {
+        if (message.role != "user") return
+        pendingParentId = message.parentId
+        mutable.update { it.copy(
+            editingMessageId = message.id,
+            draft = message.content,
+            attachments = message.files.map { reference -> Attachment(reference.substringAfterLast('/'), reference) },
+        ) }
+    }
+
+    /** Re-sends the user message that produced an assistant reply, creating a sibling branch. */
+    fun regenerate(message: ChatMessage) {
+        if (message.role != "assistant" || state.value.streaming || state.value.busy) return
+        val parent = message.parentId?.let { pid -> state.value.allMessages.firstOrNull { numericId(it) == pid } } ?: return
+        beginEdit(parent)
+        send()
+    }
+
+    fun cancelEdit() {
+        pendingParentId = null
+        mutable.update { it.copy(editingMessageId = null, draft = "", attachments = emptyList()) }
+    }
+
+    /** Switches the active path to the branch that contains [targetMessageId]. */
+    fun switchBranch(targetMessageId: Int) {
+        val all = state.value.allMessages
+        val leaf = latestLeafId(all, targetMessageId)
+        mutable.update { it.copy(leafId = leaf, messages = activeBranchPath(all, leaf)) }
+        state.value.selected?.let { prefs.edit().putInt("leaf_${it.id}", leaf).apply() }
+    }
+
+    fun switchBranchByIndex(siblings: List<ChatMessage>, index: Int) {
+        siblings.getOrNull(index)?.let { numericId(it)?.let(::switchBranch) }
+    }
+
     fun send() {
         val current = state.value
         if (current.streaming || current.busy || current.uploading || (current.draft.isBlank() && current.attachments.isEmpty())) return
@@ -308,10 +355,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .put("enable_prompt_caching", current.enablePromptCache)
             .put("temporary_chat", current.selected?.isTemporary ?: current.newThreadTemporary)
         current.selectedGem?.let { body.put("gem_uuid", it.uuid) }
+        if (current.editingMessageId != null) {
+            // Branch from the edited message's parent; send null explicitly for the first message.
+            body.put("parent_id", pendingParentId ?: JSONObject.NULL)
+            body.put("parent_id_explicit", true)
+        } else {
+            // Keep normal sends on the currently selected branch.
+            current.leafId?.let { body.put("parent_id", it) }
+        }
         current.selected?.let { body.put("thread_id", it.id) }
         val submission = Submission(body, current.attachments)
         failed = submission
-        mutable.update { it.copy(draft = "", attachments = emptyList()) }
+        pendingParentId = null
+        mutable.update { it.copy(draft = "", attachments = emptyList(), editingMessageId = null) }
         submit(submission)
     }
     fun retry() { failed?.let { submit(it) } }
@@ -737,6 +793,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 mutable.update { it.copy(preferences = parsePreferences(reply), notice = "設定を保存しました。") }
             } catch (e: Exception) { report(e) }
             finally { mutable.update { it.copy(prefsBusy = false) } }
+        }
+    }
+
+    /** Fetches the server thread payload and writes a native A4 PDF into the share cache. */
+    fun exportPdf(onReady: (File) -> Unit) {
+        val id = state.value.selected?.id ?: return
+        viewModelScope.launch {
+            mutable.update { it.copy(busy = true) }
+            try {
+                val payload = api.get("/c/$id/pdf", token())
+                val messages = parsePdfMessages(payload)
+                val title = payload.optJSONObject("thread")?.optString("title").orEmpty().ifBlank { "AI Chat" }
+                val safeId = id.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(24).ifBlank { "thread" }
+                val directory = File(getApplication<Application>().cacheDir, "shared").apply { mkdirs() }
+                val target = File(directory, "thread-$safeId.pdf")
+                withContext(Dispatchers.IO) {
+                    writeThreadPdf(title, payload.optString("generated_at"), messages, target)
+                }
+                onReady(target)
+            } catch (e: Exception) { report(e) }
+            finally { mutable.update { it.copy(busy = false) } }
         }
     }
 

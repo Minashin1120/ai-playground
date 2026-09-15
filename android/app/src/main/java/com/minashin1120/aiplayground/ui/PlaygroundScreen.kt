@@ -3,6 +3,7 @@ package com.minashin1120.aiplayground.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -31,6 +32,8 @@ import com.minashin1120.aiplayground.data.LibraryFile
 import com.minashin1120.aiplayground.data.Gem
 import com.minashin1120.aiplayground.data.attachmentKind
 import com.minashin1120.aiplayground.data.attachmentKindIcon
+import com.minashin1120.aiplayground.data.numericId
+import com.minashin1120.aiplayground.data.siblingGroup
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -91,6 +94,17 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
                             if (showThreads && !wide) TextButton(onClick = { scope.launch { drawer.open() } }) { Text("履歴") }
                         }, actions = {
                             if (state.selected != null) TextButton(onClick = { threadSettings = true }, enabled = !state.busy && !state.streaming) { Text("設定") }
+                            if (state.selected != null) TextButton(onClick = {
+                                model.exportPdf { file ->
+                                    try {
+                                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+                                        val intent = Intent(Intent.ACTION_SEND).setType("application/pdf")
+                                            .putExtra(Intent.EXTRA_STREAM, uri)
+                                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        context.startActivity(Intent.createChooser(intent, "PDFを共有"))
+                                    } catch (e: Exception) { model.notify("PDFを共有できません。") }
+                                }
+                            }, enabled = !state.busy && !state.streaming) { Text("PDF") }
                             if (showThreads) TextButton(onClick = model::refresh, enabled = !state.busy && !state.streaming) { Text("更新") }
                         })
                     }, snackbarHost = { SnackbarHost(snackbar) },
@@ -344,7 +358,16 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
                     }
                 }
             }
-            items(state.messages, key = { it.id }) { message -> MessageCard(message, onFile, model::quoteMessage, loader) }
+            items(state.messages, key = { it.id }) { message ->
+                val siblings = siblingGroup(state.allMessages, message)
+                val index = siblings.indexOfFirst { it.id == message.id }
+                MessageCard(message, onFile, model::quoteMessage, loader,
+                    onEdit = { model.beginEdit(it) },
+                    onRegenerate = { model.regenerate(it) },
+                    branchIndex = if (index < 0) 0 else index,
+                    branchCount = if (numericId(message) != null) siblings.size else 0,
+                    onSwitchBranch = { target -> model.switchBranchByIndex(siblings, target) })
+            }
             if (live) item(key = "live") { LiveMessage(state, onFile, model::quoteMessage, loader) }
         }
     }

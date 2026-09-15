@@ -344,6 +344,24 @@ class MobileApiTests(unittest.TestCase):
             self.assertTrue(user.default_enable_thinking)
             self.assertEqual(user.temp_chat_timeout_seconds, 900)
 
+    def test_native_thread_pdf_export_is_owner_scoped(self):
+        token = self.token()
+        created = self.call('/api/threads', token, 'POST', json={})
+        self.assertEqual(created.status_code, 200)
+        thread_id = created.json['id']
+        export = self.call('/c/' + thread_id + '/pdf', token)
+        self.assertEqual(export.status_code, 200)
+        self.assertIn('messages', export.json)
+        self.assertEqual(export.json['thread']['public_id'], thread_id)
+        with target.app.app_context():
+            foreign = target.Thread(user_id=self.other_id, public_id=target.generate_thread_public_id())
+            target.db.session.add(foreign)
+            target.db.session.commit()
+            foreign_id = foreign.public_id
+        self.assertEqual(self.call('/c/' + foreign_id + '/pdf', token).status_code, 403)
+        # Message deletion is not part of the native scope.
+        self.assertEqual(self.call('/api/messages/1', token, 'DELETE').status_code, 403)
+
     def test_encrypted_account_pairs_and_reads_encrypted_history_and_attachment(self):
         with target.app.app_context():
             user = target.db.session.get(target.User, self.user_id)

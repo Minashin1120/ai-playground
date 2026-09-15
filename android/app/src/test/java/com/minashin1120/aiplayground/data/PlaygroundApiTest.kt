@@ -174,6 +174,27 @@ class PlaygroundApiTest {
         assertEquals("Pixel", prefs.deviceName)
     }
 
+    @Test fun branchPathRebuildsFromLeafAndSiblings() {
+        val messages = listOf(
+            ChatMessage("1", "user", "q1", parentId = null),
+            ChatMessage("2", "assistant", "a1", parentId = 1),
+            ChatMessage("3", "user", "q2", parentId = 2),
+            ChatMessage("4", "assistant", "a2", parentId = 3),
+            ChatMessage("5", "user", "q2b", parentId = 2),
+            ChatMessage("6", "assistant", "a2b", parentId = 5),
+        )
+        assertEquals(listOf("1", "2", "3", "4"), activeBranchPath(messages, 4).map { it.id })
+        assertEquals(listOf("1", "2", "5", "6"), activeBranchPath(messages, 6).map { it.id })
+        assertEquals(4, latestLeafId(messages, 3))
+        assertEquals(6, latestLeafId(messages, 5))
+        assertEquals(listOf("3", "5"), siblingGroup(messages, messages[4]).map { it.id })
+        assertTrue(activeBranchPath(emptyList(), null).isEmpty())
+        val pdf = parsePdfMessages(JSONObject("""{"messages":[{"role":"user","content":"こんにちは"},{"role":"assistant","content":"はい"}]}"""))
+        assertEquals(2, pdf.size)
+        assertEquals("user", pdf[0].role)
+        assertEquals("こんにちは", pdf[0].content)
+    }
+
     @Test fun binaryReadIsBounded() {
         assertEquals(5, readBoundedBytes(ByteArrayInputStream(ByteArray(5)), 5L).size)
         assertTrue(runCatching { readBoundedBytes(ByteArrayInputStream(ByteArray(6)), 5L) }.exceptionOrNull() is IOException)

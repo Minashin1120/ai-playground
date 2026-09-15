@@ -16,7 +16,8 @@ data class ThreadItem(
     val isTemporary: Boolean = false,
 )
 data class ChatMessage(val id: String, val role: String, val content: String,
-                       val thought: String = "", val files: List<String> = emptyList())
+                       val thought: String = "", val files: List<String> = emptyList(),
+                       val parentId: Int? = null, val model: String = "")
 data class Attachment(val name: String, val reference: String, val mime: String = "")
 data class ModelInfo(val id: String, val name: String, val provider: String, val providerLabel: String,
                      val mode: String, val capabilities: Set<String>, val deprecated: Boolean,
@@ -183,7 +184,54 @@ fun parseMessages(json: JSONObject): List<ChatMessage> {
             JSONArray(attachmentText).strings()
         }.getOrElse { listOf(attachmentText) }
         ChatMessage(row.get("id").toString(), row.optString("role"), row.nullableString("content"),
-            row.nullableString("thought_data"), files)
+            row.nullableString("thought_data"), files,
+            parentId = if (row.isNull("parent_id")) null else row.optInt("parent_id"),
+            model = row.nullableString("model"))
+    }
+}
+
+/** Numeric database id, or null for local optimistic messages. */
+fun numericId(message: ChatMessage): Int? = message.id.toIntOrNull()
+
+/** Active branch path ending at [leafId], oldest first. Falls back to the newest message. */
+fun activeBranchPath(messages: List<ChatMessage>, leafId: Int?): List<ChatMessage> {
+    val byId = messages.mapNotNull { message -> numericId(message)?.let { it to message } }.toMap()
+    if (byId.isEmpty()) return messages
+    val start = leafId?.let { byId[it] } ?: byId.values.maxByOrNull { numericId(it) ?: 0 } ?: return messages
+    val path = ArrayDeque<ChatMessage>()
+    val seen = HashSet<Int>()
+    var current: ChatMessage? = start
+    while (current != null) {
+        val id = numericId(current) ?: break
+        if (!seen.add(id)) break
+        path.addFirst(current)
+        current = current.parentId?.let { byId[it] }
+    }
+    return path.toList()
+}
+
+/** Messages that share one parent, used for branch navigation. */
+fun siblingGroup(messages: List<ChatMessage>, message: ChatMessage): List<ChatMessage> =
+    messages.filter { numericId(it) != null && it.parentId == message.parentId }
+        .sortedBy { numericId(it) ?: 0 }
+
+/** Follows the highest-id child chain from [startId] to the latest leaf of that branch. */
+fun latestLeafId(messages: List<ChatMessage>, startId: Int): Int {
+    val children = messages.groupBy { it.parentId }
+    var current = startId
+    while (true) {
+        val next = children[current]?.mapNotNull { numericId(it) }?.maxOrNull() ?: return current
+        current = next
+    }
+}
+
+/** Extracts role and plain text from the server PDF payload for native rendering. */
+fun parsePdfMessages(payload: JSONObject): List<ChatMessage> {
+    val rows = payload.optJSONArray("messages") ?: return emptyList()
+    return (0 until rows.length()).map { index ->
+        val row = rows.getJSONObject(index)
+        ChatMessage(index.toString(), row.optString("role"), row.nullableString("content"),
+            row.nullableString("thought_text"))
     }
 }
 

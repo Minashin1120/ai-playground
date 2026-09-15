@@ -24,6 +24,7 @@ import com.minashin1120.aiplayground.data.attachmentKindIcon
 import com.minashin1120.aiplayground.data.formatByteSize
 import com.minashin1120.aiplayground.data.gemMentionQuery
 import com.minashin1120.aiplayground.data.isImageReference
+import com.minashin1120.aiplayground.data.numericId
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -31,6 +32,13 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
     val selectedModel = state.account?.models?.firstOrNull { it.id == state.model }
     Surface(tonalElevation = 3.dp) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (state.editingMessageId != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("メッセージを編集中（送信で分岐を作成）", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                    TextButton(onClick = model::cancelEdit) { Text("キャンセル", style = MaterialTheme.typography.labelMedium) }
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = pickModel, enabled = !state.streaming, modifier = Modifier.weight(1f)) {
                     Text("${selectedModel?.name ?: state.model.ifBlank { "モデルを選択" }} ▾", maxLines = 1)
@@ -99,8 +107,14 @@ fun MessageCard(
     onFile: (String) -> Unit,
     onQuote: (String) -> Unit = {},
     loader: FileBytesLoader? = null,
+    onEdit: (ChatMessage) -> Unit = {},
+    onRegenerate: (ChatMessage) -> Unit = {},
+    branchIndex: Int = 0,
+    branchCount: Int = 0,
+    onSwitchBranch: (Int) -> Unit = {},
 ) {
     val user = message.role == "user"
+    val persisted = numericId(message) != null
     var thoughtExpanded by remember(message.id) { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
     Surface(color = if (user) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
@@ -128,10 +142,19 @@ fun MessageCard(
                     }
                 }
             }
-            if (message.content.isNotBlank()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { clipboard.setText(AnnotatedString(message.content)) }) { Text("コピー", style = MaterialTheme.typography.labelMedium) }
-                    TextButton(onClick = { onQuote(message.content) }) { Text("引用", style = MaterialTheme.typography.labelMedium) }
+            if (message.content.isNotBlank() || branchCount > 1 || persisted) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (branchCount > 1) {
+                        TextButton(onClick = { onSwitchBranch(branchIndex - 1) }, enabled = branchIndex > 0) { Text("◀", style = MaterialTheme.typography.labelMedium) }
+                        Text("${branchIndex + 1}/$branchCount", style = MaterialTheme.typography.labelSmall)
+                        TextButton(onClick = { onSwitchBranch(branchIndex + 1) }, enabled = branchIndex < branchCount - 1) { Text("▶", style = MaterialTheme.typography.labelMedium) }
+                    }
+                    if (message.content.isNotBlank()) {
+                        TextButton(onClick = { clipboard.setText(AnnotatedString(message.content)) }) { Text("コピー", style = MaterialTheme.typography.labelMedium) }
+                        TextButton(onClick = { onQuote(message.content) }) { Text("引用", style = MaterialTheme.typography.labelMedium) }
+                    }
+                    if (persisted && user) TextButton(onClick = { onEdit(message) }) { Text("編集", style = MaterialTheme.typography.labelMedium) }
+                    if (persisted && !user) TextButton(onClick = { onRegenerate(message) }, enabled = message.parentId != null) { Text("再生成", style = MaterialTheme.typography.labelMedium) }
                 }
             }
         }

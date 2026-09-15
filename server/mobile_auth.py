@@ -18,6 +18,7 @@ MOBILE_ENDPOINT_METHODS = {
     'toggle_file_favorite': {'POST'}, 'delete_files_batch': {'POST'},
     'rename_library_file': {'POST'},
     'handle_gems': {'GET', 'POST'}, 'handle_gem_item': {'GET', 'PUT', 'DELETE'},
+    'export_thread_pdf': {'GET'},
 }
 MOBILE_PUBLIC_ENDPOINTS = {'mobile_device', 'mobile_token'}
 

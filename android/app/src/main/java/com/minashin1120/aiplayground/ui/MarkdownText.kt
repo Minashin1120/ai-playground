@@ -7,7 +7,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.*
@@ -106,7 +105,7 @@ private fun InlineText(text: String, style: androidx.compose.ui.text.TextStyle =
 
 @Composable
 private fun CodeBlock(block: MarkdownBlock.Code) {
-    var expanded by rememberSaveable(block.text) { mutableStateOf(block.text.lineSequence().count() <= 18) }
+    var expanded by remember(block.text) { mutableStateOf(block.text.lineSequence().count() <= 18) }
     val clipboard = LocalClipboardManager.current
     Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp)) {
         Column {

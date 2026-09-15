@@ -17,6 +17,70 @@ if status ~= 'pending' then redis.call('DEL', KEYS[1]) end
 return value
 """
 
+_MOBILE_DEPRECATED_MODELS = {
+    'gemini-3.1-flash-lite-preview', 'gemini-3-pro-preview',
+    'gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview',
+    'deepseek-v4-flash-vision-exp', 'deepseek-v4-flash-0731', 'deepseek-v4-flash',
+    'grok-imagine-image-pro', 'grok-voice-think-fast-1.0', 'grok-voice-fast-1.0',
+    'grok-voice-agent', 'grok-4-1-fast-reasoning', 'grok-4-1-fast-non-reasoning',
+    'grok-4-fast-reasoning', 'grok-4-fast-non-reasoning',
+}
+
+
+def _mobile_model_mode(model_id):
+    """Classify Web model IDs without exposing provider credentials or settings."""
+    model_id = str(model_id or '').lower()
+    if model_id == 'mistral-ocr-4-0':
+        return 'ocr'
+    if model_id == 'gemini-embedding-2':
+        return 'embedding'
+    if 'transcribe' in model_id:
+        return 'transcription'
+    if model_id in STS_MODELS or model_id in XAI_STS_MODEL_ALIASES or 'realtime' in model_id or 'voice' in model_id or 'live-transcribe' in model_id:
+        return 'realtime_audio'
+    if 'tts' in model_id:
+        return 'tts'
+    if model_id.startswith('lyria-'):
+        return 'music'
+    if 'video' in model_id or model_id.startswith('veo-') or model_id.startswith('gemini-omni'):
+        return 'video'
+    if 'image' in model_id:
+        return 'image'
+    if any(marker in model_id for marker in ('deep-research', 'antigravity', 'computer-use', 'robotics')):
+        return 'agent'
+    return 'chat'
+
+
+def _mobile_model_name(model_id):
+    words = str(model_id).replace('_', '-').split('-')
+    labels = {'gpt': 'GPT', 'tts': 'TTS', 'ocr': 'OCR', 'ai': 'AI', 'xai': 'xAI',
+              'gemini': 'Gemini', 'grok': 'Grok', 'claude': 'Claude',
+              'deepseek': 'DeepSeek', 'kimi': 'Kimi', 'mistral': 'Mistral',
+              'veo': 'Veo', 'lyria': 'Lyria'}
+    return ' '.join(labels.get(word.lower(), word.capitalize()) for word in words)
+
+
+def _mobile_model_metadata(model_id):
+    provider = get_model_api_provider(model_id) or 'unknown'
+    provider_label = _PROVIDER_LABELS.get(provider, provider.title())
+    mode = _mobile_model_mode(model_id)
+    deprecated = model_id in _MOBILE_DEPRECATED_MODELS
+    capabilities = [mode]
+    if mode == 'chat':
+        capabilities += ['attachments', 'search', 'thinking']
+        if provider in {'gemini', 'openai', 'anthropic'}:
+            capabilities.append('prompt_cache')
+    return {
+        'id': model_id,
+        'name': _mobile_model_name(model_id),
+        'provider': provider,
+        'provider_label': provider_label,
+        'mode': mode,
+        'capabilities': capabilities,
+        'deprecated': deprecated,
+        'selectable': mode == 'chat' and not deprecated,
+    }
+
 
 @app.route('/api/mobile/v1/config')
 def mobile_config():
@@ -164,12 +228,15 @@ def mobile_token():
 
 @app.route('/api/mobile/v1/me')
 def mobile_me():
+    models = [_mobile_model_metadata(model_id) for model_id in sorted(ALL_VALID_MODEL_IDS)]
     return jsonify({'id': current_user.id, 'username': current_user.username,
                     'expires_at': (g.mobile_session.created_at + timedelta(seconds=MOBILE_TOKEN_TTL)).isoformat() + 'Z',
                     'e2ee_enabled': bool(current_user.enable_e2ee),
                     'encryption_mode': 'server_managed_at_rest',
                     'default_model': current_user.default_model,
-                    'model_ids': sorted(ALL_VALID_MODEL_IDS)})
+                    'model_ids': [model['id'] for model in models],
+                    'model_catalog_version': 1,
+                    'models': models})
 
 
 @app.route('/api/mobile/v1/revoke', methods=['POST'])

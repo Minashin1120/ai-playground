@@ -29,6 +29,8 @@ data class ChatState(
     val selected: ThreadItem? = null, val messages: List<ChatMessage> = emptyList(),
     val hasOlder: Boolean = false, val oldestId: String? = null,
     val draft: String = "", val model: String = "", val attachments: List<Attachment> = emptyList(),
+    val enableThinking: Boolean = false, val enableSearch: Boolean = false,
+    val enablePromptCache: Boolean = false,
     val uploading: Boolean = false, val streaming: Boolean = false,
     val liveContent: String = "", val liveThought: String = "", val status: String = "",
     val jobId: String? = null, val retryAvailable: Boolean = false, val notice: String? = null,
@@ -57,10 +59,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun token(): String = session?.token ?: throw IOException("端末連携が必要です。")
     private suspend fun loadAccount() {
         val me = api.get("/api/mobile/v1/me", token())
-        val account = Account(me.getInt("id"), me.getString("username"), me.getJSONArray("model_ids").strings(),
+        val account = Account(me.getInt("id"), me.getString("username"), parseModels(me),
             me.optString("default_model"), me.optBoolean("e2ee_enabled"))
         val chosen = prefs.getString("model_${account.id}", account.defaultModel).orEmpty()
-            .takeIf { it in account.models } ?: account.models.firstOrNull().orEmpty()
+            .takeIf { chosen -> account.models.any { it.id == chosen && it.selectable } }
+            ?: account.models.firstOrNull { it.selectable }?.id.orEmpty()
         mutable.update { it.copy(account = account, model = chosen, pairing = false, userCode = "") }
         fetchThreads(false)
     }
@@ -123,9 +126,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun notify(message: String) { mutable.update { it.copy(notice = message) } }
     fun draft(text: String) { mutable.update { it.copy(draft = text) } }
     fun chooseModel(model: String) {
-        mutable.update { it.copy(model = model) }
+        val info = state.value.account?.models?.firstOrNull { it.id == model && it.selectable } ?: return
+        mutable.update { it.copy(model = model,
+            enableThinking = it.enableThinking && info.supports("thinking"),
+            enableSearch = it.enableSearch && info.supports("search"),
+            enablePromptCache = it.enablePromptCache && info.supports("prompt_cache")) }
         state.value.account?.let { prefs.edit().putString("model_${it.id}", model).apply() }
     }
+    fun toggleThinking() { mutable.update { it.copy(enableThinking = !it.enableThinking) } }
+    fun toggleSearch() { mutable.update { it.copy(enableSearch = !it.enableSearch) } }
+    fun togglePromptCache() { mutable.update { it.copy(enablePromptCache = !it.enablePromptCache) } }
     fun removeAttachment(reference: String) { mutable.update { it.copy(attachments = it.attachments.filterNot { a -> a.reference == reference }) } }
     fun search(query: String) {
         mutable.update { it.copy(search = query) }
@@ -200,6 +210,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (current.model.isBlank()) { mutable.update { it.copy(notice = "モデルを選択してください。") }; return }
         val body = JSONObject().put("model", current.model).put("message", current.draft)
             .put("client_request_id", UUID.randomUUID().toString()).put("image_urls", JSONArray(current.attachments.map { it.reference }))
+            .put("enable_thinking", current.enableThinking).put("enable_search", current.enableSearch)
+            .put("enable_prompt_caching", current.enablePromptCache)
         current.selected?.let { body.put("thread_id", it.id) }
         val submission = Submission(body, current.attachments)
         failed = submission

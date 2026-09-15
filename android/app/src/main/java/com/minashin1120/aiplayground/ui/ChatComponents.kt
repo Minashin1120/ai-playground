@@ -7,7 +7,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.minashin1120.aiplayground.ChatState
@@ -17,13 +16,21 @@ import com.minashin1120.aiplayground.data.ChatMessage
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pickFiles: () -> Unit) {
+    val selectedModel = state.account?.models?.firstOrNull { it.id == state.model }
     Surface(tonalElevation = 3.dp) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = pickModel, enabled = !state.streaming, modifier = Modifier.weight(1f)) {
-                    Text("${state.model.ifBlank { "モデルを選択" }} ▾", maxLines = 1)
+                    Text("${selectedModel?.name ?: state.model.ifBlank { "モデルを選択" }} ▾", maxLines = 1)
                 }
                 TextButton(onClick = pickFiles, enabled = !state.uploading && !state.streaming) { Text("＋ 添付") }
+            }
+            selectedModel?.let { info ->
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (info.supports("thinking")) FilterChip(state.enableThinking, model::toggleThinking, { Text("Thinking") })
+                    if (info.supports("search")) FilterChip(state.enableSearch, model::toggleSearch, { Text("Web検索") })
+                    if (info.supports("prompt_cache")) FilterChip(state.enablePromptCache, model::togglePromptCache, { Text("Prompt Cache") })
+                }
             }
             if (state.attachments.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 state.attachments.forEach { attachment ->
@@ -55,22 +62,8 @@ fun MessageCard(message: ChatMessage, onFile: (String) -> Unit) {
                 TextButton(onClick = { thoughtExpanded = !thoughtExpanded }) { Text(if (thoughtExpanded) "思考を閉じる" else "思考を表示") }
                 if (thoughtExpanded) SelectionContainer { Text(message.thought, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
-            if (message.content.isNotEmpty()) FormattedText(message.content)
+            if (message.content.isNotEmpty()) MarkdownText(message.content)
             message.files.forEach { file -> OutlinedButton(onClick = { onFile(file) }) { Text("添付: ${file.substringAfterLast('/').take(48)}") } }
-        }
-    }
-}
-
-@Composable
-private fun FormattedText(text: String) {
-    SelectionContainer {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            text.split("```").forEachIndexed { index, part ->
-                if (index % 2 == 0) Text(part)
-                else Surface(color = MaterialTheme.colorScheme.surfaceContainerHighest, shape = RoundedCornerShape(12.dp)) {
-                    Text(part.trim(), fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(12.dp))
-                }
-            }
         }
     }
 }

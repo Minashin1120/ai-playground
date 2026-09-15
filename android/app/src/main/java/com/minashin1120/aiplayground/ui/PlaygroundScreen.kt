@@ -2,8 +2,6 @@ package com.minashin1120.aiplayground.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,8 +12,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -30,9 +26,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (String) -> Unit) {
     val state by model.state.collectAsStateWithLifecycle()
-    val colors = if (isSystemInDarkTheme()) darkColorScheme(primary = Color(0xFFBFC2FF), secondary = Color(0xFF86D9C3))
-        else lightColorScheme(primary = Color(0xFF5356D8), secondary = Color(0xFF147C69), surface = Color(0xFFFBFAFF))
-    MaterialTheme(colorScheme = colors) {
+    PlaygroundTheme {
         val drawer = rememberDrawerState(DrawerValue.Closed)
         val scope = rememberCoroutineScope()
         var deleting by remember { mutableStateOf<ThreadItem?>(null) }
@@ -188,8 +182,19 @@ private fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (Stri
             OutlinedTextField(query, { query = it }, singleLine = true, label = { Text("モデル名で検索") })
             Text("通常チャット用のモデルを選んでください。APIキーはWeb設定を利用します。", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 12.dp))
             LazyColumn(Modifier.heightIn(max = 380.dp)) {
-                items(state.account?.models.orEmpty().filter { it.contains(query, ignoreCase = true) }) { id ->
-                    TextButton(onClick = { onSelect(id) }, modifier = Modifier.fillMaxWidth()) { Text(if (id == state.model) "✓ $id" else id, modifier = Modifier.fillMaxWidth()) }
+                val models = state.account?.models.orEmpty().filter {
+                    it.name.contains(query, ignoreCase = true) || it.id.contains(query, ignoreCase = true) || it.providerLabel.contains(query, ignoreCase = true)
+                }.sortedWith(compareBy({ !it.selectable }, { it.providerLabel }, { it.name }))
+                items(models, key = { it.id }) { info ->
+                    TextButton(onClick = { onSelect(info.id) }, enabled = info.selectable, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+                        Column(Modifier.fillMaxWidth()) {
+                            Text((if (info.id == state.model) "✓ " else "") + info.name, fontWeight = FontWeight.SemiBold)
+                            Text(buildString {
+                                append(info.providerLabel)
+                                if (!info.selectable) append(if (info.deprecated) " · 提供終了" else " · ${info.mode}はWebで利用")
+                            }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 }
             }
         }

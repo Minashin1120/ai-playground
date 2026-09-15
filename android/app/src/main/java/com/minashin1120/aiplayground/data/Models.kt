@@ -10,7 +10,12 @@ data class ThreadItem(val id: String, val title: String, val model: String)
 data class ChatMessage(val id: String, val role: String, val content: String,
                        val thought: String = "", val files: List<String> = emptyList())
 data class Attachment(val name: String, val reference: String)
-data class Account(val id: Int, val name: String, val models: List<String>, val defaultModel: String,
+data class ModelInfo(val id: String, val name: String, val provider: String, val providerLabel: String,
+                     val mode: String, val capabilities: Set<String>, val deprecated: Boolean,
+                     val selectable: Boolean) {
+    fun supports(capability: String) = capability in capabilities
+}
+data class Account(val id: Int, val name: String, val models: List<ModelInfo>, val defaultModel: String,
                    val encrypted: Boolean)
 data class StoredSession(val token: String, val expiresAt: Long)
 class ApiException(val status: Int, val payload: JSONObject, val retryAfter: Long = 5) : IOException() {
@@ -27,6 +32,22 @@ class ApiException(val status: Int, val payload: JSONObject, val retryAfter: Lon
 
 fun JSONArray.strings(): List<String> = (0 until length()).map { getString(it) }
 fun JSONObject.nullableString(name: String): String = if (isNull(name)) "" else optString(name)
+fun parseModels(json: JSONObject): List<ModelInfo> {
+    val rows = json.optJSONArray("models")
+    if (rows == null) return json.optJSONArray("model_ids")?.strings().orEmpty().map {
+        ModelInfo(it, it, "", "", "chat", setOf("chat", "attachments"), false, true)
+    }
+    return (0 until rows.length()).map { index ->
+        val row = rows.getJSONObject(index)
+        ModelInfo(
+            id = row.getString("id"), name = row.optString("name", row.getString("id")),
+            provider = row.optString("provider"), providerLabel = row.optString("provider_label"),
+            mode = row.optString("mode", "chat"),
+            capabilities = row.optJSONArray("capabilities")?.strings()?.toSet().orEmpty(),
+            deprecated = row.optBoolean("deprecated"), selectable = row.optBoolean("selectable", true),
+        )
+    }
+}
 fun parseMessages(json: JSONObject): List<ChatMessage> {
     val rows = json.optJSONArray("messages") ?: JSONArray()
     return (0 until rows.length()).map { index ->

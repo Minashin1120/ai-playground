@@ -86,4 +86,13 @@ class PlaygroundApiTest {
         assertEquals(listOf("one.txt"), rows[0].files)
         assertEquals(listOf("a.png", "b.png"), rows[1].files)
     }
+
+    @Test fun modelCatalogParsesMetadataAndSupportsLegacyFallback() {
+        val catalog = parseModels(JSONObject("""{"models":[{"id":"gpt-5.6-sol","name":"GPT-5.6 Sol","provider":"openai","provider_label":"OpenAI","mode":"chat","capabilities":["chat","thinking"],"deprecated":false,"selectable":true}]}"""))
+        assertEquals("GPT-5.6 Sol", catalog.single().name)
+        assertTrue(catalog.single().supports("thinking"))
+        val legacy = parseModels(JSONObject("""{"model_ids":["legacy-model"]}"""))
+        assertTrue(legacy.single().selectable)
+        assertEquals("legacy-model", legacy.single().name)
+    }
 }

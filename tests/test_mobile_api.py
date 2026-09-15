@@ -109,6 +109,14 @@ class MobileApiTests(unittest.TestCase):
         response = self.call('/api/mobile/v1/me', token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json['username'], 'android-owner')
+        self.assertEqual(response.json['model_catalog_version'], 1)
+        catalog = {item['id']: item for item in response.json['models']}
+        self.assertEqual(catalog['gpt-5.6-sol']['provider_label'], 'OpenAI')
+        self.assertTrue(catalog['gpt-5.6-sol']['selectable'])
+        self.assertIn('thinking', catalog['gpt-5.6-sol']['capabilities'])
+        self.assertEqual(catalog['gpt-image-2']['mode'], 'image')
+        self.assertFalse(catalog['gpt-image-2']['selectable'])
+        self.assertTrue(catalog['gemini-3-pro-preview']['deprecated'])
         self.assertIn('no-store', response.headers['Cache-Control'])
         with target.app.app_context():
             row = target.UserSession.query.filter(target.UserSession.session_id.startswith('android:')).one()

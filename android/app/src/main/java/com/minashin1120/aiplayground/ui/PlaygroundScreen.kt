@@ -30,6 +30,7 @@ import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.data.ThreadItem
 import com.minashin1120.aiplayground.data.LibraryFile
 import com.minashin1120.aiplayground.data.Gem
+import com.minashin1120.aiplayground.data.CompressionSettings
 import com.minashin1120.aiplayground.data.attachmentKind
 import com.minashin1120.aiplayground.data.attachmentKindIcon
 import com.minashin1120.aiplayground.data.numericId
@@ -558,6 +559,7 @@ private fun CheckboxRow(label: String, checked: Boolean, onChange: (Boolean) -> 
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SettingsDialog(
     state: ChatState,
@@ -573,6 +575,11 @@ private fun SettingsDialog(
     var lightMode by remember(prefs?.lightModeEnabled) { mutableStateOf(prefs?.lightModeEnabled ?: false) }
     var autoSearch by remember(prefs?.autoSearchOnLinks) { mutableStateOf(prefs?.autoSearchOnLinks ?: true) }
     var timeout by remember(prefs?.tempChatTimeoutSeconds) { mutableStateOf((prefs?.tempChatTimeoutSeconds ?: 90).toString()) }
+    var compressionEnabled by remember(state.compression) { mutableStateOf(state.compression.enabled) }
+    var maxSizeMB by remember(state.compression) { mutableStateOf(state.compression.maxSizeMB.toString()) }
+    var maxDim by remember(state.compression) { mutableStateOf(state.compression.maxDimension.toString()) }
+    var formatOnly by remember(state.compression) { mutableStateOf(state.compression.formatOnly) }
+    var outputType by remember(state.compression) { mutableStateOf(state.compression.outputType) }
     var modelPicker by remember { mutableStateOf(false) }
     var confirmLogout by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { model.loadPreferences() }
@@ -594,6 +601,22 @@ private fun SettingsDialog(
                 CheckboxRow("リンクのX投稿を自動検索", autoSearch) { autoSearch = it }
                 OutlinedTextField(timeout, { timeout = it.filter { c -> c.isDigit() }.take(6) }, singleLine = true,
                     label = { Text("一時チャットの自動削除（秒）") }, modifier = Modifier.fillMaxWidth())
+                Text("画像の圧縮", fontWeight = FontWeight.SemiBold)
+                CheckboxRow("画像を圧縮して送信", compressionEnabled) { compressionEnabled = it }
+                if (compressionEnabled) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(maxSizeMB, { maxSizeMB = it.filter { c -> c.isDigit() || c == '.' }.take(5) },
+                            singleLine = true, label = { Text("最大サイズ (MB)") }, modifier = Modifier.weight(1f))
+                        OutlinedTextField(maxDim, { maxDim = it.filter { c -> c.isDigit() }.take(4) },
+                            singleLine = true, label = { Text("最大辺 (px)") }, modifier = Modifier.weight(1f))
+                    }
+                    CheckboxRow("形式のみ変換（サイズ・寸法は変更しない）", formatOnly) { formatOnly = it }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("original" to "元の形式", "image/jpeg" to "JPEG", "image/png" to "PNG", "image/webp" to "WebP").forEach { (value, label) ->
+                            FilterChip(outputType == value, { outputType = value }, { Text(label) })
+                        }
+                    }
+                }
                 HorizontalDivider(Modifier.padding(vertical = 4.dp))
                 Text("この端末のセッション", fontWeight = FontWeight.SemiBold)
                 Text("端末: ${prefs?.deviceName?.ifBlank { "このAndroid端末" } ?: "このAndroid端末"}",
@@ -611,7 +634,16 @@ private fun SettingsDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { model.savePreferences(defaultModel, thinking, search, enterToSend, lightMode, autoSearch, timeout.toIntOrNull() ?: 90) },
+                onClick = {
+                    model.saveCompressionSettings(CompressionSettings(
+                        enabled = compressionEnabled,
+                        maxSizeMB = maxSizeMB.toFloatOrNull()?.coerceIn(0.05f, 50f) ?: 1.0f,
+                        maxDimension = maxDim.toIntOrNull()?.coerceIn(256, 8192) ?: 1920,
+                        outputType = outputType,
+                        formatOnly = formatOnly,
+                    ))
+                    model.savePreferences(defaultModel, thinking, search, enterToSend, lightMode, autoSearch, timeout.toIntOrNull() ?: 90)
+                },
                 enabled = !state.prefsBusy,
             ) { Text("保存") }
         },

@@ -195,6 +195,14 @@ class PlaygroundApiTest {
         assertEquals("こんにちは", pdf[0].content)
     }
 
+    @Test fun compressionSettingsComputeByteBudget() {
+        val settings = CompressionSettings(maxSizeMB = 1.0f, maxDimension = 1920)
+        assertEquals(1024L * 1024L, settings.maxSizeBytes)
+        assertTrue(CompressionSettings(maxSizeMB = 0.001f).maxSizeBytes >= 64L * 1024L)
+        assertFalse(CompressionSettings().formatOnly)
+        assertEquals("original", CompressionSettings().outputType)
+    }
+
     @Test fun binaryReadIsBounded() {
         assertEquals(5, readBoundedBytes(ByteArrayInputStream(ByteArray(5)), 5L).size)
         assertTrue(runCatching { readBoundedBytes(ByteArrayInputStream(ByteArray(6)), 5L) }.exceptionOrNull() is IOException)

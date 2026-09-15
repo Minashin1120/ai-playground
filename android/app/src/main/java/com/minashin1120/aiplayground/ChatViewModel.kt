@@ -41,6 +41,7 @@ data class ChatState(
     val libraryHasMore: Boolean = false, val libraryTotal: Int = 0,
     val gems: List<Gem> = emptyList(), val gemsBusy: Boolean = false, val selectedGem: Gem? = null,
     val preferences: Preferences? = null, val prefsBusy: Boolean = false,
+    val compression: CompressionSettings = CompressionSettings(),
     val liveContent: String = "", val liveThought: String = "", val status: String = "",
     val cards: List<StatusCard> = emptyList(),
     val offline: Boolean = false,
@@ -66,6 +67,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var pendingParentId: Int? = null
 
     init { viewModelScope.launch {
+        mutable.update { it.copy(compression = compressionSettingsFrom(prefs)) }
         session = withContext(Dispatchers.IO) { store.load() }
         if (session != null) runCatching { loadAccount() }.onFailure { report(it) }
         mutable.update { it.copy(starting = false) }
@@ -509,12 +511,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     val local = withContext(Dispatchers.IO) { queryLocalAttachment(resolver, uri) }
                     mutable.update { it.copy(uploadName = local.name, uploadSent = 0,
                         uploadTotal = if (local.size > 0) local.size else 0) }
-                    val uploaded = if (local.size > CHUNK_UPLOAD_THRESHOLD_BYTES) {
-                        uploadInChunks(resolver, uri, local)
-                    } else {
-                        uploadWhole(resolver, uri, local)
-                    }
-                    mutable.update { it.copy(attachments = it.attachments + Attachment(local.name, uploaded, local.mime)) }
+                    val source = withContext(Dispatchers.IO) { prepareUpload(resolver, uri, local) }
+                    mutable.update { it.copy(uploadName = source.name, uploadSent = 0,
+                        uploadTotal = if (source.size > 0) source.size else 0) }
+                    val uploaded = if (source.size > CHUNK_UPLOAD_THRESHOLD_BYTES) uploadInChunks(source)
+                        else uploadWhole(source)
+                    mutable.update { it.copy(attachments = it.attachments + Attachment(source.name, uploaded, source.mime)) }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -529,7 +531,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(notice = "アップロードをキャンセルしました。") }
     }
 
+    /** Persists the local image-compression settings used before image uploads. */
+    fun saveCompressionSettings(settings: CompressionSettings) {
+        prefs.edit()
+            .putBoolean("compression_enabled", settings.enabled)
+            .putFloat("compression_max_size_mb", settings.maxSizeMB)
+            .putInt("compression_max_dim", settings.maxDimension)
+            .putString("compression_output_type", settings.outputType)
+            .putBoolean("compression_format_only", settings.formatOnly)
+            .apply()
+        mutable.update { it.copy(compression = settings) }
+    }
+
     private data class LocalAttachment(val name: String, val size: Long, val mime: String)
+
+    private class LocalUpload(val name: String, val size: Long, val mime: String, val opener: () -> java.io.InputStream)
 
     private fun queryLocalAttachment(resolver: android.content.ContentResolver, uri: Uri): LocalAttachment {
         var name = "attachment"
@@ -550,13 +566,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return LocalAttachment(name, size, mime)
     }
 
-    private suspend fun uploadWhole(resolver: android.content.ContentResolver, uri: Uri, local: LocalAttachment): String {
+    private fun prepareUpload(resolver: android.content.ContentResolver, uri: Uri, local: LocalAttachment): LocalUpload {
+        val compressed = runCatching {
+            compressImage(getApplication<Application>(), uri, local.name, local.mime, state.value.compression)
+        }.getOrNull()
+        if (compressed != null) {
+            return LocalUpload(compressed.name, compressed.file.length(), compressed.mime) { compressed.file.inputStream() }
+        }
+        return LocalUpload(local.name, local.size, local.mime) {
+            resolver.openInputStream(uri) ?: throw IOException("添付を開けません。")
+        }
+    }
+
+    private suspend fun uploadWhole(local: LocalUpload): String {
         val known = local.size > 0
         val body = object : RequestBody() {
             override fun contentType() = local.mime.takeIf { it.isNotBlank() }?.toMediaTypeOrNull()
             override fun contentLength() = if (known) local.size else -1L
             override fun writeTo(sink: BufferedSink) {
-                val input = resolver.openInputStream(uri) ?: throw IOException("添付を開けません。")
+                val input = local.opener()
                 input.use {
                     val bytes = ByteArray(64 * 1024)
                     var sent = 0L
@@ -574,12 +602,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return api.upload(local.name, body, token()).getString("filename")
     }
 
-    private suspend fun uploadInChunks(resolver: android.content.ContentResolver, uri: Uri, local: LocalAttachment): String {
+    private suspend fun uploadInChunks(local: LocalUpload): String {
         val init = api.uploadInit(local.name, local.size, token())
         val uploadId = init.getString("upload_id")
         val chunkSize = init.optLong("chunk_size", CHUNK_UPLOAD_THRESHOLD_BYTES).toInt().coerceAtLeast(1)
         val totalChunks = ((local.size + chunkSize - 1) / chunkSize).toInt()
-        val input = resolver.openInputStream(uri) ?: throw IOException("添付を開けません。")
+        val input = local.opener()
         input.use {
             val buffer = ByteArray(chunkSize)
             var index = 0

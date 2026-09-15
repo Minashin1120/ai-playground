@@ -28,6 +28,8 @@ data class ChatState(
     val threads: List<ThreadItem> = emptyList(), val nextPage: Int? = null, val search: String = "",
     val selected: ThreadItem? = null, val messages: List<ChatMessage> = emptyList(),
     val hasOlder: Boolean = false, val oldestId: String? = null,
+    val customInstruction: String = "", val includeGlobalInstruction: Boolean = true,
+    val newThreadTemporary: Boolean = false, val tempChatRemainingSeconds: Long? = null,
     val draft: String = "", val model: String = "", val attachments: List<Attachment> = emptyList(),
     val enableThinking: Boolean = false, val enableSearch: Boolean = false,
     val enablePromptCache: Boolean = false,
@@ -50,6 +52,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var navigationJob: Job? = null
     private var streamJob: Job? = null
     private var uploadJob: Job? = null
+    private var heartbeatJob: Job? = null
     private data class Submission(val body: JSONObject, val files: List<Attachment>)
     private var failed: Submission? = null
 
@@ -76,6 +79,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             streamJob?.cancel()
             mutable.update { it.copy(streaming = false, status = "アプリに戻ると履歴を確認します。") }
         }
+        if (!value) heartbeatJob?.cancel()
         if (returning && state.value.account != null && state.value.selected != null && !state.value.busy) refresh()
     }
     fun pair() {
@@ -158,23 +162,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val reply = api.get("/api/threads?page=$page&q=${URLEncoder.encode(current.search, "UTF-8")}", token())
         if (current.search != state.value.search) return
         val rows = reply.getJSONArray("threads")
-        val items = (0 until rows.length()).map {
-            val row = rows.getJSONObject(it)
-            ThreadItem(row.get("id").toString(), row.optString("title", "新しいチャット"), row.nullableString("last_model"))
-        }
+        val items = (0 until rows.length()).map { parseThreadItem(rows.getJSONObject(it)) }
         mutable.update { it.copy(threads = if (more) (it.threads + items).distinctBy { t -> t.id } else items,
             nextPage = if (reply.optBoolean("has_next")) reply.optInt("next_page", page + 1) else null,
             offline = false) }
     }
     fun moreThreads() { navigationJob?.cancel(); navigationJob = viewModelScope.launch { try { fetchThreads(true) } catch (e: Exception) { report(e) } } }
-    fun newChat() {
+    fun newChat(temporary: Boolean = false) {
         navigationJob?.cancel(); streamJob?.cancel(); failed = null
+        heartbeatJob?.cancel()
         mutable.update { it.copy(selected = null, messages = emptyList(), jobId = null, streaming = false,
             liveContent = "", liveThought = "", status = "", busy = false, retryAvailable = false,
-            cards = emptyList(), hasOlder = false, oldestId = null) }
+            cards = emptyList(), hasOlder = false, oldestId = null, customInstruction = "",
+            includeGlobalInstruction = true, newThreadTemporary = temporary, tempChatRemainingSeconds = null) }
     }
     fun openThread(thread: ThreadItem) {
-        navigationJob?.cancel(); streamJob?.cancel(); failed = null
+        navigationJob?.cancel(); streamJob?.cancel(); heartbeatJob?.cancel(); failed = null
         mutable.update { it.copy(selected = thread, messages = emptyList(), streaming = false, busy = true,
             liveContent = "", liveThought = "", jobId = null, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null) }
@@ -192,9 +195,37 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(messages = if (older) (messages + it.messages).distinctBy { m -> m.id } else messages,
             hasOlder = reply.optBoolean("has_older_messages"), oldestId = reply.nullableString("oldest_loaded_id"),
             jobId = if (older) it.jobId else reply.optJSONObject("pending_job")?.nullableString("job_id")?.ifBlank { null },
-            selected = it.selected?.let { selected -> selected.copy(title = reply.optString("title", selected.title)) },
+            selected = it.selected?.let { selected -> selected.copy(
+                title = reply.optString("title", selected.title),
+                model = reply.nullableString("last_model").ifBlank { selected.model },
+                isTemporary = reply.optBoolean("is_temporary", selected.isTemporary),
+            ) },
+            customInstruction = if (older) it.customInstruction else reply.nullableString("custom_instruction"),
+            includeGlobalInstruction = if (older) it.includeGlobalInstruction else reply.optBoolean("include_global_instruction", true),
+            newThreadTemporary = if (older) it.newThreadTemporary else false,
+            tempChatRemainingSeconds = if (older) it.tempChatRemainingSeconds else
+                reply.optLong("temp_chat_remaining_seconds").takeIf { value -> !reply.isNull("temp_chat_remaining_seconds") && value >= 0 },
             liveContent = if (older) it.liveContent else "", liveThought = if (older) it.liveThought else "",
             cards = if (older) it.cards else emptyList()) }
+        if (!older) syncHeartbeat()
+    }
+
+    private fun syncHeartbeat() {
+        heartbeatJob?.cancel()
+        val selected = state.value.selected ?: return
+        if (!foreground || !selected.isTemporary) return
+        heartbeatJob = viewModelScope.launch {
+            while (isActive && foreground && state.value.selected?.id == selected.id && state.value.selected?.isTemporary == true) {
+                try {
+                    val reply = api.post("/api/temporary_chat/heartbeat",
+                        JSONObject().put("thread_id", selected.id).put("active", true), token())
+                    mutable.update { it.copy(tempChatRemainingSeconds =
+                        reply.optLong("temp_chat_remaining_seconds").takeIf { value -> !reply.isNull("temp_chat_remaining_seconds") && value >= 0 }) }
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) { report(e) }
+                delay(15_000)
+            }
+        }
     }
     fun olderMessages() {
         val id = state.value.selected?.id ?: return
@@ -216,6 +247,43 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             fetchThreads(false)
         } catch (e: Exception) { report(e) }
     } }
+    fun toggleBookmark(thread: ThreadItem) { viewModelScope.launch {
+        try {
+            val reply = api.post("/api/threads/${thread.id}/bookmark", JSONObject(), token())
+            val bookmarked = reply.optBoolean("is_bookmarked")
+            mutable.update { current -> current.copy(
+                threads = current.threads.map { if (it.id == thread.id) it.copy(isBookmarked = bookmarked) else it },
+                selected = current.selected?.let { if (it.id == thread.id) it.copy(isBookmarked = bookmarked) else it },
+            ) }
+            fetchThreads(false)
+        } catch (e: Exception) { report(e) }
+    } }
+    fun saveThreadSettings(title: String, instruction: String, includeGlobal: Boolean, temporary: Boolean) {
+        val thread = state.value.selected ?: return
+        viewModelScope.launch {
+            mutable.update { it.copy(busy = true) }
+            try {
+                val normalizedTitle = title.trim().ifBlank { "新しいチャット" }
+                if (normalizedTitle != thread.title) {
+                    api.put("/api/threads/${thread.id}/title", JSONObject().put("title", normalizedTitle), token())
+                }
+                val reply = api.put("/api/threads/${thread.id}/settings", JSONObject()
+                    .put("custom_instruction", instruction)
+                    .put("include_global_instruction", includeGlobal)
+                    .put("is_temporary", temporary), token())
+                mutable.update { current -> current.copy(
+                    selected = current.selected?.copy(title = normalizedTitle, isTemporary = temporary),
+                    customInstruction = instruction,
+                    includeGlobalInstruction = includeGlobal,
+                    tempChatRemainingSeconds = reply.optLong("temp_chat_remaining_seconds")
+                        .takeIf { value -> !reply.isNull("temp_chat_remaining_seconds") && value >= 0 },
+                ) }
+                fetchThreads(false)
+                syncHeartbeat()
+            } catch (e: Exception) { report(e) }
+            finally { mutable.update { it.copy(busy = false) } }
+        }
+    }
     fun send() {
         val current = state.value
         if (current.streaming || current.busy || current.uploading || (current.draft.isBlank() && current.attachments.isEmpty())) return
@@ -224,6 +292,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .put("client_request_id", UUID.randomUUID().toString()).put("image_urls", JSONArray(current.attachments.map { it.reference }))
             .put("enable_thinking", current.enableThinking).put("enable_search", current.enableSearch)
             .put("enable_prompt_caching", current.enablePromptCache)
+            .put("temporary_chat", current.selected?.isTemporary ?: current.newThreadTemporary)
         current.selected?.let { body.put("thread_id", it.id) }
         val submission = Submission(body, current.attachments)
         failed = submission
@@ -239,10 +308,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             var id = submission.body.nullableString("thread_id")
             try {
                 if (id.isBlank()) {
-                    val created = api.post("/api/threads", JSONObject(), token())
+                    val created = api.post("/api/threads", JSONObject().put("is_temporary", state.value.newThreadTemporary), token())
                     id = created.get("id").toString()
                     submission.body.put("thread_id", id)
-                    mutable.update { it.copy(selected = ThreadItem(id, created.optString("title", "新しいチャット"), it.model)) }
+                    mutable.update { it.copy(selected = ThreadItem(id, created.optString("title", "新しいチャット"), it.model,
+                        isTemporary = created.optBoolean("is_temporary")), newThreadTemporary = false) }
+                    syncHeartbeat()
                 }
                 val userId = "local-${submission.body.getString("client_request_id")}"
                 mutable.update { it.copy(messages = it.messages.filterNot { m -> m.id == userId } + ChatMessage(userId, "user",
@@ -323,7 +394,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     } }
     private suspend fun clearSession() {
         val caller = currentCoroutineContext().job
-        listOf(pairingJob, navigationJob, streamJob, uploadJob).forEach { if (it !== caller) it?.cancel() }
+        listOf(pairingJob, navigationJob, streamJob, uploadJob, heartbeatJob).forEach { if (it !== caller) it?.cancel() }
         withContext(NonCancellable + Dispatchers.IO) { store.clear() }
         session = null; failed = null
         mutable.value = ChatState(starting = false)

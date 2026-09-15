@@ -147,6 +147,51 @@ class MobileApiTests(unittest.TestCase):
             self.assertEqual(self.call('/api/threads/' + foreign_id, token, method).status_code, 403)
         self.assertEqual(self.call('/api/threads/' + thread_id, token, 'DELETE').status_code, 200)
 
+    def test_native_thread_settings_bookmark_title_and_temporary_heartbeat(self):
+        token = self.token()
+        created = self.call('/api/threads', token, 'POST', json={'is_temporary': True})
+        self.assertEqual(created.status_code, 200)
+        thread_id = created.json['id']
+        self.assertTrue(created.json['is_temporary'])
+        response = self.call('/api/threads/' + thread_id + '/settings', token, 'PUT', json={
+            'custom_instruction': '簡潔に答える',
+            'include_global_instruction': False,
+            'is_temporary': True,
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json['is_temporary'])
+        settings = self.call('/api/threads/' + thread_id + '/settings', token)
+        self.assertEqual(settings.status_code, 200)
+        self.assertEqual(settings.json['custom_instruction'], '簡潔に答える')
+        self.assertFalse(settings.json['include_global_instruction'])
+        renamed = self.call('/api/threads/' + thread_id + '/title', token, 'PUT', json={'title': 'Android Phase 2'})
+        self.assertEqual(renamed.json['title'], 'Android Phase 2')
+        bookmarked = self.call('/api/threads/' + thread_id + '/bookmark', token, 'POST', json={})
+        self.assertTrue(bookmarked.json['is_bookmarked'])
+        heartbeat = self.call('/api/temporary_chat/heartbeat', token, 'POST', json={'thread_id': thread_id, 'active': True})
+        self.assertEqual(heartbeat.status_code, 200)
+        self.assertTrue(heartbeat.json['is_temporary'])
+        listed = self.call('/api/threads', token).json['threads'][0]
+        self.assertTrue(listed['is_bookmarked'])
+        self.assertTrue(listed['is_temporary'])
+
+    def test_native_thread_settings_remain_owner_scoped(self):
+        token = self.token()
+        with target.app.app_context():
+            foreign = target.Thread(user_id=self.other_id, public_id=target.generate_thread_public_id())
+            target.db.session.add(foreign)
+            target.db.session.commit()
+            foreign_id = foreign.public_id
+        calls = [
+            ('/api/threads/' + foreign_id + '/settings', 'GET', None),
+            ('/api/threads/' + foreign_id + '/settings', 'PUT', {'is_temporary': True}),
+            ('/api/threads/' + foreign_id + '/title', 'PUT', {'title': 'No'}),
+            ('/api/threads/' + foreign_id + '/bookmark', 'POST', {}),
+        ]
+        for path, method, payload in calls:
+            response = self.call(path, token, method, **({'json': payload} if payload is not None else {}))
+            self.assertEqual(response.status_code, 403, (path, method))
+
     def test_browser_csrf_is_preserved(self):
         grant = self.device()
         bad = self.browser.post('/android/connect', base_url='https://localhost', data={'user_code': grant['user_code'], 'decision': 'approve'})

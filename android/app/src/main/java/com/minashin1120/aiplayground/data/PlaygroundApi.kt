@@ -70,6 +70,9 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
     suspend fun post(path: String, payload: JSONObject, token: String? = null): JSONObject = execute(
         request(path, token).header("Accept", "application/json")
             .post(payload.toString().toRequestBody(jsonType)).build(), consume = ::jsonResponse)
+    suspend fun put(path: String, payload: JSONObject, token: String): JSONObject = execute(
+        request(path, token).header("Accept", "application/json")
+            .put(payload.toString().toRequestBody(jsonType)).build(), consume = ::jsonResponse)
     suspend fun delete(path: String, token: String): JSONObject = execute(
         request(path, token).delete().build(), consume = ::jsonResponse)
 

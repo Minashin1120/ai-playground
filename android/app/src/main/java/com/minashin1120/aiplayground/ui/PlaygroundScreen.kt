@@ -35,6 +35,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
             var deleting by remember { mutableStateOf<ThreadItem?>(null) }
             var logout by remember { mutableStateOf(false) }
             var modelPicker by remember { mutableStateOf(false) }
+            var threadSettings by remember { mutableStateOf(false) }
             val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { model.upload(it) }
             val snackbar = remember { SnackbarHostState() }
             val loader: FileBytesLoader = { reference, thumbnail, limit ->
@@ -56,6 +57,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
                         } }, navigationIcon = {
                             if (showThreads && !wide) TextButton(onClick = { scope.launch { drawer.open() } }) { Text("履歴") }
                         }, actions = {
+                            if (state.selected != null) TextButton(onClick = { threadSettings = true }, enabled = !state.busy && !state.streaming) { Text("設定") }
                             if (showThreads) TextButton(onClick = model::refresh, enabled = !state.busy && !state.streaming) { Text("更新") }
                         })
                     }, snackbarHost = { SnackbarHost(snackbar) },
@@ -94,6 +96,11 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
             }
 
             if (modelPicker) ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { model.chooseModel(it); modelPicker = false })
+            if (threadSettings && state.selected != null) ThreadSettingsDialog(state, onDismiss = { threadSettings = false }) {
+                title, instruction, includeGlobal, temporary ->
+                model.saveThreadSettings(title, instruction, includeGlobal, temporary)
+                threadSettings = false
+            }
             deleting?.let { thread -> AlertDialog(onDismissRequest = { deleting = null }, title = { Text("チャットを削除しますか？") },
                 text = { Text("「${thread.title}」の履歴と紐付く添付ファイルを削除します。この操作は取り消せません。") },
                 confirmButton = { TextButton(onClick = { model.deleteThread(thread); deleting = null }) { Text("削除") } },
@@ -132,6 +139,7 @@ private fun ThreadPanel(
             Text(state.account?.name.orEmpty(), color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(20.dp))
             Button(onClick = { model.newChat(); onNavigate() }, modifier = Modifier.fillMaxWidth()) { Text("＋ 新しいチャット") }
+            TextButton(onClick = { model.newChat(temporary = true); onNavigate() }, modifier = Modifier.fillMaxWidth()) { Text("◷ 一時チャット") }
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(state.search, model::search, singleLine = true, label = { Text("履歴を検索") }, modifier = Modifier.fillMaxWidth())
         }
@@ -140,9 +148,16 @@ private fun ThreadPanel(
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { model.openThread(thread); onNavigate() }, modifier = Modifier.weight(1f)) {
                         Column(Modifier.fillMaxWidth()) {
-                            Text(thread.title.ifBlank { "新しいチャット" }, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(buildString {
+                                if (thread.isBookmarked) append("★ ")
+                                if (thread.isTemporary) append("◷ ")
+                                append(thread.title.ifBlank { "新しいチャット" })
+                            }, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             if (thread.model.isNotBlank()) Text(thread.model, style = MaterialTheme.typography.labelSmall, maxLines = 1)
                         }
+                    }
+                    TextButton(onClick = { model.toggleBookmark(thread) }) {
+                        Text(if (thread.isBookmarked) "★" else "☆", style = MaterialTheme.typography.titleMedium)
                     }
                     TextButton(onClick = { onDelete(thread) }) { Text("削除", style = MaterialTheme.typography.labelSmall) }
                 }
@@ -203,6 +218,49 @@ private fun PairingScreen(state: ChatState, model: ChatViewModel, onWeb: (Boolea
 }
 
 @Composable
+private fun ThreadSettingsDialog(
+    state: ChatState,
+    onDismiss: () -> Unit,
+    onSave: (String, String, Boolean, Boolean) -> Unit,
+) {
+    val thread = state.selected ?: return
+    var title by remember(thread.id) { mutableStateOf(thread.title) }
+    var instruction by remember(thread.id) { mutableStateOf(state.customInstruction) }
+    var includeGlobal by remember(thread.id) { mutableStateOf(state.includeGlobalInstruction) }
+    var temporary by remember(thread.id) { mutableStateOf(thread.isTemporary) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("チャット設定") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(title, { title = it }, label = { Text("タイトル") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(instruction, { instruction = it }, label = { Text("このチャットの指示") },
+                    minLines = 3, maxLines = 7, modifier = Modifier.fillMaxWidth())
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(includeGlobal, { includeGlobal = it })
+                    Text("アカウント共通の指示も使う", modifier = Modifier.weight(1f))
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(temporary, { temporary = it })
+                    Column(Modifier.weight(1f)) {
+                        Text("一時チャット")
+                        Text("アプリが在席更新を停止すると、設定時間後に自動削除されます。",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                if (thread.isTemporary && state.tempChatRemainingSeconds != null) {
+                    Text("現在の自動削除目安: ${state.tempChatRemainingSeconds}秒",
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(title, instruction, includeGlobal, temporary) }, enabled = title.length <= 200 && instruction.length <= 100_000) { Text("保存") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } },
+    )
+}
+
+@Composable
 private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String) -> Unit, loader: FileBytesLoader?) {
     val scroll = rememberLazyListState()
     val live = state.streaming || state.liveContent.isNotEmpty() || state.liveThought.isNotEmpty() || state.cards.isNotEmpty()
@@ -214,6 +272,13 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
     }
     Column(Modifier.fillMaxSize()) {
         if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (state.selected?.isTemporary == true || (state.selected == null && state.newThreadTemporary)) {
+            Surface(color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
+                Text("一時チャット・離席後に自動削除されます",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
+            }
+        }
         if (state.jobId != null && !state.streaming) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("生成の状態を確認できます", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = model::resume) { Text("再接続") }

@@ -33,7 +33,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | 機能 | このAPIでの扱い |
 |---|---|
 | ユーザー認証 | 既存ブラウザーログインと端末連携。パスワード、Google、Minashin SSO、Passkey、2FAの既存経路を利用 |
-| 通常のチャット | スレッド一覧・検索・作成・取得・削除、送信、ストリーム再接続、停止 |
+| 通常のチャット | スレッド一覧・検索・作成・取得・削除、ブックマーク、タイトル・スレッド指示、送信、ストリーム再接続、停止 |
 | 添付 | 通常アップロード、本人のファイル・サムネイル取得、容量表示 |
 | 一時チャット | 作成・heartbeat。自動削除タイマーをクライアント側でも考慮する |
 | モデル一覧 | `/me` の `models`。表示名、提供元、用途、対応能力、廃止状態、通常チャットでの選択可否を返す。互換用の `model_ids` も維持 |
@@ -43,7 +43,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | ブラウザー高速モード | 対象外。APIキーをAndroidへ返すbootstrap APIは許可しない |
 | アプリ配布・真正性検証 | APK署名・Play配布は別途。client_idや端末名はアプリ署名の証明ではない |
 
-Android版は通常チャット、メタデータ付きモデル選択、Thinking・Web検索・Prompt Cache、履歴の検索・ページ送り・削除、添付、生成停止、切断後の再接続、端末連携・失効に対応します。本文は見出し、強調、リスト、引用、安全なHTTP(S)リンク、コピー・折り畳み対応コード、表、添付画像プレビュー、Web検索とPython実行の状態カードを選択可能なネイティブUIで表示します。数式はWebViewやKaTeXを使わず、LaTeXを読めるネイティブ近似へ変換して描画します。リアルタイム音声、Batch操作、高度なモデル別設定はまだWebを使います。
+Android版は通常チャット、メタデータ付きモデル選択、Thinking・Web検索・Prompt Cache、履歴の検索・ページ送り・削除・ブックマーク、タイトル・スレッド指示、一時チャット、添付、生成停止、切断後の再接続、端末連携・失効に対応します。本文は見出し、強調、リスト、引用、安全なHTTP(S)リンク、コピー・折り畳み対応コード、表、添付画像プレビュー、Web検索とPython実行の状態カードを選択可能なネイティブUIで表示します。数式はWebViewやKaTeXを使わず、LaTeXを読めるネイティブ近似へ変換して描画します。リアルタイム音声、Batch操作、高度なモデル別設定はまだWebを使います。
 
 暗号化の境界は「HTTPSで通信」「サーバーが保存データを暗号化・復号」「端末トークンをAndroid Keystoreの鍵で暗号化保存」です。既存Webの `enable_e2ee` はサーバー側の `encrypt_val` / `decrypt_val` とファイル暗号化に使われます。そのため、この設定を理由にAndroidを拒否する必要はありません。真の端末間E2EEに変更する場合は、端末鍵の生成・共有・回復とAI処理時の平文の扱いを別途設計する必要があります。
 
@@ -201,6 +201,10 @@ Webのログアウトと同様、端末の失効操作はBot確認待ち・ロ�
 | POST `/api/threads` | `{}` または `{"is_temporary":true}` | `id`, `title`, 一時チャットのメタデータ |
 | GET `/api/threads/<id>` | `limit=50&before_id=<最古ID>&include_meta=1` | `messages`, `has_older_messages`, `oldest_loaded_id`, `pending_job` 等 |
 | DELETE `/api/threads/<id>` | 本文不要 | `{"status":"deleted"}`。履歴・紐付く添付を削除するため画面で確認する |
+| GET `/api/threads/<id>/settings` | なし | スレッド指示、共通指示の有無、一時チャットの期限情報 |
+| PUT `/api/threads/<id>/settings` | `custom_instruction`, `include_global_instruction`, `is_temporary` | 更新後の一時チャット状態。指示は100,000文字以下 |
+| PUT `/api/threads/<id>/title` | `title` | 正規化後のタイトル。最大200文字 |
+| POST `/api/threads/<id>/bookmark` | `{}` | 切り替え後の `is_bookmarked` |
 | POST `/chat_stream` | 下の送信JSON | NDJSONストリーム、またはエラーJSON |
 | POST `/chat_stream_resume` | `{"thread_id":"...","job_id":"..."}` | 蓄積内容と継続ストリーム |
 | POST `/api/stop_chat` | `thread_id` と、分かれば `job_id` | `status`, `job_id`, `source`。停止信号の受付であり即時停止完了ではない |
@@ -528,7 +532,7 @@ Android KeystoreでAES-GCM用の鍵を生成し、アクセストークンはそ
 
 ### 8.2 画面と状態
 
-ViewModelが送信状態を保持し、Composeはその状態を表示する構成にします。回転や再Compositionをきっかけに送信・ポーリングを二重起動しないでください。送信ごとのUUID、thread_id、job_id、仮表示中の本文・思考を区別します。
+ViewModelが送信状態を保持し、Composeはその状態を表示する構成にします。一時チャットのheartbeatは対象スレッドを表示してアプリがフォアグラウンドにある間だけ送信し、離席中は自動削除タイマーを妨げません。回転や再Compositionをきっかけに送信・ポーリングを二重起動しないでください。送信ごとのUUID、thread_id、job_id、仮表示中の本文・思考を区別します。
 
 通信表示は「送信中」「応答待ち」「受信中」など実際に観測した状態から決めます。`finally` で待機表示を解除します。Web側の共通スピナーは `static/js/progress_spinner.js` が管理しており、Androidは自身のViewModelで同じ考え方を実装します。
 
@@ -612,7 +616,7 @@ scripts/publish_version.sh --message "Add Android pairing and scoped native API 
 
 `tests/test_mobile_api.py` は分離SQLiteとUnixソケットの一時Redisを使い、実際のLuaを含めて検証します。redis-serverがない環境ではこのテスト群はskipされるため、公開確認ではskipを成功と取り違えないでください。
 
-対象は、承認・拒否・期限切れ・二重引き換え防止・並列競合・ポーリング制限・Redis障害・HTTPS・停止スイッチ・Cookie/Origin混在拒否・WebのCSRF維持・失効・BAN・E2EE・Turnstile・スレッド所有者・添付所有者・モデルメタデータと選択可否です。
+対象は、承認・拒否・期限切れ・二重引き換え防止・並列競合・ポーリング制限・Redis障害・HTTPS・停止スイッチ・Cookie/Origin混在拒否・WebのCSRF維持・失効・BAN・E2EE・Turnstile・スレッド所有者・タイトル・スレッド指示・ブックマーク・一時チャット・添付所有者・モデルメタデータと選択可否です。
 
 既存の全体回帰テストはprepareの内部で実行します。実際のAI事業者への有料生成、Android UI、署名APKのインストールはサーバー単体テストでは検証しません。
 

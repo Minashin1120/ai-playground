@@ -7,6 +7,8 @@ MOBILE_POLL_INTERVAL = 5
 MOBILE_ENDPOINT_METHODS = {
     'mobile_me': {'GET'}, 'mobile_revoke': {'POST'},
     'handle_threads': {'GET', 'POST'}, 'handle_thread_item': {'GET', 'DELETE'},
+    'update_thread_settings': {'GET', 'PUT'}, 'update_title': {'PUT'},
+    'toggle_bookmark': {'POST'},
     'chat_stream': {'POST'}, 'chat_stream_resume': {'POST'}, 'stop_chat': {'POST'},
     'temporary_chat_heartbeat': {'POST'}, 'estimate_prompt_tokens_api': {'POST'},
     'upload': {'POST'}, 'serve_file': {'GET', 'HEAD'},

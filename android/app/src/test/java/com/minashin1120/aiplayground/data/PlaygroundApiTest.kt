@@ -39,6 +39,19 @@ class PlaygroundApiTest {
         }
     }
 
+    @Test fun phaseTwoUpdatesUseBearerPut() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json")
+                .body("{\"status\":\"ok\"}").build())
+            PlaygroundApi(server.url("/")).put("/api/threads/t1/settings", JSONObject().put("is_temporary", true), "test-token")
+            val request = server.takeRequest()
+            assertEquals("PUT", request.method)
+            assertEquals("Bearer test-token", request.headers["Authorization"])
+            assertNull(request.headers["Cookie"])
+        }
+    }
+
     @Test fun streamRequiresTerminalEvent() = runBlocking {
         MockWebServer().use { server ->
             server.start()
@@ -85,6 +98,14 @@ class PlaygroundApiTest {
         assertEquals("", rows[0].content)
         assertEquals(listOf("one.txt"), rows[0].files)
         assertEquals(listOf("a.png", "b.png"), rows[1].files)
+    }
+
+    @Test fun threadMetadataParsesPhaseTwoState() {
+        val thread = parseThreadItem(JSONObject("""{"id":"t1","title":"Pinned","last_model":null,"is_bookmarked":true,"is_temporary":true}"""))
+        assertEquals("t1", thread.id)
+        assertEquals("", thread.model)
+        assertTrue(thread.isBookmarked)
+        assertTrue(thread.isTemporary)
     }
 
     @Test fun modelCatalogParsesMetadataAndSupportsLegacyFallback() {

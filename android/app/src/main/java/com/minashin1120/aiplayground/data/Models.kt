@@ -8,7 +8,13 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 
-data class ThreadItem(val id: String, val title: String, val model: String)
+data class ThreadItem(
+    val id: String,
+    val title: String,
+    val model: String,
+    val isBookmarked: Boolean = false,
+    val isTemporary: Boolean = false,
+)
 data class ChatMessage(val id: String, val role: String, val content: String,
                        val thought: String = "", val files: List<String> = emptyList())
 data class Attachment(val name: String, val reference: String)
@@ -48,6 +54,13 @@ class ApiException(val status: Int, val payload: JSONObject, val retryAfter: Lon
 
 fun JSONArray.strings(): List<String> = (0 until length()).map { getString(it) }
 fun JSONObject.nullableString(name: String): String = if (isNull(name)) "" else optString(name)
+fun parseThreadItem(row: JSONObject): ThreadItem = ThreadItem(
+    id = row.get("id").toString(),
+    title = row.optString("title", "新しいチャット"),
+    model = row.nullableString("last_model"),
+    isBookmarked = row.optBoolean("is_bookmarked"),
+    isTemporary = row.optBoolean("is_temporary"),
+)
 fun parseModels(json: JSONObject): List<ModelInfo> {
     val rows = json.optJSONArray("models")
     if (rows == null) return json.optJSONArray("model_ids")?.strings().orEmpty().map {

@@ -4,14 +4,12 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -66,8 +64,11 @@ internal fun parseMarkdownBlocks(source: String): List<MarkdownBlock> {
     return result
 }
 
-private fun safeWebUrl(value: String): String? = runCatching {
-    URI(value.trim()).takeIf { it.scheme?.lowercase() in setOf("http", "https") && !it.host.isNullOrBlank() }?.toString()
+internal fun safeWebUrl(value: String): String? = runCatching {
+    URI(value.trim()).takeIf {
+        val scheme = it.scheme?.lowercase()
+        (scheme == "http" || scheme == "https") && !it.host.isNullOrBlank()
+    }?.toString()
 }.getOrNull()
 
 private fun inlineMarkdown(text: String): AnnotatedString = buildAnnotatedString {
@@ -84,10 +85,12 @@ private fun inlineMarkdown(text: String): AnnotatedString = buildAnnotatedString
                 val split = value.indexOf("](")
                 val label = value.substring(1, split)
                 val url = safeWebUrl(value.substring(split + 2, value.length - 1))
-                if (url == null) append(label) else pushStringAnnotation("URL", url).also {
-                    withStyle(SpanStyle(color = androidx.compose.ui.graphics.Color(0xFF0A8F84), textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline)) { append(label) }
-                    pop()
-                }
+                if (url == null) append(label) else withLink(
+                    LinkAnnotation.Url(url, TextLinkStyles(style = SpanStyle(
+                        color = androidx.compose.ui.graphics.Color(0xFF0A8F84),
+                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                    )))
+                ) { append(label) }
             }
         }
         cursor = match.range.last + 1
@@ -98,10 +101,7 @@ private fun inlineMarkdown(text: String): AnnotatedString = buildAnnotatedString
 @Composable
 private fun InlineText(text: String, style: androidx.compose.ui.text.TextStyle = LocalTextStyle.current) {
     val annotated = remember(text) { inlineMarkdown(text) }
-    val uri = LocalUriHandler.current
-    ClickableText(text = annotated, style = style.copy(color = LocalContentColor.current), onClick = { offset ->
-        annotated.getStringAnnotations("URL", offset, offset).firstOrNull()?.item?.let { runCatching { uri.openUri(it) } }
-    })
+    Text(text = annotated, style = style.copy(color = LocalContentColor.current))
 }
 
 @Composable

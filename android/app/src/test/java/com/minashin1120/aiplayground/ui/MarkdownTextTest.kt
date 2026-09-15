@@ -26,4 +26,10 @@ println("安全")
         val blocks = parseMarkdownBlocks("```text\n<not-html>")
         assertEquals("<not-html>", (blocks.single() as MarkdownBlock.Code).text)
     }
+
+    @Test fun onlyAbsoluteHttpLinksAreAllowed() {
+        assertEquals("https://example.com/docs", safeWebUrl("https://example.com/docs"))
+        assertNull(safeWebUrl("javascript:alert(1)"))
+        assertNull(safeWebUrl("https:///missing-host"))
+    }
 }

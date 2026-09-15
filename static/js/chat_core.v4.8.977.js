@@ -30,6 +30,14 @@
             const isFileUrl = (u) => /(\/files\/thumb\/|\/files\/)/.test(String(u || ''));
             const fileUrlStatus = (url) => fetch(url, { method: 'GET', headers: { 'Range': 'bytes=0-0' }, cache: 'no-store' })
                 .then((r) => r.status).catch(() => -1);
+            document.addEventListener('load', (e) => {
+                const el = e.target;
+                if (!el || el.tagName !== 'IMG' || !el.classList.contains('chat-image')) return;
+                const frame = el.closest('.chat-image-frame');
+                if (!frame) return;
+                frame.dataset.chatImageState = 'loaded';
+                frame.removeAttribute('aria-busy');
+            }, true);
             const buildWarning = (filename, keyMismatch) => {
                 const box = document.createElement('div');
                 box.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;min-height:80px;text-align:center;padding:8px;gap:4px;';
@@ -53,16 +61,38 @@
                 const el = e.target;
                 if (!el || el.tagName !== 'IMG') return;
                 const src = el.currentSrc || el.src || '';
-                if (!isFileUrl(src)) return;
+                if (!isFileUrl(src)) {
+                    const frame = el.closest && el.closest('.chat-image-frame');
+                    if (frame) {
+                        frame.dataset.chatImageState = 'error';
+                        frame.removeAttribute('aria-busy');
+                        const status = frame.querySelector('.chat-image-loading');
+                        const label = status && status.querySelector('span');
+                        if (label) label.textContent = '画像を読み込めませんでした';
+                        const icon = status && status.querySelector('i');
+                        if (icon) icon.className = 'fas fa-image';
+                    }
+                    return;
+                }
                 e.stopImmediatePropagation();
                 e.preventDefault();
                 const cleanSrc = String(src).split('?')[0];
                 const filename = el.getAttribute('data-viewer-filename') || cleanSrc.split('/').pop();
                 const showWarning = (keyMismatch) => {
+                    const frame = el.closest && el.closest('.chat-image-frame');
+                    if (frame) {
+                        frame.dataset.chatImageState = 'failed';
+                        frame.removeAttribute('aria-busy');
+                    }
                     const replacement = buildWarning(filename, !!keyMismatch);
                     try { el.replaceWith(replacement); } catch (_) { /* detached */ }
                 };
                 const showBusyWarning = () => {
+                    const frame = el.closest && el.closest('.chat-image-frame');
+                    if (frame) {
+                        frame.dataset.chatImageState = 'busy';
+                        frame.removeAttribute('aria-busy');
+                    }
                     const replacement = buildBusyWarning(filename);
                     try { el.replaceWith(replacement); } catch (_) { /* detached */ }
                 };
@@ -100,6 +130,19 @@
                 });
             }, true);
         })();
+        function buildChatImageHtml(src, options = {}) {
+            const rawSrc = String(src || '');
+            const alt = String(options.alt || '');
+            const title = String(options.title || '');
+            const viewerSrc = String(options.viewerSrc || rawSrc);
+            const filename = String(options.filename || '');
+            if (rawSrc.startsWith('sandbox:')) {
+                return `<span class="text-xs text-gray-500" title="${escapeHtml(rawSrc)}">${escapeHtml(alt) || '（画像データは取得できませんでした）'}</span>`;
+            }
+            const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+            const filenameAttr = filename ? ` data-viewer-filename="${escapeHtml(filename)}"` : '';
+            return `<span class="chat-image-frame" data-chat-image-state="loading" aria-busy="true"><span class="chat-image-loading" role="status" aria-label="画像を読み込み中"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i><span>画像を読み込み中…</span></span><img src="${escapeHtml(rawSrc)}" data-viewer-src="${escapeHtml(viewerSrc)}" alt="${escapeHtml(alt)}"${titleAttr}${filenameAttr} class="chat-image" loading="lazy" decoding="async" width="320" height="320"></span>`;
+        }
         const isAdminSidebarDebugEnabled = () => {
             try {
                 const cfg = window.CHAT_CONFIG || {};
@@ -10004,7 +10047,7 @@
                         return `<div class="code-wrapper collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${langLabel}</span><div class="code-actions"><button class="code-toggle" aria-expanded="false" title="展開" aria-label="展開"><i class="fas fa-chevron-down"></i></button>${codingBtn}${previewBtn}${downloadBtn}<button class="copy-btn" data-code="${enc}" title="コピー" aria-label="コピー"><i class="fas fa-copy"></i></button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`;
                     },
                     link(h, t, x) { return `<a href="${h}" title="${t || ''}" target="_blank">${x}</a>`; },
-                    image(h, t, x) { const alt = escapeHtml(x || ''); const title = t ? ` title="${escapeHtml(t)}"` : ''; if (String(h || '').startsWith('sandbox:')) { return `<span class="text-xs text-gray-500" title="${escapeHtml(h)}">${alt || '（画像データは取得できませんでした）'}</span>`; } const viewerSrc = escapeHtml(h || ''); return `<img src="${h}" data-viewer-src="${viewerSrc}" alt="${alt}"${title} class="chat-image" loading="lazy" width="320" height="320">`; }
+                    image(h, t, x) { return buildChatImageHtml(h, { alt: x, title: t }); }
                 },
                 breaks: true,
                 gfm: true
@@ -18730,7 +18773,7 @@
                             const fn = path.split('/').pop();
                             const ext = fn.split('.').pop().toLowerCase();
                             if(['jpg','jpeg','png','webp','gif'].includes(ext)) {
-                                items.push(`<img src="${previewUrl}" data-viewer-src="${url}" data-viewer-filename="${escapeHtml(fn)}" class="chat-image" loading="lazy" onclick="openImageViewer('${url}')" title="${fn}">`);
+                                items.push(buildChatImageHtml(previewUrl, { viewerSrc: url, alt: fn, title: fn, filename: fn }));
                             } else {
                                 items.push(`<div class="file-thumb bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700" onclick="window.open('${url}')" title="${fn}"><i class="fas fa-file text-2xl text-gray-400 mb-1"></i><span class="text-[9px] truncate w-20 text-center">${fn}</span></div>`);
                             }

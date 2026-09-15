@@ -433,7 +433,7 @@
                             const fn = path.split('/').pop();
                             const ext = fn.split('.').pop().toLowerCase();
                             if(['jpg','jpeg','png','webp','gif'].includes(ext)) {
-                                items.push(`<img src="${previewUrl}" data-viewer-src="${url}" data-viewer-filename="${escapeHtml(fn)}" class="chat-image" loading="lazy" onclick="openImageViewer('${url}')" title="${fn}">`);
+                                items.push(buildChatImageHtml(previewUrl, { viewerSrc: url, alt: fn, title: fn, filename: fn }));
                             } else {
                                 items.push(`<div class="file-thumb bg-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700" onclick="window.open('${url}')" title="${fn}"><i class="fas fa-file text-2xl text-gray-400 mb-1"></i><span class="text-[9px] truncate w-20 text-center">${fn}</span></div>`);
                             }

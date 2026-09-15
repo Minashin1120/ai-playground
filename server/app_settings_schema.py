@@ -18,6 +18,8 @@ def inject_csrf():
     }
 
 def validate_csrf():
+    if getattr(g, 'mobile_session', None) is not None or getattr(g, 'mobile_public_request', False):
+        return True
     token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token')
     session_token = session.get('csrf_token')
     if not token or not session_token:

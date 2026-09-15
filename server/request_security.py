@@ -451,7 +451,7 @@ def check_maintenance():
         if not validate_csrf():
             return jsonify({'error': 'CSRF token missing/invalid'}), 403
     if app.config.get('MAINTENANCE_MODE'):
-        if request.endpoint in ['static', 'login', 'logout', 'toggle_maintenance', 'login_passkey_options', 'login_passkey_verify']: return
+        if request.endpoint in ['static', 'login', 'logout', 'mobile_revoke', 'toggle_maintenance', 'login_passkey_options', 'login_passkey_verify']: return
         if current_user.is_authenticated and getattr(current_user, "is_admin", False): return
         response = make_response(render_template('maintenance.html'), 503)
         response.headers['X-AI-Maintenance'] = '1'
@@ -473,7 +473,7 @@ def check_bot_ban():
         current_user.bot_unban_notice = False
         safe_db_commit()
     if current_user.is_bot_banned:
-        if request.endpoint in ['logout', 'static', 'banned', 'submit_ban_appeal', 'api_ban_appeal_status']:
+        if request.endpoint in ['logout', 'mobile_revoke', 'static', 'banned', 'submit_ban_appeal', 'api_ban_appeal_status']:
             return
         if request.endpoint in ['api_ban_appeal', 'api_ban_appeals_summary']:
             return
@@ -486,6 +486,14 @@ def ensure_active_session():
     if request.endpoint == 'static':
         return
     if not current_user.is_authenticated:
+        return
+    mobile_session = getattr(g, 'mobile_session', None)
+    if mobile_session is not None:
+        now = datetime.utcnow()
+        if not mobile_session.last_seen_at or (now - mobile_session.last_seen_at) > timedelta(seconds=30):
+            mobile_session.last_seen_at = now
+            mobile_session.ip_address = get_client_ip()
+            safe_db_commit()
         return
     sid = session.get('session_id')
     if not sid:
@@ -537,6 +545,7 @@ _BOT_TURNSTILE_STATE_TTL = 30 * 60
 _BOT_TURNSTILE_FAIL_COOLDOWN_SEC = 15
 # Endpoints a bot-detection-active, not-yet-verified user still needs to reach.
 _BOT_TURNSTILE_GATE_WHITELIST = {
+    'mobile_revoke',
     'bot_turnstile_verify',
     'bot_telemetry',
     'bot_lock',
@@ -564,6 +573,7 @@ _BOT_LOCK_COUNT_TTL = 60 * 60  # lock-count window (1 hour)
 # bot_telemetry / bot_turnstile_verify stay open so automated / synthetic
 # behaviour can still escalate from a temporary lock to a permanent ban.
 _BOT_LOCK_GATE_WHITELIST = {
+    'mobile_revoke',
     'logout',
     'banned',
     'submit_ban_appeal',

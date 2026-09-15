@@ -11,3 +11,5 @@ sudo systemctl reload apache2
 ```
 
 SSEへ影響するため、プロキシやCDNでレスポンスをバッファしないでください。`LimitRequestBody` は `.env` の `UPLOAD_MAX_MB` 以上にします。TLS証明書はCertbot等で取得し、秘密鍵の権限を維持してください。
+
+Android向けの設定と試験手順は [ANDROID_CLIENT.md](../ANDROID_CLIENT.md) を参照してください。通常のチャットはNDJSON、リアルタイム系はSSEです。`Authorization` ヘッダーを上流へ渡し、`/api/mobile/`・`/android/connect`・チャットストリームを共有キャッシュへ保存しない構成にしています。Android向けにCORSを開放する必要はありません。

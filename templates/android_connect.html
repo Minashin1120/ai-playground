@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Android端末の連携 — AI Playground</title>
+</head>
+<body>
+  <main>
+    <h1>Android端末の連携</h1>
+    <p>ログイン中: {{ current_user.username }}</p>
+    {% if completed %}
+      <p role="status">{{ '連携を許可しました。Androidアプリに戻ってください。' if approved else '連携を拒否しました。' }}</p>
+    {% else %}
+      <p>自分でAndroidアプリに表示した確認コードだけを入力してください。他人から送られたコードは承認しないでください。</p>
+      {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+      <form method="post" action="{{ url_for('mobile_connect') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if device_name %}
+          <p>端末名（申請元の自己申告）: <strong>{{ device_name }}</strong></p>
+          <p>確認コード: <strong>{{ user_code }}</strong></p>
+          <p>この端末に、チャットの閲覧・送信・削除とファイルのアップロード・閲覧を30日間許可します。設定のセッション管理から取り消せます。</p>
+          <input type="hidden" name="user_code" value="{{ user_code }}">
+          <button type="submit" name="decision" value="approve">この端末を許可</button>
+          <button type="submit" name="decision" value="deny">拒否</button>
+        {% else %}
+          <label for="user-code">アプリに表示された12文字の確認コード</label>
+          <input id="user-code" name="user_code" required maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <button type="submit" name="decision" value="review">連携内容を確認</button>
+        {% endif %}
+      </form>
+    {% endif %}
+    <p><a href="/">Webアプリへ戻る</a></p>
+  </main>
+</body>
+</html>

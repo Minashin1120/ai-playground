@@ -1,26 +1,10 @@
 # server — Flask 本体の分割ソース
 
-`app.py` は起動・設定・版番号の入口です。機能の実装は、このディレクトリのファイルに分けてあります。
-
-**重要:** これらの `.py` は通常の `import` では使いません。`app.py` が起動時に `exec()` で読み込み、名前はこれまでどおり `app` モジュールに載ります。そのため `from app import User` や gunicorn の `app:app`、既存テストはそのまま動きます。ここを `from server.models import User` の形に書き換えないでください。
-
-## 探し方
-
-1. 下の表で対象ファイルを決める。
-2. そのファイルだけを `grep` し、ヒットした前後を読む。
-3. `app.py` 全体や、関係ない `server/*.py` を通読しない。
-4. 関数名が分からないときは、まずこの README と `grep`（関数名・ルート URL・モデル名）で絞り込む。
-
-版番号（`SYSTEM_VERSION` / `APP_VERSION`）の変更は **`app.py` だけ** で行います。公開スクリプトがこの2つを `app.py` から読みます。
-
-## 読み込み順
-
-`app.py` は次の順で `exec()` します。後ろのファイルは前のファイルで定義した名前（`app`、`db`、`User` など）を使います。順番を変えると起動に失敗します。
-
-## ファイル一覧
-
 | ファイル | 主な内容 | いつ開くか |
 |---|---|---|
+| `../app.py` | 起動・版番号と `_SERVER_PARTS`。部品は定義順に `exec()` され `app` の名前空間を共有するため、通常の `import server.*` にはしない | 版番号と部品の読み込み順だけを確認するとき |
+| `mobile_auth.py` | Android専用Bearer認証、API許可範囲、HTTPS・Cookie分離、レスポンス保護。全フックより先に読み込む | ネイティブ認証、端末トークン、API権限 |
+| `routes_mobile.py` | Android端末連携、確認コード承認、トークン発行・失効、接続仕様API | Android連携フロー、接続情報 |
 | `request_hooks.py` | `@app.before_request`。古いログイン flash の除去、設定保存 flash の掃除、ユーザー別アップロード上限 | リクエスト前処理、flash 漏れ、アップロードサイズ |
 | `storage.py` | 容量制限、アップロードパス、添付の正規化、PDF/DOCX テキスト抽出、チャンクアップロード、サムネイルとメディアのメモリキャッシュ | ファイル保存、容量、添付、チャンク |
 | `crypto.py` | 暗号化鍵リング、`encrypt_val` / `decrypt_val`、バイト暗号化、TTS 音声選択、`secure_delete` | 暗号化、鍵、削除 |
@@ -52,11 +36,4 @@
 | `routes_admin.py` | BAN、ボット検知、Turnstile、速度テスト、管理者のユーザー操作 | 管理、BAN、Turnstile |
 | `routes_settings.py` | `/api/settings`、AI 設定プロンプト、セッション、2FA 設定、Gem、メンテナンス | 設定保存、Gem、セッション |
 | `routes_media.py` | TTS / STT / STS、アップロード、容量 API、レイテンシ、クライアントログ | 音声合成、アップロード API |
-
-外部 MCP の接続・OAuth・ツール実行は `mcp_service/` です。チャット画面から MCP を呼ぶ経路だけが `background.py` や設定ルートと繋がります。
-
-## 編集時の注意
-
-- 新しいトップレベル関数や `@app.route` を足すときは、内容に合う既存ファイルへ入れてください。入口の処理（Flask 生成、`SYSTEM_VERSION`、`db`、`login_manager`）だけが `app.py` に残っています。
-- ファイルを増やす・順を変えるときは、`app.py` の `_SERVER_PARTS` も同じ順で更新します。
-- 直接 `import server.models` しないでください。テストとワーカーは `import app` です。
+| `../mcp_service/` | 外部MCPの接続・OAuth・ツール実行。チャット側は `background.py` と設定ルートで連携 | MCP接続・認証・実行 |

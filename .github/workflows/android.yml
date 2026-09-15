@@ -67,7 +67,23 @@ jobs:
         run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"'
       - name: Unit tests, lint and debug APK
         working-directory: android
-        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug --stacktrace
+        run: |
+          set +e
+          ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug --stacktrace > "$RUNNER_TEMP/android-build.log" 2>&1
+          status=$?
+          if [[ $status -ne 0 ]]; then
+            tail -n 120 "$RUNNER_TEMP/android-build.log"
+            {
+              echo '### Android build failure tail'
+              echo '```text'
+              tail -n 120 "$RUNNER_TEMP/android-build.log"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            detail=$(tail -n 40 "$RUNNER_TEMP/android-build.log" | sed 's/%/%25/g; s/\r/%0D/g' | awk 'BEGIN { ORS="%0A" } { print }')
+            echo "::error title=Android build failure::$detail"
+            exit "$status"
+          fi
+          tail -n 40 "$RUNNER_TEMP/android-build.log"
       - name: Verify APK signature
         run: bash android/ci/verify-apk.sh app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

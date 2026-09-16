@@ -65,6 +65,10 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
             val wide = maxWidth >= PlaygroundDimens.breakpoint
             val drawer = rememberDrawerState(DrawerValue.Closed)
             val scope = rememberCoroutineScope()
+            LaunchedEffect(Unit) {
+                // Do not restore an open history drawer as the app's startup state.
+                drawer.snapTo(DrawerValue.Closed)
+            }
             var deleting by remember { mutableStateOf<ThreadItem?>(null) }
             var logout by remember { mutableStateOf(false) }
             var modelPicker by remember { mutableStateOf(false) }

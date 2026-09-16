@@ -35,7 +35,12 @@ fun generationOptions(model: ModelInfo): List<GenerationOption> = buildList {
         add(toggle("enable_system_prompt", "SysPrompt"))
         if (gemini) {
             add(toggle("enable_url_context", "URLs"))
-            add(choice("thinking_level", "Thinking level", "high", "minimal", "low", "medium", "high"))
+            val thinkingLevels = when {
+                id.contains("3.6") -> arrayOf("medium", "high")
+                id.contains("3.5") -> arrayOf("minimal", "medium", "high")
+                else -> arrayOf("minimal", "low", "medium", "high")
+            }
+            add(choice("thinking_level", "Thinking level", thinkingLevels.last(), *thinkingLevels))
             if (id.startsWith("gemini-2.5")) add(number("thinking_budget", "Thinking Budget", "4096", 0.0, 32768.0, true))
             add(choice("safety_setting", "Safety", "default", "default", "none"))
         } else if (model.supports("thinking")) {
@@ -72,6 +77,7 @@ fun generationOptions(model: ModelInfo): List<GenerationOption> = buildList {
                 add(number("grok_image_count", "Count", "1", 1.0, 10.0, true))
                 add(choice("grok_image_aspect", "Aspect", "1:1", "auto", "1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "2:1", "1:2", "19.5:9", "9:19.5", "20:9", "9:20"))
                 add(choice("grok_image_resolution", "Resolution", "1k", "1k", "2k"))
+                add(choice("grok_image_quality", "Quality", "medium", "medium", "low"))
                 add(choice("grok_image_format", "Format", "url", "url", "b64_json"))
             }
         }
@@ -80,6 +86,14 @@ fun generationOptions(model: ModelInfo): List<GenerationOption> = buildList {
         add(number("grok_video_duration", "Duration（秒）", "5", 1.0, 15.0, true))
         add(choice("grok_video_aspect", "Aspect", "16:9", "16:9", "4:3", "1:1", "9:16", "3:4", "3:2", "2:3"))
         add(choice("grok_video_resolution", "Resolution", "720p", "720p", "480p", "1080p"))
+    } else if (model.mode == "video" && (gemini || id.startsWith("veo-") || id.startsWith("gemini-omni"))) {
+        // Veo accepts 1–8 seconds; the Omni interaction endpoint also accepts
+        // the same duration field but ignores it when unsupported.
+        add(number("gemini_video_duration", "Duration（秒）", "8", 1.0, 8.0, true))
+        add(choice("gemini_video_aspect", "Aspect", "16:9", "16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"))
+        val fourK = id == "veo-3.1-generate-preview" || id == "gemini-omni-1.1-flash"
+        val resolutions = if (fourK) arrayOf("720p", "1080p", "4K") else arrayOf("720p", "1080p")
+        add(choice("gemini_video_resolution", "Resolution", resolutions.first(), *resolutions))
     }
     if (model.mode == "ocr") {
         add(choice("ocr_table_format", "Table format", "", "", "markdown", "html"))

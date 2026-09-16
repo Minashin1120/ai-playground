@@ -40,7 +40,8 @@ import com.minashin1120.aiplayground.data.numericId
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pickFiles: () -> Unit, onVoice: () -> Unit) {
+fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pickFiles: () -> Unit, onVoice: () -> Unit,
+             onRichPaste: () -> Unit = {}, onMask: () -> Unit = {}) {
     var details by remember { mutableStateOf(false) }
     val selectedModel = state.account?.models?.firstOrNull { it.id == state.model }
     val colors = MaterialTheme.colorScheme
@@ -73,12 +74,21 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (info.supports("thinking")) FilterChip(state.enableThinking, model::toggleThinking, { Text("Thinking") })
                     if (info.supports("search")) FilterChip(state.enableSearch, model::toggleSearch, { Text("Web検索") })
+                    if (info.supports("url_context") || info.id.startsWith("gemini-")) FilterChip(state.enableUrlContext, model::toggleUrlContext, { Text("URLs") })
+                    if (info.supports("maps") || info.id.startsWith("gemini-3")) FilterChip(state.enableMaps, model::toggleMaps, { Text("Maps") })
+                    if (info.mode == "chat" || info.mode == "agent") FilterChip(state.enableFileCreation, model::toggleFileCreation, { Text("File") })
+                    if (info.mode == "chat" || info.mode == "agent") FilterChip(state.enableSystemPrompt, model::toggleSystemPrompt, { Text("SysPrompt") })
                     if (info.supports("prompt_cache")) FilterChip(state.enablePromptCache, model::togglePromptCache, { Text("Prompt Cache") })
                     if (info.supports("batch")) FilterChip(state.batchMode, model::toggleBatchMode, { Text("Batch") })
                     if (info.supports("python")) FilterChip(state.enablePython, model::togglePython, { Text("Python") })
                     if (info.supports("mcp")) FilterChip(state.enableMcp, model::toggleMcp, { Text("MCP") })
+                    if (info.mode == "chat" || info.mode == "agent") FilterChip(state.canvasMode, model::toggleCanvas, { Text("Canvas") })
+                    if (info.mode == "chat" || info.mode == "agent") FilterChip(state.codingMode, model::toggleCoding, { Text("Coding") })
+                    TextButton(onClick = onRichPaste, enabled = !state.streaming) { Text("リッチ貼り付け") }
+                    if (info.id.startsWith("gpt-image")) TextButton(onClick = onMask, enabled = !state.streaming) { Text("マスク") }
                 }
                 GenerationOptionsPanel(info, state.generationValues[info.id].orEmpty(), !state.streaming, model::generationOption)
+                if (state.codingMode) CodingTargetPanel(state.allMessages, state.codingTarget, model)
             }
             state.selectedGem?.let { gem ->
                 InputChip(selected = true, onClick = { model.chooseGem(null) }, label = { Text("Gem: ${gem.name.take(20)} ×") })
@@ -89,6 +99,10 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                             label = { Text(prompt.name) })
                     }
                 }
+            }
+            state.imageMask?.let { mask ->
+                InputChip(selected = true, onClick = { model.setImageMask(null) },
+                    label = { Text("🎭 マスク適用中 ×") })
             }
             val gemMention = gemMentionQuery(state.draft)
             if (gemMention != null && state.gems.isNotEmpty()) {

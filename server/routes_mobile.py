@@ -255,7 +255,9 @@ def mobile_revoke():
 # and security settings stay on the Web settings screen.
 _MOBILE_PREFERENCE_BOOLS = (
     'default_enable_thinking', 'default_enable_search', 'enter_to_send',
-    'light_mode_enabled', 'auto_search_on_links',
+    'light_mode_enabled', 'auto_search_on_links', 'default_enable_url_context',
+    'default_enable_maps', 'default_enable_python', 'default_enable_file_creation',
+    'default_enable_system_prompt', 'default_enable_mcp',
 )
 
 
@@ -267,9 +269,19 @@ def _mobile_preferences_payload():
         'default_model': user.default_model or "gemini-3.6-flash",
         'default_enable_thinking': bool(user.default_enable_thinking),
         'default_enable_search': bool(user.default_enable_search),
+        'default_enable_url_context': bool(user.default_enable_url_context),
+        'default_enable_maps': bool(user.default_enable_maps),
+        'default_enable_python': bool(user.default_enable_python),
+        'default_enable_file_creation': bool(user.default_enable_file_creation),
+        'default_enable_system_prompt': bool(user.default_enable_system_prompt),
+        'default_enable_mcp': bool(user.default_enable_mcp) if user.default_enable_mcp is not None else True,
         'enter_to_send': bool(user.enter_to_send),
         'light_mode_enabled': bool(getattr(user, 'light_mode_enabled', False)),
         'auto_search_on_links': bool(user.auto_search_on_links) if user.auto_search_on_links is not None else True,
+        'default_thinking_level': user.default_thinking_level or 'high',
+        'default_thinking_budget': int(user.default_thinking_budget if user.default_thinking_budget is not None else 4096),
+        'default_reasoning_effort': user.default_reasoning_effort or 'medium',
+        'default_safety_setting': user.default_safety_setting or 'default',
         'theme_color': normalize_theme_color(user.theme_color or ""),
         'temp_chat_timeout_seconds': _get_user_temp_chat_timeout_seconds(user),
         'enable_e2ee': bool(user.enable_e2ee),
@@ -296,6 +308,17 @@ def mobile_preferences():
     for key in _MOBILE_PREFERENCE_BOOLS:
         if key in data:
             setattr(current_user, key, bool(data[key]))
+    if 'default_thinking_level' in data and str(data.get('default_thinking_level')) in {'minimal', 'low', 'medium', 'high'}:
+        current_user.default_thinking_level = str(data['default_thinking_level'])
+    if 'default_thinking_budget' in data:
+        try:
+            current_user.default_thinking_budget = max(0, min(32768, int(data['default_thinking_budget'])))
+        except (TypeError, ValueError):
+            return _mobile_error('invalid_thinking_budget')
+    if 'default_reasoning_effort' in data and str(data.get('default_reasoning_effort')) in {'none', 'low', 'medium', 'high', 'xhigh', 'max'}:
+        current_user.default_reasoning_effort = str(data['default_reasoning_effort'])
+    if 'default_safety_setting' in data and str(data.get('default_safety_setting')) in {'default', 'none'}:
+        current_user.default_safety_setting = str(data['default_safety_setting'])
     if 'theme_color' in data:
         current_user.theme_color = normalize_theme_color(data.get('theme_color'))
     if 'temp_chat_timeout_seconds' in data:

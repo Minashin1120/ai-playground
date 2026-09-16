@@ -38,14 +38,14 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | 一時チャット | 作成・heartbeat。自動削除タイマーをクライアント側でも考慮する |
 | ファイルライブラリ | 一覧・検索・お気に入り・名前変更・削除・チャットへの再利用。所有者ディレクトリのみ対象 |
 | Gems | 一覧・作成・編集・削除・チャットへの適用・`@`候補、既定モデル適用、固定プロンプトの編集・送信 |
-| 一般設定・セッション | 既定モデル、既定Thinking／Web検索、Enter送信、ライトモード、リンク自動検索、一時チャット期限、この端末のセッション表示と失効。APIキー・パスワード・2FAはWeb導線 |
+| 一般設定・セッション | 既定モデル、Thinking／Web検索／URL／Maps／Python／File／SysPrompt／MCP、Thinking level／budget、Reasoning effort、Safety、テーマ色、Enter送信、ライトモード、リンク自動検索、一時チャット期限、この端末のセッション表示と失効。APIキー・パスワード・2FAはWeb導線 |
 | モデル一覧 | `/me` の `models`。提供元、用途、対応能力、廃止状態、選択可否を返す。Android内のWeb由来カタログで正式表示名・説明・価格・タグ・追加順を補完。互換用の `model_ids` も維持 |
 | APIキー・プロフィール・アカウント削除・2FA設定 | Webで操作。Androidトークンでは設定・管理APIにアクセスできない |
 | WebのE2EE設定 | 有効なまま連携・履歴取得・添付を利用可能。現在の実装はサーバー管理鍵による保存時暗号化であり、端末だけが復号できるE2EEではない |
 | Batch管理 | ネイティブで送信、一覧、状態更新、停止、履歴削除、完了通知に対応 |
-| 画像・動画・OCR・TTS・文字起こし | `/chat_stream` と同じ保存・停止・再接続境界でネイティブ対応。GPT／Gemini／Grok画像、Grok動画、OCR、TTS、Thinking量、xAI詳細はネイティブ設定。Gemini動画の詳細やマスク編集などは未対応 |
+| 画像・動画・OCR・TTS・文字起こし | `/chat_stream` と同じ保存・停止・再接続境界でネイティブ対応。GPT／Gemini／Grok画像、GPT-Imageマスク、Gemini動画（長さ・比率・解像度）、Grok動画、OCR、TTS、Thinking量、xAI詳細を表示・送信 |
 | Python・MCP・Coding結果 | Python・MCP・Coding差分のストリームイベントを構造化カードで表示。MCPの秘密設定とCoding対象の高度な編集はWeb導線 |
-| リアルタイム音声・Lyria | 常時接続とブラウザー側の既存権限処理を使うため、認証済みWebへの明示的な導線として対応 |
+| リアルタイム音声・Lyria | OpenAI／Grok RealtimeとLyriaはBearer認証のネイティブセッション、マイク入力、SSE再生、保存に対応。Gemini LiveとSTSは認証済みWebへの明示的な導線 |
 | ブラウザー高速モード | 対象外。APIキーをAndroidへ返すbootstrap APIは許可しない |
 | アプリ配布・真正性検証 | APK署名・Play配布は別途。client_idや端末名はアプリ署名の証明ではない |
 
@@ -214,6 +214,10 @@ Webのログアウトと同様、端末の失効操作はBot確認待ち・ロ�
 | POST `/chat_stream` | 下の送信JSON | NDJSONストリーム、またはエラーJSON |
 | POST `/chat_stream_resume` | `{"thread_id":"...","job_id":"..."}` | 蓄積内容と継続ストリーム |
 | POST `/api/stop_chat` | `thread_id` と、分かれば `job_id` | `status`, `job_id`, `source`。停止信号の受付であり即時停止完了ではない |
+| POST `/api/realtime/start`、GET `/api/realtime/stream`、POST `/api/realtime/audio` | セッション開始のモデル／voice、SSEの `session_id`、音声PCMチャンク | OpenAI／Grok Realtimeのサーバーセッション。音声イベントはBase64 PCM、APIキーは返さない |
+| POST `/api/realtime/commit`、`/api/realtime/cancel`、`/api/realtime/save` | `session_id`、保存時は任意の `thread_id` | 発話確定、破棄、履歴保存 |
+| POST `/api/gemini/music/start`、GET `/api/gemini/music/stream` | `weighted_prompts`、SSEの `session_id` | LyriaセッションとBase64音声スナップショット |
+| POST `/api/gemini/music/command`、`/cancel`、`/save` | `session_id`、`control`／`action`、保存時は任意の `thread_id` | 一時停止／再開、破棄、履歴保存 |
 | POST `/api/token_estimate` | `model`, `message`, 必要なら `image_urls` | 既存のトークン見積応答。請求額の確定値ではない |
 | POST `/api/temporary_chat/heartbeat` | `thread_id`, `active` | 一時チャットの状態・期限情報 |
 | GET `/c/<thread_id>/pdf` | 任意で `leaf_id` | スレッドのPDF用JSON。AndroidはネイティブA4へ描画して共有する |
@@ -232,7 +236,7 @@ Webのログアウトと同様、端末の失効操作はBot確認待ち・ロ�
 | POST `/api/gems` | `name`, `description`, `instruction`, `default_model` | 作成したGem |
 | GET/PUT/DELETE `/api/gems/<uuid>` | PUTは作成と同じ項目 | 取得・更新・削除。所有者のみ |
 | GET `/api/mobile/v1/preferences` | なし | 既定モデル・既定Thinking／検索・Enter送信・ライトモード・リンク自動検索・一時チャット期限・この端末のセッション情報 |
-| PUT `/api/mobile/v1/preferences` | `default_model`, `default_enable_thinking`, `default_enable_search`, `enter_to_send`, `light_mode_enabled`, `auto_search_on_links`, `temp_chat_timeout_seconds` | 更新後の設定。APIキー等の未知キーは無視し、値を変更しない |
+| PUT `/api/mobile/v1/preferences` | 上記に加え `default_enable_url_context`, `default_enable_maps`, `default_enable_python`, `default_enable_file_creation`, `default_enable_system_prompt`, `default_enable_mcp`, `default_thinking_level`, `default_thinking_budget`, `default_reasoning_effort`, `default_safety_setting`, `theme_color` | 更新後の設定。APIキー等の未知キーは無視し、値を変更しない |
 | GET `/api/gemini/batch/status` | なし | Provider状態を更新し、完了・実行中Batchを返す |
 | GET `/api/batch/jobs` | なし | 本人のBatch履歴（最大500件） |
 | POST `/api/batch/jobs/<job_id>/cancel` | `{}` | 本人の実行中Batchを停止 |
@@ -253,7 +257,7 @@ IDは文字列として扱います。古い履歴の数値IDを受け取る場�
 }
 ```
 
-`model` は省略できません。`/me` の `models` から `selectable: true` のモデルだけを選び、`mode` に応じた入力と `capabilities` に含まれる設定だけを表示します。ネイティブ対象は `chat`、`image`、`video`、`ocr`、`tts`、`transcription`、`agent` です。常時接続が必要な `realtime_audio` と `music` はWeb導線を使います。既存のモデル用APIキーがない場合は400と `code: api_key_missing` 等が返るため、Webの設定を案内します。
+`model` は省略できません。`/me` の `models` から `selectable: true` のモデルだけを選び、`mode` に応じた入力と `capabilities` に含まれる設定だけを表示します。ネイティブ対象は `chat`、`image`、`video`、`ocr`、`tts`、`transcription`、`agent` に加えてOpenAI／Grokの `realtime_audio` とLyriaの `music` です。Gemini LiveとSTSはWeb導線を使います。既存のモデル用APIキーがない場合は400と `code: api_key_missing` 等が返るため、Webの設定を案内します。
 
 `gem_uuid` を付けると、そのGemの指示が回答生成に適用されます。`/api/gems` が返す本人の `uuid` だけを使い、他ユーザーのGemを指定しないでください。現在のスレッドの最後に使ったGemは、スレッド取得応答の `last_gem_uuid` で確認できます。
 

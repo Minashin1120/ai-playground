@@ -88,9 +88,13 @@ object PlaygroundDimens {
 }
 
 @Composable
-fun PlaygroundTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+fun PlaygroundTheme(darkTheme: Boolean = isSystemInDarkTheme(), themeColor: String? = null, content: @Composable () -> Unit) {
+    val accent = themeColor?.trim()?.removePrefix("#")?.takeIf { it.matches(Regex("[0-9a-fA-F]{6}")) }
+        ?.let { runCatching { Color(android.graphics.Color.parseColor("#$it")) }.getOrNull() }
+    val scheme = if (darkTheme) WebDarkColors else WebLightColors
+    val themed = accent?.let { scheme.copy(primary = it, primaryContainer = it.copy(alpha = if (darkTheme) .22f else .16f)) } ?: scheme
     MaterialTheme(
-        colorScheme = if (darkTheme) WebDarkColors else WebLightColors,
+        colorScheme = themed,
         typography = WebTypography,
         shapes = WebShapes,
         content = content,

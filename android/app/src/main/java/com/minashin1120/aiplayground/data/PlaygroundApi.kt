@@ -85,6 +85,41 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
     suspend fun delete(path: String, token: String): JSONObject = execute(
         request(path, token).delete().build(), consume = ::jsonResponse)
 
+    /** Sends a bounded binary chunk to an authenticated streaming endpoint. */
+    suspend fun postBytes(path: String, bytes: ByteArray, contentType: String, token: String): JSONObject = execute(
+        request(path, token).header("Accept", "application/json")
+            .post(bytes.toRequestBody(contentType.toMediaType())).build(), consume = ::jsonResponse)
+
+    /** Reads an authenticated Server-Sent Events response without retaining it. */
+    suspend fun streamSse(path: String, token: String, onEvent: (JSONObject) -> Unit) {
+        execute(request(path, token).header("Accept", "text/event-stream").get().build(), streaming) { response ->
+            if (!response.isSuccessful) throw error(response)
+            val source = response.body.source()
+            var data = StringBuilder()
+            while (!source.exhausted()) {
+                val line = source.readUtf8LineStrict(2L * 1024 * 1024)
+                when {
+                    line.startsWith("data:") -> data.append(line.substringAfter("data:").trimStart()).append('\n')
+                    line.isBlank() && data.isNotEmpty() -> {
+                        val payload = data.toString().trimEnd('\n')
+                        data = StringBuilder()
+                        runCatching { onEvent(JSONObject(payload)) }
+                    }
+                }
+            }
+            if (data.isNotEmpty()) runCatching { onEvent(JSONObject(data.toString().trimEnd('\n'))) }
+        }
+    }
+
+    /** Downloads a bounded binary response (used by the rich-paste PDF action). */
+    suspend fun postBytesResponse(path: String, payload: JSONObject, token: String, limit: Long = 32L * 1024 * 1024): Pair<ByteArray, String> = execute(
+        request(path, token).header("Accept", "application/pdf")
+            .post(payload.toString().toRequestBody(jsonType)).build()
+    ) { response ->
+        if (!response.isSuccessful) throw error(response)
+        readBoundedBytes(response.body.byteStream(), limit) to (response.header("X-Rich-Paste-Filename") ?: "clipboard.pdf")
+    }
+
     suspend fun upload(name: String, body: RequestBody, token: String): JSONObject {
         val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("file", name, body).build()

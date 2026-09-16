@@ -58,7 +58,8 @@ import java.io.File
 @Composable
 fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (String) -> Unit) {
     val state by model.state.collectAsStateWithLifecycle()
-    PlaygroundTheme(darkTheme = state.preferences?.let { !it.lightModeEnabled } ?: isSystemInDarkTheme()) {
+    PlaygroundTheme(darkTheme = state.preferences?.let { !it.lightModeEnabled } ?: isSystemInDarkTheme(),
+        themeColor = state.preferences?.themeColor) {
         val colors = MaterialTheme.colorScheme
         BoxWithConstraints(
             Modifier.fillMaxSize().background(
@@ -82,9 +83,21 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
             var gemsOpen by remember { mutableStateOf(false) }
             var settingsOpen by remember { mutableStateOf(false) }
             var advancedOpen by remember { mutableStateOf(false) }
+            var realtimeOpen by remember { mutableStateOf(false) }
+            var lyriaOpen by remember { mutableStateOf(false) }
+            var awaitingMic by remember { mutableStateOf(false) }
+            var richPasteOpen by remember { mutableStateOf(false) }
+            var maskOpen by remember { mutableStateOf(false) }
+            var maskSource by remember { mutableStateOf<Uri?>(null) }
             var cameraUri by remember { mutableStateOf<Uri?>(null) }
             val context = LocalContext.current
             val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+            val microphone = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                if (awaitingMic) {
+                    awaitingMic = false
+                    if (granted) realtimeOpen = true else model.notify("Realtime音声にはマイクの権限が必要です。")
+                }
+            }
             LaunchedEffect(state.account?.id) {
                 if (state.account != null && Build.VERSION.SDK_INT >= 33 &&
                     ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -108,6 +121,9 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
                 } catch (_: Exception) { model.notify("音声入力に対応するアプリが見つかりません。") }
             }
             val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(30)) { model.upload(it) }
+            val maskPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+                if (uri != null) { maskSource = uri; maskOpen = true }
+            }
             val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
                 val uri = cameraUri
                 cameraUri = null
@@ -168,7 +184,8 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
                         })
                     }, snackbarHost = { SnackbarHost(snackbar) },
                     bottomBar = {
-                        if (showThreads) Composer(state, model, { modelPicker = true }, { attachMenu = true }, launchSpeech)
+                        if (showThreads) Composer(state, model, { modelPicker = true }, { attachMenu = true }, launchSpeech,
+                            onRichPaste = { richPasteOpen = true }, onMask = { maskPicker.launch("image/*") })
                     }
                 ) { padding ->
                     Column(Modifier.fillMaxSize().padding(padding)) {
@@ -205,7 +222,24 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
             if (libraryOpen) LibraryDialog(state, model, onFile, onDismiss = { libraryOpen = false })
             if (gemsOpen) GemsDialog(state, model, onDismiss = { gemsOpen = false })
             if (settingsOpen) SettingsDialog(state, model, onDismiss = { settingsOpen = false }, onLogout = { model.logout(); settingsOpen = false; closeDrawer() })
-            if (advancedOpen) AdvancedToolsDialog(state, model, onDismiss = { advancedOpen = false }, onWebPath = onWeb)
+            if (advancedOpen) AdvancedToolsDialog(state, model, onDismiss = { advancedOpen = false }, onWebPath = onWeb,
+                onRealtime = {
+                    advancedOpen = false
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) realtimeOpen = true
+                    else { awaitingMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
+                }, onLyria = { advancedOpen = false; lyriaOpen = true })
+            if (realtimeOpen) RealtimeStudioDialog(state, model, onDismiss = { realtimeOpen = false })
+            if (lyriaOpen) LyriaStudioDialog(state, model, onDismiss = { lyriaOpen = false })
+            if (richPasteOpen) RichPasteDialog(state.draft, onDismiss = { richPasteOpen = false }) { text ->
+                model.draft(if (state.draft.isBlank()) text else state.draft.trimEnd() + "\n\n" + text)
+            }
+            maskSource?.let { uri ->
+                if (maskOpen) ImageMaskEditor(uri, onDismiss = { maskOpen = false; maskSource = null }) { bytes ->
+                    model.uploadImageMask("mask_${System.currentTimeMillis()}.png", bytes)
+                    maskOpen = false
+                    maskSource = null
+                }
+            }
             if (attachMenu) AlertDialog(onDismissRequest = { attachMenu = false }, title = { Text("添付を追加") },
                 text = { Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     DialogAction(Icons.Rounded.FolderOpen, "ファイルを選択") { attachMenu = false; picker.launch(arrayOf("*/*")) }
@@ -463,6 +497,8 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
             TextButton(onClick = model::resume) { Text("再接続") }
         }
         if (state.retryAvailable) TextButton(onClick = model::retry, modifier = Modifier.fillMaxWidth(), enabled = !state.streaming) { Text("同じ送信を再試行（二重送信を防止）") }
+        if (state.canvasMode) CanvasPreview(state.messages + if (state.liveContent.isNotBlank()) listOf(ChatMessage("canvas-live", "assistant", state.liveContent)) else emptyList(),
+            onUse = { code -> model.draft(code) }, onClose = model::toggleCanvas)
         LazyColumn(
             state = scroll,
             modifier = Modifier.weight(1f).widthIn(max = PlaygroundDimens.contentMax).fillMaxWidth().align(Alignment.CenterHorizontally),
@@ -696,8 +732,19 @@ private fun SettingsDialog(
     var defaultModel by remember(prefs?.defaultModel) { mutableStateOf(prefs?.defaultModel.orEmpty()) }
     var thinking by remember(prefs?.defaultEnableThinking) { mutableStateOf(prefs?.defaultEnableThinking ?: false) }
     var search by remember(prefs?.defaultEnableSearch) { mutableStateOf(prefs?.defaultEnableSearch ?: false) }
+    var urlContext by remember(prefs?.defaultEnableUrlContext) { mutableStateOf(prefs?.defaultEnableUrlContext ?: false) }
+    var maps by remember(prefs?.defaultEnableMaps) { mutableStateOf(prefs?.defaultEnableMaps ?: false) }
+    var python by remember(prefs?.defaultEnablePython) { mutableStateOf(prefs?.defaultEnablePython ?: false) }
+    var fileCreation by remember(prefs?.defaultEnableFileCreation) { mutableStateOf(prefs?.defaultEnableFileCreation ?: true) }
+    var systemPrompt by remember(prefs?.defaultEnableSystemPrompt) { mutableStateOf(prefs?.defaultEnableSystemPrompt ?: false) }
+    var mcp by remember(prefs?.defaultEnableMcp) { mutableStateOf(prefs?.defaultEnableMcp ?: true) }
+    var thinkingLevel by remember(prefs?.defaultThinkingLevel) { mutableStateOf(prefs?.defaultThinkingLevel ?: "high") }
+    var thinkingBudget by remember(prefs?.defaultThinkingBudget) { mutableStateOf((prefs?.defaultThinkingBudget ?: 4096).toString()) }
+    var reasoningEffort by remember(prefs?.defaultReasoningEffort) { mutableStateOf(prefs?.defaultReasoningEffort ?: "medium") }
+    var safetySetting by remember(prefs?.defaultSafetySetting) { mutableStateOf(prefs?.defaultSafetySetting ?: "default") }
     var enterToSend by remember(prefs?.enterToSend) { mutableStateOf(prefs?.enterToSend ?: false) }
     var lightMode by remember(prefs?.lightModeEnabled) { mutableStateOf(prefs?.lightModeEnabled ?: false) }
+    var themeColor by remember(prefs?.themeColor) { mutableStateOf(prefs?.themeColor.orEmpty()) }
     var autoSearch by remember(prefs?.autoSearchOnLinks) { mutableStateOf(prefs?.autoSearchOnLinks ?: true) }
     var timeout by remember(prefs?.tempChatTimeoutSeconds) { mutableStateOf((prefs?.tempChatTimeoutSeconds ?: 90).toString()) }
     var compressionEnabled by remember(state.compression) { mutableStateOf(state.compression.enabled) }
@@ -727,9 +774,31 @@ private fun SettingsDialog(
                     Text("既定モデル: ${state.account?.models?.firstOrNull { it.id == defaultModel }?.name ?: defaultModel.ifBlank { "未設定" }} ▾")
                 }
                 CheckboxRow("既定でThinkingを使う", thinking) { thinking = it }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Thinking level: $thinkingLevel", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = { thinkingLevel = listOf("minimal", "low", "medium", "high").let { it[(it.indexOf(thinkingLevel) + 1) % it.size] } }) { Text("変更") }
+                }
+                OutlinedTextField(thinkingBudget, { thinkingBudget = it.filter(Char::isDigit).take(5) }, singleLine = true,
+                    label = { Text("Thinking Budget") }, modifier = Modifier.fillMaxWidth())
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Reasoning effort: $reasoningEffort", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = { reasoningEffort = listOf("none", "low", "medium", "high", "xhigh", "max").let { it[(it.indexOf(reasoningEffort) + 1) % it.size] } }) { Text("変更") }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Safety: $safetySetting", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = { safetySetting = if (safetySetting == "default") "none" else "default" }) { Text("変更") }
+                }
                 CheckboxRow("既定でWeb検索を使う", search) { search = it }
+                CheckboxRow("既定でURLsを使う", urlContext) { urlContext = it }
+                CheckboxRow("既定でMapsを使う", maps) { maps = it }
+                CheckboxRow("既定でPythonを使う", python) { python = it }
+                CheckboxRow("既定でFileを使う", fileCreation) { fileCreation = it }
+                CheckboxRow("既定でSysPromptを使う", systemPrompt) { systemPrompt = it }
+                CheckboxRow("既定でMCPを使う", mcp) { mcp = it }
                 CheckboxRow("Enterで送信", enterToSend) { enterToSend = it }
                 CheckboxRow("ライトモード", lightMode) { lightMode = it }
+                OutlinedTextField(themeColor, { themeColor = it.take(7) }, singleLine = true,
+                    label = { Text("テーマカラー（HEX）") }, placeholder = { Text("#0DD4BF") }, modifier = Modifier.fillMaxWidth())
                 CheckboxRow("リンクのX投稿を自動検索", autoSearch) { autoSearch = it }
                 OutlinedTextField(timeout, { timeout = it.filter { c -> c.isDigit() }.take(6) }, singleLine = true,
                     label = { Text("一時チャットの自動削除（秒）") }, modifier = Modifier.fillMaxWidth())
@@ -778,7 +847,9 @@ private fun SettingsDialog(
                         outputType = outputType,
                         formatOnly = formatOnly,
                     ))
-                    model.savePreferences(defaultModel, thinking, search, enterToSend, lightMode, autoSearch, timeout.toIntOrNull() ?: 90)
+                    model.savePreferences(defaultModel, thinking, search, urlContext, maps, python, fileCreation, systemPrompt, mcp,
+                        thinkingLevel, thinkingBudget.toIntOrNull()?.coerceIn(0, 32768) ?: 4096, reasoningEffort, safetySetting,
+                        enterToSend, lightMode, autoSearch, timeout.toIntOrNull() ?: 90, themeColor)
                 },
                 enabled = !state.prefsBusy,
             ) { Text("保存") }

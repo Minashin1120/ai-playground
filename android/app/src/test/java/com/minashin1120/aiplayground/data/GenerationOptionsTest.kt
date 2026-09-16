@@ -30,4 +30,13 @@ class GenerationOptionsTest {
         assertFalse(chat.has("xai_temperature"))
         assertEquals(true, chat.get("enable_file_creation"))
     }
+
+    @Test fun geminiVideoOptionsUseModelSpecificResolutionLimits() {
+        val veo = generationOptions(model("veo-3.1-generate-preview", "video"))
+        assertEquals(listOf("720p", "1080p", "4K"), veo.first { it.key == "gemini_video_resolution" }.choices)
+        assertEquals(8.0, veo.first { it.key == "gemini_video_duration" }.max!!, 0.0)
+        val regular = generationOptions(model("veo-3-generate-preview", "video"))
+        assertFalse(regular.first { it.key == "gemini_video_resolution" }.choices.contains("4K"))
+        assertTrue(runCatching { generationOptionsPayload(regular.let { model("veo-3-generate-preview", "video") }, mapOf("gemini_video_duration" to "9")) }.isFailure)
+    }
 }

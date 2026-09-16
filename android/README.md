@@ -13,10 +13,15 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/` | CookieなしHTTP、NDJSON、APIモデル、Keystore保存 | 認証・通信・保存 |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundScreen.kt`, `ChatComponents.kt` | Compose画面、履歴ドロワー／タブレット2ペイン、メッセージ操作、状態カード、入力欄 | 画面構造と操作を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AdvancedTools.kt` | Batch管理と高度な生成機能・安全なWeb導線 | 高度な機能メニューを編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/CanvasCodingPanels.kt` | Canvasプレビュー・編集とCoding履歴対象選択 | Canvas／Codingの編集操作を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/ImageMaskEditor.kt` | GPT-Image用の端末マスク描画とPNG化 | 画像マスクの描画・送信を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/RealtimeStudio.kt` | Realtime音声・Lyria音楽のネイティブスタジオ | 音声／音楽セッションUIを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/RichPasteDialog.kt` | クリップボードHTML／テキストの安全な取り込み | リッチ貼り付けの入力変換を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ModelPicker.kt` | WebのSelect Model構成に合わせた検索・提供元／用途／対応能力フィルター・選択状態 | モデル選択画面を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundDialog.kt` | 共通のネイティブモーダル枠、ヘッダー、フッター、キーボード余白 | 設定・Gems・ライブラリ・Batchの画面枠を調整するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/GenerationOptionsPanel.kt` | モデル別生成設定のネイティブ入力パネル | 詳細設定の表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/GenerationOptions.kt` | モデル別の既存APIオプション、値検証、送信対象の限定 | 画像・動画・OCR・TTS・Thinking設定を追加するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/RealtimeModels.kt` | Realtime／Lyriaのセッション状態 | 音声・音楽ストリームの状態表示を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/WebModelCatalog.kt`, `app/src/main/assets/web-model-catalog.json` | Webの表示名・説明・価格・タグ・追加順をネイティブAPIのモデル一覧に合成 | モデル情報の表示差を確認するとき |
 | `ci/sync-web-catalog.mjs` | Webモデル定義からAndroid表示用JSONを生成・`--check`で一致検証 | Webのモデル定義変更をAndroidへ同期するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundTheme.kt` | Web版トークンに対応する配色・タイポグラフィ・形状・レイアウト寸法 | 色・テーマ・ブランドを編集するとき |

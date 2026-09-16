@@ -46,6 +46,8 @@ data class LibraryFile(
 
 data class FixedPrompt(val name: String, val content: String)
 
+data class CodingTarget(val id: String, val code: String, val language: String, val messageId: String)
+
 fun parseFixedPrompts(value: Any?): List<FixedPrompt> {
     val rows = when (value) {
         is JSONArray -> value
@@ -86,6 +88,16 @@ data class Preferences(
     val sessionCreatedAt: String,
     val sessionExpiresAt: String,
     val deviceName: String,
+    val defaultEnableUrlContext: Boolean = false,
+    val defaultEnableMaps: Boolean = false,
+    val defaultEnablePython: Boolean = false,
+    val defaultEnableFileCreation: Boolean = true,
+    val defaultEnableSystemPrompt: Boolean = false,
+    val defaultEnableMcp: Boolean = true,
+    val defaultThinkingLevel: String = "high",
+    val defaultThinkingBudget: Int = 4096,
+    val defaultReasoningEffort: String = "medium",
+    val defaultSafetySetting: String = "default",
 )
 
 fun parsePreferences(json: JSONObject): Preferences = Preferences(
@@ -105,6 +117,16 @@ fun parsePreferences(json: JSONObject): Preferences = Preferences(
     sessionCreatedAt = json.nullableString("session_created_at"),
     sessionExpiresAt = json.nullableString("session_expires_at"),
     deviceName = json.nullableString("device_name"),
+    defaultEnableUrlContext = json.optBoolean("default_enable_url_context"),
+    defaultEnableMaps = json.optBoolean("default_enable_maps"),
+    defaultEnablePython = json.optBoolean("default_enable_python"),
+    defaultEnableFileCreation = json.optBoolean("default_enable_file_creation", true),
+    defaultEnableSystemPrompt = json.optBoolean("default_enable_system_prompt"),
+    defaultEnableMcp = json.optBoolean("default_enable_mcp", true),
+    defaultThinkingLevel = json.nullableString("default_thinking_level").ifBlank { "high" },
+    defaultThinkingBudget = json.optInt("default_thinking_budget", 4096),
+    defaultReasoningEffort = json.nullableString("default_reasoning_effort").ifBlank { "medium" },
+    defaultSafetySetting = json.nullableString("default_safety_setting").ifBlank { "default" },
 )
 
 fun parseLibraryFiles(json: JSONObject): List<LibraryFile> {
@@ -201,6 +223,10 @@ fun parseModels(json: JSONObject): List<ModelInfo> {
             mode = row.optString("mode", "chat"),
             capabilities = row.optJSONArray("capabilities")?.strings()?.toSet().orEmpty(),
             deprecated = row.optBoolean("deprecated"), selectable = row.optBoolean("selectable", true),
+            description = row.nullableString("description"), price = row.nullableString("price"),
+            category = row.nullableString("category"), implementedAt = row.nullableString("implementedAt"),
+            implementedRank = row.optInt("implementedRank"), emoji = row.nullableString("emoji"),
+            tags = row.optJSONArray("tags")?.strings()?.toSet().orEmpty(),
         )
     }
 }

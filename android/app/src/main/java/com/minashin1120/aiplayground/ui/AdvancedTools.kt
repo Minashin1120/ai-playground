@@ -19,6 +19,8 @@ fun AdvancedToolsDialog(
     model: ChatViewModel,
     onDismiss: () -> Unit,
     onWebPath: (String) -> Unit,
+    onRealtime: () -> Unit = {},
+    onLyria: () -> Unit = {},
 ) {
     PlaygroundDialog(
         onDismissRequest = onDismiss,
@@ -44,11 +46,13 @@ fun AdvancedToolsDialog(
                 items(state.batchJobs, key = { it.id }) { job -> BatchJobRow(job, model) }
                 item {
                     HorizontalDivider()
-                    Text("Webで安全に利用する機能", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
-                    Text("常時接続の音声・音楽、アカウント移行、APIキーやセキュリティ設定は、認証済みブラウザーで開きます。端末へ秘密情報は渡しません。",
+                    Text("音声・管理機能", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
+                    Text("常時接続の音声・音楽はネイティブセッションで利用できます。APIキーやセキュリティ設定は、認証済みブラウザーで開きます。端末へ秘密情報は渡しません。",
                         style = MaterialTheme.typography.bodySmall)
                     Column {
-                        TextButton(onClick = { onWebPath("/") }, modifier = Modifier.fillMaxWidth()) { Text("Realtime音声・Lyria・Canvasを開く") }
+                        TextButton(onClick = onRealtime, modifier = Modifier.fillMaxWidth()) { Text("Realtime音声（ネイティブ）") }
+                        TextButton(onClick = onLyria, modifier = Modifier.fillMaxWidth()) { Text("Lyria音楽（ネイティブ）") }
+                        TextButton(onClick = { onWebPath("/") }, modifier = Modifier.fillMaxWidth()) { Text("Web版のCanvasを開く") }
                         TextButton(onClick = { onWebPath("/settings") }, modifier = Modifier.fillMaxWidth()) { Text("アカウント・MCP設定を開く") }
                     }
                 }

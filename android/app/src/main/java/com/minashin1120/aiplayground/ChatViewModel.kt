@@ -1,6 +1,11 @@
 package com.minashin1120.aiplayground
 
 import android.app.Application
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.AudioTrack
+import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
@@ -14,6 +19,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import okio.BufferedSink
 import org.json.JSONArray
 import org.json.JSONObject
@@ -33,9 +40,14 @@ data class ChatState(
     val newThreadTemporary: Boolean = false, val tempChatRemainingSeconds: Long? = null,
     val draft: String = "", val model: String = "", val attachments: List<Attachment> = emptyList(),
     val enableThinking: Boolean = false, val enableSearch: Boolean = false,
+    val enableUrlContext: Boolean = false, val enableMaps: Boolean = false,
+    val enableFileCreation: Boolean = true, val enableSystemPrompt: Boolean = false,
     val enablePromptCache: Boolean = false,
     val generationValues: Map<String, Map<String, String>> = emptyMap(),
     val batchMode: Boolean = false, val enablePython: Boolean = false, val enableMcp: Boolean = true,
+    val canvasMode: Boolean = false, val codingMode: Boolean = false,
+    val codingTarget: CodingTarget? = null,
+    val imageMask: String? = null,
     val uploading: Boolean = false, val streaming: Boolean = false,
     val uploadSent: Long = 0L, val uploadTotal: Long = 0L, val uploadName: String = "",
     val library: List<LibraryFile> = emptyList(), val libraryBusy: Boolean = false,
@@ -45,6 +57,7 @@ data class ChatState(
     val preferences: Preferences? = null, val prefsBusy: Boolean = false,
     val compression: CompressionSettings = CompressionSettings(),
     val batchJobs: List<BatchJob> = emptyList(), val batchBusy: Boolean = false,
+    val realtime: RealtimeState = RealtimeState(), val lyria: LyriaState = LyriaState(),
     val liveContent: String = "", val liveThought: String = "", val status: String = "",
     val cards: List<StatusCard> = emptyList(),
     val mcpDecision: McpDecision? = null,
@@ -67,6 +80,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var heartbeatJob: Job? = null
     private var libraryJob: Job? = null
     private var batchPollJob: Job? = null
+    private var realtimeStreamJob: Job? = null
+    private var realtimeCaptureJob: Job? = null
+    private var realtimeTrack: AudioTrack? = null
+    private var lyriaStreamJob: Job? = null
+    private var lyriaTrack: AudioTrack? = null
     private data class Submission(val body: JSONObject, val files: List<Attachment>)
     private var failed: Submission? = null
     private var pendingParentId: Int? = null
@@ -106,6 +124,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             streamJob?.cancel()
             mutable.update { it.copy(streaming = false, status = "アプリに戻ると履歴を確認します。") }
         }
+        if (!value && state.value.realtime.active) stopRealtime(save = false)
+        if (!value && state.value.lyria.active) stopLyria(save = false)
         if (!value) heartbeatJob?.cancel()
         if (!value) batchPollJob?.cancel()
         if (value && state.value.account != null) startBatchPolling()
@@ -173,6 +193,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(model = model,
             enableThinking = it.enableThinking && info.supports("thinking"),
             enableSearch = it.enableSearch && info.supports("search"),
+            enableUrlContext = it.enableUrlContext && (info.supports("url_context") || info.id.startsWith("gemini-")),
+            enableMaps = it.enableMaps && (info.supports("maps") || info.id.startsWith("gemini-3")),
+            enableFileCreation = if (info.mode == "chat" || info.mode == "agent") it.enableFileCreation else false,
+            enableSystemPrompt = if (info.mode == "chat" || info.mode == "agent") it.enableSystemPrompt else false,
+            canvasMode = if (info.mode == "chat" || info.mode == "agent") it.canvasMode else false,
+            codingMode = if (info.mode == "chat" || info.mode == "agent") it.codingMode else false,
+            codingTarget = if (info.mode == "chat" || info.mode == "agent") it.codingTarget else null,
+            imageMask = if (info.id.startsWith("gpt-image")) it.imageMask else null,
             enablePromptCache = it.enablePromptCache && info.supports("prompt_cache"),
             batchMode = it.batchMode && info.supports("batch"),
             enablePython = it.enablePython && info.supports("python"),
@@ -181,10 +209,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun toggleThinking() { mutable.update { it.copy(enableThinking = !it.enableThinking) } }
     fun toggleSearch() { mutable.update { it.copy(enableSearch = !it.enableSearch) } }
+    fun toggleUrlContext() { mutable.update { it.copy(enableUrlContext = !it.enableUrlContext) } }
+    fun toggleMaps() { mutable.update { it.copy(enableMaps = !it.enableMaps) } }
+    fun toggleFileCreation() { mutable.update { it.copy(enableFileCreation = !it.enableFileCreation) } }
+    fun toggleSystemPrompt() { mutable.update { it.copy(enableSystemPrompt = !it.enableSystemPrompt) } }
     fun togglePromptCache() { mutable.update { it.copy(enablePromptCache = !it.enablePromptCache) } }
     fun toggleBatchMode() { mutable.update { it.copy(batchMode = !it.batchMode) } }
     fun togglePython() { mutable.update { it.copy(enablePython = !it.enablePython) } }
     fun toggleMcp() { mutable.update { it.copy(enableMcp = !it.enableMcp) } }
+    fun toggleCanvas() { mutable.update { it.copy(canvasMode = !it.canvasMode, codingMode = false) } }
+    fun toggleCoding() { mutable.update { it.copy(codingMode = !it.codingMode, canvasMode = false, codingTarget = null) } }
+    fun selectCodingTarget(target: CodingTarget?) { mutable.update { it.copy(codingTarget = target, codingMode = target != null || it.codingMode) } }
+    fun setImageMask(reference: String?) { mutable.update { it.copy(imageMask = reference) } }
+    fun uploadImageMask(name: String, bytes: ByteArray) {
+        if (bytes.isEmpty() || state.value.streaming || state.value.uploading) return
+        viewModelScope.launch {
+            try {
+                val response = api.upload(name, bytes.toRequestBody("image/png".toMediaType()), token())
+                setImageMask(response.getString("filename"))
+                notify("画像マスクを設定しました。次の画像生成で適用されます。")
+            } catch (e: Exception) { report(e) }
+        }
+    }
     fun generationOption(key: String, value: String) {
         if (state.value.streaming) return
         mutable.update { current -> current.copy(generationValues = current.generationValues +
@@ -217,7 +263,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             liveContent = "", liveThought = "", status = "", busy = false, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null, customInstruction = "",
             includeGlobalInstruction = true, newThreadTemporary = temporary, tempChatRemainingSeconds = null,
-            selectedGem = null) }
+            selectedGem = null, codingTarget = null, imageMask = null) }
     }
     fun openThread(thread: ThreadItem) {
         navigationJob?.cancel(); streamJob?.cancel(); heartbeatJob?.cancel(); failed = null
@@ -384,10 +430,41 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val body = JSONObject().put("model", current.model).put("message", current.draft)
             .put("client_request_id", UUID.randomUUID().toString()).put("image_urls", JSONArray(current.attachments.map { it.reference }))
             .put("enable_thinking", current.enableThinking).put("enable_search", current.enableSearch)
+            .put("enable_url_context", current.enableUrlContext).put("enable_maps", current.enableMaps)
+            .put("enable_file_creation", current.enableFileCreation).put("enable_system_prompt", current.enableSystemPrompt)
             .put("enable_prompt_caching", current.enablePromptCache)
             .put("batch_mode", current.batchMode).put("enable_python", current.enablePython)
             .put("enable_mcp", current.enableMcp)
+            .put("coding_mode", current.codingMode)
+            .put("canvas_mode", current.canvasMode)
             .put("temporary_chat", current.selected?.isTemporary ?: current.newThreadTemporary)
+        current.imageMask?.let { body.put("image_mask", it) }
+        if (current.codingMode) {
+            val target = current.codingTarget
+            if (target != null) {
+                body.put("coding_target", JSONObject().put("id", target.id).put("source", "history")
+                    .put("code", target.code).put("language", target.language).put("message_id", target.messageId).put("explicit", true))
+                body.put("coding_candidates", JSONArray().put(JSONObject().put("id", target.id).put("source", "history")
+                    .put("code", target.code).put("language", target.language).put("explicit", true)))
+            } else {
+                val blocks = Regex("```([^\\n`]*)\\n([\\s\\S]*?)```").findAll(current.draft).mapIndexed { index, match ->
+                    val language = match.groupValues[1].trim().ifBlank { "text" }.take(40)
+                    val code = match.groupValues[2]
+                    JSONObject().put("id", "prompt-$index").put("source", "prompt")
+                        .put("prompt_index", index).put("code", JSONObject.NULL)
+                        .put("language", language).put("explicit", true) to (language to code)
+                }.toList()
+                if (blocks.isEmpty()) {
+                    notify("Coding Modeでは入力にコードブロックを指定してください。")
+                    return
+                }
+                val candidates = JSONArray().apply { blocks.forEach { put(it.first) } }
+                val (language, _) = blocks.first().second
+                body.put("coding_target", JSONObject().put("id", "prompt-0").put("source", "prompt")
+                    .put("prompt_index", 0).put("language", language).put("explicit", true))
+                body.put("coding_candidates", candidates)
+            }
+        }
         generation.keys().forEach { key -> body.put(key, generation.get(key)) }
         current.selectedGem?.let { body.put("gem_uuid", it.uuid) }
         if (current.editingMessageId != null) {
@@ -568,6 +645,170 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val item = state.value.threads.firstOrNull { it.id == id } ?: ThreadItem(id, "Batchチャット", "")
         openThread(item)
     }
+
+    // --- Native realtime audio sessions ---
+
+    fun startRealtime(modelId: String, voice: String = "alloy") {
+        if (state.value.realtime.active || modelId.isBlank()) return
+        viewModelScope.launch {
+            try {
+                val started = api.post("/api/realtime/start", JSONObject().put("model", modelId).put("voice", voice), token())
+                val sessionId = started.getString("session_id")
+                val rateOut = started.optInt("rate_out", 24000).coerceIn(8000, 48000)
+                realtimeTrack = createAudioTrack(rateOut, stereo = false)
+                mutable.update { it.copy(realtime = RealtimeState(true, modelId, sessionId, "接続中…")) }
+                realtimeCaptureJob = viewModelScope.launch(Dispatchers.IO) {
+                    try { captureRealtimeAudio(sessionId, started.optInt("rate_in", rateOut).coerceIn(8000, 48000)) }
+                    catch (e: CancellationException) { throw e }
+                    catch (e: Exception) { mutable.update { it.copy(realtime = it.realtime.copy(error = e.message ?: "マイク入力を開始できません。")) } }
+                }
+                realtimeStreamJob = viewModelScope.launch(Dispatchers.IO) {
+                    try {
+                        api.streamSse("/api/realtime/stream?session_id=${URLEncoder.encode(sessionId, "UTF-8")}", token()) { event ->
+                            handleRealtimeEvent(event, rateOut)
+                        }
+                    } catch (e: CancellationException) { throw e }
+                    catch (e: Exception) { mutable.update { it.copy(realtime = it.realtime.copy(error = e.message ?: "Realtime接続が終了しました。")) } }
+                    finally {
+                        if (state.value.realtime.sessionId == sessionId) mutable.update { it.copy(realtime = it.realtime.copy(active = false, status = "終了")) }
+                    }
+                }
+            } catch (e: Exception) { report(e) }
+        }
+    }
+
+    private suspend fun captureRealtimeAudio(sessionId: String, rate: Int) {
+        val min = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+        if (min <= 0) throw IOException("マイクを初期化できません。")
+        val recorder = try {
+            AudioRecord(MediaRecorder.AudioSource.MIC, rate, AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT, (min * 2).coerceAtLeast(4096))
+        } catch (e: SecurityException) { throw IOException("マイクの権限が必要です。", e) }
+        try {
+            recorder.startRecording()
+            val buffer = ByteArray((rate / 5).coerceAtLeast(4096))
+            while (currentCoroutineContext().isActive && state.value.realtime.active && state.value.realtime.sessionId == sessionId) {
+                val read = recorder.read(buffer, 0, buffer.size)
+                if (read > 0) api.postBytes("/api/realtime/audio?session_id=${URLEncoder.encode(sessionId, "UTF-8")}",
+                    buffer.copyOf(read), "audio/pcm", token())
+            }
+        } finally { runCatching { recorder.stop() }; recorder.release() }
+    }
+
+    private fun createAudioTrack(rate: Int, stereo: Boolean): AudioTrack {
+        val channels = if (stereo) AudioFormat.CHANNEL_OUT_STEREO else AudioFormat.CHANNEL_OUT_MONO
+        val min = AudioTrack.getMinBufferSize(rate, channels, AudioFormat.ENCODING_PCM_16BIT).coerceAtLeast(4096)
+        return AudioTrack.Builder().setAudioAttributes(AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+            .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                .setSampleRate(rate).setChannelMask(channels).build())
+            .setBufferSizeInBytes(min * 2).setTransferMode(AudioTrack.MODE_STREAM).build().also { it.play() }
+    }
+
+    private fun handleRealtimeEvent(event: JSONObject, rateOut: Int) {
+        when (event.optString("type")) {
+            "status" -> mutable.update { it.copy(realtime = it.realtime.copy(status = event.optString("status"))) }
+            "audio" -> {
+                val encoded = event.nullableString("data")
+                val bytes = runCatching { android.util.Base64.decode(encoded, android.util.Base64.DEFAULT) }.getOrNull().orEmpty()
+                if (bytes.isNotEmpty()) {
+                    realtimeTrack?.write(bytes, 0, bytes.size, AudioTrack.WRITE_NON_BLOCKING)
+                    mutable.update { it.copy(realtime = it.realtime.copy(audioBytes = it.realtime.audioBytes + bytes.size)) }
+                }
+            }
+            "transcript" -> {
+                val role = event.optString("role")
+                val delta = event.nullableString("delta")
+                mutable.update { current -> current.copy(realtime = current.realtime.copy(
+                    userText = if (role == "user" && event.optBoolean("cumulative")) delta else if (role == "user") current.realtime.userText + delta else current.realtime.userText,
+                    assistantText = if (role == "assistant") current.realtime.assistantText + delta else current.realtime.assistantText,
+                    thoughtText = if (role == "thought") current.realtime.thoughtText + delta else current.realtime.thoughtText,
+                )) }
+            }
+            "error" -> mutable.update { it.copy(realtime = it.realtime.copy(error = event.nullableString("message"))) }
+            "final" -> mutable.update { it.copy(realtime = it.realtime.copy(active = false, status = "終了")) }
+        }
+    }
+
+    fun commitRealtime() {
+        val sid = state.value.realtime.sessionId.takeIf { it.isNotBlank() } ?: return
+        viewModelScope.launch { runCatching { api.post("/api/realtime/commit", JSONObject().put("session_id", sid), token()) }
+            .onFailure { report(it) } }
+    }
+
+    fun stopRealtime(save: Boolean) {
+        val current = state.value.realtime
+        if (!current.active && current.sessionId.isBlank()) return
+        viewModelScope.launch {
+            realtimeCaptureJob?.cancelAndJoin(); realtimeStreamJob?.cancelAndJoin()
+            val sid = current.sessionId
+            try {
+                if (sid.isNotBlank()) {
+                    val path = if (save) "/api/realtime/save" else "/api/realtime/cancel"
+                    api.post(path, JSONObject().put("session_id", sid).apply { state.value.selected?.id?.let { put("thread_id", it) } }, token())
+                }
+            } catch (e: Exception) { report(e) }
+            realtimeTrack?.let { track -> runCatching { track.stop(); track.release() } }; realtimeTrack = null
+            mutable.update { it.copy(realtime = RealtimeState()) }
+        }
+    }
+
+    // --- Native Lyria RealTime studio ---
+
+    fun startLyria(prompt: String) {
+        if (state.value.lyria.active || prompt.isBlank()) return
+        viewModelScope.launch {
+            try {
+                val payload = JSONObject().put("weighted_prompts", JSONArray().put(JSONObject().put("text", prompt.trim().take(4000)).put("weight", 1.0)))
+                val started = api.post("/api/gemini/music/start", payload, token())
+                val sid = started.getString("session_id")
+                lyriaTrack = createAudioTrack(48000, stereo = true)
+                mutable.update { it.copy(lyria = LyriaState(true, sid, "接続中…", prompt.trim().take(4000))) }
+                lyriaStreamJob = viewModelScope.launch(Dispatchers.IO) {
+                    try {
+                        api.streamSse("/api/gemini/music/stream?session_id=${URLEncoder.encode(sid, "UTF-8")}", token()) { event ->
+                            handleLyriaEvent(event)
+                        }
+                    } catch (e: CancellationException) { throw e }
+                    catch (e: Exception) { mutable.update { it.copy(lyria = it.lyria.copy(error = e.message ?: "Lyria接続が終了しました。")) } }
+                    finally { if (state.value.lyria.sessionId == sid) mutable.update { it.copy(lyria = it.lyria.copy(active = false, status = "終了")) } }
+                }
+            } catch (e: Exception) { report(e) }
+        }
+    }
+
+    private fun handleLyriaEvent(event: JSONObject) {
+        val encoded = event.nullableString("audio").ifBlank { event.nullableString("snapshot") }
+        if (encoded.isNotBlank()) {
+            val bytes = runCatching { android.util.Base64.decode(encoded, android.util.Base64.DEFAULT) }.getOrNull().orEmpty()
+            if (bytes.isNotEmpty()) {
+                lyriaTrack?.write(bytes, 0, bytes.size, AudioTrack.WRITE_NON_BLOCKING)
+                mutable.update { it.copy(lyria = it.lyria.copy(audioBytes = it.lyria.audioBytes + bytes.size, status = event.optString("status").ifBlank { "生成中…" })) }
+            }
+        }
+        event.nullableString("error").takeIf { it.isNotBlank() }?.let { error -> mutable.update { it.copy(lyria = it.lyria.copy(error = error)) } }
+    }
+
+    fun lyriaControl(action: String) {
+        val sid = state.value.lyria.sessionId.takeIf { it.isNotBlank() } ?: return
+        viewModelScope.launch { runCatching { api.post("/api/gemini/music/command", JSONObject().put("session_id", sid).put("type", "control").put("action", action), token()) }
+            .onFailure { report(it) } }
+    }
+
+    fun stopLyria(save: Boolean) {
+        val current = state.value.lyria
+        if (!current.active && current.sessionId.isBlank()) return
+        viewModelScope.launch {
+            lyriaStreamJob?.cancelAndJoin()
+            try {
+                if (current.sessionId.isNotBlank()) api.post(if (save) "/api/gemini/music/save" else "/api/gemini/music/cancel",
+                    JSONObject().put("session_id", current.sessionId).apply { state.value.selected?.id?.let { put("thread_id", it) } }, token())
+            } catch (e: Exception) { report(e) }
+            lyriaTrack?.let { track -> runCatching { track.stop(); track.release() } }; lyriaTrack = null
+            mutable.update { it.copy(lyria = LyriaState()) }
+        }
+    }
+
     fun logout() { viewModelScope.launch {
         try {
             api.post("/api/mobile/v1/revoke", JSONObject(), token())
@@ -576,7 +817,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     } }
     private suspend fun clearSession() {
         val caller = currentCoroutineContext().job
-        listOf(pairingJob, navigationJob, streamJob, uploadJob, heartbeatJob, libraryJob, batchPollJob).forEach { if (it !== caller) it?.cancel() }
+        listOf(pairingJob, navigationJob, streamJob, uploadJob, heartbeatJob, libraryJob, batchPollJob,
+            realtimeStreamJob, realtimeCaptureJob, lyriaStreamJob).forEach { if (it !== caller) it?.cancel() }
+        realtimeTrack?.let { track -> runCatching { track.stop(); track.release() } }; realtimeTrack = null
+        lyriaTrack?.let { track -> runCatching { track.stop(); track.release() } }; lyriaTrack = null
         withContext(NonCancellable + Dispatchers.IO) { store.clear() }
         session = null; failed = null
         mutable.value = ChatState(starting = false)
@@ -906,7 +1150,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun fetchPreferences() {
         val preferences = parsePreferences(api.get("/api/mobile/v1/preferences", token()))
-        mutable.update { it.copy(preferences = preferences) }
+        mutable.update { it.copy(preferences = preferences,
+            enableThinking = preferences.defaultEnableThinking,
+            enableSearch = preferences.defaultEnableSearch,
+            enableUrlContext = preferences.defaultEnableUrlContext,
+            enableMaps = preferences.defaultEnableMaps,
+            enablePython = preferences.defaultEnablePython,
+            enableFileCreation = preferences.defaultEnableFileCreation,
+            enableSystemPrompt = preferences.defaultEnableSystemPrompt,
+            enableMcp = preferences.defaultEnableMcp,
+            generationValues = it.generationValues + (it.model to (it.generationValues[it.model].orEmpty() + mapOf(
+                "thinking_level" to preferences.defaultThinkingLevel,
+                "thinking_budget" to preferences.defaultThinkingBudget.toString(),
+                "reasoning_effort" to preferences.defaultReasoningEffort,
+                "safety_setting" to preferences.defaultSafetySetting,
+            )))
+        ) }
     }
 
     fun loadPreferences() {
@@ -920,10 +1179,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         defaultModel: String,
         defaultEnableThinking: Boolean,
         defaultEnableSearch: Boolean,
+        defaultEnableUrlContext: Boolean,
+        defaultEnableMaps: Boolean,
+        defaultEnablePython: Boolean,
+        defaultEnableFileCreation: Boolean,
+        defaultEnableSystemPrompt: Boolean,
+        defaultEnableMcp: Boolean,
+        defaultThinkingLevel: String,
+        defaultThinkingBudget: Int,
+        defaultReasoningEffort: String,
+        defaultSafetySetting: String,
         enterToSend: Boolean,
         lightModeEnabled: Boolean,
         autoSearchOnLinks: Boolean,
         tempChatTimeoutSeconds: Int,
+        themeColor: String,
     ) {
         viewModelScope.launch {
             mutable.update { it.copy(prefsBusy = true) }
@@ -932,10 +1202,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     .put("default_model", defaultModel)
                     .put("default_enable_thinking", defaultEnableThinking)
                     .put("default_enable_search", defaultEnableSearch)
+                    .put("default_enable_url_context", defaultEnableUrlContext)
+                    .put("default_enable_maps", defaultEnableMaps)
+                    .put("default_enable_python", defaultEnablePython)
+                    .put("default_enable_file_creation", defaultEnableFileCreation)
+                    .put("default_enable_system_prompt", defaultEnableSystemPrompt)
+                    .put("default_enable_mcp", defaultEnableMcp)
+                    .put("default_thinking_level", defaultThinkingLevel)
+                    .put("default_thinking_budget", defaultThinkingBudget)
+                    .put("default_reasoning_effort", defaultReasoningEffort)
+                    .put("default_safety_setting", defaultSafetySetting)
                     .put("enter_to_send", enterToSend)
                     .put("light_mode_enabled", lightModeEnabled)
                     .put("auto_search_on_links", autoSearchOnLinks)
                     .put("temp_chat_timeout_seconds", tempChatTimeoutSeconds)
+                    .put("theme_color", themeColor.trim())
                 val reply = api.put("/api/mobile/v1/preferences", payload, token())
                 mutable.update { it.copy(preferences = parsePreferences(reply), notice = "設定を保存しました。") }
             } catch (e: Exception) { report(e) }

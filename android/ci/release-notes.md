@@ -1,5 +1,14 @@
 # AI Playground for Android
 
+## 1.12.0
+
+- URLs／Maps／File／SysPrompt、Canvas、Coding、モデル固有のGemini動画設定をネイティブComposerへ追加しました。
+- Canvasのコード編集・入力欄への反映、Coding対象の履歴選択、GPT-Imageマスク描画、クリップボードのリッチ貼り付けを追加しました。
+- Realtime音声（OpenAI／Grok）とLyria RealTimeを、Bearer認証のネイティブセッション、マイク入力・音声再生・保存まで実装しました。
+- Webの既定値（テーマカラー、URL／Maps／Python／File／SysPrompt／MCP、Thinking level／budget、Effort、Safety）をAndroid設定から同期できます。
+
+APIキーは端末へ渡さず、Realtime／Lyriaもサーバー側の既存セッションを利用します。Gemini Liveのブラウザー直結、管理者専用のアカウント移行・秘密設定、実機での全画面寸法比較は引き続きWeb導線または確認対象です。
+
 ## 1.11.0
 
 - モデルの表示名・説明・価格・分類・最近追加された順をWeb版の定義に揃えました。

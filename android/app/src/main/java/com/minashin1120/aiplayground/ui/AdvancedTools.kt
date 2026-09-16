@@ -50,10 +50,11 @@ fun AdvancedToolsDialog(
                     Text("常時接続の音声・音楽はネイティブセッションで利用できます。APIキーやセキュリティ設定は、認証済みブラウザーで開きます。端末へ秘密情報は渡しません。",
                         style = MaterialTheme.typography.bodySmall)
                     Column {
-                        TextButton(onClick = onRealtime, modifier = Modifier.fillMaxWidth()) { Text("Realtime音声（ネイティブ）") }
+                        TextButton(onClick = onRealtime, modifier = Modifier.fillMaxWidth()) { Text("Realtime音声（OpenAI／Grok／Gemini Native Audio）") }
                         TextButton(onClick = onLyria, modifier = Modifier.fillMaxWidth()) { Text("Lyria音楽（ネイティブ）") }
+                        TextButton(onClick = { onWebPath("/") }, modifier = Modifier.fillMaxWidth()) { Text("Gemini Live / STS（Web）") }
                         TextButton(onClick = { onWebPath("/") }, modifier = Modifier.fillMaxWidth()) { Text("Web版のCanvasを開く") }
-                        TextButton(onClick = { onWebPath("/settings") }, modifier = Modifier.fillMaxWidth()) { Text("アカウント・MCP設定を開く") }
+                        TextButton(onClick = { onWebPath("/settings") }, modifier = Modifier.fillMaxWidth()) { Text("アカウント・APIキー・2FAを開く") }
                     }
                 }
             }

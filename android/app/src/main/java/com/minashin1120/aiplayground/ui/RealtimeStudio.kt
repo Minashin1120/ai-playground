@@ -11,10 +11,15 @@ import androidx.compose.ui.unit.dp
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
 
-private val realtimeModels = listOf(
+internal val realtimeModels = listOf(
     "gpt-realtime" to "OpenAI Realtime",
+    "gpt-realtime-mini" to "OpenAI Realtime Mini",
+    "gpt-realtime-2" to "OpenAI Realtime 2",
+    "gpt-realtime-1.5" to "OpenAI Realtime 1.5",
     "grok-voice-latest" to "Grok Voice",
     "grok-voice-think-fast-2.0" to "Grok Voice Think",
+    "grok-voice-agent" to "Grok Voice Agent",
+    "gemini-2.5-flash-native-audio-preview-12-2025" to "Gemini Native Audio",
 )
 
 @Composable
@@ -35,7 +40,7 @@ fun RealtimeStudioDialog(state: ChatState, model: ChatViewModel, onDismiss: () -
                         realtimeModels.forEach { (id, label) -> FilterChip(selectedModel == id, { selectedModel = id }, { Text(label) }) }
                     }
                     OutlinedTextField(voice, { voice = it }, singleLine = true, label = { Text("Voice") },
-                        supportingText = { Text("OpenAI: alloy等 / Grok: Ara等") }, modifier = Modifier.fillMaxWidth())
+                        supportingText = { Text("OpenAI: alloy等 / Grok: Ara等 / Gemini: Zephyr等") }, modifier = Modifier.fillMaxWidth())
                     Button(onClick = { model.startRealtime(selectedModel, voice.trim().ifBlank { "alloy" }) }, modifier = Modifier.fillMaxWidth()) { Text("セッションを開始") }
                 } else {
                     Text("${realtime.model} · ${realtime.status.ifBlank { "接続中…" }}", style = MaterialTheme.typography.labelMedium)

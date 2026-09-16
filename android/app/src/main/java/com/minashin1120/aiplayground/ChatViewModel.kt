@@ -56,6 +56,9 @@ data class ChatState(
     val gems: List<Gem> = emptyList(), val gemsBusy: Boolean = false, val selectedGem: Gem? = null,
     val preferences: Preferences? = null, val prefsBusy: Boolean = false,
     val compression: CompressionSettings = CompressionSettings(),
+    val mcpServers: List<McpServerInfo> = emptyList(), val mcpBusy: Boolean = false,
+    val feedbackItems: List<FeedbackItem> = emptyList(), val feedbackBusy: Boolean = false,
+    val storage: StorageUsage? = null,
     val batchJobs: List<BatchJob> = emptyList(), val batchBusy: Boolean = false,
     val realtime: RealtimeState = RealtimeState(), val lyria: LyriaState = LyriaState(),
     val liveContent: String = "", val liveThought: String = "", val status: String = "",
@@ -113,7 +116,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(account = account, model = chosen, pairing = false, userCode = "", offline = false) }
         fetchThreads(false)
         runCatching { fetchGems() }.onFailure { report(it) }
-        runCatching { fetchPreferences() }.onFailure { report(it) }
+        runCatching { fetchPreferences(applyDefaults = true) }.onFailure { report(it) }
         runCatching { fetchBatchJobs(notify = false) }.onFailure { report(it) }
         if (foreground) startBatchPolling()
     }
@@ -219,6 +222,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleMcp() { mutable.update { it.copy(enableMcp = !it.enableMcp) } }
     fun toggleCanvas() { mutable.update { it.copy(canvasMode = !it.canvasMode, codingMode = false) } }
     fun toggleCoding() { mutable.update { it.copy(codingMode = !it.codingMode, canvasMode = false, codingTarget = null) } }
+    fun toggleTemporaryChat() {
+        val selected = state.value.selected
+        if (selected != null) {
+            saveThreadSettings(selected.title, state.value.customInstruction, state.value.includeGlobalInstruction, !selected.isTemporary)
+        } else {
+            mutable.update { it.copy(newThreadTemporary = !it.newThreadTemporary) }
+        }
+    }
     fun selectCodingTarget(target: CodingTarget?) { mutable.update { it.copy(codingTarget = target, codingMode = target != null || it.codingMode) } }
     fun setImageMask(reference: String?) { mutable.update { it.copy(imageMask = reference) } }
     fun uploadImageMask(name: String, bytes: ByteArray) {
@@ -1148,22 +1159,36 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- General preferences and this device's session ---
 
-    private suspend fun fetchPreferences() {
+    private suspend fun fetchPreferences(applyDefaults: Boolean = false) {
         val preferences = parsePreferences(api.get("/api/mobile/v1/preferences", token()))
+        if (!applyDefaults) {
+            mutable.update { it.copy(preferences = preferences) }
+            return
+        }
+        val useLast = preferences.useLastChatSettings && preferences.lastModel.isNotBlank()
+        val modelId = if (useLast) preferences.lastModel else preferences.defaultModel
+        val selectable = state.value.account?.models?.firstOrNull { it.id == modelId && it.selectable }?.id
+            ?: state.value.model
+        val thinkingOn = if (useLast) preferences.lastEnableThinking else preferences.defaultEnableThinking
+        val thinkingLevel = if (useLast) preferences.lastThinkingLevel else preferences.defaultThinkingLevel
+        val thinkingBudget = if (useLast) preferences.lastThinkingBudget else preferences.defaultThinkingBudget
+        val effort = if (useLast) preferences.lastReasoningEffort else preferences.defaultReasoningEffort
+        val safety = if (useLast) preferences.lastSafetySetting else preferences.defaultSafetySetting
         mutable.update { it.copy(preferences = preferences,
-            enableThinking = preferences.defaultEnableThinking,
-            enableSearch = preferences.defaultEnableSearch,
-            enableUrlContext = preferences.defaultEnableUrlContext,
-            enableMaps = preferences.defaultEnableMaps,
-            enablePython = preferences.defaultEnablePython,
-            enableFileCreation = preferences.defaultEnableFileCreation,
-            enableSystemPrompt = preferences.defaultEnableSystemPrompt,
-            enableMcp = preferences.defaultEnableMcp,
-            generationValues = it.generationValues + (it.model to (it.generationValues[it.model].orEmpty() + mapOf(
-                "thinking_level" to preferences.defaultThinkingLevel,
-                "thinking_budget" to preferences.defaultThinkingBudget.toString(),
-                "reasoning_effort" to preferences.defaultReasoningEffort,
-                "safety_setting" to preferences.defaultSafetySetting,
+            model = selectable.ifBlank { it.model },
+            enableThinking = thinkingOn,
+            enableSearch = if (useLast) preferences.lastEnableSearch else preferences.defaultEnableSearch,
+            enableUrlContext = if (useLast) preferences.lastEnableUrlContext else preferences.defaultEnableUrlContext,
+            enableMaps = if (useLast) preferences.lastEnableMaps else preferences.defaultEnableMaps,
+            enablePython = if (useLast) preferences.lastEnablePython else preferences.defaultEnablePython,
+            enableFileCreation = if (useLast) preferences.lastEnableFileCreation else preferences.defaultEnableFileCreation,
+            enableSystemPrompt = if (useLast) preferences.lastEnableSystemPrompt else preferences.defaultEnableSystemPrompt,
+            enableMcp = if (useLast) preferences.lastEnableMcp else preferences.defaultEnableMcp,
+            generationValues = it.generationValues + ((selectable.ifBlank { it.model }) to (it.generationValues[selectable.ifBlank { it.model }].orEmpty() + mapOf(
+                "thinking_level" to thinkingLevel,
+                "thinking_budget" to thinkingBudget.toString(),
+                "reasoning_effort" to effort,
+                "safety_setting" to safety,
             )))
         ) }
     }
@@ -1175,53 +1200,110 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun savePreferences(
-        defaultModel: String,
-        defaultEnableThinking: Boolean,
-        defaultEnableSearch: Boolean,
-        defaultEnableUrlContext: Boolean,
-        defaultEnableMaps: Boolean,
-        defaultEnablePython: Boolean,
-        defaultEnableFileCreation: Boolean,
-        defaultEnableSystemPrompt: Boolean,
-        defaultEnableMcp: Boolean,
-        defaultThinkingLevel: String,
-        defaultThinkingBudget: Int,
-        defaultReasoningEffort: String,
-        defaultSafetySetting: String,
-        enterToSend: Boolean,
-        lightModeEnabled: Boolean,
-        autoSearchOnLinks: Boolean,
-        tempChatTimeoutSeconds: Int,
-        themeColor: String,
-    ) {
+    fun savePreferences(payload: JSONObject) {
         viewModelScope.launch {
             mutable.update { it.copy(prefsBusy = true) }
             try {
-                val payload = JSONObject()
-                    .put("default_model", defaultModel)
-                    .put("default_enable_thinking", defaultEnableThinking)
-                    .put("default_enable_search", defaultEnableSearch)
-                    .put("default_enable_url_context", defaultEnableUrlContext)
-                    .put("default_enable_maps", defaultEnableMaps)
-                    .put("default_enable_python", defaultEnablePython)
-                    .put("default_enable_file_creation", defaultEnableFileCreation)
-                    .put("default_enable_system_prompt", defaultEnableSystemPrompt)
-                    .put("default_enable_mcp", defaultEnableMcp)
-                    .put("default_thinking_level", defaultThinkingLevel)
-                    .put("default_thinking_budget", defaultThinkingBudget)
-                    .put("default_reasoning_effort", defaultReasoningEffort)
-                    .put("default_safety_setting", defaultSafetySetting)
-                    .put("enter_to_send", enterToSend)
-                    .put("light_mode_enabled", lightModeEnabled)
-                    .put("auto_search_on_links", autoSearchOnLinks)
-                    .put("temp_chat_timeout_seconds", tempChatTimeoutSeconds)
-                    .put("theme_color", themeColor.trim())
                 val reply = api.put("/api/mobile/v1/preferences", payload, token())
                 mutable.update { it.copy(preferences = parsePreferences(reply), notice = "設定を保存しました。") }
             } catch (e: Exception) { report(e) }
             finally { mutable.update { it.copy(prefsBusy = false) } }
         }
+    }
+
+    fun loadStorageUsage() {
+        viewModelScope.launch {
+            runCatching { mutable.update { it.copy(storage = parseStorageUsage(api.get("/api/storage", token()))) } }
+                .onFailure { report(it) }
+        }
+    }
+
+    fun loadFeedback() {
+        viewModelScope.launch {
+            mutable.update { it.copy(feedbackBusy = true) }
+            try { mutable.update { it.copy(feedbackItems = parseFeedbackItems(api.get("/api/feedback", token()))) } }
+            catch (e: Exception) { report(e) }
+            finally { mutable.update { it.copy(feedbackBusy = false) } }
+        }
+    }
+
+    fun submitFeedback(title: String, message: String) {
+        if (message.isBlank()) return
+        viewModelScope.launch {
+            mutable.update { it.copy(feedbackBusy = true) }
+            try {
+                api.post("/api/feedback", JSONObject().put("title", title.trim()).put("message", message.trim()), token())
+                loadFeedback()
+                notify("フィードバックを送信しました。")
+            } catch (e: Exception) { report(e) }
+            finally { mutable.update { it.copy(feedbackBusy = false) } }
+        }
+    }
+
+    fun loadMcpServers() {
+        viewModelScope.launch {
+            mutable.update { it.copy(mcpBusy = true) }
+            try { mutable.update { it.copy(mcpServers = parseMcpServers(api.get("/api/mcp/servers", token()))) } }
+            catch (e: Exception) { report(e) }
+            finally { mutable.update { it.copy(mcpBusy = false) } }
+        }
+    }
+
+    fun setMcpServerEnabled(server: McpServerInfo, enabled: Boolean) {
+        viewModelScope.launch {
+            mutable.update { it.copy(mcpBusy = true) }
+            try {
+                api.put("/api/mcp/servers/${server.id}", JSONObject().put("enabled", enabled), token())
+                loadMcpServers()
+            } catch (e: Exception) { report(e) }
+            finally { mutable.update { it.copy(mcpBusy = false) } }
+        }
+    }
+
+    fun applySlash(action: SlashAction) {
+        when (action.id) {
+            "canvas" -> toggleCanvas()
+            "coding" -> toggleCoding()
+            "search" -> toggleSearch()
+            "urls" -> toggleUrlContext()
+            "maps" -> toggleMaps()
+            "python" -> togglePython()
+            "file" -> toggleFileCreation()
+            "mcp" -> toggleMcp()
+            "sysprompt" -> toggleSystemPrompt()
+            "promptcache" -> togglePromptCache()
+            "tempchat" -> toggleTemporaryChat()
+            "compress" -> saveCompressionSettings(state.value.compression.copy(enabled = !state.value.compression.enabled))
+            "thinking" -> {
+                val arg = action.argument.lowercase()
+                if (arg == "off") mutable.update { it.copy(enableThinking = false) }
+                else {
+                    val level = when (arg) {
+                        "min", "minimal" -> "minimal"
+                        "low" -> "low"
+                        "mid", "medium" -> "medium"
+                        "high" -> "high"
+                        else -> null
+                    }
+                    if (level != null) {
+                        mutable.update { it.copy(enableThinking = true) }
+                        generationOption("thinking_level", level)
+                    } else notify("Thinkingは off / min / low / mid / high を指定してください。")
+                }
+            }
+            "effort" -> {
+                val arg = action.argument.lowercase()
+                if (arg in listOf("none", "low", "medium", "med", "high", "xhigh", "max")) {
+                    generationOption("reasoning_effort", if (arg == "med") "medium" else arg)
+                } else notify("Effortは none / low / medium / high / xhigh / max を指定してください。")
+            }
+            "safety" -> {
+                val arg = action.argument.lowercase()
+                if (arg in listOf("default", "none")) generationOption("safety_setting", arg)
+                else notify("Safetyは default / none を指定してください。")
+            }
+        }
+        if (action.consumeDraft) mutable.update { it.copy(draft = "") }
     }
 
     /** Fetches the server thread payload and writes a native A4 PDF into the share cache. */

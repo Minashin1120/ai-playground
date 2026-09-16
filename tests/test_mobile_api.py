@@ -327,6 +327,14 @@ class MobileApiTests(unittest.TestCase):
             'light_mode_enabled': True,
             'theme_color': '#123456',
             'temp_chat_timeout_seconds': 900,
+            'prompt_bar_mode': 'minimal',
+            'use_last_chat_settings': True,
+            'system_prompt': 'Be concise.',
+            'system_prompt_enabled': True,
+            'stt_model': 'gpt-transcribe',
+            'mic_transcribe_mode': 'llm',
+            'liquid_glass_enabled': True,
+            'default_2fa_method': 'webauthn',
         })
         self.assertEqual(updated.status_code, 200)
         self.assertTrue(updated.json['default_enable_thinking'])
@@ -334,8 +342,22 @@ class MobileApiTests(unittest.TestCase):
         self.assertTrue(updated.json['light_mode_enabled'])
         self.assertEqual(updated.json['theme_color'], '#123456')
         self.assertEqual(updated.json['temp_chat_timeout_seconds'], 900)
+        self.assertEqual(updated.json['prompt_bar_mode'], 'minimal')
+        self.assertTrue(updated.json['minimal_prompt_mode'])
+        self.assertFalse(updated.json['compact_prompt_mode'])
+        self.assertTrue(updated.json['use_last_chat_settings'])
+        self.assertEqual(updated.json['system_prompt'], 'Be concise.')
+        self.assertEqual(updated.json['stt_model'], 'gpt-transcribe')
+        self.assertEqual(updated.json['mic_transcribe_mode'], 'llm')
+        self.assertTrue(updated.json['liquid_glass_enabled'])
+        self.assertEqual(updated.json['default_2fa_method'], 'webauthn')
+        self.assertIn('global_system_prompt', updated.json)
         self.assertEqual(self.call('/api/mobile/v1/preferences', token, 'PUT',
                                    json={'default_model': 'definitely-not-a-model'}).status_code, 400)
+        self.assertEqual(self.call('/api/mobile/v1/preferences', token, 'PUT',
+                                   json={'stt_model': 'not-a-stt'}).status_code, 400)
+        self.assertEqual(self.call('/api/mobile/v1/preferences', token, 'PUT',
+                                   json={'prompt_bar_mode': 'huge'}).status_code, 400)
         # Provider secrets cannot be injected through the native preference endpoint.
         ignored = self.call('/api/mobile/v1/preferences', token, 'PUT', json={'openai_key': 'sk-live-secret'})
         self.assertEqual(ignored.status_code, 200)
@@ -344,6 +366,19 @@ class MobileApiTests(unittest.TestCase):
             self.assertNotEqual(user.openai_api_key, 'sk-live-secret')
             self.assertTrue(user.default_enable_thinking)
             self.assertEqual(user.temp_chat_timeout_seconds, 900)
+            self.assertEqual(user.system_prompt, 'Be concise.')
+
+    def test_native_feedback_and_mcp_list_are_owner_scoped(self):
+        token = self.token()
+        created = self.call('/api/feedback', token, 'POST', json={'title': 'Android', 'message': 'native note'})
+        self.assertEqual(created.status_code, 200)
+        listed = self.call('/api/feedback', token)
+        self.assertEqual(listed.status_code, 200)
+        self.assertTrue(any(item['message'] == 'native note' for item in listed.json['items']))
+        servers = self.call('/api/mcp/servers', token)
+        self.assertEqual(servers.status_code, 200)
+        self.assertIn('servers', servers.json)
+        self.assertEqual(self.call('/api/mcp/servers', token, 'POST', json={'name': 'x', 'url': 'https://example.com'}).status_code, 403)
 
     def test_native_thread_pdf_export_is_owner_scoped(self):
         token = self.token()

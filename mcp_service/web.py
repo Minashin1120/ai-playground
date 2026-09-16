@@ -10,7 +10,7 @@ import re
 import json
 from urllib.parse import urlparse
 
-from flask import Blueprint, current_app, jsonify, request, render_template
+from flask import Blueprint, current_app, g, jsonify, request, render_template
 from flask_login import current_user, login_required
 
 from . import registry as mcp_registry
@@ -142,6 +142,8 @@ def add_custom_server():
 @login_required
 def update_server(server_id):
     data = request.get_json(silent=True) or {}
+    if getattr(g, 'mobile_bearer_request', False) and set(data.keys()) - {'enabled'}:
+        return jsonify({"error": "insufficient_scope", "code": "insufficient_scope"}), 403
     srv = mcp_registry.get_server_for_user(current_user.id, server_id)
     if srv is None:
         return jsonify({"error": "MCPサーバーが見つかりません。", "code": "mcp_not_found"}), 404

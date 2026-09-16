@@ -38,7 +38,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | 一時チャット | 作成・heartbeat。自動削除タイマーをクライアント側でも考慮する |
 | ファイルライブラリ | 一覧・検索・お気に入り・名前変更・削除・チャットへの再利用。所有者ディレクトリのみ対象 |
 | Gems | 一覧・作成・編集・削除・チャットへの適用・`@`候補、既定モデル適用、固定プロンプトの編集・送信 |
-| 一般設定・セッション | 既定モデル、Thinking／Web検索／URL／Maps／Python／File／SysPrompt／MCP、Thinking level／budget、Reasoning effort、Safety、テーマ色、Enter送信、ライトモード、リンク自動検索、一時チャット期限、この端末のセッション表示と失効。APIキー・パスワード・2FAはWeb導線 |
+| 一般設定・セッション | 既定モデル／Vision、Thinking／Web検索／URL／Maps／Python／File／SysPrompt／MCP、Thinking level／budget、Reasoning effort、Safety、テーマ色、Enter送信、ライト／Liquid Glass、プロンプトバー、STT既定、システムプロンプト、前回設定継続、リンク自動検索、一時チャット期限、フィードバック、MCP有効切替、この端末のセッション表示と失効。APIキー・パスワード・2FA登録はWeb導線 |
 | モデル一覧 | `/me` の `models`。提供元、用途、対応能力、廃止状態、選択可否を返す。Android内のWeb由来カタログで正式表示名・説明・価格・タグ・追加順を補完。互換用の `model_ids` も維持 |
 | APIキー・プロフィール・アカウント削除・2FA設定 | Webで操作。Androidトークンでは設定・管理APIにアクセスできない |
 | WebのE2EE設定 | 有効なまま連携・履歴取得・添付を利用可能。現在の実装はサーバー管理鍵による保存時暗号化であり、端末だけが復号できるE2EEではない |
@@ -49,7 +49,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | ブラウザー高速モード | 対象外。APIキーをAndroidへ返すbootstrap APIは許可しない |
 | アプリ配布・真正性検証 | APK署名・Play配布は別途。client_idや端末名はアプリ署名の証明ではない |
 
-Android版は通常チャット、メタデータ付きモデル選択、Thinking・Web検索・Prompt Cache、履歴、スレッド設定、一時チャット、添付、ファイルライブラリ、Gems、一般設定、この端末のセッション、編集・再生成・分岐、ネイティブPDF、画像・動画・OCR・TTS・文字起こし、Batchの送信・管理・完了通知、生成停止、切断後の再接続、端末連携・失効に対応します。本文はMarkdown、コード、表、数式近似、添付プレビューに加え、検索・Python・MCP・Coding差分を構造化カードで表示します。APIキー・パスワード・2FA・MCP秘密設定の変更、Realtime音声、Lyria、管理機能は認証済みWebへの明示的な導線を使います。
+Android版は通常チャット、メタデータ付きモデル選択、Thinking・Web検索・Prompt Cache、履歴、スレッド設定、一時チャット、添付、ファイルライブラリ、Gems、Web相当の設定タブ、この端末のセッション、編集・再生成・分岐、ネイティブPDF、画像・動画・OCR・TTS・文字起こし、Batchの送信・管理・完了通知、生成停止、切断後の再接続、端末連携・失効、スラッシュコマンド、OpenAI／Grok／Gemini Native Audio Realtime、Lyriaに対応します。本文はMarkdown、コード、表、数式近似、添付プレビューに加え、検索・Python・MCP・Coding差分を構造化カードで表示します。APIキー・パスワード・2FA登録・MCP OAuth秘密、Gemini Live 3.1／STS専用パネル、管理機能は認証済みWebへの明示的な導線を使います。
 
 暗号化の境界は「HTTPSで通信」「サーバーが保存データを暗号化・復号」「端末トークンをAndroid Keystoreの鍵で暗号化保存」です。既存Webの `enable_e2ee` はサーバー側の `encrypt_val` / `decrypt_val` とファイル暗号化に使われます。そのため、この設定を理由にAndroidを拒否する必要はありません。真の端末間E2EEに変更する場合は、端末鍵の生成・共有・回復とAI処理時の平文の扱いを別途設計する必要があります。
 
@@ -235,8 +235,11 @@ Webのログアウトと同様、端末の失効操作はBot確認待ち・ロ�
 | GET `/api/gems` | なし | 本人のGem配列（トップレベルJSON配列） |
 | POST `/api/gems` | `name`, `description`, `instruction`, `default_model` | 作成したGem |
 | GET/PUT/DELETE `/api/gems/<uuid>` | PUTは作成と同じ項目 | 取得・更新・削除。所有者のみ |
-| GET `/api/mobile/v1/preferences` | なし | 既定モデル・既定Thinking／検索・Enter送信・ライトモード・リンク自動検索・一時チャット期限・この端末のセッション情報 |
-| PUT `/api/mobile/v1/preferences` | 上記に加え `default_enable_url_context`, `default_enable_maps`, `default_enable_python`, `default_enable_file_creation`, `default_enable_system_prompt`, `default_enable_mcp`, `default_thinking_level`, `default_thinking_budget`, `default_reasoning_effort`, `default_safety_setting`, `theme_color` | 更新後の設定。APIキー等の未知キーは無視し、値を変更しない |
+| GET `/api/mobile/v1/preferences` | なし | 既定モデル／Vision、ツール既定値、Enter送信、ライト／Liquid Glass、テーマ、プロンプトバー、STT、システムプロンプト、前回設定、2FA状態、この端末のセッション情報。APIキーは含まない |
+| PUT `/api/mobile/v1/preferences` | GETと同じ非秘密フィールド。`prompt_bar_mode`（normal／compact／minimal）、`system_prompt`、`stt_model`、`mic_transcribe_mode` など | 更新後の設定。APIキー・パスワード・E2EE切替等の未知キーは無視し、値を変更しない |
+| GET `/api/feedback`、POST `/api/feedback` | POSTは `title`, `message` | 本人のフィードバック一覧と送信。管理者用の全件取得や返信更新は対象外 |
+| GET `/api/mcp/servers` | なし | 登録済みMCPサーバーの名前・有効状態・接続状態。秘密は含まない |
+| PUT `/api/mcp/servers/<id>` | `{ "enabled": true/false }` のみ | 本人のMCPサーバーの有効切替。Bearer／OAuth秘密の更新は403 |
 | GET `/api/gemini/batch/status` | なし | Provider状態を更新し、完了・実行中Batchを返す |
 | GET `/api/batch/jobs` | なし | 本人のBatch履歴（最大500件） |
 | POST `/api/batch/jobs/<job_id>/cancel` | `{}` | 本人の実行中Batchを停止 |

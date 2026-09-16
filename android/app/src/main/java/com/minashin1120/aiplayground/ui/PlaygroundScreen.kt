@@ -47,7 +47,7 @@ import com.minashin1120.aiplayground.data.Gem
 import com.minashin1120.aiplayground.data.FixedPrompt
 import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.recentWebModels
-import com.minashin1120.aiplayground.data.CompressionSettings
+
 import com.minashin1120.aiplayground.data.attachmentKind
 import com.minashin1120.aiplayground.data.attachmentKindIcon
 import com.minashin1120.aiplayground.data.numericId
@@ -60,7 +60,7 @@ import java.io.File
 fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (String) -> Unit) {
     val state by model.state.collectAsStateWithLifecycle()
     PlaygroundTheme(darkTheme = state.preferences?.let { !it.lightModeEnabled } ?: isSystemInDarkTheme(),
-        themeColor = state.preferences?.themeColor) {
+        themeColor = state.preferences?.themeColor, liquidGlass = state.preferences?.liquidGlassEnabled == true) {
         val colors = MaterialTheme.colorScheme
         BoxWithConstraints(
             Modifier.fillMaxSize().background(
@@ -115,11 +115,20 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
                 }
             }
             val launchSpeech: () -> Unit = {
-                try {
-                    speech.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                        .putExtra(RecognizerIntent.EXTRA_PROMPT, "メッセージを話してください"))
-                } catch (_: Exception) { model.notify("音声入力に対応するアプリが見つかりません。") }
+                val selected = state.model
+                val useStudio = state.preferences?.voiceStudioUi != false
+                when {
+                    useStudio && realtimeModels.any { it.first == selected } -> {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) realtimeOpen = true
+                        else { awaitingMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
+                    }
+                    useStudio && selected.startsWith("lyria") -> lyriaOpen = true
+                    else -> try {
+                        speech.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                            .putExtra(RecognizerIntent.EXTRA_PROMPT, "メッセージを話してください"))
+                    } catch (_: Exception) { model.notify("音声入力に対応するアプリが見つかりません。") }
+                }
             }
             val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(30)) { model.upload(it) }
             val maskPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -186,7 +195,13 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
                     }, snackbarHost = { SnackbarHost(snackbar) },
                     bottomBar = {
                         if (showThreads) Composer(state, model, { modelPicker = true }, { attachMenu = true }, launchSpeech,
-                            onRichPaste = { richPasteOpen = true }, onMask = { maskPicker.launch("image/*") })
+                            onRichPaste = { richPasteOpen = true }, onMask = { maskPicker.launch("image/*") },
+                            onSettings = { settingsOpen = true },
+                            onRealtime = {
+                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) realtimeOpen = true
+                                else { awaitingMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
+                            },
+                            onLyria = { lyriaOpen = true })
                     }
                 ) { padding ->
                     Column(Modifier.fillMaxSize().padding(padding)) {
@@ -222,7 +237,8 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
             if (modelPicker) ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { model.chooseModel(it); modelPicker = false })
             if (libraryOpen) LibraryDialog(state, model, onFile, onDismiss = { libraryOpen = false })
             if (gemsOpen) GemsDialog(state, model, onDismiss = { gemsOpen = false })
-            if (settingsOpen) SettingsDialog(state, model, onDismiss = { settingsOpen = false }, onLogout = { model.logout(); settingsOpen = false; closeDrawer() })
+            if (settingsOpen) SettingsDialog(state, model, onDismiss = { settingsOpen = false },
+                onLogout = { model.logout(); settingsOpen = false; closeDrawer() }, onWeb = onWeb)
             if (advancedOpen) AdvancedToolsDialog(state, model, onDismiss = { advancedOpen = false }, onWebPath = onWeb,
                 onRealtime = {
                     advancedOpen = false
@@ -711,155 +727,4 @@ private fun GemEditorDialog(
         },
         dismissButton = { TextButton(onClick = { if (!saving) onDismiss() }) { Text("キャンセル") } },
     )
-}
-
-@Composable
-private fun CheckboxRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked, onChange)
-        Text(label, modifier = Modifier.weight(1f))
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun SettingsDialog(
-    state: ChatState,
-    model: ChatViewModel,
-    onDismiss: () -> Unit,
-    onLogout: () -> Unit,
-) {
-    val prefs = state.preferences
-    var defaultModel by remember(prefs?.defaultModel) { mutableStateOf(prefs?.defaultModel.orEmpty()) }
-    var thinking by remember(prefs?.defaultEnableThinking) { mutableStateOf(prefs?.defaultEnableThinking ?: false) }
-    var search by remember(prefs?.defaultEnableSearch) { mutableStateOf(prefs?.defaultEnableSearch ?: false) }
-    var urlContext by remember(prefs?.defaultEnableUrlContext) { mutableStateOf(prefs?.defaultEnableUrlContext ?: false) }
-    var maps by remember(prefs?.defaultEnableMaps) { mutableStateOf(prefs?.defaultEnableMaps ?: false) }
-    var python by remember(prefs?.defaultEnablePython) { mutableStateOf(prefs?.defaultEnablePython ?: false) }
-    var fileCreation by remember(prefs?.defaultEnableFileCreation) { mutableStateOf(prefs?.defaultEnableFileCreation ?: true) }
-    var systemPrompt by remember(prefs?.defaultEnableSystemPrompt) { mutableStateOf(prefs?.defaultEnableSystemPrompt ?: false) }
-    var mcp by remember(prefs?.defaultEnableMcp) { mutableStateOf(prefs?.defaultEnableMcp ?: true) }
-    var thinkingLevel by remember(prefs?.defaultThinkingLevel) { mutableStateOf(prefs?.defaultThinkingLevel ?: "high") }
-    var thinkingBudget by remember(prefs?.defaultThinkingBudget) { mutableStateOf((prefs?.defaultThinkingBudget ?: 4096).toString()) }
-    var reasoningEffort by remember(prefs?.defaultReasoningEffort) { mutableStateOf(prefs?.defaultReasoningEffort ?: "medium") }
-    var safetySetting by remember(prefs?.defaultSafetySetting) { mutableStateOf(prefs?.defaultSafetySetting ?: "default") }
-    var enterToSend by remember(prefs?.enterToSend) { mutableStateOf(prefs?.enterToSend ?: false) }
-    var lightMode by remember(prefs?.lightModeEnabled) { mutableStateOf(prefs?.lightModeEnabled ?: false) }
-    var themeColor by remember(prefs?.themeColor) { mutableStateOf(prefs?.themeColor.orEmpty()) }
-    var autoSearch by remember(prefs?.autoSearchOnLinks) { mutableStateOf(prefs?.autoSearchOnLinks ?: true) }
-    var timeout by remember(prefs?.tempChatTimeoutSeconds) { mutableStateOf((prefs?.tempChatTimeoutSeconds ?: 90).toString()) }
-    var compressionEnabled by remember(state.compression) { mutableStateOf(state.compression.enabled) }
-    var maxSizeMB by remember(state.compression) { mutableStateOf(state.compression.maxSizeMB.toString()) }
-    var maxDim by remember(state.compression) { mutableStateOf(state.compression.maxDimension.toString()) }
-    var formatOnly by remember(state.compression) { mutableStateOf(state.compression.formatOnly) }
-    var outputType by remember(state.compression) { mutableStateOf(state.compression.outputType) }
-    var modelPicker by remember { mutableStateOf(false) }
-    var confirmLogout by remember { mutableStateOf(false) }
-    var settingsTab by remember { mutableStateOf("一般") }
-    LaunchedEffect(Unit) { model.loadPreferences() }
-    PlaygroundDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("設定") },
-        text = {
-            Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (state.prefsBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("一般", "画像圧縮", "セッション").forEach { tab ->
-                        FilterChip(settingsTab == tab, { settingsTab = tab }, { Text(tab) })
-                    }
-                }
-                if (settingsTab == "一般") {
-                Text(state.account?.name.orEmpty(), style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = { modelPicker = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("既定モデル: ${state.account?.models?.firstOrNull { it.id == defaultModel }?.name ?: defaultModel.ifBlank { "未設定" }} ▾")
-                }
-                CheckboxRow("既定でThinkingを使う", thinking) { thinking = it }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Thinking level: $thinkingLevel", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { thinkingLevel = listOf("minimal", "low", "medium", "high").let { it[(it.indexOf(thinkingLevel) + 1) % it.size] } }) { Text("変更") }
-                }
-                OutlinedTextField(thinkingBudget, { thinkingBudget = it.filter(Char::isDigit).take(5) }, singleLine = true,
-                    label = { Text("Thinking Budget") }, modifier = Modifier.fillMaxWidth())
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Reasoning effort: $reasoningEffort", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { reasoningEffort = listOf("none", "low", "medium", "high", "xhigh", "max").let { it[(it.indexOf(reasoningEffort) + 1) % it.size] } }) { Text("変更") }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Safety: $safetySetting", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { safetySetting = if (safetySetting == "default") "none" else "default" }) { Text("変更") }
-                }
-                CheckboxRow("既定でWeb検索を使う", search) { search = it }
-                CheckboxRow("既定でURLsを使う", urlContext) { urlContext = it }
-                CheckboxRow("既定でMapsを使う", maps) { maps = it }
-                CheckboxRow("既定でPythonを使う", python) { python = it }
-                CheckboxRow("既定でFileを使う", fileCreation) { fileCreation = it }
-                CheckboxRow("既定でSysPromptを使う", systemPrompt) { systemPrompt = it }
-                CheckboxRow("既定でMCPを使う", mcp) { mcp = it }
-                CheckboxRow("Enterで送信", enterToSend) { enterToSend = it }
-                CheckboxRow("ライトモード", lightMode) { lightMode = it }
-                OutlinedTextField(themeColor, { themeColor = it.take(7) }, singleLine = true,
-                    label = { Text("テーマカラー（HEX）") }, placeholder = { Text("#0DD4BF") }, modifier = Modifier.fillMaxWidth())
-                CheckboxRow("リンクのX投稿を自動検索", autoSearch) { autoSearch = it }
-                OutlinedTextField(timeout, { timeout = it.filter { c -> c.isDigit() }.take(6) }, singleLine = true,
-                    label = { Text("一時チャットの自動削除（秒）") }, modifier = Modifier.fillMaxWidth())
-                }
-                if (settingsTab == "画像圧縮") {
-                Text("画像の圧縮", fontWeight = FontWeight.SemiBold)
-                CheckboxRow("画像を圧縮して送信", compressionEnabled) { compressionEnabled = it }
-                if (compressionEnabled) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(maxSizeMB, { maxSizeMB = it.filter { c -> c.isDigit() || c == '.' }.take(5) },
-                            singleLine = true, label = { Text("最大サイズ (MB)") }, modifier = Modifier.weight(1f))
-                        OutlinedTextField(maxDim, { maxDim = it.filter { c -> c.isDigit() }.take(4) },
-                            singleLine = true, label = { Text("最大辺 (px)") }, modifier = Modifier.weight(1f))
-                    }
-                    CheckboxRow("形式のみ変換（サイズ・寸法は変更しない）", formatOnly) { formatOnly = it }
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("original" to "元の形式", "image/jpeg" to "JPEG", "image/png" to "PNG", "image/webp" to "WebP").forEach { (value, label) ->
-                            FilterChip(outputType == value, { outputType = value }, { Text(label) })
-                        }
-                    }
-                }
-                }
-                if (settingsTab == "セッション") {
-                Text("この端末のセッション", fontWeight = FontWeight.SemiBold)
-                Text("端末: ${prefs?.deviceName?.ifBlank { "このAndroid端末" } ?: "このAndroid端末"}",
-                    style = MaterialTheme.typography.labelSmall)
-                if (prefs != null) {
-                    Text("連携日時: ${prefs.sessionCreatedAt}", style = MaterialTheme.typography.labelSmall)
-                    Text("有効期限: ${prefs.sessionExpiresAt}", style = MaterialTheme.typography.labelSmall)
-                }
-                Text("暗号化: ${if (prefs?.e2eeEnabled == true) "有効（サーバー管理鍵）" else "無効"} / 2FA: ${if (prefs?.twoFactorEnabled == true) "有効" else "無効"}",
-                    style = MaterialTheme.typography.labelSmall)
-                Text("APIキー・パスワード・2FAの変更はWeb設定で行います。",
-                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = { confirmLogout = true }) { Text("この端末の連携を取り消す") }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    model.saveCompressionSettings(CompressionSettings(
-                        enabled = compressionEnabled,
-                        maxSizeMB = maxSizeMB.toFloatOrNull()?.coerceIn(0.05f, 50f) ?: 1.0f,
-                        maxDimension = maxDim.toIntOrNull()?.coerceIn(256, 8192) ?: 1920,
-                        outputType = outputType,
-                        formatOnly = formatOnly,
-                    ))
-                    model.savePreferences(defaultModel, thinking, search, urlContext, maps, python, fileCreation, systemPrompt, mcp,
-                        thinkingLevel, thinkingBudget.toIntOrNull()?.coerceIn(0, 32768) ?: 4096, reasoningEffort, safetySetting,
-                        enterToSend, lightMode, autoSearch, timeout.toIntOrNull() ?: 90, themeColor)
-                },
-                enabled = !state.prefsBusy,
-            ) { Text("保存") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("閉じる") } },
-    )
-    if (modelPicker) ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { defaultModel = it; modelPicker = false }, selectedId = defaultModel)
-    if (confirmLogout) AlertDialog(onDismissRequest = { confirmLogout = false }, title = { Text("この端末からログアウト") },
-        text = { Text("このAndroid端末の連携を取り消します。Webや他の端末のログインは継続します。") },
-        confirmButton = { TextButton(onClick = { confirmLogout = false; onLogout() }) { Text("ログアウト") } },
-        dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text("キャンセル") } })
 }

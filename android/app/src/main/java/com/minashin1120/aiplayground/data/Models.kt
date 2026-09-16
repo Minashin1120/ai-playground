@@ -98,6 +98,76 @@ data class Preferences(
     val defaultThinkingBudget: Int = 4096,
     val defaultReasoningEffort: String = "medium",
     val defaultSafetySetting: String = "default",
+    val defaultVisionModel: String = "gemini-3-flash-preview",
+    val useLastChatSettings: Boolean = false,
+    val voiceStudioUi: Boolean = true,
+    val liquidGlassEnabled: Boolean = false,
+    val compactPromptMode: Boolean = false,
+    val minimalPromptMode: Boolean = false,
+    val promptBarMode: String = "normal",
+    val micTranscribeMode: String = "stt_api",
+    val sttModel: String = "gpt-4o-mini-transcribe",
+    val systemPrompt: String = "",
+    val systemPromptEnabled: Boolean = true,
+    val applyGlobalSystemPrompt: Boolean = true,
+    val applyAutoSystemPromptNotices: Boolean = true,
+    val globalSystemPrompt: String = "",
+    val globalSystemPromptEnabled: Boolean = true,
+    val richPastePromptDefault: String = "",
+    val richPastePromptUseCustomDefault: Boolean = false,
+    val lastModel: String = "",
+    val lastEnableSearch: Boolean = false,
+    val lastEnableUrlContext: Boolean = false,
+    val lastEnableMaps: Boolean = false,
+    val lastEnablePython: Boolean = true,
+    val lastEnableFileCreation: Boolean = true,
+    val lastEnableThinking: Boolean = false,
+    val lastThinkingLevel: String = "high",
+    val lastThinkingBudget: Int = 4096,
+    val lastReasoningEffort: String = "medium",
+    val lastEnableSystemPrompt: Boolean = false,
+    val lastEnableMcp: Boolean = true,
+    val lastSafetySetting: String = "default",
+    val skip2faOnGoogleLogin: Boolean = false,
+    val default2faMethod: String = "totp",
+    val googleEmail: String = "",
+    val minashinEmail: String = "",
+) {
+    val effectivePromptBarMode: String
+        get() = when {
+            promptBarMode in listOf("normal", "compact", "minimal") -> promptBarMode
+            minimalPromptMode -> "minimal"
+            compactPromptMode -> "compact"
+            else -> "normal"
+        }
+}
+
+data class McpServerInfo(
+    val id: Int,
+    val name: String,
+    val enabled: Boolean,
+    val connectionState: String,
+    val authStatus: String,
+    val toolCount: Int,
+    val isPreset: Boolean,
+    val description: String,
+)
+
+data class FeedbackItem(
+    val id: Int,
+    val title: String,
+    val message: String,
+    val status: String,
+    val adminReply: String,
+    val createdAt: String,
+)
+
+data class StorageUsage(
+    val usedBytes: Long,
+    val limitBytes: Long,
+    val usedMb: String,
+    val limitMb: String,
+    val unlimited: Boolean,
 )
 
 fun parsePreferences(json: JSONObject): Preferences = Preferences(
@@ -127,6 +197,86 @@ fun parsePreferences(json: JSONObject): Preferences = Preferences(
     defaultThinkingBudget = json.optInt("default_thinking_budget", 4096),
     defaultReasoningEffort = json.nullableString("default_reasoning_effort").ifBlank { "medium" },
     defaultSafetySetting = json.nullableString("default_safety_setting").ifBlank { "default" },
+    defaultVisionModel = json.nullableString("default_vision_model").ifBlank { "gemini-3-flash-preview" },
+    useLastChatSettings = json.optBoolean("use_last_chat_settings"),
+    voiceStudioUi = json.optBoolean("voice_studio_ui", true),
+    liquidGlassEnabled = json.optBoolean("liquid_glass_enabled"),
+    compactPromptMode = json.optBoolean("compact_prompt_mode"),
+    minimalPromptMode = json.optBoolean("minimal_prompt_mode"),
+    promptBarMode = json.nullableString("prompt_bar_mode").ifBlank {
+        when {
+            json.optBoolean("minimal_prompt_mode") -> "minimal"
+            json.optBoolean("compact_prompt_mode") -> "compact"
+            else -> "normal"
+        }
+    },
+    micTranscribeMode = json.nullableString("mic_transcribe_mode").ifBlank { "stt_api" },
+    sttModel = json.nullableString("stt_model").ifBlank { "gpt-4o-mini-transcribe" },
+    systemPrompt = json.nullableString("system_prompt"),
+    systemPromptEnabled = json.optBoolean("system_prompt_enabled", true),
+    applyGlobalSystemPrompt = json.optBoolean("apply_global_system_prompt", true),
+    applyAutoSystemPromptNotices = json.optBoolean("apply_auto_system_prompt_notices", true),
+    globalSystemPrompt = json.nullableString("global_system_prompt"),
+    globalSystemPromptEnabled = json.optBoolean("global_system_prompt_enabled", true),
+    richPastePromptDefault = json.nullableString("rich_paste_prompt_default"),
+    richPastePromptUseCustomDefault = json.optBoolean("rich_paste_prompt_use_custom_default"),
+    lastModel = json.nullableString("last_model"),
+    lastEnableSearch = json.optBoolean("last_enable_search"),
+    lastEnableUrlContext = json.optBoolean("last_enable_url_context"),
+    lastEnableMaps = json.optBoolean("last_enable_maps"),
+    lastEnablePython = json.optBoolean("last_enable_python", true),
+    lastEnableFileCreation = json.optBoolean("last_enable_file_creation", true),
+    lastEnableThinking = json.optBoolean("last_enable_thinking"),
+    lastThinkingLevel = json.nullableString("last_thinking_level").ifBlank { "high" },
+    lastThinkingBudget = json.optInt("last_thinking_budget", 4096),
+    lastReasoningEffort = json.nullableString("last_reasoning_effort").ifBlank { "medium" },
+    lastEnableSystemPrompt = json.optBoolean("last_enable_system_prompt"),
+    lastEnableMcp = json.optBoolean("last_enable_mcp", true),
+    lastSafetySetting = json.nullableString("last_safety_setting").ifBlank { "default" },
+    skip2faOnGoogleLogin = json.optBoolean("skip_2fa_on_google_login"),
+    default2faMethod = json.nullableString("default_2fa_method").ifBlank { "totp" },
+    googleEmail = json.nullableString("google_email"),
+    minashinEmail = json.nullableString("minashin_email"),
+)
+
+fun parseMcpServers(json: JSONObject): List<McpServerInfo> {
+    val rows = json.optJSONArray("servers") ?: return emptyList()
+    return (0 until rows.length()).map { index ->
+        val row = rows.getJSONObject(index)
+        McpServerInfo(
+            id = row.optInt("id"),
+            name = row.nullableString("name").ifBlank { "MCP" },
+            enabled = row.optBoolean("enabled"),
+            connectionState = row.nullableString("connection_state"),
+            authStatus = row.nullableString("auth_status"),
+            toolCount = row.optInt("tool_count"),
+            isPreset = row.optBoolean("is_preset"),
+            description = row.nullableString("description"),
+        )
+    }
+}
+
+fun parseFeedbackItems(json: JSONObject): List<FeedbackItem> {
+    val rows = json.optJSONArray("items") ?: return emptyList()
+    return (0 until rows.length()).map { index ->
+        val row = rows.getJSONObject(index)
+        FeedbackItem(
+            id = row.optInt("id"),
+            title = row.nullableString("title"),
+            message = row.nullableString("message"),
+            status = row.nullableString("status"),
+            adminReply = row.nullableString("admin_reply"),
+            createdAt = row.nullableString("created_at"),
+        )
+    }
+}
+
+fun parseStorageUsage(json: JSONObject): StorageUsage = StorageUsage(
+    usedBytes = json.optLong("used_bytes"),
+    limitBytes = json.optLong("limit_bytes"),
+    usedMb = json.optString("used_mb", "0"),
+    limitMb = json.optString("limit_mb", "unlimited"),
+    unlimited = json.optBoolean("is_unlimited"),
 )
 
 fun parseLibraryFiles(json: JSONObject): List<LibraryFile> {

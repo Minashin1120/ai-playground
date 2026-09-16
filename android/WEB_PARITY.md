@@ -1,5 +1,11 @@
 # Web版との機能・デザイン一致ロードマップ
 
+## Android 1.13.0 以降：設定項目とスラッシュコマンドの同期
+
+Webの設定モーダルと同じ分類（一般／APIキー／プロンプト／表示／データ／アカウント／セキュリティ／2要素認証／フィードバック／MCP）をネイティブ設定へ載せました。検索、システムプロンプト、Vision Model、前回設定の継続、プロンプトバー表示、STT既定、テーマプリセット、Liquid Glass、ストレージ使用量、フィードバック送信、MCPの有効切替、スラッシュコマンド、一時チャット／Compressチップ、Gemini Native Audio セッションを追加しています。
+
+APIキー・パスワード・2FA登録・MCP OAuth秘密・アカウントZIP・管理者機能は引き続き認証済みWeb導線です。Gemini 3.1 Live / 3.5 Live Translate のブラウザー直結セッションとSTS専用パネルもWeb導線のままです。
+
 ## Android 1.12.0：ネイティブUIを維持した追加同期
 
 利用者の指定により、引き続きネイティブUIでWeb版の主要導線を同期します。
@@ -96,13 +102,13 @@ Webと見分けがつかない状態には未到達です。以下の旧表で�
 | ファイルライブラリ | 一覧、検索、再利用、削除 | 一覧、検索、お気に入り、名前変更、削除、チャットへの再利用は完了 | 使用中チャット表示などを継続検討 |
 | 画像生成 | Gemini／OpenAI／Grokの設定と結果表示 | 完了。対応モデル選択、進捗、保存、添付プレビュー | Provider固有の高度な設定はWeb導線 |
 | 動画・音楽・OCR・TTS・STS | 各生成パネルと成果物操作 | 動画・OCR・TTS・文字起こし、Realtime（OpenAI／Grok）、Lyriaは完了。Gemini LiveとSTSはWeb導線 | 新しいモデル設定の共通スキーマを継続同期 |
-| リアルタイム音声 | Gemini Live、OpenAI／Grok Voice、Voice Studio | OpenAI／Grokはネイティブマイク・SSE再生・保存。Gemini LiveはWeb導線 | 実機の長時間接続・権限確認 |
+| リアルタイム音声 | Gemini Live、OpenAI／Grok Voice、Voice Studio | OpenAI／Grok／Gemini Native Audioはネイティブマイク・SSE再生・保存。Gemini Live 3.1／3.5 TranslateはWeb導線 | 実機の長時間接続・権限確認 |
 | Lyria | リアルタイム音楽スタジオ | ネイティブSSE再生・一時停止／再開・保存 | 実機の長時間再生確認 |
 | Batch | Gemini／OpenAI／xAI Batch、一覧、停止、完了通知 | 完了。送信、一覧、状態更新、停止、履歴削除、権限付きシステム通知 | 実機で通知権限と完了通知を確認 |
 | Gems | 作成、編集、選択、`@`候補 | 一覧、作成・編集・削除、チャットへの適用、`@`候補は完了 | 固定プロンプトの編集はWeb導線を維持 |
 | MCP | サーバー設定、接続、ツール実行表示 | ツール実行カードは完了。秘密設定はWeb導線として完了 | 確認要求イベントの操作APIを追加する場合だけ再評価 |
 | Coding／Canvas／Python | 差分、プレビュー、実行結果、対象ファイル | PythonとCoding差分、履歴コード対象、Canvas編集・入力反映を完了。対象ファイルの高度な編集はWeb導線 | 実ファイル同期契約を追加する場合だけ再評価 |
-| アカウント設定 | APIキー、プロフィール、テーマ、各種既定値 | 既定モデル、Thinking／検索／Python／File／SysPrompt／MCP、Enter送信、ライトモード、リンク自動検索、一時チャット期限、テーマ色、この端末のセッション表示を完了。秘密鍵・パスワード・2FA編集はWeb導線 | Web固有設定の追加時に同期 |
+| アカウント設定 | APIキー、プロフィール、テーマ、各種既定値 | 設定検索とWebと同じタブ分類、システムプロンプト、Vision、前回設定継続、プロンプトバー、STT既定、Liquid Glass、ストレージ、フィードバック、MCP有効切替を完了。秘密鍵・パスワード・2FA登録・MCP OAuthはWeb導線 | 実機での設定検索とタブ操作を確認 |
 | アカウント移行 | エクスポート、インポート、重複修復 | Web導線として完了。機密アーカイブをネイティブAPIへ公開しない | 対象外境界を維持 |
 | 管理者機能 | BAN、Bot判定、管理画面 | Web導線として完了。Android Bearerの許可リスト対象外 | 対象外境界を維持 |
 | 更新通知 | Web版更新モーダル、PWA更新 | Batch完了はネイティブ通知。アプリ更新はGitHub ReleaseのWeb導線として完了 | Play配布を採用した場合だけネイティブ更新APIを再評価 |
@@ -187,7 +193,7 @@ Webと見分けがつかない状態には未到達です。以下の旧表で�
 
 ## 11. 現在の確認項目
 
-Phase 1はAndroid 1.1.2で完了しました。Android 1.2.0〜1.7.0で履歴・添付・ライブラリ・Gems・設定・PDF・画像圧縮を実装し、Phase 2を完了しました。Android 1.8.0〜1.11.0でBatch、メディア生成、モデル設定、構造化カードを実装しました。Android 1.12.0でComposer既定値、Gemini動画詳細、マスク、リッチ貼り付け、Canvas／Coding編集、Realtime（OpenAI／Grok）、Lyriaを追加しました。Gemini Live、管理者専用PDF、実機の寸法比較は引き続き確認対象です。
+Phase 1はAndroid 1.1.2で完了しました。Android 1.2.0〜1.7.0で履歴・添付・ライブラリ・Gems・設定・PDF・画像圧縮を実装し、Phase 2を完了しました。Android 1.8.0〜1.11.0でBatch、メディア生成、モデル設定、構造化カードを実装しました。Android 1.12.0でComposer既定値、Gemini動画詳細、マスク、リッチ貼り付け、Canvas／Coding編集、Realtime（OpenAI／Grok）、Lyriaを追加しました。その後、Web設定タブ相当の項目、スラッシュコマンド、フィードバック、MCP有効切替、Gemini Native Audio を追加しています。Gemini 3.1 Live／STS専用パネル、管理者専用PDF、実機の寸法比較は引き続き確認対象です。
 
 Phase 3はAndroid 1.8.0で完了し、GitHub Actionsで単体テスト・lint・debug／release APK・固定署名を確認しました。`app-debug`、`android-reports`、`app-release-signed` のartifactと、Android 1.8.0のGitHub Release資産も確認済みです。実機では通知権限、生成物表示、文字拡大、TalkBack、縦横画面、スマートフォン／タブレットを引き続き確認し、未確認項目を検証済みとは記録しません。
 

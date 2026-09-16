@@ -36,15 +36,42 @@ import com.minashin1120.aiplayground.data.attachmentKindIcon
 import com.minashin1120.aiplayground.data.formatByteSize
 import com.minashin1120.aiplayground.data.gemMentionQuery
 import com.minashin1120.aiplayground.data.isImageReference
+import com.minashin1120.aiplayground.data.SlashCommand
+import com.minashin1120.aiplayground.data.matchingSlashCommands
 import com.minashin1120.aiplayground.data.numericId
+import com.minashin1120.aiplayground.data.parseSlashAction
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pickFiles: () -> Unit, onVoice: () -> Unit,
-             onRichPaste: () -> Unit = {}, onMask: () -> Unit = {}) {
-    var details by remember { mutableStateOf(false) }
+             onRichPaste: () -> Unit = {}, onMask: () -> Unit = {}, onSettings: () -> Unit = {},
+             onRealtime: () -> Unit = {}, onLyria: () -> Unit = {}) {
+    val promptMode = state.preferences?.effectivePromptBarMode ?: "normal"
+    var details by remember(promptMode) { mutableStateOf(promptMode == "normal") }
     val selectedModel = state.account?.models?.firstOrNull { it.id == state.model }
     val colors = MaterialTheme.colorScheme
+    val slashMatches = matchingSlashCommands(state.draft)
+    val runSlash: (SlashCommand) -> Unit = { command ->
+        when (command.id) {
+            "settings" -> { model.draft(""); onSettings() }
+            "options" -> { model.draft(""); details = true }
+            "attach" -> { model.draft(""); pickFiles() }
+            "voice" -> { model.draft(""); onVoice() }
+            "paste" -> { model.draft(""); onRichPaste() }
+            "realtime" -> { model.draft(""); onRealtime() }
+            "lyria" -> { model.draft(""); onLyria() }
+            else -> parseSlashAction(if (state.draft.startsWith(command.label)) state.draft else command.label)?.let(model::applySlash)
+                ?: model.draft(command.label + " ")
+        }
+    }
+    val sendOrSlash: () -> Unit = {
+        val action = parseSlashAction(state.draft)
+        val command = slashMatches.firstOrNull { it.id == action?.id } ?: slashMatches.singleOrNull()
+        if (command != null && (action != null || command.id in listOf("settings", "options", "attach", "voice", "paste", "realtime", "lyria"))) {
+            if (action != null && command.id !in listOf("settings", "options", "attach", "voice", "paste", "realtime", "lyria")) model.applySlash(action)
+            else runSlash(command)
+        } else model.send()
+    }
     Surface(color = colors.surface.copy(alpha = 0.96f), shadowElevation = 8.dp) {
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Column(
@@ -61,7 +88,7 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                     }
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            if (promptMode != "minimal") Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(onClick = pickModel, enabled = !state.streaming, color = colors.surfaceContainerHigh, shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(1.dp, colors.outlineVariant), modifier = Modifier.weight(1f)) {
                     Row(Modifier.padding(horizontal = 11.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(selectedModel?.name ?: state.model.ifBlank { "モデルを選択" }, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -69,6 +96,14 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                     }
                 }
                 TextButton(onClick = { details = !details }) { Text(if (details) "詳細を閉じる" else "詳細") }
+            }
+            if (promptMode == "minimal") {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(details, { details = !details }, { Text("＋") })
+                    Text(selectedModel?.name ?: state.model.ifBlank { "モデル" }, style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    TextButton(onClick = pickModel, enabled = !state.streaming) { Text("変更") }
+                }
             }
             if (details) selectedModel?.let { info ->
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -84,6 +119,8 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                     if (info.supports("mcp")) FilterChip(state.enableMcp, model::toggleMcp, { Text("MCP") })
                     if (info.mode == "chat" || info.mode == "agent") FilterChip(state.canvasMode, model::toggleCanvas, { Text("Canvas") })
                     if (info.mode == "chat" || info.mode == "agent") FilterChip(state.codingMode, model::toggleCoding, { Text("Coding") })
+                    FilterChip(state.selected?.isTemporary == true || state.newThreadTemporary, model::toggleTemporaryChat, { Text("一時チャット") })
+                    FilterChip(state.compression.enabled, { model.saveCompressionSettings(state.compression.copy(enabled = !state.compression.enabled)) }, { Text("Compress") })
                     TextButton(onClick = onRichPaste, enabled = !state.streaming) { Text("リッチ貼り付け") }
                     if (info.id.startsWith("gpt-image")) TextButton(onClick = onMask, enabled = !state.streaming) { Text("マスク") }
                 }
@@ -103,6 +140,13 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
             state.imageMask?.let { mask ->
                 InputChip(selected = true, onClick = { model.setImageMask(null) },
                     label = { Text("🎭 マスク適用中 ×") })
+            }
+            if (slashMatches.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    slashMatches.take(8).forEach { command ->
+                        SuggestionChip(onClick = { runSlash(command) }, label = { Text("${command.label}  ${command.description}") })
+                    }
+                }
             }
             val gemMention = gemMentionQuery(state.draft)
             if (gemMention != null && state.gems.isNotEmpty()) {
@@ -154,17 +198,17 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                                 val sendKey = event.key == Key.Enter && !event.isShiftPressed &&
                                     (event.isCtrlPressed || state.preferences?.enterToSend == true)
                                 if (sendKey) {
-                                    if (event.type == KeyEventType.KeyDown) model.send()
+                                    if (event.type == KeyEventType.KeyDown) sendOrSlash()
                                     true
                                 } else false
                             }, enabled = !state.streaming,
                             keyboardOptions = KeyboardOptions(imeAction = if (state.preferences?.enterToSend == true) ImeAction.Send else ImeAction.Default),
-                            keyboardActions = KeyboardActions(onSend = { model.send() }),
+                            keyboardActions = KeyboardActions(onSend = { sendOrSlash() }),
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, disabledBorderColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, disabledContainerColor = Color.Transparent),
                         )
                         if (state.streaming) FilledIconButton(onClick = model::stop, enabled = state.jobId != null, colors = IconButtonDefaults.filledIconButtonColors(containerColor = colors.error, contentColor = colors.onError), shape = RoundedCornerShape(12.dp), modifier = Modifier.padding(bottom = 5.dp)) {
                             Icon(Icons.Rounded.Stop, contentDescription = "生成を停止")
-                        } else FilledIconButton(onClick = model::send, enabled = !state.busy && !state.uploading && (state.draft.isNotBlank() || state.attachments.isNotEmpty()), shape = RoundedCornerShape(12.dp), modifier = Modifier.padding(bottom = 5.dp)) {
+                        } else FilledIconButton(onClick = sendOrSlash, enabled = !state.busy && !state.uploading && (state.draft.isNotBlank() || state.attachments.isNotEmpty()), shape = RoundedCornerShape(12.dp), modifier = Modifier.padding(bottom = 5.dp)) {
                             Icon(Icons.Rounded.Send, contentDescription = "送信")
                         }
                     }

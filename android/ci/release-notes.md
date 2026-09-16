@@ -1,5 +1,14 @@
 # AI Playground for Android
 
+## 1.13.0
+
+- Webの設定分類に合わせたネイティブ設定（検索、一般／プロンプト／表示／データ／フィードバック／MCP、圧縮、セッション）を追加しました。
+- 入力欄のスラッシュコマンド、一時チャット／Compressチップ、プロンプトバー表示モードに対応しました。
+- 公式Android向けAPIで、秘密情報を含まない設定項目、フィードバック、MCP一覧と有効切替を扱えます。
+- Gemini Native AudioのRealtimeセッションを追加しました。
+
+APIキー、パスワード、2FA登録、MCPの秘密、アカウントZIP、管理者機能は認証済みWeb導線のままです。Gemini 3.1 Live / 3.5 Live Translate とSTS専用パネルもWeb導線です。
+
 ## 1.12.1
 
 - Realtime/Lyriaの音声バッファ処理とCanvas表示のコンパイル互換性を修正しました。

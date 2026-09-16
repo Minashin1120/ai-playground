@@ -22,6 +22,8 @@ MOBILE_ENDPOINT_METHODS = {
     'gemini_batch_status_api': {'GET'}, 'list_batch_jobs_api': {'GET'},
     'cancel_batch_job_api': {'POST'}, 'delete_batch_job_api': {'DELETE'},
     'mcp_service.chat_decision': {'POST'},
+    'mcp_service.list_servers': {'GET'}, 'mcp_service.update_server': {'PUT'},
+    'feedback': {'GET', 'POST'},
     # Native clients use the same authenticated provider sessions as Web for
     # realtime audio/music. These endpoints never return provider API keys.
     'realtime_start': {'POST'}, 'realtime_stream': {'GET'}, 'realtime_audio': {'POST'},

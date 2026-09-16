@@ -251,22 +251,54 @@ def mobile_revoke():
     return jsonify({'status': 'revoked'})
 
 
-# Only non-secret, Android-relevant preferences are exposed. Provider API keys
-# and security settings stay on the Web settings screen.
+# Only non-secret, Android-relevant preferences are exposed. Provider API keys,
+# passwords, 2FA setup, MCP OAuth secrets, and account archives stay on Web.
 _MOBILE_PREFERENCE_BOOLS = (
     'default_enable_thinking', 'default_enable_search', 'enter_to_send',
     'light_mode_enabled', 'auto_search_on_links', 'default_enable_url_context',
     'default_enable_maps', 'default_enable_python', 'default_enable_file_creation',
     'default_enable_system_prompt', 'default_enable_mcp',
+    'use_last_chat_settings', 'voice_studio_ui', 'liquid_glass_enabled',
+    'system_prompt_enabled', 'apply_global_system_prompt',
+    'apply_auto_system_prompt_notices', 'skip_2fa_on_google_login',
+    'rich_paste_prompt_use_custom_default',
 )
+_MOBILE_STT_MODELS = VALID_STT_MODELS
+_MOBILE_PROMPT_BAR_MODES = {'normal', 'compact', 'minimal'}
+_MOBILE_2FA_METHODS = {'totp', 'webauthn'}
+
+
+def _mobile_user_system_prompt(user):
+    text = user.system_prompt or ""
+    if user.enable_e2ee and text:
+        text = decrypt_val(text) or ""
+    return text
+
+
+def _mobile_prompt_bar_mode(user):
+    if getattr(user, 'minimal_prompt_mode', False):
+        return 'minimal'
+    if getattr(user, 'compact_prompt_mode', False):
+        return 'compact'
+    return 'normal'
+
+
+def _mobile_apply_prompt_bar_mode(mode):
+    current_user.compact_prompt_mode = mode == 'compact'
+    current_user.minimal_prompt_mode = mode == 'minimal'
 
 
 def _mobile_preferences_payload():
     user = current_user
+    global_prompt_value = get_app_setting("global_system_prompt", "") or ""
+    global_prompt_enabled = get_bool_app_setting("global_system_prompt_enabled", True)
     return {
         'api_version': 1,
         'username': user.username,
+        'google_email': user.google_email or "",
+        'minashin_email': user.minashin_email or "",
         'default_model': user.default_model or "gemini-3.6-flash",
+        'default_vision_model': user.default_vision_model or "gemini-3-flash-preview",
         'default_enable_thinking': bool(user.default_enable_thinking),
         'default_enable_search': bool(user.default_enable_search),
         'default_enable_url_context': bool(user.default_enable_url_context),
@@ -277,17 +309,48 @@ def _mobile_preferences_payload():
         'default_enable_mcp': bool(user.default_enable_mcp) if user.default_enable_mcp is not None else True,
         'enter_to_send': bool(user.enter_to_send),
         'light_mode_enabled': bool(getattr(user, 'light_mode_enabled', False)),
+        'liquid_glass_enabled': bool(getattr(user, 'liquid_glass_enabled', False)),
         'auto_search_on_links': bool(user.auto_search_on_links) if user.auto_search_on_links is not None else True,
+        'use_last_chat_settings': bool(user.use_last_chat_settings),
+        'voice_studio_ui': bool(user.voice_studio_ui) if getattr(user, 'voice_studio_ui', None) is not None else True,
+        'compact_prompt_mode': bool(getattr(user, 'compact_prompt_mode', False)),
+        'minimal_prompt_mode': bool(getattr(user, 'minimal_prompt_mode', False)),
+        'prompt_bar_mode': _mobile_prompt_bar_mode(user),
         'default_thinking_level': user.default_thinking_level or 'high',
         'default_thinking_budget': int(user.default_thinking_budget if user.default_thinking_budget is not None else 4096),
         'default_reasoning_effort': user.default_reasoning_effort or 'medium',
         'default_safety_setting': user.default_safety_setting or 'default',
         'theme_color': normalize_theme_color(user.theme_color or ""),
         'temp_chat_timeout_seconds': _get_user_temp_chat_timeout_seconds(user),
+        'mic_transcribe_mode': _normalize_mic_transcribe_mode(getattr(user, 'mic_transcribe_mode', None)),
+        'stt_model': user.stt_model or "gpt-4o-mini-transcribe",
+        'system_prompt': _mobile_user_system_prompt(user),
+        'system_prompt_enabled': user.system_prompt_enabled if user.system_prompt_enabled is not None else True,
+        'apply_global_system_prompt': user.apply_global_system_prompt if user.apply_global_system_prompt is not None else True,
+        'apply_auto_system_prompt_notices': get_user_auto_system_prompt_notices_enabled(user),
+        'global_system_prompt': global_prompt_value,
+        'global_system_prompt_enabled': global_prompt_enabled,
+        'rich_paste_prompt_default': user.rich_paste_prompt_default or "",
+        'rich_paste_prompt_use_custom_default': bool(getattr(user, 'rich_paste_prompt_use_custom_default', False)),
+        'last_model': user.last_model or "",
+        'last_enable_search': bool(user.last_enable_search),
+        'last_enable_url_context': bool(user.last_enable_url_context),
+        'last_enable_maps': bool(user.last_enable_maps),
+        'last_enable_python': bool(user.last_enable_python) if user.last_enable_python is not None else True,
+        'last_enable_file_creation': bool(user.last_enable_file_creation) if user.last_enable_file_creation is not None else True,
+        'last_enable_thinking': bool(user.last_enable_thinking),
+        'last_thinking_level': user.last_thinking_level or 'high',
+        'last_thinking_budget': int(user.last_thinking_budget if user.last_thinking_budget is not None else 4096),
+        'last_reasoning_effort': user.last_reasoning_effort or 'medium',
+        'last_enable_system_prompt': bool(user.last_enable_system_prompt),
+        'last_enable_mcp': bool(user.last_enable_mcp) if user.last_enable_mcp is not None else True,
+        'last_safety_setting': user.last_safety_setting or 'default',
         'enable_e2ee': bool(user.enable_e2ee),
         'is_2fa_enabled': bool(user.is_2fa_enabled),
         'has_totp': bool(user.totp_secret),
         'has_webauthn': bool(_load_user_webauthn_credentials(user)),
+        'skip_2fa_on_google_login': bool(user.skip_2fa_on_google_login),
+        'default_2fa_method': user.default_2fa_method or 'totp',
         'session_created_at': g.mobile_session.created_at.isoformat() + 'Z',
         'session_expires_at': (g.mobile_session.created_at + timedelta(seconds=MOBILE_TOKEN_TTL)).isoformat() + 'Z',
         'device_name': (g.mobile_session.user_agent or '').replace('Official Android: ', '').strip() or None,
@@ -303,11 +366,27 @@ def mobile_preferences():
         return _mobile_error('invalid_request')
     if 'default_model' in data and data.get('default_model') not in ALL_VALID_MODEL_IDS:
         return _mobile_error('invalid_default_model')
+    if 'default_vision_model' in data and data.get('default_vision_model') not in ALL_VALID_MODEL_IDS:
+        return _mobile_error('invalid_default_vision_model')
     if 'default_model' in data:
         current_user.default_model = data['default_model']
+    if 'default_vision_model' in data:
+        current_user.default_vision_model = data['default_vision_model']
     for key in _MOBILE_PREFERENCE_BOOLS:
         if key in data:
             setattr(current_user, key, bool(data[key]))
+    if 'prompt_bar_mode' in data:
+        mode = str(data.get('prompt_bar_mode') or '').strip()
+        if mode not in _MOBILE_PROMPT_BAR_MODES:
+            return _mobile_error('invalid_prompt_bar_mode')
+        _mobile_apply_prompt_bar_mode(mode)
+    else:
+        if 'compact_prompt_mode' in data:
+            current_user.compact_prompt_mode = bool(data['compact_prompt_mode'])
+        if 'minimal_prompt_mode' in data:
+            current_user.minimal_prompt_mode = bool(data['minimal_prompt_mode'])
+        if current_user.minimal_prompt_mode:
+            current_user.compact_prompt_mode = False
     if 'default_thinking_level' in data and str(data.get('default_thinking_level')) in {'minimal', 'low', 'medium', 'high'}:
         current_user.default_thinking_level = str(data['default_thinking_level'])
     if 'default_thinking_budget' in data:
@@ -325,5 +404,29 @@ def mobile_preferences():
         current_user.temp_chat_timeout_seconds = _normalize_temp_chat_timeout_seconds(
             data.get('temp_chat_timeout_seconds')
         )
+    if 'mic_transcribe_mode' in data:
+        current_user.mic_transcribe_mode = _normalize_mic_transcribe_mode(data.get('mic_transcribe_mode'))
+    if 'stt_model' in data:
+        stt = str(data.get('stt_model') or '').strip()
+        if stt not in _MOBILE_STT_MODELS:
+            return _mobile_error('invalid_stt_model')
+        current_user.stt_model = stt
+    if 'default_2fa_method' in data:
+        method = str(data.get('default_2fa_method') or '').strip()
+        if method not in _MOBILE_2FA_METHODS:
+            return _mobile_error('invalid_default_2fa_method')
+        current_user.default_2fa_method = method
+    if 'system_prompt' in data:
+        if not isinstance(data.get('system_prompt'), str):
+            return _mobile_error('invalid_system_prompt')
+        text = data['system_prompt'].replace('\x00', '')
+        if len(text) > 500_000:
+            return _mobile_error('system_prompt_too_long')
+        current_user.system_prompt = encrypt_val(text) if current_user.enable_e2ee else text
+    if 'rich_paste_prompt_default' in data:
+        if not isinstance(data.get('rich_paste_prompt_default'), str):
+            return _mobile_error('invalid_rich_paste_prompt')
+        prompt = data['rich_paste_prompt_default'].replace('\x00', '')[:20_000]
+        current_user.rich_paste_prompt_default = prompt
     safe_db_commit()
     return jsonify(_mobile_preferences_payload())

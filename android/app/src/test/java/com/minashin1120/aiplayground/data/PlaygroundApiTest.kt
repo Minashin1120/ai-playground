@@ -163,7 +163,7 @@ class PlaygroundApiTest {
     }
 
     @Test fun preferencesParseSafeFields() {
-        val prefs = parsePreferences(JSONObject("""{"username":"u","default_model":"gpt-5.6-sol","default_enable_thinking":true,"default_enable_search":false,"default_enable_url_context":true,"default_enable_maps":true,"default_enable_python":true,"default_enable_file_creation":false,"default_enable_system_prompt":true,"default_enable_mcp":false,"default_thinking_level":"medium","default_thinking_budget":8192,"default_reasoning_effort":"high","default_safety_setting":"none","enter_to_send":true,"light_mode_enabled":true,"auto_search_on_links":false,"theme_color":"#123456","temp_chat_timeout_seconds":900,"enable_e2ee":true,"is_2fa_enabled":true,"has_totp":true,"has_webauthn":false,"session_created_at":"2026-09-16T00:00:00Z","session_expires_at":"2026-10-16T00:00:00Z","device_name":"Pixel"}"""))
+        val prefs = parsePreferences(JSONObject("""{"username":"u","default_model":"gpt-5.6-sol","default_enable_thinking":true,"default_enable_search":false,"default_enable_url_context":true,"default_enable_maps":true,"default_enable_python":true,"default_enable_file_creation":false,"default_enable_system_prompt":true,"default_enable_mcp":false,"default_thinking_level":"medium","default_thinking_budget":8192,"default_reasoning_effort":"high","default_safety_setting":"none","enter_to_send":true,"light_mode_enabled":true,"auto_search_on_links":false,"theme_color":"#123456","temp_chat_timeout_seconds":900,"enable_e2ee":true,"is_2fa_enabled":true,"has_totp":true,"has_webauthn":false,"session_created_at":"2026-09-16T00:00:00Z","session_expires_at":"2026-10-16T00:00:00Z","device_name":"Pixel","prompt_bar_mode":"minimal","use_last_chat_settings":true,"system_prompt":"Be brief","default_vision_model":"gemini-3-flash-preview","stt_model":"gpt-transcribe","liquid_glass_enabled":true,"google_email":"a@example.com"}"""))
         assertEquals("gpt-5.6-sol", prefs.defaultModel)
         assertTrue(prefs.defaultEnableThinking)
         assertTrue(prefs.defaultEnableUrlContext)
@@ -182,6 +182,19 @@ class PlaygroundApiTest {
         assertTrue(prefs.e2eeEnabled)
         assertTrue(prefs.twoFactorEnabled)
         assertEquals("Pixel", prefs.deviceName)
+        assertEquals("minimal", prefs.effectivePromptBarMode)
+        assertTrue(prefs.useLastChatSettings)
+        assertEquals("Be brief", prefs.systemPrompt)
+        assertEquals("gpt-transcribe", prefs.sttModel)
+        assertTrue(prefs.liquidGlassEnabled)
+        assertEquals("a@example.com", prefs.googleEmail)
+        val servers = parseMcpServers(JSONObject("""{"servers":[{"id":3,"name":"Gmail","enabled":true,"connection_state":"connected","auth_status":"connected","tool_count":4,"is_preset":true,"description":"mail"}]}"""))
+        assertEquals(1, servers.size)
+        assertEquals("Gmail", servers[0].name)
+        assertTrue(servers[0].enabled)
+        val storage = parseStorageUsage(JSONObject("""{"used_bytes":1048576,"limit_bytes":10485760,"used_mb":"1.0","limit_mb":"10.0","is_unlimited":false}"""))
+        assertEquals(1048576L, storage.usedBytes)
+        assertFalse(storage.unlimited)
     }
 
     @Test fun branchPathRebuildsFromLeafAndSiblings() {

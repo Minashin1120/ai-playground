@@ -45,6 +45,7 @@ import com.minashin1120.aiplayground.data.ThreadItem
 import com.minashin1120.aiplayground.data.LibraryFile
 import com.minashin1120.aiplayground.data.Gem
 import com.minashin1120.aiplayground.data.FixedPrompt
+import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.recentWebModels
 import com.minashin1120.aiplayground.data.CompressionSettings
 import com.minashin1120.aiplayground.data.attachmentKind

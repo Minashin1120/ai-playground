@@ -1,5 +1,9 @@
 # AI Playground for Android
 
+## 1.12.1
+
+- Realtime/Lyriaの音声バッファ処理とCanvas表示のコンパイル互換性を修正しました。
+
 ## 1.12.0
 
 - URLs／Maps／File／SysPrompt、Canvas、Coding、モデル固有のGemini動画設定をネイティブComposerへ追加しました。

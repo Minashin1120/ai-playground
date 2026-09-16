@@ -710,7 +710,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             "status" -> mutable.update { it.copy(realtime = it.realtime.copy(status = event.optString("status"))) }
             "audio" -> {
                 val encoded = event.nullableString("data")
-                val bytes = runCatching { android.util.Base64.decode(encoded, android.util.Base64.DEFAULT) }.getOrNull().orEmpty()
+                val bytes = runCatching { android.util.Base64.decode(encoded, android.util.Base64.DEFAULT) }.getOrNull() ?: ByteArray(0)
                 if (bytes.isNotEmpty()) {
                     realtimeTrack?.write(bytes, 0, bytes.size, AudioTrack.WRITE_NON_BLOCKING)
                     mutable.update { it.copy(realtime = it.realtime.copy(audioBytes = it.realtime.audioBytes + bytes.size)) }
@@ -780,7 +780,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun handleLyriaEvent(event: JSONObject) {
         val encoded = event.nullableString("audio").ifBlank { event.nullableString("snapshot") }
         if (encoded.isNotBlank()) {
-            val bytes = runCatching { android.util.Base64.decode(encoded, android.util.Base64.DEFAULT) }.getOrNull().orEmpty()
+            val bytes = runCatching { android.util.Base64.decode(encoded, android.util.Base64.DEFAULT) }.getOrNull() ?: ByteArray(0)
             if (bytes.isNotEmpty()) {
                 lyriaTrack?.write(bytes, 0, bytes.size, AudioTrack.WRITE_NON_BLOCKING)
                 mutable.update { it.copy(lyria = it.lyria.copy(audioBytes = it.lyria.audioBytes + bytes.size, status = event.optString("status").ifBlank { "生成中…" })) }

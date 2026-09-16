@@ -42,6 +42,7 @@ import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.data.ThreadItem
 import com.minashin1120.aiplayground.data.LibraryFile
 import com.minashin1120.aiplayground.data.Gem
+import com.minashin1120.aiplayground.data.FixedPrompt
 import com.minashin1120.aiplayground.data.CompressionSettings
 import com.minashin1120.aiplayground.data.attachmentKind
 import com.minashin1120.aiplayground.data.attachmentKindIcon
@@ -120,12 +121,15 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
                     topBar = {
                         TopAppBar(colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.surface.copy(alpha = 0.94f)), title = { Column {
                             Text(state.selected?.title?.ifBlank { "新しいチャット" } ?: "AI Playground", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(if (state.account == null) "あなたのAIを、ポケットに。" else state.account?.name.orEmpty(), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                            if (state.selected?.isTemporary == true || state.newThreadTemporary) Text("一時チャット", style = MaterialTheme.typography.labelSmall, color = colors.secondary)
                         } }, navigationIcon = {
                             if (showThreads && !wide) IconButton(onClick = { scope.launch { drawer.open() } }) {
                                 Icon(Icons.Rounded.Menu, contentDescription = "履歴メニュー")
                             }
                         }, actions = {
+                            if (showThreads) IconButton(onClick = { model.newChat() }, enabled = !state.busy && !state.streaming) {
+                                Icon(Icons.Rounded.Add, contentDescription = "新規チャット", tint = colors.primary)
+                            }
                             if (state.selected != null) IconButton(onClick = { threadSettings = true }, enabled = !state.busy && !state.streaming) {
                                 Icon(Icons.Rounded.Tune, contentDescription = "チャット設定")
                             }
@@ -241,35 +245,36 @@ private fun ThreadPanel(
     onAdvanced: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 16.dp)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(shape = RoundedCornerShape(12.dp), color = colors.primary.copy(alpha = 0.14f), modifier = Modifier.size(40.dp)) {
-                Box(contentAlignment = Alignment.Center) { Text("✦", color = colors.primary, fontSize = 21.sp, fontWeight = FontWeight.Bold) }
-            }
-            Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                Text("AI Playground", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text(state.account?.name.orEmpty(), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 12.dp, vertical = 12.dp)) {
+        Text(state.selected?.title?.ifBlank { "AI Chat" } ?: "AI Chat", style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            IconButton(onClick = { onSettings(); onNavigate() }) { Icon(Icons.Rounded.Settings, "設定", modifier = Modifier.size(20.dp)) }
+            IconButton(onClick = { onLibrary(); onNavigate() }) { Icon(Icons.Rounded.FolderOpen, "ライブラリ", modifier = Modifier.size(20.dp)) }
+            IconButton(onClick = { model.newChat(); onNavigate() }, enabled = !state.busy && !state.streaming) { Icon(Icons.Rounded.Add, "新規チャット", tint = colors.primary) }
+            IconButton(onClick = { onAdvanced(); onNavigate() }) { Icon(Icons.Rounded.Layers, "Batch処理・高度な機能", modifier = Modifier.size(20.dp)) }
+            IconButton(onClick = model::refresh, enabled = !state.busy && !state.streaming) { Icon(Icons.Rounded.Refresh, "更新", modifier = Modifier.size(20.dp)) }
         }
-        Spacer(Modifier.height(16.dp))
-        Button(onClick = { model.newChat(); onNavigate() }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(PlaygroundDimens.controlRadius)) {
-            Icon(Icons.Rounded.Add, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text("新しいチャット")
-        }
-        SidebarAction(
-            Icons.Rounded.Schedule,
-            "一時チャット",
-            onClick = { model.newChat(temporary = true); onNavigate() },
-        )
-        Spacer(Modifier.height(8.dp))
         OutlinedTextField(
-            state.search, model::search, singleLine = true, placeholder = { Text("履歴を検索") },
+            state.search, model::search, singleLine = true, placeholder = { Text("チャットを検索...", style = MaterialTheme.typography.bodySmall) },
             leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
             shape = RoundedCornerShape(PlaygroundDimens.controlRadius), modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = colors.surfaceContainerLow.copy(alpha = 0.72f), focusedContainerColor = colors.surfaceContainerLow),
         )
-        Text("チャット", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 8.dp, top = 18.dp, bottom = 6.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Gems", style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant, modifier = Modifier.weight(1f))
+            TextButton(onClick = { onGems(); onNavigate() }) { Text("＋ New / 編集") }
+        }
+        LazyColumn(Modifier.heightIn(max = 140.dp)) {
+            items(state.gems, key = { it.uuid }) { gem ->
+                TextButton(onClick = { model.chooseGem(gem); onNavigate() }, enabled = !state.streaming,
+                    modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Rounded.AutoAwesome, null, modifier = Modifier.size(16.dp))
+                    Text(gem.name, modifier = Modifier.weight(1f).padding(start = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (state.selectedGem?.uuid == gem.uuid) Icon(Icons.Rounded.Check, "適用中", modifier = Modifier.size(16.dp))
+                }
+            }
+        }
         HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f))
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             items(state.threads, key = { it.id }) { thread ->
@@ -312,10 +317,7 @@ private fun ThreadPanel(
             }
         }
         HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f), modifier = Modifier.padding(vertical = 6.dp))
-        SidebarAction(Icons.Rounded.Settings, "一般設定", onSettings)
-        SidebarAction(Icons.Rounded.FolderOpen, "ファイルライブラリ", onLibrary)
-        SidebarAction(Icons.Rounded.AutoAwesome, "Gems", onGems)
-        SidebarAction(Icons.Rounded.Science, "高度な機能・Batch", onAdvanced)
+        SidebarAction(Icons.Rounded.Schedule, "一時チャット", { model.newChat(temporary = true); onNavigate() })
         SidebarAction(
             Icons.Rounded.Security,
             "Web設定・安全性確認",
@@ -455,20 +457,20 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
                     Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.13f), modifier = Modifier.size(58.dp)) {
                         Box(contentAlignment = Alignment.Center) { Text("✦", color = MaterialTheme.colorScheme.primary, fontSize = 30.sp, fontWeight = FontWeight.Bold) }
                     }
-                    Text("今日は何を考えよう？", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                    Text("モデルを選んで、気になっていることを話してみましょう。", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Text("AI Gems & Chat", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text("使いたいモデルを選んで、すぐに会話を始められます", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     Spacer(Modifier.height(6.dp))
-                    listOf("アイデアを一緒に考えて", "難しい内容をわかりやすく説明して", "文章の改善を手伝って").forEach { suggestion ->
+                    state.account?.models.orEmpty().filter { it.selectable && !it.deprecated }.take(6).forEach { info ->
                         Surface(
-                            onClick = { model.draft(suggestion) },
+                            onClick = { model.chooseModel(info.id) },
                             shape = RoundedCornerShape(PlaygroundDimens.cardRadius),
                             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f),
                             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Row(Modifier.padding(horizontal = 16.dp, vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(suggestion, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                                Icon(Icons.Rounded.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                Text(info.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                                Icon(if (state.model == info.id) Icons.Rounded.Check else Icons.Rounded.ArrowForward, contentDescription = if (state.model == info.id) "選択中" else null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                             }
                         }
                     }
@@ -487,34 +489,6 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
             if (live) item(key = "live") { LiveMessage(state, onFile, model::quoteMessage, loader, model::resolveMcpDecision) }
         }
     }
-}
-
-@Composable
-private fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (String) -> Unit, selectedId: String = state.model) {
-    var query by remember { mutableStateOf("") }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("モデルを選択") }, text = {
-        Column {
-            OutlinedTextField(query, { query = it }, singleLine = true, label = { Text("モデル名で検索") })
-            Text("チャット・画像・動画・OCR・音声モデルを選べます。APIキーはWeb設定を利用します。", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 12.dp))
-            LazyColumn(Modifier.heightIn(max = 380.dp)) {
-                val models = state.account?.models.orEmpty().filter {
-                    it.name.contains(query, ignoreCase = true) || it.id.contains(query, ignoreCase = true) || it.providerLabel.contains(query, ignoreCase = true)
-                }.sortedWith(compareBy({ !it.selectable }, { it.providerLabel }, { it.name }))
-                items(models, key = { it.id }) { info ->
-                    TextButton(onClick = { onSelect(info.id) }, enabled = info.selectable, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
-                        Column(Modifier.fillMaxWidth()) {
-                            Text((if (info.id == selectedId) "✓ " else "") + info.name, fontWeight = FontWeight.SemiBold)
-                            Text(buildString {
-                                append(info.providerLabel)
-                                append(" · ${info.mode}")
-                                if (!info.selectable) append(if (info.deprecated) " · 提供終了" else " · Webで利用")
-                            }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            }
-        }
-    }, confirmButton = { TextButton(onClick = onDismiss) { Text("閉じる") } })
 }
 
 @Composable
@@ -624,11 +598,11 @@ private fun GemsDialog(state: ChatState, model: ChatViewModel, onDismiss: () -> 
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("閉じる") } },
     )
-    if (creating) GemEditorDialog(gem = null, onDismiss = { creating = false }) { n, d, i, m, done ->
-        model.saveGem(null, n, d, i, m) { ok -> if (ok) creating = false; done(ok) }
+    if (creating) GemEditorDialog(gem = null, onDismiss = { creating = false }) { n, d, i, m, prompts, done ->
+        model.saveGem(null, n, d, i, m, prompts) { ok -> if (ok) creating = false; done(ok) }
     }
-    editor?.let { gem -> GemEditorDialog(gem = gem, onDismiss = { editor = null }) { n, d, i, m, done ->
-        model.saveGem(gem.uuid, n, d, i, m) { ok -> if (ok) editor = null; done(ok) }
+    editor?.let { gem -> GemEditorDialog(gem = gem, onDismiss = { editor = null }) { n, d, i, m, prompts, done ->
+        model.saveGem(gem.uuid, n, d, i, m, prompts) { ok -> if (ok) editor = null; done(ok) }
     } }
 }
 
@@ -636,18 +610,19 @@ private fun GemsDialog(state: ChatState, model: ChatViewModel, onDismiss: () -> 
 private fun GemEditorDialog(
     gem: Gem?,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String, (Boolean) -> Unit) -> Unit,
+    onSave: (String, String, String, String, List<FixedPrompt>, (Boolean) -> Unit) -> Unit,
 ) {
     var name by remember { mutableStateOf(gem?.name.orEmpty()) }
     var description by remember { mutableStateOf(gem?.description.orEmpty()) }
     var instruction by remember { mutableStateOf(gem?.instruction.orEmpty()) }
     var defaultModel by remember { mutableStateOf(gem?.defaultModel.orEmpty()) }
     var saving by remember { mutableStateOf(false) }
+    var prompts by remember { mutableStateOf(gem?.fixedPrompts.orEmpty()) }
     AlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
         title = { Text(if (gem == null) "Gemを作成" else "Gemを編集") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("名前") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(description, { description = it }, label = { Text("説明") },
                     minLines = 1, maxLines = 3, modifier = Modifier.fillMaxWidth())
@@ -655,12 +630,23 @@ private fun GemEditorDialog(
                     minLines = 3, maxLines = 8, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(defaultModel, { defaultModel = it }, singleLine = true,
                     label = { Text("既定モデル（任意・モデルID）") }, modifier = Modifier.fillMaxWidth())
+                HorizontalDivider()
+                Text("Fixed Prompts", style = MaterialTheme.typography.titleSmall)
+                prompts.forEachIndexed { index, prompt ->
+                    OutlinedTextField(prompt.name, { value -> prompts = prompts.mapIndexed { i, old -> if (i == index) old.copy(name = value) else old } },
+                        label = { Text("プロンプト名") }, singleLine = true, enabled = !saving, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(prompt.content, { value -> prompts = prompts.mapIndexed { i, old -> if (i == index) old.copy(content = value) else old } },
+                        label = { Text("プロンプト内容") }, maxLines = 4, enabled = !saving, modifier = Modifier.fillMaxWidth())
+                    TextButton(onClick = { prompts = prompts.filterIndexed { i, _ -> i != index } }, enabled = !saving) { Text("このプロンプトを削除") }
+                }
+                TextButton(onClick = { prompts = prompts + FixedPrompt("", "") }, enabled = !saving && prompts.size < 50) { Text("＋ プロンプトを追加") }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { saving = true; onSave(name.trim(), description.trim(), instruction.trim(), defaultModel.trim()) { saving = false } },
-                enabled = !saving && name.isNotBlank() && name.length <= 100 && instruction.length <= 100_000,
+                onClick = { saving = true; onSave(name.trim(), description.trim(), instruction.trim(), defaultModel.trim(), prompts) { saving = false } },
+                enabled = !saving && name.isNotBlank() && name.length <= 100 && description.length <= 4000 && instruction.length <= 100_000 &&
+                    prompts.all { it.name.isNotBlank() && it.name.length <= 100 && it.content.isNotBlank() && it.content.length <= 20_000 },
             ) { Text("保存") }
         },
         dismissButton = { TextButton(onClick = { if (!saving) onDismiss() }) { Text("キャンセル") } },

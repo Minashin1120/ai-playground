@@ -41,12 +41,29 @@ data class LibraryFile(
     val isImage: Boolean get() = type == "image" || thumbnailUrl.isNotBlank()
 }
 
+data class FixedPrompt(val name: String, val content: String)
+
+fun parseFixedPrompts(value: Any?): List<FixedPrompt> {
+    val rows = when (value) {
+        is JSONArray -> value
+        is String -> runCatching { JSONArray(value) }.getOrNull()
+        else -> null
+    } ?: return emptyList()
+    return (0 until rows.length()).mapNotNull { index ->
+        val row = rows.optJSONObject(index) ?: return@mapNotNull null
+        val name = row.nullableString("name").trim()
+        val content = row.nullableString("content").trim()
+        if (name.isBlank() || content.isBlank()) null else FixedPrompt(name, content)
+    }
+}
+
 data class Gem(
     val uuid: String,
     val name: String,
     val description: String,
     val instruction: String,
     val defaultModel: String,
+    val fixedPrompts: List<FixedPrompt> = emptyList(),
 )
 
 data class Preferences(
@@ -112,6 +129,7 @@ fun parseGems(rows: JSONArray): List<Gem> = (0 until rows.length()).map { index 
         description = row.nullableString("description"),
         instruction = row.nullableString("instruction"),
         defaultModel = row.nullableString("default_model"),
+        fixedPrompts = parseFixedPrompts(row.opt("fixed_prompts")),
     )
 }
 

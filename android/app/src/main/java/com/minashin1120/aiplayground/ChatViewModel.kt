@@ -843,15 +843,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun saveGem(uuid: String?, name: String, description: String, instruction: String, defaultModel: String, onDone: (Boolean) -> Unit) {
+    fun saveGem(uuid: String?, name: String, description: String, instruction: String, defaultModel: String, fixedPrompts: List<FixedPrompt>, onDone: (Boolean) -> Unit) {
         viewModelScope.launch {
             mutable.update { it.copy(gemsBusy = true) }
             try {
                 val payload = JSONObject().put("name", name).put("description", description)
                     .put("instruction", instruction).put("default_model", defaultModel)
+                    .put("fixed_prompts", JSONArray().apply {
+                        fixedPrompts.forEach { put(JSONObject().put("name", it.name.trim()).put("content", it.content.trim())) }
+                    })
                 if (uuid.isNullOrBlank()) api.post("/api/gems", payload, token())
                 else api.put("/api/gems/$uuid", payload, token())
                 fetchGems()
+                mutable.update { current -> current.copy(selectedGem = current.selectedGem?.let { selected -> current.gems.firstOrNull { it.uuid == selected.uuid } }) }
                 onDone(true)
             } catch (e: Exception) { report(e); onDone(false) }
             finally { mutable.update { it.copy(gemsBusy = false) } }
@@ -868,11 +872,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) { report(e) }
     } }
 
-    fun chooseGem(gem: Gem?) { mutable.update { it.copy(selectedGem = gem) } }
+    fun chooseGem(gem: Gem?) {
+        if (state.value.streaming) return
+        mutable.update { it.copy(selectedGem = gem) }
+        gem?.defaultModel?.takeIf { it.isNotBlank() }?.let { chooseModel(it) }
+    }
 
     /** Applies a Gem chosen from the `@` candidate list and removes its mention. */
     fun applyGemMention(gem: Gem, query: String) {
-        mutable.update { it.copy(selectedGem = gem, draft = replaceGemMention(it.draft, query)) }
+        if (state.value.streaming) return
+        chooseGem(gem)
+        mutable.update { it.copy(draft = replaceGemMention(it.draft, query)) }
     }
 
     // --- General preferences and this device's session ---

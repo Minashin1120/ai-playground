@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -18,6 +20,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +41,7 @@ import com.minashin1120.aiplayground.data.numericId
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pickFiles: () -> Unit) {
+    var details by remember { mutableStateOf(false) }
     val selectedModel = state.account?.models?.firstOrNull { it.id == state.model }
     val colors = MaterialTheme.colorScheme
     Surface(color = colors.surface.copy(alpha = 0.96f), shadowElevation = 8.dp) {
@@ -62,12 +67,10 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                         Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(18.dp))
                     }
                 }
-                IconButton(onClick = pickFiles, enabled = !state.uploading && !state.streaming) {
-                    Icon(Icons.Rounded.AttachFile, contentDescription = "添付を追加")
-                }
+                TextButton(onClick = { details = !details }) { Text(if (details) "詳細を閉じる" else "詳細") }
             }
-            selectedModel?.let { info ->
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (details) selectedModel?.let { info ->
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (info.supports("thinking")) FilterChip(state.enableThinking, model::toggleThinking, { Text("Thinking") })
                     if (info.supports("search")) FilterChip(state.enableSearch, model::toggleSearch, { Text("Web検索") })
                     if (info.supports("prompt_cache")) FilterChip(state.enablePromptCache, model::togglePromptCache, { Text("Prompt Cache") })
@@ -78,6 +81,13 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
             }
             state.selectedGem?.let { gem ->
                 InputChip(selected = true, onClick = { model.chooseGem(null) }, label = { Text("Gem: ${gem.name.take(20)} ×") })
+                if (gem.fixedPrompts.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    gem.fixedPrompts.forEach { prompt ->
+                        SuggestionChip(onClick = { model.draft(prompt.content); model.send() },
+                            enabled = !state.streaming && !state.busy && !state.uploading,
+                            label = { Text(prompt.name) })
+                    }
+                }
             }
             val gemMention = gemMentionQuery(state.draft)
             if (gemMention != null && state.gems.isNotEmpty()) {
@@ -117,20 +127,31 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Surface(shape = RoundedCornerShape(16.dp), color = colors.surfaceContainerLow, border = androidx.compose.foundation.BorderStroke(1.dp, colors.outline), shadowElevation = 2.dp, modifier = Modifier.weight(1f)) {
                     Row(Modifier.padding(start = 2.dp, end = 5.dp), verticalAlignment = Alignment.Bottom) {
+                        IconButton(onClick = pickFiles, enabled = !state.uploading && !state.streaming, modifier = Modifier.padding(bottom = 4.dp)) {
+                            Icon(Icons.Rounded.AttachFile, contentDescription = "添付を追加")
+                        }
                         OutlinedTextField(
                             state.draft, model::draft, placeholder = { Text("メッセージを入力…") }, minLines = 1, maxLines = 6,
-                            modifier = Modifier.weight(1f), enabled = !state.streaming,
+                            modifier = Modifier.weight(1f).onPreviewKeyEvent { event ->
+                                val sendKey = event.key == Key.Enter && !event.isShiftPressed &&
+                                    (event.isCtrlPressed || state.preferences?.enterToSend == true)
+                                if (sendKey) {
+                                    if (event.type == KeyEventType.KeyDown) model.send()
+                                    true
+                                } else false
+                            }, enabled = !state.streaming,
+                            keyboardOptions = KeyboardOptions(imeAction = if (state.preferences?.enterToSend == true) ImeAction.Send else ImeAction.Default),
+                            keyboardActions = KeyboardActions(onSend = { model.send() }),
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, disabledBorderColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, disabledContainerColor = Color.Transparent),
                         )
                         if (state.streaming) FilledIconButton(onClick = model::stop, enabled = state.jobId != null, colors = IconButtonDefaults.filledIconButtonColors(containerColor = colors.error, contentColor = colors.onError), shape = RoundedCornerShape(12.dp), modifier = Modifier.padding(bottom = 5.dp)) {
                             Icon(Icons.Rounded.Stop, contentDescription = "生成を停止")
                         } else FilledIconButton(onClick = model::send, enabled = !state.busy && !state.uploading && (state.draft.isNotBlank() || state.attachments.isNotEmpty()), shape = RoundedCornerShape(12.dp), modifier = Modifier.padding(bottom = 5.dp)) {
-                            Icon(Icons.Rounded.ArrowUpward, contentDescription = "送信")
+                            Icon(Icons.Rounded.Send, contentDescription = "送信")
                         }
                     }
                 }
             }
-            Text("AIの回答は必ずしも正確とは限りません。", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, modifier = Modifier.align(Alignment.CenterHorizontally))
         }
         }
     }

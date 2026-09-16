@@ -13,6 +13,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/` | CookieなしHTTP、NDJSON、APIモデル、Keystore保存 | 認証・通信・保存 |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundScreen.kt`, `ChatComponents.kt` | Compose画面、履歴ドロワー／タブレット2ペイン、メッセージ操作、状態カード、入力欄 | 画面構造と操作を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AdvancedTools.kt` | Batch管理と高度な生成機能・安全なWeb導線 | 高度な機能メニューを編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/ModelPicker.kt` | WebのSelect Model構成に合わせた検索・提供元／用途／対応能力フィルター・選択状態 | モデル選択画面を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundTheme.kt` | Web版トークンに対応する配色・タイポグラフィ・形状・レイアウト寸法 | 色・テーマ・ブランドを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownText.kt` | 安全なMarkdown、リンク、引用、数式、表、画像、折り畳み・コピー対応コード表示 | メッセージ本文表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LatexText.kt` | LaTeXをWebViewなしで読めるネイティブ表示へ変換 | 数式表示を編集するとき |

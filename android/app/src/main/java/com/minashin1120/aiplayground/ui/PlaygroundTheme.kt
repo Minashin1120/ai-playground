@@ -78,9 +78,9 @@ private val WebShapes = Shapes(
 
 /** Shared layout tokens for the phone/tablet navigation split and dialogs. */
 object PlaygroundDimens {
-    val breakpoint = 720.dp
-    val sidePane = 320.dp
-    val drawerPane = 304.dp
+    val breakpoint = 768.dp
+    val sidePane = 264.dp
+    val drawerPane = 264.dp
     val contentMax = 768.dp
     val panelRadius = 20.dp
     val cardRadius = 16.dp

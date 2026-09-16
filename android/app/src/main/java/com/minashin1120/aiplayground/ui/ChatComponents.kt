@@ -1,14 +1,22 @@
 package com.minashin1120.aiplayground.ui
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -30,20 +38,33 @@ import com.minashin1120.aiplayground.data.numericId
 @Composable
 fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pickFiles: () -> Unit) {
     val selectedModel = state.account?.models?.firstOrNull { it.id == state.model }
-    Surface(tonalElevation = 3.dp) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val colors = MaterialTheme.colorScheme
+    Surface(color = colors.surface.copy(alpha = 0.96f), shadowElevation = 8.dp) {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Column(
+            Modifier.widthIn(max = PlaygroundDimens.contentMax).fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
             if (state.editingMessageId != null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("メッセージを編集中（送信で分岐を作成）", style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                Surface(shape = RoundedCornerShape(12.dp), color = colors.secondary.copy(alpha = 0.10f), border = androidx.compose.foundation.BorderStroke(1.dp, colors.secondary.copy(alpha = 0.25f))) {
+                    Row(Modifier.fillMaxWidth().padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Edit, contentDescription = null, tint = colors.secondary, modifier = Modifier.size(16.dp))
+                    Text("メッセージを編集中（送信で分岐を作成）", style = MaterialTheme.typography.labelMedium,
+                        color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 7.dp).weight(1f))
                     TextButton(onClick = model::cancelEdit) { Text("キャンセル", style = MaterialTheme.typography.labelMedium) }
+                    }
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = pickModel, enabled = !state.streaming, modifier = Modifier.weight(1f)) {
-                    Text("${selectedModel?.name ?: state.model.ifBlank { "モデルを選択" }} ▾", maxLines = 1)
+                Surface(onClick = pickModel, enabled = !state.streaming, color = colors.surfaceContainerHigh, shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(1.dp, colors.outlineVariant), modifier = Modifier.weight(1f)) {
+                    Row(Modifier.padding(horizontal = 11.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(selectedModel?.name ?: state.model.ifBlank { "モデルを選択" }, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
                 }
-                TextButton(onClick = pickFiles, enabled = !state.uploading && !state.streaming) { Text("＋ 添付") }
+                IconButton(onClick = pickFiles, enabled = !state.uploading && !state.streaming) {
+                    Icon(Icons.Rounded.AttachFile, contentDescription = "添付を追加")
+                }
             }
             selectedModel?.let { info ->
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -94,12 +115,23 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                 }
             }
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(state.draft, model::draft, placeholder = { Text("メッセージを入力…") }, minLines = 1, maxLines = 6,
-                    shape = RoundedCornerShape(20.dp), modifier = Modifier.weight(1f), enabled = !state.streaming)
-                if (state.streaming) FilledTonalButton(onClick = model::stop, enabled = state.jobId != null) { Text("停止") }
-                else Button(onClick = model::send, enabled = !state.busy && !state.uploading && (state.draft.isNotBlank() || state.attachments.isNotEmpty())) { Text("送信") }
+                Surface(shape = RoundedCornerShape(16.dp), color = colors.surfaceContainerLow, border = androidx.compose.foundation.BorderStroke(1.dp, colors.outline), shadowElevation = 2.dp, modifier = Modifier.weight(1f)) {
+                    Row(Modifier.padding(start = 2.dp, end = 5.dp), verticalAlignment = Alignment.Bottom) {
+                        OutlinedTextField(
+                            state.draft, model::draft, placeholder = { Text("メッセージを入力…") }, minLines = 1, maxLines = 6,
+                            modifier = Modifier.weight(1f), enabled = !state.streaming,
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, disabledBorderColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, disabledContainerColor = Color.Transparent),
+                        )
+                        if (state.streaming) FilledIconButton(onClick = model::stop, enabled = state.jobId != null, colors = IconButtonDefaults.filledIconButtonColors(containerColor = colors.error, contentColor = colors.onError), shape = RoundedCornerShape(12.dp), modifier = Modifier.padding(bottom = 5.dp)) {
+                            Icon(Icons.Rounded.Stop, contentDescription = "生成を停止")
+                        } else FilledIconButton(onClick = model::send, enabled = !state.busy && !state.uploading && (state.draft.isNotBlank() || state.attachments.isNotEmpty()), shape = RoundedCornerShape(12.dp), modifier = Modifier.padding(bottom = 5.dp)) {
+                            Icon(Icons.Rounded.ArrowUpward, contentDescription = "送信")
+                        }
+                    }
+                }
             }
-            Text("AIの回答は必ずしも正確とは限りません。", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("AIの回答は必ずしも正確とは限りません。", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, modifier = Modifier.align(Alignment.CenterHorizontally))
+        }
         }
     }
 }
@@ -120,14 +152,24 @@ fun MessageCard(
     val persisted = numericId(message) != null
     var thoughtExpanded by remember(message.id) { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
-    Surface(color = if (user) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = if (user) 20.dp else 4.dp, bottomEnd = if (user) 4.dp else 20.dp),
-        modifier = Modifier.fillMaxWidth().padding(start = if (user) 24.dp else 0.dp, end = if (user) 0.dp else 12.dp)) {
+    val colors = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = if (user) 20.dp else 5.dp, bottomEnd = if (user) 5.dp else 20.dp)
+    val fill = if (user) Modifier.background(Brush.linearGradient(listOf(colors.primary, Color(0xFF08B2A5))))
+        else Modifier.background(colors.surface.copy(alpha = 0.90f))
+    Box(
+        Modifier.fillMaxWidth().padding(start = if (user) 40.dp else 0.dp, end = if (user) 0.dp else 24.dp)
+            .shadow(8.dp, shape).clip(shape).then(fill)
+            .border(1.dp, if (user) colors.primary.copy(alpha = 0.38f) else colors.outlineVariant.copy(alpha = 0.72f), shape)
+    ) {
+        CompositionLocalProvider(LocalContentColor provides if (user) colors.onPrimary else colors.onSurface) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(if (user) "あなた" else "✦ AI", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(if (user) Icons.Rounded.Person else Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp), tint = if (user) colors.onPrimary else colors.primary)
+                Text(if (user) "あなた" else "AI", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            }
             if (message.thought.isNotBlank()) {
-                TextButton(onClick = { thoughtExpanded = !thoughtExpanded }) { Text(if (thoughtExpanded) "思考を閉じる" else "思考を表示") }
-                if (thoughtExpanded) SelectionContainer { Text(message.thought, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                TextButton(onClick = { thoughtExpanded = !thoughtExpanded }, colors = ButtonDefaults.textButtonColors(contentColor = if (user) colors.onPrimary else colors.primary)) { Text(if (thoughtExpanded) "思考を閉じる" else "思考を表示") }
+                if (thoughtExpanded) SelectionContainer { Text(message.thought, style = MaterialTheme.typography.bodySmall, color = if (user) colors.onPrimary.copy(alpha = 0.78f) else colors.onSurfaceVariant) }
             }
             if (message.content.isNotEmpty()) MarkdownText(message.content, loader, onFile)
             message.files.forEach { file ->
@@ -148,28 +190,29 @@ fun MessageCard(
             if (message.content.isNotBlank() || branchCount > 1 || persisted) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (branchCount > 1) {
-                        TextButton(onClick = { onSwitchBranch(branchIndex - 1) }, enabled = branchIndex > 0) { Text("◀", style = MaterialTheme.typography.labelMedium) }
+                        IconButton(onClick = { onSwitchBranch(branchIndex - 1) }, enabled = branchIndex > 0, modifier = Modifier.size(34.dp)) { Icon(Icons.Rounded.ChevronLeft, contentDescription = "前の分岐", modifier = Modifier.size(18.dp)) }
                         Text("${branchIndex + 1}/$branchCount", style = MaterialTheme.typography.labelSmall)
-                        TextButton(onClick = { onSwitchBranch(branchIndex + 1) }, enabled = branchIndex < branchCount - 1) { Text("▶", style = MaterialTheme.typography.labelMedium) }
+                        IconButton(onClick = { onSwitchBranch(branchIndex + 1) }, enabled = branchIndex < branchCount - 1, modifier = Modifier.size(34.dp)) { Icon(Icons.Rounded.ChevronRight, contentDescription = "次の分岐", modifier = Modifier.size(18.dp)) }
                     }
                     if (message.content.isNotBlank()) {
-                        TextButton(onClick = { clipboard.setText(AnnotatedString(message.content)) }) { Text("コピー", style = MaterialTheme.typography.labelMedium) }
-                        TextButton(onClick = { onQuote(message.content) }) { Text("引用", style = MaterialTheme.typography.labelMedium) }
+                        IconButton(onClick = { clipboard.setText(AnnotatedString(message.content)) }, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.ContentCopy, contentDescription = "コピー", modifier = Modifier.size(17.dp)) }
+                        IconButton(onClick = { onQuote(message.content) }, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.FormatQuote, contentDescription = "引用", modifier = Modifier.size(18.dp)) }
                     }
-                    if (persisted && user) TextButton(onClick = { onEdit(message) }) { Text("編集", style = MaterialTheme.typography.labelMedium) }
-                    if (persisted && !user) TextButton(onClick = { onRegenerate(message) }, enabled = message.parentId != null) { Text("再生成", style = MaterialTheme.typography.labelMedium) }
+                    if (persisted && user) IconButton(onClick = { onEdit(message) }, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Edit, contentDescription = "編集", modifier = Modifier.size(18.dp)) }
+                    if (persisted && !user) IconButton(onClick = { onRegenerate(message) }, enabled = message.parentId != null, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Replay, contentDescription = "再生成", modifier = Modifier.size(18.dp)) }
                 }
             }
+        }
         }
     }
 }
 
 @Composable
 fun StatusCardView(card: StatusCard) {
-    Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (card.done) Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                if (card.done) Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                 else CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
                 Text(card.label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(start = 8.dp))

@@ -8,6 +8,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
@@ -17,10 +20,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,7 +55,12 @@ import java.io.File
 fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (String) -> Unit) {
     val state by model.state.collectAsStateWithLifecycle()
     PlaygroundTheme(darkTheme = state.preferences?.let { !it.lightModeEnabled } ?: isSystemInDarkTheme()) {
-        BoxWithConstraints(Modifier.fillMaxSize()) {
+        val colors = MaterialTheme.colorScheme
+        BoxWithConstraints(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(listOf(colors.background, colors.surfaceContainerLow))
+            )
+        ) {
             // Tablets and wide screens keep the history pane beside the conversation.
             val wide = maxWidth >= PlaygroundDimens.breakpoint
             val drawer = rememberDrawerState(DrawerValue.Closed)
@@ -99,15 +112,20 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
             val content: @Composable () -> Unit = {
                 Scaffold(
                     modifier = Modifier.imePadding(),
+                    containerColor = Color.Transparent,
                     topBar = {
-                        TopAppBar(title = { Column {
-                            Text(state.selected?.title?.ifBlank { "新しいチャット" } ?: "AI Playground", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(if (state.account == null) "あなたのAIを、ポケットに。" else "Android · ${state.account?.name}", style = MaterialTheme.typography.labelSmall)
+                        TopAppBar(colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.surface.copy(alpha = 0.94f)), title = { Column {
+                            Text(state.selected?.title?.ifBlank { "新しいチャット" } ?: "AI Playground", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(if (state.account == null) "あなたのAIを、ポケットに。" else state.account?.name.orEmpty(), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
                         } }, navigationIcon = {
-                            if (showThreads && !wide) TextButton(onClick = { scope.launch { drawer.open() } }) { Text("履歴") }
+                            if (showThreads && !wide) IconButton(onClick = { scope.launch { drawer.open() } }) {
+                                Icon(Icons.Rounded.Menu, contentDescription = "履歴メニュー")
+                            }
                         }, actions = {
-                            if (state.selected != null) TextButton(onClick = { threadSettings = true }, enabled = !state.busy && !state.streaming) { Text("設定") }
-                            if (state.selected != null) TextButton(onClick = {
+                            if (state.selected != null) IconButton(onClick = { threadSettings = true }, enabled = !state.busy && !state.streaming) {
+                                Icon(Icons.Rounded.Tune, contentDescription = "チャット設定")
+                            }
+                            if (state.selected != null) IconButton(onClick = {
                                 model.exportPdf { file ->
                                     try {
                                         val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
@@ -117,8 +135,10 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
                                         context.startActivity(Intent.createChooser(intent, "PDFを共有"))
                                     } catch (e: Exception) { model.notify("PDFを共有できません。") }
                                 }
-                            }, enabled = !state.busy && !state.streaming) { Text("PDF") }
-                            if (showThreads) TextButton(onClick = model::refresh, enabled = !state.busy && !state.streaming) { Text("更新") }
+                            }, enabled = !state.busy && !state.streaming) { Icon(Icons.Rounded.PictureAsPdf, contentDescription = "PDFを共有") }
+                            if (showThreads) IconButton(onClick = model::refresh, enabled = !state.busy && !state.streaming) {
+                                Icon(Icons.Rounded.Refresh, contentDescription = "更新")
+                            }
                         })
                     }, snackbarHost = { SnackbarHost(snackbar) },
                     bottomBar = {
@@ -140,7 +160,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
 
             if (showThreads && wide) {
                 Row(Modifier.fillMaxSize()) {
-                    Surface(Modifier.width(PlaygroundDimens.sidePane).fillMaxHeight(), tonalElevation = 1.dp) {
+                    Surface(Modifier.width(PlaygroundDimens.sidePane).fillMaxHeight(), color = colors.surface.copy(alpha = 0.94f)) {
                         ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {}, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true })
                     }
                     VerticalDivider()
@@ -149,7 +169,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
             } else {
                 ModalNavigationDrawer(drawerState = drawer, gesturesEnabled = showThreads,
                     drawerContent = {
-                        if (showThreads) ModalDrawerSheet(Modifier.width(PlaygroundDimens.drawerPane)) {
+                        if (showThreads) ModalDrawerSheet(Modifier.width(PlaygroundDimens.drawerPane), drawerContainerColor = colors.surface) {
                             ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true })
                         }
                     }) { content() }
@@ -162,9 +182,9 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
             if (advancedOpen) AdvancedToolsDialog(state, model, onDismiss = { advancedOpen = false }, onWebPath = onWeb)
             if (attachMenu) AlertDialog(onDismissRequest = { attachMenu = false }, title = { Text("添付を追加") },
                 text = { Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { attachMenu = false; picker.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("📂 ファイルを選択") }
-                    TextButton(onClick = { attachMenu = false; photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) }, modifier = Modifier.fillMaxWidth()) { Text("🖼 写真・動画を選択") }
-                    TextButton(onClick = { attachMenu = false; launchCamera() }, modifier = Modifier.fillMaxWidth()) { Text("📷 カメラで撮影") }
+                    DialogAction(Icons.Rounded.FolderOpen, "ファイルを選択") { attachMenu = false; picker.launch(arrayOf("*/*")) }
+                    DialogAction(Icons.Rounded.PhotoLibrary, "写真・動画を選択") { attachMenu = false; photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) }
+                    DialogAction(Icons.Rounded.PhotoCamera, "カメラで撮影") { attachMenu = false; launchCamera() }
                 } },
                 confirmButton = { TextButton(onClick = { attachMenu = false }) { Text("閉じる") } })
             if (threadSettings && state.selected != null) ThreadSettingsDialog(state, onDismiss = { threadSettings = false }) {
@@ -181,6 +201,14 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
                 confirmButton = { TextButton(onClick = { model.logout(); logout = false; closeDrawer() }) { Text("ログアウト") } },
                 dismissButton = { TextButton(onClick = { logout = false }) { Text("キャンセル") } })
         }
+    }
+}
+
+@Composable
+private fun DialogAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
+    TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp)) {
+        Icon(icon, contentDescription = null)
+        Text(label, modifier = Modifier.padding(start = 12.dp).weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Start)
     }
 }
 
@@ -208,33 +236,58 @@ private fun ThreadPanel(
     onSettings: () -> Unit,
     onAdvanced: () -> Unit,
 ) {
-    Column(Modifier.fillMaxSize().padding(20.dp)) {
-        Column(Modifier.fillMaxWidth()) {
-            Text("AI Playground", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text(state.account?.name.orEmpty(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(20.dp))
-            Button(onClick = { model.newChat(); onNavigate() }, modifier = Modifier.fillMaxWidth()) { Text("＋ 新しいチャット") }
-            TextButton(onClick = { model.newChat(temporary = true); onNavigate() }, modifier = Modifier.fillMaxWidth()) { Text("◷ 一時チャット") }
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(state.search, model::search, singleLine = true, label = { Text("履歴を検索") }, modifier = Modifier.fillMaxWidth())
+    val colors = MaterialTheme.colorScheme
+    Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 16.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = RoundedCornerShape(12.dp), color = colors.primary.copy(alpha = 0.14f), modifier = Modifier.size(40.dp)) {
+                Box(contentAlignment = Alignment.Center) { Text("✦", color = colors.primary, fontSize = 21.sp, fontWeight = FontWeight.Bold) }
+            }
+            Column(Modifier.padding(start = 12.dp).weight(1f)) {
+                Text("AI Playground", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(state.account?.name.orEmpty(), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 12.dp)) {
+        Spacer(Modifier.height(16.dp))
+        Button(onClick = { model.newChat(); onNavigate() }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(PlaygroundDimens.controlRadius)) {
+            Icon(Icons.Rounded.Add, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("新しいチャット")
+        }
+        SidebarAction(Icons.Rounded.Schedule, "一時チャット") { model.newChat(temporary = true); onNavigate() }
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            state.search, model::search, singleLine = true, placeholder = { Text("履歴を検索") },
+            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+            shape = RoundedCornerShape(PlaygroundDimens.controlRadius), modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = colors.surfaceContainerLow.copy(alpha = 0.72f), focusedContainerColor = colors.surfaceContainerLow),
+        )
+        Text("チャット", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 8.dp, top = 18.dp, bottom = 6.dp))
+        HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f))
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             items(state.threads, key = { it.id }) { thread ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { model.openThread(thread); onNavigate() }, modifier = Modifier.weight(1f)) {
+                val selected = state.selected?.id == thread.id
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                        .background(if (selected) colors.primary.copy(alpha = 0.13f) else Color.Transparent)
+                        .border(1.dp, if (selected) colors.primary.copy(alpha = 0.25f) else Color.Transparent, RoundedCornerShape(12.dp)),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(modifier = Modifier.weight(1f).clickable { model.openThread(thread); onNavigate() }.padding(horizontal = 10.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(if (thread.isTemporary) Icons.Rounded.Schedule else Icons.Rounded.ChatBubbleOutline, contentDescription = null, tint = if (selected) colors.primary else colors.onSurfaceVariant, modifier = Modifier.size(18.dp))
                         Column(Modifier.fillMaxWidth()) {
                             Text(buildString {
-                                if (thread.isBookmarked) append("★ ")
-                                if (thread.isTemporary) append("◷ ")
+                                if (thread.isBookmarked) append("★  ")
                                 append(thread.title.ifBlank { "新しいチャット" })
-                            }, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            if (thread.model.isNotBlank()) Text(thread.model, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                            }, modifier = Modifier.padding(start = 9.dp), style = MaterialTheme.typography.bodyMedium, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            if (thread.model.isNotBlank()) Text(thread.model, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 9.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
-                    TextButton(onClick = { model.toggleBookmark(thread) }) {
-                        Text(if (thread.isBookmarked) "★" else "☆", style = MaterialTheme.typography.titleMedium)
+                    IconButton(onClick = { model.toggleBookmark(thread) }, modifier = Modifier.size(38.dp)) {
+                        Icon(if (thread.isBookmarked) Icons.Rounded.Star else Icons.Rounded.StarBorder, contentDescription = if (thread.isBookmarked) "ブックマーク解除" else "ブックマーク", modifier = Modifier.size(18.dp), tint = if (thread.isBookmarked) colors.secondary else colors.onSurfaceVariant)
                     }
-                    TextButton(onClick = { onDelete(thread) }) { Text("削除", style = MaterialTheme.typography.labelSmall) }
+                    IconButton(onClick = { onDelete(thread) }, modifier = Modifier.size(38.dp)) {
+                        Icon(Icons.Rounded.DeleteOutline, contentDescription = "削除", modifier = Modifier.size(18.dp), tint = colors.onSurfaceVariant)
+                    }
                 }
             }
             if (state.threads.isEmpty()) item(key = "empty") {
@@ -250,13 +303,28 @@ private fun ThreadPanel(
                 TextButton(onClick = model::moreThreads, modifier = Modifier.fillMaxWidth()) { Text("もっと読み込む") }
             }
         }
-        TextButton(onClick = onSettings, modifier = Modifier.fillMaxWidth()) { Text("一般設定") }
-        TextButton(onClick = onLibrary, modifier = Modifier.fillMaxWidth()) { Text("ファイルライブラリ") }
-        TextButton(onClick = onGems, modifier = Modifier.fillMaxWidth()) { Text("Gems") }
-        TextButton(onClick = onAdvanced, modifier = Modifier.fillMaxWidth()) { Text("高度な機能・Batch") }
-        TextButton(onClick = { onWeb("/settings") }, modifier = Modifier.fillMaxWidth()) { Text("Web設定・安全性確認") }
-        TextButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) { Text("この端末からログアウト") }
+        HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f), modifier = Modifier.padding(vertical = 6.dp))
+        SidebarAction(Icons.Rounded.Settings, "一般設定", onSettings)
+        SidebarAction(Icons.Rounded.FolderOpen, "ファイルライブラリ", onLibrary)
+        SidebarAction(Icons.Rounded.AutoAwesome, "Gems", onGems)
+        SidebarAction(Icons.Rounded.Science, "高度な機能・Batch", onAdvanced)
+        SidebarAction(Icons.Rounded.Security, "Web設定・安全性確認") { onWeb("/settings") }
+        SidebarAction(Icons.Rounded.Logout, "この端末からログアウト", onLogout, danger = true)
         Spacer(Modifier.navigationBarsPadding())
+    }
+}
+
+@Composable
+private fun SidebarAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    danger: Boolean = false,
+) {
+    val tint = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+    TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp), shape = RoundedCornerShape(10.dp), contentPadding = PaddingValues(horizontal = 10.dp)) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(19.dp))
+        Text(label, modifier = Modifier.padding(start = 11.dp).weight(1f), color = tint, textAlign = androidx.compose.ui.text.style.TextAlign.Start, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -363,14 +431,34 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
             TextButton(onClick = model::resume) { Text("再接続") }
         }
         if (state.retryAvailable) TextButton(onClick = model::retry, modifier = Modifier.fillMaxWidth(), enabled = !state.streaming) { Text("同じ送信を再試行（二重送信を防止）") }
-        LazyColumn(state = scroll, modifier = Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(
+            state = scroll,
+            modifier = Modifier.weight(1f).widthIn(max = PlaygroundDimens.contentMax).fillMaxWidth().align(Alignment.CenterHorizontally),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
             if (state.hasOlder) item(key = "older") { TextButton(onClick = model::olderMessages, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("以前のメッセージ") } }
             if (state.messages.isEmpty() && !state.busy && !live) item(key = "welcome") {
-                Column(Modifier.fillMaxWidth().padding(vertical = 32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.fillMaxWidth().padding(vertical = 34.dp), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.13f), modifier = Modifier.size(58.dp)) {
+                        Box(contentAlignment = Alignment.Center) { Text("✦", color = MaterialTheme.colorScheme.primary, fontSize = 30.sp, fontWeight = FontWeight.Bold) }
+                    }
                     Text("今日は何を考えよう？", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                    Text("モデルを選んで、気になっていることを話してみましょう。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("モデルを選んで、気になっていることを話してみましょう。", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Spacer(Modifier.height(6.dp))
                     listOf("アイデアを一緒に考えて", "難しい内容をわかりやすく説明して", "文章の改善を手伝って").forEach { suggestion ->
-                        OutlinedButton(onClick = { model.draft(suggestion) }, modifier = Modifier.fillMaxWidth()) { Text(suggestion) }
+                        Surface(
+                            onClick = { model.draft(suggestion) },
+                            shape = RoundedCornerShape(PlaygroundDimens.cardRadius),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Row(Modifier.padding(horizontal = 16.dp, vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(suggestion, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                                Icon(Icons.Rounded.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                            }
+                        }
                     }
                 }
             }

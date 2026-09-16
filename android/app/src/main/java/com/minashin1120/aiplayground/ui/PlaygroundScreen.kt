@@ -253,7 +253,11 @@ private fun ThreadPanel(
             Spacer(Modifier.width(8.dp))
             Text("新しいチャット")
         }
-        SidebarAction(Icons.Rounded.Schedule, "一時チャット") { model.newChat(temporary = true); onNavigate() }
+        SidebarAction(
+            Icons.Rounded.Schedule,
+            "一時チャット",
+            onClick = { model.newChat(temporary = true); onNavigate() },
+        )
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             state.search, model::search, singleLine = true, placeholder = { Text("履歴を検索") },
@@ -308,7 +312,11 @@ private fun ThreadPanel(
         SidebarAction(Icons.Rounded.FolderOpen, "ファイルライブラリ", onLibrary)
         SidebarAction(Icons.Rounded.AutoAwesome, "Gems", onGems)
         SidebarAction(Icons.Rounded.Science, "高度な機能・Batch", onAdvanced)
-        SidebarAction(Icons.Rounded.Security, "Web設定・安全性確認") { onWeb("/settings") }
+        SidebarAction(
+            Icons.Rounded.Security,
+            "Web設定・安全性確認",
+            onClick = { onWeb("/settings") },
+        )
         SidebarAction(Icons.Rounded.Logout, "この端末からログアウト", onLogout, danger = true)
         Spacer(Modifier.navigationBarsPadding())
     }

@@ -67,6 +67,35 @@ ALLOWED_GIT_PREFIXES = (
     "templates/",
     "tests/",
 )
+
+ANDROID_BUILD_EXACT = {
+    "android/build.gradle.kts",
+    "android/gradle.properties",
+    "android/gradlew",
+    "android/settings.gradle.kts",
+    "android/version.properties",
+    "android/ci/bootstrap-keystore.sh",
+    "android/ci/debug.keystore",
+    "android/ci/signing-fingerprint.txt",
+    "android/ci/verify-apk.sh",
+    "android/ci/verify-keystore.sh",
+}
+ANDROID_BUILD_PREFIXES = (
+    "android/app/",
+    "android/gradle/",
+)
+ANDROID_RECORD_EXACT = {
+    ".github/workflows/android.yml",
+    ".github/workflows/release.yml",
+    "deploy/ANDROID_CLIENT.md",
+}
+OPERATIONS_RECORD_EXACT = {
+    ".github/workflows/android.yml",
+    ".github/workflows/release.yml",
+    "tests/test_mcp_release_allowlist.py",
+    "tests/test_release_scripts.py",
+}
+OPERATIONS_RECORD_PREFIXES = ("scripts/",)
 BLOCKED_GIT_PATTERNS = (
     re.compile(r"(^|/)引き継ぎ資料\.txt$"),
     re.compile(r"\.bak", re.IGNORECASE),
@@ -275,6 +304,42 @@ def is_allowed_git_path(path: str) -> bool:
     if normalized in ALLOWED_GIT_EXACT:
         return True
     return any(normalized.startswith(prefix) for prefix in ALLOWED_GIT_PREFIXES)
+
+
+def is_android_build_path(path: str) -> bool:
+    normalized = normalize_git_path(path)
+    return normalized in ANDROID_BUILD_EXACT or any(
+        normalized.startswith(prefix) for prefix in ANDROID_BUILD_PREFIXES
+    )
+
+
+def is_record_target_path(path: str, target: str) -> bool:
+    normalized = normalize_git_path(path)
+    if not is_allowed_git_path(normalized):
+        return False
+    if target == "android":
+        return normalized.startswith("android/") or normalized in ANDROID_RECORD_EXACT
+    if target == "operations":
+        return normalized in OPERATIONS_RECORD_EXACT or any(
+            normalized.startswith(prefix) for prefix in OPERATIONS_RECORD_PREFIXES
+        )
+    return False
+
+
+def classify_record_target(paths: list[str], target: str) -> dict[str, object]:
+    classified = classify_git_paths(paths)
+    allowed = classified["allowed"]
+    outside_target = [path for path in allowed if not is_record_target_path(path, target)]
+    target_paths = [path for path in allowed if is_record_target_path(path, target)]
+    android_build = [path for path in target_paths if is_android_build_path(path)]
+    return {
+        "target": target,
+        "allowed": target_paths,
+        "blocked": classified["blocked"],
+        "unknown": classified["unknown"],
+        "outside_target": outside_target,
+        "android_build": android_build,
+    }
 
 
 def classify_git_paths(paths: list[str]) -> dict[str, list[str]]:
@@ -649,6 +714,18 @@ def cmd_classify_git(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_classify_record(args: argparse.Namespace) -> int:
+    classified = classify_record_target(git_status_paths(), args.target)
+    print(json.dumps(classified, ensure_ascii=False, indent=2))
+    if (
+        classified["blocked"]
+        or classified["unknown"]
+        or classified["outside_target"]
+    ):
+        return 1
+    return 0
+
+
 def cmd_check_notes(args: argparse.Namespace) -> int:
     notes = args.notes
     if args.notes_file:
@@ -670,6 +747,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("check-assets").set_defaults(func=cmd_check_assets)
     sub.add_parser("check-parts").set_defaults(func=cmd_check_parts)
     sub.add_parser("classify-git").set_defaults(func=cmd_classify_git)
+
+    record = sub.add_parser("classify-record")
+    record.add_argument("--target", choices=("android", "operations"), required=True)
+    record.set_defaults(func=cmd_classify_record)
 
     prepare = sub.add_parser("prepare")
     prepare.add_argument("--notes", default="")

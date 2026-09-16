@@ -144,6 +144,7 @@ class ReleaseScriptContractTests(unittest.TestCase):
             "verify_changes.sh",
             "prepare_version.sh",
             "publish_version.sh",
+            "record_changes.sh",
             "wait_for_restart_headroom.sh",
         ):
             path = SCRIPTS / name
@@ -194,6 +195,53 @@ class ReleaseScriptContractTests(unittest.TestCase):
         self.assertLess(restart_at, purge_at)
         self.assertIn('CONFIRM" != "$SYSTEM_VERSION"', source)
 
+    def test_record_changes_is_scoped_and_does_not_deploy_web(self):
+        source = read("record_changes.sh")
+        self.assertIn("--target", source)
+        self.assertIn("classify-record", source)
+        self.assertIn("Android Actions", source)
+        self.assertIn("git_in add --", source)
+        self.assertIn("git_in push origin HEAD", source)
+        self.assertNotIn("restart_services.sh", source)
+        self.assertNotIn("purge_cloudflare_cache.sh", source)
+        self.assertNotIn("tag -a", source)
+        self.assertNotIn("git add -A", source)
+
+    def test_record_target_classification_separates_build_and_docs(self):
+        android = COMMON.classify_record_target(
+            ["android/app/src/main/AndroidManifest.xml", "android/version.properties"],
+            "android",
+        )
+        self.assertEqual(android["outside_target"], [])
+        self.assertIn("android/app/src/main/AndroidManifest.xml", android["android_build"])
+
+        docs = COMMON.classify_record_target(
+            ["android/README.md", "android/ci/release-notes.md"], "android"
+        )
+        self.assertEqual(docs["android_build"], [])
+
+        operations = COMMON.classify_record_target(
+            ["scripts/record_changes.sh", ".github/workflows/android.yml"],
+            "operations",
+        )
+        self.assertEqual(operations["outside_target"], [])
+        self.assertEqual(operations["android_build"], [])
+
+        mixed = COMMON.classify_record_target(
+            ["scripts/record_changes.sh", "server/models.py"], "operations"
+        )
+        self.assertIn("server/models.py", mixed["outside_target"])
+
+    def test_android_workflow_paths_match_release_classification(self):
+        workflow = (ROOT / ".github" / "workflows" / "android.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("'android/**'", workflow)
+        for path in COMMON.ANDROID_BUILD_EXACT:
+            self.assertIn(f"'{path}'", workflow, path)
+        for prefix in COMMON.ANDROID_BUILD_PREFIXES:
+            self.assertIn(f"'{prefix}**'", workflow, prefix)
+
     def test_restart_waits_for_resource_headroom_before_systemd(self):
         source = read("restart_services.sh")
         headroom_at = source.index("wait_for_restart_headroom.sh")
@@ -210,6 +258,7 @@ class ReleaseScriptContractTests(unittest.TestCase):
         self.assertIn("verify_changes.sh", readme)
         self.assertIn("prepare_version.sh", readme)
         self.assertIn("publish_version.sh", readme)
+        self.assertIn("record_changes.sh", readme)
 
 
 if __name__ == "__main__":

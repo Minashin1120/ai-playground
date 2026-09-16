@@ -2,10 +2,34 @@ name: Android CI
 on:
   push:
     branches: [main]
-    paths: ['android/**', '.github/workflows/android.yml', '.github/workflows/release.yml']
+    paths:
+      - 'android/app/**'
+      - 'android/gradle/**'
+      - 'android/build.gradle.kts'
+      - 'android/gradle.properties'
+      - 'android/gradlew'
+      - 'android/settings.gradle.kts'
+      - 'android/version.properties'
+      - 'android/ci/bootstrap-keystore.sh'
+      - 'android/ci/verify-apk.sh'
+      - 'android/ci/verify-keystore.sh'
+      - 'android/ci/debug.keystore'
+      - 'android/ci/signing-fingerprint.txt'
   pull_request:
     branches: [main]
-    paths: ['android/**', '.github/workflows/android.yml', '.github/workflows/release.yml']
+    paths:
+      - 'android/app/**'
+      - 'android/gradle/**'
+      - 'android/build.gradle.kts'
+      - 'android/gradle.properties'
+      - 'android/gradlew'
+      - 'android/settings.gradle.kts'
+      - 'android/version.properties'
+      - 'android/ci/bootstrap-keystore.sh'
+      - 'android/ci/verify-apk.sh'
+      - 'android/ci/verify-keystore.sh'
+      - 'android/ci/debug.keystore'
+      - 'android/ci/signing-fingerprint.txt'
   workflow_dispatch:
 
 permissions:

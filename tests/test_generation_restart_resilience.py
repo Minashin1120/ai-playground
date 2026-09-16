@@ -33,7 +33,11 @@ class GenerationRestartResilienceTests(unittest.TestCase):
         stop_timeout = int(re.search(r"TimeoutStopSec=(\d+)", unit_source).group(1))
 
         self.assertGreater(stop_timeout, job_timeout)
-        self.assertIn("SimpleWorker", (APP_ROOT / "worker.py").read_text(encoding="utf-8"))
+        worker_source = (APP_ROOT / "worker.py").read_text(encoding="utf-8")
+        self.assertIn("class SystemdSimpleWorker(SimpleWorker)", worker_source)
+        self.assertIn("def subscribe(self):", worker_source)
+        self.assertIn("def unsubscribe(self):", worker_source)
+        self.assertIn("worker = SystemdSimpleWorker(", worker_source)
 
     def test_initial_stream_disconnect_schedules_automatic_resume(self):
         source = _current_chat_js()

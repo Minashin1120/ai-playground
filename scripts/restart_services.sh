@@ -12,6 +12,7 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WEB=ai-chat.service
 # Only 2 RQ workers are enabled now: the 1.9 GB host ran out of memory and
 # swapped-out worker pages were stalling requests for 10-15 s. Two workers keep
@@ -22,6 +23,12 @@ SERVICES=("$WEB" "${WORKERS[@]}")
 # Bounded wait: fail after this many seconds even if some unit is still stopping
 # (e.g. a worker mid-job during graceful shutdown).
 DEADLINE_SECS="${RESTART_DEADLINE_SECS:-120}"
+
+# Avoid beginning a coordinated restart while the host is actively paging or
+# stalled on memory/I/O.  This is a bounded preflight and does not use the
+# amount of allocated swap as a gate because used swap remains high after the
+# pressure has passed.
+"$SCRIPT_DIR/wait_for_restart_headroom.sh"
 
 main_pid() {
     systemctl show -p MainPID --value "$1" 2>/dev/null | tr -d ' '

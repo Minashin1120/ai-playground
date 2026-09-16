@@ -144,6 +144,7 @@ class ReleaseScriptContractTests(unittest.TestCase):
             "verify_changes.sh",
             "prepare_version.sh",
             "publish_version.sh",
+            "wait_for_restart_headroom.sh",
         ):
             path = SCRIPTS / name
             self.assertTrue(path.is_file(), name)
@@ -192,6 +193,17 @@ class ReleaseScriptContractTests(unittest.TestCase):
         self.assertLess(confirm_at, restart_at)
         self.assertLess(restart_at, purge_at)
         self.assertIn('CONFIRM" != "$SYSTEM_VERSION"', source)
+
+    def test_restart_waits_for_resource_headroom_before_systemd(self):
+        source = read("restart_services.sh")
+        headroom_at = source.index("wait_for_restart_headroom.sh")
+        restart_at = source.index("sudo systemctl restart --no-block")
+        self.assertLess(headroom_at, restart_at)
+        gate = read("wait_for_restart_headroom.sh")
+        self.assertIn("/proc/pressure/memory", gate)
+        self.assertIn("/proc/pressure/io", gate)
+        self.assertIn("MemAvailable", gate)
+        self.assertIn("pswpin", gate)
 
     def test_scripts_readme_documents_the_three_entry_points(self):
         readme = (SCRIPTS / "README.md").read_text(encoding="utf-8")

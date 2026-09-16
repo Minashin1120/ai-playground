@@ -19,4 +19,4 @@ sudo systemctl enable --now ai-chat.service 'ai-chat-worker@1.service' \
   'ai-chat-worker@2.service'
 ```
 
-ワーカーは処理中ジョブを完了できるよう `TimeoutStopSec=660` としています。Web側はSSE切断後の再接続を前提に、短いgraceful timeoutを使用します。
+ワーカーは処理中ジョブを完了できるよう `TimeoutStopSec=660` としています。Web側はSSE切断後の再接続を前提に、短いgraceful timeoutを使用します。`worker.py` はsystemdからSIGTERMで管理し、利用していないRQリモートコマンド用PubSubスレッドを起動しません。RQのリモートshutdown等を運用へ追加する場合は、この前提も同時に見直してください。

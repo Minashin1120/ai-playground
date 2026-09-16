@@ -13,6 +13,20 @@ LEGACY_QUEUE_NAME = "ai_chat_queue"
 logger = logging.getLogger(__name__)
 
 
+class SystemdSimpleWorker(SimpleWorker):
+    """RQ worker controlled by systemd, without the unused command PubSub."""
+
+    def subscribe(self):
+        # Remote RQ commands are not used by this deployment.  The background
+        # PubSub thread made process teardown touch cold/swapped Python pages
+        # and could delay an otherwise idle worker shutdown for minutes.
+        logger.info("RQ remote command subscription disabled (systemd-managed worker)")
+
+    def unsubscribe(self):
+        # subscribe() intentionally creates no PubSub thread or connection.
+        return None
+
+
 def _default_queue_names():
     instance = (os.getenv("WORKER_INSTANCE") or "").strip()
     # 現在のデプロイでは @1 / @2 の2つのみ有効（メモリ負荷対策）。3,4番は
@@ -40,7 +54,7 @@ def main():
     queue_names = _parse_queue_names()
     try:
         queues = [Queue(name, connection=conn) for name in queue_names]
-        worker = SimpleWorker(queues, connection=conn)
+        worker = SystemdSimpleWorker(queues, connection=conn)
         logger.info("Worker starting (queues=%s)", ",".join(queue_names))
         # Scheduled jobs delete completed account-export archives exactly after
         # their one-hour retention window. RQ coordinates the scheduler lock

@@ -1,6 +1,6 @@
 # AI Chat Playground
 
-[![Version](https://img.shields.io/badge/version-V4.8.997-2563eb)](static/changelogs/20260916_v4.8.997.md)
+[![Version](https://img.shields.io/badge/version-V4.8.998-2563eb)](static/changelogs/20260916_v4.8.998.md)
 [![Python](https://img.shields.io/badge/Python-3.11-3776ab)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-f59e0b)](LICENSE)
 
@@ -51,7 +51,7 @@ AI Chat Playground は、複数の生成AIを1つの画面から利用するた�
           └─ Gunicorn :3111（Flaskアプリ）
               ├─ MariaDB（ユーザー、設定、チャットメタデータ）
               ├─ Redis DB 10（キュー、進捗、レート制限等）
-              ├─ RQ worker × 4（生成・移行などのバックグラウンド処理）
+              ├─ RQ worker × 2（生成・移行などのバックグラウンド処理）
               └─ instance/uploads（ユーザーのアップロード）
 ```
 

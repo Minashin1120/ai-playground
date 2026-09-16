@@ -25,10 +25,10 @@ internal fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (Str
     var category by remember { mutableStateOf("All") }
     val catalog = state.account?.models.orEmpty()
     val categories = listOf("All") + catalog.map { it.providerLabel }.distinct() +
-        catalog.map { it.mode }.distinct() + catalog.flatMap { it.capabilities }.distinct().sorted()
+        catalog.map { it.mode }.distinct() + catalog.flatMap { it.tags + it.capabilities }.distinct().sorted()
     val models = catalog.filter { info ->
-        (category == "All" || category == info.providerLabel || category == info.mode || category in info.capabilities) &&
-            listOf(info.name, info.id, info.providerLabel, info.mode, info.capabilities.joinToString(" "))
+        (category == "All" || category == info.providerLabel || category == info.mode || category in info.capabilities || category in info.tags) &&
+            listOf(info.name, info.id, info.providerLabel, info.mode, info.description, info.category, (info.tags + info.capabilities).joinToString(" "))
                 .any { it.contains(query.trim(), ignoreCase = true) }
     }.sortedWith(compareBy({ !it.selectable }, { it.providerLabel }, { it.name }))
     val colors = MaterialTheme.colorScheme
@@ -70,7 +70,9 @@ internal fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (Str
                             Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text(info.name, fontWeight = FontWeight.SemiBold)
-                                    Text("${info.providerLabel} · ${info.mode}", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                                    Text(info.category.ifBlank { "${info.providerLabel} · ${info.mode}" }, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                                    if (info.description.isNotBlank()) Text(info.description, style = MaterialTheme.typography.bodySmall)
+                                    if (info.price.isNotBlank()) Text(info.price, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
                                     if (info.capabilities.isNotEmpty()) Text(info.capabilities.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = colors.primary)
                                     if (!info.selectable) Text(if (info.deprecated) "提供終了" else "アプリ未対応・Web版で利用可能", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                                 }

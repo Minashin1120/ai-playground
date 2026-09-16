@@ -21,7 +21,10 @@ data class ChatMessage(val id: String, val role: String, val content: String,
 data class Attachment(val name: String, val reference: String, val mime: String = "")
 data class ModelInfo(val id: String, val name: String, val provider: String, val providerLabel: String,
                      val mode: String, val capabilities: Set<String>, val deprecated: Boolean,
-                     val selectable: Boolean) {
+                     val selectable: Boolean,
+                     val description: String = "", val price: String = "", val category: String = "",
+                     val implementedAt: String = "", val implementedRank: Int = 0, val emoji: String = "",
+                     val tags: Set<String> = emptySet()) {
     fun supports(capability: String) = capability in capabilities
 }
 data class Account(val id: Int, val name: String, val models: List<ModelInfo>, val defaultModel: String,

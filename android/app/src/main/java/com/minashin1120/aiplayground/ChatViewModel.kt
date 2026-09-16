@@ -34,6 +34,7 @@ data class ChatState(
     val draft: String = "", val model: String = "", val attachments: List<Attachment> = emptyList(),
     val enableThinking: Boolean = false, val enableSearch: Boolean = false,
     val enablePromptCache: Boolean = false,
+    val generationValues: Map<String, Map<String, String>> = emptyMap(),
     val batchMode: Boolean = false, val enablePython: Boolean = false, val enableMcp: Boolean = true,
     val uploading: Boolean = false, val streaming: Boolean = false,
     val uploadSent: Long = 0L, val uploadTotal: Long = 0L, val uploadName: String = "",
@@ -79,7 +80,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun token(): String = session?.token ?: throw IOException("端末連携が必要です。")
     private suspend fun loadAccount() {
         val me = api.get("/api/mobile/v1/me", token())
-        val account = Account(me.getInt("id"), me.getString("username"), parseModels(me),
+        val serverModels = parseModels(me)
+        val displayModels = runCatching {
+            val json = withContext(Dispatchers.IO) {
+                getApplication<Application>().assets.open("web-model-catalog.json").bufferedReader().use { it.readText() }
+            }
+            applyWebModelCatalog(serverModels, json)
+        }.getOrDefault(serverModels)
+        val account = Account(me.getInt("id"), me.getString("username"), displayModels,
             me.optString("default_model"), me.optBoolean("e2ee_enabled"))
         val chosen = prefs.getString("model_${account.id}", account.defaultModel).orEmpty()
             .takeIf { chosen -> account.models.any { it.id == chosen && it.selectable } }
@@ -177,6 +185,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleBatchMode() { mutable.update { it.copy(batchMode = !it.batchMode) } }
     fun togglePython() { mutable.update { it.copy(enablePython = !it.enablePython) } }
     fun toggleMcp() { mutable.update { it.copy(enableMcp = !it.enableMcp) } }
+    fun generationOption(key: String, value: String) {
+        if (state.value.streaming) return
+        mutable.update { current -> current.copy(generationValues = current.generationValues +
+            (current.model to (current.generationValues[current.model].orEmpty() + (key to value)))) }
+    }
     fun removeAttachment(reference: String) { mutable.update { it.copy(attachments = it.attachments.filterNot { a -> a.reference == reference }) } }
     fun search(query: String) {
         mutable.update { it.copy(search = query) }
@@ -365,6 +378,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val current = state.value
         if (current.streaming || current.busy || current.uploading || (current.draft.isBlank() && current.attachments.isEmpty())) return
         if (current.model.isBlank()) { mutable.update { it.copy(notice = "モデルを選択してください。") }; return }
+        val info = current.account?.models?.firstOrNull { it.id == current.model && it.selectable } ?: return
+        val generation = try { generationOptionsPayload(info, current.generationValues[current.model].orEmpty()) }
+            catch (e: IllegalArgumentException) { notify(e.message ?: "生成設定を確認してください。"); return }
         val body = JSONObject().put("model", current.model).put("message", current.draft)
             .put("client_request_id", UUID.randomUUID().toString()).put("image_urls", JSONArray(current.attachments.map { it.reference }))
             .put("enable_thinking", current.enableThinking).put("enable_search", current.enableSearch)
@@ -372,6 +388,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .put("batch_mode", current.batchMode).put("enable_python", current.enablePython)
             .put("enable_mcp", current.enableMcp)
             .put("temporary_chat", current.selected?.isTemporary ?: current.newThreadTemporary)
+        generation.keys().forEach { key -> body.put(key, generation.get(key)) }
         current.selectedGem?.let { body.put("gem_uuid", it.uuid) }
         if (current.editingMessageId != null) {
             // Branch from the edited message's parent; send null explicitly for the first message.

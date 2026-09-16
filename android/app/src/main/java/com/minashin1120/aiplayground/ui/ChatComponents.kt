@@ -40,7 +40,7 @@ import com.minashin1120.aiplayground.data.numericId
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pickFiles: () -> Unit) {
+fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pickFiles: () -> Unit, onVoice: () -> Unit) {
     var details by remember { mutableStateOf(false) }
     val selectedModel = state.account?.models?.firstOrNull { it.id == state.model }
     val colors = MaterialTheme.colorScheme
@@ -78,6 +78,7 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                     if (info.supports("python")) FilterChip(state.enablePython, model::togglePython, { Text("Python") })
                     if (info.supports("mcp")) FilterChip(state.enableMcp, model::toggleMcp, { Text("MCP") })
                 }
+                GenerationOptionsPanel(info, state.generationValues[info.id].orEmpty(), !state.streaming, model::generationOption)
             }
             state.selectedGem?.let { gem ->
                 InputChip(selected = true, onClick = { model.chooseGem(null) }, label = { Text("Gem: ${gem.name.take(20)} ×") })
@@ -129,6 +130,9 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                     Row(Modifier.padding(start = 2.dp, end = 5.dp), verticalAlignment = Alignment.Bottom) {
                         IconButton(onClick = pickFiles, enabled = !state.uploading && !state.streaming, modifier = Modifier.padding(bottom = 4.dp)) {
                             Icon(Icons.Rounded.AttachFile, contentDescription = "添付を追加")
+                        }
+                        IconButton(onClick = onVoice, enabled = !state.streaming, modifier = Modifier.padding(bottom = 4.dp)) {
+                            Icon(Icons.Rounded.Mic, contentDescription = "音声入力")
                         }
                         OutlinedTextField(
                             state.draft, model::draft, placeholder = { Text("メッセージを入力…") }, minLines = 1, maxLines = 6,

@@ -20,7 +20,7 @@ fun AdvancedToolsDialog(
     onDismiss: () -> Unit,
     onWebPath: (String) -> Unit,
 ) {
-    AlertDialog(
+    PlaygroundDialog(
         onDismissRequest = onDismiss,
         title = { Text("高度な機能") },
         text = {

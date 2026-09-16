@@ -8,6 +8,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.app.Activity
+import android.speech.RecognizerIntent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,6 +45,7 @@ import com.minashin1120.aiplayground.data.ThreadItem
 import com.minashin1120.aiplayground.data.LibraryFile
 import com.minashin1120.aiplayground.data.Gem
 import com.minashin1120.aiplayground.data.FixedPrompt
+import com.minashin1120.aiplayground.data.recentWebModels
 import com.minashin1120.aiplayground.data.CompressionSettings
 import com.minashin1120.aiplayground.data.attachmentKind
 import com.minashin1120.aiplayground.data.attachmentKindIcon
@@ -89,6 +92,21 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
                 }
             }
             val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { model.upload(it) }
+            val speech = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                if (result.resultCode == Activity.RESULT_OK) {
+                    result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let { text ->
+                        val current = model.state.value
+                        if (!current.streaming) model.draft(if (current.draft.isBlank()) text else current.draft.trimEnd() + "\n" + text)
+                    }
+                }
+            }
+            val launchSpeech: () -> Unit = {
+                try {
+                    speech.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        .putExtra(RecognizerIntent.EXTRA_PROMPT, "メッセージを話してください"))
+                } catch (_: Exception) { model.notify("音声入力に対応するアプリが見つかりません。") }
+            }
             val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(30)) { model.upload(it) }
             val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
                 val uri = cameraUri
@@ -150,7 +168,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
                         })
                     }, snackbarHost = { SnackbarHost(snackbar) },
                     bottomBar = {
-                        if (showThreads) Composer(state, model, { modelPicker = true }, { attachMenu = true })
+                        if (showThreads) Composer(state, model, { modelPicker = true }, { attachMenu = true }, launchSpeech)
                     }
                 ) { padding ->
                     Column(Modifier.fillMaxSize().padding(padding)) {
@@ -184,7 +202,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
             }
 
             if (modelPicker) ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { model.chooseModel(it); modelPicker = false })
-            if (libraryOpen) LibraryDialog(state, model, onDismiss = { libraryOpen = false })
+            if (libraryOpen) LibraryDialog(state, model, onFile, onDismiss = { libraryOpen = false })
             if (gemsOpen) GemsDialog(state, model, onDismiss = { gemsOpen = false })
             if (settingsOpen) SettingsDialog(state, model, onDismiss = { settingsOpen = false }, onLogout = { model.logout(); settingsOpen = false; closeDrawer() })
             if (advancedOpen) AdvancedToolsDialog(state, model, onDismiss = { advancedOpen = false }, onWebPath = onWeb)
@@ -389,7 +407,7 @@ private fun ThreadSettingsDialog(
     var instruction by remember(thread.id) { mutableStateOf(state.customInstruction) }
     var includeGlobal by remember(thread.id) { mutableStateOf(state.includeGlobalInstruction) }
     var temporary by remember(thread.id) { mutableStateOf(thread.isTemporary) }
-    AlertDialog(
+    PlaygroundDialog(
         onDismissRequest = onDismiss,
         title = { Text("チャット設定") },
         text = {
@@ -460,7 +478,7 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
                     Text("AI Gems & Chat", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     Text("使いたいモデルを選んで、すぐに会話を始められます", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     Spacer(Modifier.height(6.dp))
-                    state.account?.models.orEmpty().filter { it.selectable && !it.deprecated }.take(6).forEach { info ->
+                    recentWebModels(state.account?.models.orEmpty()).forEach { info ->
                         Surface(
                             onClick = { model.chooseModel(info.id) },
                             shape = RoundedCornerShape(PlaygroundDimens.cardRadius),
@@ -469,7 +487,7 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Row(Modifier.padding(horizontal = 16.dp, vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(info.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                                Text("${info.emoji} ${info.name}".trim(), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                                 Icon(if (state.model == info.id) Icons.Rounded.Check else Icons.Rounded.ArrowForward, contentDescription = if (state.model == info.id) "選択中" else null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                             }
                         }
@@ -491,12 +509,14 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun LibraryDialog(state: ChatState, model: ChatViewModel, onDismiss: () -> Unit) {
+private fun LibraryDialog(state: ChatState, model: ChatViewModel, onFile: (String) -> Unit, onDismiss: () -> Unit) {
+    val loader: FileBytesLoader = { reference, thumbnail, limit -> model.loadAttachmentBytes(reference, thumbnail, limit) }
     var renameTarget by remember { mutableStateOf<LibraryFile?>(null) }
     var deleteTarget by remember { mutableStateOf<LibraryFile?>(null) }
     LaunchedEffect(Unit) { model.refreshLibrary() }
-    AlertDialog(
+    PlaygroundDialog(
         onDismissRequest = onDismiss,
         title = { Text("ファイルライブラリ") },
         text = {
@@ -513,9 +533,12 @@ private fun LibraryDialog(state: ChatState, model: ChatViewModel, onDismiss: () 
                 LazyColumn(Modifier.heightIn(max = 360.dp)) {
                     items(state.library, key = { it.filepath }) { file ->
                         Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                            if (file.isImage) ProtectedImage(file.url.ifBlank { file.filepath }, loader, onFile,
+                                modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp), thumbnail = true, contentDescription = file.displayName)
                             Text("${attachmentKindIcon(attachmentKind(file.displayName))} ${file.displayName}",
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Row {
+                            FlowRow {
+                                TextButton(onClick = { onFile(file.url.ifBlank { file.filepath }) }) { Text("開く") }
                                 TextButton(onClick = { model.reuseLibraryFile(file); onDismiss() }) { Text("再利用") }
                                 TextButton(onClick = { model.toggleLibraryFavorite(file) }) { Text(if (file.isFavorite) "★" else "☆") }
                                 TextButton(onClick = { renameTarget = file }) { Text("名前変更") }
@@ -564,7 +587,7 @@ private fun GemsDialog(state: ChatState, model: ChatViewModel, onDismiss: () -> 
     var editor by remember { mutableStateOf<Gem?>(null) }
     var creating by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { model.loadGems() }
-    AlertDialog(
+    PlaygroundDialog(
         onDismissRequest = onDismiss,
         title = { Text("Gems") },
         text = {
@@ -618,7 +641,7 @@ private fun GemEditorDialog(
     var defaultModel by remember { mutableStateOf(gem?.defaultModel.orEmpty()) }
     var saving by remember { mutableStateOf(false) }
     var prompts by remember { mutableStateOf(gem?.fixedPrompts.orEmpty()) }
-    AlertDialog(
+    PlaygroundDialog(
         onDismissRequest = { if (!saving) onDismiss() },
         title = { Text(if (gem == null) "Gemを作成" else "Gemを編集") },
         text = {
@@ -684,17 +707,24 @@ private fun SettingsDialog(
     var outputType by remember(state.compression) { mutableStateOf(state.compression.outputType) }
     var modelPicker by remember { mutableStateOf(false) }
     var confirmLogout by remember { mutableStateOf(false) }
+    var settingsTab by remember { mutableStateOf("一般") }
     LaunchedEffect(Unit) { model.loadPreferences() }
-    AlertDialog(
+    PlaygroundDialog(
         onDismissRequest = onDismiss,
-        title = { Text("一般設定") },
+        title = { Text("設定") },
         text = {
             Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (state.prefsBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("一般", "画像圧縮", "セッション").forEach { tab ->
+                        FilterChip(settingsTab == tab, { settingsTab = tab }, { Text(tab) })
+                    }
+                }
+                if (settingsTab == "一般") {
                 Text(state.account?.name.orEmpty(), style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 TextButton(onClick = { modelPicker = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("既定モデル: ${defaultModel.ifBlank { "未設定" }} ▾")
+                    Text("既定モデル: ${state.account?.models?.firstOrNull { it.id == defaultModel }?.name ?: defaultModel.ifBlank { "未設定" }} ▾")
                 }
                 CheckboxRow("既定でThinkingを使う", thinking) { thinking = it }
                 CheckboxRow("既定でWeb検索を使う", search) { search = it }
@@ -703,6 +733,8 @@ private fun SettingsDialog(
                 CheckboxRow("リンクのX投稿を自動検索", autoSearch) { autoSearch = it }
                 OutlinedTextField(timeout, { timeout = it.filter { c -> c.isDigit() }.take(6) }, singleLine = true,
                     label = { Text("一時チャットの自動削除（秒）") }, modifier = Modifier.fillMaxWidth())
+                }
+                if (settingsTab == "画像圧縮") {
                 Text("画像の圧縮", fontWeight = FontWeight.SemiBold)
                 CheckboxRow("画像を圧縮して送信", compressionEnabled) { compressionEnabled = it }
                 if (compressionEnabled) {
@@ -719,7 +751,8 @@ private fun SettingsDialog(
                         }
                     }
                 }
-                HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                }
+                if (settingsTab == "セッション") {
                 Text("この端末のセッション", fontWeight = FontWeight.SemiBold)
                 Text("端末: ${prefs?.deviceName?.ifBlank { "このAndroid端末" } ?: "このAndroid端末"}",
                     style = MaterialTheme.typography.labelSmall)
@@ -732,6 +765,7 @@ private fun SettingsDialog(
                 Text("APIキー・パスワード・2FAの変更はWeb設定で行います。",
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 TextButton(onClick = { confirmLogout = true }) { Text("この端末の連携を取り消す") }
+                }
             }
         },
         confirmButton = {

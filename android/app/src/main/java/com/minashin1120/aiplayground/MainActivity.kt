@@ -17,8 +17,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            PlaygroundScreen(model, onWeb = { pairing ->
-                val url = BuildConfig.BASE_URL + if (pairing) "android/connect" else ""
+            PlaygroundScreen(model, onWeb = { path ->
+                val safePath = path.takeIf { it.startsWith('/') && !it.startsWith("//") } ?: "/"
+                val url = BuildConfig.BASE_URL.trimEnd('/') + safePath
                 try { CustomTabsIntent.Builder().build().launchUrl(this, Uri.parse(url)) }
                 catch (_: Exception) { model.notify("ブラウザーを開けません。ブラウザーをインストールして再試行してください。") }
             }, onFile = { reference ->

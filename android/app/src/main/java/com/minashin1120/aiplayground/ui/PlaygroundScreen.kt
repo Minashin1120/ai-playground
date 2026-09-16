@@ -3,8 +3,11 @@ package com.minashin1120.aiplayground.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
@@ -25,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.content.FileProvider
+import androidx.core.content.ContextCompat
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.data.ThreadItem
@@ -40,7 +44,7 @@ import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (String) -> Unit) {
+fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (String) -> Unit) {
     val state by model.state.collectAsStateWithLifecycle()
     PlaygroundTheme(darkTheme = state.preferences?.let { !it.lightModeEnabled } ?: isSystemInDarkTheme()) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -56,8 +60,16 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
             var libraryOpen by remember { mutableStateOf(false) }
             var gemsOpen by remember { mutableStateOf(false) }
             var settingsOpen by remember { mutableStateOf(false) }
+            var advancedOpen by remember { mutableStateOf(false) }
             var cameraUri by remember { mutableStateOf<Uri?>(null) }
             val context = LocalContext.current
+            val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+            LaunchedEffect(state.account?.id) {
+                if (state.account != null && Build.VERSION.SDK_INT >= 33 &&
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
             val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { model.upload(it) }
             val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(30)) { model.upload(it) }
             val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
@@ -129,7 +141,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
             if (showThreads && wide) {
                 Row(Modifier.fillMaxSize()) {
                     Surface(Modifier.width(PlaygroundDimens.sidePane).fillMaxHeight(), tonalElevation = 1.dp) {
-                        ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {}, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true })
+                        ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {}, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true })
                     }
                     VerticalDivider()
                     Box(Modifier.weight(1f)) { content() }
@@ -138,7 +150,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
                 ModalNavigationDrawer(drawerState = drawer, gesturesEnabled = showThreads,
                     drawerContent = {
                         if (showThreads) ModalDrawerSheet(Modifier.width(PlaygroundDimens.drawerPane)) {
-                            ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true })
+                            ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true })
                         }
                     }) { content() }
             }
@@ -147,6 +159,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (Boolean) -> Unit, onFile: (St
             if (libraryOpen) LibraryDialog(state, model, onDismiss = { libraryOpen = false })
             if (gemsOpen) GemsDialog(state, model, onDismiss = { gemsOpen = false })
             if (settingsOpen) SettingsDialog(state, model, onDismiss = { settingsOpen = false }, onLogout = { model.logout(); settingsOpen = false; closeDrawer() })
+            if (advancedOpen) AdvancedToolsDialog(state, model, onDismiss = { advancedOpen = false }, onWebPath = onWeb)
             if (attachMenu) AlertDialog(onDismissRequest = { attachMenu = false }, title = { Text("添付を追加") },
                 text = { Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = { attachMenu = false; picker.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("📂 ファイルを選択") }
@@ -186,13 +199,14 @@ private fun OfflineBanner(onRetry: () -> Unit) {
 private fun ThreadPanel(
     state: ChatState,
     model: ChatViewModel,
-    onWeb: (Boolean) -> Unit,
+    onWeb: (String) -> Unit,
     onLogout: () -> Unit,
     onDelete: (ThreadItem) -> Unit,
     onNavigate: () -> Unit,
     onLibrary: () -> Unit,
     onGems: () -> Unit,
     onSettings: () -> Unit,
+    onAdvanced: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Column(Modifier.fillMaxWidth()) {
@@ -239,14 +253,15 @@ private fun ThreadPanel(
         TextButton(onClick = onSettings, modifier = Modifier.fillMaxWidth()) { Text("一般設定") }
         TextButton(onClick = onLibrary, modifier = Modifier.fillMaxWidth()) { Text("ファイルライブラリ") }
         TextButton(onClick = onGems, modifier = Modifier.fillMaxWidth()) { Text("Gems") }
-        TextButton(onClick = { onWeb(false) }, modifier = Modifier.fillMaxWidth()) { Text("Web設定・安全性確認") }
+        TextButton(onClick = onAdvanced, modifier = Modifier.fillMaxWidth()) { Text("高度な機能・Batch") }
+        TextButton(onClick = { onWeb("/settings") }, modifier = Modifier.fillMaxWidth()) { Text("Web設定・安全性確認") }
         TextButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) { Text("この端末からログアウト") }
         Spacer(Modifier.navigationBarsPadding())
     }
 }
 
 @Composable
-private fun PairingScreen(state: ChatState, model: ChatViewModel, onWeb: (Boolean) -> Unit) {
+private fun PairingScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -> Unit) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         item {
             Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.primaryContainer) {
@@ -264,7 +279,7 @@ private fun PairingScreen(state: ChatState, model: ChatViewModel, onWeb: (Boolea
                     Text("1. この確認コードを覚えてください", fontWeight = FontWeight.SemiBold)
                     SelectionContainer { Text(state.userCode.chunked(4).joinToString(" − "), fontSize = 28.sp, fontWeight = FontWeight.Bold) }
                     Text("2. ブラウザーでログインし、コードを入力して端末連携を許可します。")
-                    Button(onClick = { onWeb(true) }, modifier = Modifier.fillMaxWidth()) { Text("ブラウザーで連携を許可") }
+                    Button(onClick = { onWeb("/android/connect") }, modifier = Modifier.fillMaxWidth()) { Text("ブラウザーで連携を許可") }
                     Text("3. このアプリに戻ると連携を確認します。コードの有効期限は10分です。", style = MaterialTheme.typography.bodySmall)
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                     TextButton(onClick = model::cancelPairing) { Text("連携をキャンセル") }
@@ -275,7 +290,7 @@ private fun PairingScreen(state: ChatState, model: ChatViewModel, onWeb: (Boolea
                     }
                 }
                 Text("接続先: ai.minashin1120.com", style = MaterialTheme.typography.labelMedium)
-                TextButton(onClick = { onWeb(false) }) { Text("アカウント作成・Webアプリを開く") }
+                TextButton(onClick = { onWeb("/") }) { Text("アカウント作成・Webアプリを開く") }
             }
         }
     }
@@ -369,7 +384,7 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
                     branchCount = if (numericId(message) != null) siblings.size else 0,
                     onSwitchBranch = { target -> model.switchBranchByIndex(siblings, target) })
             }
-            if (live) item(key = "live") { LiveMessage(state, onFile, model::quoteMessage, loader) }
+            if (live) item(key = "live") { LiveMessage(state, onFile, model::quoteMessage, loader, model::resolveMcpDecision) }
         }
     }
 }
@@ -380,7 +395,7 @@ private fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (Stri
     AlertDialog(onDismissRequest = onDismiss, title = { Text("モデルを選択") }, text = {
         Column {
             OutlinedTextField(query, { query = it }, singleLine = true, label = { Text("モデル名で検索") })
-            Text("通常チャット用のモデルを選んでください。APIキーはWeb設定を利用します。", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 12.dp))
+            Text("チャット・画像・動画・OCR・音声モデルを選べます。APIキーはWeb設定を利用します。", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 12.dp))
             LazyColumn(Modifier.heightIn(max = 380.dp)) {
                 val models = state.account?.models.orEmpty().filter {
                     it.name.contains(query, ignoreCase = true) || it.id.contains(query, ignoreCase = true) || it.providerLabel.contains(query, ignoreCase = true)
@@ -391,7 +406,8 @@ private fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (Stri
                             Text((if (info.id == selectedId) "✓ " else "") + info.name, fontWeight = FontWeight.SemiBold)
                             Text(buildString {
                                 append(info.providerLabel)
-                                if (!info.selectable) append(if (info.deprecated) " · 提供終了" else " · ${info.mode}はWebで利用")
+                                append(" · ${info.mode}")
+                                if (!info.selectable) append(if (info.deprecated) " · 提供終了" else " · Webで利用")
                             }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }

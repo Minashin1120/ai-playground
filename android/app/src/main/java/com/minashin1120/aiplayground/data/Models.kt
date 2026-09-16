@@ -126,7 +126,7 @@ fun replaceGemMention(text: String, query: String): String {
 }
 
 /** Live-only progress cards for streamed search and tool execution. */
-enum class CardKind { SEARCH, PYTHON }
+enum class CardKind { SEARCH, PYTHON, MCP, CODING, TOOL }
 
 data class StatusCard(
     val id: String,
@@ -136,6 +136,14 @@ data class StatusCard(
     val code: String = "",
     val output: String = "",
     val done: Boolean = false,
+)
+
+data class McpDecision(
+    val id: String,
+    val jobId: String,
+    val serverName: String,
+    val toolName: String,
+    val argsPreview: String,
 )
 
 class ApiException(val status: Int, val payload: JSONObject, val retryAfter: Long = 5) : IOException() {
@@ -260,6 +268,34 @@ fun upsertPythonCard(cards: List<StatusCard>, payload: JSONObject): List<StatusC
         output = output.ifBlank { previous?.output.orEmpty() },
         done = output.isNotBlank(),
     )
+    return if (index >= 0) cards.toMutableList().also { it[index] = card } else cards + card
+}
+
+/** Renders structured tool events without leaking raw protocol JSON into the answer text. */
+fun upsertToolCard(cards: List<StatusCard>, type: String, content: Any?): List<StatusCard> {
+    val payload = content as? JSONObject
+    val kind = if (type == "coding_diff") CardKind.CODING else if (type.startsWith("mcp")) CardKind.MCP else CardKind.TOOL
+    val id = payload?.optString("id")?.takeIf { it.isNotBlank() }
+        ?: payload?.optString("tool_call_id")?.takeIf { it.isNotBlank() }
+        ?: payload?.optString("target_id")?.takeIf { it.isNotBlank() }
+        ?: "${kind.name.lowercase()}-${cards.count { it.kind == kind }}"
+    val innerType = payload?.optString("type").orEmpty()
+    val done = type.endsWith("resolved") || payload?.optBoolean("done") == true ||
+        type == "coding_diff" || innerType in setOf("result", "error", "decision_resolved")
+    val label = when (kind) {
+        CardKind.MCP -> payload?.optString("tool_name")?.ifBlank { "MCPツール" } ?: "MCPツール"
+        CardKind.CODING -> "Coding差分"
+        else -> payload?.optString("name")?.ifBlank { "ツール" } ?: "ツール"
+    }
+    val detail = payload?.optString("message").orEmpty()
+        .ifBlank { payload?.optString("summary").orEmpty() }
+        .ifBlank { payload?.optString("status").orEmpty() }
+    val output = when (kind) {
+        CardKind.CODING -> payload?.optString("diff").orEmpty()
+        else -> payload?.optString("output").orEmpty().ifBlank { payload?.optString("result").orEmpty() }
+    }
+    val card = StatusCard(id, kind, label, detail = detail, output = output, done = done)
+    val index = cards.indexOfFirst { it.kind == kind && it.id == id }
     return if (index >= 0) cards.toMutableList().also { it[index] = card } else cards + card
 }
 

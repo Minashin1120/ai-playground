@@ -34,6 +34,7 @@ data class ChatState(
     val draft: String = "", val model: String = "", val attachments: List<Attachment> = emptyList(),
     val enableThinking: Boolean = false, val enableSearch: Boolean = false,
     val enablePromptCache: Boolean = false,
+    val batchMode: Boolean = false, val enablePython: Boolean = false, val enableMcp: Boolean = true,
     val uploading: Boolean = false, val streaming: Boolean = false,
     val uploadSent: Long = 0L, val uploadTotal: Long = 0L, val uploadName: String = "",
     val library: List<LibraryFile> = emptyList(), val libraryBusy: Boolean = false,
@@ -42,8 +43,10 @@ data class ChatState(
     val gems: List<Gem> = emptyList(), val gemsBusy: Boolean = false, val selectedGem: Gem? = null,
     val preferences: Preferences? = null, val prefsBusy: Boolean = false,
     val compression: CompressionSettings = CompressionSettings(),
+    val batchJobs: List<BatchJob> = emptyList(), val batchBusy: Boolean = false,
     val liveContent: String = "", val liveThought: String = "", val status: String = "",
     val cards: List<StatusCard> = emptyList(),
+    val mcpDecision: McpDecision? = null,
     val offline: Boolean = false,
     val jobId: String? = null, val retryAvailable: Boolean = false, val notice: String? = null,
 )
@@ -62,6 +65,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var uploadJob: Job? = null
     private var heartbeatJob: Job? = null
     private var libraryJob: Job? = null
+    private var batchPollJob: Job? = null
     private data class Submission(val body: JSONObject, val files: List<Attachment>)
     private var failed: Submission? = null
     private var pendingParentId: Int? = null
@@ -84,6 +88,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         fetchThreads(false)
         runCatching { fetchGems() }.onFailure { report(it) }
         runCatching { fetchPreferences() }.onFailure { report(it) }
+        runCatching { fetchBatchJobs(notify = false) }.onFailure { report(it) }
+        if (foreground) startBatchPolling()
     }
     fun setForeground(value: Boolean) {
         val returning = value && !foreground
@@ -93,6 +99,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             mutable.update { it.copy(streaming = false, status = "アプリに戻ると履歴を確認します。") }
         }
         if (!value) heartbeatJob?.cancel()
+        if (!value) batchPollJob?.cancel()
+        if (value && state.value.account != null) startBatchPolling()
         if (returning && state.value.account != null && state.value.selected != null && !state.value.busy) refresh()
     }
     fun pair() {
@@ -157,12 +165,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(model = model,
             enableThinking = it.enableThinking && info.supports("thinking"),
             enableSearch = it.enableSearch && info.supports("search"),
-            enablePromptCache = it.enablePromptCache && info.supports("prompt_cache")) }
+            enablePromptCache = it.enablePromptCache && info.supports("prompt_cache"),
+            batchMode = it.batchMode && info.supports("batch"),
+            enablePython = it.enablePython && info.supports("python"),
+            enableMcp = it.enableMcp && info.supports("mcp")) }
         state.value.account?.let { prefs.edit().putString("model_${it.id}", model).apply() }
     }
     fun toggleThinking() { mutable.update { it.copy(enableThinking = !it.enableThinking) } }
     fun toggleSearch() { mutable.update { it.copy(enableSearch = !it.enableSearch) } }
     fun togglePromptCache() { mutable.update { it.copy(enablePromptCache = !it.enablePromptCache) } }
+    fun toggleBatchMode() { mutable.update { it.copy(batchMode = !it.batchMode) } }
+    fun togglePython() { mutable.update { it.copy(enablePython = !it.enablePython) } }
+    fun toggleMcp() { mutable.update { it.copy(enableMcp = !it.enableMcp) } }
     fun removeAttachment(reference: String) { mutable.update { it.copy(attachments = it.attachments.filterNot { a -> a.reference == reference }) } }
     fun search(query: String) {
         mutable.update { it.copy(search = query) }
@@ -355,6 +369,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .put("client_request_id", UUID.randomUUID().toString()).put("image_urls", JSONArray(current.attachments.map { it.reference }))
             .put("enable_thinking", current.enableThinking).put("enable_search", current.enableSearch)
             .put("enable_prompt_caching", current.enablePromptCache)
+            .put("batch_mode", current.batchMode).put("enable_python", current.enablePython)
+            .put("enable_mcp", current.enableMcp)
             .put("temporary_chat", current.selected?.isTemporary ?: current.newThreadTemporary)
         current.selectedGem?.let { body.put("gem_uuid", it.uuid) }
         if (current.editingMessageId != null) {
@@ -377,7 +393,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         streamJob?.cancel()
         streamJob = viewModelScope.launch {
             val owner = currentCoroutineContext().job
-            mutable.update { it.copy(streaming = true, retryAvailable = false, status = "送信中…", liveContent = "", liveThought = "", cards = emptyList()) }
+            mutable.update { it.copy(streaming = true, retryAvailable = false, status = "送信中…", liveContent = "", liveThought = "", cards = emptyList(), mcpDecision = null) }
             var id = submission.body.nullableString("thread_id")
             try {
                 if (id.isBlank()) {
@@ -400,6 +416,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 failed = null
                 loadMessages(id)
                 fetchThreads(false)
+                if (submission.body.optBoolean("batch_mode")) {
+                    fetchBatchJobs(notify = false)
+                    startBatchPolling()
+                }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 report(e)
@@ -422,6 +442,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             "search_status" -> {
                 val value = event.opt("content")?.toString().orEmpty()
                 mutable.update { it.copy(cards = upsertSearchCard(it.cards, value), status = "Webを検索しています…") }
+                return
+            }
+            "mcp", "mcp_decision_request", "mcp_decision_resolved", "coding_diff" -> {
+                val type = event.optString("type")
+                val payload = event.optJSONObject("content")
+                mutable.update { current -> current.copy(
+                    cards = upsertToolCard(current.cards, type, event.opt("content")),
+                    mcpDecision = when (type) {
+                        "mcp_decision_request" -> payload?.let { McpDecision(
+                            id = it.optString("id"), jobId = current.jobId.orEmpty(),
+                            serverName = it.optString("server_name", "MCP"),
+                            toolName = it.optString("tool_name"), argsPreview = it.optString("args_preview"),
+                        ) }
+                        "mcp_decision_resolved" -> null
+                        else -> current.mcpDecision
+                    },
+                    status = "ツールを実行しています…",
+                ) }
                 return
             }
         }
@@ -459,6 +497,60 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             delay(1000); loadMessages(id)
         } catch (e: Exception) { report(e) }
     } }
+
+    fun resolveMcpDecision(allow: Boolean) { viewModelScope.launch {
+        val decision = state.value.mcpDecision ?: return@launch
+        if (decision.jobId.isBlank()) return@launch
+        mutable.update { it.copy(mcpDecision = null) }
+        try {
+            api.post("/api/mcp/chat/${URLEncoder.encode(decision.jobId, "UTF-8")}/decision",
+                JSONObject().put("decision", if (allow) "allow" else "deny").put("id", decision.id), token())
+        } catch (e: Exception) { report(e) }
+    } }
+
+    private suspend fun fetchBatchJobs(notify: Boolean) {
+        val previous = state.value.batchJobs.associateBy { it.id }
+        if (notify) runCatching { api.get("/api/gemini/batch/status", token()) }
+        val jobs = parseBatchJobs(api.get("/api/batch/jobs", token()))
+        if (notify) jobs.filter { !it.active && previous[it.id]?.active == true }.forEach { job ->
+            notifyBatchCompletion(getApplication<Application>(), job)
+            mutable.update { it.copy(notice = "Batch処理「${job.threadTitle}」: ${batchStateLabel(job)}") }
+        }
+        mutable.update { it.copy(batchJobs = jobs, batchBusy = false) }
+    }
+
+    fun refreshBatchJobs() {
+        viewModelScope.launch {
+            mutable.update { it.copy(batchBusy = true) }
+            try { fetchBatchJobs(notify = true) } catch (e: Exception) { report(e) }
+            finally { mutable.update { it.copy(batchBusy = false) } }
+        }
+    }
+
+    private fun startBatchPolling() {
+        if (batchPollJob?.isActive == true) return
+        batchPollJob = viewModelScope.launch {
+            while (foreground && session != null) {
+                if (state.value.batchJobs.any { it.active }) runCatching { fetchBatchJobs(notify = true) }
+                delay(30_000)
+            }
+        }
+    }
+
+    fun cancelBatchJob(job: BatchJob) { viewModelScope.launch {
+        try { api.post("/api/batch/jobs/${job.id}/cancel", JSONObject(), token()); fetchBatchJobs(notify = false) }
+        catch (e: Exception) { report(e) }
+    } }
+
+    fun deleteBatchJob(job: BatchJob) { viewModelScope.launch {
+        try { api.delete("/api/batch/jobs/${job.id}", token()); fetchBatchJobs(notify = false) }
+        catch (e: Exception) { report(e) }
+    } }
+
+    fun openThreadId(id: String) {
+        val item = state.value.threads.firstOrNull { it.id == id } ?: ThreadItem(id, "Batchチャット", "")
+        openThread(item)
+    }
     fun logout() { viewModelScope.launch {
         try {
             api.post("/api/mobile/v1/revoke", JSONObject(), token())
@@ -467,7 +559,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     } }
     private suspend fun clearSession() {
         val caller = currentCoroutineContext().job
-        listOf(pairingJob, navigationJob, streamJob, uploadJob, heartbeatJob, libraryJob).forEach { if (it !== caller) it?.cancel() }
+        listOf(pairingJob, navigationJob, streamJob, uploadJob, heartbeatJob, libraryJob, batchPollJob).forEach { if (it !== caller) it?.cancel() }
         withContext(NonCancellable + Dispatchers.IO) { store.clear() }
         session = null; failed = null
         mutable.value = ChatState(starting = false)

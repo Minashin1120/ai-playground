@@ -218,4 +218,16 @@ class PlaygroundApiTest {
         assertEquals("print(1)", output.single().code)
         assertTrue(output.single().done)
     }
+
+    @Test fun batchJobsAndStructuredToolCardsParse() {
+        val jobs = parseBatchJobs(JSONObject("""{"jobs":[{"job_id":"b1","thread_id":"t1","thread_title":"Batch","model":"gpt-5.6-sol","provider":"openai","state":"JOB_STATE_RUNNING","status_text":"実行中","error":null,"is_active":true,"can_cancel":true}]}"""))
+        assertEquals("b1", jobs.single().id)
+        assertTrue(jobs.single().active)
+        assertTrue(jobs.single().canCancel)
+        val mcp = upsertToolCard(emptyList(), "mcp", JSONObject("""{"tool_call_id":"m1","tool_name":"search","status":"running"}"""))
+        assertEquals(CardKind.MCP, mcp.single().kind)
+        val coding = upsertToolCard(emptyList(), "coding_diff", JSONObject("""{"target_id":"c1","diff":"@@ -1 +1 @@"}"""))
+        assertEquals(CardKind.CODING, coding.single().kind)
+        assertTrue(coding.single().done)
+    }
 }

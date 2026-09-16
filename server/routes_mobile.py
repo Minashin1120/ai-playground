@@ -70,6 +70,10 @@ def _mobile_model_metadata(model_id):
         capabilities += ['attachments', 'search', 'thinking']
         if provider in {'gemini', 'openai', 'anthropic'}:
             capabilities.append('prompt_cache')
+        capabilities += ['python', 'mcp']
+    if mode in {'chat', 'image'} and globals().get('_is_batch_model', lambda _model: False)(model_id):
+        capabilities.append('batch')
+    native_modes = {'chat', 'image', 'video', 'ocr', 'tts', 'transcription', 'agent'}
     return {
         'id': model_id,
         'name': _mobile_model_name(model_id),
@@ -78,7 +82,7 @@ def _mobile_model_metadata(model_id):
         'mode': mode,
         'capabilities': capabilities,
         'deprecated': deprecated,
-        'selectable': mode == 'chat' and not deprecated,
+        'selectable': mode in native_modes and not deprecated,
     }
 
 

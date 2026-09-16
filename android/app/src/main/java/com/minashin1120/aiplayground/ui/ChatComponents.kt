@@ -50,6 +50,9 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                     if (info.supports("thinking")) FilterChip(state.enableThinking, model::toggleThinking, { Text("Thinking") })
                     if (info.supports("search")) FilterChip(state.enableSearch, model::toggleSearch, { Text("Web検索") })
                     if (info.supports("prompt_cache")) FilterChip(state.enablePromptCache, model::togglePromptCache, { Text("Prompt Cache") })
+                    if (info.supports("batch")) FilterChip(state.batchMode, model::toggleBatchMode, { Text("Batch") })
+                    if (info.supports("python")) FilterChip(state.enablePython, model::togglePython, { Text("Python") })
+                    if (info.supports("mcp")) FilterChip(state.enableMcp, model::toggleMcp, { Text("MCP") })
                 }
             }
             state.selectedGem?.let { gem ->
@@ -177,6 +180,7 @@ fun StatusCardView(card: StatusCard) {
                         modifier = Modifier.horizontalScroll(rememberScrollState()).padding(10.dp))
                 }
             }
+            if (card.detail.isNotBlank()) Text(card.detail, style = MaterialTheme.typography.bodySmall)
             if (card.output.isNotBlank()) {
                 Text("出力", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 SelectionContainer {
@@ -189,9 +193,24 @@ fun StatusCardView(card: StatusCard) {
 }
 
 @Composable
-fun LiveMessage(state: ChatState, onFile: (String) -> Unit, onQuote: (String) -> Unit, loader: FileBytesLoader? = null) {
+fun LiveMessage(state: ChatState, onFile: (String) -> Unit, onQuote: (String) -> Unit,
+                loader: FileBytesLoader? = null, onMcpDecision: (Boolean) -> Unit = {}) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         state.cards.forEach { card -> key(card.id + card.kind) { StatusCardView(card) } }
+        state.mcpDecision?.let { decision ->
+            Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = RoundedCornerShape(12.dp)) {
+                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("MCPツールの実行確認", fontWeight = FontWeight.SemiBold)
+                    Text("${decision.serverName} / ${decision.toolName}", style = MaterialTheme.typography.bodySmall)
+                    if (decision.argsPreview.isNotBlank()) SelectionContainer {
+                        Text(decision.argsPreview.take(2000), fontFamily = FontFamily.Monospace,
+                            style = MaterialTheme.typography.bodySmall, maxLines = 10, overflow = TextOverflow.Ellipsis)
+                    }
+                    Row { TextButton(onClick = { onMcpDecision(false) }) { Text("拒否") }
+                        Button(onClick = { onMcpDecision(true) }) { Text("今回だけ許可") } }
+                }
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.streaming) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
             Text(state.status.ifBlank { "受信した回答" }, style = MaterialTheme.typography.labelMedium)

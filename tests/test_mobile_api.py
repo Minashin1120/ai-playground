@@ -115,7 +115,8 @@ class MobileApiTests(unittest.TestCase):
         self.assertTrue(catalog['gpt-5.6-sol']['selectable'])
         self.assertIn('thinking', catalog['gpt-5.6-sol']['capabilities'])
         self.assertEqual(catalog['gpt-image-2']['mode'], 'image')
-        self.assertFalse(catalog['gpt-image-2']['selectable'])
+        self.assertTrue(catalog['gpt-image-2']['selectable'])
+        self.assertIn('batch', catalog['gpt-5.6-sol']['capabilities'])
         self.assertTrue(catalog['gemini-3-pro-preview']['deprecated'])
         self.assertIn('no-store', response.headers['Cache-Control'])
         with target.app.app_context():
@@ -361,6 +362,27 @@ class MobileApiTests(unittest.TestCase):
         self.assertEqual(self.call('/c/' + foreign_id + '/pdf', token).status_code, 403)
         # Message deletion is not part of the native scope.
         self.assertEqual(self.call('/api/messages/1', token, 'DELETE').status_code, 403)
+
+    def test_native_batch_history_is_owner_scoped(self):
+        token = self.token()
+        with target.app.app_context():
+            own_thread = target.Thread(user_id=self.user_id, title='Android Batch')
+            foreign_thread = target.Thread(user_id=self.other_id, title='Foreign Batch')
+            target.db.session.add_all([own_thread, foreign_thread])
+            target.db.session.flush()
+            own = target.GeminiBatchJob(job_id='android-batch', user_id=self.user_id,
+                thread_id=own_thread.id, user_message_id=1, assistant_message_id=2,
+                provider='openai', model='gpt-5.6-sol', state='JOB_STATE_SUCCEEDED')
+            foreign = target.GeminiBatchJob(job_id='foreign-batch', user_id=self.other_id,
+                thread_id=foreign_thread.id, user_message_id=3, assistant_message_id=4,
+                provider='openai', model='gpt-5.6-sol', state='JOB_STATE_SUCCEEDED')
+            target.db.session.add_all([own, foreign])
+            target.db.session.commit()
+        listed = self.call('/api/batch/jobs', token)
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual([row['job_id'] for row in listed.json['jobs']], ['android-batch'])
+        self.assertEqual(self.call('/api/batch/jobs/foreign-batch', token, 'DELETE').status_code, 404)
+        self.assertEqual(self.call('/api/batch/jobs/android-batch', token, 'DELETE').status_code, 200)
 
     def test_encrypted_account_pairs_and_reads_encrypted_history_and_attachment(self):
         with target.app.app_context():

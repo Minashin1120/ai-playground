@@ -42,11 +42,14 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | モデル一覧 | `/me` の `models`。表示名、提供元、用途、対応能力、廃止状態、通常チャットでの選択可否を返す。互換用の `model_ids` も維持 |
 | APIキー・プロフィール・アカウント削除・2FA設定 | Webで操作。Androidトークンでは設定・管理APIにアクセスできない |
 | WebのE2EE設定 | 有効なまま連携・履歴取得・添付を利用可能。現在の実装はサーバー管理鍵による保存時暗号化であり、端末だけが復号できるE2EEではない |
-| リアルタイム音声、Batch管理、Coding専用UI、MCP設定 | 今回の対応範囲外。専用APIはトークンの許可リストに含めない |
+| Batch管理 | ネイティブで送信、一覧、状態更新、停止、履歴削除、完了通知に対応 |
+| 画像・動画・OCR・TTS・文字起こし | `/chat_stream` と同じ保存・停止・再接続境界でネイティブ対応。モデル別の高度な設定はWeb導線 |
+| Python・MCP・Coding結果 | Python・MCP・Coding差分のストリームイベントを構造化カードで表示。MCPの秘密設定とCoding対象の高度な編集はWeb導線 |
+| リアルタイム音声・Lyria | 常時接続とブラウザー側の既存権限処理を使うため、認証済みWebへの明示的な導線として対応 |
 | ブラウザー高速モード | 対象外。APIキーをAndroidへ返すbootstrap APIは許可しない |
 | アプリ配布・真正性検証 | APK署名・Play配布は別途。client_idや端末名はアプリ署名の証明ではない |
 
-Android版は通常チャット、メタデータ付きモデル選択、Thinking・Web検索・Prompt Cache、履歴の検索・ページ送り・削除・ブックマーク、タイトル・スレッド指示、一時チャット、添付（進捗・キャンセル・Photo Picker・カメラ・大容量チャンク・画像圧縮設定）、ファイルライブラリ、Gems、一般設定（既定モデル・既定Thinking／検索・Enter送信・ライトモード・リンク自動検索・一時チャット期限）、この端末のセッション表示、メッセージの編集・再生成・分岐切替、ネイティブPDF出力、生成停止、切断後の再接続、端末連携・失効に対応します。本文は見出し、強調、リスト、引用、安全なHTTP(S)リンク、コピー・折り畳み対応コード、表、添付画像プレビュー、Web検索とPython実行の状態カードを選択可能なネイティブUIで表示します。数式はWebViewやKaTeXを使わず、LaTeXを読めるネイティブ近似へ変換して描画します。APIキー・パスワード・2FAの変更、リアルタイム音声、Batch操作、高度なモデル別設定はまだWebを使います。
+Android版は通常チャット、メタデータ付きモデル選択、Thinking・Web検索・Prompt Cache、履歴、スレッド設定、一時チャット、添付、ファイルライブラリ、Gems、一般設定、この端末のセッション、編集・再生成・分岐、ネイティブPDF、画像・動画・OCR・TTS・文字起こし、Batchの送信・管理・完了通知、生成停止、切断後の再接続、端末連携・失効に対応します。本文はMarkdown、コード、表、数式近似、添付プレビューに加え、検索・Python・MCP・Coding差分を構造化カードで表示します。APIキー・パスワード・2FA・MCP秘密設定の変更、Realtime音声、Lyria、管理機能は認証済みWebへの明示的な導線を使います。
 
 暗号化の境界は「HTTPSで通信」「サーバーが保存データを暗号化・復号」「端末トークンをAndroid Keystoreの鍵で暗号化保存」です。既存Webの `enable_e2ee` はサーバー側の `encrypt_val` / `decrypt_val` とファイル暗号化に使われます。そのため、この設定を理由にAndroidを拒否する必要はありません。真の端末間E2EEに変更する場合は、端末鍵の生成・共有・回復とAI処理時の平文の扱いを別途設計する必要があります。
 
@@ -230,6 +233,11 @@ Webのログアウトと同様、端末の失効操作はBot確認待ち・ロ�
 | GET/PUT/DELETE `/api/gems/<uuid>` | PUTは作成と同じ項目 | 取得・更新・削除。所有者のみ |
 | GET `/api/mobile/v1/preferences` | なし | 既定モデル・既定Thinking／検索・Enter送信・ライトモード・リンク自動検索・一時チャット期限・この端末のセッション情報 |
 | PUT `/api/mobile/v1/preferences` | `default_model`, `default_enable_thinking`, `default_enable_search`, `enter_to_send`, `light_mode_enabled`, `auto_search_on_links`, `temp_chat_timeout_seconds` | 更新後の設定。APIキー等の未知キーは無視し、値を変更しない |
+| GET `/api/gemini/batch/status` | なし | Provider状態を更新し、完了・実行中Batchを返す |
+| GET `/api/batch/jobs` | なし | 本人のBatch履歴（最大500件） |
+| POST `/api/batch/jobs/<job_id>/cancel` | `{}` | 本人の実行中Batchを停止 |
+| DELETE `/api/batch/jobs/<job_id>` | なし | 本人の終了済みBatch履歴を削除 |
+| POST `/api/mcp/chat/<job_id>/decision` | `decision`（`allow` / `deny`） | 本人の実行中チャットで要求された変更系MCPツールを今回だけ許可または拒否 |
 
 IDは文字列として扱います。古い履歴の数値IDを受け取る場合もあります。`limit` は最大200。`before_id` を使って古いメッセージをページングし、初期表示で全履歴を要求しないでください。
 
@@ -245,9 +253,11 @@ IDは文字列として扱います。古い履歴の数値IDを受け取る場�
 }
 ```
 
-`model` は省略できません。`/me` の `models` から `selectable: true` かつ `mode: "chat"` のモデルだけを選び、`capabilities` に含まれる設定だけを表示します。既存のモデル用APIキーがない場合は400と `code: api_key_missing` 等が返るため、Webの設定を案内します。
+`model` は省略できません。`/me` の `models` から `selectable: true` のモデルだけを選び、`mode` に応じた入力と `capabilities` に含まれる設定だけを表示します。ネイティブ対象は `chat`、`image`、`video`、`ocr`、`tts`、`transcription`、`agent` です。常時接続が必要な `realtime_audio` と `music` はWeb導線を使います。既存のモデル用APIキーがない場合は400と `code: api_key_missing` 等が返るため、Webの設定を案内します。
 
 `gem_uuid` を付けると、そのGemの指示が回答生成に適用されます。`/api/gems` が返す本人の `uuid` だけを使い、他ユーザーのGemを指定しないでください。現在のスレッドの最後に使ったGemは、スレッド取得応答の `last_gem_uuid` で確認できます。
+
+対応モデルでは `batch_mode: true` を付けるとProviderのBatch APIへ投入します。Androidは30秒間隔で実行中ジョブを確認し、通知権限がある端末では終了時にシステム通知を表示します。`enable_python` と `enable_mcp` は通常チャットの構造化ツールイベントを有効にしますが、秘密設定は返しません。
 
 `thread_id` を省略すると送信時にスレッドを作成できます。ただし再送と画面状態の管理を簡単にするため、初期実装では先にスレッドを作ってIDを保存する方法が扱いやすいです。
 

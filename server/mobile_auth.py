@@ -19,6 +19,9 @@ MOBILE_ENDPOINT_METHODS = {
     'rename_library_file': {'POST'},
     'handle_gems': {'GET', 'POST'}, 'handle_gem_item': {'GET', 'PUT', 'DELETE'},
     'export_thread_pdf': {'GET'},
+    'gemini_batch_status_api': {'GET'}, 'list_batch_jobs_api': {'GET'},
+    'cancel_batch_job_api': {'POST'}, 'delete_batch_job_api': {'DELETE'},
+    'mcp_service.chat_decision': {'POST'},
 }
 MOBILE_PUBLIC_ENDPOINTS = {'mobile_device', 'mobile_token'}
 

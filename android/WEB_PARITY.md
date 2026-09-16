@@ -153,4 +153,4 @@ Phase 1はAndroid 1.1.2で完了しました。Android 1.2.0でPhase 2を開始�
 
 Phase 3はAndroid 1.8.0で完了し、GitHub Actionsで単体テスト・lint・debug／release APK・固定署名を確認しました。`app-debug`、`android-reports`、`app-release-signed` のartifactと、Android 1.8.0のGitHub Release資産も確認済みです。実機では通知権限、生成物表示、文字拡大、TalkBack、縦横画面、スマートフォン／タブレットを引き続き確認し、未確認項目を検証済みとは記録しません。
 
-次版向け作業ツリーでは、Web版V4.8.992のデザイントークンと主要画面構造に合わせて、背景、TopAppBar、履歴サイドバー、ウェルカム表示、メッセージバブル、Composer、主要アイコンを刷新しました。更新後作業を保留しているため、版番号更新、GitHub Actions、実機確認、配布はまだ実施していません。
+Android 1.9.0向けに、Web版V4.8.992のデザイントークンと主要画面構造に合わせて、背景、TopAppBar、履歴サイドバー、ウェルカム表示、メッセージバブル、Composer、主要アイコンを刷新しました。GitHub Actionsで単体テスト・lint・debug／release APK・固定署名を検証し、実機確認が必要な項目は引き続き検証済みと区別します。

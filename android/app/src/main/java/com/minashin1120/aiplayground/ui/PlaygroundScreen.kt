@@ -55,6 +55,10 @@ import com.minashin1120.aiplayground.data.siblingGroup
 import kotlinx.coroutines.launch
 import java.io.File
 
+/** Phone history drawer starts closed. Tablet layout uses a permanent side pane instead. */
+internal fun shouldForceHistoryDrawerClosed(showThreads: Boolean, wideLayout: Boolean): Boolean =
+    showThreads && !wideLayout
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (String) -> Unit) {
@@ -69,11 +73,17 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
         ) {
             // Tablets and wide screens keep the history pane beside the conversation.
             val wide = maxWidth >= PlaygroundDimens.breakpoint
-            val drawer = rememberDrawerState(DrawerValue.Closed)
+            var allowDrawerOpen by remember { mutableStateOf(false) }
+            // Do not use rememberDrawerState: its saveable state can restore Open after process death.
+            val drawer = remember {
+                DrawerState(DrawerValue.Closed) { value ->
+                    value == DrawerValue.Closed || allowDrawerOpen
+                }
+            }
             val scope = rememberCoroutineScope()
-            LaunchedEffect(Unit) {
-                // Do not restore an open history drawer as the app's startup state.
-                drawer.snapTo(DrawerValue.Closed)
+            val openDrawer: () -> Unit = {
+                allowDrawerOpen = true
+                scope.launch { drawer.open() }
             }
             var deleting by remember { mutableStateOf<ThreadItem?>(null) }
             var logout by remember { mutableStateOf(false) }
@@ -157,6 +167,17 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
             }
             val closeDrawer: () -> Unit = { scope.launch { drawer.close() } }
             val showThreads = state.account != null
+            LaunchedEffect(showThreads, wide) {
+                allowDrawerOpen = false
+                // Empty drawer content (pairing) then the 264dp sheet leaves offset 0, which is Open.
+                if (shouldForceHistoryDrawerClosed(showThreads, wide)) {
+                    repeat(3) {
+                        drawer.snapTo(DrawerValue.Closed)
+                        withFrameNanos { }
+                    }
+                }
+                allowDrawerOpen = showThreads && !wide
+            }
 
             val content: @Composable () -> Unit = {
                 Scaffold(
@@ -167,7 +188,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
                             Text(state.selected?.title?.ifBlank { "新しいチャット" } ?: "AI Playground", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             if (state.selected?.isTemporary == true || state.newThreadTemporary) Text("一時チャット", style = MaterialTheme.typography.labelSmall, color = colors.secondary)
                         } }, navigationIcon = {
-                            if (showThreads && !wide) IconButton(onClick = { scope.launch { drawer.open() } }) {
+                            if (showThreads && !wide) IconButton(onClick = openDrawer) {
                                 Icon(Icons.Rounded.Menu, contentDescription = "履歴メニュー")
                             }
                         }, actions = {
@@ -226,7 +247,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
                     Box(Modifier.weight(1f)) { content() }
                 }
             } else {
-                ModalNavigationDrawer(drawerState = drawer, gesturesEnabled = showThreads,
+                ModalNavigationDrawer(drawerState = drawer, gesturesEnabled = showThreads && allowDrawerOpen,
                     drawerContent = {
                         if (showThreads) ModalDrawerSheet(Modifier.width(PlaygroundDimens.drawerPane), drawerContainerColor = colors.surface) {
                             ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true })

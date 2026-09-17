@@ -17,10 +17,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
@@ -57,8 +53,6 @@ internal fun StartupSplash(enabled: Boolean) {
         val maxScale = (maxOf(maxWidth.value, maxHeight.value) / logoSize.value * 1.15f).coerceAtLeast(5f)
         val zoomProgress = ((progress.value - 0.62f) / 0.38f).coerceIn(0f, 1f)
         val scale = 1f + (maxScale - 1f) * zoomProgress
-        val revealProgress = ((progress.value - 0.76f) / 0.24f).coerceIn(0f, 1f)
-
         LaunchedEffect(Unit) {
             progress.animateTo(1f, tween(durationMillis = 1_500, easing = EaseIn))
             delay(50)
@@ -71,23 +65,6 @@ internal fun StartupSplash(enabled: Boolean) {
                 .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
         ) {
             drawRect(Color.Black)
-            if (revealProgress > 0f) {
-                val revealWidth = size.width * (0.12f + 0.86f * revealProgress)
-                val revealHeight = size.height * (0.08f + 0.86f * revealProgress)
-                drawRoundRect(
-                    color = Color.Transparent,
-                    topLeft = Offset(
-                        (size.width - revealWidth) / 2f,
-                        (size.height - revealHeight) / 2f,
-                    ),
-                    size = Size(revealWidth, revealHeight),
-                    cornerRadius = CornerRadius(
-                        x = revealWidth * 0.12f,
-                        y = revealHeight * 0.12f,
-                    ),
-                    blendMode = BlendMode.Clear,
-                )
-            }
         }
         Image(
             painter = painterResource(R.drawable.ic_playground_mark),

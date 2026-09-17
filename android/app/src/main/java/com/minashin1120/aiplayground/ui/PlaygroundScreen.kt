@@ -257,7 +257,7 @@ fun PlaygroundScreen(
             if (showThreads && wide) {
                 Row(Modifier.fillMaxSize()) {
                     Surface(Modifier.width(PlaygroundDimens.sidePane).fillMaxHeight(), color = colors.surface.copy(alpha = 0.94f)) {
-                        ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {}, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true })
+                        ThreadPanel(state, model, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {}, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true })
                     }
                     VerticalDivider()
                     Box(Modifier.weight(1f)) { content() }
@@ -267,7 +267,7 @@ fun PlaygroundScreen(
                     drawerContent = {
                         ModalDrawerSheet(Modifier.width(PlaygroundDimens.drawerPane), drawerContainerColor = colors.surface) {
                             if (showThreads) {
-                                ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true })
+                                ThreadPanel(state, model, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true })
                             }
                         }
                     }) { content() }
@@ -365,7 +365,6 @@ private fun OfflineBanner(onRetry: () -> Unit) {
 private fun ThreadPanel(
     state: ChatState,
     model: ChatViewModel,
-    onWeb: (String) -> Unit,
     onLogout: () -> Unit,
     onDelete: (ThreadItem) -> Unit,
     onNavigate: () -> Unit,
@@ -447,12 +446,6 @@ private fun ThreadPanel(
             }
         }
         HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f), modifier = Modifier.padding(vertical = 6.dp))
-        SidebarAction(Icons.Rounded.Schedule, "一時チャット", { model.newChat(temporary = true); onNavigate() })
-        SidebarAction(
-            Icons.Rounded.Security,
-            "Web設定・安全性確認",
-            onClick = { onWeb("/settings") },
-        )
         SidebarAction(Icons.Rounded.Logout, "この端末からログアウト", onLogout, danger = true)
         Spacer(Modifier.navigationBarsPadding())
     }

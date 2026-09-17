@@ -8,6 +8,8 @@
 | `version.properties` | AndroidのversionCodeとversionName | 新しいAndroid版を配布するとき |
 | `app/build.gradle.kts` | 固定applicationId・共有署名・依存関係 | アプリ構成・署名を確認するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/MainActivity.kt` | ブラウザー起動・添付共有・Activityライフサイクル | 端末連携やファイル表示 |
+| `app/src/main/java/com/minashin1120/aiplayground/data/AppUpdateChecker.kt` | GitHubのAndroid Release確認とバージョン比較 | 起動時のアプリ更新検出 |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/AppUpdateDialog.kt` | 新しいAndroid版の更新案内ダイアログ | 更新通知の文言・導線 |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatViewModel.kt` | 認証・履歴・送信・再接続・アップロード状態 | アプリ操作・通信フロー |
 | `app/src/main/java/com/minashin1120/aiplayground/BatchNotifications.kt` | Batch完了通知チャンネルと安全な通知表示 | Batch通知を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/` | CookieなしHTTP、NDJSON、APIモデル、Keystore保存 | 認証・通信・保存 |

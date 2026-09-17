@@ -46,6 +46,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | 画像・動画・OCR・TTS・文字起こし | `/chat_stream` と同じ保存・停止・再接続境界でネイティブ対応。GPT／Gemini／Grok画像、GPT-Imageマスク、Gemini動画（長さ・比率・解像度）、Grok動画、OCR、TTS、Thinking量、xAI詳細を表示・送信 |
 | Python・MCP・Coding結果 | Python・MCP・Coding差分のストリームイベントを構造化カードで表示。MCPの秘密設定とCoding対象の高度な編集はWeb導線 |
 | リアルタイム音声・Lyria | OpenAI／Grok RealtimeとLyriaはBearer認証のネイティブセッション、マイク入力、SSE再生、保存に対応。Gemini LiveとSTSは認証済みWebへの明示的な導線 |
+| アプリ更新検出 | 起動時にGitHub Releasesの `android-vX.Y.Z` だけを確認し、現在のAndroid版より新しい安定版があればReleaseページを案内。APKの取得・インストールはユーザー操作 |
 | ブラウザー高速モード | 対象外。APIキーをAndroidへ返すbootstrap APIは許可しない |
 | アプリ配布・真正性検証 | APK署名・Play配布は別途。client_idや端末名はアプリ署名の証明ではない |
 

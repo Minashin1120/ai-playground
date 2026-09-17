@@ -47,6 +47,7 @@ import com.minashin1120.aiplayground.data.Gem
 import com.minashin1120.aiplayground.data.FixedPrompt
 import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.recentWebModels
+import com.minashin1120.aiplayground.data.AppUpdate
 
 import com.minashin1120.aiplayground.data.attachmentKind
 import com.minashin1120.aiplayground.data.attachmentKindIcon
@@ -65,7 +66,14 @@ internal fun shouldCoverPhoneHistoryUntilClosed(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (String) -> Unit) {
+fun PlaygroundScreen(
+    model: ChatViewModel,
+    onWeb: (String) -> Unit,
+    onFile: (String) -> Unit,
+    appUpdate: AppUpdate? = null,
+    onDismissUpdate: () -> Unit = {},
+    onOpenUpdate: (AppUpdate) -> Unit = {},
+) {
     val state by model.state.collectAsStateWithLifecycle()
     PlaygroundTheme(darkTheme = state.preferences?.let { !it.lightModeEnabled } ?: isSystemInDarkTheme(),
         themeColor = state.preferences?.themeColor, liquidGlass = state.preferences?.liquidGlassEnabled == true) {
@@ -327,6 +335,9 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
                 text = { Text("このAndroid端末の連携を取り消します。Webや他の端末のログインは継続します。") },
                 confirmButton = { TextButton(onClick = { model.logout(); logout = false; closeDrawer() }) { Text("ログアウト") } },
                 dismissButton = { TextButton(onClick = { logout = false }) { Text("キャンセル") } })
+            appUpdate?.let { update ->
+                AppUpdateDialog(update, onDismiss = onDismissUpdate, onOpenRelease = { onOpenUpdate(update) })
+            }
         }
     }
 }

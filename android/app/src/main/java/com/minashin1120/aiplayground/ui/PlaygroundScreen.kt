@@ -311,6 +311,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
                     DialogAction(Icons.Rounded.FolderOpen, "ファイルを選択") { attachMenu = false; picker.launch(arrayOf("*/*")) }
                     DialogAction(Icons.Rounded.PhotoLibrary, "写真・動画を選択") { attachMenu = false; photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) }
                     DialogAction(Icons.Rounded.PhotoCamera, "カメラで撮影") { attachMenu = false; launchCamera() }
+                    DialogAction(Icons.Rounded.FolderShared, "ライブラリから選択") { attachMenu = false; libraryOpen = true }
                 } },
                 confirmButton = { TextButton(onClick = { attachMenu = false }) { Text("閉じる") } })
             if (threadSettings && state.selected != null) ThreadSettingsDialog(state, onDismiss = { threadSettings = false }) {

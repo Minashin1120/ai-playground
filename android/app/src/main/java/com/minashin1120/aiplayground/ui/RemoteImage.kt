@@ -6,6 +6,7 @@ import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -62,18 +63,21 @@ private fun decodeScaled(bytes: ByteArray, maxWidth: Int): Bitmap? {
 fun ProtectedImage(
     reference: String,
     loader: FileBytesLoader?,
-    onOpen: (String) -> Unit,
+    onOpen: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
     thumbnail: Boolean = true,
+    compact: Boolean = true,
+    maxDecodeWidth: Int = 1280,
+    limitBytes: Long = 8L * 1024 * 1024,
     contentDescription: String? = null,
 ) {
-    val key = "$reference|${if (thumbnail) "t" else "f"}"
+    val key = "$reference|${if (thumbnail) "t" else "f"}|$maxDecodeWidth"
     var bitmap by remember(key) { mutableStateOf(ProtectedImageCache.get(key)) }
     var failed by remember(key) { mutableStateOf(false) }
     LaunchedEffect(key) {
         if (bitmap != null || loader == null) return@LaunchedEffect
-        val bytes = runCatching { loader(reference, thumbnail, 8L * 1024 * 1024) }.getOrNull()
-        val decoded = bytes?.let { data -> withContext(Dispatchers.Default) { decodeScaled(data, 1280) } }
+        val bytes = runCatching { loader(reference, thumbnail, limitBytes) }.getOrNull()
+        val decoded = bytes?.let { data -> withContext(Dispatchers.Default) { decodeScaled(data, maxDecodeWidth) } }
         if (decoded != null) {
             ProtectedImageCache.put(key, decoded)
             bitmap = decoded
@@ -81,13 +85,15 @@ fun ProtectedImage(
             failed = true
         }
     }
+    val click = if (onOpen != null) Modifier.clickable { onOpen(reference) } else Modifier
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = modifier.clip(RoundedCornerShape(12.dp)).clickable { onOpen(reference) },
+        modifier = modifier.clip(RoundedCornerShape(12.dp)).then(click),
     ) {
         Box(
-            Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 320.dp),
+            if (compact) Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 320.dp)
+            else Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
         ) {
             val image = bitmap

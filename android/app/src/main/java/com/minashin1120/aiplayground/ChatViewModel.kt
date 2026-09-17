@@ -994,13 +994,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         return api.uploadComplete(uploadId, token()).getString("filename")
     }
+    suspend fun downloadAttachment(reference: String): Pair<File, String> {
+        val directory = File(getApplication<Application>().cacheDir, "shared").apply { mkdirs() }
+        val suffix = reference.substringBefore('?').substringAfterLast('.', "bin").take(8).filter { it.isLetterOrDigit() }.ifBlank { "bin" }
+        val target = File(directory, "${UUID.randomUUID()}.$suffix")
+        val mime = withContext(Dispatchers.IO) { api.download(reference, target, token()) }
+        return target to mime
+    }
+
     fun openFile(reference: String, onReady: (File, String) -> Unit) { viewModelScope.launch {
         try {
-            val directory = File(getApplication<Application>().cacheDir, "shared").apply { mkdirs() }
-            val suffix = reference.substringAfterLast('.', "bin").take(8).filter { it.isLetterOrDigit() }.ifBlank { "bin" }
-            val target = File(directory, "${UUID.randomUUID()}.$suffix")
-            val mime = api.download(reference, target, token())
-            onReady(target, mime)
+            val (file, mime) = downloadAttachment(reference)
+            onReady(file, mime)
         } catch (e: Exception) { report(e) }
     } }
 

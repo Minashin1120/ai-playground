@@ -95,6 +95,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
             var threadSettings by remember { mutableStateOf(false) }
             var attachMenu by remember { mutableStateOf(false) }
             var libraryOpen by remember { mutableStateOf(false) }
+            var viewingFile by remember { mutableStateOf<FileViewRequest?>(null) }
             var gemsOpen by remember { mutableStateOf(false) }
             var settingsOpen by remember { mutableStateOf(false) }
             var advancedOpen by remember { mutableStateOf(false) }
@@ -166,6 +167,9 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
             val loader: FileBytesLoader = { reference, thumbnail, limit ->
                 model.loadAttachmentBytes(reference, thumbnail, limit)
             }
+            val openInApp: (String) -> Unit = { reference ->
+                viewingFile = FileViewRequest(reference)
+            }
             LaunchedEffect(state.notice) {
                 state.notice?.let { snackbar.showSnackbar(it, duration = SnackbarDuration.Long); model.dismissNotice() }
             }
@@ -235,7 +239,7 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
                             when {
                                 state.starting -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                                 state.account == null -> PairingScreen(state, model, onWeb)
-                                else -> Conversation(state, model, onFile, loader)
+                                else -> Conversation(state, model, openInApp, loader)
                             }
                         }
                     }
@@ -272,7 +276,15 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
             }
 
             if (modelPicker) ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { model.chooseModel(it); modelPicker = false })
-            if (libraryOpen) LibraryDialog(state, model, onFile, onDismiss = { libraryOpen = false })
+            if (libraryOpen) LibraryDialog(state, model, onOpenFile = { viewingFile = it }, onDismiss = { libraryOpen = false })
+            viewingFile?.let { request ->
+                FileViewerDialog(
+                    request, loader,
+                    download = { model.downloadAttachment(it) },
+                    onDismiss = { viewingFile = null },
+                    onOpenExternal = onFile,
+                )
+            }
             if (gemsOpen) GemsDialog(state, model, onDismiss = { gemsOpen = false })
             if (settingsOpen) SettingsDialog(state, model, onDismiss = { settingsOpen = false },
                 onLogout = { model.logout(); settingsOpen = false; closeDrawer() }, onWeb = onWeb)
@@ -601,7 +613,7 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun LibraryDialog(state: ChatState, model: ChatViewModel, onFile: (String) -> Unit, onDismiss: () -> Unit) {
+private fun LibraryDialog(state: ChatState, model: ChatViewModel, onOpenFile: (FileViewRequest) -> Unit, onDismiss: () -> Unit) {
     val loader: FileBytesLoader = { reference, thumbnail, limit -> model.loadAttachmentBytes(reference, thumbnail, limit) }
     var renameTarget by remember { mutableStateOf<LibraryFile?>(null) }
     var deleteTarget by remember { mutableStateOf<LibraryFile?>(null) }
@@ -623,12 +635,18 @@ private fun LibraryDialog(state: ChatState, model: ChatViewModel, onFile: (Strin
                 LazyColumn(Modifier.heightIn(max = 360.dp)) {
                     items(state.library, key = { it.filepath }) { file ->
                         Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                            if (file.isImage) ProtectedImage(file.url.ifBlank { file.filepath }, loader, onFile,
+                            val reference = file.url.ifBlank { file.filepath }
+                            if (file.isImage) ProtectedImage(reference, loader, {
+                                onOpenFile(FileViewRequest(it, file.displayName, file.ext, "image/"))
+                            },
                                 modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp), thumbnail = true, contentDescription = file.displayName)
                             Text("${attachmentKindIcon(attachmentKind(file.displayName))} ${file.displayName}",
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             FlowRow {
-                                TextButton(onClick = { onFile(file.url.ifBlank { file.filepath }) }) { Text("開く") }
+                                TextButton(onClick = {
+                                    onOpenFile(FileViewRequest(reference, file.displayName, file.ext,
+                                        if (file.type == "image") "image/" else ""))
+                                }) { Text("開く") }
                                 TextButton(onClick = { model.reuseLibraryFile(file); onDismiss() }) { Text("再利用") }
                                 TextButton(onClick = { model.toggleLibraryFavorite(file) }) { Text(if (file.isFavorite) "★" else "☆") }
                                 TextButton(onClick = { renameTarget = file }) { Text("名前変更") }

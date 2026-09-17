@@ -38,10 +38,11 @@ internal fun latestAndroidUpdateFromJson(payload: String, currentVersion: String
         if (release.optBoolean("draft") || release.optBoolean("prerelease")) continue
         val tag = release.optString("tag_name")
         val tagMatch = ANDROID_TAG.matchEntire(tag) ?: continue
-        val version = parseVersion(tagMatch.groupValues[1]) ?: continue
+        val versionName = tagMatch.groupValues.drop(1).joinToString(".")
+        val version = parseVersion(versionName) ?: continue
         if (version <= current || newest?.first?.let { version <= it } == true) continue
         newest = version to AppUpdate(
-            versionName = tagMatch.groupValues[1],
+            versionName = versionName,
             releaseUrl = "https://github.com/$REPOSITORY/releases/tag/$tag",
         )
     }

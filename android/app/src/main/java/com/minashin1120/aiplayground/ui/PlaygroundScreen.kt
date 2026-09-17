@@ -55,9 +55,13 @@ import com.minashin1120.aiplayground.data.siblingGroup
 import kotlinx.coroutines.launch
 import java.io.File
 
-/** Phone history drawer starts closed. Tablet layout uses a permanent side pane instead. */
-internal fun shouldForceHistoryDrawerClosed(showThreads: Boolean, wideLayout: Boolean): Boolean =
-    showThreads && !wideLayout
+/** Phone layout keeps the history drawer closed until it has settled off-screen. */
+internal fun shouldCoverPhoneHistoryUntilClosed(
+    starting: Boolean,
+    showThreads: Boolean,
+    wideLayout: Boolean,
+    drawerSettledClosed: Boolean,
+): Boolean = starting || (showThreads && !wideLayout && !drawerSettledClosed)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -167,16 +171,16 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
             }
             val closeDrawer: () -> Unit = { scope.launch { drawer.close() } }
             val showThreads = state.account != null
-            LaunchedEffect(showThreads, wide) {
+            LaunchedEffect(showThreads, wide, state.starting) {
                 allowDrawerOpen = false
-                // Empty drawer content (pairing) then the 264dp sheet leaves offset 0, which is Open.
-                if (shouldForceHistoryDrawerClosed(showThreads, wide)) {
+                if (!wide) {
+                    // Close under the startup spinner so the open-then-close animation is never shown.
                     repeat(3) {
                         drawer.snapTo(DrawerValue.Closed)
                         withFrameNanos { }
                     }
                 }
-                allowDrawerOpen = showThreads && !wide
+                if (!state.starting && showThreads && !wide) allowDrawerOpen = true
             }
 
             val content: @Composable () -> Unit = {
@@ -249,10 +253,22 @@ fun PlaygroundScreen(model: ChatViewModel, onWeb: (String) -> Unit, onFile: (Str
             } else {
                 ModalNavigationDrawer(drawerState = drawer, gesturesEnabled = showThreads && allowDrawerOpen,
                     drawerContent = {
-                        if (showThreads) ModalDrawerSheet(Modifier.width(PlaygroundDimens.drawerPane), drawerContainerColor = colors.surface) {
-                            ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true })
+                        ModalDrawerSheet(Modifier.width(PlaygroundDimens.drawerPane), drawerContainerColor = colors.surface) {
+                            if (showThreads) {
+                                ThreadPanel(state, model, onWeb, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true })
+                            }
                         }
                     }) { content() }
+            }
+
+            if (shouldCoverPhoneHistoryUntilClosed(state.starting, showThreads, wide, allowDrawerOpen)) {
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.verticalGradient(listOf(colors.background, colors.surfaceContainerLow))
+                    )
+                ) {
+                    CircularProgressIndicator(Modifier.align(Alignment.Center))
+                }
             }
 
             if (modelPicker) ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { model.chooseModel(it); modelPicker = false })

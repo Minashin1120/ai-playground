@@ -6,18 +6,24 @@ import org.junit.Test
 
 class DrawerStartStateTest {
     @Test
-    fun phoneWithAccountClosesHistoryDrawer() {
-        assertTrue(shouldForceHistoryDrawerClosed(showThreads = true, wideLayout = false))
+    fun startingAlwaysShowsSpinnerCover() {
+        assertTrue(shouldCoverPhoneHistoryUntilClosed(starting = true, showThreads = false, wideLayout = false, drawerSettledClosed = false))
+        assertTrue(shouldCoverPhoneHistoryUntilClosed(starting = true, showThreads = true, wideLayout = false, drawerSettledClosed = true))
     }
 
     @Test
-    fun tabletKeepsPermanentSidePane() {
-        assertFalse(shouldForceHistoryDrawerClosed(showThreads = true, wideLayout = true))
+    fun phoneKeepsSpinnerUntilDrawerHasSettledClosed() {
+        assertTrue(shouldCoverPhoneHistoryUntilClosed(starting = false, showThreads = true, wideLayout = false, drawerSettledClosed = false))
+        assertFalse(shouldCoverPhoneHistoryUntilClosed(starting = false, showThreads = true, wideLayout = false, drawerSettledClosed = true))
     }
 
     @Test
-    fun pairingScreenDoesNotForceDrawer() {
-        assertFalse(shouldForceHistoryDrawerClosed(showThreads = false, wideLayout = false))
-        assertFalse(shouldForceHistoryDrawerClosed(showThreads = false, wideLayout = true))
+    fun tabletDoesNotCoverPermanentSidePaneAfterStart() {
+        assertFalse(shouldCoverPhoneHistoryUntilClosed(starting = false, showThreads = true, wideLayout = true, drawerSettledClosed = false))
+    }
+
+    @Test
+    fun pairingScreenIsNotCoveredAfterStart() {
+        assertFalse(shouldCoverPhoneHistoryUntilClosed(starting = false, showThreads = false, wideLayout = false, drawerSettledClosed = false))
     }
 }

@@ -29,6 +29,7 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             PlaygroundScreen(model, appUpdate = availableUpdate.value,
+                playStartupAnimation = savedInstanceState == null,
                 onDismissUpdate = { availableUpdate.value = null }, onOpenUpdate = { update ->
                     availableUpdate.value = null
                     openExternalUrl(update.releaseUrl)

@@ -71,6 +71,7 @@ fun PlaygroundScreen(
     onWeb: (String) -> Unit,
     onFile: (String) -> Unit,
     appUpdate: AppUpdate? = null,
+    playStartupAnimation: Boolean = true,
     onDismissUpdate: () -> Unit = {},
     onOpenUpdate: (AppUpdate) -> Unit = {},
 ) {
@@ -78,6 +79,8 @@ fun PlaygroundScreen(
     PlaygroundTheme(darkTheme = state.preferences?.let { !it.lightModeEnabled } ?: isSystemInDarkTheme(),
         themeColor = state.preferences?.themeColor, liquidGlass = state.preferences?.liquidGlassEnabled == true) {
         val colors = MaterialTheme.colorScheme
+        val context = LocalContext.current
+        val startupSplashEnabled = playStartupAnimation && !areSystemAnimationsDisabled(context)
         BoxWithConstraints(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(listOf(colors.background, colors.surfaceContainerLow))
@@ -114,7 +117,6 @@ fun PlaygroundScreen(
             var maskOpen by remember { mutableStateOf(false) }
             var maskSource by remember { mutableStateOf<Uri?>(null) }
             var cameraUri by remember { mutableStateOf<Uri?>(null) }
-            val context = LocalContext.current
             val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
             val microphone = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
                 if (awaitingMic) {
@@ -273,7 +275,7 @@ fun PlaygroundScreen(
                     }) { content() }
             }
 
-            if (shouldCoverPhoneHistoryUntilClosed(state.starting, showThreads, wide, allowDrawerOpen)) {
+            if (shouldCoverPhoneHistoryUntilClosed(state.starting && !startupSplashEnabled, showThreads, wide, allowDrawerOpen)) {
                 Box(
                     Modifier.fillMaxSize().background(
                         Brush.verticalGradient(listOf(colors.background, colors.surfaceContainerLow))
@@ -338,6 +340,7 @@ fun PlaygroundScreen(
             appUpdate?.let { update ->
                 AppUpdateDialog(update, onDismiss = onDismissUpdate, onOpenRelease = { onOpenUpdate(update) })
             }
+            StartupSplash(startupSplashEnabled, colors.primary)
         }
     }
 }

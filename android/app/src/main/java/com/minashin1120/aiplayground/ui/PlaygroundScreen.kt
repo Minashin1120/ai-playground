@@ -340,7 +340,7 @@ fun PlaygroundScreen(
             appUpdate?.let { update ->
                 AppUpdateDialog(update, onDismiss = onDismissUpdate, onOpenRelease = { onOpenUpdate(update) })
             }
-            StartupSplash(startupSplashEnabled, colors.primary)
+            StartupSplash(startupSplashEnabled)
         }
     }
 }

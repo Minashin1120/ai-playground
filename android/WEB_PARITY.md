@@ -1,6 +1,6 @@
 # Web版との機能・デザイン一致ロードマップ
 
-## Android 1.13.11：Web UI配置と操作感の追加同期
+## Android 1.13.13：Web UI配置と操作感の追加同期
 
 Web版V4.8.1001の画面構造を基準に、ネイティブComposeの主要導線を更新しました。
 
@@ -85,7 +85,7 @@ Webと見分けがつかない状態には未到達です。以下の旧表で�
 
 ## 4. 現在の基準
 
-配布済み基準版はAndroid 1.13.11、Web V4.8.1001です。主要機能のネイティブ実装と、安全上ブラウザーで扱う機能への明示的なWeb導線まで完了しています。Android CIでは単体テスト、lint、debug／release APK、固定署名を検証済みで、実機確認が必要な項目は下表に残しています。
+配布済み基準版はAndroid 1.13.13、Web V4.8.1001です。主要機能のネイティブ実装と、安全上ブラウザーで扱う機能への明示的なWeb導線まで完了しています。Android CIでは単体テスト、lint、debug／release APK、固定署名を検証済みで、実機確認が必要な項目は下表に残しています。
 
 状態の意味：
 
@@ -207,4 +207,4 @@ Phase 1はAndroid 1.1.2で完了しました。Android 1.2.0〜1.7.0で履歴・
 
 Phase 3はAndroid 1.8.0で完了し、GitHub Actionsで単体テスト・lint・debug／release APK・固定署名を確認しました。`app-debug`、`android-reports`、`app-release-signed` のartifactと、Android 1.8.0のGitHub Release資産も確認済みです。実機では通知権限、生成物表示、文字拡大、TalkBack、縦横画面、スマートフォン／タブレットを引き続き確認し、未確認項目を検証済みとは記録しません。
 
-Android 1.9.0向けに、Web版V4.8.992のデザイントークンと主要画面構造に合わせて、背景、TopAppBar、履歴サイドバー、ウェルカム表示、メッセージバブル、Composer、主要アイコンを刷新しました。Android 1.13.11ではWeb版V4.8.1001の配置・戻る操作・Composer入力シェル・会話の最下部移動を追加同期しました。GitHub Actionsで単体テスト・lint・debug／release APK・固定署名を検証し、実機確認が必要な項目は引き続き検証済みと区別します。
+Android 1.9.0向けに、Web版V4.8.992のデザイントークンと主要画面構造に合わせて、背景、TopAppBar、履歴サイドバー、ウェルカム表示、メッセージバブル、Composer、主要アイコンを刷新しました。Android 1.13.13ではWeb版V4.8.1001の配置・戻る操作・Composer入力シェル・会話の最下部移動を追加同期しました。GitHub Actionsで単体テスト・lint・debug／release APK・固定署名を検証し、実機確認が必要な項目は引き続き検証済みと区別します。

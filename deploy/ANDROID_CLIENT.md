@@ -60,9 +60,9 @@ Android版は通常チャット、メタデータ付きモデル選択、Thinkin
 
 1. Androidが `POST /api/mobile/v1/device` を送信する。
 2. サーバーがアプリ用の `device_code` と、人が入力する `user_code` を返す。有効期限は10分。
-3. アプリ画面に確認コードを表示し、Custom Tabsで `/android/connect` を開く。
+3. アプリ画面に確認コードを表示し、Custom Tabsで `/android/connect?code=<user_code>` を開く。`user_code` は12文字の確認コードだけを含み、`device_code` やアクセストークンはURLに含めない。
 4. ブラウザーで未ログインなら通常のログインを完了する。SSOや2FAの終了後、連携画面へ戻る。
-5. 利用者が12文字の確認コードを入力し、端末名・権限を確認して「この端末を許可」を押す。「拒否」も可能。
+5. URLの確認コードが有効なら連携画面に申請内容が自動表示される。利用者はコード入力なしで端末名・権限を確認して「この端末を許可」を押す。「拒否」も可能。手動入力はリンクが使えない場合のフォールバック。
 6. アプリは5秒以上の間隔で `POST /api/mobile/v1/token` を送る。ブラウザーからアプリへ戻ったときに再開してよい。
 7. 承認後、一度だけ `access_token` が返る。アプリは保存後に `GET /api/mobile/v1/me` を呼んでアカウントを確認する。
 8. 以後は `Authorization: Bearer <access_token>` で許可されたAPIを呼ぶ。

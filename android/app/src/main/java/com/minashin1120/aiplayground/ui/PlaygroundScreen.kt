@@ -500,35 +500,36 @@ private fun SidebarAction(
 
 @Composable
 private fun PairingScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -> Unit) {
+    val colors = MaterialTheme.colorScheme
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         item {
-            Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+            Surface(shape = RoundedCornerShape(28.dp), color = colors.primaryContainer, contentColor = colors.onPrimaryContainer) {
                 Column(Modifier.fillMaxWidth().padding(28.dp)) {
-                    Text("✦", fontSize = 48.sp, color = MaterialTheme.colorScheme.primary)
-                    Text("ひとつの場所で、\nいろいろなAIと。", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                    Text("✦", fontSize = 48.sp, color = colors.primary)
+                    Text("ひとつの場所で、\nいろいろなAIと。", color = colors.onPrimaryContainer, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(16.dp))
-                    Text("いつものアカウントとチャット履歴を、そのままAndroidで。")
+                    Text("いつものアカウントとチャット履歴を、そのままAndroidで。", color = colors.onPrimaryContainer)
                 }
             }
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 if (state.userCode.isNotBlank() && state.pairing) {
-                    Text("1. この確認コードを覚えてください", fontWeight = FontWeight.SemiBold)
-                    SelectionContainer { Text(state.userCode.chunked(4).joinToString(" − "), fontSize = 28.sp, fontWeight = FontWeight.Bold) }
-                    Text("2. ブラウザーでログインし、コードを入力して端末連携を許可します。")
-                    Button(onClick = { onWeb("/android/connect") }, modifier = Modifier.fillMaxWidth()) { Text("ブラウザーで連携を許可") }
-                    Text("3. このアプリに戻ると連携を確認します。コードの有効期限は10分です。", style = MaterialTheme.typography.bodySmall)
+                    Text("1. この確認コードを確認してください", color = colors.onSurface, fontWeight = FontWeight.SemiBold)
+                    SelectionContainer { Text(state.userCode.chunked(4).joinToString(" − "), color = colors.primary, fontSize = 28.sp, fontWeight = FontWeight.Bold) }
+                    Text("2. ブラウザーでログインすると、コードが自動入力された連携画面が開きます。", color = colors.onSurfaceVariant)
+                    Button(onClick = { onWeb("/android/connect?code=${Uri.encode(state.userCode)}") }, modifier = Modifier.fillMaxWidth()) { Text("ブラウザーで連携を許可") }
+                    Text("3. このアプリに戻ると連携を確認します。コードの有効期限は10分です。", color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     LinearProgressIndicator(Modifier.fillMaxWidth())
-                    TextButton(onClick = model::cancelPairing) { Text("連携をキャンセル") }
+                    TextButton(onClick = model::cancelPairing) { Text("連携をキャンセル", color = colors.onSurfaceVariant) }
                 } else {
-                    Text("ブラウザーでいつものログイン方法を使えます。パスワードやAPIキーを、このアプリに入力する必要はありません。")
+                    Text("ブラウザーでいつものログイン方法を使えます。パスワードやAPIキーを、このアプリに入力する必要はありません。", color = colors.onSurface)
                     Button(onClick = model::pair, enabled = !state.pairing, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
                         Text(if (state.pairing) "連携を準備しています…" else "アカウントを連携")
                     }
                 }
-                Text("接続先: ai.minashin1120.com", style = MaterialTheme.typography.labelMedium)
-                TextButton(onClick = { onWeb("/") }) { Text("アカウント作成・Webアプリを開く") }
+                Text("接続先: ai.minashin1120.com", color = colors.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+                TextButton(onClick = { onWeb("/") }) { Text("アカウント作成・Webアプリを開く", color = colors.primary) }
             }
         }
     }

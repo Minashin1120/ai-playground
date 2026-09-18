@@ -5,33 +5,129 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>Android端末の連携 — AI Playground</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f7fb;
+      --card: rgba(255, 255, 255, .86);
+      --card-solid: #fff;
+      --text: #152238;
+      --muted: #64748b;
+      --line: #dbe4f0;
+      --accent: #087e76;
+      --accent-strong: #06635d;
+      --accent-soft: #d8f7f1;
+      --danger: #b4233e;
+      --danger-soft: #fff0f2;
+      --shadow: 0 24px 70px rgba(33, 55, 86, .14);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --bg: #070b16;
+        --card: rgba(15, 24, 44, .88);
+        --card-solid: #0f182c;
+        --text: #eef1f7;
+        --muted: #a5b1c5;
+        --line: #263653;
+        --accent: #36d8c4;
+        --accent-strong: #9df3e7;
+        --accent-soft: rgba(13, 212, 191, .15);
+        --danger: #ff9aae;
+        --danger-soft: rgba(185, 35, 62, .18);
+        --shadow: 0 28px 80px rgba(0, 0, 0, .42);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 12% 8%, rgba(54, 216, 196, .18), transparent 32rem),
+        radial-gradient(circle at 88% 92%, rgba(99, 102, 241, .16), transparent 34rem),
+        var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+      line-height: 1.6;
+    }
+    .shell { width: min(100% - 32px, 680px); margin: 0 auto; padding: 48px 0 32px; }
+    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+    .brand-mark {
+      display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px;
+      color: #fff; background: linear-gradient(135deg, #6366f1, #d946ef);
+      box-shadow: 0 10px 25px rgba(99, 102, 241, .28); font-weight: 800;
+    }
+    .brand-name { font-size: 13px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .brand-user { margin-left: auto; color: var(--muted); font-size: 12px; }
+    .card {
+      padding: clamp(24px, 5vw, 42px); border: 1px solid var(--line); border-radius: 28px;
+      background: var(--card); box-shadow: var(--shadow); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    }
+    .eyebrow { margin: 0 0 8px; color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(28px, 6vw, 42px); line-height: 1.15; letter-spacing: -.03em; }
+    .lead { margin: 16px 0 0; color: var(--muted); font-size: 15px; }
+    .alert { margin: 24px 0 0; padding: 13px 15px; border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); border-radius: 14px; color: var(--danger); background: var(--danger-soft); font-size: 13px; }
+    .device {
+      display: grid; grid-template-columns: 48px 1fr; gap: 14px; align-items: center; margin-top: 28px;
+      padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--card-solid);
+    }
+    .device-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 15px; color: var(--accent-strong); background: var(--accent-soft); font-size: 21px; }
+    .device-label { color: var(--muted); font-size: 11px; }
+    .device-name { margin-top: 2px; font-weight: 750; }
+    .code-box { margin-top: 18px; padding: 18px; border-radius: 18px; text-align: center; background: var(--accent-soft); }
+    .code-label { color: var(--muted); font-size: 11px; }
+    .code { margin-top: 3px; color: var(--accent-strong); font: 800 clamp(24px, 7vw, 34px)/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em; }
+    .permission { margin: 22px 0 0; padding: 16px; border-left: 3px solid var(--accent); color: var(--muted); background: color-mix(in srgb, var(--accent-soft) 46%, transparent); font-size: 13px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+    button, .button {
+      display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 20px;
+      border: 1px solid transparent; border-radius: 13px; font: inherit; font-size: 14px; font-weight: 750; cursor: pointer; text-decoration: none; transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+    }
+    button:hover, .button:hover { transform: translateY(-1px); }
+    .primary { flex: 1 1 220px; color: #04201d; background: linear-gradient(135deg, var(--accent), #61e4d4); box-shadow: 0 12px 25px rgba(13, 212, 191, .2); }
+    .secondary { color: var(--text); border-color: var(--line); background: transparent; }
+    .secondary:hover { background: var(--accent-soft); }
+    .manual { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--line); }
+    label { display: block; margin-bottom: 8px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    input { width: 100%; min-height: 50px; padding: 0 14px; border: 1px solid var(--line); border-radius: 13px; color: var(--text); background: var(--card-solid); font: 700 16px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .1em; outline: none; }
+    input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+    .hint { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
+    footer { margin-top: 22px; text-align: center; }
+    footer a { color: var(--muted); font-size: 12px; text-decoration: none; }
+    footer a:hover { color: var(--accent); }
+    @media (max-width: 560px) { .shell { width: min(100% - 20px, 680px); padding-top: 22px; } .brand-user { display: none; } .card { border-radius: 22px; } .actions { flex-direction: column; } button, .button { width: 100%; } }
+  </style>
 </head>
 <body>
-  <main>
-    <h1>Android端末の連携</h1>
-    <p>ログイン中: {{ current_user.username }}</p>
+  <main class="shell">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">✦</div>
+      <div class="brand-name">AI Playground</div>
+      <div class="brand-user">ログイン中: {{ current_user.username }}</div>
+    </div>
+    <section class="card">
+      <p class="eyebrow">Secure device link</p>
+      <h1>Android端末を連携</h1>
     {% if completed %}
-      <p role="status">{{ '連携を許可しました。Androidアプリに戻ってください。' if approved else '連携を拒否しました。' }}</p>
+      <p class="lead" role="status">{{ '連携を許可しました。Androidアプリに戻ってください。' if approved else '連携を拒否しました。' }}</p>
     {% else %}
-      <p>自分でAndroidアプリに表示した確認コードだけを入力してください。他人から送られたコードは承認しないでください。</p>
-      {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+      <p class="lead">Androidアプリから開いた確認リンクです。内容を確認して、この端末のアクセスを許可してください。</p>
+      {% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
       <form method="post" action="{{ url_for('mobile_connect') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         {% if device_name %}
-          <p>端末名（申請元の自己申告）: <strong>{{ device_name }}</strong></p>
-          <p>確認コード: <strong>{{ user_code }}</strong></p>
-          <p>この端末に、チャットの閲覧・送信・削除とファイルのアップロード・閲覧を30日間許可します。設定のセッション管理から取り消せます。</p>
+          <div class="device"><div class="device-icon" aria-hidden="true">⌁</div><div><div class="device-label">申請元の端末</div><div class="device-name">{{ device_name }}</div></div></div>
+          <div class="code-box"><div class="code-label">確認コード</div><div class="code">{{ user_code }}</div></div>
+          <div class="permission">この端末に、チャットの閲覧・送信・削除とファイルのアップロード・閲覧を30日間許可します。連携後は設定のセッション管理からいつでも取り消せます。</div>
           <input type="hidden" name="user_code" value="{{ user_code }}">
-          <button type="submit" name="decision" value="approve">この端末を許可</button>
-          <button type="submit" name="decision" value="deny">拒否</button>
+          <div class="actions"><button class="primary" type="submit" name="decision" value="approve">この端末を許可</button><button class="secondary" type="submit" name="decision" value="deny">拒否</button></div>
         {% else %}
-          <label for="user-code">アプリに表示された12文字の確認コード</label>
-          <input id="user-code" name="user_code" required maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false">
-          <button type="submit" name="decision" value="review">連携内容を確認</button>
+          <div class="manual"><label for="user-code">アプリに表示された12文字の確認コード</label><input id="user-code" name="user_code" required maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false"><p class="hint">確認リンクが使えない場合のみ入力してください。</p><div class="actions"><button class="primary" type="submit" name="decision" value="review">連携内容を確認</button></div></div>
         {% endif %}
       </form>
     {% endif %}
-    <p><a href="/">Webアプリへ戻る</a></p>
+    </section>
+    <footer><a href="/">Webアプリへ戻る</a></footer>
   </main>
 </body>
 </html>

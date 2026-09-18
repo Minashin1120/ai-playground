@@ -138,20 +138,61 @@ def mobile_device():
                     'interval': MOBILE_POLL_INTERVAL})
 
 
+def _normalize_mobile_user_code(value):
+    code = re.sub(r'[\s-]', '', str(value or '')).upper()
+    return code if re.fullmatch(r'[0-9A-F]{12}', code) else ''
+
+
+def _mobile_grant_for_user_code(code):
+    if not code:
+        return None
+    code_key = 'mobile:code:' + _mobile_digest(code)
+    grant_key = redis_conn.get(code_key)
+    raw = redis_conn.get(grant_key) if grant_key else None
+    grant = json.loads(raw) if raw else None
+    if not grant or grant.get('status') != 'pending':
+        return None
+    return grant_key, grant
+
+
 @app.route('/android/connect', methods=['GET', 'POST'])
 def mobile_connect():
+    requested_code = _normalize_mobile_user_code(request.args.get('code'))
     if not current_user.is_authenticated:
+        if requested_code:
+            session['mobile_connect_code'] = requested_code
+        else:
+            session.pop('mobile_connect_code', None)
         session['mobile_connect_pending'] = True
         return redirect(url_for('login'))
-    session.pop('mobile_connect_pending', None)
     if not current_user.is_setup_completed:
+        if requested_code:
+            session['mobile_connect_code'] = requested_code
+        session['mobile_connect_pending'] = True
         return redirect(url_for('setup'))
+    session.pop('mobile_connect_pending', None)
+    stored_code = _normalize_mobile_user_code(session.pop('mobile_connect_code', ''))
+    code = requested_code if request.args.get('code') is not None else stored_code
     if request.method == 'GET':
-        return render_template('android_connect.html')
+        error = None
+        device_name = None
+        if request.args.get('code') and not requested_code:
+            error = '連携リンクの確認コードが正しくありません。アプリからもう一度開いてください。'
+        elif code:
+            try:
+                pending = _mobile_grant_for_user_code(code)
+                if pending:
+                    _, grant = pending
+                    device_name = grant.get('device_name') or 'Android'
+                else:
+                    error = 'コードが無効、使用済み、または期限切れです。アプリから新しく連携を開始してください。'
+            except Exception:
+                error = '連携サービスに接続できません。しばらくしてからやり直してください。'
+        return render_template('android_connect.html', error=error, user_code=code, device_name=device_name)
     if not rate_limit('mobile:approve:' + str(current_user.id), 20, 600):
         return render_template('android_connect.html', error='試行回数が多いため、10分後にやり直してください。'), 429
-    code = re.sub(r'[\s-]', '', request.form.get('user_code', '')).upper()
-    if not re.fullmatch(r'[0-9A-F]{12}', code):
+    code = _normalize_mobile_user_code(request.form.get('user_code'))
+    if not code:
         return render_template('android_connect.html', error='12文字の確認コードを入力してください。'), 400
     code_key = 'mobile:code:' + _mobile_digest(code)
     new_session = None

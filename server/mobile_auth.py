@@ -81,7 +81,9 @@ def mobile_request_guard():
         # page only after authentication, without changing any provider flow.
         if endpoint == 'index' and request.method == 'GET' and session.get('mobile_connect_pending') and current_user.is_authenticated:
             session.pop('mobile_connect_pending', None)
-            return redirect(url_for('mobile_connect'))
+            code = session.pop('mobile_connect_code', None)
+            target = url_for('mobile_connect', code=code) if code else url_for('mobile_connect')
+            return redirect(target)
         return
     g.mobile_request = True
     if not _mobile_enabled():

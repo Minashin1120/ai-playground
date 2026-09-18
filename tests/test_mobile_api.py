@@ -588,3 +588,22 @@ class MobileApiTests(unittest.TestCase):
         self.assertEqual(self.browser.get('/android/connect', base_url='https://localhost').status_code, 200)
         with target.app.app_context():
             self.assertEqual(target.UserSession.query.filter(target.UserSession.session_id.startswith('android:')).count(), 0)
+
+    def test_login_preserves_url_code_and_renders_review_without_manual_input(self):
+        grant = self.device()
+        anonymous = target.app.test_client()
+        response = anonymous.get('/android/connect?code=' + grant['user_code'], base_url='https://localhost')
+        self.assertEqual(response.status_code, 302)
+        with anonymous.session_transaction() as sess:
+            self.assertEqual(sess['mobile_connect_code'], grant['user_code'])
+            sess['_user_id'] = str(self.user_id)
+            sess['_fresh'] = True
+        response = anonymous.get('/', base_url='https://localhost')
+        self.assertEqual(response.headers['Location'], '/android/connect?code=' + grant['user_code'])
+        response = anonymous.get(response.headers['Location'], base_url='https://localhost')
+        body = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Test Android', body)
+        self.assertIn(grant['user_code'], body)
+        self.assertNotIn('id="user-code"', body)
+        self.assertEqual(self.poll(grant).json['error'], 'authorization_pending')

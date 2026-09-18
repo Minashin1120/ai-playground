@@ -77,11 +77,26 @@ private val WebShapes = Shapes(
 )
 
 /** Shared layout tokens for the phone/tablet navigation split and dialogs. */
+enum class PlaygroundLayoutClass {
+    Phone,
+    LandscapePhone,
+    Tablet,
+}
+
+internal fun playgroundLayoutClass(width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp): PlaygroundLayoutClass = when {
+    width >= 768.dp -> PlaygroundLayoutClass.Tablet
+    width > height -> PlaygroundLayoutClass.LandscapePhone
+    else -> PlaygroundLayoutClass.Phone
+}
+
 object PlaygroundDimens {
     val breakpoint = 768.dp
     val sidePane = 264.dp
     val drawerPane = 264.dp
     val contentMax = 768.dp
+    val messageMax = 720.dp
+    val phoneHorizontalPadding = 12.dp
+    val conversationHorizontalPadding = 16.dp
     val panelRadius = 20.dp
     val cardRadius = 16.dp
     val controlRadius = 12.dp

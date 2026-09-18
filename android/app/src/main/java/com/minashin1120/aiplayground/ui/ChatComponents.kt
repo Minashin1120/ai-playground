@@ -91,6 +91,7 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
             if (promptMode != "minimal") Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(onClick = pickModel, enabled = !state.streaming, color = colors.surfaceContainerHigh, shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(1.dp, colors.outlineVariant), modifier = Modifier.weight(1f)) {
                     Row(Modifier.padding(horizontal = 11.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.SmartToy, contentDescription = null, tint = colors.primary, modifier = Modifier.size(16.dp))
                         Text(selectedModel?.name ?: state.model.ifBlank { "モデルを選択" }, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(18.dp))
                     }
@@ -121,8 +122,6 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                     if (info.mode == "chat" || info.mode == "agent") FilterChip(state.codingMode, model::toggleCoding, { Text("Coding") })
                     FilterChip(state.selected?.isTemporary == true || state.newThreadTemporary, model::toggleTemporaryChat, { Text("一時チャット") })
                     FilterChip(state.compression.enabled, { model.saveCompressionSettings(state.compression.copy(enabled = !state.compression.enabled)) }, { Text("Compress") })
-                    TextButton(onClick = onRichPaste, enabled = !state.streaming) { Text("リッチ貼り付け") }
-                    if (info.id.startsWith("gpt-image")) TextButton(onClick = onMask, enabled = !state.streaming) { Text("マスク") }
                 }
                 GenerationOptionsPanel(info, state.generationValues[info.id].orEmpty(), !state.streaming, model::generationOption)
                 if (state.codingMode) CodingTargetPanel(state.allMessages, state.codingTarget, model)
@@ -189,11 +188,21 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                         IconButton(onClick = pickFiles, enabled = !state.uploading && !state.streaming, modifier = Modifier.padding(bottom = 4.dp)) {
                             Icon(Icons.Rounded.AttachFile, contentDescription = "添付を追加")
                         }
+                        IconButton(onClick = onRichPaste, enabled = !state.streaming, modifier = Modifier.padding(bottom = 4.dp)) {
+                            Icon(Icons.Rounded.ContentPaste, contentDescription = "リッチ貼り付け")
+                        }
+                        if (selectedModel?.id?.startsWith("gpt-image") == true) {
+                            IconButton(onClick = onMask, enabled = !state.streaming, modifier = Modifier.padding(bottom = 4.dp)) {
+                                Icon(Icons.Rounded.Brush, contentDescription = "画像マスク")
+                            }
+                        }
                         IconButton(onClick = onVoice, enabled = !state.streaming, modifier = Modifier.padding(bottom = 4.dp)) {
                             Icon(Icons.Rounded.Mic, contentDescription = "音声入力")
                         }
                         OutlinedTextField(
-                            state.draft, model::draft, placeholder = { Text("メッセージを入力…") }, minLines = 1, maxLines = 6,
+                            state.draft, model::draft,
+                            placeholder = { Text(if (state.preferences?.enterToSend == true) "Enterで送信…" else "Ctrl + Enterで送信…") },
+                            minLines = 1, maxLines = 6,
                             modifier = Modifier.weight(1f).onPreviewKeyEvent { event ->
                                 val sendKey = event.key == Key.Enter && !event.isShiftPressed &&
                                     (event.isCtrlPressed || state.preferences?.enterToSend == true)

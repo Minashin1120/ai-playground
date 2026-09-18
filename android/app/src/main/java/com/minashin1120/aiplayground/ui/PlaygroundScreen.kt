@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.app.Activity
 import android.speech.RecognizerIntent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -86,8 +87,9 @@ fun PlaygroundScreen(
                 Brush.verticalGradient(listOf(colors.background, colors.surfaceContainerLow))
             )
         ) {
-            // Tablets and wide screens keep the history pane beside the conversation.
-            val wide = maxWidth >= PlaygroundDimens.breakpoint
+            // Match the Web breakpoint while retaining Android's portrait/landscape semantics.
+            val layoutClass = playgroundLayoutClass(maxWidth, maxHeight)
+            val wide = layoutClass == PlaygroundLayoutClass.Tablet
             var allowDrawerOpen by remember { mutableStateOf(false) }
             // Do not use rememberDrawerState: its saveable state can restore Open after process death.
             val drawer = remember {
@@ -180,11 +182,42 @@ fun PlaygroundScreen(
             val openInApp: (String) -> Unit = { reference ->
                 viewingFile = FileViewRequest(reference)
             }
+            val sharePdf: () -> Unit = {
+                model.exportPdf { file ->
+                    try {
+                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+                        val intent = Intent(Intent.ACTION_SEND).setType("application/pdf")
+                            .putExtra(Intent.EXTRA_STREAM, uri)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        context.startActivity(Intent.createChooser(intent, "PDFを共有"))
+                    } catch (_: Exception) { model.notify("PDFを共有できません。") }
+                }
+            }
             LaunchedEffect(state.notice) {
                 state.notice?.let { snackbar.showSnackbar(it, duration = SnackbarDuration.Long); model.dismissNotice() }
             }
             val closeDrawer: () -> Unit = { scope.launch { drawer.close() } }
             val showThreads = state.account != null
+            val hasOverlay = modelPicker || threadSettings || attachMenu || libraryOpen || viewingFile != null ||
+                gemsOpen || settingsOpen || advancedOpen || realtimeOpen || lyriaOpen || richPasteOpen || maskOpen || logout
+            BackHandler(enabled = hasOverlay || (!wide && drawer.currentValue == DrawerValue.Open)) {
+                when {
+                    attachMenu -> attachMenu = false
+                    modelPicker -> modelPicker = false
+                    threadSettings -> threadSettings = false
+                    settingsOpen -> settingsOpen = false
+                    advancedOpen -> advancedOpen = false
+                    realtimeOpen -> realtimeOpen = false
+                    lyriaOpen -> lyriaOpen = false
+                    richPasteOpen -> richPasteOpen = false
+                    maskOpen -> { maskOpen = false; maskSource = null }
+                    viewingFile != null -> viewingFile = null
+                    libraryOpen -> libraryOpen = false
+                    gemsOpen -> gemsOpen = false
+                    logout -> logout = false
+                    !wide -> closeDrawer()
+                }
+            }
             LaunchedEffect(showThreads, wide, state.starting) {
                 allowDrawerOpen = false
                 if (!wide) {
@@ -217,15 +250,7 @@ fun PlaygroundScreen(
                                 Icon(Icons.Rounded.Tune, contentDescription = "チャット設定")
                             }
                             if (state.selected != null) IconButton(onClick = {
-                                model.exportPdf { file ->
-                                    try {
-                                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
-                                        val intent = Intent(Intent.ACTION_SEND).setType("application/pdf")
-                                            .putExtra(Intent.EXTRA_STREAM, uri)
-                                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        context.startActivity(Intent.createChooser(intent, "PDFを共有"))
-                                    } catch (e: Exception) { model.notify("PDFを共有できません。") }
-                                }
+                                sharePdf()
                             }, enabled = !state.busy && !state.streaming) { Icon(Icons.Rounded.PictureAsPdf, contentDescription = "PDFを共有") }
                             if (showThreads) IconButton(onClick = model::refresh, enabled = !state.busy && !state.streaming) {
                                 Icon(Icons.Rounded.Refresh, contentDescription = "更新")
@@ -259,7 +284,7 @@ fun PlaygroundScreen(
             if (showThreads && wide) {
                 Row(Modifier.fillMaxSize()) {
                     Surface(Modifier.width(PlaygroundDimens.sidePane).fillMaxHeight(), color = colors.surface.copy(alpha = 0.94f)) {
-                        ThreadPanel(state, model, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {}, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true })
+                        ThreadPanel(state, model, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {}, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true }, onPdf = sharePdf, onWeb = onWeb)
                     }
                     VerticalDivider()
                     Box(Modifier.weight(1f)) { content() }
@@ -269,7 +294,7 @@ fun PlaygroundScreen(
                     drawerContent = {
                         ModalDrawerSheet(Modifier.width(PlaygroundDimens.drawerPane), drawerContainerColor = colors.surface) {
                             if (showThreads) {
-                                ThreadPanel(state, model, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true })
+                                ThreadPanel(state, model, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true }, onPdf = sharePdf, onWeb = { path -> onWeb(path); closeDrawer() })
                             }
                         }
                     }) { content() }
@@ -375,6 +400,8 @@ private fun ThreadPanel(
     onGems: () -> Unit,
     onSettings: () -> Unit,
     onAdvanced: () -> Unit,
+    onPdf: () -> Unit,
+    onWeb: (String) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 12.dp, vertical = 12.dp)) {
@@ -384,6 +411,7 @@ private fun ThreadPanel(
             IconButton(onClick = { onSettings(); onNavigate() }) { Icon(Icons.Rounded.Settings, "設定", modifier = Modifier.size(20.dp)) }
             IconButton(onClick = { onLibrary(); onNavigate() }) { Icon(Icons.Rounded.FolderOpen, "ライブラリ", modifier = Modifier.size(20.dp)) }
             IconButton(onClick = { model.newChat(); onNavigate() }, enabled = !state.busy && !state.streaming) { Icon(Icons.Rounded.Add, "新規チャット", tint = colors.primary) }
+            IconButton(onClick = { onPdf(); onNavigate() }, enabled = state.selected != null && !state.busy && !state.streaming) { Icon(Icons.Rounded.PictureAsPdf, "PDFを共有") }
             IconButton(onClick = { onAdvanced(); onNavigate() }) { Icon(Icons.Rounded.Layers, "Batch処理・高度な機能", modifier = Modifier.size(20.dp)) }
             IconButton(onClick = model::refresh, enabled = !state.busy && !state.streaming) { Icon(Icons.Rounded.Refresh, "更新", modifier = Modifier.size(20.dp)) }
         }
@@ -449,6 +477,8 @@ private fun ThreadPanel(
             }
         }
         HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f), modifier = Modifier.padding(vertical = 6.dp))
+        SidebarAction(Icons.Rounded.HelpOutline, "ヘルプ", { onWeb("/help"); onNavigate() })
+        SidebarAction(Icons.Rounded.History, "更新履歴", { onWeb("/changelog"); onNavigate() })
         SidebarAction(Icons.Rounded.Logout, "この端末からログアウト", onLogout, danger = true)
         Spacer(Modifier.navigationBarsPadding())
     }
@@ -550,7 +580,14 @@ private fun ThreadSettingsDialog(
 @Composable
 private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String) -> Unit, loader: FileBytesLoader?) {
     val scroll = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    var showScrollToBottom by remember { mutableStateOf(false) }
     val live = state.streaming || state.liveContent.isNotEmpty() || state.liveThought.isNotEmpty() || state.cards.isNotEmpty()
+    LaunchedEffect(scroll.firstVisibleItemIndex, scroll.layoutInfo.totalItemsCount) {
+        val info = scroll.layoutInfo
+        val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+        showScrollToBottom = info.totalItemsCount > 0 && lastVisible < info.totalItemsCount - 2
+    }
     LaunchedEffect(state.messages.size, state.liveContent.length, state.cards.size) {
         val info = scroll.layoutInfo
         val nearBottom = (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - 3
@@ -573,12 +610,13 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
         if (state.retryAvailable) TextButton(onClick = model::retry, modifier = Modifier.fillMaxWidth(), enabled = !state.streaming) { Text("同じ送信を再試行（二重送信を防止）") }
         if (state.canvasMode) CanvasPreview(state.messages + if (state.liveContent.isNotBlank()) listOf(ChatMessage("canvas-live", "assistant", state.liveContent)) else emptyList(),
             onUse = { code -> model.draft(code) }, onClose = model::toggleCanvas)
-        LazyColumn(
-            state = scroll,
-            modifier = Modifier.weight(1f).widthIn(max = PlaygroundDimens.contentMax).fillMaxWidth().align(Alignment.CenterHorizontally),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            LazyColumn(
+                state = scroll,
+                modifier = Modifier.fillMaxSize().widthIn(max = PlaygroundDimens.contentMax).align(Alignment.Center),
+                contentPadding = PaddingValues(horizontal = PlaygroundDimens.conversationHorizontalPadding, vertical = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
             if (state.hasOlder) item(key = "older") { TextButton(onClick = model::olderMessages, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("以前のメッセージ") } }
             if (state.messages.isEmpty() && !state.busy && !live) item(key = "welcome") {
                 Column(Modifier.fillMaxWidth().padding(vertical = 34.dp), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -614,7 +652,23 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
                     branchCount = if (numericId(message) != null) siblings.size else 0,
                     onSwitchBranch = { target -> model.switchBranchByIndex(siblings, target) })
             }
-            if (live) item(key = "live") { LiveMessage(state, onFile, model::quoteMessage, loader, model::resolveMcpDecision) }
+                if (live) item(key = "live") { LiveMessage(state, onFile, model::quoteMessage, loader, model::resolveMcpDecision) }
+            }
+            if (showScrollToBottom) {
+                SmallFloatingActionButton(
+                    onClick = {
+                        scope.launch {
+                            val last = (scroll.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)
+                            scroll.animateScrollToItem(last)
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 16.dp),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                ) {
+                    Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "一番下へ")
+                }
+            }
         }
     }
 }

@@ -2,6 +2,7 @@ package com.minashin1120.aiplayground.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.*
@@ -22,19 +23,28 @@ internal fun PlaygroundDialog(
     dismissButton: @Composable (() -> Unit)? = null,
 ) {
     Dialog(onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.imePadding().padding(12.dp).widthIn(max = 720.dp).fillMaxWidth().heightIn(max = 760.dp),
-            shape = MaterialTheme.shapes.large, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
-            Column {
-                Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f)) { ProvideTextStyle(MaterialTheme.typography.titleLarge, title) }
-                    IconButton(onClick = onDismissRequest) { Icon(Icons.Rounded.Close, "閉じる") }
-                }
-                HorizontalDivider()
-                Box(Modifier.weight(1f, fill = false).fillMaxWidth().padding(16.dp)) { text() }
-                HorizontalDivider()
-                Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                    dismissButton?.invoke()
-                    confirmButton()
+        BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            val phone = maxWidth < 600.dp
+            val panelModifier = if (phone) {
+                Modifier.fillMaxSize().safeDrawingPadding()
+            } else {
+                Modifier.imePadding().padding(12.dp).widthIn(max = 720.dp).fillMaxWidth().heightIn(max = 760.dp)
+            }
+            Surface(panelModifier,
+                shape = RoundedCornerShape(if (phone) 0.dp else 20.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
+                Column {
+                    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.weight(1f)) { ProvideTextStyle(MaterialTheme.typography.titleLarge, title) }
+                        IconButton(onClick = onDismissRequest) { Icon(Icons.Rounded.Close, "閉じる") }
+                    }
+                    HorizontalDivider()
+                    Box(Modifier.weight(1f, fill = false).fillMaxWidth().padding(16.dp)) { text() }
+                    HorizontalDivider()
+                    Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                        dismissButton?.invoke()
+                        confirmButton()
+                    }
                 }
             }
         }

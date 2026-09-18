@@ -677,7 +677,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     .put("thinking_level", thinkingLevel.trim().lowercase().ifBlank { "minimal" })
                     .put("transcription_mode", transcriptionMode.trim().uppercase().ifBlank { "VERBATIM" })
                     .put("custom_vocabulary", JSONArray(customVocabulary.split(',', '、', '\n')
-                        .map { it.trim() }.filter { it.isNotBlank() }.take(1000)), token())
+                        .map { it.trim() }.filter { it.isNotBlank() }.take(1000))), token())
                 val sessionId = started.getString("session_id")
                 val rateOut = started.optInt("rate_out", 24000).coerceIn(8000, 48000)
                 realtimeTrack = createAudioTrack(rateOut, stereo = false)

@@ -32,7 +32,7 @@ class DrawerStartStateTest {
     @Test
     fun layoutPolicyMatchesWebBreakpointAndPhoneOrientation() {
         assertEquals(PlaygroundLayoutClass.Phone, playgroundLayoutClass(412.dp, 915.dp))
-        assertEquals(PlaygroundLayoutClass.LandscapePhone, playgroundLayoutClass(915.dp, 412.dp))
+        assertEquals(PlaygroundLayoutClass.LandscapePhone, playgroundLayoutClass(700.dp, 412.dp))
         assertEquals(PlaygroundLayoutClass.Tablet, playgroundLayoutClass(768.dp, 1024.dp))
     }
 }

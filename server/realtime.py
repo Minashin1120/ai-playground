@@ -1,5 +1,5 @@
 # =============================================================================
-# True real-time STS sessions (OpenAI Realtime / Grok Voice / Gemini native-audio)
+# True real-time STS sessions (OpenAI Realtime / Grok Voice / Gemini Live)
 # -----------------------------------------------------------------------------
 # Server-held WebSocket sessions.  The browser streams microphone PCM over HTTP,
 # the server relays it to the provider WebSocket in real time, and the provider's
@@ -20,13 +20,19 @@ def _rt_is_conversation_model(model_key):
     model_key = XAI_STS_MODEL_ALIASES.get(model_key, model_key)
     if not is_sts_model(model_key):
         return False
+    # Gemini Live used to be browser-direct only.  It now also uses this
+    # server-held session so native clients can use the same authenticated
+    # provider connection without receiving an API key.
+    if model_key in (
+        "gemini-3.1-flash-live-preview",
+        "gemini-3.5-live-translate-preview",
+        "gemini-3.5-transcribe-live",
+    ):
+        return True
     meta = STS_MODELS.get(model_key, {})
     if meta.get("mode") == "transcription":
         return False
-    # Browser-direct Gemini Live models already stream in real time.
-    if model_key in ("gemini-3.1-flash-live-preview", "gemini-3.5-live-translate-preview"):
-        return False
-    # One-shot transcription session model.
+    # One-shot transcription session models remain excluded.
     if model_key == "gpt-realtime-whisper":
         return False
     return True
@@ -116,6 +122,14 @@ def _normalize_rt_params(provider, model_key, data):
         thinking = str(data.get("thinking_level") or "").strip()
         params["thinking_level"] = thinking or None
         params["include_thoughts"] = bool(data.get("include_thoughts"))
+        params["target_lang"] = str(data.get("target_lang") or "ja").strip().lower()[:16]
+        mode = str(data.get("transcription_mode") or "VERBATIM").strip().upper()
+        params["transcription_mode"] = mode if mode in {"SMART", "VERBATIM"} else "VERBATIM"
+        vocabulary = data.get("custom_vocabulary")
+        if isinstance(vocabulary, list):
+            params["custom_vocabulary"] = [str(item).strip()[:120] for item in vocabulary if str(item).strip()][:1000]
+        else:
+            params["custom_vocabulary"] = []
     return params
 
 
@@ -396,22 +410,38 @@ async def _rt_gemini_session_async(session):
     )
     async with websockets.connect(ws_url, max_size=None) as ws:
         session.ws = ws
+        is_translate = session.model_key == "gemini-3.5-live-translate-preview"
+        is_transcribe = session.model_key == "gemini-3.5-transcribe-live"
+        generation_config = {
+            "responseModalities": ["TEXT"] if is_transcribe else ["AUDIO"],
+        }
         setup = {
             "setup": {
                 "model": f"models/{session.model_key}",
-                "generationConfig": {"responseModalities": ["AUDIO"]},
-                "inputAudioTranscription": {},
-                "outputAudioTranscription": {},
+                "generationConfig": generation_config,
             }
         }
+        if is_transcribe:
+            setup["setup"]["inputAudioTranscription"] = {
+                "mode": session.params.get("transcription_mode", "VERBATIM"),
+                "customVocabulary": session.params.get("custom_vocabulary", []),
+            }
+        else:
+            setup["setup"]["inputAudioTranscription"] = {}
+            setup["setup"]["outputAudioTranscription"] = {}
+        if is_translate:
+            setup["setup"]["translationConfig"] = {
+                "targetLanguageCode": session.params.get("target_lang", "ja"),
+                "echoTargetLanguage": True,
+            }
         voice = session.params.get("voice")
-        if voice and voice in GEMINI_STS_VOICES:
-            setup["setup"]["generationConfig"]["speechConfig"] = {
+        if not is_translate and not is_transcribe and voice and voice in GEMINI_STS_VOICES:
+            generation_config["speechConfig"] = {
                 "voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}
             }
         thinking_level = session.params.get("thinking_level")
-        if thinking_level:
-            setup["setup"]["generationConfig"]["thinkingConfig"] = {
+        if thinking_level and not is_translate and not is_transcribe:
+            generation_config["thinkingConfig"] = {
                 "thinkingLevel": thinking_level,
                 "includeThoughts": bool(session.params.get("include_thoughts")),
             }
@@ -585,4 +615,3 @@ async def _google_sts_live(
                 yield bytes(chunk_audio), chunk_transcript, chunk_input_transcript, chunk_thought, turn_complete
                 if turn_complete:
                     break
-

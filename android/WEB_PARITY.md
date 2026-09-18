@@ -4,7 +4,7 @@
 
 Webの設定モーダルと同じ分類（一般／APIキー／プロンプト／表示／データ／アカウント／セキュリティ／2要素認証／フィードバック／MCP）をネイティブ設定へ載せました。検索、システムプロンプト、Vision Model、前回設定の継続、プロンプトバー表示、STT既定、テーマプリセット、Liquid Glass、ストレージ使用量、フィードバック送信、MCPの有効切替、スラッシュコマンド、一時チャット／Compressチップ、Gemini Native Audio セッションを追加しています。
 
-APIキー・パスワード・2FA登録・MCP OAuth秘密・アカウントZIP・管理者機能は引き続き認証済みWeb導線です。Gemini 3.1 Live / 3.5 Live Translate のブラウザー直結セッションとSTS専用パネルもWeb導線のままです。
+APIキー・パスワード・2FA登録・MCP OAuth秘密・アカウントZIP・管理者機能は引き続き認証済みWeb導線です。Gemini 3.1 Live / 3.5 Live Translate / Live Transcribe は、サーバー中継のRealtimeセッションを通じてAndroidネイティブ音声に対応します。
 
 ## Android 1.12.0：ネイティブUIを維持した追加同期
 
@@ -16,7 +16,7 @@ APIキー・パスワード・2FA登録・MCP OAuth秘密・アカウントZIP�
 - OpenAI／Grok Realtimeは端末マイク・SSE音声再生・発話確定・保存、LyriaはSSE再生・一時停止／再開・保存までネイティブ対応します。APIキーは端末へ渡しません。
 - Gemini動画の長さ・アスペクト比・解像度（4Kは対応モデルのみ）をモデル別に表示・送信します。
 
-未完了：Gemini Liveのネイティブ常時接続（現在はWebブラウザー導線）、管理者専用のHTML→PDFリッチ貼り付けと秘密設定、実機での全画面寸法比較です。主要機能の同期は進みましたが、Webと完全同一とは表現しません。
+未完了：管理者専用のHTML→PDFリッチ貼り付けと秘密設定、実機での全画面寸法比較です。Gemini Liveはサーバー中継のネイティブセッションを追加しましたが、長時間接続・端末ごとの音声品質は実機確認が必要です。
 
 ## Android 1.11.0：ネイティブUIを維持した追加同期
 
@@ -41,7 +41,7 @@ Webと見分けがつかない状態には未到達です。以下の旧表で�
 | 入力欄 | 添付を入力シェルへ移動、詳細の開閉、Enter／Ctrl+Enter送信、Shift+Enter改行 | 音声入力、リッチ貼り付け、モデル別の詳細設定を実装。複雑なHTMLはテキスト化 |
 | モデル選択 | 大きな検索パネル、提供元・用途・対応能力で絞り込み、選択状態表示 | Web側の価格・説明・全タグの同期 |
 | Gems | 固定プロンプトの読み込み・編集・削除・送信、既定モデルの適用 | スレッドへの適用保存などWebとの操作差を継続照合 |
-| 高度な機能 | 既存実装を維持 | Realtime／Lyria／Canvas／Codingをネイティブ化。Gemini Liveと管理者機能はWeb導線 |
+| 高度な機能 | 既存実装を維持 | Realtime／Gemini Live／Lyria／Canvas／Codingをネイティブ化。管理者機能はWeb導線 |
 
 
 ## 1. この文書の目的
@@ -101,8 +101,8 @@ Webと見分けがつかない状態には未到達です。以下の旧表で�
 | 添付 | 複数アップロード、プレビュー、カメラ、圧縮、マスク、チャンク | 基本アップロード・取得、画像プレビュー、進捗・キャンセル、Photo Picker、カメラ、大容量チャンク、MIMEラベル、GPT-Imageマスク、アプリ内プレビュー（画像・テキスト・PDF・音声・動画）は完了 | docxなど未対応形式は外部アプリ。実機での再生確認 |
 | ファイルライブラリ | 一覧、検索、再利用、削除 | 一覧、検索、お気に入り、名前変更、削除、チャットへの再利用、アプリ内プレビューは完了 | 使用中チャット表示などを継続検討 |
 | 画像生成 | Gemini／OpenAI／Grokの設定と結果表示 | 完了。対応モデル選択、進捗、保存、添付プレビュー | Provider固有の高度な設定はWeb導線 |
-| 動画・音楽・OCR・TTS・STS | 各生成パネルと成果物操作 | 動画・OCR・TTS・文字起こし、Realtime（OpenAI／Grok）、Lyriaは完了。Gemini LiveとSTSはWeb導線 | 新しいモデル設定の共通スキーマを継続同期 |
-| リアルタイム音声 | Gemini Live、OpenAI／Grok Voice、Voice Studio | OpenAI／Grok／Gemini Native Audioはネイティブマイク・SSE再生・保存。Gemini Live 3.1／3.5 TranslateはWeb導線 | 実機の長時間接続・権限確認 |
+| 動画・音楽・OCR・TTS・STS | 各生成パネルと成果物操作 | 動画・OCR・TTS、Realtime（OpenAI／Grok／Gemini Live）、Lyriaをネイティブ対応。Live Transcribeは音声を返さず文字起こしを表示・保存 | 新しいモデル設定の共通スキーマを継続同期 |
+| リアルタイム音声 | Gemini Live、OpenAI／Grok Voice、Voice Studio | OpenAI／Grok／Gemini Native Audio／Gemini 3.1 Live／3.5 Live Translateをネイティブマイク・SSE再生・保存へ統合。Live Transcribeもネイティブ対応 | 実機の長時間接続・権限・音声品質確認 |
 | Lyria | リアルタイム音楽スタジオ | ネイティブSSE再生・一時停止／再開・保存 | 実機の長時間再生確認 |
 | Batch | Gemini／OpenAI／xAI Batch、一覧、停止、完了通知 | 完了。送信、一覧、状態更新、停止、履歴削除、権限付きシステム通知 | 実機で通知権限と完了通知を確認 |
 | Gems | 作成、編集、選択、`@`候補 | 一覧、作成・編集・削除、チャットへの適用、`@`候補は完了 | 固定プロンプトの編集はWeb導線を維持 |
@@ -153,7 +153,7 @@ Webと見分けがつかない状態には未到達です。以下の旧表で�
 1. Batchと完了通知はネイティブ実装済み。
 2. 画像、動画、OCR、TTS、文字起こしは共通ストリーム契約で実装済み。Gemini動画詳細とGPT-Imageマスクもネイティブ化。
 3. MCP、Coding、Python結果は構造化表示済み。Coding履歴対象とCanvasソース編集を追加し、秘密設定と実ファイル同期はWeb導線。
-4. OpenAI／Grok Realtime音声とLyriaをネイティブセッション化。Gemini LiveとSTSはWeb導線。
+4. OpenAI／Grok／Gemini Realtime音声とLyriaをネイティブセッション化。秘密設定と管理者機能はWeb導線。
 
 各Phaseは巨大な一括変更にせず、独立して利用できる単位で版を上げ、Actionsと実機確認を行います。ただし、一つの機能についてサーバーだけ、またはAndroidだけを未整合のまま公開しません。
 

@@ -52,7 +52,7 @@ fun AdvancedToolsDialog(
                     Column {
                         TextButton(onClick = onRealtime, modifier = Modifier.fillMaxWidth()) { Text("Realtime音声（OpenAI／Grok／Gemini Native Audio）") }
                         TextButton(onClick = onLyria, modifier = Modifier.fillMaxWidth()) { Text("Lyria音楽（ネイティブ）") }
-                        TextButton(onClick = { onWebPath("/") }, modifier = Modifier.fillMaxWidth()) { Text("Gemini Live / STS（Web）") }
+                        TextButton(onClick = onRealtime, modifier = Modifier.fillMaxWidth()) { Text("Gemini Live / STS（ネイティブ）") }
                         TextButton(onClick = { onWebPath("/") }, modifier = Modifier.fillMaxWidth()) { Text("Web版のCanvasを開く") }
                         TextButton(onClick = { onWebPath("/settings") }, modifier = Modifier.fillMaxWidth()) { Text("アカウント・APIキー・2FAを開く") }
                     }

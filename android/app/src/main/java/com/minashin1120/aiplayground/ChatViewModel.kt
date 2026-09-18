@@ -659,11 +659,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Native realtime audio sessions ---
 
-    fun startRealtime(modelId: String, voice: String = "alloy") {
+    fun startRealtime(
+        modelId: String,
+        voice: String = "alloy",
+        targetLanguage: String = "ja",
+        thinkingLevel: String = "minimal",
+        transcriptionMode: String = "VERBATIM",
+        customVocabulary: String = "",
+    ) {
         if (state.value.realtime.active || modelId.isBlank()) return
         viewModelScope.launch {
             try {
-                val started = api.post("/api/realtime/start", JSONObject().put("model", modelId).put("voice", voice), token())
+                val started = api.post("/api/realtime/start", JSONObject()
+                    .put("model", modelId)
+                    .put("voice", voice)
+                    .put("target_lang", targetLanguage.trim().lowercase().take(16).ifBlank { "ja" })
+                    .put("thinking_level", thinkingLevel.trim().lowercase().ifBlank { "minimal" })
+                    .put("transcription_mode", transcriptionMode.trim().uppercase().ifBlank { "VERBATIM" })
+                    .put("custom_vocabulary", JSONArray(customVocabulary.split(',', '、', '\n')
+                        .map { it.trim() }.filter { it.isNotBlank() }.take(1000)), token())
                 val sessionId = started.getString("session_id")
                 val rateOut = started.optInt("rate_out", 24000).coerceIn(8000, 48000)
                 realtimeTrack = createAudioTrack(rateOut, stereo = false)

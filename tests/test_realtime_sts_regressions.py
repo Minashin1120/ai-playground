@@ -43,6 +43,9 @@ class RealtimeStsRegressionTests(unittest.TestCase):
             "input_audio_buffer.speech_started",
             "input_audio_buffer.speech_stopped",
             "server_vad",
+            "translationConfig",
+            "customVocabulary",
+            "gemini-3.5-transcribe-live",
         ):
             self.assertIn(symbol, APP_SOURCE, symbol)
 
@@ -55,12 +58,14 @@ class RealtimeStsRegressionTests(unittest.TestCase):
         self.assertTrue(_rt_is_conversation_model("grok-voice-think-fast-2.0"))
         self.assertTrue(_rt_is_conversation_model("grok-voice-latest"))
         self.assertTrue(_rt_is_conversation_model("gemini-2.5-flash-native-audio-preview-12-2025"))
-        # One-shot / browser-direct / transcription -> False
+        # One-shot transcription models remain excluded, while Gemini Live is
+        # now proxied through the authenticated server session for native apps.
         self.assertFalse(_rt_is_conversation_model("gpt-transcribe"))
         self.assertFalse(_rt_is_conversation_model("gpt-live-transcribe"))
         self.assertFalse(_rt_is_conversation_model("gpt-realtime-whisper"))
-        self.assertFalse(_rt_is_conversation_model("gemini-3.1-flash-live-preview"))
-        self.assertFalse(_rt_is_conversation_model("gemini-3.5-live-translate-preview"))
+        self.assertTrue(_rt_is_conversation_model("gemini-3.1-flash-live-preview"))
+        self.assertTrue(_rt_is_conversation_model("gemini-3.5-live-translate-preview"))
+        self.assertTrue(_rt_is_conversation_model("gemini-3.5-transcribe-live"))
         self.assertFalse(_rt_is_conversation_model("gpt-4o"))
 
     def test_rt_params_normalization(self):
@@ -91,6 +96,19 @@ class RealtimeStsRegressionTests(unittest.TestCase):
         self.assertEqual(p5["voice"], "Kore")
         self.assertEqual(p5["thinking_level"], "high")
         self.assertTrue(p5["include_thoughts"])
+
+        # Gemini Live native-client parameters are normalized without
+        # exposing provider credentials to the client.
+        p6 = _normalize_rt_params("google", "gemini-3.5-live-translate-preview", {
+            "target_lang": "EN", "thinking_level": "high",
+        })
+        self.assertEqual(p6["target_lang"], "en")
+        self.assertEqual(p6["transcription_mode"], "VERBATIM")
+        p7 = _normalize_rt_params("google", "gemini-3.5-transcribe-live", {
+            "transcription_mode": "smart", "custom_vocabulary": ["AI Playground", "  Gemini  "],
+        })
+        self.assertEqual(p7["transcription_mode"], "SMART")
+        self.assertEqual(p7["custom_vocabulary"], ["AI Playground", "Gemini"])
 
     def test_rt_resolve_api_key_shape(self):
         self.assertIn("def _rt_resolve_api_key(", APP_SOURCE)

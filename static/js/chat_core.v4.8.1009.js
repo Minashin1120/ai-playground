@@ -5278,12 +5278,16 @@
                 if (!res.ok) return;
                 const data = await res.json();
                 const latest = data.version || "";
-                const stored = localStorage.getItem("app_version") || "";
-                if (latest && !stored) localStorage.setItem("app_version", latest);
-                if (latest && stored && latest !== stored) {
-                    await purgeCaches();
-                    checkAndNotifyVersion(latest);
+                if (!latest) return;
+                // The version embedded in the currently loaded page is the
+                // source of truth. A stale app_version value must not suppress
+                // an update notification, and cache cleanup is performed only
+                // after the user chooses it in the update modal.
+                if (latest === appVersion) {
+                    localStorage.setItem("app_version", latest);
+                    return;
                 }
+                checkAndNotifyVersion(latest);
             } catch (e) {}
         }
         async function fetchChatStreamWithUnavailableRetry(url, options, pendingBubble) {
@@ -10167,8 +10171,7 @@
                     if (hbVersion && hbVersion !== appVersion) {
                         const hbNotified = localStorage.getItem("version_notified") || "";
                         if (hbNotified !== hbVersion) {
-                            localStorage.setItem("app_version", hbVersion);
-                            purgeCaches().then(() => checkAndNotifyVersion(hbVersion));
+                            checkAndNotifyVersion(hbVersion);
                         }
                     }
                 });

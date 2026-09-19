@@ -34,7 +34,7 @@ class AppUpdateDownloader internal constructor(
     suspend fun download(
         update: AppUpdate,
         directory: File,
-        onProgress: (AppUpdateDownloadProgress) -> Unit,
+        onProgress: suspend (AppUpdateDownloadProgress) -> Unit,
     ): File {
         require(isAllowedUrl(update.apkUrl)) { "更新元がGitHubではありません。" }
         require(isAllowedUrl(update.checksumUrl)) { "検証元がGitHubではありません。" }
@@ -59,7 +59,9 @@ class AppUpdateDownloader internal constructor(
             response.use {
                 if (!it.isSuccessful) throw IOException("GitHubからAPKを取得できませんでした（HTTP ${it.code}）。")
                 val body = it.body ?: throw IOException("GitHubから空のAPKが返されました。")
-                val total = body.contentLength().takeIf { length -> length > 0L } ?: update.apkSizeBytes
+                // The GitHub API asset size remains stable across the release-asset redirect,
+                // while the CDN response may omit or alter Content-Length.
+                val total = update.apkSizeBytes ?: body.contentLength().takeIf { length -> length > 0L }
                 if (total != null && total > MAX_APK_BYTES) {
                     throw IOException("更新APKのサイズが上限を超えています。")
                 }

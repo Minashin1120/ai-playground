@@ -9,8 +9,10 @@ import com.minashin1120.aiplayground.data.AppUpdateCheckResult
 import com.minashin1120.aiplayground.data.AppUpdateDownloadProgress
 import com.minashin1120.aiplayground.data.AppUpdateDownloader
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -82,7 +84,12 @@ class AppUpdateViewModel(application: Application) : AndroidViewModel(applicatio
             try {
                 val directory = File(getApplication<Application>().cacheDir, "updates/${update.versionName}")
                 val file = downloader.download(update, directory) { progress ->
-                    updateProgress(progress)
+                    // OkHttp delivers the response and reads the body off the main thread.
+                    // Marshal each progress update to the Compose state thread so rapid reads
+                    // cannot be lost while the UI is rendering.
+                    withContext(Dispatchers.Main.immediate) {
+                        updateProgress(progress)
+                    }
                 }
                 mutable.update { it.copy(phase = AppUpdatePhase.Ready, readyFile = file, errorMessage = null) }
             } catch (_: CancellationException) {

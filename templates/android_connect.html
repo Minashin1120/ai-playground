@@ -78,13 +78,13 @@
     .code-label { color: var(--muted); font-size: 11px; }
     .code { margin-top: 3px; color: var(--accent-strong); font: 800 clamp(24px, 7vw, 34px)/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em; }
     .permission { margin: 22px 0 0; padding: 16px; border-left: 3px solid var(--accent); color: var(--muted); background: color-mix(in srgb, var(--accent-soft) 46%, transparent); font-size: 13px; }
-    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 26px; }
     button, .button {
       display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 20px;
       border: 1px solid transparent; border-radius: 13px; font: inherit; font-size: 14px; font-weight: 750; cursor: pointer; text-decoration: none; transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
     }
     button:hover, .button:hover { transform: translateY(-1px); }
-    .primary { flex: 1 1 220px; color: #04201d; background: linear-gradient(135deg, var(--accent), #61e4d4); box-shadow: 0 12px 25px rgba(13, 212, 191, .2); }
+    .primary { flex: 0 1 auto; color: #04201d; background: linear-gradient(135deg, var(--accent), #61e4d4); box-shadow: 0 12px 25px rgba(13, 212, 191, .2); }
     .secondary { color: var(--text); border-color: var(--line); background: transparent; }
     .secondary:hover { background: var(--accent-soft); }
     .manual { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--line); }

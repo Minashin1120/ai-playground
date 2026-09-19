@@ -7,17 +7,18 @@ fun applyWebModelCatalog(models: List<ModelInfo>, json: String): List<ModelInfo>
     val rows = JSONArray(json)
     val metadata = (0 until rows.length()).associate { index ->
         val row = rows.getJSONObject(index)
-        row.getString("id") to row
+        row.getString("id") to (index to row)
     }
     return models.map { model ->
-        val row = metadata[model.id] ?: return@map model
+        val (webCatalogOrder, row) = metadata[model.id] ?: return@map model
         val deprecated = model.deprecated || row.optBoolean("deprecated")
         model.copy(name = row.optString("name", model.name),
             description = row.optString("description"), price = row.optString("price"),
             category = row.optString("category"), implementedAt = row.optString("implementedAt"),
             implementedRank = row.optInt("implementedRank"), emoji = row.optString("emoji"),
             tags = row.optJSONArray("tags")?.let { tags -> (0 until tags.length()).map { tags.getString(it) }.toSet() }.orEmpty(),
-            deprecated = deprecated, selectable = model.selectable && !deprecated)
+            deprecated = deprecated, selectable = model.selectable && !deprecated,
+            webCatalogOrder = webCatalogOrder)
     }
 }
 

@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.minashin1120.aiplayground.ChatState
+import com.minashin1120.aiplayground.data.ModelInfo
 
 @Composable
 internal fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (String) -> Unit, selectedId: String = state.model) {
@@ -30,7 +31,10 @@ internal fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (Str
         (category == "All" || category == info.providerLabel || category == info.mode || category in info.capabilities || category in info.tags) &&
             listOf(info.name, info.id, info.providerLabel, info.mode, info.description, info.category, (info.tags + info.capabilities).joinToString(" "))
                 .any { it.contains(query.trim(), ignoreCase = true) }
-    }.sortedWith(compareBy({ !it.selectable }, { it.providerLabel }, { it.name }))
+    }.sortedWith(compareBy<ModelInfo> { it.webCatalogOrder }
+        .thenBy { !it.selectable }
+        .thenBy { it.providerLabel }
+        .thenBy { it.name })
     val colors = MaterialTheme.colorScheme
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.padding(12.dp).widthIn(max = 720.dp).fillMaxWidth().fillMaxHeight(0.9f),

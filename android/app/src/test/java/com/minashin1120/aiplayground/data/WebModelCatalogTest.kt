@@ -26,4 +26,14 @@ class WebModelCatalogTest {
         assertFalse(result.first().selectable)
         assertEquals(listOf("b", "a"), recentWebModels(result).map { it.id })
     }
+
+    @Test fun webCatalogOrderIsPreservedForModelPicker() {
+        val result = applyWebModelCatalog(listOf(model("third"), model("first"), model("second")), """[
+            {"id":"first"},
+            {"id":"second"},
+            {"id":"third"}
+        ]""")
+
+        assertEquals(listOf("first", "second", "third"), result.sortedBy { it.webCatalogOrder }.map { it.id })
+    }
 }

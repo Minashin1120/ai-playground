@@ -24,7 +24,7 @@ data class ModelInfo(val id: String, val name: String, val provider: String, val
                      val selectable: Boolean,
                      val description: String = "", val price: String = "", val category: String = "",
                      val implementedAt: String = "", val implementedRank: Int = 0, val emoji: String = "",
-                     val tags: Set<String> = emptySet()) {
+                     val tags: Set<String> = emptySet(), val webCatalogOrder: Int = Int.MAX_VALUE) {
     fun supports(capability: String) = capability in capabilities
 }
 data class Account(val id: Int, val name: String, val models: List<ModelInfo>, val defaultModel: String,

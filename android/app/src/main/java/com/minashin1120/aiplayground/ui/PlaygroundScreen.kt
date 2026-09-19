@@ -49,6 +49,8 @@ import com.minashin1120.aiplayground.data.Gem
 import com.minashin1120.aiplayground.data.FixedPrompt
 import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.recentWebModels
+import com.minashin1120.aiplayground.data.ConnectionStatus
+import com.minashin1120.aiplayground.data.defaultMessage
 
 import com.minashin1120.aiplayground.data.attachmentKind
 import com.minashin1120.aiplayground.data.attachmentKindIcon
@@ -273,7 +275,13 @@ fun PlaygroundScreen(
                     }
                 ) { padding ->
                     Column(Modifier.fillMaxSize().padding(padding)) {
-                        if (state.offline) OfflineBanner(model::reconnect)
+                        if (state.connectionBannerVisible || state.offline) {
+                            ConnectionBanner(
+                                status = if (state.connectionStatus == ConnectionStatus.UNKNOWN) ConnectionStatus.OFFLINE else state.connectionStatus,
+                                message = state.connectionMessage,
+                                onRetry = model::reconnect,
+                            )
+                        }
                         Box(Modifier.weight(1f)) {
                             when {
                                 state.starting -> CircularProgressIndicator(Modifier.align(Alignment.Center))
@@ -391,12 +399,33 @@ private fun DialogAction(icon: androidx.compose.ui.graphics.vector.ImageVector, 
 }
 
 @Composable
-private fun OfflineBanner(onRetry: () -> Unit) {
-    Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth()) {
+private fun ConnectionBanner(status: ConnectionStatus, message: String, onRetry: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val container = when (status) {
+        ConnectionStatus.MAINTENANCE -> colors.tertiaryContainer
+        ConnectionStatus.UNSTABLE -> colors.secondaryContainer
+        ConnectionStatus.ONLINE -> colors.primaryContainer
+        ConnectionStatus.SERVER_DOWN, ConnectionStatus.OFFLINE, ConnectionStatus.UNKNOWN -> colors.errorContainer
+    }
+    val content = when (status) {
+        ConnectionStatus.MAINTENANCE -> colors.onTertiaryContainer
+        ConnectionStatus.UNSTABLE -> colors.onSecondaryContainer
+        ConnectionStatus.ONLINE -> colors.onPrimaryContainer
+        ConnectionStatus.SERVER_DOWN, ConnectionStatus.OFFLINE, ConnectionStatus.UNKNOWN -> colors.onErrorContainer
+    }
+    val icon = when (status) {
+        ConnectionStatus.MAINTENANCE -> Icons.Rounded.Build
+        ConnectionStatus.UNSTABLE -> Icons.Rounded.WarningAmber
+        ConnectionStatus.ONLINE -> Icons.Rounded.CheckCircle
+        ConnectionStatus.SERVER_DOWN -> Icons.Rounded.Dns
+        ConnectionStatus.OFFLINE, ConnectionStatus.UNKNOWN -> Icons.Rounded.CloudOff
+    }
+    Surface(color = container, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("オフラインのようです。接続を確認してください。", modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
-            TextButton(onClick = onRetry) { Text("再試行") }
+            Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
+            Text(message.ifBlank { status.defaultMessage() }, modifier = Modifier.weight(1f).padding(start = 8.dp),
+                style = MaterialTheme.typography.bodySmall, color = content)
+            if (status != ConnectionStatus.ONLINE) TextButton(onClick = onRetry) { Text("再試行") }
         }
     }
 }

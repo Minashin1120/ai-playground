@@ -9,6 +9,7 @@ import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.net.Uri
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.SystemClock
@@ -21,6 +22,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody
 import okhttp3.MediaType.Companion.toMediaType
@@ -75,6 +78,9 @@ data class ChatState(
     val cards: List<StatusCard> = emptyList(),
     val mcpDecision: McpDecision? = null,
     val offline: Boolean = false,
+    val connectionStatus: ConnectionStatus = ConnectionStatus.UNKNOWN,
+    val connectionMessage: String = "",
+    val connectionBannerVisible: Boolean = false,
     val jobId: String? = null, val retryAvailable: Boolean = false, val notice: String? = null,
 )
 
@@ -83,6 +89,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val store = TokenStore(application)
     private val offlineCache = OfflineCacheStore(application)
     private val prefs = application.getSharedPreferences("navigation", 0)
+    private val connectivity = application.getSystemService(ConnectivityManager::class.java)
+    private val connectionProbeMutex = Mutex()
     private val mutable = MutableStateFlow(ChatState())
     val state = mutable.asStateFlow()
     private var session: StoredSession? = null
@@ -92,6 +100,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var streamJob: Job? = null
     private var uploadJob: Job? = null
     private var heartbeatJob: Job? = null
+    private var connectionMonitorJob: Job? = null
+    private var connectionRecoveredHideJob: Job? = null
+    private var slowConnectionCount = 0
+    private var networkCallbackRegistered = false
     private var libraryJob: Job? = null
     private var cacheSyncJob: Job? = null
     private var batchPollJob: Job? = null
@@ -103,6 +115,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private data class Submission(val body: JSONObject, val files: List<Attachment>)
     private var failed: Submission? = null
     private var pendingParentId: Int? = null
+
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            if (foreground) viewModelScope.launch { probeServerConnection() }
+        }
+
+        override fun onLost(network: Network) {
+            if (!hasUsableNetwork()) setConnectionUnavailable(ConnectionStatus.OFFLINE)
+        }
+    }
 
     init { viewModelScope.launch {
         mutable.update { it.copy(compression = compressionSettingsFrom(prefs)) }
@@ -134,6 +156,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             ?: account.models.firstOrNull { it.selectable }?.id.orEmpty()
         withContext(Dispatchers.IO) { offlineCache.saveAccount(account.id, me) }
         prefs.edit().putString("offline_cache_account_id", account.id.toString()).apply()
+        markConnectionReachable()
         mutable.update { it.copy(account = account, model = chosen, pairing = false, userCode = "", offline = false) }
         fetchThreads(false)
         runCatching { fetchGems() }.onFailure { report(it) }
@@ -170,6 +193,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             threads = cachedThreads,
             nextPage = null,
             offline = true,
+            connectionStatus = ConnectionStatus.OFFLINE,
+            connectionMessage = ConnectionStatus.OFFLINE.defaultMessage(),
+            connectionBannerVisible = true,
             pairing = false,
         ) }
         refreshOfflineCacheStats(account.id)
@@ -186,6 +212,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (!value && state.value.lyria.active) stopLyria(save = false)
         if (!value) heartbeatJob?.cancel()
         if (!value) batchPollJob?.cancel()
+        if (value) startConnectionMonitor() else stopConnectionMonitor()
         if (value && state.value.account != null) startBatchPolling()
         if (returning && state.value.account != null && state.value.selected != null && !state.value.busy) refresh()
         if (returning && state.value.account != null) startCacheSyncIfAllowed()
@@ -238,6 +265,119 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun cancelPairing() { pairingJob?.cancel(); mutable.update { it.copy(pairing = false, userCode = "") } }
     fun dismissNotice() { mutable.update { it.copy(notice = null) } }
     fun notify(message: String) { mutable.update { it.copy(notice = message) } }
+
+    private fun hasUsableNetwork(): Boolean {
+        val manager = connectivity ?: return false
+        val active = manager.activeNetwork ?: return false
+        val capabilities = manager.getNetworkCapabilities(active) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
+
+    private fun isConnectionOperationActive(): Boolean {
+        val current = state.value
+        return current.pairing || current.busy || current.streaming || current.uploading ||
+            current.realtime.active || current.lyria.active
+    }
+
+    private fun startConnectionMonitor() {
+        if (!networkCallbackRegistered) {
+            runCatching {
+                connectivity?.registerDefaultNetworkCallback(networkCallback)
+                networkCallbackRegistered = connectivity != null
+            }
+        }
+        if (connectionMonitorJob?.isActive == true) return
+        connectionMonitorJob = viewModelScope.launch {
+            probeServerConnection()
+            while (isActive && foreground) {
+                delay(state.value.connectionStatus.probeIntervalMillis())
+                probeServerConnection()
+            }
+        }
+    }
+
+    private fun stopConnectionMonitor() {
+        connectionMonitorJob?.cancel()
+        connectionMonitorJob = null
+        if (networkCallbackRegistered) {
+            runCatching { connectivity?.unregisterNetworkCallback(networkCallback) }
+            networkCallbackRegistered = false
+        }
+    }
+
+    private suspend fun probeServerConnection() = connectionProbeMutex.withLock {
+        if (!foreground || isConnectionOperationActive()) return@withLock
+        if (!hasUsableNetwork()) {
+            setConnectionUnavailable(ConnectionStatus.OFFLINE)
+            return@withLock
+        }
+        val startedAt = SystemClock.elapsedRealtime()
+        try {
+            val reply = withTimeout(3_000L) {
+                api.get("/api/version?heartbeat=${System.currentTimeMillis()}")
+            }
+            val latencyMs = SystemClock.elapsedRealtime() - startedAt
+            val wasDisconnected = state.value.connectionStatus.isDisconnected()
+            slowConnectionCount = if (latencyMs >= 2_000L) slowConnectionCount + 1 else 0
+            if (slowConnectionCount >= 3) {
+                setConnectionUnavailable(ConnectionStatus.UNSTABLE, "サーバーとの通信が不安定です（遅延 ${latencyMs}ms）")
+            } else {
+                markConnectionReachable(wasDisconnected)
+            }
+            // Parsing also ensures a proxy's non-JSON response is not accepted as a heartbeat.
+            reply.optString("version")
+        } catch (e: TimeoutCancellationException) {
+            setConnectionUnavailable(if (hasUsableNetwork()) ConnectionStatus.UNSTABLE else ConnectionStatus.OFFLINE)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: ApiException) {
+            val mode = connectionStatusForHttp(e.status)
+                ?: if (e.status >= 500) ConnectionStatus.UNSTABLE else null
+            if (mode != null) setConnectionUnavailable(mode)
+        } catch (_: Exception) {
+            setConnectionUnavailable(if (hasUsableNetwork()) ConnectionStatus.UNSTABLE else ConnectionStatus.OFFLINE)
+        }
+    }
+
+    private fun setConnectionUnavailable(status: ConnectionStatus, message: String = status.defaultMessage()) {
+        slowConnectionCount = 0
+        connectionRecoveredHideJob?.cancel()
+        connectionRecoveredHideJob = null
+        mutable.update { it.copy(
+            connectionStatus = status,
+            connectionMessage = message,
+            connectionBannerVisible = true,
+            offline = status.isDisconnected(),
+        ) }
+    }
+
+    private fun markConnectionReachable(wasDisconnected: Boolean = state.value.connectionStatus.isDisconnected()) {
+        slowConnectionCount = 0
+        connectionRecoveredHideJob?.cancel()
+        mutable.update { it.copy(
+            connectionStatus = ConnectionStatus.ONLINE,
+            connectionMessage = if (wasDisconnected) ConnectionStatus.ONLINE.defaultMessage() else "",
+            connectionBannerVisible = wasDisconnected,
+            offline = false,
+        ) }
+        if (wasDisconnected) {
+            connectionRecoveredHideJob = viewModelScope.launch {
+                delay(5_000L)
+                mutable.update { current ->
+                    if (current.connectionStatus == ConnectionStatus.ONLINE) current.copy(connectionBannerVisible = false)
+                    else current
+                }
+            }
+        }
+    }
+
+    override fun onCleared() {
+        stopConnectionMonitor()
+        connectionRecoveredHideJob?.cancel()
+        super.onCleared()
+    }
+
     fun draft(text: String) { mutable.update { it.copy(draft = text) } }
     fun quoteMessage(text: String) {
         val quoted = text.trim().lineSequence().filter { it.isNotBlank() }
@@ -986,11 +1126,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun report(error: Throwable) {
         if (error is CancellationException) throw error
         if (error is ApiException && error.status == 401) clearSession()
-        val offline = error is java.net.ConnectException || error is java.net.UnknownHostException ||
-            error is java.net.SocketTimeoutException || error is java.net.SocketException
+        val networkFailure = error !is ApiException && (error is java.net.ConnectException || error is java.net.UnknownHostException ||
+            error is java.net.SocketTimeoutException || error is java.net.SocketException || error is IOException
+        )
+        when {
+            error is ApiException && connectionStatusForHttp(error.status) != null ->
+                setConnectionUnavailable(connectionStatusForHttp(error.status)!!)
+            error is ApiException && error.status >= 500 ->
+                setConnectionUnavailable(ConnectionStatus.UNSTABLE)
+            networkFailure ->
+                setConnectionUnavailable(if (hasUsableNetwork()) ConnectionStatus.UNSTABLE else ConnectionStatus.OFFLINE)
+        }
         mutable.update { it.copy(
             notice = error.message?.take(500) ?: "通信に失敗しました。再試行してください。",
-            offline = it.offline || offline) }
+        ) }
     }
 
     private suspend fun refreshOfflineCacheStats(accountId: Int? = state.value.account?.id) {
@@ -1121,13 +1270,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Clears the offline banner and retries the last account or history load. */
     fun reconnect() {
-        mutable.update { it.copy(offline = false) }
+        connectionRecoveredHideJob?.cancel()
+        mutable.update { it.copy(offline = false, connectionStatus = ConnectionStatus.UNKNOWN, connectionMessage = "", connectionBannerVisible = false) }
         viewModelScope.launch {
             try {
                 if (session == null) pair() else {
                     loadAccount()
                     state.value.selected?.let { loadMessages(it.id) }
                 }
+                probeServerConnection()
             } catch (e: Exception) { report(e) }
         }
     }

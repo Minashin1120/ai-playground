@@ -13,6 +13,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/OfflineCacheStore.kt` | アカウント別の暗号化オフライン履歴・ファイル保存、同期設定、カテゴリ削除 | オフライン閲覧・端末保存・キャッシュ管理を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AppUpdateDialog.kt` | APK更新の確認、進捗、設定案内、再試行ダイアログ | 更新UI・文言・導線 |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatViewModel.kt` | 認証・履歴・送信・再接続・アップロード状態 | アプリ操作・通信フロー |
+| `app/src/main/java/com/minashin1120/aiplayground/data/ConnectionStatus.kt` | Web相当のハートビート接続状態・HTTP障害分類・監視間隔 | 接続状態・復帰表示を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/BatchNotifications.kt` | Batch完了通知チャンネルと安全な通知表示 | Batch通知を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/` | CookieなしHTTP、NDJSON、APIモデル、Keystore保存 | 認証・通信・保存 |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundScreen.kt`, `ChatComponents.kt` | Compose画面、履歴ドロワー／タブレット2ペイン、メッセージ操作、状態カード、入力欄 | 画面構造と操作を編集するとき |

@@ -1,5 +1,9 @@
 # AI Playground for Android
 
+## 1.13.16
+
+- Androidの標準インストーラーへ更新APKを正しく渡せるよう修正しました。
+
 ## 1.13.15
 
 - GitHub ReleaseからAPKをアプリ内で直接取得し、検証後にAndroid標準インストーラーで更新できるようにしました。

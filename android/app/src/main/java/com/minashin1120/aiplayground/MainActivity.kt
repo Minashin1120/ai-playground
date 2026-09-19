@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
         val intent = Intent(Intent.ACTION_INSTALL_PACKAGE)
             .setDataAndType(uri, "application/vnd.android.package-archive")
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            .setClipData(ClipData.newRawUri("AI Playground update", uri))
+        intent.clipData = ClipData.newRawUri("AI Playground update", uri)
         updateModel.markInstalling()
         try {
             installerLauncher.launch(intent)

@@ -23,7 +23,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AdvancedTools.kt` | Batch管理と高度な生成機能・安全なWeb導線 | 高度な機能メニューを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/CanvasCodingPanels.kt` | Canvasプレビュー・編集とCoding履歴対象選択 | Canvas／Codingの編集操作を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ImageMaskEditor.kt` | GPT-Image用の端末マスク描画とPNG化 | 画像マスクの描画・送信を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/RealtimeStudio.kt` | Realtime音声・Lyria音楽のネイティブスタジオ | 音声／音楽セッションUIを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/RealtimeStudio.kt` | Realtime音声（Gemini 3.8 Live / Extended Thinkingを含む）・Lyria音楽のネイティブスタジオ | 音声／音楽セッションUIを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RichPasteDialog.kt` | クリップボードHTML／テキストの安全な取り込み | リッチ貼り付けの入力変換を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ModelPicker.kt` | WebのSelect Model構成に合わせた検索・提供元／用途／対応能力フィルター・選択状態 | モデル選択画面を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundDialog.kt` | 共通のネイティブモーダル枠、ヘッダー、フッター、キーボード余白 | 設定・Gems・ライブラリ・Batchの画面枠を調整するとき |

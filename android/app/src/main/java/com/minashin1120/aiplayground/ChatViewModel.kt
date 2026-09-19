@@ -1001,6 +1001,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun handleRealtimeEvent(event: JSONObject, rateOut: Int) {
         when (event.optString("type")) {
             "status" -> mutable.update { it.copy(realtime = it.realtime.copy(status = event.optString("status"))) }
+            "interaction_status" -> mutable.update { it.copy(realtime = it.realtime.copy(status = event.optString("status"))) }
             "audio" -> {
                 val encoded = event.nullableString("data")
                 val bytes = runCatching { android.util.Base64.decode(encoded, android.util.Base64.DEFAULT) }.getOrNull() ?: ByteArray(0)

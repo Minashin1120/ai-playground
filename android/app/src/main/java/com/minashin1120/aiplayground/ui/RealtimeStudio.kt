@@ -21,19 +21,24 @@ internal val realtimeModels = listOf(
     "grok-voice-agent" to "Grok Voice Agent",
     "gemini-2.5-flash-native-audio-preview-12-2025" to "Gemini Native Audio",
     "gemini-3.1-flash-live-preview" to "Gemini 3.1 Live",
+    "gemini-3.8-live" to "Gemini 3.8 Flash Live",
+    "gemini-3.8-live-extended-thinking" to "Gemini 3.8 Live Extended Thinking",
     "gemini-3.5-live-translate-preview" to "Gemini Live Translate",
     "gemini-3.5-transcribe-live" to "Gemini Live Transcribe",
 )
 
 private fun isGeminiLive(model: String): Boolean = model.startsWith("gemini-3.1-flash-live") ||
+    model == "gemini-3.8-live" || model == "gemini-3.8-live-extended-thinking" ||
     model == "gemini-3.5-live-translate-preview" || model == "gemini-3.5-transcribe-live"
+
+private fun isGeminiExtendedThinking(model: String): Boolean = model == "gemini-3.8-live-extended-thinking"
 
 @Composable
 fun RealtimeStudioDialog(state: ChatState, model: ChatViewModel, onDismiss: () -> Unit) {
     var selectedModel by remember { mutableStateOf(realtimeModels.first().first) }
     var voice by remember { mutableStateOf("alloy") }
     var targetLanguage by remember { mutableStateOf("ja") }
-    var thinkingLevel by remember { mutableStateOf("minimal") }
+    var thinkingLevel by remember { mutableStateOf("medium") }
     var transcriptionMode by remember { mutableStateOf("VERBATIM") }
     var customVocabulary by remember { mutableStateOf("") }
     val realtime = state.realtime
@@ -62,9 +67,9 @@ fun RealtimeStudioDialog(state: ChatState, model: ChatViewModel, onDismiss: () -
                             label = { Text("カスタム語彙") }, supportingText = { Text("カンマまたは改行区切り（任意）") },
                             modifier = Modifier.fillMaxWidth())
                     }
-                    if (isGeminiLive(selectedModel) && selectedModel != "gemini-3.5-live-translate-preview" && selectedModel != "gemini-3.5-transcribe-live") {
+                    if (isGeminiExtendedThinking(selectedModel)) {
                         OutlinedTextField(thinkingLevel, { thinkingLevel = it }, singleLine = true,
-                            label = { Text("Thinking level") }, supportingText = { Text("minimal / low / medium / high") },
+                            label = { Text("Thinking level") }, supportingText = { Text("low / medium / high") },
                             modifier = Modifier.fillMaxWidth())
                     }
                     if (selectedModel != "gemini-3.5-live-translate-preview" && selectedModel != "gemini-3.5-transcribe-live") {

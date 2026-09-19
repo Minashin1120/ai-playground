@@ -473,7 +473,10 @@ def _resolve_chat_model_auth(user, model_key):
         provider = "gemini"
         gemini_runtime = _resolve_gemini_runtime(user)
         api_key = model_key_override or gemini_runtime.get("api_key")
-        if gemini_runtime.get("backend") == "vertex_ai":
+        if mk_l == "gemini-3.8-flash-cyber" and gemini_runtime.get("backend") != "vertex_ai":
+            error_code = "provider_configuration_missing"
+            error_message = "Gemini 3.8 Flash Cyber は Vertex AI バックエンドでのみ利用できます。"
+        elif gemini_runtime.get("backend") == "vertex_ai":
             if not gemini_runtime.get("vertex_project"):
                 error_code = "provider_configuration_missing"
                 error_message = (
@@ -753,8 +756,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-20-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.1005'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-20-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.1006'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'

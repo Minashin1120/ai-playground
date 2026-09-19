@@ -879,8 +879,10 @@
                                 }
                             } else {
                                 sessionBody.voice = get('sts-voice') ? get('sts-voice').value : 'Kore';
-                                sessionBody.thinking_level = get('sts-thinking-level') ? get('sts-thinking-level').value : 'minimal';
-                                sessionBody.include_thoughts = get('sts-include-thoughts') ? get('sts-include-thoughts').checked : false;
+                                if (isGeminiLiveExtendedThinkingModel()) {
+                                    sessionBody.thinking_level = get('sts-thinking-level') ? get('sts-thinking-level').value : 'medium';
+                                    sessionBody.include_thoughts = get('sts-include-thoughts') ? get('sts-include-thoughts').checked : false;
+                                }
                                 if (isGeminiLiveTranslateModel() && get('sts-target-lang')) {
                                     sessionBody.target_lang = get('sts-target-lang').value;
                                 }
@@ -920,10 +922,13 @@
                                     translationConfig: { targetLanguageCode: targetLang, echoTargetLanguage: true }
                                 });
                             } else {
-                                await currentGeminiLive.start(token, url, modelKey, {
-                                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-                                    thinkingConfig: { thinkingLevel: thinking_level, includeThoughts: include_thoughts }
-                                });
+                                const liveConfig = {
+                                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
+                                };
+                                if (isGeminiLiveExtendedThinkingModel()) {
+                                    liveConfig.thinkingConfig = { thinkingLevel: thinking_level, includeThoughts: include_thoughts };
+                                }
+                                await currentGeminiLive.start(token, url, modelKey, liveConfig);
                             }
                             mediaRecorder = currentGeminiLive.backupRecorder; // For silence monitor
 

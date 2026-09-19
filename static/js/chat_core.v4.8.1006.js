@@ -7045,6 +7045,7 @@
                 description: "Google's latest multimodal models",
                 items: [
                     { id: "gemini-3.8-flash", implementedAt: "2026-09-05", implementedRank: 9160, quickEmoji: "⚡", name: "Gemini 3.8 Flash", desc: "Most intelligent Flash model for long-horizon software engineering, autonomous agents, and complex enterprise workflows.", price: "In $0.75/1M, Out $3.75/1M (through 2026-12-31)", agenticView: true },
+                    { id: "gemini-3.8-flash-cyber", implementedAt: "2026-09-20", implementedRank: 9180, quickEmoji: "🛡️", name: "Gemini 3.8 Flash Cyber", desc: "Gemini 3.8 Flash post-trained for cybersecurity workflows. Vertex AI only; access is allowlisted by Google.", price: "Google Cloud Standard PayGo / Flex PayGo / Priority PayGo", agenticView: true },
                     { id: "gemini-3.7-flash", implementedAt: "2026-08-14", implementedRank: 8000, quickEmoji: "⚡", name: "Gemini 3.7 Flash", desc: "Most capable Flash model for complex coding, agentic workflows, and multimodal tasks.", price: "In $0.75/1M, Out $3.75/1M (introductory)", agenticView: true },
                     { id: "gemini-3.6-flash", implementedAt: "2026-07-30", implementedRank: 6411, quickEmoji: "⚡", name: "Gemini 3.6 Flash", desc: "Latest Flash model for agentic, coding, and multimodal tasks.", price: "In $1.50/1M, Out $7.50/1M", agenticView: true },
                     { id: "gemini-3.5-flash", implementedAt: "2026-06-13", implementedRank: 5900, quickEmoji: "✨", name: "Gemini 3.5 Flash", desc: "Most intelligent Gemini 3.5 model built for speed.", price: "In $1.50/1M, Out $9.00/1M", agenticView: true },
@@ -7228,6 +7229,8 @@
                     { id: "gpt-realtime-mini", implementedAt: "2026-02-24", implementedRank: 2532, name: "OpenAI Realtime Mini", desc: "Lower-latency, smaller realtime model.", price: "Audio In $10/1M, Audio Out $20/1M" },
                     { id: "gemini-2.5-flash-native-audio-preview-12-2025", implementedAt: "2026-01-15", implementedRank: 90, name: "Gemini 2.5 Flash Native Audio (Live)", desc: "Google Live native audio model.", price: "Audio In $3.00/1M, Audio Out $12.00/1M" },
                     { id: "gemini-3.1-flash-live-preview", implementedAt: "2026-03-29", implementedRank: 3870, name: "Gemini 3.1 Flash Live", desc: "Google Live native audio model.", price: "Audio In $3.00/1M (~$0.005/min), Out $12.00/1M" },
+                    { id: "gemini-3.8-live", implementedAt: "2026-09-20", implementedRank: 9181, quickEmoji: "🔴", name: "Gemini 3.8 Flash Live", desc: "Low-latency audio-to-audio Live API model with interleaved reasoning and asynchronous function calling.", price: "See Gemini API pricing" },
+                    { id: "gemini-3.8-live-extended-thinking", implementedAt: "2026-09-20", implementedRank: 9182, quickEmoji: "🧠", name: "Gemini 3.8 Live Extended Thinking", desc: "Live audio-to-audio model with configurable background reasoning for complex multi-step interactions.", price: "See Gemini API pricing" },
                     { id: "gemini-3.5-live-translate-preview", implementedAt: "2026-08-25", implementedRank: 8523, quickEmoji: "🌐", name: "Gemini 3.5 Live Translate", desc: "Low-latency real-time speech-to-speech translation supporting 70+ languages.", price: "Audio In $3.50/1M, Audio Out $21.00/1M" },
                     { id: "grok-voice-think-fast-2.0", implementedAt: "2026-08-25", implementedRank: 8502, quickEmoji: "🎤", name: "Grok Voice Think Fast 2.0", desc: "Current xAI speech-to-speech model.", price: "$0.08 / min ($4.80 / hr) audio + $0.004 / text input" },
                     { id: "grok-voice-latest", implementedAt: "2026-05-27", implementedRank: 5550, name: "Grok Voice Latest", desc: "Alias for the current flagship voice model.", price: "$0.08 / min ($4.80 / hr) audio + $0.004 / text input" },
@@ -7605,6 +7608,8 @@
             'gpt-realtime-mini',
             'gemini-2.5-flash-native-audio-preview-12-2025',
             'gemini-3.1-flash-live-preview',
+            'gemini-3.8-live',
+            'gemini-3.8-live-extended-thinking',
             'gemini-3.5-live-translate-preview',
             'gemini-3.5-transcribe-live',
             'grok-voice-think-fast-2.0',
@@ -7807,8 +7812,9 @@
         };
         const isGeminiLiveModel = () => {
             const m = get('model-select').value;
-            return m === 'gemini-3.1-flash-live-preview' || m === 'gemini-3.5-live-translate-preview' || m === 'gemini-3.5-transcribe-live';
+            return m === 'gemini-3.1-flash-live-preview' || m === 'gemini-3.8-live' || m === 'gemini-3.8-live-extended-thinking' || m === 'gemini-3.5-live-translate-preview' || m === 'gemini-3.5-transcribe-live';
         };
+        const isGeminiLiveExtendedThinkingModel = () => get('model-select').value === 'gemini-3.8-live-extended-thinking';
         const isGeminiLiveTranslateModel = () => get('model-select').value === 'gemini-3.5-live-translate-preview';
         const isGeminiLiveTranscribeModel = () => get('model-select').value === 'gemini-3.5-transcribe-live';
         const isGeminiRealtimeMusicModel = () => (get('model-select').value || '') === 'lyria-realtime-exp';
@@ -7950,6 +7956,15 @@
                 if (thinkingWrap) thinkingWrap.classList.remove('hidden');
                 if (langWrap) langWrap.classList.add('hidden');
                 if (note) note.textContent = 'Gemini Liveは音声速度変更非対応';
+                if (model === 'gemini-3.8-live') {
+                    if (thinkingWrap) thinkingWrap.classList.add('hidden');
+                    if (note) note.textContent = 'Gemini 3.8 Flash Liveは固定レイテンシのLive APIモデル（Thinking level非対応）';
+                } else if (model === 'gemini-3.8-live-extended-thinking') {
+                    if (note) note.textContent = 'Gemini 3.8 Live Extended Thinkingはlow / medium / highのバックグラウンド推論に対応';
+                    const thinkingSelect = get('sts-thinking-level');
+                    Array.from((thinkingSelect && thinkingSelect.options) || []).forEach(opt => { opt.disabled = opt.value === 'minimal'; });
+                    if (thinkingSelect && !['low', 'medium', 'high'].includes(thinkingSelect.value)) thinkingSelect.value = 'medium';
+                }
                 if (model === 'gemini-3.5-live-translate-preview') {
                     if (modeLabel) modeLabel.textContent = 'Realtime Translation';
                     if (thinkingWrap) thinkingWrap.classList.add('hidden');
@@ -9378,7 +9393,7 @@
                     browserFastApiKey = '';
                     browserFastApiKeyModel = '';
                     browserFastBootstrap = null;
-                    if (!model.startsWith('gemini-') || /(image|native-audio|tts|live)/.test(model)) {
+                    if (!model.startsWith('gemini-') || /(image|native-audio|tts|live|flash-cyber)/.test(model)) {
                         setBrowserFastModeEnabled(false);
                         fastModelSelect.dispatchEvent(new Event('change'));
                         showToast('対象外モデルを選択したため高速モードを解除しました', 'warning', true);
@@ -9668,6 +9683,7 @@
                 const isNanoBanana2Lite = modelLower.includes('gemini-3.1-flash-lite-image');
                 const isNanoBanana2 = modelLower.includes('gemini-3.1-flash-image') && !isNanoBanana2Lite;
                 const isClaude = isClaudeModelKey(model);
+                const isGeminiCyber = modelLower === 'gemini-3.8-flash-cyber';
                 // DeepSeek KV cache is automatic; it does not use an app-supplied prompt_cache_key.
                 const promptCacheSupported = isLlmModel() && !isDeepSeek && !isTts && !modelLower.includes('realtime') && !modelLower.includes('native-audio') && !modelLower.includes('live');
                 if (cacheCont) {
@@ -9764,6 +9780,16 @@
                         opt.disabled = true; // Claude thinking only uses budget and enabled flag
                     });
                     if (pyCont) { pyChk.checked = false; pyCont.classList.add('opacity-50', 'pointer-events-none'); }
+                } else if (isGeminiCyber) {
+                    if (thinkOpts) thinkOpts.classList.remove('hidden');
+                    if (thinkChk) { thinkChk.checked = true; thinkChk.disabled = true; }
+                    Array.from(thinkLvl.options).forEach(opt => { opt.disabled = !['low', 'medium', 'high'].includes(opt.value); });
+                    if (!['low', 'medium', 'high'].includes(thinkLvl.value)) thinkLvl.value = 'medium';
+                    [searchCont, urlCont, mapsCont, pyCont].forEach(cont => { if (cont) cont.classList.add('opacity-50', 'pointer-events-none'); });
+                    [searchChk, mapsChk, pyChk].forEach(chk => { if (chk) { chk.checked = false; chk.disabled = true; } });
+                    const urlChk = get('enable-url-context');
+                    if (urlChk) { urlChk.checked = false; urlChk.disabled = true; }
+                    if (sysChk && sysLbl) { sysChk.disabled = false; sysLbl.classList.remove('opacity-50'); }
                 } else if(model.includes('gemini') && !isGeminiImage) {
                     thinkOpts.classList.remove('hidden');
                     if(urlCont) {
@@ -9881,6 +9907,12 @@
                     }
                 } else if (searchChk && !model.includes('tts') && !isOcr && !isDeepSeek && !isNanoBanana2Lite) {
                     searchChk.disabled = false;
+                }
+                if (isGeminiCyber) {
+                    [searchChk, mapsChk, pyChk].forEach(chk => { if (chk) { chk.checked = false; chk.disabled = true; } });
+                    const cyberUrlChk = get('enable-url-context');
+                    if (cyberUrlChk) { cyberUrlChk.checked = false; cyberUrlChk.disabled = true; }
+                    [searchCont, urlCont, mapsCont, pyCont].forEach(cont => { if (cont) cont.classList.add('opacity-50', 'pointer-events-none'); });
                 }
                 const maskBtn = get('mask-btn');
                 if (maskBtn) {
@@ -14799,8 +14831,10 @@
                                 }
                             } else {
                                 sessionBody.voice = get('sts-voice') ? get('sts-voice').value : 'Kore';
-                                sessionBody.thinking_level = get('sts-thinking-level') ? get('sts-thinking-level').value : 'minimal';
-                                sessionBody.include_thoughts = get('sts-include-thoughts') ? get('sts-include-thoughts').checked : false;
+                                if (isGeminiLiveExtendedThinkingModel()) {
+                                    sessionBody.thinking_level = get('sts-thinking-level') ? get('sts-thinking-level').value : 'medium';
+                                    sessionBody.include_thoughts = get('sts-include-thoughts') ? get('sts-include-thoughts').checked : false;
+                                }
                                 if (isGeminiLiveTranslateModel() && get('sts-target-lang')) {
                                     sessionBody.target_lang = get('sts-target-lang').value;
                                 }
@@ -14840,10 +14874,13 @@
                                     translationConfig: { targetLanguageCode: targetLang, echoTargetLanguage: true }
                                 });
                             } else {
-                                await currentGeminiLive.start(token, url, modelKey, {
-                                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-                                    thinkingConfig: { thinkingLevel: thinking_level, includeThoughts: include_thoughts }
-                                });
+                                const liveConfig = {
+                                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
+                                };
+                                if (isGeminiLiveExtendedThinkingModel()) {
+                                    liveConfig.thinkingConfig = { thinkingLevel: thinking_level, includeThoughts: include_thoughts };
+                                }
+                                await currentGeminiLive.start(token, url, modelKey, liveConfig);
                             }
                             mediaRecorder = currentGeminiLive.backupRecorder; // For silence monitor
 

@@ -9,6 +9,9 @@ def is_gemini_model_key(model_key):
     mk = str(model_key or "").lower()
     return "gemini" in mk or is_gemini_video_model_key(mk) or is_gemini_music_model_key(mk) or is_gemini_agent_model_key(mk)
 
+def is_gemini_cyber_model_key(model_key):
+    return str(model_key or "").lower().strip() == "gemini-3.8-flash-cyber"
+
 def is_anthropic_model_key(model_key):
     mk = str(model_key or "").lower()
     return "claude" in mk
@@ -550,4 +553,3 @@ def _save_user_generated_bytes_verified(user_id, data, make_filename, encrypt, a
             last_error = RuntimeError("saved file failed on-disk verification")
         time.sleep(0.05)
     raise last_error if last_error else RuntimeError("generated file could not be saved")
-

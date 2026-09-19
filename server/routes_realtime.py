@@ -485,6 +485,7 @@ def gemini_session():
     voice = (data.get('voice') or "Kore").strip()
     is_live_translate = (model_key == "gemini-3.5-live-translate-preview")
     is_live_transcribe = (model_key == "gemini-3.5-transcribe-live")
+    is_gemini_38_extended = (model_key == "gemini-3.8-live-extended-thinking")
 
     if is_live_transcribe:
         # Live Transcription: TEXT output. The detailed transcription config
@@ -505,7 +506,20 @@ def gemini_session():
                     'prebuilt_voice_config': {'voice_name': voice}
                 }
             }
-        if not is_live_translate and thinking_level:
+        if is_gemini_38_extended:
+            if thinking_level not in {'low', 'medium', 'high'}:
+                thinking_level = 'medium'
+            generation_config['thinking_config'] = {
+                'thinking_level': thinking_level,
+                'include_thoughts': include_thoughts
+            }
+        elif (
+            not is_live_translate
+            and model_key != "gemini-3.8-live"
+            and thinking_level
+        ):
+            # Preserve the existing configuration for older Gemini Live
+            # models. Gemini 3.8 Live does not accept thinking_level.
             generation_config['thinking_config'] = {
                 'thinking_level': thinking_level,
                 'include_thoughts': include_thoughts
@@ -681,5 +695,3 @@ def _unreadable_file_http_response(filename, is_thumb):
     resp.status_code = 409
     resp.headers["Cache-Control"] = "no-store"
     return resp
-
-

@@ -15,6 +15,21 @@
     ]
   },
   {
+    "id": "gemini-3.8-flash-cyber",
+    "name": "Gemini 3.8 Flash Cyber",
+    "description": "Gemini 3.8 Flash post-trained for cybersecurity workflows. Vertex AI only; access is allowlisted by Google.",
+    "price": "Google Cloud Standard PayGo / Flex PayGo / Priority PayGo",
+    "category": "Gemini 3.8 / 3.7 / 3.6 / 3.5",
+    "implementedAt": "2026-09-20",
+    "implementedRank": 9180,
+    "emoji": "🛡️",
+    "deprecated": false,
+    "tags": [
+      "gemini",
+      "agentic view"
+    ]
+  },
+  {
     "id": "gemini-3.7-flash",
     "name": "Gemini 3.7 Flash",
     "description": "Most capable Flash model for complex coding, agentic workflows, and multimodal tasks.",
@@ -1191,6 +1206,38 @@
     "tags": [
       "gemini",
       "audio"
+    ]
+  },
+  {
+    "id": "gemini-3.8-live",
+    "name": "Gemini 3.8 Flash Live",
+    "description": "Low-latency audio-to-audio Live API model with interleaved reasoning and asynchronous function calling.",
+    "price": "See Gemini API pricing",
+    "category": "Realtime Audio (STS)",
+    "implementedAt": "2026-09-20",
+    "implementedRank": 9181,
+    "emoji": "🔴",
+    "deprecated": false,
+    "tags": [
+      "gemini",
+      "audio",
+      "reasoning"
+    ]
+  },
+  {
+    "id": "gemini-3.8-live-extended-thinking",
+    "name": "Gemini 3.8 Live Extended Thinking",
+    "description": "Live audio-to-audio model with configurable background reasoning for complex multi-step interactions.",
+    "price": "See Gemini API pricing",
+    "category": "Realtime Audio (STS)",
+    "implementedAt": "2026-09-20",
+    "implementedRank": 9182,
+    "emoji": "🧠",
+    "deprecated": false,
+    "tags": [
+      "gemini",
+      "audio",
+      "reasoning"
     ]
   },
   {

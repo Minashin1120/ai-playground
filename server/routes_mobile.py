@@ -67,10 +67,13 @@ def _mobile_model_metadata(model_id):
     deprecated = model_id in _MOBILE_DEPRECATED_MODELS
     capabilities = [mode]
     if mode == 'chat':
-        capabilities += ['attachments', 'search', 'thinking']
+        capabilities += ['attachments', 'thinking']
+        if model_id != 'gemini-3.8-flash-cyber':
+            capabilities.append('search')
         if provider in {'gemini', 'openai', 'anthropic'}:
             capabilities.append('prompt_cache')
-        capabilities += ['python', 'mcp']
+        if model_id != 'gemini-3.8-flash-cyber':
+            capabilities += ['python', 'mcp']
     if mode in {'chat', 'image'} and globals().get('_is_batch_model', lambda _model: False)(model_id):
         capabilities.append('batch')
     native_modes = {'chat', 'image', 'video', 'ocr', 'tts', 'transcription', 'agent'}

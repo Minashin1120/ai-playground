@@ -40,7 +40,7 @@
                     browserFastApiKey = '';
                     browserFastApiKeyModel = '';
                     browserFastBootstrap = null;
-                    if (!model.startsWith('gemini-') || /(image|native-audio|tts|live)/.test(model)) {
+                    if (!model.startsWith('gemini-') || /(image|native-audio|tts|live|flash-cyber)/.test(model)) {
                         setBrowserFastModeEnabled(false);
                         fastModelSelect.dispatchEvent(new Event('change'));
                         showToast('対象外モデルを選択したため高速モードを解除しました', 'warning', true);
@@ -330,6 +330,7 @@
                 const isNanoBanana2Lite = modelLower.includes('gemini-3.1-flash-lite-image');
                 const isNanoBanana2 = modelLower.includes('gemini-3.1-flash-image') && !isNanoBanana2Lite;
                 const isClaude = isClaudeModelKey(model);
+                const isGeminiCyber = modelLower === 'gemini-3.8-flash-cyber';
                 // DeepSeek KV cache is automatic; it does not use an app-supplied prompt_cache_key.
                 const promptCacheSupported = isLlmModel() && !isDeepSeek && !isTts && !modelLower.includes('realtime') && !modelLower.includes('native-audio') && !modelLower.includes('live');
                 if (cacheCont) {
@@ -426,6 +427,16 @@
                         opt.disabled = true; // Claude thinking only uses budget and enabled flag
                     });
                     if (pyCont) { pyChk.checked = false; pyCont.classList.add('opacity-50', 'pointer-events-none'); }
+                } else if (isGeminiCyber) {
+                    if (thinkOpts) thinkOpts.classList.remove('hidden');
+                    if (thinkChk) { thinkChk.checked = true; thinkChk.disabled = true; }
+                    Array.from(thinkLvl.options).forEach(opt => { opt.disabled = !['low', 'medium', 'high'].includes(opt.value); });
+                    if (!['low', 'medium', 'high'].includes(thinkLvl.value)) thinkLvl.value = 'medium';
+                    [searchCont, urlCont, mapsCont, pyCont].forEach(cont => { if (cont) cont.classList.add('opacity-50', 'pointer-events-none'); });
+                    [searchChk, mapsChk, pyChk].forEach(chk => { if (chk) { chk.checked = false; chk.disabled = true; } });
+                    const urlChk = get('enable-url-context');
+                    if (urlChk) { urlChk.checked = false; urlChk.disabled = true; }
+                    if (sysChk && sysLbl) { sysChk.disabled = false; sysLbl.classList.remove('opacity-50'); }
                 } else if(model.includes('gemini') && !isGeminiImage) {
                     thinkOpts.classList.remove('hidden');
                     if(urlCont) {
@@ -543,6 +554,12 @@
                     }
                 } else if (searchChk && !model.includes('tts') && !isOcr && !isDeepSeek && !isNanoBanana2Lite) {
                     searchChk.disabled = false;
+                }
+                if (isGeminiCyber) {
+                    [searchChk, mapsChk, pyChk].forEach(chk => { if (chk) { chk.checked = false; chk.disabled = true; } });
+                    const cyberUrlChk = get('enable-url-context');
+                    if (cyberUrlChk) { cyberUrlChk.checked = false; cyberUrlChk.disabled = true; }
+                    [searchCont, urlCont, mapsCont, pyCont].forEach(cont => { if (cont) cont.classList.add('opacity-50', 'pointer-events-none'); });
                 }
                 const maskBtn = get('mask-btn');
                 if (maskBtn) {

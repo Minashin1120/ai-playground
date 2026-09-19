@@ -1994,6 +1994,18 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 auto_enable_maps = False
                 grok_enable_search = False
                 disable_auto = True
+            # Gemini 3.8 Flash Cyber is a Vertex AI cybersecurity model. Its
+            # model contract excludes grounding, code execution, URL context,
+            # and function calling, so strip these options even if an older
+            # client sends them.
+            is_gemini_cyber = model_key_l == "gemini-3.8-flash-cyber"
+            if is_gemini_cyber:
+                auto_enable_search = False
+                auto_enable_url_context = False
+                auto_enable_maps = False
+                options['enable_python'] = False
+                options['enable_file_creation'] = False
+                options['enable_mcp'] = False
             if is_mistral_ocr:
                 grok_enable_search = False
                 auto_enable_search = False
@@ -2879,7 +2891,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 else:
                     # Text/Chat generation mode
                     rm = model_key
-                    if "gemini-3.8-flash" in model_key:
+                    if model_key == "gemini-3.8-flash-cyber":
+                        rm = "gemini-3.8-flash-cyber"
+                    elif "gemini-3.8-flash" in model_key:
                         rm = "gemini-3.8-flash"
                     elif "gemini-3.7-flash" in model_key:
                         rm = "gemini-3.7-flash"

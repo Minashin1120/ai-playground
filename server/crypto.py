@@ -182,6 +182,8 @@ STS_MODELS = {
     "gpt-realtime-mini": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gemini-2.5-flash-native-audio-preview-12-2025": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
     "gemini-3.1-flash-live-preview": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
+    "gemini-3.8-live": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
+    "gemini-3.8-live-extended-thinking": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
     "gemini-3.5-live-translate-preview": {"provider": "google", "rate_in": 16000, "rate_out": 24000},
     "gemini-3.5-transcribe-live": {"provider": "google", "mode": "transcription", "rate_in": 16000, "rate_out": 16000},
     "grok-voice-think-fast-2.0": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
@@ -208,7 +210,7 @@ XAI_PCM_RATES = {8000, 16000, 22050, 24000, 32000, 44100, 48000}
 # Includes deprecated models since existing threads may still reference them.
 ALL_VALID_MODEL_IDS = {
     # Gemini 3.8 / 3.7 / 3.6 / 3.5
-    "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite",
+    "gemini-3.8-flash", "gemini-3.8-flash-cyber", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite",
     # Gemini 3.1 / previous Gemini 3.x
     "gemini-3.1-flash-lite", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview",
     "gemini-3-flash-preview", "gemini-3-pro-preview",
@@ -244,6 +246,7 @@ ALL_VALID_MODEL_IDS = {
     "gpt-realtime-2", "gpt-realtime-translate", "gpt-realtime-whisper", "gpt-realtime-1.5",
     "gpt-realtime", "gpt-realtime-mini",
     "gemini-2.5-flash-native-audio-preview-12-2025", "gemini-3.1-flash-live-preview",
+    "gemini-3.8-live", "gemini-3.8-live-extended-thinking",
     "gemini-3.5-transcribe", "gemini-3.5-transcribe-live",
     "grok-voice-latest", "grok-voice-think-fast-2.0", "grok-voice-think-fast-1.0", "grok-voice-fast-1.0", "grok-voice-agent",
     # Grok Imagine

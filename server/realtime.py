@@ -25,6 +25,8 @@ def _rt_is_conversation_model(model_key):
     # provider connection without receiving an API key.
     if model_key in (
         "gemini-3.1-flash-live-preview",
+        "gemini-3.8-live",
+        "gemini-3.8-live-extended-thinking",
         "gemini-3.5-live-translate-preview",
         "gemini-3.5-transcribe-live",
     ):
@@ -120,7 +122,12 @@ def _normalize_rt_params(provider, model_key, data):
         v = str(data.get("voice") or "Kore")
         params["voice"] = v if v in GEMINI_STS_VOICES else "Kore"
         thinking = str(data.get("thinking_level") or "").strip()
-        params["thinking_level"] = thinking or None
+        if model_key == "gemini-3.8-live":
+            params["thinking_level"] = None
+        elif model_key == "gemini-3.8-live-extended-thinking":
+            params["thinking_level"] = thinking if thinking in {"low", "medium", "high"} else "medium"
+        else:
+            params["thinking_level"] = thinking or None
         params["include_thoughts"] = bool(data.get("include_thoughts"))
         params["target_lang"] = str(data.get("target_lang") or "ja").strip().lower()[:16]
         mode = str(data.get("transcription_mode") or "VERBATIM").strip().upper()
@@ -346,6 +353,19 @@ async def _rt_gemini_receive_loop(session, ws):
             if isinstance(raw, bytes):
                 raw = raw.decode("utf-8", "replace")
             msg = json.loads(raw)
+            interaction_status = (
+                msg.get("interactionStatus")
+                or msg.get("interaction_status")
+                or (msg.get("serverContent") or {}).get("interactionStatus")
+                or (msg.get("serverContent") or {}).get("interaction_status")
+            )
+            if interaction_status:
+                status_text = str(interaction_status).upper()
+                session.status = "processing" if status_text == "IN_PROGRESS" else "ready"
+                _rt_push_event(session, {
+                    "type": "interaction_status",
+                    "status": status_text,
+                })
             if msg.get("setupComplete") is not None:
                 session.status = "ready"
                 _rt_push_event(session, {"type": "status", "status": "ready"})
@@ -412,6 +432,7 @@ async def _rt_gemini_session_async(session):
         session.ws = ws
         is_translate = session.model_key == "gemini-3.5-live-translate-preview"
         is_transcribe = session.model_key == "gemini-3.5-transcribe-live"
+        is_gemini_38_extended = session.model_key == "gemini-3.8-live-extended-thinking"
         generation_config = {
             "responseModalities": ["TEXT"] if is_transcribe else ["AUDIO"],
         }
@@ -440,7 +461,7 @@ async def _rt_gemini_session_async(session):
                 "voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}
             }
         thinking_level = session.params.get("thinking_level")
-        if thinking_level and not is_translate and not is_transcribe:
+        if thinking_level and not is_translate and not is_transcribe and session.model_key != "gemini-3.8-live":
             generation_config["thinkingConfig"] = {
                 "thinkingLevel": thinking_level,
                 "includeThoughts": bool(session.params.get("include_thoughts")),

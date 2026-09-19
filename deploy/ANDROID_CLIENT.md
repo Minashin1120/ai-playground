@@ -45,7 +45,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | Batch管理 | ネイティブで送信、一覧、状態更新、停止、履歴削除、完了通知に対応 |
 | 画像・動画・OCR・TTS・文字起こし | `/chat_stream` と同じ保存・停止・再接続境界でネイティブ対応。GPT／Gemini／Grok画像、GPT-Imageマスク、Gemini動画（長さ・比率・解像度）、Grok動画、OCR、TTS、Thinking量、xAI詳細を表示・送信 |
 | Python・MCP・Coding結果 | Python・MCP・Coding差分のストリームイベントを構造化カードで表示。MCPの秘密設定とCoding対象の高度な編集はWeb導線 |
-| リアルタイム音声・Lyria | OpenAI／Grok RealtimeとLyriaはBearer認証のネイティブセッション、マイク入力、SSE再生、保存に対応。Gemini LiveとSTSは認証済みWebへの明示的な導線 |
+| リアルタイム音声・Lyria | OpenAI／Grok Realtime、Gemini Live（`gemini-3.8-live`／`gemini-3.8-live-extended-thinking`を含む）とLyriaはBearer認証のネイティブセッション、マイク入力、SSE再生、保存に対応。Extended Thinkingは `interaction_status` を状態表示へ反映 |
 | アプリ更新検出 | 起動時または設定からGitHub Releasesの `android-vX.Y.Z` だけを確認し、現在のAndroid版より新しい安定版があればGitHubの `app-release.apk` と `.sha256` をアプリ内で取得・検証し、Android標準インストーラーへ渡す。GitHubのReleaseページは開かない |
 | ブラウザー高速モード | 対象外。APIキーをAndroidへ返すbootstrap APIは許可しない |
 | アプリ配布・真正性検証 | APK署名・Play配布は別途。client_idや端末名はアプリ署名の証明ではない |
@@ -215,7 +215,7 @@ Webのログアウトと同様、端末の失効操作はBot確認待ち・ロ�
 | POST `/chat_stream` | 下の送信JSON | NDJSONストリーム、またはエラーJSON |
 | POST `/chat_stream_resume` | `{"thread_id":"...","job_id":"..."}` | 蓄積内容と継続ストリーム |
 | POST `/api/stop_chat` | `thread_id` と、分かれば `job_id` | `status`, `job_id`, `source`。停止信号の受付であり即時停止完了ではない |
-| POST `/api/realtime/start`、GET `/api/realtime/stream`、POST `/api/realtime/audio` | セッション開始のモデル／voice、SSEの `session_id`、音声PCMチャンク | OpenAI／Grok Realtimeのサーバーセッション。音声イベントはBase64 PCM、APIキーは返さない |
+| POST `/api/realtime/start`、GET `/api/realtime/stream`、POST `/api/realtime/audio` | セッション開始のモデル／voice／thinking_level、SSEの `session_id`、音声PCMチャンク | OpenAI／Grok Realtime／Gemini Liveのサーバーセッション。音声イベントはBase64 PCM、`interaction_status` は `IN_PROGRESS`／`IDLE` を返し、APIキーは返さない |
 | POST `/api/realtime/commit`、`/api/realtime/cancel`、`/api/realtime/save` | `session_id`、保存時は任意の `thread_id` | 発話確定、破棄、履歴保存 |
 | POST `/api/gemini/music/start`、GET `/api/gemini/music/stream` | `weighted_prompts`、SSEの `session_id` | LyriaセッションとBase64音声スナップショット |
 | POST `/api/gemini/music/command`、`/cancel`、`/save` | `session_id`、`control`／`action`、保存時は任意の `thread_id` | 一時停止／再開、破棄、履歴保存 |

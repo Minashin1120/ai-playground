@@ -255,7 +255,7 @@ fun PlaygroundScreen(
                             }
                             if (state.selected != null) IconButton(onClick = {
                                 sharePdf()
-                            }, enabled = !state.busy && !state.streaming) { Icon(Icons.Rounded.PictureAsPdf, contentDescription = "PDFを共有") }
+                            }, enabled = !state.offline && !state.busy && !state.streaming) { Icon(Icons.Rounded.PictureAsPdf, contentDescription = "PDFを共有") }
                             if (showThreads) IconButton(onClick = model::refresh, enabled = !state.busy && !state.streaming) {
                                 Icon(Icons.Rounded.Refresh, contentDescription = "更新")
                             }
@@ -423,7 +423,7 @@ private fun ThreadPanel(
             IconButton(onClick = { onSettings(); onNavigate() }) { Icon(Icons.Rounded.Settings, "設定", modifier = Modifier.size(20.dp)) }
             IconButton(onClick = { onLibrary(); onNavigate() }) { Icon(Icons.Rounded.FolderOpen, "ライブラリ", modifier = Modifier.size(20.dp)) }
             IconButton(onClick = { model.newChat(); onNavigate() }, enabled = !state.busy && !state.streaming) { Icon(Icons.Rounded.Add, "新規チャット", tint = colors.primary) }
-            IconButton(onClick = { onPdf(); onNavigate() }, enabled = state.selected != null && !state.busy && !state.streaming) { Icon(Icons.Rounded.PictureAsPdf, "PDFを共有") }
+            IconButton(onClick = { onPdf(); onNavigate() }, enabled = state.selected != null && !state.offline && !state.busy && !state.streaming) { Icon(Icons.Rounded.PictureAsPdf, "PDFを共有") }
             IconButton(onClick = { onAdvanced(); onNavigate() }) { Icon(Icons.Rounded.Layers, "Batch処理・高度な機能", modifier = Modifier.size(20.dp)) }
             IconButton(onClick = model::refresh, enabled = !state.busy && !state.streaming) { Icon(Icons.Rounded.Refresh, "更新", modifier = Modifier.size(20.dp)) }
         }
@@ -467,10 +467,10 @@ private fun ThreadPanel(
                             if (thread.model.isNotBlank()) Text(thread.model, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 9.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
-                    IconButton(onClick = { model.toggleBookmark(thread) }, modifier = Modifier.size(38.dp)) {
+                    IconButton(onClick = { model.toggleBookmark(thread) }, enabled = !state.offline, modifier = Modifier.size(38.dp)) {
                         Icon(if (thread.isBookmarked) Icons.Rounded.Star else Icons.Rounded.StarBorder, contentDescription = if (thread.isBookmarked) "ブックマーク解除" else "ブックマーク", modifier = Modifier.size(18.dp), tint = if (thread.isBookmarked) colors.secondary else colors.onSurfaceVariant)
                     }
-                    IconButton(onClick = { onDelete(thread) }, modifier = Modifier.size(38.dp)) {
+                    IconButton(onClick = { onDelete(thread) }, enabled = !state.offline, modifier = Modifier.size(38.dp)) {
                         Icon(Icons.Rounded.DeleteOutline, contentDescription = "削除", modifier = Modifier.size(18.dp), tint = colors.onSurfaceVariant)
                     }
                 }
@@ -601,7 +601,7 @@ private fun ThreadSettingsDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(title, instruction, includeGlobal, temporary) }, enabled = title.length <= 200 && instruction.length <= 100_000) { Text("保存") } },
+        confirmButton = { TextButton(onClick = { onSave(title, instruction, includeGlobal, temporary) }, enabled = !state.offline && title.length <= 200 && instruction.length <= 100_000) { Text("保存") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } },
     )
 }
@@ -646,7 +646,7 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
                 contentPadding = PaddingValues(horizontal = PlaygroundDimens.conversationHorizontalPadding, vertical = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-            if (state.hasOlder) item(key = "older") { TextButton(onClick = model::olderMessages, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("以前のメッセージ") } }
+            if (state.hasOlder) item(key = "older") { TextButton(onClick = model::olderMessages, enabled = !state.busy && !state.offline, modifier = Modifier.fillMaxWidth()) { Text("以前のメッセージ（オンラインで取得）") } }
             if (state.messages.isEmpty() && !state.busy && !live) item(key = "welcome") {
                 Column(Modifier.fillMaxWidth().padding(vertical = 34.dp), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.13f), modifier = Modifier.size(58.dp)) {
@@ -739,9 +739,9 @@ private fun LibraryDialog(state: ChatState, model: ChatViewModel, onOpenFile: (F
                                         if (file.type == "image") "image/" else ""))
                                 }) { Text("開く") }
                                 TextButton(onClick = { model.reuseLibraryFile(file); onDismiss() }) { Text("再利用") }
-                                TextButton(onClick = { model.toggleLibraryFavorite(file) }) { Text(if (file.isFavorite) "★" else "☆") }
-                                TextButton(onClick = { renameTarget = file }) { Text("名前変更") }
-                                TextButton(onClick = { deleteTarget = file }) { Text("削除") }
+                                TextButton(onClick = { model.toggleLibraryFavorite(file) }, enabled = !state.offline) { Text(if (file.isFavorite) "★" else "☆") }
+                                TextButton(onClick = { renameTarget = file }, enabled = !state.offline) { Text("名前変更") }
+                                TextButton(onClick = { deleteTarget = file }, enabled = !state.offline) { Text("削除") }
                             }
                         }
                     }

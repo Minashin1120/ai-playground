@@ -131,7 +131,7 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                 if (gem.fixedPrompts.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     gem.fixedPrompts.forEach { prompt ->
                         SuggestionChip(onClick = { model.draft(prompt.content); model.send() },
-                            enabled = !state.streaming && !state.busy && !state.uploading,
+                            enabled = !state.offline && !state.streaming && !state.busy && !state.uploading,
                             label = { Text(prompt.name) })
                     }
                 }
@@ -185,7 +185,7 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Surface(shape = RoundedCornerShape(16.dp), color = colors.surfaceContainerLow, border = androidx.compose.foundation.BorderStroke(1.dp, colors.outline), shadowElevation = 2.dp, modifier = Modifier.weight(1f)) {
                     Row(Modifier.padding(start = 2.dp, end = 5.dp), verticalAlignment = Alignment.Bottom) {
-                        IconButton(onClick = pickFiles, enabled = !state.uploading && !state.streaming, modifier = Modifier.padding(bottom = 4.dp)) {
+                        IconButton(onClick = pickFiles, enabled = !state.offline && !state.uploading && !state.streaming, modifier = Modifier.padding(bottom = 4.dp)) {
                             Icon(Icons.Rounded.AttachFile, contentDescription = "添付を追加")
                         }
                         IconButton(onClick = onRichPaste, enabled = !state.streaming, modifier = Modifier.padding(bottom = 4.dp)) {
@@ -217,7 +217,7 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                         )
                         if (state.streaming) FilledIconButton(onClick = model::stop, enabled = state.jobId != null, colors = IconButtonDefaults.filledIconButtonColors(containerColor = colors.error, contentColor = colors.onError), shape = RoundedCornerShape(12.dp), modifier = Modifier.padding(bottom = 5.dp)) {
                             Icon(Icons.Rounded.Stop, contentDescription = "生成を停止")
-                        } else FilledIconButton(onClick = sendOrSlash, enabled = !state.busy && !state.uploading && (state.draft.isNotBlank() || state.attachments.isNotEmpty()), shape = RoundedCornerShape(12.dp), modifier = Modifier.padding(bottom = 5.dp)) {
+                        } else FilledIconButton(onClick = sendOrSlash, enabled = !state.offline && !state.busy && !state.uploading && (state.draft.isNotBlank() || state.attachments.isNotEmpty()), shape = RoundedCornerShape(12.dp), modifier = Modifier.padding(bottom = 5.dp)) {
                             Icon(Icons.Rounded.Send, contentDescription = "送信")
                         }
                     }

@@ -34,20 +34,27 @@ class TokenStore(context: Context) {
             file.finishWrite(stream)
         } catch (e: Exception) { file.failWrite(stream); throw e }
     }
-    @Synchronized fun load(): StoredSession? = runCatching {
-        file.openRead().use { input ->
-            require(input.read() == 1)
-            val ivSize = input.read()
-            require(ivSize == 12)
-            val iv = ByteArray(ivSize)
-            require(input.read(iv) == ivSize)
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply {
-                init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv))
+    @Synchronized fun load(): StoredSession? = load(requireValid = true)
+
+    /** Returns an expired session only so the app can restore local offline data. */
+    @Synchronized fun loadForOffline(): StoredSession? = load(requireValid = false)
+
+    private fun load(requireValid: Boolean): StoredSession? {
+        val result = runCatching {
+            file.openRead().use { input ->
+                require(input.read() == 1)
+                val ivSize = input.read()
+                require(ivSize == 12)
+                val iv = ByteArray(ivSize)
+                require(input.read(iv) == ivSize)
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply {
+                    init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv))
+                }
+                val plain = JSONObject(String(cipher.doFinal(input.readBytes()), Charsets.UTF_8))
+                StoredSession(plain.getString("token"), plain.getLong("expiresAt"))
             }
-            val plain = JSONObject(String(cipher.doFinal(input.readBytes()), Charsets.UTF_8))
-            StoredSession(plain.getString("token"), plain.getLong("expiresAt"))
-                .also { require(it.expiresAt > System.currentTimeMillis()) }
-        }
-    }.getOrElse { clear(); null }
+        }.getOrElse { clear(); return null }
+        return result.takeIf { !requireValid || it.expiresAt > System.currentTimeMillis() }
+    }
     @Synchronized fun clear() { file.delete() }
 }

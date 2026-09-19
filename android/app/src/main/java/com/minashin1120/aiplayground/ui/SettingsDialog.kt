@@ -20,7 +20,10 @@ import com.minashin1120.aiplayground.AppUpdateUiState
 import com.minashin1120.aiplayground.BuildConfig
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
+import com.minashin1120.aiplayground.data.CacheCategory
 import com.minashin1120.aiplayground.data.CompressionSettings
+import com.minashin1120.aiplayground.data.HistoryCacheMode
+import com.minashin1120.aiplayground.data.formatByteSize
 import org.json.JSONObject
 
 private val SETTINGS_TABS = listOf(
@@ -89,13 +92,20 @@ fun SettingsDialog(
     var modelPicker by remember { mutableStateOf(false) }
     var visionPicker by remember { mutableStateOf(false) }
     var confirmLogout by remember { mutableStateOf(false) }
+    var confirmCacheCategory by remember { mutableStateOf<CacheCategory?>(null) }
+    var historyCacheMode by remember(state.historyCacheMode) { mutableStateOf(state.historyCacheMode) }
+    var cacheMobileData by remember(state.cacheMobileDataAllowed) { mutableStateOf(state.cacheMobileDataAllowed) }
     var feedbackTitle by remember { mutableStateOf("") }
     var feedbackMessage by remember { mutableStateOf("") }
-    LaunchedEffect(Unit) {
-        model.loadPreferences()
-        model.loadStorageUsage()
-        model.loadFeedback()
-        model.loadMcpServers()
+    LaunchedEffect(state.account?.id, state.offline) {
+        if (state.account != null) {
+            model.loadPreferences()
+            if (!state.offline) {
+                model.loadStorageUsage()
+                model.loadFeedback()
+                model.loadMcpServers()
+            }
+        }
     }
     val query = search.trim()
     fun matches(vararg haystacks: String): Boolean =
@@ -220,6 +230,32 @@ fun SettingsDialog(
                     CheckboxRow("Liquid Glassモード", liquidGlass) { liquidGlass = it }
                 }
                 if (tab == "データ" && tab in visibleTabs) {
+                    Text("端末キャッシュ", fontWeight = FontWeight.SemiBold)
+                    Text("表示済みのチャット履歴とファイルは、Androidのシステムキャッシュとは別の暗号化領域に保存されます。",
+                        style = MaterialTheme.typography.bodySmall)
+                    ChoiceRow("履歴の保存範囲", if (historyCacheMode == HistoryCacheMode.FULL) "全件同期" else "表示済み部分のみ",
+                        listOf("表示済み部分のみ", "全件同期")) {
+                        historyCacheMode = if (it == "全件同期") HistoryCacheMode.FULL else HistoryCacheMode.VIEWED
+                    }
+                    CheckboxRow("モバイルデータ通信でもキャッシュを同期", cacheMobileData) { cacheMobileData = it }
+                    val cacheStats = state.offlineCacheStats
+                    Text("チャット履歴: ${formatByteSize(cacheStats.historyBytes)} / ファイル: ${formatByteSize(cacheStats.fileBytes)}",
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (state.cacheSyncing) {
+                        if (state.cacheSyncTotal > 0) {
+                            LinearProgressIndicator(
+                                progress = { (state.cacheSyncProgress.toFloat() / state.cacheSyncTotal).coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else LinearProgressIndicator(Modifier.fillMaxWidth())
+                        TextButton(onClick = model::cancelCacheSync, modifier = Modifier.fillMaxWidth()) { Text("同期をキャンセル") }
+                    } else {
+                        TextButton(onClick = model::syncOfflineCache, modifier = Modifier.fillMaxWidth()) { Text("今すぐ全件同期") }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { confirmCacheCategory = CacheCategory.CHAT_HISTORY }, modifier = Modifier.weight(1f)) { Text("履歴を削除") }
+                        TextButton(onClick = { confirmCacheCategory = CacheCategory.FILES }, modifier = Modifier.weight(1f)) { Text("ファイルを削除") }
+                    }
                     Text("ストレージ", fontWeight = FontWeight.SemiBold)
                     val storage = state.storage
                     if (storage == null) Text("読み込み中…", style = MaterialTheme.typography.bodySmall)
@@ -328,6 +364,7 @@ fun SettingsDialog(
         confirmButton = {
             TextButton(
                 onClick = {
+                    model.saveCacheSettings(historyCacheMode, cacheMobileData)
                     model.saveCompressionSettings(CompressionSettings(
                         enabled = compressionEnabled,
                         maxSizeMB = maxSizeMB.toFloatOrNull()?.coerceIn(0.05f, 50f) ?: 1.0f,
@@ -381,6 +418,18 @@ fun SettingsDialog(
         text = { Text("このAndroid端末の連携を取り消します。Webや他の端末のログインは継続します。") },
         confirmButton = { TextButton(onClick = { confirmLogout = false; onLogout() }) { Text("ログアウト") } },
         dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text("キャンセル") } })
+    confirmCacheCategory?.let { category ->
+        val label = if (category == CacheCategory.CHAT_HISTORY) "チャット履歴" else "ファイル"
+        AlertDialog(
+            onDismissRequest = { confirmCacheCategory = null },
+            title = { Text("$labelキャッシュを削除") },
+            text = { Text("端末に保存された$labelキャッシュだけを削除します。サーバー上のデータは削除されません。") },
+            confirmButton = {
+                TextButton(onClick = { model.clearOfflineCache(category); confirmCacheCategory = null }) { Text("削除") }
+            },
+            dismissButton = { TextButton(onClick = { confirmCacheCategory = null }) { Text("キャンセル") } },
+        )
+    }
 }
 
 @Composable

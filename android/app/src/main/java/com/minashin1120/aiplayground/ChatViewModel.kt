@@ -1,15 +1,19 @@
 package com.minashin1120.aiplayground
 
 import android.app.Application
+import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.net.Uri
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.SystemClock
 import android.provider.OpenableColumns
+import android.webkit.MimeTypeMap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.minashin1120.aiplayground.data.*
@@ -59,6 +63,12 @@ data class ChatState(
     val mcpServers: List<McpServerInfo> = emptyList(), val mcpBusy: Boolean = false,
     val feedbackItems: List<FeedbackItem> = emptyList(), val feedbackBusy: Boolean = false,
     val storage: StorageUsage? = null,
+    val historyCacheMode: HistoryCacheMode = HistoryCacheMode.VIEWED,
+    val cacheMobileDataAllowed: Boolean = false,
+    val offlineCacheStats: OfflineCacheStats = OfflineCacheStats(),
+    val cacheSyncing: Boolean = false,
+    val cacheSyncProgress: Int = 0,
+    val cacheSyncTotal: Int = 0,
     val batchJobs: List<BatchJob> = emptyList(), val batchBusy: Boolean = false,
     val realtime: RealtimeState = RealtimeState(), val lyria: LyriaState = LyriaState(),
     val liveContent: String = "", val liveThought: String = "", val status: String = "",
@@ -71,6 +81,7 @@ data class ChatState(
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val api = PlaygroundApi()
     private val store = TokenStore(application)
+    private val offlineCache = OfflineCacheStore(application)
     private val prefs = application.getSharedPreferences("navigation", 0)
     private val mutable = MutableStateFlow(ChatState())
     val state = mutable.asStateFlow()
@@ -82,6 +93,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var uploadJob: Job? = null
     private var heartbeatJob: Job? = null
     private var libraryJob: Job? = null
+    private var cacheSyncJob: Job? = null
     private var batchPollJob: Job? = null
     private var realtimeStreamJob: Job? = null
     private var realtimeCaptureJob: Job? = null
@@ -94,31 +106,74 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     init { viewModelScope.launch {
         mutable.update { it.copy(compression = compressionSettingsFrom(prefs)) }
+        mutable.update { it.copy(
+            historyCacheMode = HistoryCacheMode.from(prefs.getString("offline_history_cache_mode", HistoryCacheMode.VIEWED.value)),
+            cacheMobileDataAllowed = prefs.getBoolean("offline_cache_mobile_data", false),
+        ) }
         session = withContext(Dispatchers.IO) { store.load() }
-        if (session != null) runCatching { loadAccount() }.onFailure { report(it) }
+        if (session != null) {
+            runCatching { loadAccount() }.onFailure { error ->
+                if (error is ApiException && error.status == 401) clearSession()
+                if (!restoreOfflineAccount()) report(error)
+            }
+        } else if (withContext(Dispatchers.IO) { store.loadForOffline() } != null) {
+            restoreOfflineAccount()
+        }
+        refreshOfflineCacheStats()
         mutable.update { it.copy(starting = false) }
     } }
     private fun token(): String = session?.token ?: throw IOException("端末連携が必要です。")
     private suspend fun loadAccount() {
         val me = api.get("/api/mobile/v1/me", token())
         val serverModels = parseModels(me)
-        val displayModels = runCatching {
-            val json = withContext(Dispatchers.IO) {
-                getApplication<Application>().assets.open("web-model-catalog.json").bufferedReader().use { it.readText() }
-            }
-            applyWebModelCatalog(serverModels, json)
-        }.getOrDefault(serverModels)
+        val displayModels = displayModels(serverModels)
         val account = Account(me.getInt("id"), me.getString("username"), displayModels,
             me.optString("default_model"), me.optBoolean("e2ee_enabled"))
         val chosen = prefs.getString("model_${account.id}", account.defaultModel).orEmpty()
             .takeIf { chosen -> account.models.any { it.id == chosen && it.selectable } }
             ?: account.models.firstOrNull { it.selectable }?.id.orEmpty()
+        withContext(Dispatchers.IO) { offlineCache.saveAccount(account.id, me) }
+        prefs.edit().putString("offline_cache_account_id", account.id.toString()).apply()
         mutable.update { it.copy(account = account, model = chosen, pairing = false, userCode = "", offline = false) }
         fetchThreads(false)
         runCatching { fetchGems() }.onFailure { report(it) }
         runCatching { fetchPreferences(applyDefaults = true) }.onFailure { report(it) }
         runCatching { fetchBatchJobs(notify = false) }.onFailure { report(it) }
         if (foreground) startBatchPolling()
+        if (state.value.historyCacheMode == HistoryCacheMode.FULL) startCacheSyncIfAllowed()
+    }
+
+    private suspend fun displayModels(serverModels: List<ModelInfo>): List<ModelInfo> = runCatching {
+        val json = withContext(Dispatchers.IO) {
+            getApplication<Application>().assets.open("web-model-catalog.json").bufferedReader().use { it.readText() }
+        }
+        applyWebModelCatalog(serverModels, json)
+    }.getOrDefault(serverModels)
+
+    /** Restores the last account and locally stored data when the server cannot be reached. */
+    private suspend fun restoreOfflineAccount(): Boolean {
+        val accountId = prefs.getString("offline_cache_account_id", null)?.toIntOrNull() ?: return false
+        val me = withContext(Dispatchers.IO) { offlineCache.loadAccount(accountId) } ?: return false
+        val account = Account(
+            me.optInt("id", accountId), me.optString("username", "この端末のアカウント"),
+            displayModels(parseModels(me)), me.optString("default_model"), me.optBoolean("e2ee_enabled"),
+        )
+        val selected = prefs.getString("model_${account.id}", account.defaultModel).orEmpty()
+            .takeIf { value -> account.models.any { it.id == value && it.selectable } }
+            ?: account.models.firstOrNull { it.selectable }?.id.orEmpty()
+        val cachedPrefs = withContext(Dispatchers.IO) { offlineCache.loadPreferences(account.id) }
+        val cachedThreads = withContext(Dispatchers.IO) { offlineCache.loadThreads(account.id) }
+        mutable.update { current -> current.copy(
+            account = account,
+            model = selected,
+            preferences = cachedPrefs?.let { parsePreferences(it) } ?: current.preferences,
+            threads = cachedThreads,
+            nextPage = null,
+            offline = true,
+            pairing = false,
+        ) }
+        refreshOfflineCacheStats(account.id)
+        return true
     }
     fun setForeground(value: Boolean) {
         val returning = value && !foreground
@@ -133,6 +188,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (!value) batchPollJob?.cancel()
         if (value && state.value.account != null) startBatchPolling()
         if (returning && state.value.account != null && state.value.selected != null && !state.value.busy) refresh()
+        if (returning && state.value.account != null) startCacheSyncIfAllowed()
     }
     fun pair() {
         if (state.value.pairing) return
@@ -251,20 +307,45 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun search(query: String) {
         mutable.update { it.copy(search = query) }
         navigationJob?.cancel()
-        navigationJob = viewModelScope.launch { delay(300); try { fetchThreads(false) } catch (e: Exception) { report(e) } }
+        navigationJob = viewModelScope.launch {
+            delay(300)
+            try {
+                if (state.value.offline) applyCachedThreads(query) else fetchThreads(false)
+            } catch (e: Exception) { report(e) }
+        }
     }
     private suspend fun fetchThreads(more: Boolean) {
+        if (state.value.offline) {
+            applyCachedThreads(state.value.search)
+            return
+        }
         val current = state.value
         val page = if (more) current.nextPage ?: return else 1
         val reply = api.get("/api/threads?page=$page&q=${URLEncoder.encode(current.search, "UTF-8")}", token())
         if (current.search != state.value.search) return
         val rows = reply.getJSONArray("threads")
         val items = (0 until rows.length()).map { parseThreadItem(rows.getJSONObject(it)) }
+        state.value.account?.let { account ->
+            withContext(Dispatchers.IO) { offlineCache.saveThreads(account.id, items) }
+            refreshOfflineCacheStats(account.id)
+        }
         mutable.update { it.copy(threads = if (more) (it.threads + items).distinctBy { t -> t.id } else items,
             nextPage = if (reply.optBoolean("has_next")) reply.optInt("next_page", page + 1) else null,
             offline = false) }
     }
-    fun moreThreads() { navigationJob?.cancel(); navigationJob = viewModelScope.launch { try { fetchThreads(true) } catch (e: Exception) { report(e) } } }
+    private suspend fun applyCachedThreads(query: String) {
+        val accountId = state.value.account?.id ?: return
+        val cached = withContext(Dispatchers.IO) { offlineCache.loadThreads(accountId) }
+        val normalized = query.trim()
+        val visible = if (normalized.isBlank()) cached else cached.filter {
+            it.title.contains(normalized, ignoreCase = true) || it.model.contains(normalized, ignoreCase = true)
+        }
+        mutable.update { it.copy(threads = visible, nextPage = null, offline = true) }
+    }
+    fun moreThreads() {
+        if (state.value.offline) return
+        navigationJob?.cancel(); navigationJob = viewModelScope.launch { try { fetchThreads(true) } catch (e: Exception) { report(e) } }
+    }
     fun newChat(temporary: Boolean = false) {
         navigationJob?.cancel(); streamJob?.cancel(); failed = null
         heartbeatJob?.cancel()
@@ -291,6 +372,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     private suspend fun loadMessages(id: String, older: Boolean = false) {
+        if (state.value.offline) {
+            loadCachedMessages(id, older)
+            return
+        }
         val before = if (older) "&before_id=${state.value.oldestId ?: return}" else ""
         val reply = api.get("/api/threads/$id?limit=50$before", token())
         if (state.value.selected?.id != id) return
@@ -318,7 +403,43 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val uuid = reply.nullableString("last_gem_uuid")
                 if (uuid.isBlank()) null else it.gems.firstOrNull { gem -> gem.uuid == uuid }
             }) }
+        state.value.account?.let { account ->
+            withContext(Dispatchers.IO) {
+                offlineCache.saveThread(
+                    account.id, state.value.selected ?: return@withContext, all,
+                    reply.optBoolean("has_older_messages"), reply.nullableString("oldest_loaded_id").ifBlank { null },
+                    reply.nullableString("custom_instruction"), reply.optBoolean("include_global_instruction", true),
+                    reply.optLong("temp_chat_remaining_seconds").takeIf { value -> !reply.isNull("temp_chat_remaining_seconds") && value >= 0 },
+                    leaf,
+                )
+            }
+            refreshOfflineCacheStats(account.id)
+        }
         if (!older) syncHeartbeat()
+    }
+
+    private suspend fun loadCachedMessages(id: String, older: Boolean) {
+        val accountId = state.value.account?.id ?: return
+        val cached = withContext(Dispatchers.IO) { offlineCache.loadThread(accountId, id) } ?: return
+        val parsed = parseMessages(cached)
+        val all = if (older) (parsed + state.value.allMessages).distinctBy { it.id } else parsed
+        val leaf = state.value.leafId?.takeIf { candidate -> all.any { numericId(it) == candidate } }
+            ?: cached.optInt("leaf_id").takeIf { it > 0 }
+            ?: all.mapNotNull { numericId(it) }.maxOrNull()
+        val path = activeBranchPath(all, leaf)
+        mutable.update { it.copy(
+            messages = path,
+            allMessages = all,
+            leafId = leaf,
+            hasOlder = false,
+            oldestId = cached.nullableString("oldest_loaded_id").ifBlank { null },
+            jobId = null,
+            customInstruction = cached.nullableString("custom_instruction"),
+            includeGlobalInstruction = cached.optBoolean("include_global_instruction", true),
+            tempChatRemainingSeconds = cached.optLong("temp_chat_remaining_seconds")
+                .takeIf { value -> !cached.isNull("temp_chat_remaining_seconds") && value >= 0 },
+            offline = true,
+        ) }
     }
 
     private fun syncHeartbeat() {
@@ -352,13 +473,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         else navigationJob = viewModelScope.launch { try { fetchThreads(false) } catch (e: Exception) { report(e) } }
     }
     fun deleteThread(thread: ThreadItem) { viewModelScope.launch {
+        if (state.value.offline) { notify("オフライン中は履歴を削除できません。"); return@launch }
         try {
             api.delete("/api/threads/${thread.id}", token())
+            state.value.account?.let { account -> withContext(Dispatchers.IO) { offlineCache.deleteThread(account.id, thread.id) } }
             if (state.value.selected?.id == thread.id) newChat()
             fetchThreads(false)
         } catch (e: Exception) { report(e) }
     } }
     fun toggleBookmark(thread: ThreadItem) { viewModelScope.launch {
+        if (state.value.offline) { notify("オフライン中はブックマークを変更できません。"); return@launch }
         try {
             val reply = api.post("/api/threads/${thread.id}/bookmark", JSONObject(), token())
             val bookmarked = reply.optBoolean("is_bookmarked")
@@ -372,6 +496,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun saveThreadSettings(title: String, instruction: String, includeGlobal: Boolean, temporary: Boolean) {
         val thread = state.value.selected ?: return
         viewModelScope.launch {
+            if (state.value.offline) { notify("オフライン中はチャット設定を変更できません。"); return@launch }
             mutable.update { it.copy(busy = true) }
             try {
                 val normalizedTitle = title.trim().ifBlank { "新しいチャット" }
@@ -433,6 +558,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun send() {
         val current = state.value
+        if (current.offline) { mutable.update { it.copy(notice = "オフライン中はメッセージを送信できません。") }; return }
         if (current.streaming || current.busy || current.uploading || (current.draft.isBlank() && current.attachments.isEmpty())) return
         if (current.model.isBlank()) { mutable.update { it.copy(notice = "モデルを選択してください。") }; return }
         val info = current.account?.models?.firstOrNull { it.id == current.model && it.selectable } ?: return
@@ -604,6 +730,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     } }
 
     fun resolveMcpDecision(allow: Boolean) { viewModelScope.launch {
+        if (state.value.offline) { notify("オフライン中はMCPの確認に応答できません。"); return@launch }
         val decision = state.value.mcpDecision ?: return@launch
         if (decision.jobId.isBlank()) return@launch
         mutable.update { it.copy(mcpDecision = null) }
@@ -667,6 +794,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         transcriptionMode: String = "VERBATIM",
         customVocabulary: String = "",
     ) {
+        if (state.value.offline) { notify("オフライン中はRealtimeを開始できません。"); return }
         if (state.value.realtime.active || modelId.isBlank()) return
         viewModelScope.launch {
             try {
@@ -781,6 +909,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // --- Native Lyria RealTime studio ---
 
     fun startLyria(prompt: String) {
+        if (state.value.offline) { notify("オフライン中はLyriaを開始できません。"); return }
         if (state.value.lyria.active || prompt.isBlank()) return
         viewModelScope.launch {
             try {
@@ -842,13 +971,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     } }
     private suspend fun clearSession() {
         val caller = currentCoroutineContext().job
-        listOf(pairingJob, navigationJob, streamJob, uploadJob, heartbeatJob, libraryJob, batchPollJob,
+        listOf(pairingJob, navigationJob, streamJob, uploadJob, heartbeatJob, libraryJob, cacheSyncJob, batchPollJob,
             realtimeStreamJob, realtimeCaptureJob, lyriaStreamJob).forEach { if (it !== caller) it?.cancel() }
         realtimeTrack?.let { track -> runCatching { track.stop(); track.release() } }; realtimeTrack = null
         lyriaTrack?.let { track -> runCatching { track.stop(); track.release() } }; lyriaTrack = null
         withContext(NonCancellable + Dispatchers.IO) { store.clear() }
         session = null; failed = null
-        mutable.value = ChatState(starting = false)
+        mutable.value = ChatState(
+            starting = false,
+            historyCacheMode = HistoryCacheMode.from(prefs.getString("offline_history_cache_mode", HistoryCacheMode.VIEWED.value)),
+            cacheMobileDataAllowed = prefs.getBoolean("offline_cache_mobile_data", false),
+        )
     }
     private suspend fun report(error: Throwable) {
         if (error is CancellationException) throw error
@@ -859,6 +992,133 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             notice = error.message?.take(500) ?: "通信に失敗しました。再試行してください。",
             offline = it.offline || offline) }
     }
+
+    private suspend fun refreshOfflineCacheStats(accountId: Int? = state.value.account?.id) {
+        val stats = accountId?.let { id -> withContext(Dispatchers.IO) { offlineCache.stats(id) } } ?: OfflineCacheStats()
+        mutable.update { it.copy(offlineCacheStats = stats) }
+    }
+
+    fun saveCacheSettings(mode: HistoryCacheMode, mobileDataAllowed: Boolean) {
+        prefs.edit()
+            .putString("offline_history_cache_mode", mode.value)
+            .putBoolean("offline_cache_mobile_data", mobileDataAllowed)
+            .apply()
+        mutable.update { it.copy(historyCacheMode = mode, cacheMobileDataAllowed = mobileDataAllowed) }
+        if (mode == HistoryCacheMode.FULL) startCacheSyncIfAllowed()
+    }
+
+    fun clearOfflineCache(category: CacheCategory) {
+        val accountId = state.value.account?.id ?: return
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { offlineCache.clear(accountId, category) }
+            if (category == CacheCategory.CHAT_HISTORY) {
+                mutable.update { it.copy(threads = emptyList(), selected = null, messages = emptyList(), allMessages = emptyList(), hasOlder = false) }
+            } else {
+                mutable.update { it.copy(library = emptyList(), libraryHasMore = false, libraryTotal = 0) }
+            }
+            refreshOfflineCacheStats(accountId)
+            notify(if (category == CacheCategory.CHAT_HISTORY) "チャット履歴キャッシュを削除しました。" else "ファイルキャッシュを削除しました。")
+        }
+    }
+
+    fun syncOfflineCache() {
+        if (cacheSyncJob?.isActive == true) return
+        val accountId = state.value.account?.id ?: return
+        if (!cacheNetworkAllowed()) {
+            notify(if (state.value.cacheMobileDataAllowed) "ネットワークに接続してから同期してください。" else "Wi‑Fi接続時に同期できます。")
+            return
+        }
+        cacheSyncJob = viewModelScope.launch {
+            mutable.update { it.copy(cacheSyncing = true, cacheSyncProgress = 0, cacheSyncTotal = 0) }
+            try {
+                performFullCacheSync(accountId)
+                notify("キャッシュの全件同期が完了しました。")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                report(e)
+            } finally {
+                mutable.update { it.copy(cacheSyncing = false) }
+                refreshOfflineCacheStats(accountId)
+            }
+        }
+    }
+
+    fun cancelCacheSync() { cacheSyncJob?.cancel(); mutable.update { it.copy(cacheSyncing = false) } }
+
+    private fun startCacheSyncIfAllowed() {
+        if (state.value.historyCacheMode == HistoryCacheMode.FULL && cacheNetworkAllowed()) syncOfflineCache()
+    }
+
+    private fun cacheNetworkAllowed(): Boolean {
+        val manager = getApplication<Application>().getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return false
+        val network = manager.activeNetwork ?: return false
+        val capabilities = manager.getNetworkCapabilities(network) ?: return false
+        if (!capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return false
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) return true
+        return state.value.cacheMobileDataAllowed && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+    }
+
+    private suspend fun performFullCacheSync(accountId: Int) {
+        val threads = mutableListOf<ThreadItem>()
+        var page = 1
+        var hasNext: Boolean
+        do {
+            val reply = api.get("/api/threads?page=$page&q=", token())
+            val rows = reply.getJSONArray("threads")
+            val items = (0 until rows.length()).map { parseThreadItem(rows.getJSONObject(it)) }
+            threads += items
+            withContext(Dispatchers.IO) { offlineCache.saveThreads(accountId, items, merge = page != 1) }
+            hasNext = reply.optBoolean("has_next")
+            page = reply.optInt("next_page", page + 1)
+        } while (hasNext && currentCoroutineContext().isActive)
+
+        val uniqueThreads = threads.distinctBy { it.id }
+        mutable.update { it.copy(cacheSyncTotal = uniqueThreads.size.coerceAtLeast(1), cacheSyncProgress = 0) }
+        uniqueThreads.forEachIndexed { index, thread ->
+            var before: String? = null
+            var older: Boolean
+            val messages = LinkedHashMap<String, ChatMessage>()
+            do {
+                val suffix = before?.let { "&before_id=${URLEncoder.encode(it, "UTF-8")}" }.orEmpty()
+                val reply = api.get("/api/threads/${thread.id}?limit=200$suffix", token())
+                parseMessages(reply).forEach { messages[it.id] = it }
+                older = reply.optBoolean("has_older_messages")
+                before = reply.nullableString("oldest_loaded_id").ifBlank { null }
+                withContext(Dispatchers.IO) {
+                    offlineCache.saveThread(
+                        accountId, thread, messages.values.toList(), older, before,
+                        reply.nullableString("custom_instruction"), reply.optBoolean("include_global_instruction", true),
+                        reply.optLong("temp_chat_remaining_seconds").takeIf { value -> !reply.isNull("temp_chat_remaining_seconds") && value >= 0 },
+                        messages.values.mapNotNull { numericId(it) }.maxOrNull(),
+                    )
+                }
+            } while (older && !before.isNullOrBlank() && currentCoroutineContext().isActive)
+            mutable.update { it.copy(cacheSyncProgress = index + 1) }
+        }
+
+        var offset = 0
+        var moreFiles: Boolean
+        do {
+            val reply = api.get("/api/files?limit=40&offset=$offset&sort=newest&q=")
+            val files = parseLibraryFiles(reply)
+            withContext(Dispatchers.IO) { offlineCache.saveLibrary(accountId, files) }
+            moreFiles = reply.optBoolean("has_more")
+            offset += files.size
+        } while (moreFiles && offset > 0 && currentCoroutineContext().isActive)
+
+        val cachedThreads = withContext(Dispatchers.IO) { offlineCache.loadThreads(accountId) }
+        mutable.update { current ->
+            val query = current.search.trim()
+            val visible = if (query.isBlank()) cachedThreads else cachedThreads.filter {
+                it.title.contains(query, true) || it.model.contains(query, true)
+            }
+            current.copy(threads = visible, nextPage = null, offline = false)
+        }
+    }
+
     /** Clears the offline banner and retries the last account or history load. */
     fun reconnect() {
         mutable.update { it.copy(offline = false) }
@@ -873,12 +1133,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     /** Loads same-origin attachment bytes for preview; returns null when unavailable. */
     suspend fun loadAttachmentBytes(reference: String, thumbnail: Boolean, limit: Long = 8L * 1024 * 1024): ByteArray? {
+        val accountId = state.value.account?.id ?: return null
+        val cached = withContext(Dispatchers.IO) { offlineCache.loadFile(accountId, reference, thumbnail, limit) }
+        if (cached != null) return cached.bytes
         val active = session?.token ?: return null
         return withContext(Dispatchers.IO) {
-            runCatching { api.loadFileBytes(reference, active, thumbnail, limit) }.getOrNull()
+            runCatching {
+                val bytes = api.loadFileBytes(reference, active, thumbnail, limit)
+                offlineCache.saveFile(accountId, reference, thumbnail, bytes, mimeForReference(reference))
+                refreshOfflineCacheStats(accountId)
+                bytes
+            }.getOrNull()
         }
     }
     fun upload(uris: List<Uri>) {
+        if (state.value.offline) { mutable.update { it.copy(notice = "オフライン中はファイルをアップロードできません。") }; return }
         if (uris.isEmpty() || state.value.uploading) return
         if (uris.size + state.value.attachments.size > 30) { mutable.update { it.copy(notice = "添付は30件までです。") }; return }
         uploadJob = viewModelScope.launch {
@@ -1009,11 +1278,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return api.uploadComplete(uploadId, token()).getString("filename")
     }
     suspend fun downloadAttachment(reference: String): Pair<File, String> {
+        val accountId = state.value.account?.id ?: throw IOException("アカウント情報がありません。")
         val directory = File(getApplication<Application>().cacheDir, "shared").apply { mkdirs() }
         val suffix = reference.substringBefore('?').substringAfterLast('.', "bin").take(8).filter { it.isLetterOrDigit() }.ifBlank { "bin" }
         val target = File(directory, "${UUID.randomUUID()}.$suffix")
-        val mime = withContext(Dispatchers.IO) { api.download(reference, target, token()) }
+        val cachedMime = withContext(Dispatchers.IO) { offlineCache.materializeFile(accountId, reference, target) }
+        if (cachedMime != null) return target to cachedMime
+        val mime = withContext(Dispatchers.IO) {
+            val result = api.download(reference, target, token())
+            offlineCache.saveFileFromFile(accountId, reference, target, result)
+            refreshOfflineCacheStats(accountId)
+            result
+        }
         return target to mime
+    }
+
+    private fun mimeForReference(reference: String): String {
+        val extension = reference.substringBefore('?').substringAfterLast('.', "").lowercase()
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
     }
 
     fun openFile(reference: String, onReady: (File, String) -> Unit) { viewModelScope.launch {
@@ -1033,9 +1315,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun fetchLibrary(append: Boolean) {
+        if (state.value.offline) {
+            val accountId = state.value.account?.id ?: return
+            val files = withContext(Dispatchers.IO) { offlineCache.loadLibrary(accountId) }
+                .filter { file ->
+                    (state.value.libraryQuery.isBlank() || file.displayName.contains(state.value.libraryQuery, true)) &&
+                        (!state.value.libraryFavoritesOnly || file.isFavorite)
+                }
+            mutable.update { it.copy(library = files, libraryHasMore = false, libraryTotal = files.size, libraryBusy = false) }
+            return
+        }
         val offset = if (append) state.value.library.size else 0
         val reply = api.get(libraryPath(offset), token())
         val files = parseLibraryFiles(reply)
+        state.value.account?.let { account ->
+            withContext(Dispatchers.IO) { offlineCache.saveLibrary(account.id, files) }
+            refreshOfflineCacheStats(account.id)
+        }
         mutable.update {
             it.copy(
                 library = if (append) (it.library + files).distinctBy { file -> file.filepath } else files,
@@ -1071,7 +1367,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun moreLibrary() {
-        if (!state.value.libraryHasMore || state.value.libraryBusy) return
+        if (state.value.offline || !state.value.libraryHasMore || state.value.libraryBusy) return
         libraryJob = viewModelScope.launch {
             mutable.update { it.copy(libraryBusy = true) }
             try { fetchLibrary(true) } catch (e: Exception) { report(e) } finally { mutable.update { it.copy(libraryBusy = false) } }
@@ -1079,28 +1375,34 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleLibraryFavorite(file: LibraryFile) { viewModelScope.launch {
+        if (state.value.offline) { notify("オフライン中はファイルのお気に入りを変更できません。"); return@launch }
         try {
             val reply = api.post("/api/files/favorite", JSONObject().put("filepath", file.filepath), token())
             val favorite = reply.optBoolean("is_favorite")
             mutable.update { current -> current.copy(library = current.library.map {
                 if (it.filepath == file.filepath) it.copy(isFavorite = favorite) else it
             }) }
+            state.value.account?.let { account -> withContext(Dispatchers.IO) { offlineCache.saveLibrary(account.id, state.value.library) } }
         } catch (e: Exception) { report(e) }
     } }
 
     fun renameLibraryFile(file: LibraryFile, name: String) { viewModelScope.launch {
+        if (state.value.offline) { notify("オフライン中はファイル名を変更できません。"); return@launch }
         try {
             val reply = api.post("/api/files/rename", JSONObject().put("filepath", file.filepath).put("filename", name), token())
             val display = reply.optString("filename", name)
             mutable.update { current -> current.copy(library = current.library.map {
                 if (it.filepath == file.filepath) it.copy(displayName = display) else it
             }) }
+            state.value.account?.let { account -> withContext(Dispatchers.IO) { offlineCache.saveLibrary(account.id, state.value.library) } }
         } catch (e: Exception) { report(e) }
     } }
 
     fun deleteLibraryFile(file: LibraryFile) { viewModelScope.launch {
+        if (state.value.offline) { notify("オフライン中はファイルを削除できません。"); return@launch }
         try {
             api.post("/api/files/delete", JSONObject().put("filenames", JSONArray().put(file.filepath)), token())
+            state.value.account?.let { account -> withContext(Dispatchers.IO) { offlineCache.deleteLibraryFile(account.id, file.filepath) } }
             mutable.update { current -> current.copy(library = current.library.filterNot { it.filepath == file.filepath }) }
         } catch (e: Exception) { report(e) }
     } }
@@ -1179,7 +1481,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // --- General preferences and this device's session ---
 
     private suspend fun fetchPreferences(applyDefaults: Boolean = false) {
-        val preferences = parsePreferences(api.get("/api/mobile/v1/preferences", token()))
+        val payload = api.get("/api/mobile/v1/preferences", token())
+        val preferences = parsePreferences(payload)
+        state.value.account?.let { account ->
+            withContext(Dispatchers.IO) { offlineCache.savePreferences(account.id, payload) }
+        }
         if (!applyDefaults) {
             mutable.update { it.copy(preferences = preferences) }
             return
@@ -1215,12 +1521,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun loadPreferences() {
         viewModelScope.launch {
             mutable.update { it.copy(prefsBusy = true) }
-            try { fetchPreferences() } catch (e: Exception) { report(e) } finally { mutable.update { it.copy(prefsBusy = false) } }
+            try {
+                val accountId = state.value.account?.id
+                if (state.value.offline && accountId != null) {
+                    withContext(Dispatchers.IO) { offlineCache.loadPreferences(accountId) }
+                        ?.let { payload -> mutable.update { it.copy(preferences = parsePreferences(payload)) } }
+                } else fetchPreferences()
+            } catch (e: Exception) { report(e) } finally { mutable.update { it.copy(prefsBusy = false) } }
         }
     }
 
     fun savePreferences(payload: JSONObject) {
         viewModelScope.launch {
+            if (state.value.offline) { notify("オフライン中はアカウント設定を保存できません。接続後に再試行してください。"); return@launch }
             mutable.update { it.copy(prefsBusy = true) }
             try {
                 val reply = api.put("/api/mobile/v1/preferences", payload, token())
@@ -1232,6 +1545,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loadStorageUsage() {
         viewModelScope.launch {
+            if (state.value.offline) return@launch
             runCatching { mutable.update { it.copy(storage = parseStorageUsage(api.get("/api/storage", token()))) } }
                 .onFailure { report(it) }
         }
@@ -1239,6 +1553,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loadFeedback() {
         viewModelScope.launch {
+            if (state.value.offline) return@launch
             mutable.update { it.copy(feedbackBusy = true) }
             try { mutable.update { it.copy(feedbackItems = parseFeedbackItems(api.get("/api/feedback", token()))) } }
             catch (e: Exception) { report(e) }
@@ -1249,6 +1564,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun submitFeedback(title: String, message: String) {
         if (message.isBlank()) return
         viewModelScope.launch {
+            if (state.value.offline) { notify("オフライン中はフィードバックを送信できません。"); return@launch }
             mutable.update { it.copy(feedbackBusy = true) }
             try {
                 api.post("/api/feedback", JSONObject().put("title", title.trim()).put("message", message.trim()), token())
@@ -1261,6 +1577,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loadMcpServers() {
         viewModelScope.launch {
+            if (state.value.offline) return@launch
             mutable.update { it.copy(mcpBusy = true) }
             try { mutable.update { it.copy(mcpServers = parseMcpServers(api.get("/api/mcp/servers", token()))) } }
             catch (e: Exception) { report(e) }

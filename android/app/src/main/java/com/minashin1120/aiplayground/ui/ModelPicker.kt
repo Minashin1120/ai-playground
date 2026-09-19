@@ -5,6 +5,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -35,6 +36,13 @@ internal fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (Str
         .thenBy { !it.selectable }
         .thenBy { it.providerLabel }
         .thenBy { it.name })
+    val listState = rememberLazyListState()
+    val selectedIndex = models.indexOfFirst { it.id == selectedId }
+    LaunchedEffect(selectedId, models.map { it.id }) {
+        if (selectedIndex >= 0 && listState.layoutInfo.visibleItemsInfo.none { it.index == selectedIndex }) {
+            listState.animateScrollToItem(selectedIndex, scrollOffset = -12)
+        }
+    }
     val colors = MaterialTheme.colorScheme
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.padding(12.dp).widthIn(max = 720.dp).fillMaxWidth().fillMaxHeight(0.9f),
@@ -62,7 +70,7 @@ internal fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (Str
                 }
                 Text("${models.size}件", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-                LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LazyColumn(state = listState, modifier = Modifier.weight(1f), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (models.isEmpty()) item {
                         Text("一致するモデルがありません。検索語または分類を変更してください。", modifier = Modifier.padding(16.dp))
                     }

@@ -16,6 +16,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 import java.io.File
 
 enum class AppUpdatePhase {
@@ -43,30 +45,65 @@ class AppUpdateViewModel(application: Application) : AndroidViewModel(applicatio
     private val downloader = AppUpdateDownloader()
     private val mutable = MutableStateFlow(AppUpdateUiState())
     val state = mutable.asStateFlow()
+    private var checkJob: Job? = null
     private var downloadJob: Job? = null
 
     fun check(currentVersion: String) {
-        mutable.update { AppUpdateUiState(phase = AppUpdatePhase.Checking) }
-        checker.check(currentVersion) { result ->
-            mutable.update {
-                when (result) {
-                    is AppUpdateCheckResult.Available -> it.copy(
-                        update = result.update,
-                        phase = AppUpdatePhase.Available,
-                        downloadedBytes = 0L,
-                        totalBytes = result.update.apkSizeBytes,
-                        readyFile = null,
-                        errorMessage = null,
-                    )
-                    AppUpdateCheckResult.UpToDate -> AppUpdateUiState(phase = AppUpdatePhase.UpToDate)
-                    is AppUpdateCheckResult.Failed -> AppUpdateUiState(
-                        phase = AppUpdatePhase.Error,
-                        errorMessage = result.message,
-                    )
+        if (checkJob?.isActive == true) return
+        if (state.value.phase in setOf(
+                AppUpdatePhase.Downloading,
+                AppUpdatePhase.Ready,
+                AppUpdatePhase.AwaitingInstallPermission,
+                AppUpdatePhase.Installing,
+            )) return
+
+        if (state.value.update == null) {
+            mutable.update { it.copy(phase = AppUpdatePhase.Checking, errorMessage = null) }
+        }
+        checkJob = viewModelScope.launch {
+            try {
+                var result: AppUpdateCheckResult = AppUpdateCheckResult.Failed("更新情報を取得できませんでした。")
+                for (attempt in 0 until 3) {
+                    result = try {
+                        checkOnce(currentVersion)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        AppUpdateCheckResult.Failed("更新情報を取得できませんでした。通信状態を確認してください。")
+                    }
+                    if (result !is AppUpdateCheckResult.Failed || attempt == 2) break
+                    delay(if (attempt == 0) 1_500L else 4_000L)
                 }
+                when (val checked = result) {
+                    is AppUpdateCheckResult.Available -> mutable.update {
+                        it.copy(
+                            update = checked.update,
+                            phase = AppUpdatePhase.Available,
+                            downloadedBytes = 0L,
+                            totalBytes = checked.update.apkSizeBytes,
+                            readyFile = null,
+                            errorMessage = null,
+                        )
+                    }
+                    AppUpdateCheckResult.UpToDate -> mutable.update { AppUpdateUiState(phase = AppUpdatePhase.UpToDate) }
+                    is AppUpdateCheckResult.Failed -> mutable.update {
+                        if (it.update == null) AppUpdateUiState(phase = AppUpdatePhase.Error, errorMessage = checked.message)
+                        else it
+                    }
+                }
+            } finally {
+                checkJob = null
             }
         }
     }
+
+    private suspend fun checkOnce(currentVersion: String): AppUpdateCheckResult =
+        suspendCancellableCoroutine { continuation ->
+            checker.check(currentVersion) { result ->
+                if (continuation.isActive) continuation.resume(result)
+            }
+            continuation.invokeOnCancellation { checker.cancel() }
+        }
 
     fun startDownload() {
         val update = state.value.update ?: return
@@ -164,6 +201,7 @@ class AppUpdateViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     override fun onCleared() {
+        checkJob?.cancel()
         downloadJob?.cancel()
         checker.cancel()
         super.onCleared()

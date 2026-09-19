@@ -1663,8 +1663,9 @@ setItem(SW_CACHE_MODE_STORAGE_KEY,"disabled")}}a(applyCacheMode,"applyCacheMode"
 !e||!appVersion||e===appVersion||(localStorage.getItem("version_notified")||"")===e||(localStorage.setItem(
 "app_version",e),syncVersionUpdateCachePreferenceUi(),showModal("version-update-modal"))}a(checkAndNotifyVersion,
 "checkAndNotifyVersion");async function checkVersion(){try{const e=await fetch("/api/version",{cache:"\
-no-store"});if(!e.ok)return;const n=(await e.json()).version||"";if(!n)return;if(n===appVersion){localStorage.
-setItem("app_version",n);return}checkAndNotifyVersion(n)}catch{}}a(checkVersion,"checkVersion");async function fetchChatStreamWithUnavailableRetry(e,t,n){
+no-store"});if(!e.ok)return;const n=(await e.json()).version||"",i=localStorage.getItem("app_version")||
+"";n&&!i&&localStorage.setItem("app_version",n),n&&i&&n!==i&&(await purgeCaches(),checkAndNotifyVersion(
+n))}catch{}}a(checkVersion,"checkVersion");async function fetchChatStreamWithUnavailableRetry(e,t,n){
 let i=0;for(;;){if(t.signal&&t.signal.aborted)throw new DOMException("Aborted","AbortError");try{const s=await apiFetch(
 e,t),o=window.ConnectionMonitor.retryModeForResponse(s);let r=!1;if(s.status===425&&(r=(await s.clone().
 json().catch(()=>({}))).code==="submission_in_progress"),!o&&!r)return window.ConnectionMonitor.markReachable(),
@@ -3393,32 +3394,33 @@ saveVersionUpdateCachePreference(F.checked)})),(Qn=get("version-update-reload"))
 "click",async()=>{var u;await versionUpdateCachePreferenceSavePromise.catch(()=>{}),!!((u=get("versi\
 on-update-clear-cache"))!=null&&u.checked)?await clearSiteCacheAndReload(get("version-update-reload"),
 {scanFirst:!0}):location.reload()}),window.ConnectionMonitor&&(window.ConnectionMonitor.setVersionChangeHandler(
-c=>{c&&c!==appVersion&&(localStorage.getItem("version_notified")||"")!==c&&checkAndNotifyVersion(c)}),
-window.ConnectionMonitor.start(),window.addEventListener("online",()=>window.ConnectionMonitor.probeNow()),
-window.addEventListener("offline",()=>{window.ConnectionMonitor.cancelProbe(),window.ConnectionMonitor.
-setUnavailable("offline")}),window.addEventListener("focus",()=>window.ConnectionMonitor.probeNow()),
-document.addEventListener("visibilitychange",()=>{document.hidden||window.ConnectionMonitor.probeNow()}),
-window.addEventListener("pagehide",()=>window.ConnectionMonitor.stop())),applyCacheMode(useSwCache),
-botConfig&&botConfig.lock&&botConfig.lock.active&&!isAdminUser&&showBotLockOverlay(botConfig.lock.message,
-botConfig.lock.remaining_seconds),window.__turnstileApiLoaded&&window.initTurnstileWidget&&window.initTurnstileWidget(),
-botConfig&&botConfig.globalEnabled&&botConfig.accountEnabled&&!isAdminUser){botConfig.turnstileVerified&&
-(botDetectionVerified=!0);try{botTelemetry.start()}catch(c){console.error(c)}try{runBotDetectionGate()}catch(c){
-console.error(c)}}else{const c=get("turnstile-container");c&&c.classList.add("hidden")}const J=a(c=>{
-if(!c)return"\u4E0D\u660E";const u=new Date(c);return Number.isNaN(u.getTime())?c:u.toLocaleString()},
-"formatSessionTime"),X=a(c=>{const u=Array.isArray(c)?c:[],m=get("passkey-list"),f=get("passkey-coun\
-t");if(f&&(f.innerText=String(u.length)),!!m){if(!u.length){m.innerHTML='<div class="text-[11px] tex\
-t-gray-500">\u767B\u9332\u6E08\u307F\u306E\u30D1\u30B9\u30AD\u30FC\u306F\u3042\u308A\u307E\u305B\u3093\u3002</div>';
-return}m.innerHTML="",u.forEach((v,k)=>{const _=v&&v.id?String(v.id):"",C=document.createElement("di\
-v");C.className="bg-gray-800/60 border border-gray-700 rounded p-2 flex items-center justify-between\
- gap-2";const A=document.createElement("div");A.className="min-w-0";const B=document.createElement("\
-div");B.className="text-xs text-gray-200 truncate",B.innerText=v&&v.name?String(v.name):`Security Ke\
-y ${k+1}`;const $=document.createElement("div");$.className="text-[10px] text-gray-500 mt-1",$.innerText=
-v&&v.created_at?`\u767B\u9332\u65E5\u6642: ${J(v.created_at)}`:"\u767B\u9332\u65E5\u6642: \u4E0D\u660E",
-A.appendChild(B),A.appendChild($),C.appendChild(A);const D=document.createElement("button");D.type="\
-button",D.className="bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px] font-bold \
-btn-hover shrink-0",D.innerText="\u524A\u9664",D.disabled=!_,_&&(D.onclick=()=>window.removeWebAuthnCredential(
-_)),C.appendChild(D),m.appendChild(C)})}},"renderPasskeyList"),Te=a(c=>{const u=get("session-list");
-if(u){if(!c||!c.length){u.innerHTML='<div class="text-xs text-gray-500">\u30A2\u30AF\u30C6\u30A3\u30D6\u306A\u30BB\u30C3\u30B7\u30E7\u30F3\u306F\u3042\u308A\u307E\u305B\u3093\u3002</div>';
+c=>{c&&c!==appVersion&&(localStorage.getItem("version_notified")||"")!==c&&(localStorage.setItem("ap\
+p_version",c),purgeCaches().then(()=>checkAndNotifyVersion(c)))}),window.ConnectionMonitor.start(),window.
+addEventListener("online",()=>window.ConnectionMonitor.probeNow()),window.addEventListener("offline",
+()=>{window.ConnectionMonitor.cancelProbe(),window.ConnectionMonitor.setUnavailable("offline")}),window.
+addEventListener("focus",()=>window.ConnectionMonitor.probeNow()),document.addEventListener("visibil\
+itychange",()=>{document.hidden||window.ConnectionMonitor.probeNow()}),window.addEventListener("page\
+hide",()=>window.ConnectionMonitor.stop())),applyCacheMode(useSwCache),botConfig&&botConfig.lock&&botConfig.
+lock.active&&!isAdminUser&&showBotLockOverlay(botConfig.lock.message,botConfig.lock.remaining_seconds),
+window.__turnstileApiLoaded&&window.initTurnstileWidget&&window.initTurnstileWidget(),botConfig&&botConfig.
+globalEnabled&&botConfig.accountEnabled&&!isAdminUser){botConfig.turnstileVerified&&(botDetectionVerified=
+!0);try{botTelemetry.start()}catch(c){console.error(c)}try{runBotDetectionGate()}catch(c){console.error(
+c)}}else{const c=get("turnstile-container");c&&c.classList.add("hidden")}const J=a(c=>{if(!c)return"\
+\u4E0D\u660E";const u=new Date(c);return Number.isNaN(u.getTime())?c:u.toLocaleString()},"formatSess\
+ionTime"),X=a(c=>{const u=Array.isArray(c)?c:[],m=get("passkey-list"),f=get("passkey-count");if(f&&(f.
+innerText=String(u.length)),!!m){if(!u.length){m.innerHTML='<div class="text-[11px] text-gray-500">\u767B\
+\u9332\u6E08\u307F\u306E\u30D1\u30B9\u30AD\u30FC\u306F\u3042\u308A\u307E\u305B\u3093\u3002</div>';return}
+m.innerHTML="",u.forEach((v,k)=>{const _=v&&v.id?String(v.id):"",C=document.createElement("div");C.className=
+"bg-gray-800/60 border border-gray-700 rounded p-2 flex items-center justify-between gap-2";const A=document.
+createElement("div");A.className="min-w-0";const B=document.createElement("div");B.className="text-x\
+s text-gray-200 truncate",B.innerText=v&&v.name?String(v.name):`Security Key ${k+1}`;const $=document.
+createElement("div");$.className="text-[10px] text-gray-500 mt-1",$.innerText=v&&v.created_at?`\u767B\u9332\u65E5\u6642:\
+ ${J(v.created_at)}`:"\u767B\u9332\u65E5\u6642: \u4E0D\u660E",A.appendChild(B),A.appendChild($),C.appendChild(
+A);const D=document.createElement("button");D.type="button",D.className="bg-red-700 hover:bg-red-600\
+ text-white px-2 py-1 rounded text-[10px] font-bold btn-hover shrink-0",D.innerText="\u524A\u9664",D.
+disabled=!_,_&&(D.onclick=()=>window.removeWebAuthnCredential(_)),C.appendChild(D),m.appendChild(C)})}},
+"renderPasskeyList"),Te=a(c=>{const u=get("session-list");if(u){if(!c||!c.length){u.innerHTML='<div \
+class="text-xs text-gray-500">\u30A2\u30AF\u30C6\u30A3\u30D6\u306A\u30BB\u30C3\u30B7\u30E7\u30F3\u306F\u3042\u308A\u307E\u305B\u3093\u3002</div>';
 return}u.innerHTML=c.map(m=>{const f=m.is_current?'<span class="text-[10px] bg-blue-600 text-white p\
 x-1.5 py-0.5 rounded">\u73FE\u5728</span>':"",v=m.is_revoked?'<span class="text-[10px] bg-gray-700 t\
 ext-gray-300 px-1.5 py-0.5 rounded">\u5931\u52B9</span>':"",k=!m.is_current&&!m.is_revoked?`<button \

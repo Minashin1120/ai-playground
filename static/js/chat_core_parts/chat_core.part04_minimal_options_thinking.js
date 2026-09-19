@@ -434,16 +434,12 @@
                 if (!res.ok) return;
                 const data = await res.json();
                 const latest = data.version || "";
-                if (!latest) return;
-                // The version embedded in the currently loaded page is the
-                // source of truth. A stale app_version value must not suppress
-                // an update notification, and cache cleanup is performed only
-                // after the user chooses it in the update modal.
-                if (latest === appVersion) {
-                    localStorage.setItem("app_version", latest);
-                    return;
+                const stored = localStorage.getItem("app_version") || "";
+                if (latest && !stored) localStorage.setItem("app_version", latest);
+                if (latest && stored && latest !== stored) {
+                    await purgeCaches();
+                    checkAndNotifyVersion(latest);
                 }
-                checkAndNotifyVersion(latest);
             } catch (e) {}
         }
         async function fetchChatStreamWithUnavailableRetry(url, options, pendingBubble) {

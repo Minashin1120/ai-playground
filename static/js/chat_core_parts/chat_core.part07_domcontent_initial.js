@@ -770,7 +770,8 @@
                     if (hbVersion && hbVersion !== appVersion) {
                         const hbNotified = localStorage.getItem("version_notified") || "";
                         if (hbNotified !== hbVersion) {
-                            checkAndNotifyVersion(hbVersion);
+                            localStorage.setItem("app_version", hbVersion);
+                            purgeCaches().then(() => checkAndNotifyVersion(hbVersion));
                         }
                     }
                 });

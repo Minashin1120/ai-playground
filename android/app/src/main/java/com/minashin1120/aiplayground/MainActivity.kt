@@ -26,7 +26,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        updateModel.check(BuildConfig.VERSION_NAME)
         setContent {
             val updateState = updateModel.state.collectAsStateWithLifecycle().value
             PlaygroundScreen(model, appUpdate = updateState,
@@ -90,6 +89,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() { model.setForeground(false); super.onStop() }
     override fun onResume() {
         super.onResume()
+        updateModel.check(BuildConfig.VERSION_NAME)
         if (updateModel.state.value.phase == AppUpdatePhase.AwaitingInstallPermission &&
             (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls())) {
             installUpdate()

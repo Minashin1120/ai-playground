@@ -261,7 +261,7 @@ IDは文字列として扱います。古い履歴の数値IDを受け取る場�
 }
 ```
 
-`model` は省略できません。`/me` の `models` から `selectable: true` のモデルだけを選び、`mode` に応じた入力と `capabilities` に含まれる設定だけを表示します。ネイティブ対象は `chat`、`image`、`video`、`ocr`、`tts`、`transcription`、`agent` に加えてOpenAI／Grokの `realtime_audio` とLyriaの `music` です。Gemini LiveとSTSはWeb導線を使います。既存のモデル用APIキーがない場合は400と `code: api_key_missing` 等が返るため、Webの設定を案内します。
+`model` は省略できません。`/me` の `models` から `selectable: true` のモデルだけを選び、`mode` に応じた入力と `capabilities` に含まれる設定だけを表示します。ネイティブ対象は `chat`、`image`、`video`、`ocr`、`tts`、`transcription`、`agent`、会話型の `realtime_audio` とLyriaの `music` です。`realtime_audio` は認証済みサーバーセッションを介してOpenAI／Grok／Gemini LiveをRealtimeスタジオで利用します。文字起こし専用のRealtimeモデルは、対応する専用フローがない限り選択不可として返します。既存のモデル用APIキーがない場合は400と `code: api_key_missing` 等が返るため、Webの設定を案内します。
 
 `gem_uuid` を付けると、そのGemの指示が回答生成に適用されます。`/api/gems` が返す本人の `uuid` だけを使い、他ユーザーのGemを指定しないでください。現在のスレッドの最後に使ったGemは、スレッド取得応答の `last_gem_uuid` で確認できます。
 

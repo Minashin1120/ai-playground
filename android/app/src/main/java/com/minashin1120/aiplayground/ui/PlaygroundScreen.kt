@@ -151,7 +151,7 @@ fun PlaygroundScreen(
                 val selected = state.model
                 val useStudio = state.preferences?.voiceStudioUi != false
                 when {
-                    useStudio && realtimeModels.any { it.first == selected } -> {
+                    useStudio && isRealtimeAudioModel(state.account?.models?.firstOrNull { it.id == selected }) -> {
                         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) realtimeOpen = true
                         else { awaitingMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
                     }

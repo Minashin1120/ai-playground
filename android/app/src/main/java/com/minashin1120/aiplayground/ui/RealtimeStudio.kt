@@ -10,22 +10,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
+import com.minashin1120.aiplayground.data.ModelInfo
 
-internal val realtimeModels = listOf(
-    "gpt-realtime" to "OpenAI Realtime",
-    "gpt-realtime-mini" to "OpenAI Realtime Mini",
-    "gpt-realtime-2" to "OpenAI Realtime 2",
-    "gpt-realtime-1.5" to "OpenAI Realtime 1.5",
-    "grok-voice-latest" to "Grok Voice",
-    "grok-voice-think-fast-2.0" to "Grok Voice Think",
-    "grok-voice-agent" to "Grok Voice Agent",
-    "gemini-2.5-flash-native-audio-preview-12-2025" to "Gemini Native Audio",
-    "gemini-3.1-flash-live-preview" to "Gemini 3.1 Live",
-    "gemini-3.8-live" to "Gemini 3.8 Flash Live",
-    "gemini-3.8-live-extended-thinking" to "Gemini 3.8 Live Extended Thinking",
-    "gemini-3.5-live-translate-preview" to "Gemini Live Translate",
-    "gemini-3.5-transcribe-live" to "Gemini Live Transcribe",
-)
+private const val REALTIME_AUDIO_MODE = "realtime_audio"
+private const val REALTIME_TRANSCRIPTION_ONLY_MODEL = "gpt-realtime-whisper"
+
+internal fun isRealtimeAudioModel(model: ModelInfo?): Boolean =
+    model != null && model.mode == REALTIME_AUDIO_MODE && model.selectable &&
+        model.id != REALTIME_TRANSCRIPTION_ONLY_MODEL
+
+internal fun realtimeModels(state: ChatState): List<Pair<String, String>> =
+    state.account?.models.orEmpty()
+        .filter(::isRealtimeAudioModel)
+        .map { it.id to it.name }
 
 private fun isGeminiLive(model: String): Boolean = model.startsWith("gemini-3.1-flash-live") ||
     model == "gemini-3.8-live" || model == "gemini-3.8-live-extended-thinking" ||
@@ -35,7 +32,10 @@ private fun isGeminiExtendedThinking(model: String): Boolean = model == "gemini-
 
 @Composable
 fun RealtimeStudioDialog(state: ChatState, model: ChatViewModel, onDismiss: () -> Unit) {
-    var selectedModel by remember { mutableStateOf(realtimeModels.first().first) }
+    val models = realtimeModels(state)
+    var selectedModel by remember(models, state.model) {
+        mutableStateOf(models.firstOrNull { it.first == state.model }?.first ?: models.firstOrNull()?.first.orEmpty())
+    }
     var voice by remember { mutableStateOf("alloy") }
     var targetLanguage by remember { mutableStateOf("ja") }
     var thinkingLevel by remember { mutableStateOf("medium") }
@@ -51,8 +51,13 @@ fun RealtimeStudioDialog(state: ChatState, model: ChatViewModel, onDismiss: () -
                     style = MaterialTheme.typography.bodySmall)
                 if (!realtime.active) {
                     Text("モデル", style = MaterialTheme.typography.labelMedium)
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        realtimeModels.forEach { (id, label) -> FilterChip(selectedModel == id, { selectedModel = id }, { Text(label) }) }
+                    if (models.isEmpty()) {
+                        Text("使用可能なRealtimeモデルがありません。モデル一覧を更新してください。",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            models.forEach { (id, label) -> FilterChip(selectedModel == id, { selectedModel = id }, { Text(label) }) }
+                        }
                     }
                     if (selectedModel == "gemini-3.5-live-translate-preview") {
                         OutlinedTextField(targetLanguage, { targetLanguage = it }, singleLine = true,
@@ -85,7 +90,7 @@ fun RealtimeStudioDialog(state: ChatState, model: ChatViewModel, onDismiss: () -
                     Button(onClick = {
                         model.startRealtime(selectedModel, voice.trim().ifBlank { "Kore" }, targetLanguage, thinkingLevel,
                             transcriptionMode, customVocabulary)
-                    }, modifier = Modifier.fillMaxWidth()) { Text("セッションを開始") }
+                    }, enabled = selectedModel.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("セッションを開始") }
                 } else {
                     Text("${realtime.model} · ${realtime.status.ifBlank { "接続中…" }}", style = MaterialTheme.typography.labelMedium)
                     if (realtime.userText.isNotBlank()) Text("あなた: ${realtime.userText}", style = MaterialTheme.typography.bodyMedium)

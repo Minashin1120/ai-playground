@@ -26,6 +26,11 @@ _MOBILE_DEPRECATED_MODELS = {
     'grok-4-fast-reasoning', 'grok-4-fast-non-reasoning',
 }
 
+# The native Android Realtime studio uses the persistent conversation session
+# API.  OpenAI Realtime Whisper is a transcription-only session and must stay
+# unavailable until the Android client has a matching transcription flow.
+_MOBILE_REALTIME_TRANSCRIPTION_ONLY_MODELS = {'gpt-realtime-whisper'}
+
 
 def _mobile_model_mode(model_id):
     """Classify Web model IDs without exposing provider credentials or settings."""
@@ -76,7 +81,8 @@ def _mobile_model_metadata(model_id):
             capabilities += ['python', 'mcp']
     if mode in {'chat', 'image'} and globals().get('_is_batch_model', lambda _model: False)(model_id):
         capabilities.append('batch')
-    native_modes = {'chat', 'image', 'video', 'ocr', 'tts', 'transcription', 'agent'}
+    native_modes = {'chat', 'image', 'video', 'ocr', 'tts', 'transcription', 'realtime_audio', 'agent'}
+    realtime_transcription_only = model_id in _MOBILE_REALTIME_TRANSCRIPTION_ONLY_MODELS
     return {
         'id': model_id,
         'name': _mobile_model_name(model_id),
@@ -85,7 +91,7 @@ def _mobile_model_metadata(model_id):
         'mode': mode,
         'capabilities': capabilities,
         'deprecated': deprecated,
-        'selectable': mode in native_modes and not deprecated,
+        'selectable': mode in native_modes and not deprecated and not realtime_transcription_only,
     }
 
 

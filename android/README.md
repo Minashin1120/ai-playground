@@ -7,9 +7,10 @@
 | `settings.gradle.kts`, `build.gradle.kts`, `gradle.properties` | Android Gradleプロジェクトのルート設定 | SDK・Kotlin・Gradleを更新するとき |
 | `version.properties` | AndroidのversionCodeとversionName | 新しいAndroid版を配布するとき |
 | `app/build.gradle.kts` | 固定applicationId・共有署名・依存関係 | アプリ構成・署名を確認するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/MainActivity.kt` | ブラウザー起動・添付共有・Activityライフサイクル | 端末連携やファイル表示 |
-| `app/src/main/java/com/minashin1120/aiplayground/data/AppUpdateChecker.kt` | GitHubのAndroid Release確認とバージョン比較 | 起動時のアプリ更新検出 |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/AppUpdateDialog.kt` | 新しいAndroid版の更新案内ダイアログ | 更新通知の文言・導線 |
+| `app/src/main/java/com/minashin1120/aiplayground/MainActivity.kt` | ブラウザー起動・添付共有・APKインストール・Activityライフサイクル | 端末連携、ファイル表示、アプリ更新 |
+| `app/src/main/java/com/minashin1120/aiplayground/AppUpdateViewModel.kt` | 更新検出・ダウンロード状態・キャンセル・再試行 | アプリ更新フローを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/AppUpdateChecker.kt`, `AppUpdateDownloader.kt` | GitHub Release資産の確認、APK取得、SHA-256検証 | 更新元・資産名・ダウンロードを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/AppUpdateDialog.kt` | APK更新の確認、進捗、設定案内、再試行ダイアログ | 更新UI・文言・導線 |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatViewModel.kt` | 認証・履歴・送信・再接続・アップロード状態 | アプリ操作・通信フロー |
 | `app/src/main/java/com/minashin1120/aiplayground/BatchNotifications.kt` | Batch完了通知チャンネルと安全な通知表示 | Batch通知を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/` | CookieなしHTTP、NDJSON、APIモデル、Keystore保存 | 認証・通信・保存 |

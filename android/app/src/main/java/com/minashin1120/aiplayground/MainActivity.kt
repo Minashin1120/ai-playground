@@ -1,39 +1,42 @@
 package com.minashin1120.aiplayground
 
+import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.content.FileProvider
-import androidx.compose.runtime.mutableStateOf
-import com.minashin1120.aiplayground.data.AppUpdate
-import com.minashin1120.aiplayground.data.AppUpdateChecker
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.minashin1120.aiplayground.ui.PlaygroundScreen
 
 class MainActivity : ComponentActivity() {
     private val model: ChatViewModel by viewModels()
-    private val updateChecker = AppUpdateChecker()
-    private val availableUpdate = mutableStateOf<AppUpdate?>(null)
+    private val updateModel: AppUpdateViewModel by viewModels()
+    private val installerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        updateModel.installerClosed()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        updateChecker.check(BuildConfig.VERSION_NAME) { update ->
-            runOnUiThread {
-                if (!isFinishing && !isDestroyed) availableUpdate.value = update
-            }
-        }
+        updateModel.check(BuildConfig.VERSION_NAME)
         setContent {
-            PlaygroundScreen(model, appUpdate = availableUpdate.value,
+            val updateState = updateModel.state.collectAsStateWithLifecycle().value
+            PlaygroundScreen(model, appUpdate = updateState,
                 playStartupAnimation = savedInstanceState == null,
-                onDismissUpdate = { availableUpdate.value = null }, onOpenUpdate = { update ->
-                    availableUpdate.value = null
-                    openExternalUrl(update.releaseUrl)
-                }, onWeb = { path ->
+                onDismissUpdate = updateModel::dismiss,
+                onDownloadUpdate = updateModel::startDownload,
+                onCancelDownload = updateModel::cancelDownload,
+                onRetryUpdate = updateModel::retryDownload,
+                onInstallUpdate = ::installUpdate,
+                onWeb = { path ->
                 val safePath = path.takeIf { it.startsWith('/') && !it.startsWith("//") } ?: "/"
                 val url = BuildConfig.BASE_URL.trimEnd('/') + safePath
                 openExternalUrl(url)
@@ -49,6 +52,34 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun installUpdate() {
+        val file = updateModel.state.value.readyFile
+        if (file == null || !file.isFile) {
+            updateModel.installFailed("更新ファイルが見つかりません。もう一度ダウンロードしてください。")
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
+            updateModel.awaitInstallPermission()
+            try {
+                startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+            } catch (_: Exception) {
+                updateModel.installFailed("Androidのインストール設定を開けません。端末の設定から許可してください。")
+            }
+            return
+        }
+        val uri = FileProvider.getUriForFile(this, "$packageName.files", file)
+        val intent = Intent(Intent.ACTION_INSTALL_PACKAGE)
+            .setDataAndType(uri, "application/vnd.android.package-archive")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            .setClipData(ClipData.newRawUri("AI Playground update", uri))
+        updateModel.markInstalling()
+        try {
+            installerLauncher.launch(intent)
+        } catch (_: Exception) {
+            updateModel.installFailed("Androidのインストーラーを開けません。端末の設定を確認してください。")
+        }
+    }
+
     private fun openExternalUrl(url: String) {
         try { CustomTabsIntent.Builder().build().launchUrl(this, Uri.parse(url)) }
         catch (_: Exception) { model.notify("ブラウザーを開けません。ブラウザーをインストールして再試行してください。") }
@@ -56,5 +87,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() { super.onStart(); model.setForeground(true) }
     override fun onStop() { model.setForeground(false); super.onStop() }
-    override fun onDestroy() { updateChecker.cancel(); super.onDestroy() }
+    override fun onResume() {
+        super.onResume()
+        if (updateModel.state.value.phase == AppUpdatePhase.AwaitingInstallPermission &&
+            (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls())) {
+            installUpdate()
+        }
+    }
 }

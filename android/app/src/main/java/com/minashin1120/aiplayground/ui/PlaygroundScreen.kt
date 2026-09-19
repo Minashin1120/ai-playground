@@ -42,13 +42,13 @@ import androidx.core.content.FileProvider
 import androidx.core.content.ContextCompat
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
+import com.minashin1120.aiplayground.AppUpdateUiState
 import com.minashin1120.aiplayground.data.ThreadItem
 import com.minashin1120.aiplayground.data.LibraryFile
 import com.minashin1120.aiplayground.data.Gem
 import com.minashin1120.aiplayground.data.FixedPrompt
 import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.recentWebModels
-import com.minashin1120.aiplayground.data.AppUpdate
 
 import com.minashin1120.aiplayground.data.attachmentKind
 import com.minashin1120.aiplayground.data.attachmentKindIcon
@@ -71,10 +71,13 @@ fun PlaygroundScreen(
     model: ChatViewModel,
     onWeb: (String) -> Unit,
     onFile: (String) -> Unit,
-    appUpdate: AppUpdate? = null,
+    appUpdate: AppUpdateUiState? = null,
     playStartupAnimation: Boolean = true,
     onDismissUpdate: () -> Unit = {},
-    onOpenUpdate: (AppUpdate) -> Unit = {},
+    onDownloadUpdate: () -> Unit = {},
+    onCancelDownload: () -> Unit = {},
+    onRetryUpdate: () -> Unit = {},
+    onInstallUpdate: () -> Unit = {},
 ) {
     val state by model.state.collectAsStateWithLifecycle()
     PlaygroundTheme(darkTheme = state.preferences?.let { !it.lightModeEnabled } ?: isSystemInDarkTheme(),
@@ -363,7 +366,14 @@ fun PlaygroundScreen(
                 confirmButton = { TextButton(onClick = { model.logout(); logout = false; closeDrawer() }) { Text("ログアウト") } },
                 dismissButton = { TextButton(onClick = { logout = false }) { Text("キャンセル") } })
             appUpdate?.let { update ->
-                AppUpdateDialog(update, onDismiss = onDismissUpdate, onOpenRelease = { onOpenUpdate(update) })
+                AppUpdateDialog(
+                    update,
+                    onDismiss = onDismissUpdate,
+                    onDownload = onDownloadUpdate,
+                    onCancelDownload = onCancelDownload,
+                    onRetry = onRetryUpdate,
+                    onInstall = onInstallUpdate,
+                )
             }
             StartupSplash(startupSplashEnabled)
         }

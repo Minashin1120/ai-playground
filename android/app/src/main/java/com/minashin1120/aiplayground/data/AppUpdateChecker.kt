@@ -10,7 +10,10 @@ import java.util.concurrent.TimeUnit
 
 data class AppUpdate(
     val versionName: String,
-    val releaseUrl: String,
+    val tagName: String,
+    val apkUrl: String,
+    val checksumUrl: String,
+    val apkSizeBytes: Long?,
 )
 
 private data class AppVersion(val major: Int, val minor: Int, val patch: Int) : Comparable<AppVersion> {
@@ -19,6 +22,8 @@ private data class AppVersion(val major: Int, val minor: Int, val patch: Int) : 
 
 private const val REPOSITORY = "Minashin1120/ai-playground"
 private const val RELEASES_API_URL = "https://api.github.com/repos/$REPOSITORY/releases?per_page=100"
+private const val APK_ASSET = "app-release.apk"
+private const val CHECKSUM_ASSET = "app-release.apk.sha256"
 private val ANDROID_TAG = Regex("^android-v(\\d+)\\.(\\d+)\\.(\\d+)$")
 private val VERSION_NAME = Regex("^(?:v)?(\\d+)\\.(\\d+)\\.(\\d+)(?:[-+].*)?$")
 
@@ -41,9 +46,27 @@ internal fun latestAndroidUpdateFromJson(payload: String, currentVersion: String
         val versionName = tagMatch.groupValues.drop(1).joinToString(".")
         val version = parseVersion(versionName) ?: continue
         if (version <= current || newest?.first?.let { version <= it } == true) continue
+        val assets = release.optJSONArray("assets") ?: continue
+        var apkSizeBytes: Long? = null
+        var hasApk = false
+        var hasChecksum = false
+        for (assetIndex in 0 until assets.length()) {
+            val asset = assets.optJSONObject(assetIndex) ?: continue
+            when (asset.optString("name")) {
+                APK_ASSET -> {
+                    hasApk = true
+                    apkSizeBytes = asset.optLong("size", -1L).takeIf { it > 0L }
+                }
+                CHECKSUM_ASSET -> hasChecksum = true
+            }
+        }
+        if (!hasApk || !hasChecksum) continue
         newest = version to AppUpdate(
             versionName = versionName,
-            releaseUrl = "https://github.com/$REPOSITORY/releases/tag/$tag",
+            tagName = tag,
+            apkUrl = "https://github.com/$REPOSITORY/releases/download/$tag/$APK_ASSET",
+            checksumUrl = "https://github.com/$REPOSITORY/releases/download/$tag/$CHECKSUM_ASSET",
+            apkSizeBytes = apkSizeBytes,
         )
     }
     return newest?.second

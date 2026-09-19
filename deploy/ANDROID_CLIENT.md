@@ -46,7 +46,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | 画像・動画・OCR・TTS・文字起こし | `/chat_stream` と同じ保存・停止・再接続境界でネイティブ対応。GPT／Gemini／Grok画像、GPT-Imageマスク、Gemini動画（長さ・比率・解像度）、Grok動画、OCR、TTS、Thinking量、xAI詳細を表示・送信 |
 | Python・MCP・Coding結果 | Python・MCP・Coding差分のストリームイベントを構造化カードで表示。MCPの秘密設定とCoding対象の高度な編集はWeb導線 |
 | リアルタイム音声・Lyria | OpenAI／Grok RealtimeとLyriaはBearer認証のネイティブセッション、マイク入力、SSE再生、保存に対応。Gemini LiveとSTSは認証済みWebへの明示的な導線 |
-| アプリ更新検出 | 起動時にGitHub Releasesの `android-vX.Y.Z` だけを確認し、現在のAndroid版より新しい安定版があればReleaseページを案内。APKの取得・インストールはユーザー操作 |
+| アプリ更新検出 | 起動時にGitHub Releasesの `android-vX.Y.Z` だけを確認し、現在のAndroid版より新しい安定版があればGitHubの `app-release.apk` と `.sha256` をアプリ内で取得・検証し、Android標準インストーラーへ渡す。GitHubのReleaseページは開かない |
 | ブラウザー高速モード | 対象外。APIキーをAndroidへ返すbootstrap APIは許可しない |
 | アプリ配布・真正性検証 | APK署名・Play配布は別途。client_idや端末名はアプリ署名の証明ではない |
 
@@ -422,6 +422,8 @@ SHA-256: 6FA6AD4EAA885046A12123F72D8699300AB6554E22E9AC2D740FC21553B0ECA0
 
 配布する変更では `VERSION_CODE` を必ず増やし、`VERSION_NAME` も未使用の値に変更します。同一タグが別コミットを指す場合はRelease作成を失敗させ、タグや既存APKを上書きしません。同じコミットの再実行では既存Releaseを保持します。手動 **Android Release** は `source_sha` にmain上の確定コミットを指定でき、任意の `tag_name` を入れる場合もVERSION_NAMEと一致する必要があります。鍵が無い状態でReleaseだけを実行しても生成は行いません。
 
+アプリ内更新はGitHub APIで安定版と固定名のRelease資産を確認し、`app-release.apk` をアプリ専用cacheへダウンロードします。`app-release.apk.sha256` と一致しないAPKはインストーラーへ渡しません。ダウンロードには進捗表示・キャンセル・再試行があり、GitHubのページは開きません。Androidの「このアプリからのインストール」が未許可の場合は専用設定へ案内し、戻ると標準インストーラーを再開します。インストール最終確認はAndroidが表示します。
+
 固定鍵の初回CI保存後、任意でローカル構築する場合：
 
 ```bash
@@ -432,7 +434,7 @@ cd android
 
 出力先はリポジトリから見て `android/app/build/outputs/apk/debug/app-debug.apk` と `android/app/build/outputs/apk/release/app-release.apk` です。ローカルに鍵が無ければ最新mainを取得してください。外部PCで鍵を作る必要はありません。
 
-APKを端末へダウンロードし、そのダウンロード元アプリの「不明なアプリのインストール」を許可して開きます。既存アプリのapplicationIdと証明書が同じで、versionCodeが下がらなければ通常は上書きできます。過去の異なる鍵で入れたAPKでは `INSTALL_FAILED_UPDATE_INCOMPATIBLE` になります。その場合だけアンインストールして入れ直します（端末連携・端末内データは消えます）。[公式ビルド手順](https://developer.android.com/build/building-cmdline)と[アプリ署名](https://developer.android.com/studio/publish/app-signing)も参照してください。
+手動でAPKを取得する場合は、ダウンロード元アプリの「不明なアプリのインストール」を許可して開きます。アプリ内更新でも同じAndroid許可と標準インストーラーを使います。既存アプリのapplicationIdと証明書が同じで、versionCodeが下がらなければ通常は上書きできます。過去の異なる鍵で入れたAPKでは `INSTALL_FAILED_UPDATE_INCOMPATIBLE` になります。その場合だけアンインストールして入れ直します（端末連携・端末内データは消えます）。[公式ビルド手順](https://developer.android.com/build/building-cmdline)と[アプリ署名](https://developer.android.com/studio/publish/app-signing)も参照してください。
 
 ## 7. Kotlin通信コード
 
@@ -686,6 +688,8 @@ configは200 JSON、未認証meは401 JSONが期待値です。テスト出力�
 | Webから端末失効 | 次のAndroid API呼び出しが401になり再連携を促す |
 | WebのE2EE設定 | 有効なまま連携・履歴閲覧・添付ができ、設定が変わらない |
 | BAN・Turnstile | 機能制限を回避せず説明する |
+| アプリ内更新 | GitHubページを開かず、進捗・キャンセル・再試行・SHA-256検証・標準インストールが動作する |
+| 更新インストール許可 | Android設定へ案内し、許可後にインストーラーを再開する。拒否時はAPKをインストールしない |
 | 署名付きrelease APK | インストール・更新・端末保存・バックアップ除外を確認 |
 
 ## 11. 障害対応・制限・今後の拡張

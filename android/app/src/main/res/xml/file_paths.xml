@@ -1,1 +1,4 @@
-<paths><cache-path name="shared_attachments" path="shared/" /></paths>
+<paths>
+    <cache-path name="shared_attachments" path="shared/" />
+    <cache-path name="app_updates" path="updates/" />
+</paths>

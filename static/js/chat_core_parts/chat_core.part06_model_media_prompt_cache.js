@@ -936,6 +936,49 @@
             container.classList.add('model-category-enter');
         }
 
+        let modelListScrollFrame = 0;
+        function scrollSelectedModelIntoView() {
+            const container = get('model-list-container');
+            const selectedModel = get('model-select') ? get('model-select').value : '';
+            const entry = modelListGroups.flatMap(group => group.entries)
+                .find(item => item.model.id === selectedModel);
+            if (!container || !entry || entry.button.classList.contains('hidden')) return;
+
+            const containerRect = container.getBoundingClientRect();
+            const cardRect = entry.button.getBoundingClientRect();
+            const edgePadding = 12;
+            let targetTop = container.scrollTop;
+            if (cardRect.top < containerRect.top + edgePadding) {
+                targetTop += cardRect.top - containerRect.top - edgePadding;
+            } else if (cardRect.bottom > containerRect.bottom - edgePadding) {
+                targetTop += cardRect.bottom - containerRect.bottom + edgePadding;
+            }
+            targetTop = Math.max(0, Math.min(targetTop, container.scrollHeight - container.clientHeight));
+            if (Math.abs(targetTop - container.scrollTop) < 1) return;
+
+            if (modelListScrollFrame) cancelAnimationFrame(modelListScrollFrame);
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                container.scrollTop = targetTop;
+                return;
+            }
+
+            const startTop = container.scrollTop;
+            const distance = targetTop - startTop;
+            const startTime = performance.now();
+            const duration = 160;
+            const step = (now) => {
+                const progress = Math.min(1, (now - startTime) / duration);
+                const eased = 1 - Math.pow(1 - progress, 3);
+                container.scrollTop = startTop + distance * eased;
+                if (progress < 1) {
+                    modelListScrollFrame = requestAnimationFrame(step);
+                } else {
+                    modelListScrollFrame = 0;
+                }
+            };
+            modelListScrollFrame = requestAnimationFrame(step);
+        }
+
         function openModelModal() {
             if (location.pathname !== '/model') {
                 history.pushState({ modal: 'model' }, '', '/model');
@@ -947,6 +990,7 @@
             // Build/update while hidden so opening animation never competes with DOM construction.
             renderModelList('', { animate: true });
             showModal('model-modal');
+            requestAnimationFrame(() => requestAnimationFrame(scrollSelectedModelIntoView));
             // Prevent auto-focus on mobile to avoid keyboard popup
             if (search && window.innerWidth > 768) {
                 requestAnimationFrame(() => search.focus({ preventScroll: true }));

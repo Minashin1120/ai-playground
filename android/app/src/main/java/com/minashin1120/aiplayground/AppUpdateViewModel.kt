@@ -80,27 +80,33 @@ class AppUpdateViewModel(application: Application) : AndroidViewModel(applicatio
                 errorMessage = null,
             )
         }
-        downloadJob = viewModelScope.launch {
+        // The response body is consumed after the suspending OkHttp call resumes. Keep that
+        // potentially long-running stream read off the main thread so Compose can render each
+        // progress update while the APK is downloading.
+        downloadJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 val directory = File(getApplication<Application>().cacheDir, "updates/${update.versionName}")
                 val file = downloader.download(update, directory) { progress ->
-                    // OkHttp delivers the response and reads the body off the main thread.
-                    // Marshal each progress update to the Compose state thread so rapid reads
-                    // cannot be lost while the UI is rendering.
+                    // Publish each progress update on the UI dispatcher while the stream read
+                    // remains on IO, so rapid reads do not block Compose rendering.
                     withContext(Dispatchers.Main.immediate) {
                         updateProgress(progress)
                     }
                 }
-                mutable.update { it.copy(phase = AppUpdatePhase.Ready, readyFile = file, errorMessage = null) }
+                withContext(Dispatchers.Main.immediate) {
+                    mutable.update { it.copy(phase = AppUpdatePhase.Ready, readyFile = file, errorMessage = null) }
+                }
             } catch (_: CancellationException) {
                 // Cancellation is represented by the Available state in cancelDownload().
             } catch (error: Throwable) {
-                mutable.update {
-                    it.copy(
-                        phase = AppUpdatePhase.Error,
-                        readyFile = null,
-                        errorMessage = error.message ?: "更新ファイルを取得できませんでした。",
-                    )
+                withContext(Dispatchers.Main.immediate) {
+                    mutable.update {
+                        it.copy(
+                            phase = AppUpdatePhase.Error,
+                            readyFile = null,
+                            errorMessage = error.message ?: "更新ファイルを取得できませんでした。",
+                        )
+                    }
                 }
             }
         }

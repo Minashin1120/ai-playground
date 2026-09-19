@@ -33,6 +33,8 @@ class AppUpdateDownloaderTest {
                     .download(update, directory) { progress += it }
 
                 assertArrayEquals(apk, file.readBytes())
+                assertTrue(progress.any { it.downloadedBytes > 0L })
+                assertTrue(progress.all { it.totalBytes == apk.size.toLong() })
                 assertEquals(apk.size.toLong(), progress.last().downloadedBytes)
                 assertNull(server.takeRequest().headers["Authorization"])
                 assertNull(server.takeRequest().headers["Cookie"])

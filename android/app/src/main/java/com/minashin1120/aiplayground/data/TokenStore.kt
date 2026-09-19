@@ -14,13 +14,18 @@ import javax.crypto.spec.GCMParameterSpec
 
 class TokenStore(context: Context) {
     private val file = AtomicFile(File(context.noBackupFilesDir, "android-session.enc"))
-    private val alias = "ai-playground-token-v1"
+    // v1 keys were generated with Android Keystore's default randomized-IV
+    // requirement, which rejects the stored IV during GCM decryption. A new
+    // alias is required because that policy cannot be changed on an existing
+    // Keystore key.
+    private val alias = "ai-playground-token-v2"
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (store.getKey(alias, null) as? SecretKey)?.let { return it }
         return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").apply {
             init(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setRandomizedEncryptionRequired(false)
                 .setKeySize(256).build())
         }.generateKey()
     }

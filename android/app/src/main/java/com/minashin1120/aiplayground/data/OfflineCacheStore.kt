@@ -48,7 +48,11 @@ data class CachedFile(val bytes: ByteArray, val mime: String)
  */
 class OfflineCacheStore(private val context: Context) {
     private val root = File(context.noBackupFilesDir, "offline-cache")
-    private val keyAlias = "ai-playground-offline-cache-v1"
+    // v1 keys were generated with Android Keystore's default randomized-IV
+    // requirement, which rejects the stored IV during GCM decryption. A new
+    // alias is required because that policy cannot be changed on an existing
+    // Keystore key.
+    private val keyAlias = "ai-playground-offline-cache-v2"
     private val random = SecureRandom()
 
     private fun accountDir(accountId: Int): File = File(root, digest(accountId.toString()).take(32))
@@ -369,6 +373,7 @@ class OfflineCacheStore(private val context: Context) {
             init(KeyGenParameterSpec.Builder(keyAlias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setRandomizedEncryptionRequired(false)
                 .setKeySize(256)
                 .build())
         }.generateKey()

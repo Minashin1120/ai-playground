@@ -17,7 +17,7 @@ class AppUpdateDownloaderTest {
             val apk = "test apk bytes".toByteArray()
             val checksum = sha256(apk)
             server.enqueue(MockResponse.Builder().body("$checksum  app-release.apk\n").build())
-            server.enqueue(MockResponse.Builder().body(apk).build())
+            server.enqueue(MockResponse.Builder().body(apk.decodeToString()).build())
             val baseUrl = server.url("/").toString()
             val update = AppUpdate(
                 versionName = "1.13.15",

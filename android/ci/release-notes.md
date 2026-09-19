@@ -1,5 +1,9 @@
 # AI Playground for Android
 
+## 1.13.17
+
+- Android更新処理のテスト互換性を修正しました。
+
 ## 1.13.16
 
 - Androidの標準インストーラーへ更新APKを正しく渡せるよう修正しました。

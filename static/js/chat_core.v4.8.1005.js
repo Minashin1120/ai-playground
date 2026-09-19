@@ -4845,6 +4845,10 @@
         function bindMinimalOptionsEvents() {
             const backdrop = get('minimal-options-backdrop');
             const closeBtn = get('minimal-options-close-btn');
+            // Portal the fixed popup before it can receive pointer input.  A
+            // transformed composer would otherwise change its containing block.
+            const popup = get('minimal-options-popup');
+            if (popup && popup.parentNode !== document.body) document.body.appendChild(popup);
             if (backdrop) backdrop.addEventListener('click', () => closeMinimalOptions());
             if (closeBtn) closeBtn.addEventListener('click', () => closeMinimalOptions());
             document.addEventListener('keydown', (e) => {

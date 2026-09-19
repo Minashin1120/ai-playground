@@ -487,25 +487,41 @@ private fun ThreadPanel(
             }
         }
         HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f), modifier = Modifier.padding(vertical = 6.dp))
-        SidebarAction(Icons.Rounded.HelpOutline, "ヘルプ", { onWeb("/help"); onNavigate() })
-        SidebarAction(Icons.Rounded.History, "更新履歴", { onWeb("/changelog"); onNavigate() })
-        SidebarAction(Icons.Rounded.Logout, "この端末からログアウト", onLogout, danger = true)
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SidebarFooterLink("ヘルプ") { onWeb("/help"); onNavigate() }
+            Text("·", color = colors.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+            SidebarFooterLink("更新履歴") { onWeb("/changelog"); onNavigate() }
+        }
+        Button(
+            onClick = onLogout,
+            modifier = Modifier.fillMaxWidth().height(40.dp),
+            shape = RoundedCornerShape(10.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = colors.surfaceContainerHigh,
+                contentColor = colors.onSurface,
+            ),
+        ) {
+            Text("ログアウト", style = MaterialTheme.typography.labelLarge)
+        }
         Spacer(Modifier.navigationBarsPadding())
     }
 }
 
 @Composable
-private fun SidebarAction(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+private fun SidebarFooterLink(
     label: String,
     onClick: () -> Unit,
-    danger: Boolean = false,
 ) {
-    val tint = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-    TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp), shape = RoundedCornerShape(10.dp), contentPadding = PaddingValues(horizontal = 10.dp)) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(19.dp))
-        Text(label, modifier = Modifier.padding(start = 11.dp).weight(1f), color = tint, textAlign = androidx.compose.ui.text.style.TextAlign.Start, style = MaterialTheme.typography.bodyMedium)
-    }
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier.height(32.dp),
+        contentPadding = PaddingValues(horizontal = 6.dp),
+    ) { Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall) }
 }
 
 @Composable

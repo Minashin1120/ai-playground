@@ -422,8 +422,8 @@ fun SettingsDialog(
         val label = if (category == CacheCategory.CHAT_HISTORY) "チャット履歴" else "ファイル"
         AlertDialog(
             onDismissRequest = { confirmCacheCategory = null },
-            title = { Text("$labelキャッシュを削除") },
-            text = { Text("端末に保存された$labelキャッシュだけを削除します。サーバー上のデータは削除されません。") },
+            title = { Text("${label}キャッシュを削除") },
+            text = { Text("端末に保存された${label}キャッシュだけを削除します。サーバー上のデータは削除されません。") },
             confirmButton = {
                 TextButton(onClick = { model.clearOfflineCache(category); confirmCacheCategory = null }) { Text("削除") }
             },

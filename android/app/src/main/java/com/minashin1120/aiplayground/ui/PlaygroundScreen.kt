@@ -78,6 +78,7 @@ fun PlaygroundScreen(
     onCancelDownload: () -> Unit = {},
     onRetryUpdate: () -> Unit = {},
     onInstallUpdate: () -> Unit = {},
+    onCheckForUpdate: () -> Unit = {},
 ) {
     val state by model.state.collectAsStateWithLifecycle()
     PlaygroundTheme(darkTheme = state.preferences?.let { !it.lightModeEnabled } ?: isSystemInDarkTheme(),
@@ -325,7 +326,8 @@ fun PlaygroundScreen(
             }
             if (gemsOpen) GemsDialog(state, model, onDismiss = { gemsOpen = false })
             if (settingsOpen) SettingsDialog(state, model, onDismiss = { settingsOpen = false },
-                onLogout = { model.logout(); settingsOpen = false; closeDrawer() }, onWeb = onWeb)
+                onLogout = { model.logout(); settingsOpen = false; closeDrawer() }, onWeb = onWeb,
+                appUpdate = appUpdate ?: AppUpdateUiState(), onCheckForUpdate = onCheckForUpdate)
             if (advancedOpen) AdvancedToolsDialog(state, model, onDismiss = { advancedOpen = false }, onWebPath = onWeb,
                 onRealtime = {
                     advancedOpen = false

@@ -15,6 +15,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.minashin1120.aiplayground.AppUpdatePhase
+import com.minashin1120.aiplayground.AppUpdateUiState
+import com.minashin1120.aiplayground.BuildConfig
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.data.CompressionSettings
@@ -39,6 +42,8 @@ fun SettingsDialog(
     onDismiss: () -> Unit,
     onLogout: () -> Unit,
     onWeb: (String) -> Unit,
+    appUpdate: AppUpdateUiState = AppUpdateUiState(),
+    onCheckForUpdate: () -> Unit = {},
 ) {
     val prefs = state.preferences
     var search by remember { mutableStateOf("") }
@@ -97,7 +102,7 @@ fun SettingsDialog(
         query.isBlank() || haystacks.any { it.contains(query, ignoreCase = true) }
     val visibleTabs = SETTINGS_TABS.filter { tabName ->
         query.isBlank() || tabName.contains(query, ignoreCase = true) || when (tabName) {
-            "一般" -> matches("Enter", "モデル", "Thinking", "Search", "URLs", "Maps", "Python", "File", "SysPrompt", "MCP", "音声", "STT", "一時チャット", "プロンプトバー")
+            "一般" -> matches("Enter", "モデル", "Thinking", "Search", "URLs", "Maps", "Python", "File", "SysPrompt", "MCP", "音声", "STT", "一時チャット", "プロンプトバー", "アプリ更新", "更新")
             "APIキー" -> matches("API", "キー", "OpenAI", "Gemini", "xAI")
             "プロンプト" -> matches("システムプロンプト", "全体", "ユーザー")
             "表示" -> matches("テーマ", "ライト", "Liquid", "色")
@@ -163,6 +168,26 @@ fun SettingsDialog(
                     ChoiceRow("STTモデル", sttModel, STT_MODELS) { sttModel = it }
                     Text("STT APIはWebの録音経路で使います。この端末のマイクボタンはOSの音声認識です。",
                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("アプリ更新", fontWeight = FontWeight.SemiBold)
+                    Text("現在のバージョン: ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall)
+                    when (appUpdate.phase) {
+                        AppUpdatePhase.Checking -> Text("更新を確認中…", style = MaterialTheme.typography.bodySmall)
+                        AppUpdatePhase.UpToDate -> Text("最新のAndroid版を使用しています。", style = MaterialTheme.typography.bodySmall)
+                        AppUpdatePhase.Available -> appUpdate.update?.let { update ->
+                            Text("Android版 ${update.versionName} が利用できます。", style = MaterialTheme.typography.bodySmall)
+                        }
+                        AppUpdatePhase.Error -> Text(appUpdate.errorMessage ?: "更新を確認できませんでした。", style = MaterialTheme.typography.bodySmall)
+                        else -> Unit
+                    }
+                    TextButton(
+                        onClick = onCheckForUpdate,
+                        enabled = appUpdate.phase != AppUpdatePhase.Checking &&
+                            appUpdate.phase != AppUpdatePhase.Downloading &&
+                            appUpdate.phase != AppUpdatePhase.Ready &&
+                            appUpdate.phase != AppUpdatePhase.AwaitingInstallPermission &&
+                            appUpdate.phase != AppUpdatePhase.Installing,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(if (appUpdate.phase == AppUpdatePhase.Checking) "確認中…" else "更新を確認") }
                 }
                 if (tab == "APIキー" && tab in visibleTabs) {
                     Text("APIキーは端末へ渡しません。認証済みブラウザーの設定画面で登録・変更します。",

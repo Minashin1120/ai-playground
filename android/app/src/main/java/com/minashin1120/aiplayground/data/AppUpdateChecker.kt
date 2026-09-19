@@ -16,6 +16,12 @@ data class AppUpdate(
     val apkSizeBytes: Long?,
 )
 
+sealed interface AppUpdateCheckResult {
+    data class Available(val update: AppUpdate) : AppUpdateCheckResult
+    object UpToDate : AppUpdateCheckResult
+    data class Failed(val message: String) : AppUpdateCheckResult
+}
+
 private data class AppVersion(val major: Int, val minor: Int, val patch: Int) : Comparable<AppVersion> {
     override fun compareTo(other: AppVersion): Int = compareValuesBy(this, other, AppVersion::major, AppVersion::minor, AppVersion::patch)
 }
@@ -83,7 +89,7 @@ class AppUpdateChecker(
 ) {
     private var call: Call? = null
 
-    fun check(currentVersion: String, onResult: (AppUpdate?) -> Unit) {
+    fun check(currentVersion: String, onResult: (AppUpdateCheckResult) -> Unit) {
         call?.cancel()
         val request = Request.Builder()
             .url(RELEASES_API_URL)
@@ -95,17 +101,24 @@ class AppUpdateChecker(
         call = client.newCall(request).also { pending ->
             pending.enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    if (!call.isCanceled()) onResult(null)
+                    if (!call.isCanceled()) onResult(AppUpdateCheckResult.Failed("更新情報を取得できませんでした。通信状態を確認してください。"))
                 }
 
                 override fun onResponse(call: Call, response: Response) {
-                    val update = runCatching {
+                    val result = runCatching {
                         response.use {
-                            if (!it.isSuccessful) null
-                            else latestAndroidUpdateFromJson(readBoundedUtf8(it.body.byteStream(), 2 * 1024 * 1024), currentVersion)
+                            if (!it.isSuccessful) {
+                                AppUpdateCheckResult.Failed("更新情報を取得できませんでした（HTTP ${it.code}）。")
+                            } else {
+                                val update = latestAndroidUpdateFromJson(
+                                    readBoundedUtf8(it.body.byteStream(), 2 * 1024 * 1024),
+                                    currentVersion,
+                                )
+                                update?.let(AppUpdateCheckResult::Available) ?: AppUpdateCheckResult.UpToDate
+                            }
                         }
-                    }.getOrNull()
-                    if (!call.isCanceled()) onResult(update)
+                    }.getOrElse { AppUpdateCheckResult.Failed("更新情報を解釈できませんでした。") }
+                    if (!call.isCanceled()) onResult(result)
                 }
             })
         }

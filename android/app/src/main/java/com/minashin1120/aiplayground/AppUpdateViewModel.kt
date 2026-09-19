@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.minashin1120.aiplayground.data.AppUpdate
 import com.minashin1120.aiplayground.data.AppUpdateChecker
+import com.minashin1120.aiplayground.data.AppUpdateCheckResult
 import com.minashin1120.aiplayground.data.AppUpdateDownloadProgress
 import com.minashin1120.aiplayground.data.AppUpdateDownloader
 import kotlinx.coroutines.CancellationException
@@ -17,6 +18,7 @@ import java.io.File
 
 enum class AppUpdatePhase {
     Checking,
+    UpToDate,
     Available,
     Downloading,
     Ready,
@@ -42,10 +44,24 @@ class AppUpdateViewModel(application: Application) : AndroidViewModel(applicatio
     private var downloadJob: Job? = null
 
     fun check(currentVersion: String) {
-        checker.check(currentVersion) { update ->
+        mutable.update { AppUpdateUiState(phase = AppUpdatePhase.Checking) }
+        checker.check(currentVersion) { result ->
             mutable.update {
-                if (update == null) AppUpdateUiState(phase = AppUpdatePhase.Error, errorMessage = null)
-                else it.copy(update = update, phase = AppUpdatePhase.Available, errorMessage = null)
+                when (result) {
+                    is AppUpdateCheckResult.Available -> it.copy(
+                        update = result.update,
+                        phase = AppUpdatePhase.Available,
+                        downloadedBytes = 0L,
+                        totalBytes = result.update.apkSizeBytes,
+                        readyFile = null,
+                        errorMessage = null,
+                    )
+                    AppUpdateCheckResult.UpToDate -> AppUpdateUiState(phase = AppUpdatePhase.UpToDate)
+                    is AppUpdateCheckResult.Failed -> AppUpdateUiState(
+                        phase = AppUpdatePhase.Error,
+                        errorMessage = result.message,
+                    )
+                }
             }
         }
     }

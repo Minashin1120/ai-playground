@@ -38,6 +38,7 @@ fun AppUpdateDialog(
                     AppUpdatePhase.AwaitingInstallPermission -> "インストール許可が必要です"
                     AppUpdatePhase.Installing -> "Android版を更新しています"
                     AppUpdatePhase.Error -> "Android版を更新できません"
+                    AppUpdatePhase.UpToDate -> "Android版は最新です"
                     else -> "新しいAndroid版があります"
                 }
             )
@@ -56,6 +57,7 @@ fun AppUpdateDialog(
                     AppUpdatePhase.AwaitingInstallPermission -> Text("Android設定で「このアプリからのインストール」を許可してください。戻るとインストールを続けます。")
                     AppUpdatePhase.Installing -> Text("Androidの確認画面が表示されます。画面を閉じた場合は、もう一度インストールを選べます。")
                     AppUpdatePhase.Error -> Text(state.errorMessage ?: "通信状態を確認して、もう一度お試しください。")
+                    AppUpdatePhase.UpToDate -> Unit
                     AppUpdatePhase.Checking -> Unit
                 }
             }
@@ -68,6 +70,7 @@ fun AppUpdateDialog(
                 AppUpdatePhase.AwaitingInstallPermission -> TextButton(onClick = onInstall) { Text("設定を開く") }
                 AppUpdatePhase.Installing -> Unit
                 AppUpdatePhase.Error -> TextButton(onClick = onRetry) { Text("再試行") }
+                AppUpdatePhase.UpToDate -> Unit
                 AppUpdatePhase.Checking -> Unit
             }
         },

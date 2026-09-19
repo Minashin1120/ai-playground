@@ -36,6 +36,7 @@ class MainActivity : ComponentActivity() {
                 onCancelDownload = updateModel::cancelDownload,
                 onRetryUpdate = updateModel::retryDownload,
                 onInstallUpdate = ::installUpdate,
+                onCheckForUpdate = { updateModel.check(BuildConfig.VERSION_NAME) },
                 onWeb = { path ->
                 val safePath = path.takeIf { it.startsWith('/') && !it.startsWith("//") } ?: "/"
                 val url = BuildConfig.BASE_URL.trimEnd('/') + safePath

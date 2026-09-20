@@ -27,6 +27,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        handleBubbleIntent(intent)
         setContent {
             val updateState = updateModel.state.collectAsStateWithLifecycle().value
             val changelogState = changelogModel.state.collectAsStateWithLifecycle().value
@@ -41,6 +42,7 @@ class MainActivity : ComponentActivity() {
                 onCheckForUpdate = { updateModel.check(BuildConfig.VERSION_NAME) },
                 onOpenChangelog = changelogModel::load,
                 onRetryChangelog = changelogModel::load,
+                onOpenBubble = { createChatBubble(this, model.state.value.selected) },
                 onWeb = { path ->
                 val safePath = path.takeIf { it.startsWith('/') && !it.startsWith("//") } ?: "/"
                 val url = BuildConfig.BASE_URL.trimEnd('/') + safePath
@@ -55,6 +57,19 @@ class MainActivity : ComponentActivity() {
                 }
             })
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleBubbleIntent(intent)
+    }
+
+    private fun handleBubbleIntent(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW || !intent.hasExtra(EXTRA_BUBBLE_THREAD_ID)) return
+        val threadId = intent.getStringExtra(EXTRA_BUBBLE_THREAD_ID)
+        intent.removeExtra(EXTRA_BUBBLE_THREAD_ID)
+        model.openBubbleTarget(threadId)
     }
 
     private fun installUpdate() {

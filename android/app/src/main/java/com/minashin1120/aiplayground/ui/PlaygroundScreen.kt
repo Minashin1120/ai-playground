@@ -85,6 +85,7 @@ fun PlaygroundScreen(
     onCheckForUpdate: () -> Unit = {},
     onOpenChangelog: () -> Unit = {},
     onRetryChangelog: () -> Unit = {},
+    onOpenBubble: () -> Unit = {},
 ) {
     val state by model.state.collectAsStateWithLifecycle()
     PlaygroundTheme(darkTheme = state.preferences?.let { !it.lightModeEnabled } ?: isSystemInDarkTheme(),
@@ -130,7 +131,22 @@ fun PlaygroundScreen(
             var maskOpen by remember { mutableStateOf(false) }
             var maskSource by remember { mutableStateOf<Uri?>(null) }
             var cameraUri by remember { mutableStateOf<Uri?>(null) }
-            val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+            var bubbleAfterNotificationPermission by remember { mutableStateOf(false) }
+            val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                if (bubbleAfterNotificationPermission) {
+                    bubbleAfterNotificationPermission = false
+                    if (granted) onOpenBubble() else model.notify("バブルを使うには通知権限が必要です。")
+                }
+            }
+            val openBubble: () -> Unit = {
+                if (Build.VERSION.SDK_INT >= 33 &&
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    bubbleAfterNotificationPermission = true
+                    notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    onOpenBubble()
+                }
+            }
             val microphone = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
                 if (awaitingMic) {
                     awaitingMic = false
@@ -302,7 +318,7 @@ fun PlaygroundScreen(
             if (showThreads && wide) {
                 Row(Modifier.fillMaxSize()) {
                     Surface(Modifier.width(PlaygroundDimens.sidePane).fillMaxHeight(), color = colors.surface.copy(alpha = 0.94f)) {
-                        ThreadPanel(state, model, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {}, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true }, onPdf = sharePdf, onWeb = onWeb, onChangelog = { changelogOpen = true; onOpenChangelog() })
+                        ThreadPanel(state, model, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {}, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true }, onPdf = sharePdf, onBubble = openBubble, onWeb = onWeb, onChangelog = { changelogOpen = true; onOpenChangelog() })
                     }
                     VerticalDivider()
                     Box(Modifier.weight(1f)) { content() }
@@ -312,7 +328,7 @@ fun PlaygroundScreen(
                     drawerContent = {
                         ModalDrawerSheet(Modifier.width(PlaygroundDimens.drawerPane), drawerContainerColor = colors.surface) {
                             if (showThreads) {
-                                ThreadPanel(state, model, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true }, onPdf = sharePdf, onWeb = { path -> onWeb(path); closeDrawer() }, onChangelog = { changelogOpen = true; onOpenChangelog(); closeDrawer() })
+                                ThreadPanel(state, model, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true }, onPdf = sharePdf, onBubble = { openBubble(); closeDrawer() }, onWeb = { path -> onWeb(path); closeDrawer() }, onChangelog = { changelogOpen = true; onOpenChangelog(); closeDrawer() })
                             }
                         }
                     }) { content() }
@@ -453,6 +469,7 @@ private fun ThreadPanel(
     onSettings: () -> Unit,
     onAdvanced: () -> Unit,
     onPdf: () -> Unit,
+    onBubble: () -> Unit,
     onWeb: (String) -> Unit,
     onChangelog: () -> Unit,
 ) {
@@ -467,6 +484,10 @@ private fun ThreadPanel(
             IconButton(onClick = { onPdf(); onNavigate() }, enabled = state.selected != null && !state.offline && !state.busy && !state.streaming) { Icon(Icons.Rounded.PictureAsPdf, "PDFを共有") }
             IconButton(onClick = { onAdvanced(); onNavigate() }) { Icon(Icons.Rounded.Layers, "Batch処理・高度な機能", modifier = Modifier.size(20.dp)) }
             IconButton(onClick = model::refresh, enabled = !state.busy && !state.streaming) { Icon(Icons.Rounded.Refresh, "更新", modifier = Modifier.size(20.dp)) }
+        }
+        TextButton(onClick = onBubble, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Rounded.ChatBubble, contentDescription = null, modifier = Modifier.size(18.dp))
+            Text("バブルで開く", modifier = Modifier.padding(start = 6.dp))
         }
         OutlinedTextField(
             state.search, model::search, singleLine = true, placeholder = { Text("チャットを検索...", style = MaterialTheme.typography.bodySmall) },

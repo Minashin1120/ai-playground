@@ -21,6 +21,7 @@ import com.minashin1120.aiplayground.data.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -924,6 +925,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         openThread(item)
     }
 
+    fun openBubbleTarget(id: String?) {
+        viewModelScope.launch {
+            state.first { !it.starting }
+            if (state.value.account == null) return@launch
+            val threadId = bubbleThreadId(id)
+            if (threadId == null) newChat() else openThreadId(threadId)
+        }
+    }
+
     // --- Native realtime audio sessions ---
 
     fun startRealtime(
@@ -1117,6 +1127,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         realtimeTrack?.let { track -> runCatching { track.stop(); track.release() } }; realtimeTrack = null
         lyriaTrack?.let { track -> runCatching { track.stop(); track.release() } }; lyriaTrack = null
         withContext(NonCancellable + Dispatchers.IO) { store.clear() }
+        cancelChatBubble(getApplication())
         session = null; failed = null
         mutable.value = ChatState(
             starting = false,

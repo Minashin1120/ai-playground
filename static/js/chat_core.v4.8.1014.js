@@ -4554,6 +4554,12 @@
             const chk = get(item.checkboxId);
             return !!chk && chk.checked;
         }
+        function currentThinkingLevelLabel() {
+            const sel = get('thinking-level');
+            if (!sel) return THINKING_LEVELS[3].label;
+            const level = THINKING_LEVELS.find((item) => item.value === sel.value);
+            return level ? level.label : (sel.selectedOptions[0] ? sel.selectedOptions[0].textContent.trim() : THINKING_LEVELS[3].label);
+        }
 
         function buildMinimalOptionItem(item) {
             const row = document.createElement('div');
@@ -4570,6 +4576,12 @@
             label.className = 'minimal-option-label';
             label.textContent = item.label;
             row.appendChild(label);
+            if (item.special === 'thinking') {
+                const level = document.createElement('span');
+                level.className = 'thinking-slide-value minimal-option-thinking-level';
+                level.textContent = currentThinkingLevelLabel();
+                row.appendChild(level);
+            }
             if (item.selectId) {
                 const src = get(item.selectId);
                 if (src) {
@@ -4629,6 +4641,10 @@
                 row.classList.toggle('on', minimalOptionChecked(item));
                 row.classList.toggle('off', !minimalOptionChecked(item));
                 row.classList.toggle('disabled', minimalOptionDisabled(item));
+                if (item.special === 'thinking') {
+                    const level = row.querySelector('.minimal-option-thinking-level');
+                    if (level) level.textContent = currentThinkingLevelLabel();
+                }
                 if (item.selectId) {
                     const src = get(item.selectId);
                     const clone = row.querySelector('.minimal-option-select');

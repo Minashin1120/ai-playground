@@ -1481,49 +1481,54 @@ return!!(t&&t.classList.contains("pointer-events-none"))}if(e.checkboxId){const 
 if(t&&t.disabled)return!0}if(e.containerId){const t=get(e.containerId);if(t&&t.classList.contains("p\
 ointer-events-none"))return!0}return!1}a(minimalOptionDisabled,"minimalOptionDisabled");function minimalOptionChecked(e){
 if(!e.checkboxId)return!1;const t=get(e.checkboxId);return!!t&&t.checked}a(minimalOptionChecked,"min\
-imalOptionChecked");function buildMinimalOptionItem(e){const t=document.createElement("div");t.className=
-"minimal-option-item",t.dataset.key=e.key,e.action&&t.classList.add("action-"+e.action),minimalOptionChecked(
-e)?t.classList.add("on"):t.classList.add("off"),minimalOptionDisabled(e)&&t.classList.add("disabled");
-const n=document.createElement("i");n.className="fas "+e.icon+" minimal-option-icon",t.appendChild(n);
-const i=document.createElement("span");if(i.className="minimal-option-label",i.textContent=e.label,t.
-appendChild(i),e.selectId){const s=get(e.selectId);if(s){const o=s.cloneNode(!0);o.removeAttribute("\
-id"),o.className="minimal-option-select",o.addEventListener("change",()=>{s.value=o.value,s.dispatchEvent(
-new Event("change",{bubbles:!0})),refreshMinimalOptionItems()}),t.appendChild(o)}}if(e.gear){const s=document.
-createElement("button");s.type="button",s.className="minimal-option-gear",s.title=e.label+"\u8A2D\u5B9A";
-const o=document.createElement("i");o.className="fas fa-cog",s.appendChild(o),s.addEventListener("cl\
-ick",r=>{r.stopPropagation(),closeMinimalOptions(),typeof e.gearAction=="function"&&e.gearAction()}),
-t.appendChild(s)}return t.addEventListener("click",()=>handleMinimalOptionClick(e)),t}a(buildMinimalOptionItem,
-"buildMinimalOptionItem");function renderMinimalOptionItems(){const e=get("minimal-options-items");if(!e)
-return;const t=document.createDocumentFragment();MINIMAL_POPUP_ITEMS.forEach(n=>{minimalOptionVisible(
-n)&&t.appendChild(buildMinimalOptionItem(n))}),e.innerHTML="",e.appendChild(t)}a(renderMinimalOptionItems,
-"renderMinimalOptionItems");function refreshMinimalOptionItems(){const e=get("minimal-options-items");
-if(!e||!minimalOptionsOpen)return;const t=e.querySelectorAll(".minimal-option-item"),n={};t.forEach(
-i=>{n[i.dataset.key]=i}),MINIMAL_POPUP_ITEMS.forEach(i=>{const s=n[i.key];if(s){if(!minimalOptionVisible(
-i)){s.classList.add("hidden");return}if(s.classList.remove("hidden"),s.classList.toggle("on",minimalOptionChecked(
-i)),s.classList.toggle("off",!minimalOptionChecked(i)),s.classList.toggle("disabled",minimalOptionDisabled(
-i)),i.selectId){const o=get(i.selectId),r=s.querySelector(".minimal-option-select");o&&r&&document.activeElement!==
-r&&r.value!==o.value&&(r.value=o.value)}}})}a(refreshMinimalOptionItems,"refreshMinimalOptionItems");
-function handleMinimalOptionClick(e){if(e.action==="upload"){closeMinimalOptions(),openUploadModal();
-return}if(e.action==="button"){const n=get(e.buttonId);closeMinimalOptions(),n&&n.click();return}if(e.
-special==="thinking"){const n=get(e.checkboxId);if(n&&!n.disabled){const i=!n.checked;n.checked=i,n.
-dispatchEvent(new Event("change",{bubbles:!0})),i?(closeMinimalOptions(),showThinkingSlider()):hideThinkingSlider(),
-refreshMinimalOptionItems()}else closeMinimalOptions(),showThinkingSlider();return}if(minimalOptionDisabled(
-e)||e.selectId)return;const t=get(e.checkboxId);t&&(t.disabled||(t.checked=!t.checked,t.dispatchEvent(
-new Event("change",{bubbles:!0})),refreshMinimalOptionItems(),e.key==="fast"?(closeMinimalOptions(),
-setTimeout(()=>refreshMinimalOptionItems(),350)):e.key==="tempchat"&&setTimeout(()=>refreshMinimalOptionItems(),
-350)))}a(handleMinimalOptionClick,"handleMinimalOptionClick");function moveModelPanelsIntoPopup(){const e=get(
-"minimal-options-model-body");if(!e)return;let t=!1;MINIMAL_MODEL_PANEL_IDS.forEach(n=>{const i=get(
-n);if(i){if(i.parentElement===e){i.classList.contains("hidden")||(t=!0);return}minimalPanelOrigins.has(
-i)||(minimalPanelOrigins.set(i,{parent:i.parentElement,next:i.nextSibling}),e.appendChild(i),i.classList.
-contains("hidden")||(t=!0))}}),refreshMinimalModelSection()}a(moveModelPanelsIntoPopup,"moveModelPan\
-elsIntoPopup");function restoreModelPanelsFromPopup(){get("minimal-options-model-body")&&(minimalPanelOrigins.
-forEach((t,n)=>{t.parent&&t.parent.contains(n)&&(t.next&&t.next.parentNode===t.parent?t.parent.insertBefore(
-n,t.next):t.parent.appendChild(n))}),minimalPanelOrigins.clear())}a(restoreModelPanelsFromPopup,"res\
-toreModelPanelsFromPopup");function refreshMinimalModelSection(){const e=get("minimal-options-model-\
-body"),t=get("minimal-options-model-section");if(!e||!t)return;let n=!1;Array.from(e.children).forEach(
-i=>{i.classList.contains("hidden")||(n=!0)}),t.classList.toggle("hidden",!n)}a(refreshMinimalModelSection,
-"refreshMinimalModelSection");function openMinimalOptions(){if(minimalOptionsOpen||!minimalPromptMode)
-return;hideThinkingSlider(),minimalOptionsOpen=!0,renderMinimalOptionItems(),moveModelPanelsIntoPopup();
+imalOptionChecked");function currentThinkingLevelLabel(){const e=get("thinking-level");if(!e)return THINKING_LEVELS[3].
+label;const t=THINKING_LEVELS.find(n=>n.value===e.value);return t?t.label:e.selectedOptions[0]?e.selectedOptions[0].
+textContent.trim():THINKING_LEVELS[3].label}a(currentThinkingLevelLabel,"currentThinkingLevelLabel");
+function buildMinimalOptionItem(e){const t=document.createElement("div");t.className="minimal-option\
+-item",t.dataset.key=e.key,e.action&&t.classList.add("action-"+e.action),minimalOptionChecked(e)?t.classList.
+add("on"):t.classList.add("off"),minimalOptionDisabled(e)&&t.classList.add("disabled");const n=document.
+createElement("i");n.className="fas "+e.icon+" minimal-option-icon",t.appendChild(n);const i=document.
+createElement("span");if(i.className="minimal-option-label",i.textContent=e.label,t.appendChild(i),e.
+special==="thinking"){const s=document.createElement("span");s.className="thinking-slide-value minim\
+al-option-thinking-level",s.textContent=currentThinkingLevelLabel(),t.appendChild(s)}if(e.selectId){
+const s=get(e.selectId);if(s){const o=s.cloneNode(!0);o.removeAttribute("id"),o.className="minimal-o\
+ption-select",o.addEventListener("change",()=>{s.value=o.value,s.dispatchEvent(new Event("change",{bubbles:!0})),
+refreshMinimalOptionItems()}),t.appendChild(o)}}if(e.gear){const s=document.createElement("button");
+s.type="button",s.className="minimal-option-gear",s.title=e.label+"\u8A2D\u5B9A";const o=document.createElement(
+"i");o.className="fas fa-cog",s.appendChild(o),s.addEventListener("click",r=>{r.stopPropagation(),closeMinimalOptions(),
+typeof e.gearAction=="function"&&e.gearAction()}),t.appendChild(s)}return t.addEventListener("click",
+()=>handleMinimalOptionClick(e)),t}a(buildMinimalOptionItem,"buildMinimalOptionItem");function renderMinimalOptionItems(){
+const e=get("minimal-options-items");if(!e)return;const t=document.createDocumentFragment();MINIMAL_POPUP_ITEMS.
+forEach(n=>{minimalOptionVisible(n)&&t.appendChild(buildMinimalOptionItem(n))}),e.innerHTML="",e.appendChild(
+t)}a(renderMinimalOptionItems,"renderMinimalOptionItems");function refreshMinimalOptionItems(){const e=get(
+"minimal-options-items");if(!e||!minimalOptionsOpen)return;const t=e.querySelectorAll(".minimal-opti\
+on-item"),n={};t.forEach(i=>{n[i.dataset.key]=i}),MINIMAL_POPUP_ITEMS.forEach(i=>{const s=n[i.key];if(s){
+if(!minimalOptionVisible(i)){s.classList.add("hidden");return}if(s.classList.remove("hidden"),s.classList.
+toggle("on",minimalOptionChecked(i)),s.classList.toggle("off",!minimalOptionChecked(i)),s.classList.
+toggle("disabled",minimalOptionDisabled(i)),i.special==="thinking"){const o=s.querySelector(".minima\
+l-option-thinking-level");o&&(o.textContent=currentThinkingLevelLabel())}if(i.selectId){const o=get(
+i.selectId),r=s.querySelector(".minimal-option-select");o&&r&&document.activeElement!==r&&r.value!==
+o.value&&(r.value=o.value)}}})}a(refreshMinimalOptionItems,"refreshMinimalOptionItems");function handleMinimalOptionClick(e){
+if(e.action==="upload"){closeMinimalOptions(),openUploadModal();return}if(e.action==="button"){const n=get(
+e.buttonId);closeMinimalOptions(),n&&n.click();return}if(e.special==="thinking"){const n=get(e.checkboxId);
+if(n&&!n.disabled){const i=!n.checked;n.checked=i,n.dispatchEvent(new Event("change",{bubbles:!0})),
+i?(closeMinimalOptions(),showThinkingSlider()):hideThinkingSlider(),refreshMinimalOptionItems()}else
+closeMinimalOptions(),showThinkingSlider();return}if(minimalOptionDisabled(e)||e.selectId)return;const t=get(
+e.checkboxId);t&&(t.disabled||(t.checked=!t.checked,t.dispatchEvent(new Event("change",{bubbles:!0})),
+refreshMinimalOptionItems(),e.key==="fast"?(closeMinimalOptions(),setTimeout(()=>refreshMinimalOptionItems(),
+350)):e.key==="tempchat"&&setTimeout(()=>refreshMinimalOptionItems(),350)))}a(handleMinimalOptionClick,
+"handleMinimalOptionClick");function moveModelPanelsIntoPopup(){const e=get("minimal-options-model-b\
+ody");if(!e)return;let t=!1;MINIMAL_MODEL_PANEL_IDS.forEach(n=>{const i=get(n);if(i){if(i.parentElement===
+e){i.classList.contains("hidden")||(t=!0);return}minimalPanelOrigins.has(i)||(minimalPanelOrigins.set(
+i,{parent:i.parentElement,next:i.nextSibling}),e.appendChild(i),i.classList.contains("hidden")||(t=!0))}}),
+refreshMinimalModelSection()}a(moveModelPanelsIntoPopup,"moveModelPanelsIntoPopup");function restoreModelPanelsFromPopup(){
+get("minimal-options-model-body")&&(minimalPanelOrigins.forEach((t,n)=>{t.parent&&t.parent.contains(
+n)&&(t.next&&t.next.parentNode===t.parent?t.parent.insertBefore(n,t.next):t.parent.appendChild(n))}),
+minimalPanelOrigins.clear())}a(restoreModelPanelsFromPopup,"restoreModelPanelsFromPopup");function refreshMinimalModelSection(){
+const e=get("minimal-options-model-body"),t=get("minimal-options-model-section");if(!e||!t)return;let n=!1;
+Array.from(e.children).forEach(i=>{i.classList.contains("hidden")||(n=!0)}),t.classList.toggle("hidd\
+en",!n)}a(refreshMinimalModelSection,"refreshMinimalModelSection");function openMinimalOptions(){if(minimalOptionsOpen||
+!minimalPromptMode)return;hideThinkingSlider(),minimalOptionsOpen=!0,renderMinimalOptionItems(),moveModelPanelsIntoPopup();
 const e=get("minimal-options-popup");if(!e)return;const t=get("minimal-options-panel");t&&(t.style.cssText=
 ""),e.classList.remove("minimal-options-closing","minimal-options-open"),e.classList.remove("hidden"),
 e.setAttribute("aria-hidden","false"),e.offsetWidth,e.classList.add("minimal-options-open")}a(openMinimalOptions,

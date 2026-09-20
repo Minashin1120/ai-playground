@@ -796,20 +796,18 @@ private fun Conversation(
             items(state.messages, key = { it.id }) { message ->
                 val siblings = siblingGroup(state.allMessages, message)
                 val index = siblings.indexOfFirst { it.id == message.id }
-                AnimatedVisibility(
-                    visible = true,
-                    enter = if (animationsEnabled) {
-                        fadeIn(animationSpec = tween(380)) +
-                            slideInVertically(animationSpec = tween(380), initialOffsetY = { it / 20 })
-                    } else EnterTransition.None,
-                ) {
-                    MessageCard(message, onFile, model::quoteMessage, loader,
-                        onEdit = { model.beginEdit(it) },
-                        onRegenerate = { model.regenerate(it) },
-                        branchIndex = if (index < 0) 0 else index,
-                        branchCount = if (numericId(message) != null) siblings.size else 0,
-                        onSwitchBranch = { target -> model.switchBranchByIndex(siblings, target) })
-                }
+                AnimatedMessageCard(
+                    message = message,
+                    onFile = onFile,
+                    onQuote = model::quoteMessage,
+                    loader = loader,
+                    onEdit = { model.beginEdit(it) },
+                    onRegenerate = { model.regenerate(it) },
+                    branchIndex = if (index < 0) 0 else index,
+                    branchCount = if (numericId(message) != null) siblings.size else 0,
+                    onSwitchBranch = { target -> model.switchBranchByIndex(siblings, target) },
+                    animationsEnabled = animationsEnabled,
+                )
             }
                 if (live) item(key = "live") { LiveMessage(state, onFile, model::quoteMessage, loader, model::resolveMcpDecision) }
             }
@@ -829,6 +827,40 @@ private fun Conversation(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AnimatedMessageCard(
+    message: ChatMessage,
+    onFile: (String) -> Unit,
+    onQuote: (String) -> Unit,
+    loader: FileBytesLoader?,
+    onEdit: (ChatMessage) -> Unit,
+    onRegenerate: (ChatMessage) -> Unit,
+    branchIndex: Int,
+    branchCount: Int,
+    onSwitchBranch: (Int) -> Unit,
+    animationsEnabled: Boolean,
+) {
+    AnimatedVisibility(
+        visible = true,
+        enter = if (animationsEnabled) {
+            fadeIn(animationSpec = tween(380)) +
+                slideInVertically(animationSpec = tween(380), initialOffsetY = { it / 20 })
+        } else EnterTransition.None,
+    ) {
+        MessageCard(
+            message = message,
+            onFile = onFile,
+            onQuote = onQuote,
+            loader = loader,
+            onEdit = onEdit,
+            onRegenerate = onRegenerate,
+            branchIndex = branchIndex,
+            branchCount = branchCount,
+            onSwitchBranch = onSwitchBranch,
+        )
     }
 }
 

@@ -1,5 +1,11 @@
 package com.minashin1120.aiplayground.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -242,9 +248,15 @@ private fun CodeBlock(block: MarkdownBlock.Code) {
                     TextButton(onClick = { clipboard.setText(AnnotatedString(block.text)) }) { Text("コピー") }
                 }
             }
-            if (expanded) SelectionContainer {
-                Text(block.text, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.horizontalScroll(rememberScrollState()).padding(12.dp))
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(animationSpec = tween(340)) + fadeIn(animationSpec = tween(260)),
+                exit = shrinkVertically(animationSpec = tween(340)) + fadeOut(animationSpec = tween(260)),
+            ) {
+                SelectionContainer {
+                    Text(block.text, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.horizontalScroll(rememberScrollState()).padding(12.dp))
+                }
             }
         }
     }

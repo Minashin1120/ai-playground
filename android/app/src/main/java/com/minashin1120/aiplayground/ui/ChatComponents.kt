@@ -1,5 +1,11 @@
 package com.minashin1120.aiplayground.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -106,25 +112,31 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                     TextButton(onClick = pickModel, enabled = !state.streaming) { Text("変更") }
                 }
             }
-            if (details) selectedModel?.let { info ->
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (info.supports("thinking")) FilterChip(state.enableThinking, model::toggleThinking, { Text("Thinking") })
-                    if (info.supports("search")) FilterChip(state.enableSearch, model::toggleSearch, { Text("Web検索") })
-                    if (info.supports("url_context") || info.id.startsWith("gemini-")) FilterChip(state.enableUrlContext, model::toggleUrlContext, { Text("URLs") })
-                    if (info.supports("maps") || info.id.startsWith("gemini-3")) FilterChip(state.enableMaps, model::toggleMaps, { Text("Maps") })
-                    if (info.mode == "chat" || info.mode == "agent") FilterChip(state.enableFileCreation, model::toggleFileCreation, { Text("File") })
-                    if (info.mode == "chat" || info.mode == "agent") FilterChip(state.enableSystemPrompt, model::toggleSystemPrompt, { Text("SysPrompt") })
-                    if (info.supports("prompt_cache")) FilterChip(state.enablePromptCache, model::togglePromptCache, { Text("Prompt Cache") })
-                    if (info.supports("batch")) FilterChip(state.batchMode, model::toggleBatchMode, { Text("Batch") })
-                    if (info.supports("python")) FilterChip(state.enablePython, model::togglePython, { Text("Python") })
-                    if (info.supports("mcp")) FilterChip(state.enableMcp, model::toggleMcp, { Text("MCP") })
-                    if (info.mode == "chat" || info.mode == "agent") FilterChip(state.canvasMode, model::toggleCanvas, { Text("Canvas") })
-                    if (info.mode == "chat" || info.mode == "agent") FilterChip(state.codingMode, model::toggleCoding, { Text("Coding") })
-                    FilterChip(state.selected?.isTemporary == true || state.newThreadTemporary, model::toggleTemporaryChat, { Text("一時チャット") })
-                    FilterChip(state.compression.enabled, { model.saveCompressionSettings(state.compression.copy(enabled = !state.compression.enabled)) }, { Text("Compress") })
+            AnimatedVisibility(
+                visible = details,
+                enter = expandVertically(animationSpec = tween(340)) + fadeIn(animationSpec = tween(260)),
+                exit = shrinkVertically(animationSpec = tween(340)) + fadeOut(animationSpec = tween(260)),
+            ) {
+                selectedModel?.let { info ->
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (info.supports("thinking")) FilterChip(state.enableThinking, model::toggleThinking, { Text("Thinking") })
+                        if (info.supports("search")) FilterChip(state.enableSearch, model::toggleSearch, { Text("Web検索") })
+                        if (info.supports("url_context") || info.id.startsWith("gemini-")) FilterChip(state.enableUrlContext, model::toggleUrlContext, { Text("URLs") })
+                        if (info.supports("maps") || info.id.startsWith("gemini-3")) FilterChip(state.enableMaps, model::toggleMaps, { Text("Maps") })
+                        if (info.mode == "chat" || info.mode == "agent") FilterChip(state.enableFileCreation, model::toggleFileCreation, { Text("File") })
+                        if (info.mode == "chat" || info.mode == "agent") FilterChip(state.enableSystemPrompt, model::toggleSystemPrompt, { Text("SysPrompt") })
+                        if (info.supports("prompt_cache")) FilterChip(state.enablePromptCache, model::togglePromptCache, { Text("Prompt Cache") })
+                        if (info.supports("batch")) FilterChip(state.batchMode, model::toggleBatchMode, { Text("Batch") })
+                        if (info.supports("python")) FilterChip(state.enablePython, model::togglePython, { Text("Python") })
+                        if (info.supports("mcp")) FilterChip(state.enableMcp, model::toggleMcp, { Text("MCP") })
+                        if (info.mode == "chat" || info.mode == "agent") FilterChip(state.canvasMode, model::toggleCanvas, { Text("Canvas") })
+                        if (info.mode == "chat" || info.mode == "agent") FilterChip(state.codingMode, model::toggleCoding, { Text("Coding") })
+                        FilterChip(state.selected?.isTemporary == true || state.newThreadTemporary, model::toggleTemporaryChat, { Text("一時チャット") })
+                        FilterChip(state.compression.enabled, { model.saveCompressionSettings(state.compression.copy(enabled = !state.compression.enabled)) }, { Text("Compress") })
+                    }
+                    GenerationOptionsPanel(info, state.generationValues[info.id].orEmpty(), !state.streaming, model::generationOption)
+                    if (state.codingMode) CodingTargetPanel(state.allMessages, state.codingTarget, model)
                 }
-                GenerationOptionsPanel(info, state.generationValues[info.id].orEmpty(), !state.streaming, model::generationOption)
-                if (state.codingMode) CodingTargetPanel(state.allMessages, state.codingTarget, model)
             }
             state.selectedGem?.let { gem ->
                 InputChip(selected = true, onClick = { model.chooseGem(null) }, label = { Text("Gem: ${gem.name.take(20)} ×") })
@@ -261,7 +273,13 @@ fun MessageCard(
             }
             if (message.thought.isNotBlank()) {
                 TextButton(onClick = { thoughtExpanded = !thoughtExpanded }, colors = ButtonDefaults.textButtonColors(contentColor = if (user) colors.onPrimary else colors.primary)) { Text(if (thoughtExpanded) "思考を閉じる" else "思考を表示") }
-                if (thoughtExpanded) SelectionContainer { Text(message.thought, style = MaterialTheme.typography.bodySmall, color = if (user) colors.onPrimary.copy(alpha = 0.78f) else colors.onSurfaceVariant) }
+                AnimatedVisibility(
+                    visible = thoughtExpanded,
+                    enter = expandVertically(animationSpec = tween(340)) + fadeIn(animationSpec = tween(260)),
+                    exit = shrinkVertically(animationSpec = tween(340)) + fadeOut(animationSpec = tween(260)),
+                ) {
+                    SelectionContainer { Text(message.thought, style = MaterialTheme.typography.bodySmall, color = if (user) colors.onPrimary.copy(alpha = 0.78f) else colors.onSurfaceVariant) }
+                }
             }
             if (message.content.isNotEmpty()) MarkdownText(message.content, loader, onFile)
             message.files.forEach { file ->
